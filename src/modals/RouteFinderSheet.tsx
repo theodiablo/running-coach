@@ -20,9 +20,9 @@ type RouteFinderSheetProps = {
 
 const DISTANCE_CHIPS = [3, 5, 8, 10];
 const TERRAINS: ElevationPref[] = ["flat", "rolling", "hilly"];
-// Selected candidate: solid sky, thick. Others: muted slate, thin, semi-transparent.
-const SELECTED_STYLE = { color: "#38bdf8", opacity: 1, weight: 5, dashed: false };
-const OTHER_STYLE = { color: "#64748b", opacity: 0.5, weight: 3, dashed: false };
+// Selected candidate: solid sky, thick. Others: muted slate, thinner, semi-transparent.
+const SELECTED_STYLE = { color: "#38bdf8", opacity: 1, weight: 6, dashed: false };
+const OTHER_STYLE = { color: "#64748b", opacity: 0.6, weight: 4, dashed: false };
 
 export function RouteFinderSheet({ location, onClose, onSelect, showToast }: RouteFinderSheetProps) {
   const { t } = useTranslation();
@@ -110,8 +110,9 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
   };
 
   // Map guides: the candidate lines (selected highlighted), or a chosen favourite.
+  // `id` makes each line tappable on the map to select that candidate.
   const guides: RouteGuide[] = (candidates ?? []).map(c => ({
-    points: c.points, ...(c.id === selectedId ? SELECTED_STYLE : OTHER_STYLE),
+    points: c.points, id: c.id, ...(c.id === selectedId ? SELECTED_STYLE : OTHER_STYLE),
   }));
 
   const onPick = (loc: LatLng) => {
@@ -135,6 +136,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="relative h-[38vh] min-h-[220px]">
           <RouteMap points={[]} interactive location={origin} guides={guides} fitGuides={!!candidates?.length}
+            onGuidePick={setSelectedId}
             onPick={pickStart ? onPick : undefined} className="h-full w-full" style={{}} />
           {pickStart && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/85 text-slate-200 text-xs rounded-full px-3 py-1.5 border border-slate-700">

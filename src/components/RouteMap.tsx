@@ -32,6 +32,7 @@ export type RouteGuide = {
   dashed?: boolean;
   opacity?: number;
   weight?: number;
+  id?: string;  // when set (+ onGuidePick), the line is tappable to select it
 };
 type RouteMapProps = {
   points?: (TrackPoint | null)[];
@@ -51,6 +52,9 @@ type RouteMapProps = {
   guides?: RouteGuide[];
   // Frame the guide lines when there is no recorded track yet (finder preview).
   fitGuides?: boolean;
+  // Report a tap on a guide line (by its RouteGuide.id) so the map itself can
+  // select a candidate, not just the cards.
+  onGuidePick?: (id: string) => void;
 };
 
 const GUIDE_COLOR = "#38bdf8"; // sky — visually distinct from the orange record line
@@ -61,8 +65,10 @@ const LIVE_DEFAULT_ZOOM = 16; // recenter/snap-back zoom for the live map
 
 export function RouteMap({ points = [], follow = false, interactive = true, location = null, className = "", style,
   endpoints = false, highlight = null, onPick, recenterSignal = 0, onFollowingChange,
-  guidePoints = null, guides, fitGuides = false }: RouteMapProps) {
+  guidePoints = null, guides, fitGuides = false, onGuidePick }: RouteMapProps) {
   const { t } = useTranslation();
+  const onGuidePickRef = useRef(onGuidePick);
+  useEffect(() => { onGuidePickRef.current = onGuidePick; });
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const linesRef = useRef<Polyline[]>([]);
@@ -275,7 +281,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   // Full signature adds the style fields (incl. weight) so a style-only change
   // still redraws the strokes.
   const guideStyleSig = normalizedGuides.map(g =>
-    `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${g.weight ?? ""}`).join("|");
+    `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${g.weight ?? ""}:${g.id ?? ""}`).join("|");
   const guideSig = guideGeomSig + "|" + guideStyleSig;
   useEffect(() => {
     const map = mapRef.current;
@@ -293,6 +299,15 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
           ...(g.dashed ? { dashArray: "6 8" } : {}),
         }).addTo(map);
         guideLinesRef.current.push(line);
+        // A fat transparent "hit" line on top so a candidate is easy to tap on
+        // the map (a 4-6px stroke is a hard target). stroke-opacity:0 still
+        // counts as painted, so it stays invisible yet clickable.
+        if (g.id && onGuidePickRef.current) {
+          const id = g.id;
+          const hit = L.polyline(seg, { pane: "guide", color: "#000", weight: 20, opacity: 0 }).addTo(map);
+          hit.on("click", () => onGuidePickRef.current?.(id));
+          guideLinesRef.current.push(hit);
+        }
       });
     });
     // Keyed on the signature (not the arrays) so live-run re-renders don't thrash

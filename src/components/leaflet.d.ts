@@ -16,7 +16,9 @@ declare module "leaflet" {
     setLatLng: (latlng: LatLngExpression) => Circle;
     setRadius: (radius: number) => Circle;
   };
-  export type Polyline = Layer;
+  export type Polyline = Layer & {
+    on: (event: string, cb: (e: LeafletEvent) => void) => Polyline;
+  };
   export type ToggleHandler = { enable: () => void; disable: () => void };
   export type Map = {
     setView: (latlng: LatLngExpression, zoom: number, options?: { animate?: boolean }) => Map;
