@@ -18,9 +18,7 @@ import type { TrackPointOrGap } from "./geo";
 export type ElevationPref = "flat" | "rolling" | "hilly";
 export type RouteSuggestParams = { lat: number; lng: number; km: number; elevation?: ElevationPref };
 
-// ── Candidate quality thresholds (Phase 2) ──────────────────────────────────
-const MAX_LENGTH_ERROR = 0.2;   // reject loops >20% off the requested distance
-const MAX_OVERLAP = 0.4;        // reject loops that double back over themselves
+// ── Candidate quality (Phase 2) ─────────────────────────────────────────────
 // One generation = ONE charged edge-function call. We ask for several candidates
 // (each at a different target length — the server brackets the distance to fight
 // ORS's round-trip overshoot) and keep the ones closest to what was asked, rather
@@ -173,29 +171,27 @@ export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedR
   return out;
 }
 
-// Whether a candidate's elevation profile matches the requested preference
-// (metres of gain per km). Loose bounds — this only nudges ordering / retries.
-function elevationOK(route: SuggestedRoute, elevation?: ElevationPref): boolean {
-  if (!elevation || elevation === "rolling" || route.km <= 0) return true;
-  const perKm = route.elevation / route.km;
-  if (elevation === "flat") return perKm <= 15;
-  return perKm >= 8; // hilly
-}
-
-// Is a candidate good enough to stop retrying? (Length within tolerance, not a
-// heavy out-and-back, elevation in the requested band.)
-export function acceptable(route: SuggestedRoute, targetKm: number, elevation?: ElevationPref): boolean {
-  const err = targetKm > 0 ? Math.abs(route.km - targetKm) / targetKm : 1;
-  return err <= MAX_LENGTH_ERROR && (route.overlapPct ?? 0) <= MAX_OVERLAP && elevationOK(route, elevation);
+// Soft elevation-preference penalty (0 = ideal for the ask, ~1 = worst) from a
+// candidate's metres-of-gain-per-km. `flat` favours the flattest loops, `hilly`
+// the hilliest; `rolling`/unset is neutral. This only NUDGES ordering — it never
+// drops a candidate — so the finder still returns three loops in flat terrain.
+// perKm is normalised against ~30 m/km (a firmly hilly loop) → clamped to [0,1].
+function elevationPenalty(route: SuggestedRoute, elevation?: ElevationPref): number {
+  if (!elevation || elevation === "rolling" || route.km <= 0) return 0;
+  const perKm = Math.min(route.elevation / route.km / 30, 1);
+  return elevation === "flat" ? perKm : 1 - perKm; // hilly wants MORE gain
 }
 
 // Annotate each candidate with its length error and return them best-first
-// (closest to target + least overlap). Never drops any — the worst still shows
-// if nothing better exists, with honest measured numbers.
-export function rankCandidates(routes: SuggestedRoute[], targetKm: number): SuggestedRoute[] {
+// (closest to target, least overlap, elevation nearest the requested terrain).
+// Never drops any — the worst still shows if nothing better exists, with honest
+// measured numbers.
+export function rankCandidates(routes: SuggestedRoute[], targetKm: number, elevation?: ElevationPref): SuggestedRoute[] {
   const scored = routes.map(r => ({
     r: { ...r, lengthErrorPct: targetKm > 0 ? +(Math.abs(r.km - targetKm) / targetKm).toFixed(3) : undefined },
-    cost: (targetKm > 0 ? Math.abs(r.km - targetKm) / targetKm : 0) + (r.overlapPct ?? 0) * 0.5,
+    cost: (targetKm > 0 ? Math.abs(r.km - targetKm) / targetKm : 0)
+      + (r.overlapPct ?? 0) * 0.5
+      + elevationPenalty(r, elevation) * 0.35,
   }));
   scored.sort((a, b) => a.cost - b.cost);
   return scored.map(s => s.r);
@@ -257,6 +253,6 @@ export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?
   // is centred so these cluster near the ask). We deliberately don't hard-filter
   // by tolerance here — that made the count flap between 1 and 3; the spread
   // keeps the three closest accurate instead.
-  const routes = rankCandidates(all, params.km).slice(0, 3);
+  const routes = rankCandidates(all, params.km, params.elevation).slice(0, 3);
   return { status: "ok", routes };
 }

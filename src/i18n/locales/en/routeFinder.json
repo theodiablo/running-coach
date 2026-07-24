@@ -4,8 +4,7 @@
   "subtitle": "Loop routes from where you are",
   "distance": {
     "label": "Distance",
-    "chip": "{{km}} km",
-    "customPlaceholder": "km"
+    "chip": "{{km}} km"
   },
   "terrain": {
     "label": "Terrain",
