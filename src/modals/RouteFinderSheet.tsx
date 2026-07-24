@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, X, Loader, RefreshCw, MapPin, Sparkles, Star, Trash2, Check } from "lucide-react";
 import { RouteMap, type RouteGuide } from "../components/RouteMap";
-import { INPUT_CLS } from "../constants";
 import { useDismissable } from "../hooks/useDismissable";
 import { routeSuggest, overlapWithHistory, historyNearCandidates, type ElevationPref } from "../utils/routeSuggest";
 import { getRecentRoutePoints } from "../routes";
@@ -19,6 +18,8 @@ type RouteFinderSheetProps = {
 };
 
 const DISTANCE_CHIPS = [3, 5, 8, 10];
+const DISTANCE_MIN = 2;   // km — slider bounds
+const DISTANCE_MAX = 25;
 const TERRAINS: ElevationPref[] = ["flat", "rolling", "hilly"];
 // Selected candidate: solid sky, thick. Others: muted slate, thinner, semi-transparent.
 const SELECTED_STYLE = { color: "#38bdf8", opacity: 1, weight: 6, dashed: false };
@@ -46,6 +47,8 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
 
   const origin = customStart ?? location;
   const km = parseFloat(distance) || 0;
+  // The slider works in whole km, clamped to its bounds (default 5).
+  const sliderKm = Math.min(DISTANCE_MAX, Math.max(DISTANCE_MIN, Math.round(km) || 5));
 
   const generate = async (seedBase: number) => {
     if (!origin) { showToast?.(t("routeFinder.needLocation"), "err"); return; }
@@ -153,25 +156,27 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
 
         <div className="p-4 space-y-4">
           <p className="text-xs text-slate-400 -mb-1">{t("routeFinder.subtitle")}</p>
-          {/* Distance */}
+          {/* Distance: a slider (touch-friendly, no keyboard) with preset quick-picks */}
           <div>
-            <p className="text-xs text-slate-400 mb-1.5">{t("routeFinder.distance.label")}</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-xs text-slate-400">{t("routeFinder.distance.label")}</p>
+              <span className="text-base font-bold text-white tabular-nums">{t("routeFinder.distance.chip", { km: sliderKm })}</span>
+            </div>
+            <input type="range" min={DISTANCE_MIN} max={DISTANCE_MAX} step={1} value={sliderKm}
+              onChange={e => setDistance(e.target.value)}
+              className="w-full accent-orange-500" aria-label={t("routeFinder.distance.label")} />
+            <div className="mt-2 flex flex-wrap gap-2">
               {DISTANCE_CHIPS.map(d => {
-                const on = distance === String(d);
+                const on = sliderKm === d;
                 return (
                   <button key={d} onClick={() => setDistance(String(d))}
-                    className={"px-3 py-1.5 rounded-full text-sm font-semibold border " + (on
+                    className={"px-3 py-1 rounded-full text-xs font-semibold border " + (on
                       ? "bg-orange-500 border-orange-500 text-white"
                       : "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500")}>
                     {t("routeFinder.distance.chip", { km: d })}
                   </button>
                 );
               })}
-              <input type="text" inputMode="decimal" value={distance}
-                onChange={e => setDistance(e.target.value)}
-                placeholder={t("routeFinder.distance.customPlaceholder")}
-                className={INPUT_CLS + " w-20 !p-2 text-center"} aria-label={t("routeFinder.distance.label")} />
             </div>
           </div>
 

@@ -253,10 +253,10 @@ export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?
   if (outcome.kind === "error") return { status: "error" };
   const all = parseLoopCandidates(outcome.features, seedBase);
   if (!all.length) return { status: "empty" };
-  const ranked = rankCandidates(all, params.km); // closest-to-target first, annotated with lengthErrorPct
-  // Prefer loops within the length tolerance so the user gets what they asked
-  // for; only fall back to the closest available if none are within range.
-  const withinLength = ranked.filter(r => (r.lengthErrorPct ?? 1) <= MAX_LENGTH_ERROR);
-  const routes = (withinLength.length ? withinLength : ranked).slice(0, 3);
+  // Always surface the three CLOSEST-to-target loops (the server's length spread
+  // is centred so these cluster near the ask). We deliberately don't hard-filter
+  // by tolerance here — that made the count flap between 1 and 3; the spread
+  // keeps the three closest accurate instead.
+  const routes = rankCandidates(all, params.km).slice(0, 3);
   return { status: "ok", routes };
 }
