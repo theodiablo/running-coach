@@ -232,5 +232,6 @@ prompt/tool-description changes.
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
+- `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
 - `docs/monetization.md` — monetization direction.
