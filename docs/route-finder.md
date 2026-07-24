@@ -106,11 +106,13 @@ Bias hard toward well-mapped paths at the request level (green/quiet weightings,
 
 ## Configuration (dormant until both are set)
 
-- **Client:** `routeSuggestEnabled = !!VITE_ROUTE_SUGGEST && !!MAP_KEY`
-  (`src/constants.ts`). `VITE_ROUTE_SUGGEST` is a repo **variable** (`"1"`),
-  threaded through the same web-build workflow steps as `VITE_MAPTILER_KEY`
-  (`deploy.yml`, `deploy-pr.yml`, `android-pr.yml`, `android-main.yml`,
-  `release.yml`). Native shells enable together via the same web build.
+- **Client:** `routeSuggestEnabled = !!MAP_KEY && VITE_ROUTE_SUGGEST !== "0"`
+  (`src/constants.ts`) — the button renders wherever a MapTiler key exists;
+  set the repo **variable** `VITE_ROUTE_SUGGEST="0"` to force it hidden for a
+  deployment. (It's still threaded through the web-build workflows so that
+  opt-out reaches the bundle.) The server gate below is the real safety net, so
+  a visible button with no `ORS_API_KEY` just degrades to the "couldn't fetch"
+  toast rather than exposing anything.
 - **Server:** set the `ORS_API_KEY` function secret (optionally `ORS_BASE_URL`,
   `ROUTE_SUGGEST_LIMIT_PER_DAY`). Without it, `route-suggest` returns
   `{configured:false}` and the client treats it as "no result". Deploys via the

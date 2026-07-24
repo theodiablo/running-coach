@@ -162,15 +162,14 @@ export const MAP_TILE_URL =
 export const MAP_ATTRIBUTION =
   '© <a href="https://www.maptiler.com/copyright/">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>';
 
-// "Find a route" loop-suggestion feature gate (dormant by default, Polar
-// pattern). Two independent gates both default off: this build-time flag
-// (VITE_ROUTE_SUGGEST, a repo *variable* set to "1", threaded through the same
-// workflow build steps as VITE_MAPTILER_KEY) AND a MapTiler key — without tiles
-// a route drawn on a blank map is pointless, so the finder button doesn't render
-// without both. The server has its own gate (route-suggest returns
-// {configured:false} unless ORS_API_KEY is set), so the feature stays fully
-// dormant until both client and server are configured.
-export const routeSuggestEnabled = !!import.meta.env.VITE_ROUTE_SUGGEST && !!MAP_KEY;
+// "Find a route" loop-suggestion feature gate. Enabled wherever a MapTiler key
+// is present (without tiles a route on a blank map is pointless). The real
+// safety gate is server-side: the route-suggest edge function returns
+// {configured:false} until ORS_API_KEY is set, so the feature stays inert until
+// the backend is configured even though the button renders. An explicit
+// VITE_ROUTE_SUGGEST="0" still forces it off for a deployment that wants it
+// hidden; any other value (or unset) leaves it on when the map key exists.
+export const routeSuggestEnabled = !!MAP_KEY && import.meta.env.VITE_ROUTE_SUGGEST !== "0";
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
