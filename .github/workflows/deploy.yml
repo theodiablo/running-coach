@@ -39,6 +39,10 @@ jobs:
           # Inlined into the client bundle by Vite at build time. Domain-restricted
           # publishable key — see src/constants.ts. Set in repo Actions secrets.
           VITE_MAPTILER_KEY: ${{ secrets.VITE_MAPTILER_KEY }}
+          # "Find a route" loop-suggestion feature gate. A repo VARIABLE set to
+          # "1" enables it; dormant unless set AND a MapTiler key is present
+          # (the finder is pointless without map tiles). See docs/route-finder.md.
+          VITE_ROUTE_SUGGEST: ${{ vars.VITE_ROUTE_SUGGEST }}
           # PostHog project API key (telemetry). Public/publishable, also inlined
           # at build time. Telemetry is a no-op if unset — see docs/telemetry.md.
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}

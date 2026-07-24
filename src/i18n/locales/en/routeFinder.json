@@ -1,0 +1,45 @@
+{
+  "button": "Find a route",
+  "title": "Find a route",
+  "subtitle": "Loop routes from where you are",
+  "distance": {
+    "label": "Distance",
+    "chip": "{{km}} km",
+    "customPlaceholder": "km"
+  },
+  "terrain": {
+    "label": "Terrain",
+    "flat": "Flat",
+    "rolling": "Rolling",
+    "hilly": "Hilly"
+  },
+  "somewhereNew": "Somewhere new",
+  "pickStart": "Set start point",
+  "pickStartHint": "Tap the map to set the start",
+  "useMyLocation": "Use my location",
+  "generate": "Find routes",
+  "regenerate": "Show different routes",
+  "searching": "Finding routes",
+  "empty": "No loops found. Try a different distance.",
+  "none": "Couldn't fetch routes right now",
+  "needLocation": "Waiting for your location to suggest routes.",
+  "character": {
+    "mostlyPaths": "Mostly paths",
+    "mixed": "Mixed streets and paths",
+    "mostlyStreets": "Mostly streets"
+  },
+  "card": {
+    "distance": "{{km}} km",
+    "elevation": "+{{m}} m",
+    "candidate": "Route {{n}}"
+  },
+  "selected": "Selected",
+  "confirm": "Run this route",
+  "save": "Save",
+  "saved": "Route saved",
+  "saveFailed": "Couldn't save route",
+  "favorites": "Saved routes",
+  "removeSaved": "Remove saved route",
+  "safety": "Routes are suggested from open map data and haven't been checked on the ground. Stay alert: paths can cross roads or be closed or private.",
+  "attribution": "Routes powered by openrouteservice. Map data from OpenStreetMap contributors."
+}

@@ -1,0 +1,45 @@
+{
+  "button": "Trouver un parcours",
+  "title": "Trouver un parcours",
+  "subtitle": "Des boucles depuis ta position",
+  "distance": {
+    "label": "Distance",
+    "chip": "{{km}} km",
+    "customPlaceholder": "km"
+  },
+  "terrain": {
+    "label": "Terrain",
+    "flat": "Plat",
+    "rolling": "Vallonné",
+    "hilly": "Montagneux"
+  },
+  "somewhereNew": "Du nouveau",
+  "pickStart": "Choisir le départ",
+  "pickStartHint": "Touche la carte pour placer le départ",
+  "useMyLocation": "Ma position",
+  "generate": "Chercher des parcours",
+  "regenerate": "Voir d'autres parcours",
+  "searching": "Recherche en cours",
+  "empty": "Aucune boucle trouvée. Essaie une autre distance.",
+  "none": "Impossible de récupérer des parcours pour le moment",
+  "needLocation": "En attente de ta position pour proposer des parcours.",
+  "character": {
+    "mostlyPaths": "Surtout des chemins",
+    "mixed": "Rues et chemins mêlés",
+    "mostlyStreets": "Surtout des rues"
+  },
+  "card": {
+    "distance": "{{km}} km",
+    "elevation": "+{{m}} m",
+    "candidate": "Parcours {{n}}"
+  },
+  "selected": "Sélectionné",
+  "confirm": "Suivre ce parcours",
+  "save": "Enregistrer",
+  "saved": "Parcours enregistré",
+  "saveFailed": "Impossible d'enregistrer le parcours",
+  "favorites": "Parcours enregistrés",
+  "removeSaved": "Retirer le parcours enregistré",
+  "safety": "Les parcours sont proposés à partir de données cartographiques ouvertes et n'ont pas été vérifiés sur le terrain. Reste attentif : un chemin peut croiser une route, être fermé ou privé.",
+  "attribution": "Parcours fournis par openrouteservice. Données cartographiques OpenStreetMap contributors."
+}

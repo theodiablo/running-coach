@@ -78,6 +78,10 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
           VITE_MAPTILER_KEY: ${{ secrets.VITE_MAPTILER_KEY }}
+          # "Find a route" loop-suggestion feature gate. A repo VARIABLE set to
+          # "1" enables it; dormant unless set AND a MapTiler key is present
+          # (the finder is pointless without map tiles). See docs/route-finder.md.
+          VITE_ROUTE_SUGGEST: ${{ vars.VITE_ROUTE_SUGGEST }}
           # Tagged "preview" so PR-APK traffic is filterable out of production.
           # Empty (no-op) on fork PRs, which don't get secrets — that's fine.
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}

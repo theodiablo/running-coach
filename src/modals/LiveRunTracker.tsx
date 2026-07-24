@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
@@ -17,10 +17,11 @@ import { RouteMap } from "../components/RouteMap";
 import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
+import { RouteFinderSheet } from "./RouteFinderSheet";
 import { isNative, isAndroid, isIos } from "../native";
-import { BG_LOC_DISCLOSED_KEY } from "../constants";
+import { BG_LOC_DISCLOSED_KEY, routeSuggestEnabled } from "../constants";
 import { track } from "../telemetry";
-import type { HrMethod, HrPending, Run } from "../types";
+import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
   onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
@@ -80,6 +81,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // the current position at the default zoom and re-arms follow.
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [following, setFollowing] = useState(true);
+  // "Find a route" loop finder (dormant unless routeSuggestEnabled). The chosen
+  // loop becomes a sky dashed guide line under the recorded track — purely
+  // visual, the runner follows it by eye. Ephemeral: never saved, gone on close.
+  const [showFinder, setShowFinder] = useState(false);
+  const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
   // guardedStart's disclosure/HR gates, since guardedStart calls this as its fn.
@@ -355,6 +361,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       <div className="flex-1 min-h-0 relative">
         <RouteMap points={points} follow={state === "tracking"} interactive
           recenterSignal={recenterSignal} onFollowingChange={setFollowing}
+          guidePoints={plannedRoute?.points}
           location={location} className="h-full w-full" style={{}} />
         {live && !following && (
           <button type="button" onClick={() => setRecenterSignal(n => n + 1)} aria-label={t("tracker.map.recenter")}
@@ -420,6 +427,24 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 <Play size={20} />{t("tracker.controls.start")}
               </Ctrl>
             </div>
+            {routeSuggestEnabled && (
+              plannedRoute ? (
+                <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
+                  <Search size={15} className="text-sky-300 shrink-0" />
+                  <span className="text-sky-200">{t("routeFinder.card.distance", { km: plannedRoute.km.toFixed(1) })}</span>
+                  <button onClick={() => setShowFinder(true)} className="text-slate-300 hover:text-white underline decoration-slate-600">
+                    {t("routeFinder.button")}
+                  </button>
+                  <button onClick={() => setPlannedRoute(null)} aria-label={t("common.close")}
+                    className="ml-auto p-1 text-slate-400 hover:text-white"><X size={15} /></button>
+                </div>
+              ) : (
+                <button onClick={() => setShowFinder(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:border-slate-500 active:scale-95 transition-transform">
+                  <Search size={16} />{t("routeFinder.button")}
+                </button>
+              )
+            )}
           </>
         )}
         {state === "tracking" && (
@@ -493,6 +518,14 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             {countdown.count > 0 ? countdown.count : t("tracker.countdown.go")}
           </span>
         </button>
+      )}
+
+      {showFinder && (
+        <RouteFinderSheet
+          location={location ? { lat: location.lat, lng: location.lng } : null}
+          showToast={showToast}
+          onSelect={setPlannedRoute}
+          onClose={() => setShowFinder(false)} />
       )}
     </div>
   );

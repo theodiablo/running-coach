@@ -20,6 +20,19 @@ import { segments } from "../utils/geo";
 export type TrackPoint = [number, number, number, number | null] | LatLngExpression;
 type PreviewLocation = { lat: number; lng: number; acc?: number | null };
 type LatLng = { lat: number; lng: number };
+// A non-recorded "guide" line drawn UNDER the recorded track (own low-z pane):
+// the route-finder's suggested loops and the live tracker's chosen planned line.
+// Additive and inert by default so existing callers are untouched.
+// Guide geometry is looser than the recorded-track tuple: suggested loops are
+// [lat,lng,alt] 3-tuples (no timestamp), and only lat/lng are read for drawing.
+export type GuidePoint = readonly (number | null)[] | null;
+export type RouteGuide = {
+  points: GuidePoint[];
+  color?: string;
+  dashed?: boolean;
+  opacity?: number;
+  weight?: number;
+};
 type RouteMapProps = {
   points?: (TrackPoint | null)[];
   follow?: boolean;
@@ -32,18 +45,28 @@ type RouteMapProps = {
   onPick?: (loc: LatLng) => void;
   recenterSignal?: number;
   onFollowingChange?: (following: boolean) => void;
+  // Single planned line (live tracker handoff): sky, dashed, camera untouched.
+  guidePoints?: GuidePoint[] | null;
+  // Multiple styled guide lines (route-finder candidates).
+  guides?: RouteGuide[];
+  // Frame the guide lines when there is no recorded track yet (finder preview).
+  fitGuides?: boolean;
 };
+
+const GUIDE_COLOR = "#38bdf8"; // sky — visually distinct from the orange record line
 
 type ToggleKey = "dragging" | "scrollWheelZoom" | "doubleClickZoom" | "boxZoom" | "keyboard" | "touchZoom" | "tap";
 
 const LIVE_DEFAULT_ZOOM = 16; // recenter/snap-back zoom for the live map
 
 export function RouteMap({ points = [], follow = false, interactive = true, location = null, className = "", style,
-  endpoints = false, highlight = null, onPick, recenterSignal = 0, onFollowingChange }: RouteMapProps) {
+  endpoints = false, highlight = null, onPick, recenterSignal = 0, onFollowingChange,
+  guidePoints = null, guides, fitGuides = false }: RouteMapProps) {
   const { t } = useTranslation();
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const linesRef = useRef<Polyline[]>([]);
+  const guideLinesRef = useRef<Polyline[]>([]);
   const dotRef = useRef<Marker | null>(null);
   const startRef = useRef<Marker | null>(null);      // start-of-route marker (endpoints mode)
   const finishRef = useRef<Marker | null>(null);     // finish-of-route marker (endpoints mode)
@@ -87,11 +110,18 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       attributionControl: true,
     }).setView([0, 0], 2);
     L.tileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
+    // A dedicated low-z pane so guide lines (suggested/planned loops) always sit
+    // UNDER the recorded track (overlayPane z=400) and its markers, no matter the
+    // order the two effects run in.
+    map.createPane("guide");
+    const guidePane = map.getPane("guide");
+    if (guidePane) guidePane.style.zIndex = "390";
     mapRef.current = map;
     return () => {
       map.remove();
       mapRef.current = null;
       linesRef.current = [];
+      guideLinesRef.current = [];
       dotRef.current = null;
       startRef.current = null;
       finishRef.current = null;
@@ -221,6 +251,52 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       programmaticRef.current = false;
     }
   }, [points, follow, endpoints, programmaticSetView]);
+
+  // Guide lines (suggested loops / planned line) — drawn in the low-z "guide"
+  // pane so they read as background under any recorded track. Keyed on a cheap
+  // signature (segment count + endpoints) so it doesn't redraw on every unrelated
+  // re-render, and it never touches the follow/recenter camera; `fitGuides` only
+  // frames them while there's no recorded track (the finder's static preview).
+  const normalizedGuides: RouteGuide[] = [
+    ...(guidePoints?.length ? [{ points: guidePoints, color: GUIDE_COLOR, dashed: true, opacity: 0.9, weight: 4 }] : []),
+    ...(guides ?? []),
+  ];
+  const guideSig = normalizedGuides.map(g => {
+    const pts = g.points;
+    const a = pts[0], b = pts[pts.length - 1];
+    const coord = (p: unknown) => (Array.isArray(p) ? `${p[0]},${p[1]}` : "");
+    return `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${pts.length}:${coord(a)}:${coord(b)}`;
+  }).join("|");
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    guideLinesRef.current.forEach(l => l.remove());
+    guideLinesRef.current = [];
+    const allGuide: LatLngExpression[] = [];
+    normalizedGuides.forEach(g => {
+      (segments(g.points) as LatLngExpression[][]).forEach(seg => {
+        if (!seg.length) return;
+        const line = L.polyline(seg, {
+          pane: "guide",
+          color: g.color ?? GUIDE_COLOR,
+          weight: g.weight ?? 4,
+          opacity: g.opacity ?? 0.9,
+          ...(g.dashed ? { dashArray: "6 8" } : {}),
+        }).addTo(map);
+        guideLinesRef.current.push(line);
+        allGuide.push(...seg);
+      });
+    });
+    if (fitGuides && !points.length && allGuide.length) {
+      programmaticRef.current = true;
+      map.fitBounds(L.latLngBounds(allGuide).pad(0.2), { animate: false });
+      programmaticRef.current = false;
+    }
+    // Keyed on the cheap signature (not the arrays) so live-run re-renders don't
+    // thrash the guide layer; points.length is intentionally out of deps so the
+    // guide isn't redrawn on every GPS fix.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideSig, fitGuides]);
 
   // Externally-driven highlight (e.g. the run-detail chart hover). Keyed on the
   // primitive lat/lng, not the object, so it doesn't re-create the marker on every

@@ -177,6 +177,24 @@ export type PlanPrefill = {
   label: string;
 };
 
+// A suggested LOOP route from the "Find a route" finder. This is NOT a recorded
+// trace: it never touches run_routes / routeId, holds NO timestamps (nothing was
+// run), and lives only in ephemeral client memory (the finder sheet + the
+// tracker's plannedRoute overlay) until dismissal. A starred favourite is copied
+// into the separate saved_routes table (see src/savedRoutes.ts).
+export type SuggestedRoute = {
+  id: string;                                 // local nonce, e.g. "sr" + seed
+  points: [number, number, number | null][];  // [lat, lng, altM|null]
+  km: number;                                 // measured via distanceKm()
+  elevation: number;                          // measured via elevGainM()
+  // i18n key SUFFIX for the one-line character ("mostlyPaths" | "mixed" |
+  // "mostlyStreets"), resolved at render as t("routeFinder.character."+character).
+  character?: string;
+  // Scoring metadata (Phase 2), attached client-side; absent until scored.
+  lengthErrorPct?: number;                    // |measured-target| / target, 0..1+
+  overlapPct?: number;                        // self-overlap fraction, 0..1
+};
+
 export type RunPatch = Partial<Run>;
 export type PlanProgress = Pick<PlanSession, "done" | "skipped" | "runId">;
 

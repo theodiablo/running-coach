@@ -24,6 +24,8 @@ declare module "leaflet" {
     fitBounds: (bounds: unknown, options?: { animate?: boolean }) => Map;
     addControl: (control: Control) => Map;
     removeControl: (control: Control) => Map;
+    createPane: (name: string) => HTMLElement;
+    getPane: (name: string) => HTMLElement | undefined;
     remove: () => void;
     on: (event: string, cb: (e: LeafletEvent) => void) => Map;
     off: (event: string, cb?: (e: LeafletEvent) => void) => Map;
