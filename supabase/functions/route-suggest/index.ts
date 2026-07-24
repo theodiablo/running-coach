@@ -21,8 +21,6 @@
 //
 // Deploy:  supabase functions deploy route-suggest
 // Secrets: supabase secrets set ORS_API_KEY=...
-//          Without it every call returns { configured:false } and the client
-//          feature stays invisible (VITE_ROUTE_SUGGEST unset) — a safe no-op.
 //
 // Backend independence (Phase 4): the ORS call is isolated in fetchLoopGeoJSON
 // below. Self-hosting GraphHopper OSS or BRouter later means repointing THAT
@@ -49,13 +47,14 @@ function profileFor(elevation: unknown): string {
   return elevation === "hilly" ? "foot-hiking" : "foot-walking";
 }
 
+type SeedResult = { feature: unknown | null; err?: string };
+
 // ── Backend seam ────────────────────────────────────────────────────────────
-// One round-trip request → one GeoJSON Feature (or null on any failure, so one
-// bad seed never sinks the whole generation). Swapping ORS for a self-hosted
-// GraphHopper/BRouter later is a change to THIS function only.
+// One round-trip request → one GeoJSON Feature (or an error string, so one bad
+// seed never sinks the whole generation but we can still see WHY it failed).
 async function fetchLoopGeoJSON(
   profile: string, lat: number, lng: number, lengthM: number, seed: number,
-): Promise<unknown | null> {
+): Promise<SeedResult> {
   try {
     const res = await fetch(`${ORS_BASE}/v2/directions/${profile}/geojson`, {
       method: "POST",
@@ -70,34 +69,31 @@ async function fetchLoopGeoJSON(
         extra_info: ["waytypes"],
         // options.round_trip drops pseudo-via-points on a circle of ~lengthM
         // circumference around the start; `seed` varies the direction so
-        // different seeds yield genuinely different loops. green/quiet weightings
-        // bias toward parks and away from busy roads — the product intent.
+        // different seeds yield genuinely different loops.
         options: {
           round_trip: { length: lengthM, points: 4, seed },
-          profile_params: { weightings: { green: 1, quiet: 1 } },
         },
       }),
     });
     if (!res.ok) {
-      // Surface WHY a seed failed (bad params, unauthorized weighting, no
-      // routable network, rate limit) instead of silently dropping it.
       const errBody = await res.text().catch(() => "");
-      console.error(`route-suggest ORS fail: ${profile} seed=${seed} status=${res.status} body=${errBody.slice(0, 400)}`);
-      return null;
+      const err = `status=${res.status} ${errBody.slice(0, 300)}`;
+      console.error(`route-suggest ORS fail: ${profile} seed=${seed} ${err}`);
+      return { feature: null, err };
     }
     const body = await res.json().catch(() => null);
     const feature = body && Array.isArray(body.features) ? body.features[0] : null;
-    return feature ?? null;
+    return { feature: feature ?? null };
   } catch (e) {
-    console.error(`route-suggest ORS threw: ${profile} seed=${seed} ${String(e).slice(0, 200)}`);
-    return null; // network / parse error on one seed — skip it
+    const err = `threw ${String(e).slice(0, 200)}`;
+    console.error(`route-suggest ORS ${profile} seed=${seed} ${err}`);
+    return { feature: null, err };
   }
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    // Resolve the caller from their JWT (forwarded by functions.invoke).
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "unauthorized" }, 401);
     const userClient = createClient(
@@ -109,9 +105,7 @@ Deno.serve(async (req) => {
     const user = auth?.user;
     if (!user) return json({ error: "unauthorized" }, 401);
 
-    // Dormant until configured: no ORS key ⇒ the client treats this like "no
-    // result" and never renders the feature (VITE_ROUTE_SUGGEST also unset).
-    if (!ORS_API_KEY) return json({ configured: false });
+    if (!ORS_API_KEY) { console.error("route-suggest: ORS_API_KEY not set"); return json({ configured: false }); }
 
     const payload = await req.json().catch(() => ({})) as Record<string, unknown>;
     const lat = Number(payload.lat), lng = Number(payload.lng), km = Number(payload.km);
@@ -129,29 +123,24 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const today = new Date().toISOString().slice(0, 10);
-    // Read the current count and reject if the cap is already spent — WITHOUT
-    // charging yet. We only charge a generation that actually returns loops
-    // (below), so an ORS outage or an area with no routable loops doesn't burn
-    // the user's daily budget for a blank "couldn't fetch" toast. The check→charge
-    // gap allows a small race under concurrency, an acceptable trade for not
-    // billing failures on a low-stakes feature (unlike the coach's atomic path).
     const { data: usageRow, error: usageErr } = await admin.from("route_suggest_usage")
       .select("count").eq("user_id", user.id).eq("day", today).maybeSingle();
     if (usageErr) throw usageErr;
     const usedBefore = Number(usageRow?.count) || 0;
     if (usedBefore >= LIMIT_PER_DAY) {
-      return json({ error: "daily route limit reached — try again tomorrow", code: "RATE_LIMIT",
+      return json({ error: "daily route limit reached - try again tomorrow", code: "RATE_LIMIT",
         usage: { used: LIMIT_PER_DAY, limit: LIMIT_PER_DAY } });
     }
 
-    // Fan out the seeded round-trip calls concurrently; drop the failures.
     const seeds = Array.from({ length: count }, (_, i) => seedBase + i);
     const results = await Promise.all(seeds.map(s => fetchLoopGeoJSON(profile, lat, lng, lengthM, s)));
-    const features = results.filter(Boolean);
-    console.log(`route-suggest: km=${km} profile=${profile} lengthM=${lengthM} seeds=${seeds.length} features=${features.length}`);
-    // Charge ONE unit per successful generation, atomically (the increment guards
-    // against a concurrent double-charge). A generation that produced nothing is
-    // free — see the read-only pre-check above.
+    const features = results.map(r => r.feature).filter(Boolean);
+    const errs = results.map(r => r.err).filter(Boolean) as string[];
+    console.log(`route-suggest: km=${km} profile=${profile} lengthM=${lengthM} seeds=${seeds.length} features=${features.length} errs=${errs.length}`);
+
+    // Charge ONE unit per successful generation. A generation that produced
+    // nothing is free (see the pre-check), and returns the ORS diagnostics so a
+    // "no loop found" can be understood from the response.
     let used = usedBefore;
     if (features.length) {
       const { data: charged, error: chargeErr } = await admin.rpc("increment_route_suggest_usage", {
@@ -160,10 +149,14 @@ Deno.serve(async (req) => {
       if (chargeErr) throw chargeErr;
       used = Number(charged);
     }
-    return json({ configured: true, features, usage: { used, limit: LIMIT_PER_DAY } });
+    return json({
+      configured: true,
+      features,
+      usage: { used, limit: LIMIT_PER_DAY },
+      ...(features.length ? {} : { debug: errs.slice(0, 3) }),
+    });
   } catch (err) {
     console.error("route-suggest error", err);
-    // Never hard-fail the caller: the client resolves null and shows a toast.
     return json({ error: String(err) }, 200);
   }
 });
