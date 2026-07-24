@@ -6,6 +6,7 @@ import {
   acceptable,
   rankCandidates,
   overlapWithHistory,
+  historyNearCandidates,
 } from "./routeSuggest";
 import type { SuggestedRoute } from "../types";
 
@@ -122,5 +123,20 @@ describe("overlapWithHistory", () => {
   it("is partial when only some points coincide", () => {
     const half = line.slice(0, 5);
     expect(overlapWithHistory(line, half)).toBeCloseTo(0.5, 5);
+  });
+});
+
+describe("historyNearCandidates", () => {
+  const candidate = { points: [[45.75, 4.85, null], [45.76, 4.86, null]] as [number, number, number | null][] };
+  it("keeps history points inside the candidates' padded bbox", () => {
+    const inside: [number, number, number | null] = [45.755, 4.855, null];
+    const far: [number, number, number | null] = [40, 2, null];
+    const kept = historyNearCandidates([inside, far], [candidate]);
+    expect(kept).toContainEqual(inside);
+    expect(kept).not.toContainEqual(far);
+  });
+  it("returns [] with no candidates or no history", () => {
+    expect(historyNearCandidates([[45.75, 4.85, null]], [])).toEqual([]);
+    expect(historyNearCandidates([], [candidate])).toEqual([]);
   });
 });

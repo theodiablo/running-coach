@@ -116,19 +116,23 @@ Deno.serve(async (req) => {
     const profile = profileFor(payload.elevation);
     const lengthM = Math.round(km * 1000);
 
-    // Per-user daily budget, charged once per generation (not per seed). Atomic
-    // SQL increment so concurrent calls can't slip past the cap (mirrors the
-    // coach-agent limiter). Service role only — the client can't touch it.
+    // Per-user daily budget. Service role only — the client can't touch it.
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const today = new Date().toISOString().slice(0, 10);
-    const { data: used, error: usageErr } = await admin.rpc("increment_route_suggest_usage", {
-      p_user_id: user.id, p_day: today,
-    });
+    // Read the current count and reject if the cap is already spent — WITHOUT
+    // charging yet. We only charge a generation that actually returns loops
+    // (below), so an ORS outage or an area with no routable loops doesn't burn
+    // the user's daily budget for a blank "couldn't fetch" toast. The check→charge
+    // gap allows a small race under concurrency, an acceptable trade for not
+    // billing failures on a low-stakes feature (unlike the coach's atomic path).
+    const { data: usageRow, error: usageErr } = await admin.from("route_suggest_usage")
+      .select("count").eq("user_id", user.id).eq("day", today).maybeSingle();
     if (usageErr) throw usageErr;
-    if (Number(used) > LIMIT_PER_DAY) {
+    const usedBefore = Number(usageRow?.count) || 0;
+    if (usedBefore >= LIMIT_PER_DAY) {
       return json({ error: "daily route limit reached — try again tomorrow", code: "RATE_LIMIT",
         usage: { used: LIMIT_PER_DAY, limit: LIMIT_PER_DAY } });
     }
@@ -137,7 +141,18 @@ Deno.serve(async (req) => {
     const seeds = Array.from({ length: count }, (_, i) => seedBase + i);
     const results = await Promise.all(seeds.map(s => fetchLoopGeoJSON(profile, lat, lng, lengthM, s)));
     const features = results.filter(Boolean);
-    return json({ configured: true, features, usage: { used: Number(used), limit: LIMIT_PER_DAY } });
+    // Charge ONE unit per successful generation, atomically (the increment guards
+    // against a concurrent double-charge). A generation that produced nothing is
+    // free — see the read-only pre-check above.
+    let used = usedBefore;
+    if (features.length) {
+      const { data: charged, error: chargeErr } = await admin.rpc("increment_route_suggest_usage", {
+        p_user_id: user.id, p_day: today,
+      });
+      if (chargeErr) throw chargeErr;
+      used = Number(charged);
+    }
+    return json({ configured: true, features, usage: { used, limit: LIMIT_PER_DAY } });
   } catch (err) {
     console.error("route-suggest error", err);
     // Never hard-fail the caller: the client resolves null and shows a toast.

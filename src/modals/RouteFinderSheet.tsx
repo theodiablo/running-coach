@@ -4,7 +4,7 @@ import { Search, X, Loader, RefreshCw, MapPin, Sparkles, Star, Trash2, Check } f
 import { RouteMap, type RouteGuide } from "../components/RouteMap";
 import { INPUT_CLS } from "../constants";
 import { useDismissable } from "../hooks/useDismissable";
-import { routeSuggest, overlapWithHistory, type ElevationPref } from "../utils/routeSuggest";
+import { routeSuggest, overlapWithHistory, historyNearCandidates, type ElevationPref } from "../utils/routeSuggest";
 import { getRecentRoutePoints } from "../routes";
 import { listSavedRoutes, saveRoute as persistSavedRoute, deleteSavedRoute, type SavedRoute } from "../savedRoutes";
 import { track } from "../telemetry";
@@ -61,7 +61,11 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
       // never leave the device — the recorded traces are fetched and compared here.
       const recent = await getRecentRoutePoints(20);
       if (!mountedRef.current) return;
-      const history = recent.flat().filter(Boolean) as [number, number, number | null][];
+      const allHistory = recent.flat().filter(Boolean) as [number, number, number | null][];
+      // Bound the O(points × history) scan to recorded points near the candidates
+      // (most of a heavy user's history is elsewhere in town), so the main thread
+      // isn't blocked after the network wait.
+      const history = historyNearCandidates(allHistory, routes);
       if (history.length) {
         routes = [...routes]
           .map(r => ({ r, novelty: overlapWithHistory(r.points, history) }))
@@ -144,7 +148,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
                   </button>
                 );
               })}
-              <input type="text" inputMode="decimal" value={DISTANCE_CHIPS.includes(km) ? "" : distance}
+              <input type="text" inputMode="decimal" value={distance}
                 onChange={e => setDistance(e.target.value)}
                 placeholder={t("routeFinder.distance.customPlaceholder")}
                 className={INPUT_CLS + " w-20 !p-2 text-center"} aria-label={t("routeFinder.distance.label")} />

@@ -261,18 +261,22 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     ...(guidePoints?.length ? [{ points: guidePoints, color: GUIDE_COLOR, dashed: true, opacity: 0.9, weight: 4 }] : []),
     ...(guides ?? []),
   ];
-  const guideSig = normalizedGuides.map(g => {
-    const pts = g.points;
-    const a = pts[0], b = pts[pts.length - 1];
-    const coord = (p: unknown) => (Array.isArray(p) ? `${p[0]},${p[1]}` : "");
-    return `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${pts.length}:${coord(a)}:${coord(b)}`;
-  }).join("|");
+  const coordSig = (p: unknown) => (Array.isArray(p) ? `${p[0]},${p[1]}` : "");
+  // Geometry-only signature: which lines exist and where, ignoring styling. The
+  // camera fit keys on THIS, so restyling (e.g. selecting a candidate, which only
+  // flips colours/opacity) never re-fits and clobbers the user's pan/zoom.
+  const guideGeomSig = normalizedGuides.map(g =>
+    `${g.points.length}:${coordSig(g.points[0])}:${coordSig(g.points[g.points.length - 1])}`).join("|");
+  // Full signature adds the style fields (incl. weight) so a style-only change
+  // still redraws the strokes.
+  const guideStyleSig = normalizedGuides.map(g =>
+    `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${g.weight ?? ""}`).join("|");
+  const guideSig = guideGeomSig + "|" + guideStyleSig;
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     guideLinesRef.current.forEach(l => l.remove());
     guideLinesRef.current = [];
-    const allGuide: LatLngExpression[] = [];
     normalizedGuides.forEach(g => {
       (segments(g.points) as LatLngExpression[][]).forEach(seg => {
         if (!seg.length) return;
@@ -284,19 +288,29 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
           ...(g.dashed ? { dashArray: "6 8" } : {}),
         }).addTo(map);
         guideLinesRef.current.push(line);
-        allGuide.push(...seg);
       });
     });
-    if (fitGuides && !points.length && allGuide.length) {
-      programmaticRef.current = true;
-      map.fitBounds(L.latLngBounds(allGuide).pad(0.2), { animate: false });
-      programmaticRef.current = false;
-    }
-    // Keyed on the cheap signature (not the arrays) so live-run re-renders don't
-    // thrash the guide layer; points.length is intentionally out of deps so the
-    // guide isn't redrawn on every GPS fix.
+    // Keyed on the signature (not the arrays) so live-run re-renders don't thrash
+    // the guide layer; points.length is intentionally out of deps so the guide
+    // isn't redrawn on every GPS fix.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideSig, fitGuides]);
+  }, [guideSig]);
+
+  // Frame the guides — but ONLY when the guide GEOMETRY changes (a new candidate
+  // set), never on a style-only restyle, and only while there's no recorded track
+  // yet (the finder's static preview). Separate from the draw effect so selecting
+  // a candidate doesn't re-fit and reset a zoom the user set.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fitGuides || points.length) return;
+    const allGuide: LatLngExpression[] = [];
+    normalizedGuides.forEach(g => (segments(g.points) as LatLngExpression[][]).forEach(seg => allGuide.push(...seg)));
+    if (!allGuide.length) return;
+    programmaticRef.current = true;
+    map.fitBounds(L.latLngBounds(allGuide).pad(0.2), { animate: false });
+    programmaticRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideGeomSig, fitGuides]);
 
   // Externally-driven highlight (e.g. the run-detail chart hover). Keyed on the
   // primitive lat/lng, not the object, so it doesn't re-create the marker on every

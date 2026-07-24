@@ -21,8 +21,11 @@ export type RouteSuggestParams = { lat: number; lng: number; km: number; elevati
 // ── Candidate quality thresholds (Phase 2) ──────────────────────────────────
 const MAX_LENGTH_ERROR = 0.2;   // reject loops >20% off the requested distance
 const MAX_OVERLAP = 0.4;        // reject loops that double back over themselves
-const MIN_GOOD = 2;             // keep fetching until we have this many acceptable ones
-const MAX_ATTEMPTS = 2;         // ...but cap the auto-retry so quota can't run away
+// One generation = ONE charged edge-function call. We ask for a few candidates
+// up front and pick the best rather than a second, separately-charged retry —
+// so the per-user daily limit means what it says. A poor area is handled by the
+// explicit (also single-call) "Regenerate", not a silent double charge.
+const CANDIDATES_PER_GEN = 4;
 const OVERLAP_THRESHOLD_M = 20; // two points closer than this (and far apart in the
 const OVERLAP_MIN_IDX_GAP = 4;  //   path) count as an overlap
 
@@ -91,6 +94,29 @@ export function overlapWithHistory(
   return near / points.length;
 }
 
+// Cheap O(history) pre-pass for "somewhere new": keep only recorded-route points
+// inside the candidates' combined bounding box (padded by ~marginM), so the
+// O(points × history) overlap scan never touches routes in another part of town.
+// Pure; coordinates stay on-device.
+export function historyNearCandidates(
+  history: [number, number, number | null][],
+  candidates: { points: [number, number, number | null][] }[],
+  marginM = 100,
+): [number, number, number | null][] {
+  const pts = candidates.flatMap(c => c.points);
+  if (!pts.length || !history.length) return [];
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const p of pts) {
+    if (p[0] < minLat) minLat = p[0];
+    if (p[0] > maxLat) maxLat = p[0];
+    if (p[1] < minLng) minLng = p[1];
+    if (p[1] > maxLng) maxLng = p[1];
+  }
+  const dLat = marginM / 111320;
+  const dLng = marginM / (111320 * Math.cos(((minLat + maxLat) / 2) * (Math.PI / 180)) || 1);
+  return history.filter(h => h[0] >= minLat - dLat && h[0] <= maxLat + dLat && h[1] >= minLng - dLng && h[1] <= maxLng + dLng);
+}
+
 // Decode a batch of ORS GeoJSON round-trip features into measured SuggestedRoutes.
 // Pure: no I/O. `seedBase` only seeds the local ids so a batch has stable keys.
 export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedRoute[] {
@@ -110,10 +136,16 @@ export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedR
       points.push([lat, lng, ele]);
     }
     if (points.length < 2) return;
-    // Measure on the FULL decoded line (matches how the tracker measures a live
-    // run), then simplify for the stored/drawn geometry — same as saveRoute.
-    const km = +distanceKm(points as unknown as TrackPointOrGap[]).toFixed(2);
+    // Distance: ORS geometry is CLEAN and densely sampled along curves, so the
+    // tracker's 3m jitter gate (built for noisy GPS) would drop legitimate short
+    // legs and undercount the loop — measure the true polyline length with the
+    // gate OFF (minM=0). Elevation KEEPS elevGainM's 5m hysteresis: the SRTM data
+    // ORS samples is noisier than 5m, so a smaller band would inflate the gain.
+    const km = +distanceKm(points as unknown as TrackPointOrGap[], 0).toFixed(2);
     const elevation = Math.round(elevGainM(points.map(p => ({ lat: p[0], lng: p[1], alt: p[2] }))));
+    // Simplify FIRST, then score self-overlap on the thinned line: selfOverlapPct
+    // is O(n^2), and a dense raw ORS loop can be thousands of points, so scoring
+    // the simplified (tens of points) geometry keeps it off the main-thread hot path.
     const simplified = simplify(points as unknown as TrackPointOrGap[]) as [number, number, number | null][];
     const props = feature && typeof feature === "object" ? (feature as { properties?: unknown }).properties : null;
     const extras = props && typeof props === "object" ? (props as { extras?: unknown }).extras : null;
@@ -125,7 +157,7 @@ export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedR
       km,
       elevation,
       character: characterFromWaytypes(wtSummary),
-      overlapPct: +selfOverlapPct(points).toFixed(3),
+      overlapPct: +selfOverlapPct(simplified).toFixed(3),
     });
   });
   return out;
@@ -161,10 +193,9 @@ export function rankCandidates(routes: SuggestedRoute[], targetKm: number): Sugg
 
 // ── Edge-function call (never throws) ───────────────────────────────────────
 
-// One generation call to the proxy. Returns the raw feature array, or null for
-// any reason we should NOT retry (feature off, unconfigured server, rate limit,
-// transport failure). An empty array means the seeds all failed but a retry with
-// fresh seeds might still work.
+// One generation call to the proxy. Returns the raw feature array, or null when
+// the feature is off / unconfigured / rate-limited / a transport failure (the
+// caller shows a toast either way). An empty array means the seeds all failed.
 async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count: number): Promise<unknown[] | null> {
   try {
     const { data, error } = await supabase.functions.invoke("route-suggest", {
@@ -178,23 +209,19 @@ async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count
   }
 }
 
-// Fetch, score, and (Phase 2) auto-retry with fresh seeds until we have enough
-// acceptable loops or the attempt cap is hit. `seedBase` lets the sheet's
-// "Regenerate" ask for a different batch. Resolves null when nothing usable came
-// back, so the caller shows a toast and the tracker stays fully usable.
+// Fetch and score one generation. Exactly ONE edge-function call (one charged
+// unit) — we request several candidates and return the best rather than a
+// second, separately-charged retry, so the daily limit is honest. `seedBase`
+// lets the sheet's "Regenerate" ask for a fresh batch (its own explicit,
+// single-call generation). Resolves null when nothing usable came back, so the
+// caller shows a toast and the tracker stays fully usable.
 export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?: number } = {}): Promise<SuggestedRoute[] | null> {
   if (!routeSuggestEnabled) return null;
   if (!Number.isFinite(params.lat) || !Number.isFinite(params.lng) || !(params.km > 0)) return null;
-  let seedBase = opts.seedBase ?? 0;
-  const all: SuggestedRoute[] = [];
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const features = await fetchFeatures(params, seedBase, 3);
-    if (features == null) break; // do-not-retry signal
-    const batch = parseLoopCandidates(features, seedBase);
-    all.push(...batch);
-    seedBase += 3;
-    if (all.filter(r => acceptable(r, params.km, params.elevation)).length >= MIN_GOOD) break;
-  }
+  const seedBase = opts.seedBase ?? 0;
+  const features = await fetchFeatures(params, seedBase, CANDIDATES_PER_GEN);
+  if (features == null) return null;
+  const all = parseLoopCandidates(features, seedBase);
   if (!all.length) return null;
   return rankCandidates(all, params.km).slice(0, 3);
 }
