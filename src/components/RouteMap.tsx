@@ -32,7 +32,8 @@ export type RouteGuide = {
   dashed?: boolean;
   opacity?: number;
   weight?: number;
-  id?: string;  // when set (+ onGuidePick), the line is tappable to select it
+  id?: string;     // when set (+ onGuidePick), the line is tappable to select it
+  label?: string;  // when set, a permanent tooltip on the line (e.g. the selected route's stats)
 };
 type RouteMapProps = {
   points?: (TrackPoint | null)[];
@@ -281,7 +282,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   // Full signature adds the style fields (incl. weight) so a style-only change
   // still redraws the strokes.
   const guideStyleSig = normalizedGuides.map(g =>
-    `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${g.weight ?? ""}:${g.id ?? ""}`).join("|");
+    `${g.color ?? ""}:${g.dashed ? "d" : ""}:${g.opacity ?? ""}:${g.weight ?? ""}:${g.id ?? ""}:${g.label ?? ""}`).join("|");
   const guideSig = guideGeomSig + "|" + guideStyleSig;
   useEffect(() => {
     const map = mapRef.current;
@@ -289,6 +290,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     guideLinesRef.current.forEach(l => l.remove());
     guideLinesRef.current = [];
     normalizedGuides.forEach(g => {
+      let labelled = false; // bind the tooltip to only the first drawn segment
       (segments(g.points) as LatLngExpression[][]).forEach(seg => {
         if (!seg.length) return;
         const line = L.polyline(seg, {
@@ -299,6 +301,10 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
           ...(g.dashed ? { dashArray: "6 8" } : {}),
         }).addTo(map);
         guideLinesRef.current.push(line);
+        if (g.label && !labelled) {
+          line.bindTooltip(g.label, { permanent: true, direction: "top", className: "route-guide-tip", opacity: 1 });
+          labelled = true;
+        }
         // A fat transparent "hit" line on top so a candidate is easy to tap on
         // the map (a 4-6px stroke is a hard target). stroke-opacity:0 still
         // counts as painted, so it stays invisible yet clickable.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  characterFromWaytypes,
+  characterFromSurface,
   selfOverlapPct,
   parseLoopCandidates,
   acceptable,
@@ -23,28 +23,33 @@ function squareLoopCoords(): [number, number, number][] {
   ];
 }
 
-function feature(coords: [number, number, number][], waytypesSummary?: unknown) {
+function feature(coords: [number, number, number][], surfaceSummary?: unknown) {
   return {
     type: "Feature",
     geometry: { type: "LineString", coordinates: coords },
-    properties: { extras: waytypesSummary ? { waytypes: { summary: waytypesSummary } } : undefined },
+    properties: { extras: surfaceSummary ? { surface: { summary: surfaceSummary } } : undefined },
   };
 }
 
-describe("characterFromWaytypes", () => {
-  it("buckets a mostly-path route", () => {
-    expect(characterFromWaytypes([{ value: 7, amount: 70 }, { value: 3, amount: 30 }])).toBe("mostlyPaths");
+describe("characterFromSurface", () => {
+  it("buckets a mostly-unpaved route as paths", () => {
+    // 11=Dirt (unpaved), 3=Asphalt (paved)
+    expect(characterFromSurface([{ value: 11, amount: 70 }, { value: 3, amount: 30 }])).toBe("mostlyPaths");
   });
   it("buckets a mixed route", () => {
-    expect(characterFromWaytypes([{ value: 4, amount: 30 }, { value: 3, amount: 70 }])).toBe("mixed");
+    expect(characterFromSurface([{ value: 11, amount: 30 }, { value: 3, amount: 70 }])).toBe("mixed");
   });
-  it("buckets a mostly-street route", () => {
-    expect(characterFromWaytypes([{ value: 3, amount: 90 }, { value: 7, amount: 10 }])).toBe("mostlyStreets");
+  it("buckets a mostly-paved route as streets", () => {
+    expect(characterFromSurface([{ value: 3, amount: 90 }, { value: 11, amount: 10 }])).toBe("mostlyStreets");
   });
-  it("returns undefined without way-type data", () => {
-    expect(characterFromWaytypes(undefined)).toBeUndefined();
-    expect(characterFromWaytypes(null)).toBeUndefined();
-    expect(characterFromWaytypes("nope")).toBeUndefined();
+  it("returns undefined when too little surface is tagged", () => {
+    // 0=Unknown dominates; only 10% is classifiable.
+    expect(characterFromSurface([{ value: 0, amount: 90 }, { value: 3, amount: 10 }])).toBeUndefined();
+  });
+  it("returns undefined without surface data", () => {
+    expect(characterFromSurface(undefined)).toBeUndefined();
+    expect(characterFromSurface(null)).toBeUndefined();
+    expect(characterFromSurface("nope")).toBeUndefined();
   });
 });
 

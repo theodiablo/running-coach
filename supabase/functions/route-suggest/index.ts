@@ -66,9 +66,10 @@ async function fetchLoopGeoJSON(
       body: JSON.stringify({
         coordinates: [[lng, lat]],
         elevation: true,
-        // NB: the ORS foot profiles reject extra_info:["waytypes"] (that's a
-        // driving/cycling extra) with error 2003 — so we don't request it and
-        // derive the route "character" from surface later if needed.
+        // NB: the ORS foot profiles reject extra_info:["waytypes"] (error 2003 —
+        // that's a driving/cycling extra); `surface` IS valid and the client
+        // derives the route "character" (paths vs streets) from it.
+        extra_info: ["surface"],
         // options.round_trip drops pseudo-via-points on a circle of ~lengthM
         // circumference around the start; `seed` varies the direction so
         // different seeds yield genuinely different loops. green/quiet weightings
@@ -153,12 +154,7 @@ Deno.serve(async (req) => {
       if (chargeErr) throw chargeErr;
       used = Number(charged);
     }
-    return json({
-      configured: true,
-      features,
-      usage: { used, limit: LIMIT_PER_DAY },
-      ...(features.length ? {} : { debug: errs.slice(0, 3) }),
-    });
+    return json({ configured: true, features, usage: { used, limit: LIMIT_PER_DAY } });
   } catch (err) {
     console.error("route-suggest error", err);
     return json({ error: String(err) }, 200);

@@ -29,27 +29,36 @@ const CANDIDATES_PER_GEN = 4;
 const OVERLAP_THRESHOLD_M = 20; // two points closer than this (and far apart in the
 const OVERLAP_MIN_IDX_GAP = 4;  //   path) count as an overlap
 
-// ORS WayType codes that read as "off-road / pedestrian" for the character line:
-// 4=Path, 5=Track, 7=Footway, 8=Steps. (State roads/streets are the rest.)
-const PATH_WAYTYPES = new Set([4, 5, 7, 8]);
+// ORS `surface` extra_info codes (the foot profiles reject `waytypes`). Natural
+// / unpaved surfaces read as "paths" for a runner; hard paving as "streets".
+// Unknown (0) and anything unlisted carries no signal.
+const UNPAVED_SURFACES = new Set([2, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18]); // unpaved, wood, gravels, dirt, ground, sand, woodchips, grass(-paver)
+const PAVED_SURFACES = new Set([1, 3, 4, 5, 6, 14]);                        // paved, asphalt, concrete, cobblestone, metal, paving stones
 
 // ── Pure geometry helpers (tested) ──────────────────────────────────────────
 
-// One-line character bucket from an ORS `extras.waytypes.summary` array
-// ([{ value, amount }], amount = % of the route on that way type). Returns an
-// i18n key suffix, or undefined when way-type data is absent.
-export function characterFromWaytypes(summary: unknown): string | undefined {
+// One-line character bucket from an ORS `extras.surface.summary` array
+// ([{ value, amount }], amount = % of the route on that surface). Returns an
+// i18n key suffix, or undefined when there isn't enough tagged surface to say
+// (OSM surface tagging is sparse — a route that's mostly "unknown" gets no
+// label rather than a misleading one).
+export function characterFromSurface(summary: unknown): string | undefined {
   if (!Array.isArray(summary)) return undefined;
-  let pathShare = 0;
+  let unpaved = 0, paved = 0;
   for (const row of summary) {
     if (row && typeof row === "object") {
       const value = Number((row as { value?: unknown }).value);
       const amount = Number((row as { amount?: unknown }).amount);
-      if (Number.isFinite(value) && Number.isFinite(amount) && PATH_WAYTYPES.has(value)) pathShare += amount;
+      if (!Number.isFinite(value) || !Number.isFinite(amount)) continue;
+      if (UNPAVED_SURFACES.has(value)) unpaved += amount;
+      else if (PAVED_SURFACES.has(value)) paved += amount;
     }
   }
-  if (pathShare >= 55) return "mostlyPaths";
-  if (pathShare >= 25) return "mixed";
+  const known = unpaved + paved;
+  if (known < 40) return undefined; // too little surface data tagged to classify
+  const unpavedRatio = unpaved / known;
+  if (unpavedRatio >= 0.55) return "mostlyPaths";
+  if (unpavedRatio >= 0.25) return "mixed";
   return "mostlyStreets";
 }
 
@@ -149,14 +158,14 @@ export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedR
     const simplified = simplify(points as unknown as TrackPointOrGap[]) as [number, number, number | null][];
     const props = feature && typeof feature === "object" ? (feature as { properties?: unknown }).properties : null;
     const extras = props && typeof props === "object" ? (props as { extras?: unknown }).extras : null;
-    const waytypes = extras && typeof extras === "object" ? (extras as { waytypes?: unknown }).waytypes : null;
-    const wtSummary = waytypes && typeof waytypes === "object" ? (waytypes as { summary?: unknown }).summary : null;
+    const surface = extras && typeof extras === "object" ? (extras as { surface?: unknown }).surface : null;
+    const sSummary = surface && typeof surface === "object" ? (surface as { summary?: unknown }).summary : null;
     out.push({
       id: "sr" + (seedBase + i),
       points: simplified,
       km,
       elevation,
-      character: characterFromWaytypes(wtSummary),
+      character: characterFromSurface(sSummary),
       overlapPct: +selfOverlapPct(simplified).toFixed(3),
     });
   });

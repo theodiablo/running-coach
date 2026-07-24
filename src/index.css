@@ -108,6 +108,21 @@
   animation: route-highlight 1.4s ease-out infinite;
 }
 
+/* Route-finder selected-loop stats tooltip (Leaflet permanent tooltip). Dark to
+   match the app rather than Leaflet's default white box. */
+.leaflet-tooltip.route-guide-tip {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+.leaflet-tooltip.route-guide-tip.leaflet-tooltip-top::before { border-top-color: #334155; }
+
 /* Respect the OS "reduce motion" setting: collapse every animation and
    transition to near-instant. `animate-spin` is exempt — a frozen loading
    spinner reads as a hung app. There is no per-animation opt-out to maintain;

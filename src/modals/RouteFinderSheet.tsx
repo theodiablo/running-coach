@@ -110,9 +110,15 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
   };
 
   // Map guides: the candidate lines (selected highlighted), or a chosen favourite.
-  // `id` makes each line tappable on the map to select that candidate.
+  // `id` makes each line tappable to select it; the selected one carries a
+  // permanent tooltip with its distance + elevation.
   const guides: RouteGuide[] = (candidates ?? []).map(c => ({
-    points: c.points, id: c.id, ...(c.id === selectedId ? SELECTED_STYLE : OTHER_STYLE),
+    points: c.points,
+    id: c.id,
+    ...(c.id === selectedId ? SELECTED_STYLE : OTHER_STYLE),
+    ...(c.id === selectedId
+      ? { label: `${t("routeFinder.card.distance", { km: c.km.toFixed(1) })} · ${t("routeFinder.card.elevation", { m: c.elevation })}` }
+      : {}),
   }));
 
   const onPick = (loc: LatLng) => {

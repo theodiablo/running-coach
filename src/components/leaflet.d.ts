@@ -18,6 +18,7 @@ declare module "leaflet" {
   };
   export type Polyline = Layer & {
     on: (event: string, cb: (e: LeafletEvent) => void) => Polyline;
+    bindTooltip: (content: string, options?: Record<string, unknown>) => Polyline;
   };
   export type ToggleHandler = { enable: () => void; disable: () => void };
   export type Map = {
