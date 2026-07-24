@@ -440,8 +440,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 </div>
               ) : (
                 <button onClick={() => setShowFinder(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:border-slate-500 active:scale-95 transition-transform">
-                  <Search size={16} />{t("routeFinder.button")}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-semibold bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 active:scale-95 transition-[background-color,transform]">
+                  <Search size={18} />{t("routeFinder.button")}
                 </button>
               )
             )}
