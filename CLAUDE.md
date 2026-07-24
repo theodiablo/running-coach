@@ -84,6 +84,16 @@ rules, not a changelog; delete anything stale.
 - **Derived-state resets happen during render, not in effects** — see the
   `if (plan !== prevPlan)` pattern in `PlanView.tsx`. Related: no sync setState
   in effects (the `react-hooks` rule); reconcile in event handlers.
+- **Premium gating:** entitlement is `profiles.premium_until` (+ `premium_since`
+  for loyalty history), **service-role-writable only** — never put it in the
+  `app_state` blob, which the user can write. `src/premium.ts` reads the caller's
+  own row for UI only (`isPremiumActive`; `canShowPremiumTeaser` is false on iOS
+  while no IAP exists); **the gate is always server-side** in the feature's edge
+  function. `App.tsx` owns the fetch (once per sign-in, refreshed when a teaser
+  opens) and threads `isPremium` through the `shared` bag. A failed read means
+  free, so premium checks must degrade safely. New premium features land
+  premium-first — never claw back something already free. See
+  `docs/monetization.md`.
 - **Telemetry:** everything goes through the vendor-agnostic seam
   `src/telemetry/index.ts`; only `src/telemetry/posthog.ts` imports the SDK
   (dynamic import, no-op until `VITE_POSTHOG_KEY`). Consent is opt-in,
@@ -234,4 +244,4 @@ prompt/tool-description changes.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
-- `docs/monetization.md` — monetization direction.
+- `docs/monetization.md` — monetization direction, the premium seam, payments path.

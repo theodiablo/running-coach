@@ -201,19 +201,22 @@ export function rankCandidates(routes: SuggestedRoute[], targetKm: number, eleva
 
 // The generation outcome, kept distinct so the sheet can show the RIGHT message
 // instead of collapsing everything into "couldn't fetch":
-//   ok          — at least one routable loop
-//   empty       — the server answered fine but found no loop here
-//   rateLimited — the per-user daily cap is spent
-//   error       — transport failure / feature unconfigured / offline
+//   ok              — at least one routable loop
+//   empty           — the server answered fine but found no loop here
+//   rateLimited     — the per-user daily cap is spent
+//   premiumRequired — the server says this account isn't premium
+//   error           — transport failure / feature unconfigured / offline
 export type RouteSuggestResult =
   | { status: "ok"; routes: SuggestedRoute[] }
   | { status: "empty" }
   | { status: "rateLimited" }
+  | { status: "premiumRequired" }
   | { status: "error" };
 
 type FetchOutcome =
   | { kind: "features"; features: unknown[] }
   | { kind: "rateLimited" }
+  | { kind: "premiumRequired" }
   | { kind: "error" };
 
 // One generation call to the proxy. Never throws. Distinguishes the rate-limit
@@ -225,7 +228,11 @@ async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count
       body: { ...params, seedBase, count },
     });
     if (error) return { kind: "error" };
+    // Both coded replies carry an `error` string too, so they MUST be matched
+    // before the generic error branch below or they'd collapse into "couldn't
+    // fetch" and lose their specific message.
     if (data?.code === "RATE_LIMIT") return { kind: "rateLimited" };
+    if (data?.code === "PREMIUM_REQUIRED") return { kind: "premiumRequired" };
     if (!data || data.configured === false || data.error) return { kind: "error" };
     return { kind: "features", features: Array.isArray(data.features) ? data.features : [] };
   } catch {
@@ -246,6 +253,10 @@ export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?
   const seedBase = opts.seedBase ?? 0;
   const outcome = await fetchFeatures(params, seedBase, CANDIDATES_PER_GEN);
   if (outcome.kind === "rateLimited") return { status: "rateLimited" };
+  // Normally unreachable (the sheet only opens for premium users), but real:
+  // an entitlement can lapse or be revoked mid-session, or another device can
+  // hold staler state. Surfaced rather than swallowed as a generic failure.
+  if (outcome.kind === "premiumRequired") return { status: "premiumRequired" };
   if (outcome.kind === "error") return { status: "error" };
   const all = parseLoopCandidates(outcome.features, seedBase);
   if (!all.length) return { status: "empty" };

@@ -1,0 +1,9 @@
+{
+  "badge": "Premium",
+  "teaser": {
+    "title": "Premium feature",
+    "body": "Route suggestions will be part of a premium tier. It is not available yet, and there is no date to share. Everything you need to train stays free.",
+    "ok": "Got it"
+  },
+  "required": "This is a premium feature."
+}

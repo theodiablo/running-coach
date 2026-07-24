@@ -68,6 +68,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
       // Distinct message per outcome instead of one catch-all: capped vs no loop
       // here vs a real fetch failure each tell the user something different.
       const key = result.status === "rateLimited" ? "routeFinder.rateLimit"
+        : result.status === "premiumRequired" ? "premium.required"
         : result.status === "empty" ? "routeFinder.empty"
         : "routeFinder.none";
       showToast?.(t(key), "err");

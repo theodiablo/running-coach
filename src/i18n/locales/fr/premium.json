@@ -1,0 +1,9 @@
+{
+  "badge": "Premium",
+  "teaser": {
+    "title": "Fonctionnalité premium",
+    "body": "Les suggestions d'itinéraires feront partie d'une offre premium. Elle n'est pas encore disponible et aucune date n'est prévue. Tout ce dont tu as besoin pour t'entraîner reste gratuit.",
+    "ok": "J'ai compris"
+  },
+  "required": "Cette fonctionnalité est premium."
+}
