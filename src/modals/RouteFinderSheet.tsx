@@ -15,19 +15,22 @@ type RouteFinderSheetProps = {
   onClose: () => void;
   onSelect: (route: SuggestedRoute) => void; // "Run this route" — hands the line to the tracker
   showToast?: (msg: string, type?: string) => void;
+  initialKm?: number;                      // pre-set distance (e.g. opened from a plan session)
 };
 
-const DISTANCE_CHIPS = [3, 5, 8, 10];
+const DISTANCE_CHIPS = [5, 10, 21, 42]; // 5k, 10k, half, full — race-distance quick-picks
 const DISTANCE_MIN = 2;   // km — slider bounds
-const DISTANCE_MAX = 25;
+const DISTANCE_MAX = 42;  // up to a marathon loop for long-run prep
 const TERRAINS: ElevationPref[] = ["flat", "rolling", "hilly"];
+// Clamp/round any km into the slider's whole-km range.
+const clampKm = (km: number) => Math.min(DISTANCE_MAX, Math.max(DISTANCE_MIN, Math.round(km)));
 // Selected candidate: solid sky, thick. Others: muted slate, thinner, semi-transparent.
 const SELECTED_STYLE = { color: "#38bdf8", opacity: 1, weight: 6, dashed: false };
 const OTHER_STYLE = { color: "#64748b", opacity: 0.6, weight: 4, dashed: false };
 
-export function RouteFinderSheet({ location, onClose, onSelect, showToast }: RouteFinderSheetProps) {
+export function RouteFinderSheet({ location, onClose, onSelect, showToast, initialKm }: RouteFinderSheetProps) {
   const { t } = useTranslation();
-  const [distance, setDistance] = useState("5");    // string per the number-input convention
+  const [distance, setDistance] = useState(initialKm && initialKm > 0 ? String(clampKm(initialKm)) : "5");
   const [terrain, setTerrain] = useState<ElevationPref>("rolling");
   const [somewhereNew, setSomewhereNew] = useState(false);
   const [pickStart, setPickStart] = useState(false);

@@ -31,6 +31,9 @@ type LiveRunTrackerProps = {
   hrOptOut?: boolean;
   onConfigureHr?: () => void;
   onDeclineHr?: () => void;
+  // When set (e.g. opened from a plan session), auto-open the route finder with
+  // this distance pre-filled.
+  initialFindKm?: number;
 };
 
 type LocationPreview = { lat: number; lng: number; acc?: number | null };
@@ -57,7 +60,7 @@ function Ctrl({ onClick, color, children, disabled = false }: { onClick: () => v
   );
 }
 
-export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm }: LiveRunTrackerProps) {
   const pairedHrDevice = getPairedDevice();
   const healthConnectAuthorized = hasHealthConnectAuthorization();
   const healthKitAuthorized = hasHealthKitAuthorization();
@@ -84,7 +87,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // "Find a route" loop finder (dormant unless routeSuggestEnabled). The chosen
   // loop becomes a sky dashed guide line under the recorded track — purely
   // visual, the runner follows it by eye. Ephemeral: never saved, gone on close.
-  const [showFinder, setShowFinder] = useState(false);
+  const [showFinder, setShowFinder] = useState(routeSuggestEnabled && !!initialFindKm);
   const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
@@ -524,6 +527,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         <RouteFinderSheet
           location={location ? { lat: location.lat, lng: location.lng } : null}
           showToast={showToast}
+          initialKm={initialFindKm}
           onSelect={setPlannedRoute}
           onClose={() => setShowFinder(false)} />
       )}
