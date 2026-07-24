@@ -55,6 +55,13 @@ export async function saveRoute(route: SuggestedRoute, label?: string): Promise<
   return rowToSaved(data as SavedRow);
 }
 
+// Rename a saved loop (empty label clears it). Best-effort — failure is logged.
+export async function renameSavedRoute(id: string, label: string): Promise<boolean> {
+  const { error } = await supabase.from("saved_routes").update({ label: label || null }).eq("id", id);
+  if (error) { console.error("rename saved route failed", error); return false; }
+  return true;
+}
+
 // Remove a saved loop. Best-effort — failure is logged, not thrown.
 export async function deleteSavedRoute(id: string): Promise<boolean> {
   const { error } = await supabase.from("saved_routes").delete().eq("id", id);

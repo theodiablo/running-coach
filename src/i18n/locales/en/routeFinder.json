@@ -41,6 +41,7 @@
   "saveFailed": "Couldn't save route",
   "favorites": "Saved routes",
   "removeSaved": "Remove saved route",
+  "namePlaceholder": "Name this route",
   "safety": "Routes are suggested from open map data and haven't been checked on the ground. Stay alert: paths can cross roads or be closed or private.",
   "attribution": "Routes powered by openrouteservice. Map data from OpenStreetMap contributors."
 }

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, X, Loader, RefreshCw, MapPin, Sparkles, Star, Trash2, Check } from "lucide-react";
+import { Search, X, Loader, RefreshCw, MapPin, Sparkles, Star, Trash2, Check, Play } from "lucide-react";
 import { RouteMap, type RouteGuide } from "../components/RouteMap";
 import { useDismissable } from "../hooks/useDismissable";
 import { routeSuggest, overlapWithHistory, historyNearCandidates, type ElevationPref } from "../utils/routeSuggest";
 import { getRecentRoutePoints } from "../routes";
-import { listSavedRoutes, saveRoute as persistSavedRoute, deleteSavedRoute, type SavedRoute } from "../savedRoutes";
+import { listSavedRoutes, saveRoute as persistSavedRoute, deleteSavedRoute, renameSavedRoute, type SavedRoute } from "../savedRoutes";
 import { track } from "../telemetry";
 import type { SuggestedRoute } from "../types";
 
@@ -114,6 +114,12 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
     const ok = await deleteSavedRoute(id);
     if (ok && mountedRef.current) setSaved(s => s.filter(r => r.id !== id));
   };
+
+  // Editable saved-route title: responsive locally on each keystroke, persisted
+  // on blur/Enter (the app's settings-field convention).
+  const onEditSavedLabel = (id: string, label: string) =>
+    setSaved(list => list.map(r => (r.id === id ? { ...r, label } : r)));
+  const onCommitSavedLabel = (id: string, label: string) => { renameSavedRoute(id, label.trim()); };
 
   // Map guides: the candidate lines (selected highlighted), or a chosen favourite.
   // `id` makes each line tappable to select it; the selected one carries a
@@ -276,13 +282,20 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
             <div className="space-y-2">
               <p className="text-xs text-slate-400">{t("routeFinder.favorites")}</p>
               {saved.map(s => (
-                <div key={s.id} className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 p-3">
-                  <button onClick={() => { onSelect(s); onClose(); }} className="flex-1 text-left">
-                    <span className="text-sm font-semibold text-white">
-                      {s.label || t("routeFinder.card.distance", { km: s.km.toFixed(1) })}
+                <div key={s.id} className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 py-2 pl-3 pr-2">
+                  <div className="flex-1 min-w-0">
+                    <input value={s.label ?? ""}
+                      onChange={e => onEditSavedLabel(s.id, e.target.value)}
+                      onBlur={e => onCommitSavedLabel(s.id, e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      placeholder={t("routeFinder.namePlaceholder")} aria-label={t("routeFinder.namePlaceholder")}
+                      className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder-slate-500" />
+                    <span className="text-xs text-slate-400">
+                      {t("routeFinder.card.distance", { km: s.km.toFixed(1) })} · {t("routeFinder.card.elevation", { m: s.elevation })}
                     </span>
-                    <span className="ml-3 text-xs text-slate-400">{t("routeFinder.card.elevation", { m: s.elevation })}</span>
-                  </button>
+                  </div>
+                  <button onClick={() => { onSelect(s); onClose(); }} aria-label={t("routeFinder.confirm")}
+                    className="p-1.5 text-sky-400 hover:text-sky-300"><Play size={16} /></button>
                   <button onClick={() => onDeleteSaved(s.id)} aria-label={t("routeFinder.removeSaved")}
                     className="p-1.5 text-slate-500 hover:text-red-400"><Trash2 size={16} /></button>
                 </div>

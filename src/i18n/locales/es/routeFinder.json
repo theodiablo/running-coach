@@ -41,6 +41,7 @@
   "saveFailed": "No se pudo guardar la ruta",
   "favorites": "Rutas guardadas",
   "removeSaved": "Quitar ruta guardada",
+  "namePlaceholder": "Nombra esta ruta",
   "safety": "Las rutas se sugieren a partir de datos de mapas abiertos y no se han comprobado sobre el terreno. Mantente atento: un sendero puede cruzar una carretera o estar cerrado o ser privado.",
   "attribution": "Rutas ofrecidas por openrouteservice. Datos de mapas de OpenStreetMap contributors."
 }

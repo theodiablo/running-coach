@@ -41,6 +41,7 @@
   "saveFailed": "Impossible d'enregistrer le parcours",
   "favorites": "Parcours enregistrés",
   "removeSaved": "Retirer le parcours enregistré",
+  "namePlaceholder": "Nomme ce parcours",
   "safety": "Les parcours sont proposés à partir de données cartographiques ouvertes et n'ont pas été vérifiés sur le terrain. Reste attentif : un chemin peut croiser une route, être fermé ou privé.",
   "attribution": "Parcours fournis par openrouteservice. Données cartographiques OpenStreetMap contributors."
 }
