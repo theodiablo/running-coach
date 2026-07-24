@@ -78,11 +78,18 @@ async function fetchLoopGeoJSON(
         },
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Surface WHY a seed failed (bad params, unauthorized weighting, no
+      // routable network, rate limit) instead of silently dropping it.
+      const errBody = await res.text().catch(() => "");
+      console.error(`route-suggest ORS fail: ${profile} seed=${seed} status=${res.status} body=${errBody.slice(0, 400)}`);
+      return null;
+    }
     const body = await res.json().catch(() => null);
     const feature = body && Array.isArray(body.features) ? body.features[0] : null;
     return feature ?? null;
-  } catch {
+  } catch (e) {
+    console.error(`route-suggest ORS threw: ${profile} seed=${seed} ${String(e).slice(0, 200)}`);
     return null; // network / parse error on one seed — skip it
   }
 }
@@ -141,6 +148,7 @@ Deno.serve(async (req) => {
     const seeds = Array.from({ length: count }, (_, i) => seedBase + i);
     const results = await Promise.all(seeds.map(s => fetchLoopGeoJSON(profile, lat, lng, lengthM, s)));
     const features = results.filter(Boolean);
+    console.log(`route-suggest: km=${km} profile=${profile} lengthM=${lengthM} seeds=${seeds.length} features=${features.length}`);
     // Charge ONE unit per successful generation, atomically (the increment guards
     // against a concurrent double-charge). A generation that produced nothing is
     // free — see the read-only pre-check above.
