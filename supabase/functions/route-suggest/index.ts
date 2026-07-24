@@ -32,6 +32,12 @@ const ORS_API_KEY = Deno.env.get("ORS_API_KEY");
 const ORS_BASE = Deno.env.get("ORS_BASE_URL") ?? "https://api.openrouteservice.org";
 const LIMIT_PER_DAY = Number(Deno.env.get("ROUTE_SUGGEST_LIMIT_PER_DAY") ?? 30);
 const MAX_CANDIDATES = 5; // hard cap on ORS calls per generation (quota guard)
+// ORS round-trip returns a street-following loop that is systematically LONGER
+// than the requested `length` (typically +20-40%). Rather than guess one
+// correction factor (it varies by area), we request a SPREAD of target lengths
+// in the single fan-out and let the client keep the candidates closest to what
+// the user actually asked for. Biased below 1.0 to counter the overshoot.
+const LENGTH_FACTORS = [0.7, 0.8, 0.9, 1.0, 1.1];
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -137,11 +143,17 @@ Deno.serve(async (req) => {
         usage: { used: LIMIT_PER_DAY, limit: LIMIT_PER_DAY } });
     }
 
-    const seeds = Array.from({ length: count }, (_, i) => seedBase + i);
-    const results = await Promise.all(seeds.map(s => fetchLoopGeoJSON(profile, lat, lng, lengthM, s)));
+    // Each seed also gets a different target length (the spread above) so the
+    // returned loops bracket the requested distance regardless of the local
+    // overshoot; the client keeps the closest.
+    const reqs = Array.from({ length: count }, (_, i) => ({
+      seed: seedBase + i,
+      lengthM: Math.round(lengthM * LENGTH_FACTORS[i % LENGTH_FACTORS.length]),
+    }));
+    const results = await Promise.all(reqs.map(r => fetchLoopGeoJSON(profile, lat, lng, r.lengthM, r.seed)));
     const features = results.map(r => r.feature).filter(Boolean);
     const errs = results.map(r => r.err).filter(Boolean) as string[];
-    console.log(`route-suggest: km=${km} profile=${profile} lengthM=${lengthM} seeds=${seeds.length} features=${features.length} errs=${errs.length}`);
+    console.log(`route-suggest: km=${km} profile=${profile} lengthM=${lengthM} reqs=${reqs.length} features=${features.length} errs=${errs.length}`);
 
     // Charge ONE unit per successful generation. A generation that produced
     // nothing is free (see the pre-check), and returns the ORS diagnostics so a

@@ -21,11 +21,12 @@ export type RouteSuggestParams = { lat: number; lng: number; km: number; elevati
 // ── Candidate quality thresholds (Phase 2) ──────────────────────────────────
 const MAX_LENGTH_ERROR = 0.2;   // reject loops >20% off the requested distance
 const MAX_OVERLAP = 0.4;        // reject loops that double back over themselves
-// One generation = ONE charged edge-function call. We ask for a few candidates
-// up front and pick the best rather than a second, separately-charged retry —
-// so the per-user daily limit means what it says. A poor area is handled by the
-// explicit (also single-call) "Regenerate", not a silent double charge.
-const CANDIDATES_PER_GEN = 4;
+// One generation = ONE charged edge-function call. We ask for several candidates
+// (each at a different target length — the server brackets the distance to fight
+// ORS's round-trip overshoot) and keep the ones closest to what was asked, rather
+// than a second, separately-charged retry — so the per-user daily limit means
+// what it says. A poor area is handled by the explicit "Regenerate".
+const CANDIDATES_PER_GEN = 5;
 const OVERLAP_THRESHOLD_M = 20; // two points closer than this (and far apart in the
 const OVERLAP_MIN_IDX_GAP = 4;  //   path) count as an overlap
 
@@ -252,5 +253,10 @@ export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?
   if (outcome.kind === "error") return { status: "error" };
   const all = parseLoopCandidates(outcome.features, seedBase);
   if (!all.length) return { status: "empty" };
-  return { status: "ok", routes: rankCandidates(all, params.km).slice(0, 3) };
+  const ranked = rankCandidates(all, params.km); // closest-to-target first, annotated with lengthErrorPct
+  // Prefer loops within the length tolerance so the user gets what they asked
+  // for; only fall back to the closest available if none are within range.
+  const withinLength = ranked.filter(r => (r.lengthErrorPct ?? 1) <= MAX_LENGTH_ERROR);
+  const routes = (withinLength.length ? withinLength : ranked).slice(0, 3);
+  return { status: "ok", routes };
 }
