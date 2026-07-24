@@ -66,12 +66,16 @@ async function fetchLoopGeoJSON(
       body: JSON.stringify({
         coordinates: [[lng, lat]],
         elevation: true,
-        extra_info: ["waytypes"],
+        // NB: the ORS foot profiles reject extra_info:["waytypes"] (that's a
+        // driving/cycling extra) with error 2003 — so we don't request it and
+        // derive the route "character" from surface later if needed.
         // options.round_trip drops pseudo-via-points on a circle of ~lengthM
         // circumference around the start; `seed` varies the direction so
-        // different seeds yield genuinely different loops.
+        // different seeds yield genuinely different loops. green/quiet weightings
+        // bias toward parks and away from busy roads (valid for foot profiles).
         options: {
           round_trip: { length: lengthM, points: 4, seed },
+          profile_params: { weightings: { green: 1, quiet: 1 } },
         },
       }),
     });
