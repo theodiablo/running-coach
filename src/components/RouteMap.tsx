@@ -265,8 +265,13 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   // Geometry-only signature: which lines exist and where, ignoring styling. The
   // camera fit keys on THIS, so restyling (e.g. selecting a candidate, which only
   // flips colours/opacity) never re-fits and clobbers the user's pan/zoom.
-  const guideGeomSig = normalizedGuides.map(g =>
-    `${g.points.length}:${coordSig(g.points[0])}:${coordSig(g.points[g.points.length - 1])}`).join("|");
+  // A MIDPOINT is sampled alongside the endpoints because these guides are loops:
+  // first ≈ last ≈ the origin for every candidate, so endpoints alone barely
+  // differ between candidates — the midpoint is what actually distinguishes them.
+  const guideGeomSig = normalizedGuides.map(g => {
+    const pts = g.points;
+    return `${pts.length}:${coordSig(pts[0])}:${coordSig(pts[pts.length >> 1])}:${coordSig(pts[pts.length - 1])}`;
+  }).join("|");
   // Full signature adds the style fields (incl. weight) so a style-only change
   // still redraws the strokes.
   const guideStyleSig = normalizedGuides.map(g =>

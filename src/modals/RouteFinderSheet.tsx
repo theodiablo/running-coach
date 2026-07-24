@@ -54,9 +54,21 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
     setCandidates(null);
     setSelectedId(null);
     track("route_suggested", {});
-    let routes = await routeSuggest({ lat: origin.lat, lng: origin.lng, km, elevation: terrain }, { seedBase });
+    const result = await routeSuggest({ lat: origin.lat, lng: origin.lng, km, elevation: terrain }, { seedBase });
     if (!mountedRef.current) return;
-    if (routes && somewhereNew) {
+    if (result.status !== "ok") {
+      setLoading(false);
+      setCandidates([]);
+      // Distinct message per outcome instead of one catch-all: capped vs no loop
+      // here vs a real fetch failure each tell the user something different.
+      const key = result.status === "rateLimited" ? "routeFinder.rateLimit"
+        : result.status === "empty" ? "routeFinder.empty"
+        : "routeFinder.none";
+      showToast?.(t(key), "err");
+      return;
+    }
+    let routes = result.routes;
+    if (somewhereNew) {
       // "Somewhere new": penalise loops that retrace recorded routes. Coordinates
       // never leave the device — the recorded traces are fetched and compared here.
       const recent = await getRecentRoutePoints(20);
@@ -74,7 +86,6 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
       }
     }
     setLoading(false);
-    if (!routes || !routes.length) { setCandidates([]); showToast?.(t("routeFinder.none"), "err"); return; }
     setCandidates(routes);
     setSelectedId(routes[0].id);
   };
@@ -133,6 +144,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast }: Rou
         </div>
 
         <div className="p-4 space-y-4">
+          <p className="text-xs text-slate-400 -mb-1">{t("routeFinder.subtitle")}</p>
           {/* Distance */}
           <div>
             <p className="text-xs text-slate-400 mb-1.5">{t("routeFinder.distance.label")}</p>

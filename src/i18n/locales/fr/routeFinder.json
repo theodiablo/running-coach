@@ -22,6 +22,7 @@
   "searching": "Recherche en cours",
   "empty": "Aucune boucle trouvée. Essaie une autre distance.",
   "none": "Impossible de récupérer des parcours pour le moment",
+  "rateLimit": "Limite de parcours atteinte pour aujourd'hui. Réessaie demain.",
   "needLocation": "En attente de ta position pour proposer des parcours.",
   "character": {
     "mostlyPaths": "Surtout des chemins",

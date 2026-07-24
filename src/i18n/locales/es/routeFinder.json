@@ -22,6 +22,7 @@
   "searching": "Buscando rutas",
   "empty": "No se encontraron rutas. Prueba otra distancia.",
   "none": "No se pudieron obtener rutas en este momento",
+  "rateLimit": "Has alcanzado el límite de rutas de hoy. Inténtalo de nuevo mañana.",
   "needLocation": "Esperando tu ubicación para sugerir rutas.",
   "character": {
     "mostlyPaths": "Sobre todo senderos",

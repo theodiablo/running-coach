@@ -22,6 +22,7 @@
   "searching": "Finding routes",
   "empty": "No loops found. Try a different distance.",
   "none": "Couldn't fetch routes right now",
+  "rateLimit": "Daily route limit reached. Try again tomorrow.",
   "needLocation": "Waiting for your location to suggest routes.",
   "character": {
     "mostlyPaths": "Mostly paths",

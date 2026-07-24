@@ -193,19 +193,37 @@ export function rankCandidates(routes: SuggestedRoute[], targetKm: number): Sugg
 
 // ── Edge-function call (never throws) ───────────────────────────────────────
 
-// One generation call to the proxy. Returns the raw feature array, or null when
-// the feature is off / unconfigured / rate-limited / a transport failure (the
-// caller shows a toast either way). An empty array means the seeds all failed.
-async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count: number): Promise<unknown[] | null> {
+// The generation outcome, kept distinct so the sheet can show the RIGHT message
+// instead of collapsing everything into "couldn't fetch":
+//   ok          — at least one routable loop
+//   empty       — the server answered fine but found no loop here
+//   rateLimited — the per-user daily cap is spent
+//   error       — transport failure / feature unconfigured / offline
+export type RouteSuggestResult =
+  | { status: "ok"; routes: SuggestedRoute[] }
+  | { status: "empty" }
+  | { status: "rateLimited" }
+  | { status: "error" };
+
+type FetchOutcome =
+  | { kind: "features"; features: unknown[] }
+  | { kind: "rateLimited" }
+  | { kind: "error" };
+
+// One generation call to the proxy. Never throws. Distinguishes the rate-limit
+// reply (200 with code:"RATE_LIMIT") from an unconfigured/transport error and
+// from a successful-but-empty feature list.
+async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count: number): Promise<FetchOutcome> {
   try {
     const { data, error } = await supabase.functions.invoke("route-suggest", {
       body: { ...params, seedBase, count },
     });
-    if (error) return null;
-    if (!data || data.configured === false || data.error) return null;
-    return Array.isArray(data.features) ? data.features : [];
+    if (error) return { kind: "error" };
+    if (data?.code === "RATE_LIMIT") return { kind: "rateLimited" };
+    if (!data || data.configured === false || data.error) return { kind: "error" };
+    return { kind: "features", features: Array.isArray(data.features) ? data.features : [] };
   } catch {
-    return null;
+    return { kind: "error" };
   }
 }
 
@@ -213,15 +231,17 @@ async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count
 // unit) — we request several candidates and return the best rather than a
 // second, separately-charged retry, so the daily limit is honest. `seedBase`
 // lets the sheet's "Regenerate" ask for a fresh batch (its own explicit,
-// single-call generation). Resolves null when nothing usable came back, so the
-// caller shows a toast and the tracker stays fully usable.
-export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?: number } = {}): Promise<SuggestedRoute[] | null> {
-  if (!routeSuggestEnabled) return null;
-  if (!Number.isFinite(params.lat) || !Number.isFinite(params.lng) || !(params.km > 0)) return null;
+// single-call generation). The typed result lets the caller tell "capped" and
+// "nothing here" apart from "fetch failed"; the tracker stays fully usable
+// regardless.
+export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?: number } = {}): Promise<RouteSuggestResult> {
+  if (!routeSuggestEnabled) return { status: "error" };
+  if (!Number.isFinite(params.lat) || !Number.isFinite(params.lng) || !(params.km > 0)) return { status: "error" };
   const seedBase = opts.seedBase ?? 0;
-  const features = await fetchFeatures(params, seedBase, CANDIDATES_PER_GEN);
-  if (features == null) return null;
-  const all = parseLoopCandidates(features, seedBase);
-  if (!all.length) return null;
-  return rankCandidates(all, params.km).slice(0, 3);
+  const outcome = await fetchFeatures(params, seedBase, CANDIDATES_PER_GEN);
+  if (outcome.kind === "rateLimited") return { status: "rateLimited" };
+  if (outcome.kind === "error") return { status: "error" };
+  const all = parseLoopCandidates(outcome.features, seedBase);
+  if (!all.length) return { status: "empty" };
+  return { status: "ok", routes: rankCandidates(all, params.km).slice(0, 3) };
 }
