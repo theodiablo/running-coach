@@ -4,8 +4,7 @@
   "subtitle": "Des boucles depuis ta position",
   "distance": {
     "label": "Distance",
-    "chip": "{{km}} km",
-    "customPlaceholder": "km"
+    "chip": "{{km}} km"
   },
   "terrain": {
     "label": "Terrain",

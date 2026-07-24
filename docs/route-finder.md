@@ -29,11 +29,16 @@ ONLY from the `route-suggest` edge function; the client never talks to ORS.
   the request/response contract the client sees never changes, so the app is
   untouched. `ORS_BASE_URL` already lets you point at a self-hosted ORS.
 
-Round-trip engines drop pseudo-via-points on a circle with randomness, so expect
-±10-20% length error and occasional out-and-back stretches. The fix (and our
-design): request several candidates with different `seed`s and **score them
-client-side** (length error, self-overlap), presenting the best. "Regenerate" =
-new seeds.
+Round-trip engines drop pseudo-via-points on a circle with randomness, and ORS
+in particular **systematically overshoots** the requested `length` (typically
++20-40%, varying by area), plus the odd out-and-back stretch. Our design fights
+this in ONE charged call rather than a retry loop: the server asks for a *spread*
+of target lengths (`LENGTH_FACTORS`, centred below 1.0) across the seeds so the
+returned loops bracket the real distance regardless of the local overshoot, and
+the client **ranks** them (length error, self-overlap, elevation preference) and
+shows the three closest — it never hard-rejects, so the count stays stable at
+three instead of flapping. "Regenerate" = a fresh, separately-charged batch of
+seeds.
 
 ## Trust boundary + rate limiting
 
@@ -44,9 +49,14 @@ ship in the bundle — same rule as the coach's Anthropic key. `route-suggest`
 passes the raw GeoJSON back. All parsing/scoring stays in tested client code.
 
 - **Usage table:** `route_suggest_usage` + atomic
-  `increment_route_suggest_usage(uuid, date)` (service-role only), mirroring the
+  `increment_route_suggest_usage(uuid, date)` /
+  `decrement_route_suggest_usage(uuid, date)` (service-role only), mirroring the
   coach's `agent_usage` limiter. `ROUTE_SUGGEST_LIMIT_PER_DAY` (default 30) is
-  charged once per *generation* (not per seed). Append-only migration rules apply.
+  charged once per *generation* (not per seed). The function **charges first,
+  atomically, then decides**: it increments before calling ORS so two concurrent
+  generations can't both slip under the cap on a stale read, and **refunds**
+  (decrements) when the request was over budget or produced no usable loop — so a
+  barren area costs nothing. Append-only migration rules apply.
 - **Zero CSP change:** the client only calls
   `https://<ref>.supabase.co/functions/v1/route-suggest`, already covered by
   `connect-src https://*.supabase.co`. If a future phase ever calls a routing
@@ -62,9 +72,11 @@ passes the raw GeoJSON back. All parsing/scoring stays in tested client code.
     records with (`distanceKm`/`elevGainM`), measured on the full line then
     `simplify()`d for storage — so a suggestion can't read differently from the
     logged run.
-  - `selfOverlapPct` / `acceptable` / `rankCandidates` — Phase 2 scoring
-    (reject >20% length error or heavy self-overlap; retry with fresh seeds up to
-    a small cap; loose elevation-preference filter).
+  - `selfOverlapPct` / `rankCandidates` — Phase 2 scoring. `rankCandidates`
+    orders by a soft cost (length error + self-overlap + a light elevation-
+    preference nudge) and returns the three closest; it never rejects, so the
+    finder reliably shows three loops. `characterFromSurface` buckets the ORS
+    `surface` extra into paths/mixed/streets.
   - `overlapWithHistory` — Phase 3 "somewhere new"; coordinates never leave the
     device (recent `run_routes` fetched and compared client-side).
 - `src/savedRoutes.ts` — Phase 4 favourites CRUD against the `saved_routes`
@@ -79,12 +91,14 @@ passes the raw GeoJSON back. All parsing/scoring stays in tested client code.
 - **Entry point:** a "Find a route" button on the live tracker's **idle**
   screen (`LiveRunTracker`), reusing the tracker's existing `geoSource` location
   preview — no new geolocation code, and it inherits the native permission gate.
-- **`RouteFinderSheet`** (`src/modals/`) — distance chips + free input, terrain
-  toggle (flat/rolling/hilly → foot-walking vs foot-hiking + elevation filter),
-  "somewhere new", "set start point" (tap the map), a `RouteMap` showing
-  candidates, one card per candidate (distance, +elevation, character), star to
-  save a favourite, regenerate, safety copy, and OSM/ORS attribution. Registers
-  `useDismissable`.
+- **`RouteFinderSheet`** (`src/modals/`) — a distance **slider** (2-42 km, no
+  keyboard) with preset quick-pick chips, terrain toggle (flat/rolling/hilly →
+  foot-walking vs foot-hiking + soft elevation-preference ranking), "somewhere
+  new", "set start point" (tap the map), a `RouteMap` showing candidates (tap a
+  line to select it), one card per candidate (distance, +elevation, character),
+  star to save a favourite with an editable title, regenerate, safety copy, and
+  OSM/ORS attribution. Registers `useDismissable`. Opens pre-filled to a plan
+  session's distance when launched from a plan item.
 - **`RouteMap` guide layer:** additive `guides` / `guidePoints` props draw
   non-recorded lines in a dedicated low-z `"guide"` pane so they sit UNDER the
   recorded track. Sky `#38bdf8` (dashed for the planned line; selected candidate

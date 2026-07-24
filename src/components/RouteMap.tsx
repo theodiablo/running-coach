@@ -293,8 +293,12 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       let labelled = false; // bind the tooltip to only the first drawn segment
       (segments(g.points) as LatLngExpression[][]).forEach(seg => {
         if (!seg.length) return;
+        // The visible line is non-interactive so its clicks pass through — either
+        // to the fat "hit" line below (selection) or, when no hit line is drawn
+        // (pickStart mode: onGuidePick withheld), straight to the map's onPick.
         const line = L.polyline(seg, {
           pane: "guide",
+          interactive: false,
           color: g.color ?? GUIDE_COLOR,
           weight: g.weight ?? 4,
           opacity: g.opacity ?? 0.9,

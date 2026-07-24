@@ -4,8 +4,7 @@
   "subtitle": "Rutas circulares desde donde estás",
   "distance": {
     "label": "Distancia",
-    "chip": "{{km}} km",
-    "customPlaceholder": "km"
+    "chip": "{{km}} km"
   },
   "terrain": {
     "label": "Terreno",

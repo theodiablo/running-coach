@@ -119,7 +119,11 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
   // on blur/Enter (the app's settings-field convention).
   const onEditSavedLabel = (id: string, label: string) =>
     setSaved(list => list.map(r => (r.id === id ? { ...r, label } : r)));
-  const onCommitSavedLabel = (id: string, label: string) => { renameSavedRoute(id, label.trim()); };
+  const onCommitSavedLabel = (id: string, label: string) => {
+    const trimmed = label.trim();
+    setSaved(list => list.map(r => (r.id === id ? { ...r, label: trimmed } : r)));
+    renameSavedRoute(id, trimmed);
+  };
 
   // Map guides: the candidate lines (selected highlighted), or a chosen favourite.
   // `id` makes each line tappable to select it; the selected one carries a
@@ -154,7 +158,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="relative h-[38vh] min-h-[220px]">
           <RouteMap points={[]} interactive location={origin} guides={guides} fitGuides={!!candidates?.length}
-            onGuidePick={setSelectedId}
+            onGuidePick={pickStart ? undefined : setSelectedId}
             onPick={pickStart ? onPick : undefined} className="h-full w-full" style={{}} />
           {pickStart && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/85 text-slate-200 text-xs rounded-full px-3 py-1.5 border border-slate-700">

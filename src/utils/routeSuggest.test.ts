@@ -3,7 +3,6 @@ import {
   characterFromSurface,
   selfOverlapPct,
   parseLoopCandidates,
-  acceptable,
   rankCandidates,
   overlapWithHistory,
   historyNearCandidates,
@@ -92,27 +91,43 @@ describe("parseLoopCandidates", () => {
   });
 });
 
-describe("acceptable / rankCandidates", () => {
+describe("rankCandidates", () => {
   const mk = (km: number, overlapPct: number, elevation = 20): SuggestedRoute => ({
     id: "x", points: [], km, elevation, overlapPct,
-  });
-
-  it("rejects loops too far from target length", () => {
-    expect(acceptable(mk(5, 0), 5)).toBe(true);
-    expect(acceptable(mk(7, 0), 5)).toBe(false); // 40% over
-  });
-  it("rejects heavy self-overlap", () => {
-    expect(acceptable(mk(5, 0.6), 5)).toBe(false);
-  });
-  it("respects a flat elevation preference", () => {
-    expect(acceptable({ id: "a", points: [], km: 5, elevation: 100, overlapPct: 0 }, 5, "flat")).toBe(false);
-    expect(acceptable({ id: "a", points: [], km: 5, elevation: 20, overlapPct: 0 }, 5, "flat")).toBe(true);
   });
 
   it("ranks the closest, cleanest loop first and annotates length error", () => {
     const ranked = rankCandidates([mk(7, 0), mk(5, 0.05), mk(6, 0)], 5);
     expect(ranked[0].km).toBe(5);
     expect(ranked[0].lengthErrorPct).toBeCloseTo(0, 5);
+  });
+
+  it("never drops candidates — worst still shows", () => {
+    expect(rankCandidates([mk(7, 0), mk(5, 0), mk(9, 0.8)], 5)).toHaveLength(3);
+  });
+
+  it("nudges toward the flattest loop when 'flat' is preferred (same length)", () => {
+    // Two equal-length, equal-overlap loops: flat wins on the flat preference.
+    const hilly = mk(5, 0, 150); // 30 m/km
+    const flat = mk(5, 0, 10);   // 2 m/km
+    const ranked = rankCandidates([hilly, flat], 5, "flat");
+    expect(ranked[0].elevation).toBe(10);
+  });
+
+  it("nudges toward the hilliest loop when 'hilly' is preferred (same length)", () => {
+    const hilly = mk(5, 0, 150);
+    const flat = mk(5, 0, 10);
+    const ranked = rankCandidates([flat, hilly], 5, "hilly");
+    expect(ranked[0].elevation).toBe(150);
+  });
+
+  it("keeps length accuracy dominant over the elevation nudge", () => {
+    // A dead-flat loop that's 40% too long must NOT beat an on-target hilly one
+    // even under a 'flat' preference — the elevation term only nudges.
+    const onTargetHilly = mk(5, 0, 150);
+    const tooLongFlat = mk(7, 0, 0);
+    const ranked = rankCandidates([tooLongFlat, onTargetHilly], 5, "flat");
+    expect(ranked[0].km).toBe(5);
   });
 });
 

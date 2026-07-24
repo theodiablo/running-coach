@@ -56,6 +56,16 @@ function profileFor(elevation: unknown): string {
 
 type SeedResult = { feature: unknown | null; err?: string };
 
+// A feature is USABLE only if it carries a drawable line (≥2 coordinates). ORS
+// can answer 200 with a feature whose geometry is empty/degenerate; charging for
+// that would bill the user for a loop the client then rejects, so we filter to
+// usable features BEFORE charging and refund when none survive.
+function isUsableFeature(feature: unknown): boolean {
+  const geometry = feature && typeof feature === "object" ? (feature as { geometry?: unknown }).geometry : null;
+  const coords = geometry && typeof geometry === "object" ? (geometry as { coordinates?: unknown }).coordinates : null;
+  return Array.isArray(coords) && coords.length >= 2;
+}
+
 // ── Backend seam ────────────────────────────────────────────────────────────
 // One round-trip request → one GeoJSON Feature (or an error string, so one bad
 // seed never sinks the whole generation but we can still see WHY it failed).
@@ -135,11 +145,23 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const today = new Date().toISOString().slice(0, 10);
-    const { data: usageRow, error: usageErr } = await admin.from("route_suggest_usage")
-      .select("count").eq("user_id", user.id).eq("day", today).maybeSingle();
-    if (usageErr) throw usageErr;
-    const usedBefore = Number(usageRow?.count) || 0;
-    if (usedBefore >= LIMIT_PER_DAY) {
+
+    // Charge FIRST, atomically, then decide — so two concurrent generations can
+    // never both read a stale count under the cap and each slip through. The
+    // increment RPC is a single atomic upsert returning the new count. If that
+    // count exceeds the cap, this request is the one over budget: refund the unit
+    // and report RATE_LIMIT. (A refund can't drive the counter below 0.)
+    const { data: chargedRaw, error: chargeErr } = await admin.rpc("increment_route_suggest_usage", {
+      p_user_id: user.id, p_day: today,
+    });
+    if (chargeErr) throw chargeErr;
+    let used = Number(chargedRaw);
+    const refund = async () => {
+      const { data: back } = await admin.rpc("decrement_route_suggest_usage", { p_user_id: user.id, p_day: today });
+      if (back != null) used = Number(back);
+    };
+    if (used > LIMIT_PER_DAY) {
+      await refund();
       return json({ error: "daily route limit reached - try again tomorrow", code: "RATE_LIMIT",
         usage: { used: LIMIT_PER_DAY, limit: LIMIT_PER_DAY } });
     }
@@ -152,21 +174,13 @@ Deno.serve(async (req) => {
       lengthM: Math.round(lengthM * LENGTH_FACTORS[i % LENGTH_FACTORS.length]),
     }));
     const results = await Promise.all(reqs.map(r => fetchLoopGeoJSON(profile, lat, lng, r.lengthM, r.seed)));
-    const features = results.map(r => r.feature).filter(Boolean);
-    const errs = results.map(r => r.err).filter(Boolean) as string[];
-    console.log(`route-suggest: km=${km} profile=${profile} lengthM=${lengthM} reqs=${reqs.length} features=${features.length} errs=${errs.length}`);
+    // Only DRAWABLE loops count — an empty/degenerate ORS feature the client would
+    // reject must not be billed (see isUsableFeature).
+    const features = results.map(r => r.feature).filter(isUsableFeature);
 
-    // Charge ONE unit per successful generation. A generation that produced
-    // nothing is free (see the pre-check), and returns the ORS diagnostics so a
-    // "no loop found" can be understood from the response.
-    let used = usedBefore;
-    if (features.length) {
-      const { data: charged, error: chargeErr } = await admin.rpc("increment_route_suggest_usage", {
-        p_user_id: user.id, p_day: today,
-      });
-      if (chargeErr) throw chargeErr;
-      used = Number(charged);
-    }
+    // Refund the charge when the generation produced no usable loop, so a barren
+    // area (or an ORS hiccup) costs the user nothing from their daily budget.
+    if (!features.length) await refund();
     return json({ configured: true, features, usage: { used, limit: LIMIT_PER_DAY } });
   } catch (err) {
     console.error("route-suggest error", err);
