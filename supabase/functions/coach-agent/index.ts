@@ -57,7 +57,7 @@ const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
 // while these retries happen, so the client never sees the churn.
 const MODEL_MAX_RETRIES = Number(Deno.env.get("COACH_MODEL_MAX_RETRIES") ?? 4);
 const MODEL_TIMEOUT_MS = Number(Deno.env.get("COACH_MODEL_TIMEOUT_MS") ?? 60000);
-// A propose/critique round spends most of its time awaiting Anthropic with
+// A propose/critique round spends most of its time awaiting the model API with
 // zero bytes flowing to the client — long enough for some intermediary
 // (mobile network, proxy) to treat the connection as dead and drop it well
 // before either side's own timeout fires, even though the round completes
