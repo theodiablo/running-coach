@@ -84,6 +84,19 @@ rules, not a changelog; delete anything stale.
 - **Derived-state resets happen during render, not in effects** — see the
   `if (plan !== prevPlan)` pattern in `PlanView.tsx`. Related: no sync setState
   in effects (the `react-hooks` rule); reconcile in event handlers.
+- **Premium gating:** entitlement is `profiles.premium_until` (+ `premium_since`
+  for loyalty history), **service-role-writable only** — never put it in the
+  `app_state` blob, which the user can write. `src/premium.ts` reads the caller's
+  own row for UI only (`isPremiumActive`); **the gate is always server-side** in
+  the feature's edge function. `App.tsx` owns the fetch (once per sign-in,
+  refreshed when an entry point is tapped) and threads `isPremium` through the
+  `shared` bag. A failed read means free, so premium checks must degrade safely.
+  **The tier is not unveiled yet:** `canShowPremiumTeaser` is `false`, so a free
+  user sees **no** premium entry point on any platform — gate every premium
+  affordance on `isPremium || canShowPremiumTeaser`, never on `isPremium` alone,
+  so the whole tier reveals by flipping that one flag. New premium features land
+  premium-first — never claw back something already free. See
+  `docs/monetization.md` (which also lists the planned premium features).
 - **Telemetry:** everything goes through the vendor-agnostic seam
   `src/telemetry/index.ts`; only `src/telemetry/posthog.ts` imports the SDK
   (dynamic import, no-op until `VITE_POSTHOG_KEY`). Consent is opt-in,
@@ -235,5 +248,6 @@ prompt/tool-description changes.
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
+- `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
-- `docs/monetization.md` — monetization direction.
+- `docs/monetization.md` — monetization direction, the premium seam, payments path.

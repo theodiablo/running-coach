@@ -16,7 +16,10 @@ declare module "leaflet" {
     setLatLng: (latlng: LatLngExpression) => Circle;
     setRadius: (radius: number) => Circle;
   };
-  export type Polyline = Layer;
+  export type Polyline = Layer & {
+    on: (event: string, cb: (e: LeafletEvent) => void) => Polyline;
+    bindTooltip: (content: string, options?: Record<string, unknown>) => Polyline;
+  };
   export type ToggleHandler = { enable: () => void; disable: () => void };
   export type Map = {
     setView: (latlng: LatLngExpression, zoom: number, options?: { animate?: boolean }) => Map;
@@ -24,6 +27,8 @@ declare module "leaflet" {
     fitBounds: (bounds: unknown, options?: { animate?: boolean }) => Map;
     addControl: (control: Control) => Map;
     removeControl: (control: Control) => Map;
+    createPane: (name: string) => HTMLElement;
+    getPane: (name: string) => HTMLElement | undefined;
     remove: () => void;
     on: (event: string, cb: (e: LeafletEvent) => void) => Map;
     off: (event: string, cb?: (e: LeafletEvent) => void) => Map;

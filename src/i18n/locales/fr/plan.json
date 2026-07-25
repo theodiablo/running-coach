@@ -3,7 +3,7 @@
   "editPlan": "Modifier le plan",
   "editShort": "Modifier",
   "reassurance": "Modifier l'un ou l'autre reconstruit tes séances restantes ; les sorties terminées sont conservées.",
-  "jumpToWeek": "Aller à cette semaine",
+  "pastWeeks": "Semaines passées",
   "notConfigured": "non configuré",
   "longRunNudge": "Pour atteindre ton objectif, les sorties longues vont jusqu'à ~{{peak}}, au-delà de ta plus longue journée d'entraînement ({{longest}}). C'est normal pour cette distance ; envisage d'allonger ce jour dans Modifier le plan.",
   "week": {
@@ -79,10 +79,6 @@
   "promote": {
     "newTarget": "Nouvel objectif d'entraînement",
     "yourRace": "Ta course"
-  },
-  "header": {
-    "coach": "Coach",
-    "coachTitle": "Ajuste le plan avec ton coach"
   },
   "progress": {
     "sessions": "{{done}} / {{total}} séances",

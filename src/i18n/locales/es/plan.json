@@ -3,7 +3,7 @@
   "editPlan": "Editar plan",
   "editShort": "Editar",
   "reassurance": "Cambiar cualquiera de los dos reconstruye tus sesiones restantes; los entrenamientos completados se conservan.",
-  "jumpToWeek": "Ir a esta semana",
+  "pastWeeks": "Semanas anteriores",
   "notConfigured": "sin configurar",
   "longRunNudge": "Para alcanzar tu objetivo, las tiradas largas llegan a ~{{peak}}, por encima de tu día de entrenamiento más largo ({{longest}}). Es normal para esta distancia; valora alargar ese día en Editar plan.",
   "week": {
@@ -79,10 +79,6 @@
   "promote": {
     "newTarget": "Nuevo objetivo de entrenamiento",
     "yourRace": "Tu carrera"
-  },
-  "header": {
-    "coach": "Entrenador",
-    "coachTitle": "Ajusta el plan con tu entrenador"
   },
   "progress": {
     "sessions": "{{done}} / {{total}} sesiones",

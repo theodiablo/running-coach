@@ -1,7 +1,9 @@
 {
   "signInFailed": "No se pudo iniciar sesión. Inténtalo de nuevo.",
   "header": {
-    "settings": "Ajustes"
+    "settings": "Ajustes",
+    "coach": "Entrenador",
+    "coachTitle": "Ajusta el plan con tu entrenador"
   },
   "beta": "Beta",
   "toasts": {

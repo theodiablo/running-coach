@@ -4,6 +4,6 @@
     "strict": false
   },
   "tasks": {
-    "check:supabase": "deno check supabase/functions/coach-agent/index.ts supabase/functions/notify-contribution/index.ts supabase/functions/polar-import/index.ts"
+    "check:supabase": "deno check supabase/functions/coach-agent/index.ts supabase/functions/notify-contribution/index.ts supabase/functions/polar-import/index.ts supabase/functions/route-suggest/index.ts"
   }
 }

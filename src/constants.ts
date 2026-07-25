@@ -162,6 +162,17 @@ export const MAP_TILE_URL =
 export const MAP_ATTRIBUTION =
   '© <a href="https://www.maptiler.com/copyright/">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>';
 
+// "Find a route" CAPABILITY gate: is the feature buildable at all here? Only a
+// MapTiler key is needed (without tiles a route on a blank map is pointless).
+//
+// This is NOT the access gate. "Find a route" is the app's first premium-only
+// feature: access is profiles.premium_until (src/premium.ts for the UI, and the
+// route-suggest edge function is the real gate — it answers PREMIUM_REQUIRED to
+// anyone else). The server also stays inert until ORS_API_KEY is set, replying
+// {configured:false}. There is deliberately no build-time flag: the tier is
+// per-user server state, not a deployment-wide switch.
+export const routeSuggestEnabled = !!MAP_KEY;
+
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Per session-type text / border-background colour classes.

@@ -164,6 +164,17 @@ from `agent_usage` via the admin client (the table has no client RLS policy).
 `usage` so the chat's footer ring stays live after each send. Driven client-side
 by `coachUsage()` (`src/coach.ts`) on chat open; the ring is `src/modals/CoachUsageRing.tsx`.
 
+Entry points: every one of them funnels through the hub's single `openCoach`
+seam (`src/RunningCoach.tsx`) — the app header button (global, the primary
+entry), the Dashboard card (the discovery surface, with explanatory copy), the
+per-session "Ask coach" in `PlanSessionRow` (the only one that passes a
+`CoachSessionContext`), and Settings. **All of them are gated on a plan
+existing**, matching the chat's own `showCoach && plan` render gate: with no
+plan there is nothing to edit, so an ungated entry point would open an empty
+overlay. `openCoach` also takes a `CoachSource` used solely for the
+`coach_opened` analytics event (see `docs/telemetry.md`); pass one at any new
+call site.
+
 Prompt caching: on the Anthropic path, one `cache_control` breakpoint on the
 system block caches the stable prefix (tool defs + system prompt) across
 rounds. Mistral has no equivalent; the adapter sends the system prompt as a

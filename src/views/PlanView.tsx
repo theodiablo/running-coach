@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowLeft, ChevronDown, MessageCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import { dayName } from "../i18n";
 import { fmt } from "../utils/format";
 import { runnerAge } from "../utils/hr";
 import { findEdition } from "../utils/races";
+import { routeSuggestEnabled } from "../constants";
+import { canShowPremiumTeaser } from "../premium";
 import { GoalConfigurator } from "../components/GoalConfigurator";
 import { PlanInfo } from "../components/PlanInfo";
 import { StylePicker } from "../components/StylePicker";
@@ -12,8 +14,33 @@ import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { PlanSessionRow } from "../components/PlanSessionRow";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, Plan, PlanPrefill, RacesState, Run, SettingsState } from "../types";
+import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
 import { carryProgress, type PlanSessionInput } from "../utils/plan";
+
+// ── Week windows ────────────────────────────────────────────────────────────
+// A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
+// `weekEnd <= today` partitions the plan cleanly into behind / current+ahead.
+const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const weekStart = (w: PlanWeek) => new Date((w.startDate || "") + "T00:00:00");
+const weekEnd   = (w: PlanWeek) => { const e = weekStart(w); e.setDate(e.getDate() + 7); return e; };
+
+// The plan list shows weeks still ahead first and pushes finished ones to the
+// bottom, so "now" is always at the top without having to scroll to it.
+const splitWeeks = (plan: Plan | null) => {
+  const today = startOfToday();
+  const weeks = plan?.weeks || [];
+  return {
+    upcoming: weeks.filter(w => weekEnd(w) > today),
+    past:     weeks.filter(w => weekEnd(w) <= today),
+  };
+};
+
+// The week we auto-expand and label "week n of m": the current one, else the
+// next one up (plan not started yet), else the last (race already run).
+const focusWeek = (plan: Plan | null): number | null => {
+  const { upcoming, past } = splitWeeks(plan);
+  return upcoming[0]?.weekNumber ?? past[past.length - 1]?.weekNumber ?? null;
+};
 
 type PlanViewProps = {
   plan: Plan | null;
@@ -33,18 +60,21 @@ type PlanViewProps = {
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
   openSettings: () => void;
-  openCoach: (session?: CoachSessionContext) => void;
-  openTracker: (link?: { wNum: number; sId: string }) => void;
+  openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
+  openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
   goLog: (prefill: Partial<Run>) => void;
   showToast: (msg: string, type?: string) => void;
   planPrefill?: PlanPrefill | null;
   clearPlanPrefill?: () => void;
+  // "Find a route" is premium-only; free users reach the teaser inside the
+  // tracker, except on iOS where the entry point is hidden entirely.
+  isPremium?: boolean;
 };
 
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 
-export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, goLog, showToast, planPrefill, clearPlanPrefill}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, goLog, showToast, planPrefill, clearPlanPrefill, isPremium = false}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -62,33 +92,15 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     mode === "simple"
       ? t("plan.availRow.simpleSummary", { days: clampDays(days), duration: t("plan.avail.simple.band." + band + ".word") })
       : sessions.slice().sort((a, b) => a.dayOffset - b.dayOffset).map(s => dayName(s.dayOffset) + " " + fmt.mins(s.minutes)).join(" · ");
-  // Index of the week containing today — the one we auto-expand.
-  const currentWeekIndex = () => {
-    if (!plan) return null;
-    const today = new Date(); today.setHours(0,0,0,0);
-    const i = plan.weeks.findIndex(w => {
-      const s = new Date((w.startDate || "") + "T00:00:00");
-      const e = new Date(s); e.setDate(s.getDate() + 7);
-      return today >= s && today < e;
-    });
-    return i >= 0 ? i : 0;
-  };
-
-  const [exp,          setExp]         = useState<number | null>(currentWeekIndex);
+  // Expanded week, by weekNumber — not by list position, which past-weeks-last
+  // reordering makes meaningless.
+  const [exp,          setExp]         = useState<number | null>(() => focusWeek(plan));
   // Session card expanded to its coach-notes breakdown (one at a time).
   const [openSess,     setOpenSess]    = useState<string | null>(null);
   // A promote ("Set as target") opens the edit screen pre-filled.
   const [editing,      setEditing]     = useState(!!planPrefill);
   // Which accordion section is expanded on the edit screen (one at a time).
   const [editSection,  setEditSection] = useState<EditSection>("goal");
-  // The current-week card, so we can scroll the runner to "now" in a long plan.
-  const weekRef = useRef<HTMLDivElement | null>(null);
-  const jumpToWeek = () => weekRef.current?.scrollIntoView({behavior: "smooth", block: "center"});
-  useEffect(() => {
-    const i = currentWeekIndex();
-    if (i != null && i >= 4) weekRef.current?.scrollIntoView({block: "center"});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Edit drafts ─────────────────────────────────────────────────────────
   const [draft,        setDraft]       = useState<PlanSessionInput[]>(settings.planSessions || [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}]);
@@ -115,7 +127,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const [prevPlan, setPrevPlan] = useState<Plan | null>(plan);
   if (plan !== prevPlan) {
     setPrevPlan(plan);
-    setExp(currentWeekIndex());
+    setExp(focusWeek(plan));
   }
 
   // A promote ("Set as target") prefills the edit screen with a catalogue edition.
@@ -288,12 +300,8 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const all  = plan.weeks.flatMap(w => w.sessions);
   const done = all.filter(s => s.done).length;
   const pct  = Math.round((done / all.length) * 100);
-  const today = new Date(); today.setHours(0,0,0,0);
-  const nowIdx = plan.weeks.findIndex(w => {
-    const s = new Date((w.startDate || "") + "T00:00:00");
-    const e = new Date(s); e.setDate(s.getDate() + 7);
-    return today >= s && today < e;
-  });
+  const today = startOfToday();
+  const { upcoming, past } = splitWeeks(plan);
   const ps   = plan.planSessions || settings.planSessions || [];
   const sessInfo = ps.slice()
     .sort((a, b) => a.dayOffset - b.dayOffset)
@@ -308,12 +316,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const weeksTotal = plan.weeks.length;
   // Outside every week window: before the plan starts show week 1, after it
   // ends (race passed) show the final week — never "Week 1" of a finished plan.
-  const planEnded = plan.weeks.every(w => {
-    const s = new Date((w.startDate || "") + "T00:00:00");
-    const e = new Date(s); e.setDate(s.getDate() + 7);
-    return e <= today;
-  });
-  const curWeekNum = nowIdx >= 0 ? plan.weeks[nowIdx].weekNumber : planEnded ? plan.weeks[weeksTotal - 1]?.weekNumber ?? 1 : 1;
+  const curWeekNum = focusWeek(plan) ?? 1;
   const raceMs = new Date(String(plan.raceDate || "") + "T00:00:00").getTime();
   const daysToRace = Number.isFinite(raceMs) ? Math.max(0, Math.round((raceMs - today.getTime()) / 86400000)) : 0;
 
@@ -329,16 +332,56 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     return "bg-sky-500/15 text-sky-400";
   };
 
+  // One collapsible week card. Rendered twice — once for the weeks still ahead,
+  // once for the past ones below them — so it takes the week, not a list index.
+  const weekCard = (wk: PlanWeek) => {
+    const isPast = weekEnd(wk) <= today;
+    const isCurr = !isPast && weekStart(wk) <= today;
+    const isExp  = exp === wk.weekNumber;
+    const wDone  = wk.sessions.filter(s => s.done).length;
+    const wkNumCls = isCurr ? "text-orange-400" : isPast ? "text-slate-600" : "text-slate-200";
+    const wkCardCls = isCurr ? "border-orange-500/50 bg-orange-500/5" : "border-slate-700/60 bg-slate-800/50";
+    const phaseLabel = t("common.phases." + wk.phase, { defaultValue: wk.phase });
+
+    return (
+      <div key={wk.weekNumber} className={"rounded-xl border " + wkCardCls}>
+        <button onClick={() => setExp(isExp ? null : wk.weekNumber)} className="w-full px-4 py-3 flex items-center gap-2 text-left">
+          <span className={"text-[15px] font-bold flex-shrink-0 " + wkNumCls}>{t("plan.week.label", { number: wk.weekNumber })}</span>
+          <span className="text-xs text-slate-400 flex-shrink-0">{fmt.sht(wk.startDate || "")}</span>
+          <span title={phaseLabel} className={"text-[10.5px] font-semibold px-2 py-0.5 rounded-full min-w-0 truncate " + phaseClass(wk.phase)}>{phaseLabel}</span>
+          {isCurr && <span className="text-xs text-orange-400 flex-shrink-0">{t("plan.week.now")}</span>}
+          <span className="flex-1"/>
+          <span className="text-xs text-slate-400 whitespace-nowrap">{wDone + "/" + wk.sessions.length}</span>
+          <ChevronDown size={15} className={"text-slate-500 transition-transform flex-shrink-0 " + (isExp ? "rotate-180" : "")}/>
+        </button>
+
+        {isExp && (
+          <div className="px-3 pb-3 pt-1 space-y-2 animate-expand">
+            {wk.sessions.slice().sort((a, b) => a.date.localeCompare(b.date)).map(s => (
+              <PlanSessionRow key={s.id} session={s} settings={settings}
+                notesOpen={openSess === s.id}
+                onToggleNotes={() => setOpenSess(openSess === s.id ? null : s.id)}
+                onRecord={() => openTracker({wNum: wk.weekNumber, sId: s.id})}
+                onDone={() => goLog({date: s.date, type: s.type, km: Number(s.km), pace: s.pace, wNum: wk.weekNumber, sId: s.id})}
+                onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
+                onSkip={() => skipSess(wk.weekNumber, s.id)}
+                onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}
+                onFindRoute={routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && Number(s.km) > 0
+                  ? () => openTracker({ wNum: wk.weekNumber, sId: s.id, findRouteKm: Number(s.km) })
+                  : undefined}
+                openSettings={openSettings}/>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 max-w-lg mx-auto">
-      <div className="flex justify-between items-center mt-4 mb-4">
-        <h2 className="text-xl font-bold">{t("plan.title")}</h2>
-        <button onClick={() => openCoach()}
-          className="px-3.5 py-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/50 rounded-full transition-colors"
-          title={t("plan.header.coachTitle")}>
-          <MessageCircle size={14}/>{t("plan.header.coach")}
-        </button>
-      </div>
+      {/* No coach button here: it moved to the app header (RunningCoach.tsx) so
+          it's reachable from every tab. The per-session "Ask coach" below stays. */}
+      <h2 className="text-xl font-bold mt-4 mb-4">{t("plan.title")}</h2>
 
       {/* Plan card */}
       <div className="rounded-2xl bg-slate-800/70 border border-slate-700/50 divide-y divide-slate-700/40 mb-2.5">
@@ -374,13 +417,6 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
         </div>
       </div>
 
-      {nowIdx >= 0 && (
-        <button onClick={jumpToWeek}
-          className="w-full mb-3 rounded-xl px-4 py-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-orange-300 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 transition-colors">
-          {t("plan.jumpToWeek")}<ArrowDown size={13}/>
-        </button>
-      )}
-
       {longRunNudge && (
         <div className="w-full mb-3 rounded-xl px-4 py-2.5 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/25 flex gap-2 items-start">
           <span className="flex-shrink-0 text-base leading-none">💡</span>
@@ -388,49 +424,17 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
         </div>
       )}
 
-      <div className="space-y-2">
-        {plan.weeks.map((wk, i) => {
-          const wS = new Date((wk.startDate || "") + "T00:00:00");
-          const wE = new Date(wS); wE.setDate(wS.getDate() + 7);
-          const isCurr = today >= wS && today < wE;
-          const isPast = wE < today;
-          const isExp  = exp === i;
-          const wDone  = wk.sessions.filter(s => s.done).length;
-          const wkNumCls = isCurr ? "text-orange-400" : isPast ? "text-slate-600" : "text-slate-200";
-          const wkCardCls = isCurr ? "border-orange-500/50 bg-orange-500/5" : "border-slate-700/60 bg-slate-800/50";
-          const phaseLabel = t("common.phases." + wk.phase, { defaultValue: wk.phase });
+      <div className="space-y-2">{upcoming.map(weekCard)}</div>
 
-          return (
-            <div key={wk.weekNumber} ref={isCurr ? weekRef : null} className={"rounded-xl border " + wkCardCls}>
-              <button onClick={() => setExp(isExp ? null : i)} className="w-full px-4 py-3 flex items-center gap-2 text-left">
-                <span className={"text-[15px] font-bold flex-shrink-0 " + wkNumCls}>{t("plan.week.label", { number: wk.weekNumber })}</span>
-                <span className="text-xs text-slate-400 flex-shrink-0">{fmt.sht(wk.startDate || "")}</span>
-                <span title={phaseLabel} className={"text-[10.5px] font-semibold px-2 py-0.5 rounded-full min-w-0 truncate " + phaseClass(wk.phase)}>{phaseLabel}</span>
-                {isCurr && <span className="text-xs text-orange-400 flex-shrink-0">{t("plan.week.now")}</span>}
-                <span className="flex-1"/>
-                <span className="text-xs text-slate-400 whitespace-nowrap">{wDone + "/" + wk.sessions.length}</span>
-                <ChevronDown size={15} className={"text-slate-500 transition-transform flex-shrink-0 " + (isExp ? "rotate-180" : "")}/>
-              </button>
-
-              {isExp && (
-                <div className="px-3 pb-3 pt-1 space-y-2 animate-expand">
-                  {wk.sessions.slice().sort((a, b) => a.date.localeCompare(b.date)).map(s => (
-                    <PlanSessionRow key={s.id} session={s} settings={settings}
-                      notesOpen={openSess === s.id}
-                      onToggleNotes={() => setOpenSess(openSess === s.id ? null : s.id)}
-                      onRecord={() => openTracker({wNum: wk.weekNumber, sId: s.id})}
-                      onDone={() => goLog({date: s.date, type: s.type, km: Number(s.km), pace: s.pace, wNum: wk.weekNumber, sId: s.id})}
-                      onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
-                      onSkip={() => skipSess(wk.weekNumber, s.id)}
-                      onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber })}
-                      openSettings={openSettings}/>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {past.length > 0 && (
+        <>
+          <div className="flex items-center gap-2.5 mt-5 mb-2 px-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t("plan.pastWeeks")}</span>
+            <span className="h-px flex-1 bg-slate-700/60"/>
+          </div>
+          <div className="space-y-2">{past.map(weekCard)}</div>
+        </>
+      )}
     </div>
   );
 }

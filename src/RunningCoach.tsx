@@ -5,9 +5,10 @@ import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { dismissTop } from "./utils/backDismiss";
 import { isLangId, setLocale } from "./i18n";
-import { Loader, Settings } from "lucide-react";
+import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
+import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
@@ -43,6 +44,7 @@ import { BottomNav } from "./components/BottomNav";
 import type {
   CatalogueRace,
   CoachSessionContext,
+  CoachSource,
   JoinedEdition,
   Plan,
   PlanPrefill,
@@ -91,7 +93,14 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () => void }) {
+export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null, onRefreshPremium = async () => null }: {
+  onSignOut?: () => void;
+  // Entitlement, owned by App (the auth owner) — see src/premium.ts.
+  // onRefreshPremium re-reads it and RESOLVES with the fresh value, so a caller
+  // can act on this read rather than on pre-refresh state.
+  premiumUntil?: string | null;
+  onRefreshPremium?: () => Promise<string | null>;
+}) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
   const [tab,         setTab]         = useState("dash");
@@ -120,6 +129,10 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
   // Plan session the tracker was opened from ("Record run" on a session card),
   // threaded into the save prefill so LogView's onSaved auto-ticks it.
   const [trackerLink, setTrackerLink] = useState<{ wNum: number; sId: string } | null>(null);
+  // A distance to pre-open the route finder with (set when the tracker is opened
+  // from a plan session's "Find a route"). Kept SEPARATE from trackerLink, which
+  // flows into the saved run's prefill — this must not.
+  const [trackerFindKm, setTrackerFindKm] = useState<number | undefined>(undefined);
   const [backupRoutes,setBackupRoutes]= useState<RouteBackup[]>([]);
   // Personal races layer (wishlist / completed + seen-badge set). seenBadges is
   // null until first-run seeding so we can tell "never computed" from "none".
@@ -744,13 +757,26 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
   checkWatchRef.current = scanImports;
   const goProgress = (sub?: string) => { setProgressSub(sub === "stats" || sub === "badges" ? sub : "log"); setProgressNonce(n => n + 1); setTab("progress"); };
   const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
-  const shared = {runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  // A session-context object opens the coach about that session; a bare call
+  // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
+  // so the click event never counts as a session. `source` is analytics only.
+  const openCoach = (session?: unknown, source?: CoachSource) => {
+    const ctx = session && typeof session === "object" && "session" in session ? session as CoachSessionContext : null;
+    setCoachSession(ctx); setShowCoach(true);
+    track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
+  };
+  // Recomputed every render (not memoised) so an expiry flips the UI to free
+  // without needing a refetch. UI only — the server enforces every premium
+  // feature independently.
+  const isPremium = isPremiumActive(premiumUntil);
+  const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
     openTracker: (link?: unknown) => {
-      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string } : null;
-      setTrackerLink(l);
+      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string; findRouteKm?: number } : null;
+      setTrackerLink(l ? { wNum: l.wNum, sId: l.sId } : null);
+      setTrackerFindKm(l && typeof l.findRouteKm === "number" && l.findRouteKm > 0 ? l.findRouteKm : undefined);
       setShowTracker(true);
     },
     // Open the full-screen per-run analytics view. Guard on shape so a click
@@ -761,13 +787,7 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
       const r = run && typeof run === "object" && "durationSec" in run ? run as Run : null;
       if (r) setDetailRun(r);
     },
-    // A session-context object opens the coach about that session; a bare call
-    // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
-    // so the click event never counts as a session.
-    openCoach: (session?: unknown) => {
-      const ctx = session && typeof session === "object" && "session" in session ? session as CoachSessionContext : null;
-      setCoachSession(ctx); setShowCoach(true);
-    },
+    openCoach,
     // Manual "scan older runs" for the Integrations settings panel — wider window,
     // bypasses the once-per-session auto throttle.
     scanImportsNow: () => checkWatchRef.current({ days: WATCH_MANUAL_SCAN_DAYS, manual: true })};
@@ -807,10 +827,11 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
           track("onboarding_completed", {});
         }}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
+        initialFindKm={trackerFindKm} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={() => { setShowTracker(false); openSettings(); }}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
-        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); }}
-        onClose={() => { setShowTracker(false); setTrackerLink(null); }}/>}
+        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
+        onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
       {showBackup && <BackupModal
         data={{runs, plan, settings, races, userContext, ...(backupRoutes.length ? {routes: backupRoutes} : {})}}
         onClose={() => setShowBackup(false)}/>
@@ -822,7 +843,7 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
         onBackup={()  => { setShowSettings(false); exportData(); }}
         onRestore={() => { setShowSettings(false); setShowRestore(true); }}
         onSignOut={onSignOut}
-        onOpenCoach={plan ? () => { setShowSettings(false); setCoachSession(null); setShowCoach(true); } : undefined}
+        onOpenCoach={plan ? () => { setShowSettings(false); openCoach(null, "settings"); } : undefined}
         onDeleteAccount={() => { setShowSettings(false); setShowDeleteAccount(true); }}
         onClose={()   => setShowSettings(false)}/>}
       {showDeleteAccount && <DeleteAccountModal
@@ -852,10 +873,27 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
           <BrandLogo size={15} className="text-orange-400"/>
           <span className="text-sm font-semibold">Running Coach</span>
         </div>
-        <button onClick={openSettings} aria-label={t("app.header.settings")}
-          className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 hover:bg-slate-800 transition-colors">
-          <Settings size={15}/>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Coach lives here rather than on the Plan tab so it's reachable from
+              every view. Gated on `plan` for the same reason the chat itself is
+              (`showCoach && plan` below): with no plan there is nothing to
+              adjust, so the button would open an empty overlay. Kept on the
+              orange accent — next to the settings gear a second muted icon
+              reads as a utility, not the product's headline feature. */}
+          {plan && (
+            // Labelled, not icon-only: a speech bubble alone doesn't say "AI
+            // coach". The cog beside it stays bare on purpose — see the comment
+            // there. No aria-label: the visible text is the accessible name.
+            <button onClick={() => openCoach(null, "header")} title={t("app.header.coachTitle")}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[13px] font-semibold text-orange-400 hover:text-orange-300 rounded-full border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 transition-colors">
+              <MessageCircle size={14}/>{t("app.header.coach")}
+            </button>
+          )}
+          <button onClick={openSettings} aria-label={t("app.header.settings")}
+            className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 hover:bg-slate-800 transition-colors">
+            <Settings size={15}/>
+          </button>
+        </div>
       </header>
 
       <div key={tab} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
