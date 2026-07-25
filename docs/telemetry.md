@@ -134,6 +134,14 @@ an explicit var.
   `{}` the first time the "Near me" toggle is enabled in Races → Find a race
   (`src/views/RacesView.tsx`). Both limited — enum/no-args only, **never** race
   names, free text, or the user's location/coordinates.
+- Route finder: `route_suggested` `{}` when a generation starts
+  (`src/modals/RouteFinderSheet.tsx`). No coordinates, no distance — the point
+  is only how often the feature is used.
+- Premium: `premium_teaser_shown` `{feature}` when a free user opens the
+  "premium feature" sheet (`src/modals/PremiumTeaserSheet.tsx`). `feature` is a
+  fixed slug (`"routeFinder"`), never free text. This is the demand signal for
+  the paid tier — how many people reach for a premium feature before there is
+  anything to sell. See `docs/monetization.md`.
 - Settings → Privacy toggle (reads/writes consent directly) —
   `src/modals/SettingsModal.tsx`.
 

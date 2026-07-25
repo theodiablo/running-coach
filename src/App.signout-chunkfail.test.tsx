@@ -31,7 +31,7 @@ vi.mock("./supabase", () => ({
   authRedirectTo: () => "x://auth",
 }));
 
-vi.mock("./native", () => ({ isNative: false }));
+vi.mock("./native", () => ({ isNative: false, isIos: false, isAndroid: false, platform: "web" }));
 
 vi.mock("./db", () => ({
   initStore: vi.fn(async () => {}),

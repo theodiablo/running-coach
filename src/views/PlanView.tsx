@@ -6,6 +6,7 @@ import { fmt } from "../utils/format";
 import { runnerAge } from "../utils/hr";
 import { findEdition } from "../utils/races";
 import { routeSuggestEnabled } from "../constants";
+import { canShowPremiumTeaser } from "../premium";
 import { GoalConfigurator } from "../components/GoalConfigurator";
 import { PlanInfo } from "../components/PlanInfo";
 import { StylePicker } from "../components/StylePicker";
@@ -65,12 +66,15 @@ type PlanViewProps = {
   showToast: (msg: string, type?: string) => void;
   planPrefill?: PlanPrefill | null;
   clearPlanPrefill?: () => void;
+  // "Find a route" is premium-only; free users reach the teaser inside the
+  // tracker, except on iOS where the entry point is hidden entirely.
+  isPremium?: boolean;
 };
 
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 
-export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, goLog, showToast, planPrefill, clearPlanPrefill}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, goLog, showToast, planPrefill, clearPlanPrefill, isPremium = false}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -362,7 +366,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
                 onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                 onSkip={() => skipSess(wk.weekNumber, s.id)}
                 onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}
-                onFindRoute={routeSuggestEnabled && Number(s.km) > 0
+                onFindRoute={routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && Number(s.km) > 0
                   ? () => openTracker({ wNum: wk.weekNumber, sId: s.id, findRouteKm: Number(s.km) })
                   : undefined}
                 openSettings={openSettings}/>

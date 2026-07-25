@@ -33,7 +33,7 @@ vi.mock("./supabase", () => ({
   authRedirectTo: () => "x://auth",
 }));
 
-vi.mock("./native", () => ({ isNative: false }));
+vi.mock("./native", () => ({ isNative: false, isIos: false, isAndroid: false, platform: "web" }));
 
 const store: Record<string, unknown> = {
   rc_settings: {

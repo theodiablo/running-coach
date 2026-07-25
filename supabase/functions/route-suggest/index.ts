@@ -12,10 +12,15 @@
 // the browser and the one index.html CSP (connect-src https://*.supabase.co)
 // needs no change on any platform.
 //
+// Premium-only: "Find a route" is the app's first paid-tier feature. THIS is
+// the gate — profiles.premium_until is service-role-writable only, so the
+// client's copy (src/premium.ts) is a UI hint and nothing more.
+//
 // Request (JSON body, caller JWT forwarded by functions.invoke):
 //   { lat, lng, km, elevation?: "flat"|"rolling"|"hilly", seedBase?, count? }
 // Response:
 //   { configured: false }                        ORS_API_KEY unset — dormant
+//   { error, code: "PREMIUM_REQUIRED" }          not a premium account
 //   { error, code: "RATE_LIMIT", usage }         daily budget spent
 //   { configured: true, features: GeoJSONFeature[] }   0..count loop candidates
 //
@@ -64,6 +69,23 @@ function isUsableFeature(feature: unknown): boolean {
   const geometry = feature && typeof feature === "object" ? (feature as { geometry?: unknown }).geometry : null;
   const coords = geometry && typeof geometry === "object" ? (geometry as { coordinates?: unknown }).coordinates : null;
   return Array.isArray(coords) && coords.length >= 2;
+}
+
+// Is this account premium right now? Reads profiles.premium_until through the
+// admin (service-role) client, mirroring coach-agent's getDailyLimit — the
+// column is service-role-writable only, so the value can't be self-granted.
+//
+// THROWS on a read failure rather than returning false: a transient DB error
+// must land on the generic error path, never tell a paying user they aren't
+// premium. NaN (including the string "infinity", which the migration bans) is
+// treated as not-premium, matching isPremiumActive on the client exactly.
+// deno-lint-ignore no-explicit-any
+async function isPremiumUser(admin: any, userId: string): Promise<boolean> {
+  const { data, error } = await admin.from("profiles")
+    .select("premium_until").eq("id", userId).maybeSingle();
+  if (error) throw error;
+  const t = data?.premium_until ? Date.parse(String(data.premium_until)) : NaN;
+  return Number.isFinite(t) && t > Date.now();
 }
 
 // ── Backend seam ────────────────────────────────────────────────────────────
@@ -139,11 +161,21 @@ Deno.serve(async (req) => {
     const profile = profileFor(payload.elevation);
     const lengthM = Math.round(km * 1000);
 
-    // Per-user daily budget. Service role only — the client can't touch it.
+    // Service role — reads the premium seam and the usage counter, neither of
+    // which the client can touch.
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Premium gate, deliberately BEFORE the charge below: a free caller must
+    // never increment (or even create) a daily-quota row for a feature they
+    // can't use — and it costs one profiles read instead of a charge+refund.
+    if (!(await isPremiumUser(admin, user.id))) {
+      return json({ error: "premium feature", code: "PREMIUM_REQUIRED" });
+    }
+
+    // Per-user daily budget.
     const today = new Date().toISOString().slice(0, 10);
 
     // Charge FIRST, atomically, then decide — so two concurrent generations can
