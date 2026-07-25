@@ -78,7 +78,19 @@ passes the raw GeoJSON back. All parsing/scoring stays in tested client code.
     finder reliably shows three loops. `characterFromSurface` buckets the ORS
     `surface` extra into paths/mixed/streets.
   - `overlapWithHistory` — Phase 3 "somewhere new"; coordinates never leave the
-    device (recent `run_routes` fetched and compared client-side).
+    device (recent `run_routes` fetched and compared client-side). Novelty is a
+    PENALTY added to the same cost `rankCandidates` uses, never a replacement
+    sort: ordering purely by novelty would promote a loop far off the requested
+    distance just for being unseen ground.
+  - **Both overlap scores are grid-indexed** (`ProximityGrid`): points are
+    bucketed into ~threshold-sized cells so each one only distance-tests the 3x3
+    block around it. Results are identical to the old full scans — a
+    brute-force equivalence test pins that, including duplicates, cell
+    boundaries and negative coordinates — but a 20 km loop drops from ~110 ms to
+    ~10 ms (self-overlap) and ~770 ms to ~3 ms (history), which matters because
+    this runs on the main thread right after the network wait. The bbox
+    prefilter can't substitute: it does nothing in the normal case where you
+    record runs exactly where the candidates are.
 - `src/savedRoutes.ts` — Phase 4 favourites CRUD against the `saved_routes`
   table (direct queries, like `routes.ts`). **Separate from `run_routes`** so
   planned geometry never pollutes recorded traces.
@@ -96,8 +108,13 @@ passes the raw GeoJSON back. All parsing/scoring stays in tested client code.
   foot-walking vs foot-hiking + soft elevation-preference ranking), "somewhere
   new", "set start point" (tap the map), a `RouteMap` showing candidates (tap a
   line to select it), one card per candidate (distance, +elevation, character),
-  star to save a favourite with an editable title, regenerate, safety copy, and
-  OSM/ORS attribution. Registers `useDismissable`. Opens pre-filled to a plan
+  star to save a favourite with an editable title, safety copy, and
+  OSM/ORS attribution. Changing distance, terrain or the start point CLEARS the
+  results (and rewinds the seed) — otherwise the sticky "Run this route" bar
+  would hand the tracker a loop measured for the previous inputs. With results
+  already up, the primary button becomes "show different routes" (bumping the
+  seed): re-requesting seed 0 would spend another daily generation on identical
+  ORS geometry. Registers `useDismissable`. Opens pre-filled to a plan
   session's distance when launched from a plan item.
 - **`RouteMap` guide layer:** additive `guides` / `guidePoints` props draw
   non-recorded lines in a dedicated low-z `"guide"` pane so they sit UNDER the

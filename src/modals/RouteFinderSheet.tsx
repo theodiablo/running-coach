@@ -22,6 +22,11 @@ const DISTANCE_CHIPS = [5, 10, 21, 42]; // 5k, 10k, half, full — race-distance
 const DISTANCE_MIN = 2;   // km — slider bounds
 const DISTANCE_MAX = 42;  // up to a marathon loop for long-run prep
 const TERRAINS: ElevationPref[] = ["flat", "rolling", "hilly"];
+// How hard "somewhere new" penalises retreading recorded routes, on the same
+// scale as rankCandidates' cost (fractional length error + half the overlap).
+// 0.5 means a fully-retraced loop is set back about as much as being 50% off
+// the requested distance — enough to reorder, not enough to promote a bad fit.
+const NOVELTY_WEIGHT = 0.5;
 // Clamp/round any km into the slider's whole-km range.
 const clampKm = (km: number) => Math.min(DISTANCE_MAX, Math.max(DISTANCE_MIN, Math.round(km)));
 // Selected candidate: solid sky, thick. Others: muted slate, thinner, semi-transparent.
@@ -41,12 +46,33 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
   const [saved, setSaved] = useState<SavedRoute[]>([]);
   const seedBaseRef = useRef(0);
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // Re-arm on mount, don't just disarm on unmount: StrictMode's dev-only
+  // mount/unmount/remount would otherwise leave this false for the real mount,
+  // so every post-await guard below bails and the spinner hangs forever — after
+  // a quota unit has already been charged.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useDismissable(true, onClose);
 
   // Load the user's starred favourites once (best-effort; empty on failure).
   useEffect(() => { listSavedRoutes().then(rows => { if (mountedRef.current) setSaved(rows); }); }, []);
+
+  // Any input that changes what a generation would RETURN invalidates the
+  // results on screen: otherwise the sticky "Run this route" bar keeps handing
+  // the tracker a loop measured for the previous distance/terrain/start point.
+  // Also rewinds the seed, so the next ask is a genuine first generation for
+  // the new inputs rather than a continuation of the old batch.
+  const resetResults = () => {
+    setCandidates(null);
+    setSelectedId(null);
+    seedBaseRef.current = 0;
+  };
+  const changeDistance = (v: string) => { setDistance(v); resetResults(); };
+  const changeTerrain = (v: ElevationPref) => { setTerrain(v); resetResults(); };
+  const changeStart = (v: LatLng | null) => { setCustomStart(v); resetResults(); };
 
   const origin = customStart ?? location;
   const km = parseFloat(distance) || 0;
@@ -86,9 +112,18 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
       // isn't blocked after the network wait.
       const history = historyNearCandidates(allHistory, routes);
       if (history.length) {
+        // Novelty is a PENALTY added to the server-side ranking cost, not a
+        // replacement for it: sorting on novelty alone would happily promote a
+        // loop that's 30% off the requested distance just because it's unseen
+        // ground. Same shape as rankCandidates' cost (length error + overlap),
+        // so "somewhere new" nudges the order instead of discarding it.
         routes = [...routes]
-          .map(r => ({ r, novelty: overlapWithHistory(r.points, history) }))
-          .sort((a, b) => a.novelty - b.novelty)
+          .map(r => ({
+            r,
+            cost: (r.lengthErrorPct ?? 0) + (r.overlapPct ?? 0) * 0.5
+              + overlapWithHistory(r.points, history) * NOVELTY_WEIGHT,
+          }))
+          .sort((a, b) => a.cost - b.cost)
           .map(x => x.r);
       }
     }
@@ -97,8 +132,17 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
     setSelectedId(routes[0].id);
   };
 
-  const onGenerate = () => { seedBaseRef.current = 0; generate(0); };
   const onRegenerate = () => { seedBaseRef.current += 10; generate(seedBaseRef.current); };
+  // With results already on screen for these same inputs, re-requesting seed 0
+  // would spend another of the day's generations on byte-identical ORS
+  // geometry — so a repeat tap asks for DIFFERENT loops instead. Changing any
+  // input clears the results and rewinds the seed (resetResults), so a
+  // genuinely new ask still starts from a fresh first generation.
+  const onGenerate = () => {
+    if (candidates?.length) { onRegenerate(); return; }
+    seedBaseRef.current = 0;
+    generate(0);
+  };
 
   const selected = candidates?.find(c => c.id === selectedId) ?? null;
 
@@ -177,13 +221,13 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
               <span className="text-base font-bold text-white tabular-nums">{t("routeFinder.distance.chip", { km: sliderKm })}</span>
             </div>
             <input type="range" min={DISTANCE_MIN} max={DISTANCE_MAX} step={1} value={sliderKm}
-              onChange={e => setDistance(e.target.value)}
+              onChange={e => changeDistance(e.target.value)}
               className="w-full accent-orange-500" aria-label={t("routeFinder.distance.label")} />
             <div className="mt-2 flex flex-wrap gap-2">
               {DISTANCE_CHIPS.map(d => {
                 const on = sliderKm === d;
                 return (
-                  <button key={d} onClick={() => setDistance(String(d))}
+                  <button key={d} onClick={() => changeDistance(String(d))}
                     className={"px-3 py-1 rounded-full text-xs font-semibold border " + (on
                       ? "bg-orange-500 border-orange-500 text-white"
                       : "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500")}>
@@ -201,7 +245,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
               {TERRAINS.map(tr => {
                 const on = terrain === tr;
                 return (
-                  <button key={tr} onClick={() => setTerrain(tr)}
+                  <button key={tr} onClick={() => changeTerrain(tr)}
                     className={"flex-1 px-3 py-1.5 rounded-lg text-sm font-semibold border " + (on
                       ? "bg-slate-700 border-orange-400 text-white"
                       : "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500")}>
@@ -227,7 +271,7 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
               <MapPin size={13} />{t("routeFinder.pickStart")}
             </button>
             {customStart && (
-              <button onClick={() => setCustomStart(null)}
+              <button onClick={() => changeStart(null)}
                 className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500">
                 {t("routeFinder.useMyLocation")}
               </button>
@@ -236,17 +280,18 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
 
           {/* Generate / regenerate */}
           <div className="flex gap-2">
+            {/* One primary action, labelled for what it will actually do: with
+                results already up it asks for different loops (see onGenerate),
+                so it must not keep saying "find routes" — that reads as free
+                and costs a generation. The separate refresh icon is gone: it
+                would now be the same action twice. */}
             <button onClick={onGenerate} disabled={loading || !(km > 0)}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50">
-              {loading ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
-              {loading ? t("routeFinder.searching") : t("routeFinder.generate")}
+              {loading ? <Loader size={16} className="animate-spin" />
+                : candidates?.length ? <RefreshCw size={16} /> : <Search size={16} />}
+              {loading ? t("routeFinder.searching")
+                : candidates?.length ? t("routeFinder.regenerate") : t("routeFinder.generate")}
             </button>
-            {!!candidates?.length && (
-              <button onClick={onRegenerate} disabled={loading} aria-label={t("routeFinder.regenerate")}
-                className="px-4 flex items-center justify-center rounded-xl bg-slate-800 border border-slate-700 text-slate-200 hover:border-slate-500 disabled:opacity-50">
-                <RefreshCw size={16} />
-              </button>
-            )}
           </div>
 
           {/* Candidate cards */}

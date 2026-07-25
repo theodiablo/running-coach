@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { haversineM } from "./geo";
 import {
   characterFromSurface,
   selfOverlapPct,
@@ -158,5 +159,101 @@ describe("historyNearCandidates", () => {
   it("returns [] with no candidates or no history", () => {
     expect(historyNearCandidates([[45.75, 4.85, null]], [])).toEqual([]);
     expect(historyNearCandidates([], [candidate])).toEqual([]);
+  });
+});
+
+// The overlap scores are grid-indexed rather than full O(n^2) scans (a 20 km
+// loop was tens of ms per candidate on the main thread). The index is only a
+// pair-skipping optimisation, so the results must be IDENTICAL to the naive
+// scan — these pin that against brute-force reimplementations on pseudo-random
+// geometry, including the degenerate cases (dense clusters, exact duplicates).
+function bruteSelfOverlap(points: [number, number, number | null][], thresholdM = 20): number {
+  const n = points.length;
+  if (n < 8) return 0;
+  const nearStart = Math.max(2, Math.floor(n * 0.1));
+  const nearEnd = n - nearStart;
+  const overlapped = new Array<boolean>(n).fill(false);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < i - 4; j++) {
+      if (i >= nearEnd && j <= nearStart) continue;
+      if (haversineM(points[i], points[j]) < thresholdM) { overlapped[i] = overlapped[j] = true; }
+    }
+  }
+  return overlapped.filter(Boolean).length / n;
+}
+
+function bruteHistoryOverlap(
+  points: [number, number, number | null][],
+  history: [number, number, number | null][],
+  thresholdM = 25,
+): number {
+  if (!points.length || !history.length) return 0;
+  let near = 0;
+  for (const p of points) {
+    for (const h of history) {
+      if (haversineM(p, h) < thresholdM) { near++; break; }
+    }
+  }
+  return near / points.length;
+}
+
+// Deterministic pseudo-random generator so a failure is reproducible.
+function makeRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
+describe("overlap scoring: grid index matches a full scan", () => {
+  it("agrees with brute force on random walks at several densities", () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const rng = makeRng(seed);
+      // Spread controls how often points land within the threshold: a tight
+      // walk overlaps constantly, a loose one almost never.
+      const spread = 0.00005 + (seed % 4) * 0.0002;
+      const pts: [number, number, number | null][] = [];
+      let lat = 45.75, lng = 4.85;
+      for (let i = 0; i < 160; i++) {
+        lat += (rng() - 0.5) * spread;
+        lng += (rng() - 0.5) * spread;
+        pts.push([lat, lng, null]);
+      }
+      expect(selfOverlapPct(pts)).toBe(bruteSelfOverlap(pts));
+
+      const hist: [number, number, number | null][] = [];
+      let hlat = 45.75, hlng = 4.85;
+      for (let i = 0; i < 120; i++) {
+        hlat += (rng() - 0.5) * spread;
+        hlng += (rng() - 0.5) * spread;
+        hist.push([hlat, hlng, null]);
+      }
+      expect(overlapWithHistory(pts, hist)).toBe(bruteHistoryOverlap(pts, hist));
+    }
+  });
+
+  it("agrees on exact duplicates and points sharing a cell boundary", () => {
+    const p: [number, number, number | null] = [45.75, 4.85, null];
+    const dup: [number, number, number | null][] = Array.from({ length: 20 }, () => [...p] as [number, number, number | null]);
+    expect(selfOverlapPct(dup)).toBe(bruteSelfOverlap(dup));
+    expect(overlapWithHistory(dup, dup)).toBe(bruteHistoryOverlap(dup, dup));
+    // Straddle a grid line: floor(lat/dLat) differs by 1 but the metres don't.
+    const straddle: [number, number, number | null][] = [];
+    for (let i = 0; i < 40; i++) straddle.push([45.75 + (i % 2) * 0.00002, 4.85 + i * 0.000005, null]);
+    expect(selfOverlapPct(straddle)).toBe(bruteSelfOverlap(straddle));
+  });
+
+  it("agrees in the southern/western hemisphere (negative coordinates floor differently)", () => {
+    const rng = makeRng(99);
+    const pts: [number, number, number | null][] = [];
+    let lat = -33.87, lng = -70.66;
+    for (let i = 0; i < 120; i++) {
+      lat += (rng() - 0.5) * 0.0002;
+      lng += (rng() - 0.5) * 0.0002;
+      pts.push([lat, lng, null]);
+    }
+    expect(selfOverlapPct(pts)).toBe(bruteSelfOverlap(pts));
+    expect(overlapWithHistory(pts, pts)).toBe(bruteHistoryOverlap(pts, pts));
   });
 });

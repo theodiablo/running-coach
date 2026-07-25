@@ -92,11 +92,13 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null, onRefreshPremium = () => {} }: {
+export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null, onRefreshPremium = async () => null }: {
   onSignOut?: () => void;
   // Entitlement, owned by App (the auth owner) — see src/premium.ts.
+  // onRefreshPremium re-reads it and RESOLVES with the fresh value, so a caller
+  // can act on this read rather than on pre-refresh state.
   premiumUntil?: string | null;
-  onRefreshPremium?: () => void;
+  onRefreshPremium?: () => Promise<string | null>;
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
