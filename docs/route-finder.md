@@ -118,21 +118,29 @@ Bias hard toward well-mapped paths at the request level (green/quiet weightings,
 `foot-walking`) so the copy rarely has to do the work. i18n under
 `routeFinder.*` (en/es/fr; French informal `tu`; no em dashes).
 
-## Configuration (dormant until both are set)
+## Configuration
 
-- **Client:** `routeSuggestEnabled = !!MAP_KEY && VITE_ROUTE_SUGGEST !== "0"`
-  (`src/constants.ts`) — the button renders wherever a MapTiler key exists;
-  set the repo **variable** `VITE_ROUTE_SUGGEST="0"` to force it hidden for a
-  deployment. (It's still threaded through the web-build workflows so that
-  opt-out reaches the bundle.) The server gate below is the real safety net, so
-  a visible button with no `ORS_API_KEY` just degrades to the "couldn't fetch"
-  toast rather than exposing anything.
+- **Capability (client):** `routeSuggestEnabled = !!MAP_KEY` (`src/constants.ts`)
+  — can the feature work here at all (a route on a blank map is pointless).
+  There is no build-time flag: this is a **premium** feature, and the tier is
+  per-user server state, not a deployment-wide switch.
+- **Access (premium):** `profiles.premium_until` — see `docs/monetization.md`.
+  The client reads its own row via `src/premium.ts` purely to pick the
+  affordance; **the gate is the edge function**, which answers
+  `{code:"PREMIUM_REQUIRED"}` to anyone else. Free users on web/Android see the
+  entry point with a lock and a "Premium" badge, which opens
+  `PremiumTeaserSheet`; on **iOS free users see no entry point at all**
+  (`canShowPremiumTeaser`) while no in-app purchase exists — same App Store
+  reasoning that keeps the tip jar web-only.
 - **Server:** set the `ORS_API_KEY` function secret (optionally `ORS_BASE_URL`,
   `ROUTE_SUGGEST_LIMIT_PER_DAY`). Without it, `route-suggest` returns
-  `{configured:false}` and the client treats it as "no result". Deploys via the
+  `{configured:false}` and the client treats it as "no result" — a premium user
+  just gets the "couldn't fetch" toast, nothing is exposed. Deploys via the
   existing changed-function detection in `deploy-supabase-functions.yml`.
 
 ## Telemetry
 
-One consent-gated count event, `route_suggested` (no properties), fired when a
-generation starts. See `docs/telemetry.md`.
+Two consent-gated count events: `route_suggested` (no properties), fired when a
+generation starts, and `premium_teaser_shown` (`{feature:"routeFinder"}`), fired
+when a free user opens the teaser — the demand signal for the paid tier. See
+`docs/telemetry.md`.

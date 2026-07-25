@@ -16,8 +16,9 @@ import onboarding from "./onboarding.json";
 import login from "./login.json";
 import app from "./app.json";
 import routeFinder from "./routeFinder.json";
+import premium from "./premium.json";
 
 export default {
   common, nav, dashboard, plan, styles, races, coach, tracker,
-  log, progress, badges, settings, onboarding, login, app, routeFinder,
+  log, progress, badges, settings, onboarding, login, app, routeFinder, premium,
 };

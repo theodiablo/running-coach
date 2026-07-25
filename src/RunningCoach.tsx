@@ -8,6 +8,7 @@ import { isLangId, setLocale } from "./i18n";
 import { Loader, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
+import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
@@ -91,7 +92,12 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () => void }) {
+export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null, onRefreshPremium = () => {} }: {
+  onSignOut?: () => void;
+  // Entitlement, owned by App (the auth owner) — see src/premium.ts.
+  premiumUntil?: string | null;
+  onRefreshPremium?: () => void;
+}) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
   const [tab,         setTab]         = useState("dash");
@@ -748,7 +754,11 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
   checkWatchRef.current = scanImports;
   const goProgress = (sub?: string) => { setProgressSub(sub === "stats" || sub === "badges" ? sub : "log"); setProgressNonce(n => n + 1); setTab("progress"); };
   const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
-  const shared = {runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  // Recomputed every render (not memoised) so an expiry flips the UI to free
+  // without needing a refetch. UI only — the server enforces every premium
+  // feature independently.
+  const isPremium = isPremiumActive(premiumUntil);
+  const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -812,7 +822,7 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
           track("onboarding_completed", {});
         }}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        initialFindKm={trackerFindKm}
+        initialFindKm={trackerFindKm} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={() => { setShowTracker(false); openSettings(); }}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
@@ -18,8 +18,10 @@ import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
 import { RouteFinderSheet } from "./RouteFinderSheet";
+import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
 import { isNative, isAndroid, isIos } from "../native";
 import { BG_LOC_DISCLOSED_KEY, routeSuggestEnabled } from "../constants";
+import { canShowPremiumTeaser } from "../premium";
 import { track } from "../telemetry";
 import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
 
@@ -34,6 +36,10 @@ type LiveRunTrackerProps = {
   // When set (e.g. opened from a plan session), auto-open the route finder with
   // this distance pre-filled.
   initialFindKm?: number;
+  // "Find a route" is premium-only. UI affordance only — the route-suggest edge
+  // function is the gate that matters.
+  isPremium?: boolean;
+  onRefreshPremium?: () => void;
 };
 
 type LocationPreview = { lat: number; lng: number; acc?: number | null };
@@ -60,7 +66,7 @@ function Ctrl({ onClick, color, children, disabled = false }: { onClick: () => v
   );
 }
 
-export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
   const pairedHrDevice = getPairedDevice();
   const healthConnectAuthorized = hasHealthConnectAuthorization();
   const healthKitAuthorized = hasHealthKitAuthorization();
@@ -84,11 +90,26 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // the current position at the default zoom and re-arms follow.
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [following, setFollowing] = useState(true);
-  // "Find a route" loop finder (dormant unless routeSuggestEnabled). The chosen
-  // loop becomes a sky dashed guide line under the recorded track — purely
-  // visual, the runner follows it by eye. Ephemeral: never saved, gone on close.
-  const [showFinder, setShowFinder] = useState(routeSuggestEnabled && !!initialFindKm);
+  // "Find a route" loop finder (needs the map capability AND premium). The
+  // chosen loop becomes a sky dashed guide line under the recorded track —
+  // purely visual, the runner follows it by eye. Ephemeral: never saved, gone
+  // on close.
+  const routeFinderReady = routeSuggestEnabled && isPremium;
+  // A free user who arrived here from a plan session's "Find a route" gets the
+  // teaser instead of the finder, so the tap still explains itself rather than
+  // opening the tracker onto nothing.
+  const [showFinder, setShowFinder] = useState(routeFinderReady && !!initialFindKm);
+  const [showPremiumTeaser, setShowPremiumTeaser] = useState(
+    routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm);
   const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
+  // Opening the teaser is the one moment a stale "locked" state is about to be
+  // shown, so re-read the entitlement then (the sign-in fetch runs once, and may
+  // have failed offline or predated a grant).
+  const openFinderOrTeaser = () => {
+    if (routeFinderReady) { setShowFinder(true); return; }
+    onRefreshPremium?.();
+    setShowPremiumTeaser(true);
+  };
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
   // guardedStart's disclosure/HR gates, since guardedStart calls this as its fn.
@@ -430,7 +451,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 <Play size={20} />{t("tracker.controls.start")}
               </Ctrl>
             </div>
-            {routeSuggestEnabled && (
+            {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
               plannedRoute ? (
                 <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
                   <Search size={15} className="text-sky-300 shrink-0" />
@@ -442,9 +463,15 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                     className="ml-auto p-1 text-slate-400 hover:text-white"><X size={15} /></button>
                 </div>
               ) : (
-                <button onClick={() => setShowFinder(true)}
+                <button onClick={openFinderOrTeaser}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-semibold bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 active:scale-95 transition-[background-color,transform]">
-                  <Search size={18} />{t("routeFinder.button")}
+                  {isPremium ? <Search size={18} /> : <Lock size={16} className="text-slate-300" />}
+                  {t("routeFinder.button")}
+                  {!isPremium && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
+                      {t("premium.badge")}
+                    </span>
+                  )}
                 </button>
               )
             )}
@@ -530,6 +557,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           initialKm={initialFindKm}
           onSelect={setPlannedRoute}
           onClose={() => setShowFinder(false)} />
+      )}
+
+      {showPremiumTeaser && (
+        <PremiumTeaserSheet feature="routeFinder" onClose={() => setShowPremiumTeaser(false)} />
       )}
     </div>
   );

@@ -1,0 +1,9 @@
+{
+  "badge": "Premium",
+  "teaser": {
+    "title": "Función premium",
+    "body": "Las sugerencias de rutas formarán parte de un plan premium. Todavía no está disponible y no hay una fecha prevista. Todo lo que necesitas para entrenar sigue siendo gratis.",
+    "ok": "Entendido"
+  },
+  "required": "Esta función es premium."
+}

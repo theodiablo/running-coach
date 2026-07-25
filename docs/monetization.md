@@ -101,3 +101,98 @@ strongest candidates:
 At current (beta) scale, growth matters more than conversion — but the
 premium-first / never-claw-back rule is decided **now** so nothing has to be
 walked back later.
+
+## Shipped: the premium seam (2026-07)
+
+The entitlement mechanism exists, and the **route finder** ("Find a route") is
+the first premium-only feature. Consistent with the never-claw-back rule: it
+landed premium-first and never shipped free.
+
+**Schema** (`20260724130100_premium_until.sql`) — two nullable columns on
+`profiles`, service-role-writable ONLY (no grant statements needed: the
+column-scoped `authenticated` grants from `20260719120000` don't extend to new
+columns, so this is airtight by construction; table-level `select` + "read own"
+RLS still let a user read their own state):
+
+- `premium_until` — NULL = free; a future timestamptz = premium.
+- `premium_since` — first-ever grant, never cleared or moved forward. This is
+  the loyalty datum ("supporter since …") no later history table could
+  backfill, which is why it exists before there's a feature using it.
+
+Deliberately **no history table yet**: cumulative-months and lapse/return
+history should be modelled on what the payment provider's webhook actually
+sends, and adding a table later is a cheap append-only migration. **The first
+automated writer must dual-write an append-only entitlement-events table**, and
+from then on manual comps go through the provider's *granted entitlements* so
+the webhook stays the single writer to these columns (otherwise an `EXPIRATION`
+event silently revokes a hand-granted comp).
+
+**Enforcement** is always server-side, per feature:
+
+- `route-suggest` → `{code:"PREMIUM_REQUIRED"}` before it touches the quota
+  table, so free callers never consume one.
+- `coach-agent` → premium raises the daily budget to
+  `PREMIUM_RATE_LIMIT_PER_DAY` (40, vs the free default of 5). This RAISES the
+  paid allowance; the free number never moves. Precedence:
+  `profiles.coach_daily_limit` override → premium → env default.
+
+Both read the columns via the service-role client, and a failed read throws to
+the generic error path rather than quietly reading as "free".
+
+**Client** (`src/premium.ts`) is UI only. A failed/offline read means free, so
+the teaser refetches when it opens. `'infinity'` is banned as a value: PostgREST
+serialises it as a literal string that `Date.parse` turns into NaN, which would
+demote a lifetime supporter to free at both ends. Use a concrete far-future date.
+
+**Granting premium** (dashboard SQL editor, which runs as service role):
+
+```sql
+update public.profiles
+   set premium_until = now() + interval '1 year',
+       premium_since = coalesce(premium_since, now())
+ where email = 'someone@example.com';
+```
+
+The same statement from the app (anon/authenticated) fails on column
+privileges — a useful self-test of the seam. There is **no purchase flow yet**,
+so this is the only way in; consider granting it to existing tip-jar supporters
+and beta testers so the feature has real users and the lock isn't purely
+theoretical. Lapse is silent (no cron, no notice): acceptable while the gated
+feature is ephemeral route suggestions and grants are manual.
+
+**Free-user UX:** locked entry point + `PremiumTeaserSheet` on web/Android;
+**hidden entirely on iOS** (`canShowPremiumTeaser`) while no IAP exists — a
+permanently locked "coming soon" affordance is placeholder UI under App Store
+guideline 2.1, and payment-adjacent copy next to the external tip jar invites a
+3.1.1 steering question. Teaser copy therefore names no price, no payment, and
+no "supporters", and never asserts the viewer's own tier (an offline premium
+user can land there). If no purchase path exists within ~2 quarters, demote the
+teaser to hidden rather than let "coming soon" rot.
+
+## Payments path (researched 2026-07)
+
+Rates verified July 2026; re-check before building, these move.
+
+| Route | Fees on a €4.99/mo sub | Notes |
+|---|---|---|
+| **IAP + RevenueCat** | ~15% | RevenueCat free below $2,500 MTR, then 1%. Stores are merchant of record → **zero VAT admin**. |
+| Direct store IAP | ~15% | Same fees, but you own two receipt-validation paths + ASSN/RTDN webhooks. |
+| Stripe web checkout | ~8-9% | Cheapest, but **you** become merchant of record → VAT/OSS registration and filings. |
+| Merchant-of-record (Paddle etc.) | ~15% effective | 5% + $0.50 — the fixed fee eats a €4.99 ticket. Only sensible on an annual plan. |
+
+**Recommendation: native IAP on both stores unified by RevenueCat.** It is free
+at this scale, collapses the plumbing to one webhook writing `premium_until`
+(plus the events table above), supports granted entitlements for comps, and the
+stores handle all tax. Requires enrolling in Apple's **Small Business Program**
+(15% instead of 30%). Google Play subscriptions are 15% with Play Billing,
+dropping to ~10% via external/alternative billing in covered regions since June
+2026.
+
+Add **Stripe web checkout** later as a secondary channel, not a replacement:
+outside the US storefront, guideline 3.1.3(b) requires a subscription unlocked
+in the iOS app to *also* be available as IAP, so web-only is not App-Store-safe.
+US iOS external links are currently 0% commission pending the Supreme Court
+ruling (~2027) — treat that as temporary. EU DMA terms land around 7-15% all-in,
+so they beat nothing at this scale.
+
+When purchases ship, the privacy policy needs a payments-processor entry.
