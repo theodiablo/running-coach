@@ -26,15 +26,20 @@
 //              with requestId (delivery recovery after a dropped stream)
 //
 // Deploy:  supabase functions deploy coach-agent
-// Secrets: supabase secrets set ANTHROPIC_API_KEY=...
+// Secrets: supabase secrets set ANTHROPIC_API_KEY=... (and/or MISTRAL_API_KEY)
+//   The provider is picked from the COACH_MODEL name: mistral*/magistral*/...
+//   route to Mistral's chat-completions API via _shared/coach/mistral.mjs
+//   (needs MISTRAL_API_KEY); anything else uses the Anthropic SDK. Switching
+//   provider is one COACH_MODEL secret change, no redeploy.
 //   Optional: COACH_MODEL (default claude-sonnet-5), COACH_MODEL_LIGHT
 //   (routing seam, default claude-haiku-4-5), RATE_LIMIT_PER_DAY (default 5;
 //   premium accounts get PREMIUM_RATE_LIMIT_PER_DAY, default 40, and a per-user
 //   override lives in profiles.coach_daily_limit),
-//   MOCK_LLM=1 (canned responses, zero Anthropic calls — CI / local dev).
+//   MOCK_LLM=1 (canned responses, zero model calls — CI / local dev).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
+import { isMistralModel, makeMistralModel } from "../_shared/coach/mistral.mjs";
 import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
 import { createMockModel } from "../_shared/coach/mock.mjs";
@@ -58,7 +63,7 @@ const PREMIUM_RATE_LIMIT_PER_DAY = Number(Deno.env.get("PREMIUM_RATE_LIMIT_PER_D
 // while these retries happen, so the client never sees the churn.
 const MODEL_MAX_RETRIES = Number(Deno.env.get("COACH_MODEL_MAX_RETRIES") ?? 4);
 const MODEL_TIMEOUT_MS = Number(Deno.env.get("COACH_MODEL_TIMEOUT_MS") ?? 60000);
-// A propose/critique round spends most of its time awaiting Anthropic with
+// A propose/critique round spends most of its time awaiting the model API with
 // zero bytes flowing to the client — long enough for some intermediary
 // (mobile network, proxy) to treat the connection as dead and drop it well
 // before either side's own timeout fires, even though the round completes
@@ -130,10 +135,24 @@ async function getDailyLimit(admin: any, userId: string): Promise<number> {
 // deno-lint-ignore no-explicit-any
 function makeCallModel(context: any, message: string) {
   if (MOCK) return { model: "mock", callModel: createMockModel(context) };
+  const model = pickModel(message);
+  if (isMistralModel(model)) {
+    const apiKey = Deno.env.get("MISTRAL_API_KEY");
+    if (!apiKey) throw new Error("MISTRAL_API_KEY is not configured (set it, or MOCK_LLM=1)");
+    return {
+      model,
+      callModel: makeMistralModel({
+        apiKey,
+        model,
+        systemPrompt: SYSTEM_PROMPT,
+        maxRetries: MODEL_MAX_RETRIES,
+        timeoutMs: MODEL_TIMEOUT_MS,
+      }),
+    };
+  }
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured (set it, or MOCK_LLM=1)");
   const client = new Anthropic({ apiKey, maxRetries: MODEL_MAX_RETRIES, timeout: MODEL_TIMEOUT_MS });
-  const model = pickModel(message);
   // deno-lint-ignore no-explicit-any
   const callModel = (messages: any[], tools: any[]) =>
     client.messages.create({

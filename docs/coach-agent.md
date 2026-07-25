@@ -6,7 +6,8 @@ through a bounded set of typed tools. The deterministic generator
 is an **editor, never an author**.
 
 ```
-Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ Anthropic API
+Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ model API
+     │                               (Mistral or Anthropic, by COACH_MODEL name)
      ▲    │                          │        │
      │    ├─ confirm ──▶ returns plan│        └─ service role → agent_* audit log
      │    └─ memory suggestions ◀────┘
@@ -133,16 +134,28 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ A
 ```sh
 supabase db push                          # migration 20260702120000_coach_agent.sql
 supabase functions deploy coach-agent
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...  # and/or MISTRAL_API_KEY=...
 ```
+
+The provider follows the `COACH_MODEL` name (`makeCallModel` in `index.ts`):
+Mistral families (`mistral*`, `magistral*`, `ministral*`, …, see
+`isMistralModel` in `_shared/coach/mistral.mjs`) call Mistral's
+chat-completions API through that adapter; anything else calls the Anthropic
+SDK. The adapter translates to/from the engine's Anthropic-shaped
+`callModel(messages, tools)` contract, so engine/tools/validator/mock are
+provider-agnostic. Switching model/provider is one `COACH_MODEL` secret
+change, no redeploy — run `npm run eval:live` on a candidate first (the
+2026-07 Mistral Large 3 comparison: safety held 100% but quality dropped to
+~79% vs Sonnet 5's 100%, mostly under-action on pain scenarios — see PR #137).
 
 | Env (function secret) | Default | Notes |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | — | required unless `MOCK_LLM=1` |
-| `COACH_MODEL` | `claude-sonnet-5` | coaching judgment. Upgrading is one secret change. |
+| `ANTHROPIC_API_KEY` | — | required when `COACH_MODEL` is a `claude-*` model (the default), unless `MOCK_LLM=1` |
+| `MISTRAL_API_KEY` | — | required when `COACH_MODEL` is a Mistral model, unless `MOCK_LLM=1` |
+| `COACH_MODEL` | `claude-sonnet-5` | coaching judgment. Switching model/provider is one secret change. |
 | `COACH_MODEL_LIGHT` | `claude-haiku-4-5` | reserved for the `pickModel` routing seam (Phase 5) — unused until a classifier routes trivial edits |
 | `RATE_LIMIT_PER_DAY` | `5` | model-calling rounds per user per day (confirm/result/usage are free); enforced via the atomic `increment_agent_usage` SQL function. A per-user override lives in `profiles.coach_daily_limit` (nullable; NULL → this default) — the premium seam, service-role-writable only |
-| `MOCK_LLM` | unset | `1` → canned responses from `_shared/coach/mock.mjs`, zero Anthropic calls (CI, local dev) |
+| `MOCK_LLM` | unset | `1` → canned responses from `_shared/coach/mock.mjs`, zero model calls (CI, local dev) |
 
 The **`usage`** action (authed, no model call, no charge) returns
 `{ used, limit }` — today's spend vs the caller's effective daily budget, read
@@ -162,9 +175,12 @@ overlay. `openCoach` also takes a `CoachSource` used solely for the
 `coach_opened` analytics event (see `docs/telemetry.md`); pass one at any new
 call site.
 
-Prompt caching: one `cache_control` breakpoint on the system block caches the
-stable prefix (tool defs + system prompt) across rounds. Token usage is
-persisted per round (`agent_rounds.input_tokens/output_tokens`).
+Prompt caching: on the Anthropic path, one `cache_control` breakpoint on the
+system block caches the stable prefix (tool defs + system prompt) across
+rounds. Mistral has no equivalent; the adapter sends the system prompt as a
+plain system message every call. Token usage is persisted per round either way
+(`agent_rounds.input_tokens/output_tokens`; Mistral's prompt/completion token
+counts are mapped onto the same columns).
 
 Resiliency: `CoachChat` fires a best-effort `ping` when opened to pay the cold
 isolate/module-import cost before the first real message. Once the handler is

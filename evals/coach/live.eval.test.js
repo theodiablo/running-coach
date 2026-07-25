@@ -4,11 +4,15 @@
 // outcome, and writes a JSON report to evals/coach/results/.
 //
 //   ANTHROPIC_API_KEY=sk-ant-... npm run eval:live
+//   MISTRAL_API_KEY=...  COACH_EVAL_MODEL=mistral-large-latest npm run eval:live
 //
 // Env:
-//   ANTHROPIC_API_KEY   required for a live run (suite skips without it)
+//   ANTHROPIC_API_KEY   required for a live run on a claude-* model
+//   MISTRAL_API_KEY     required instead when COACH_EVAL_MODEL is a Mistral
+//                       model (mistral*/magistral*/... — see mistral.mjs)
 //   COACH_EVAL_MODEL    default claude-sonnet-5 (prod default — compare
-//                       candidates by re-running with a different value)
+//                       candidates by re-running with a different value,
+//                       e.g. mistral-large-latest)
 //   COACH_EVAL_TRIALS   trials per scenario, default 1
 //   COACH_EVAL_SCENARIOS optional comma-separated scenario ids to run
 //   COACH_EVAL_MOCK=1   run the harness through the MOCK_LLM scripts instead
@@ -23,13 +27,18 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { generateProposal, SYSTEM_PROMPT } from "../../supabase/functions/_shared/coach/engine.mjs";
 import { createMockModel } from "../../supabase/functions/_shared/coach/mock.mjs";
+import { isMistralModel, makeMistralModel } from "../../supabase/functions/_shared/coach/mistral.mjs";
 import { makeLiveModel } from "./anthropic.mjs";
 import { SCENARIOS, makeFixture } from "./scenarios.mjs";
 import { UNIVERSAL_SAFETY } from "./graders.mjs";
 
 const MOCK = Boolean(process.env.COACH_EVAL_MOCK);
-const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = MOCK ? "mock" : (process.env.COACH_EVAL_MODEL || "claude-sonnet-5");
+// The provider (and therefore the required key) follows the model name,
+// mirroring the edge function's makeCallModel routing.
+const MISTRAL = !MOCK && isMistralModel(MODEL);
+const API_KEY = MISTRAL ? process.env.MISTRAL_API_KEY : process.env.ANTHROPIC_API_KEY;
+const API_KEY_NAME = MISTRAL ? "MISTRAL_API_KEY" : "ANTHROPIC_API_KEY";
 const TRIALS = Math.max(1, Number(process.env.COACH_EVAL_TRIALS || 1));
 const REQUESTED_SCENARIOS = (process.env.COACH_EVAL_SCENARIOS || "")
   .split(",").map(s => s.trim()).filter(Boolean);
@@ -41,7 +50,7 @@ const UNKNOWN_SCENARIOS = REQUESTED_SCENARIOS.filter(id => !SCENARIOS.some(s => 
 
 const runnable = MOCK || Boolean(API_KEY);
 if (!runnable) {
-  console.warn("\ncoach live eval: set ANTHROPIC_API_KEY (or COACH_EVAL_MOCK=1) to run — skipping.\n");
+  console.warn(`\ncoach live eval: set ${API_KEY_NAME} (or COACH_EVAL_MOCK=1) to run — skipping.\n`);
 }
 if (UNKNOWN_SCENARIOS.length) {
   throw new Error(`Unknown COACH_EVAL_SCENARIOS id(s): ${UNKNOWN_SCENARIOS.join(", ")}. Valid ids: ${SCENARIOS.map(s => s.id).join(", ")}`);
@@ -82,6 +91,8 @@ function makeCallModel(context) {
   const observedTools = [];
   const inner = MOCK
     ? createMockModel(context)
+    : MISTRAL
+    ? makeMistralModel({ apiKey: API_KEY, model: MODEL, systemPrompt: SYSTEM_PROMPT })
     : makeLiveModel({ apiKey: API_KEY, model: MODEL, systemPrompt: SYSTEM_PROMPT });
   const callModel = async (messages, tools) => {
     const resp = await inner(messages, tools);
