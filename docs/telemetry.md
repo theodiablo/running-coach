@@ -115,7 +115,14 @@ an explicit var.
   actually begins (after the disclosure / permission / HR gates and the
   countdown, never on Resume) — `src/modals/LiveRunTracker.tsx`. Pairs with
   `run_logged {source:"gps"}` as a start→save funnel.
-- Coach agent events: `coach_message_sent` `{followUp}` when the user sends a
+- Coach agent events: `coach_opened`
+  `{source:"header"|"dashboard"|"plan_session"|"settings"|"other"}` when the
+  chat is opened, fired in the hub's one `openCoach` seam
+  (`src/RunningCoach.tsx`) so every entry point is counted the same way — it's
+  how the header button's pull is compared against the dashboard card and the
+  per-session "Ask coach". Pairs with `coach_message_sent` as an
+  open→first-message funnel (an open with no message is an abandoned chat).
+  `coach_message_sent` `{followUp}` when the user sends a
   message to the coach (`followUp` = false on the opening message, true on a
   follow-up to an open trajectory), `coach_proposal`
   `{status:"proposed"|"no_valid_adjustment", round}` when a proposal round

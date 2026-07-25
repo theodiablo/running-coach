@@ -80,10 +80,6 @@
     "newTarget": "New training target",
     "yourRace": "Your race"
   },
-  "header": {
-    "coach": "Coach",
-    "coachTitle": "Adjust the plan with your coach"
-  },
   "progress": {
     "sessions": "{{done}} / {{total}} sessions",
     "goal": "{{dist}}km{{elev}} · sub {{goal}}",
