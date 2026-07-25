@@ -3,7 +3,7 @@
   "editPlan": "Edit plan",
   "editShort": "Edit",
   "reassurance": "Changing either rebuilds your remaining sessions — done runs stay.",
-  "jumpToWeek": "Jump to this week",
+  "pastWeeks": "Past weeks",
   "notConfigured": "not configured",
   "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance — consider lengthening your long day in Edit plan.",
   "week": {
