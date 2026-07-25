@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
@@ -17,10 +17,13 @@ import { RouteMap } from "../components/RouteMap";
 import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
+import { RouteFinderSheet } from "./RouteFinderSheet";
+import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
 import { isNative, isAndroid, isIos } from "../native";
-import { BG_LOC_DISCLOSED_KEY } from "../constants";
+import { BG_LOC_DISCLOSED_KEY, routeSuggestEnabled } from "../constants";
+import { canShowPremiumTeaser, isPremiumActive } from "../premium";
 import { track } from "../telemetry";
-import type { HrMethod, HrPending, Run } from "../types";
+import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
   onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
@@ -30,6 +33,14 @@ type LiveRunTrackerProps = {
   hrOptOut?: boolean;
   onConfigureHr?: () => void;
   onDeclineHr?: () => void;
+  // When set (e.g. opened from a plan session), auto-open the route finder with
+  // this distance pre-filled.
+  initialFindKm?: number;
+  // "Find a route" is premium-only. UI affordance only — the route-suggest edge
+  // function is the gate that matters. onRefreshPremium resolves with the fresh
+  // entitlement so the tap can act on it immediately.
+  isPremium?: boolean;
+  onRefreshPremium?: () => Promise<string | null>;
 };
 
 type LocationPreview = { lat: number; lng: number; acc?: number | null };
@@ -56,7 +67,7 @@ function Ctrl({ onClick, color, children, disabled = false }: { onClick: () => v
   );
 }
 
-export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
   const pairedHrDevice = getPairedDevice();
   const healthConnectAuthorized = hasHealthConnectAuthorization();
   const healthKitAuthorized = hasHealthKitAuthorization();
@@ -80,6 +91,36 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // the current position at the default zoom and re-arms follow.
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [following, setFollowing] = useState(true);
+  // "Find a route" loop finder (needs the map capability AND premium). The
+  // chosen loop becomes a sky dashed guide line under the recorded track —
+  // purely visual, the runner follows it by eye. Ephemeral: never saved, gone
+  // on close.
+  const routeFinderReady = routeSuggestEnabled && isPremium;
+  // While `canShowPremiumTeaser` is false a free user has no entry point to tap
+  // and can't be sent here from a plan session either, so both of these stay
+  // false for them. The teaser wiring is kept for the entitlement re-read below
+  // and for the unveil (see src/premium.ts).
+  const [showFinder, setShowFinder] = useState(routeFinderReady && !!initialFindKm);
+  const [showPremiumTeaser, setShowPremiumTeaser] = useState(
+    routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm);
+  const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
+  // Tapping the entry point is the one moment a stale entitlement is about to
+  // decide something, so re-read it and DECIDE ON THAT READ. The sign-in fetch
+  // runs once and may have failed offline or predated a grant, so a premium user
+  // can legitimately look free here — sending them to the "not available yet"
+  // sheet (and logging a premium_teaser_shown that never happened) would be
+  // wrong on both counts. The reverse also lands here: a grant that lapsed
+  // mid-session gets the teaser rather than a button that does nothing.
+  const [checkingPremium, setCheckingPremium] = useState(false);
+  const openFinderOrTeaser = async () => {
+    if (routeFinderReady) { setShowFinder(true); return; }
+    if (checkingPremium) return;
+    setCheckingPremium(true);
+    const until = await onRefreshPremium?.();
+    setCheckingPremium(false);
+    if (routeSuggestEnabled && isPremiumActive(until)) setShowFinder(true);
+    else setShowPremiumTeaser(true);
+  };
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
   // guardedStart's disclosure/HR gates, since guardedStart calls this as its fn.
@@ -355,6 +396,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       <div className="flex-1 min-h-0 relative">
         <RouteMap points={points} follow={state === "tracking"} interactive
           recenterSignal={recenterSignal} onFollowingChange={setFollowing}
+          guidePoints={plannedRoute?.points}
           location={location} className="h-full w-full" style={{}} />
         {live && !following && (
           <button type="button" onClick={() => setRecenterSignal(n => n + 1)} aria-label={t("tracker.map.recenter")}
@@ -420,6 +462,32 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 <Play size={20} />{t("tracker.controls.start")}
               </Ctrl>
             </div>
+            {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
+              plannedRoute ? (
+                <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
+                  <Search size={15} className="text-sky-300 shrink-0" />
+                  <span className="text-sky-200">{t("routeFinder.card.distance", { km: plannedRoute.km.toFixed(1) })}</span>
+                  <button onClick={() => setShowFinder(true)} className="text-slate-300 hover:text-white underline decoration-slate-600">
+                    {t("routeFinder.button")}
+                  </button>
+                  <button onClick={() => setPlannedRoute(null)} aria-label={t("common.close")}
+                    className="ml-auto p-1 text-slate-400 hover:text-white"><X size={15} /></button>
+                </div>
+              ) : (
+                <button onClick={openFinderOrTeaser} disabled={checkingPremium}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-semibold bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 active:scale-95 transition-[background-color,transform] disabled:opacity-60">
+                  {isPremium ? <Search size={18} />
+                    : checkingPremium ? <Loader size={16} className="animate-spin" />
+                    : <Lock size={16} className="text-slate-300" />}
+                  {t("routeFinder.button")}
+                  {!isPremium && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
+                      {t("premium.badge")}
+                    </span>
+                  )}
+                </button>
+              )
+            )}
           </>
         )}
         {state === "tracking" && (
@@ -493,6 +561,19 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             {countdown.count > 0 ? countdown.count : t("tracker.countdown.go")}
           </span>
         </button>
+      )}
+
+      {showFinder && (
+        <RouteFinderSheet
+          location={location ? { lat: location.lat, lng: location.lng } : null}
+          showToast={showToast}
+          initialKm={initialFindKm}
+          onSelect={setPlannedRoute}
+          onClose={() => setShowFinder(false)} />
+      )}
+
+      {showPremiumTeaser && (
+        <PremiumTeaserSheet feature="routeFinder" onClose={() => setShowPremiumTeaser(false)} />
       )}
     </div>
   );

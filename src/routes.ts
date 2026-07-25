@@ -43,6 +43,20 @@ export async function getRoute(id: string, withStats = true): Promise<RouteTrace
   return data as RouteTrace | null;
 }
 
+// Recent recorded-route geometries (points only, no heavy stats), newest-first —
+// for the route-finder's "somewhere new" comparison (Phase 3). The overlap check
+// runs client-side so coordinates never leave the device. Best-effort: an error
+// resolves to [] and the finder simply skips the novelty penalty.
+export async function getRecentRoutePoints(limit = 20): Promise<RoutePoint[][]> {
+  const { data, error } = await supabase
+    .from("run_routes")
+    .select("points")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) { console.error("recent routes load failed", error); return []; }
+  return (data || []).map(r => (Array.isArray(r.points) ? (r.points as RoutePoint[]) : []));
+}
+
 // Best-effort delete (called when its run is deleted). Failure is logged, not
 // thrown — the run removal must still succeed.
 export async function deleteRoute(id?: string | null) {

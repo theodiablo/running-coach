@@ -8,6 +8,7 @@ import { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
+import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
@@ -92,7 +93,14 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () => void }) {
+export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null, onRefreshPremium = async () => null }: {
+  onSignOut?: () => void;
+  // Entitlement, owned by App (the auth owner) — see src/premium.ts.
+  // onRefreshPremium re-reads it and RESOLVES with the fresh value, so a caller
+  // can act on this read rather than on pre-refresh state.
+  premiumUntil?: string | null;
+  onRefreshPremium?: () => Promise<string | null>;
+}) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
   const [tab,         setTab]         = useState("dash");
@@ -121,6 +129,10 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
   // Plan session the tracker was opened from ("Record run" on a session card),
   // threaded into the save prefill so LogView's onSaved auto-ticks it.
   const [trackerLink, setTrackerLink] = useState<{ wNum: number; sId: string } | null>(null);
+  // A distance to pre-open the route finder with (set when the tracker is opened
+  // from a plan session's "Find a route"). Kept SEPARATE from trackerLink, which
+  // flows into the saved run's prefill — this must not.
+  const [trackerFindKm, setTrackerFindKm] = useState<number | undefined>(undefined);
   const [backupRoutes,setBackupRoutes]= useState<RouteBackup[]>([]);
   // Personal races layer (wishlist / completed + seen-badge set). seenBadges is
   // null until first-run seeding so we can tell "never computed" from "none".
@@ -753,13 +765,18 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
     setCoachSession(ctx); setShowCoach(true);
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  // Recomputed every render (not memoised) so an expiry flips the UI to free
+  // without needing a refetch. UI only — the server enforces every premium
+  // feature independently.
+  const isPremium = isPremiumActive(premiumUntil);
+  const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
     openTracker: (link?: unknown) => {
-      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string } : null;
-      setTrackerLink(l);
+      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string; findRouteKm?: number } : null;
+      setTrackerLink(l ? { wNum: l.wNum, sId: l.sId } : null);
+      setTrackerFindKm(l && typeof l.findRouteKm === "number" && l.findRouteKm > 0 ? l.findRouteKm : undefined);
       setShowTracker(true);
     },
     // Open the full-screen per-run analytics view. Guard on shape so a click
@@ -810,10 +827,11 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
           track("onboarding_completed", {});
         }}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
+        initialFindKm={trackerFindKm} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={() => { setShowTracker(false); openSettings(); }}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
-        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); }}
-        onClose={() => { setShowTracker(false); setTrackerLink(null); }}/>}
+        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
+        onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
       {showBackup && <BackupModal
         data={{runs, plan, settings, races, userContext, ...(backupRoutes.length ? {routes: backupRoutes} : {})}}
         onClose={() => setShowBackup(false)}/>

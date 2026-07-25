@@ -29,7 +29,8 @@
 // Secrets: supabase secrets set ANTHROPIC_API_KEY=...
 //   Optional: COACH_MODEL (default claude-sonnet-5), COACH_MODEL_LIGHT
 //   (routing seam, default claude-haiku-4-5), RATE_LIMIT_PER_DAY (default 5;
-//   a per-user override lives in profiles.coach_daily_limit),
+//   premium accounts get PREMIUM_RATE_LIMIT_PER_DAY, default 40, and a per-user
+//   override lives in profiles.coach_daily_limit),
 //   MOCK_LLM=1 (canned responses, zero Anthropic calls — CI / local dev).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -43,6 +44,11 @@ const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
 const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
 const LIGHT_MODEL = Deno.env.get("COACH_MODEL_LIGHT") ?? "claude-haiku-4-5";
 const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
+// Premium accounts get a much larger daily coach budget. This RAISES the free
+// allowance for paying users; it never lowers anyone's — the free default stays
+// exactly where it was, which is the standing rule in docs/monetization.md (the
+// limit is cost-insurance, never a lever to force upgrades).
+const PREMIUM_RATE_LIMIT_PER_DAY = Number(Deno.env.get("PREMIUM_RATE_LIMIT_PER_DAY") ?? 40);
 // The Anthropic SDK retries transient failures (429, 5xx incl. 529 overloaded,
 // and connection errors) with exponential backoff on its own. We set these
 // explicitly rather than leaning on the library default (maxRetries: 2) so a
@@ -85,17 +91,40 @@ function cleanUserContext(value: unknown): { notes: string } {
   return { notes: notes.replace(/\r\n?/g, "\n").slice(0, USER_CONTEXT_MAX_CHARS) };
 }
 
-// The caller's effective daily coach budget: a per-user override in
-// profiles.coach_daily_limit (the premium seam — service-role-writable only)
-// or the env default when unset/invalid. Read via the admin client so RLS on
-// profiles is irrelevant here.
+// The caller's effective daily coach budget, most specific first:
+//   1. profiles.coach_daily_limit — an explicit per-user override, still the
+//      final word (it's how a single account gets a bespoke budget).
+//   2. premium (profiles.premium_until in the future) — PREMIUM_RATE_LIMIT_PER_DAY.
+//   3. the env default.
+// Both columns are service-role-writable only, so neither can be self-granted;
+// read via the admin client, which bypasses RLS on profiles.
+//
+// A failed read THROWS (caller turns it into COACH_UNAVAILABLE) rather than
+// silently falling back to the free number — a paying user should see an error,
+// not a quietly smaller allowance.
 // deno-lint-ignore no-explicit-any
 async function getDailyLimit(admin: any, userId: string): Promise<number> {
-  const { data, error } = await admin.from("profiles")
-    .select("coach_daily_limit").eq("id", userId).maybeSingle();
+  let { data, error } = await admin.from("profiles")
+    .select("coach_daily_limit, premium_until").eq("id", userId).maybeSingle();
+  // 42703 = undefined_column: the premium migration hasn't been applied yet.
+  // Functions auto-deploy on push to main while migrations are applied by hand,
+  // so this ordering is reachable — and it must NOT take the coach down for
+  // everyone (a throw here surfaces as COACH_UNAVAILABLE). Without the column
+  // nobody can be premium anyway, so re-read the pre-premium shape and carry on
+  // with the free budget; any per-user override still applies.
+  if (error?.code === "42703") {
+    console.error("coach-agent: profiles.premium_until missing — apply the premium migration");
+    ({ data, error } = await admin.from("profiles")
+      .select("coach_daily_limit").eq("id", userId).maybeSingle());
+  }
   if (error) throw error;
   const n = Number(data?.coach_daily_limit);
-  return Number.isFinite(n) && n > 0 ? n : RATE_LIMIT_PER_DAY;
+  if (Number.isFinite(n) && n > 0) return n;
+  // NaN (including the banned 'infinity' literal) reads as not-premium, exactly
+  // as isPremiumActive does on the client.
+  const until = data?.premium_until ? Date.parse(String(data.premium_until)) : NaN;
+  if (Number.isFinite(until) && until > Date.now()) return PREMIUM_RATE_LIMIT_PER_DAY;
+  return RATE_LIMIT_PER_DAY;
 }
 
 // deno-lint-ignore no-explicit-any

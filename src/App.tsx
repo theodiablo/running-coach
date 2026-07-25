@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react";
 import { Loader } from "lucide-react";
 import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
@@ -9,6 +9,7 @@ import { POLAR_DEEP_LINK, stashPolarReturn } from "./polarPreinit";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
 import { initStore, clearStore } from "./db";
+import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
@@ -42,6 +43,15 @@ function Splash() {
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = still resolving
   const [storeReady, setStoreReady] = useState(false);
+  // Premium entitlement (profiles.premium_until). Server truth, read for UI
+  // only — every premium feature is enforced in its edge function. Free until
+  // the fetch lands, and on any failure.
+  //
+  // Stored WITH the user id it was read for, so it's invalidated during render
+  // (below) rather than reset from an effect: sign-out and a user switch both
+  // stop matching, so one account's entitlement can never flash on another's
+  // session while a fetch is in flight.
+  const [premium, setPremium] = useState<{ uid: string; until: string | null } | null>(null);
   const [authError, setAuthError] = useState<string | null>(null); // native deep-link sign-in failure
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
   // Which user id the store is currently loaded for. Guards against reloading
@@ -217,6 +227,13 @@ export default function App() {
           setStoreReady(true);
         }
       });
+      // Entitlement rides alongside the store load but is deliberately NOT
+      // awaited before storeReady: a slow or failed read must never hold up the
+      // splash, it just means the UI starts on the free tier (fetchPremiumUntil
+      // never rejects). Because this effect is keyed on the user id, it runs
+      // once per sign-in — refreshPremium below covers the rest.
+      const uid = session.user.id;
+      fetchPremiumUntil(uid).then(v => { if (!cancelled) setPremium({ uid, until: v }); });
     } else {
       // Signed out: drop the in-memory store and forget which user it held.
       // No need to reset storeReady here — we render <LoginScreen/> whenever
@@ -224,11 +241,31 @@ export default function App() {
       loadedUidRef.current = null;
       resetUser();
       clearStore();
+      // The entitlement needs no reset here: it carries the uid it was read
+      // for, so it stops matching the moment the session goes.
     }
     return () => {
       cancelled = true;
     };
   }, [session]);
+
+  // Re-read the entitlement on demand. The load above runs once per sign-in, so
+  // without this a user who was offline at cold start (or who was granted
+  // premium mid-session) would stay locked until the app restarted — days, in a
+  // long-lived native WebView. Called when a premium teaser opens, which is
+  // exactly when a stale "locked" state is about to be shown.
+  // Returns the FRESH value as well as storing it, so a caller can decide what
+  // to show from this read instead of from the state it had a moment ago (React
+  // won't have re-rendered yet). Never rejects — null means free.
+  const uid = session?.user.id;
+  const refreshPremium = useCallback(async (): Promise<string | null> => {
+    if (!uid) return null;
+    const until = await fetchPremiumUntil(uid);
+    setPremium({ uid, until });
+    return until;
+  }, [uid]);
+  // Derived during render: only the entitlement read for THIS user counts.
+  const premiumUntil = premium && premium.uid === uid ? premium.until : null;
 
   // Hard version gate blocks everything, even the login screen.
   if (updateState === "must-update") return <UpdateRequired />;
@@ -268,7 +305,8 @@ export default function App() {
   return (
     <>
       {updateState === "update-available" && <UpdateBanner />}
-      <RunningCoach onSignOut={() => supabase.auth.signOut()} />
+      <RunningCoach onSignOut={() => supabase.auth.signOut()}
+        premiumUntil={premiumUntil} onRefreshPremium={refreshPremium} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>
   );

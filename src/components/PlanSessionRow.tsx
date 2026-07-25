@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, MessageCircle, MoreHorizontal, Play, RotateCcw, SkipForward } from "lucide-react";
+import { Check, ChevronDown, MessageCircle, MoreHorizontal, Play, RotateCcw, Route, SkipForward } from "lucide-react";
 import { TCLR } from "../constants";
 import { fmt, estMin } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
@@ -21,6 +21,7 @@ type PlanSessionRowProps = {
   onToggleDone: () => void;
   onSkip: () => void;
   onAskCoach: () => void;
+  onFindRoute?: () => void;   // optional (route finder feature-gated); opens the finder for this distance
   openSettings: () => void;
 };
 
@@ -29,7 +30,7 @@ type PlanSessionRowProps = {
 // and Skip is demoted into an overflow (⋯) menu so it no longer reads as delete.
 export function PlanSessionRow({
   session: s, settings, notesOpen, onToggleNotes,
-  onRecord, onDone, onToggleDone, onSkip, onAskCoach, openSettings,
+  onRecord, onDone, onToggleDone, onSkip, onAskCoach, onFindRoute, openSettings,
 }: PlanSessionRowProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -140,6 +141,12 @@ export function PlanSessionRow({
               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
               <MessageCircle size={14} className="text-orange-400"/>{t("plan.session.askCoach")}
             </button>
+            {onFindRoute && (
+              <button onClick={() => { setMenuOpen(false); onFindRoute(); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
+                <Route size={14} className="text-sky-400"/>{t("routeFinder.button")}
+              </button>
+            )}
             <button onClick={() => { setMenuOpen(false); onSkip(); }}
               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:bg-slate-700 transition-colors">
               <SkipForward size={14}/>{t("plan.session.skip")}
