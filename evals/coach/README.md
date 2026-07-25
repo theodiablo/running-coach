@@ -1,10 +1,13 @@
 # Coach-agent live eval
 
-Grades the AI adjustment coach end-to-end against the **real Anthropic API**,
+Grades the AI adjustment coach end-to-end against the **real model API**,
 through the exact production loop: `generateProposal` (engine) → the bounded
-tools → the shared validator. Nothing is stubbed except the HTTP transport
-(`anthropic.mjs`, a plain `fetch` mirroring the edge function's request shape,
-including the prompt-cache breakpoint).
+tools → the shared validator. Nothing is stubbed except the HTTP transport,
+which follows the model name exactly like production's `makeCallModel`:
+Mistral models (`mistral*`/`magistral*`/…) go through the shared provider
+adapter (`supabase/functions/_shared/coach/mistral.mjs`); anything else uses
+`anthropic.mjs` (a plain `fetch` mirroring the edge function's Anthropic
+request shape, including the prompt-cache breakpoint).
 
 This complements the two offline harnesses (`npm test` / `npm run eval`),
 which script the model's turns and therefore verify the *engine*, not the
@@ -16,16 +19,21 @@ when changing `SYSTEM_PROMPT`, tool descriptions, validator rules, or
 ## Run it
 
 ```sh
-ANTHROPIC_API_KEY=sk-ant-... npm run eval:live          # prod model
-COACH_EVAL_MODEL=claude-sonnet-5 ANTHROPIC_API_KEY=... npm run eval:live   # explicit prod model
-COACH_EVAL_TRIALS=3 ANTHROPIC_API_KEY=... npm run eval:live                # variance
-COACH_EVAL_SCENARIOS=free-day ANTHROPIC_API_KEY=... npm run eval:live       # one scenario
+MISTRAL_API_KEY=... npm run eval:live                   # prod model (mistral-large-latest)
+COACH_EVAL_MODEL=claude-sonnet-5 ANTHROPIC_API_KEY=... npm run eval:live   # compare a Claude candidate
+COACH_EVAL_TRIALS=3 MISTRAL_API_KEY=... npm run eval:live                  # variance
+COACH_EVAL_SCENARIOS=free-day MISTRAL_API_KEY=... npm run eval:live         # one scenario
 COACH_EVAL_MOCK=1 npm run eval:live                     # free plumbing check
 ```
 
+The required key follows the model: `MISTRAL_API_KEY` for Mistral models,
+`ANTHROPIC_API_KEY` for `claude-*`.
+
 A full live run is 16 scenarios × ~2–4 model calls each (the plan JSON
 dominates input tokens; expect roughly 100–200K input / a few K output tokens
-per trial set — with caching, on the order of $0.10–0.30 per run on Sonnet).
+per trial set — on the order of $0.10–0.30 per run on Sonnet with caching,
+less on Mistral Large, whose per-token rates are lower but which has no
+prompt-cache discount).
 
 Each run prints a scoreboard and writes a full JSON report (every trial's tool
 calls, rationale, grader verdicts, tokens, latency) to `results/` —

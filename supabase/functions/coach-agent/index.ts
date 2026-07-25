@@ -26,21 +26,26 @@
 //              with requestId (delivery recovery after a dropped stream)
 //
 // Deploy:  supabase functions deploy coach-agent
-// Secrets: supabase secrets set ANTHROPIC_API_KEY=...
-//   Optional: COACH_MODEL (default claude-sonnet-5), COACH_MODEL_LIGHT
+// Secrets: supabase secrets set MISTRAL_API_KEY=... (and/or ANTHROPIC_API_KEY)
+//   The provider is picked from the COACH_MODEL name: mistral*/magistral*/...
+//   route to Mistral's chat-completions API via _shared/coach/mistral.mjs,
+//   anything else to the Anthropic SDK — so setting the COACH_MODEL secret to
+//   claude-sonnet-5 is the instant rollback lever (needs ANTHROPIC_API_KEY).
+//   Optional: COACH_MODEL (default mistral-large-latest), COACH_MODEL_LIGHT
 //   (routing seam, default claude-haiku-4-5), RATE_LIMIT_PER_DAY (default 5;
 //   a per-user override lives in profiles.coach_daily_limit),
-//   MOCK_LLM=1 (canned responses, zero Anthropic calls — CI / local dev).
+//   MOCK_LLM=1 (canned responses, zero model calls — CI / local dev).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
+import { isMistralModel, makeMistralModel } from "../_shared/coach/mistral.mjs";
 import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
 import { createMockModel } from "../_shared/coach/mock.mjs";
 import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
 
 const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
-const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
+const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "mistral-large-latest";
 const LIGHT_MODEL = Deno.env.get("COACH_MODEL_LIGHT") ?? "claude-haiku-4-5";
 const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
 // The Anthropic SDK retries transient failures (429, 5xx incl. 529 overloaded,
@@ -101,10 +106,24 @@ async function getDailyLimit(admin: any, userId: string): Promise<number> {
 // deno-lint-ignore no-explicit-any
 function makeCallModel(context: any, message: string) {
   if (MOCK) return { model: "mock", callModel: createMockModel(context) };
+  const model = pickModel(message);
+  if (isMistralModel(model)) {
+    const apiKey = Deno.env.get("MISTRAL_API_KEY");
+    if (!apiKey) throw new Error("MISTRAL_API_KEY is not configured (set it, or MOCK_LLM=1)");
+    return {
+      model,
+      callModel: makeMistralModel({
+        apiKey,
+        model,
+        systemPrompt: SYSTEM_PROMPT,
+        maxRetries: MODEL_MAX_RETRIES,
+        timeoutMs: MODEL_TIMEOUT_MS,
+      }),
+    };
+  }
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured (set it, or MOCK_LLM=1)");
   const client = new Anthropic({ apiKey, maxRetries: MODEL_MAX_RETRIES, timeout: MODEL_TIMEOUT_MS });
-  const model = pickModel(message);
   // deno-lint-ignore no-explicit-any
   const callModel = (messages: any[], tools: any[]) =>
     client.messages.create({

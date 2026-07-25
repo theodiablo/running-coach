@@ -114,8 +114,11 @@ rules, not a changelog; delete anything stale.
 
 ## AI coach agent
 Propose-and-confirm plan **editor, never author** — `buildPlan` stays the
-author. The Anthropic key, validator, tools, rate limit, and audit log live
-server-side in `supabase/functions/coach-agent`; shared logic is plain ESM in
+author. The model API keys, validator, tools, rate limit, and audit log live
+server-side in `supabase/functions/coach-agent`. The provider follows the
+`COACH_MODEL` name (default `mistral-large-latest` via the
+`_shared/coach/mistral.mjs` adapter; `claude-*` uses the Anthropic SDK —
+engine and tools stay provider-agnostic); shared logic is plain ESM in
 `supabase/functions/_shared/coach/*.mjs` (imported by both Deno and Vitest).
 `confirm` makes no model call and no server write — the client applies the
 returned plan via `applyCoachPlan`. `_shared/coach/runDigest.mjs` (the
