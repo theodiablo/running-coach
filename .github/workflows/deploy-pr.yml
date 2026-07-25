@@ -11,10 +11,17 @@ name: Deploy PR preview to S3
 # owners — i.e. users with write access to the repo (OWNER/MEMBER/COLLABORATOR)
 # — ever trigger an AWS deploy. Untrusted contributors get CI checks but no
 # preview.
+#
+# Deliberately NOT filtered on the base branch: we stack PRs (a feature PR based
+# on another feature PR's branch, retargeted to main when the parent merges), and
+# a `branches: [main]` filter matches the BASE, so every stacked PR silently got
+# no preview - exactly the ones where seeing the UI matters most. Each PR syncs
+# to its own /pr/<number>/ prefix, so a whole stack can be previewed at once. The
+# security boundary is the author_association gate below plus `pull_request`
+# (never `pull_request_target`), not the base branch.
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    branches: [main]
   # Manual re-deploy of a single PR's preview (e.g. to pick up a changed secret
   # without pushing a commit). workflow_dispatch can only be triggered by users
   # with write access, so it's safe to skip the author_association gate below.

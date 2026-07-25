@@ -9,7 +9,18 @@ vi.mock("./supabase", () => ({
   },
 }));
 
-const { isPremiumActive, fetchPremiumUntil } = await import("./premium");
+const { isPremiumActive, fetchPremiumUntil, canShowPremiumTeaser } = await import("./premium");
+
+describe("canShowPremiumTeaser", () => {
+  // The paid tier is not unveiled: with no purchase flow anywhere, a free user
+  // must see NO premium entry point rather than a locked one they can do
+  // nothing about. Pinned so flipping it back is a deliberate act with a
+  // failing test to read — and note the flip is `!isIos`, not `true`, unless
+  // StoreKit purchases ship at the same time (docs/monetization.md).
+  it("hides premium entry points from free users on every platform", () => {
+    expect(canShowPremiumTeaser).toBe(false);
+  });
+});
 
 describe("isPremiumActive", () => {
   const now = Date.parse("2026-07-24T12:00:00Z");

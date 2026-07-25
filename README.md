@@ -383,6 +383,10 @@ the PR is closed. The deployed URL is posted (and kept up to date) as a PR
 comment. (CloudFront only resolves a default root object at `/`, so previews
 link straight to `index.html`.)
 
+Every PR gets one regardless of its base branch, so a stacked PR (based on
+another PR's branch rather than `main`) is previewable too — each one has its
+own `/pr/<number>/` prefix, so a whole stack can be open at once.
+
 Only the **code owners** listed in `.github/CODEOWNERS` trigger a preview: the
 job is gated on the PR author having write access (`OWNER`/`MEMBER`/
 `COLLABORATOR`), and because the workflow uses `pull_request` (not

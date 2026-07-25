@@ -144,11 +144,12 @@ Bias hard toward well-mapped paths at the request level (green/quiet weightings,
 - **Access (premium):** `profiles.premium_until` — see `docs/monetization.md`.
   The client reads its own row via `src/premium.ts` purely to pick the
   affordance; **the gate is the edge function**, which answers
-  `{code:"PREMIUM_REQUIRED"}` to anyone else. Free users on web/Android see the
-  entry point with a lock and a "Premium" badge, which opens
-  `PremiumTeaserSheet`; on **iOS free users see no entry point at all**
-  (`canShowPremiumTeaser`) while no in-app purchase exists — same App Store
-  reasoning that keeps the tip jar web-only.
+  `{code:"PREMIUM_REQUIRED"}` to anyone else. **Free users currently see no
+  entry point at all, on any platform** (`canShowPremiumTeaser === false`): both
+  the tracker button and the plan session's "Find a route" menu item are hidden
+  outright while there is no way to upgrade. The locked-affordance +
+  `PremiumTeaserSheet` treatment is still wired behind that flag for the unveil.
+  See `docs/monetization.md`.
 - **Server:** set the `ORS_API_KEY` function secret (optionally `ORS_BASE_URL`,
   `ROUTE_SUGGEST_LIMIT_PER_DAY`). Without it, `route-suggest` returns
   `{configured:false}` and the client treats it as "no result" — a premium user
@@ -159,5 +160,6 @@ Bias hard toward well-mapped paths at the request level (green/quiet weightings,
 
 Two consent-gated count events: `route_suggested` (no properties), fired when a
 generation starts, and `premium_teaser_shown` (`{feature:"routeFinder"}`), fired
-when a free user opens the teaser — the demand signal for the paid tier. See
+when the teaser opens. The teaser is hidden from free users for now, so expect
+that second event to be silent until the tier is unveiled. See
 `docs/telemetry.md`.

@@ -9,8 +9,11 @@
 //   - Never asserts anything about THIS user's tier ("you are on the free
 //     plan"). A premium user whose entitlement read failed (offline at sign-in)
 //     can land here, so the sheet talks about the feature, not the person.
-// Free users on iOS never reach this sheet at all — canShowPremiumTeaser hides
-// the entry point there while no in-app purchase exists.
+// Currently DORMANT for free users: `canShowPremiumTeaser` is false on every
+// platform while there is no purchase flow, so a free user never sees a premium
+// entry point and never reaches this sheet. It stays wired up for the unveil,
+// and for the one path that still reaches it today — a premium user whose grant
+// lapsed mid-session tapping the entry point they already had.
 
 import { Lock } from "lucide-react";
 import { useEffect } from "react";
