@@ -137,7 +137,15 @@ event silently revokes a hand-granted comp).
   `profiles.coach_daily_limit` override → premium → env default.
 
 Both read the columns via the service-role client, and a failed read throws to
-the generic error path rather than quietly reading as "free".
+the generic error path rather than quietly reading as "free" — with one
+deliberate exception. **Deployment ordering:** edge functions auto-deploy on
+push to main while migrations are applied by hand, so a function can reach
+production before its column exists. Both treat PostgREST `42703`
+(undefined_column) as "premium is not available here" rather than an error:
+coach-agent falls back to the free budget (a throw would surface as
+COACH_UNAVAILABLE for *every* user, premium or not) and route-suggest answers
+PREMIUM_REQUIRED, keeping the gated feature shut. Apply the migration BEFORE
+merging anything that ships these functions.
 
 **Client** (`src/premium.ts`) is UI only. A failed/offline read means free, so
 the teaser refetches when it opens. `'infinity'` is banned as a value: PostgREST

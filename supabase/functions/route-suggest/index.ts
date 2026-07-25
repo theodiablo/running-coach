@@ -83,6 +83,14 @@ function isUsableFeature(feature: unknown): boolean {
 async function isPremiumUser(admin: any, userId: string): Promise<boolean> {
   const { data, error } = await admin.from("profiles")
     .select("premium_until").eq("id", userId).maybeSingle();
+  // 42703 = undefined_column: the premium migration hasn't been applied yet
+  // (functions auto-deploy on push to main; migrations are applied by hand).
+  // Nobody can be premium in that state, so answer PREMIUM_REQUIRED rather than
+  // erroring — the gated feature stays shut, which is the safe direction.
+  if (error?.code === "42703") {
+    console.error("route-suggest: profiles.premium_until missing — apply the premium migration");
+    return false;
+  }
   if (error) throw error;
   const t = data?.premium_until ? Date.parse(String(data.premium_until)) : NaN;
   return Number.isFinite(t) && t > Date.now();

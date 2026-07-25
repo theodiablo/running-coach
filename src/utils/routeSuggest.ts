@@ -34,6 +34,59 @@ const OVERLAP_MIN_IDX_GAP = 4;  //   path) count as an overlap
 const UNPAVED_SURFACES = new Set([2, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18]); // unpaved, wood, gravels, dirt, ground, sand, woodchips, grass(-paver)
 const PAVED_SURFACES = new Set([1, 3, 4, 5, 6, 14]);                        // paved, asphalt, concrete, cobblestone, metal, paving stones
 
+// ── Proximity index ─────────────────────────────────────────────────────────
+// Both overlap scores ask the same question — "is any other point within
+// `thresholdM` of this one?" — and both used to answer it by scanning every
+// other point. On a 20 km loop that is tens of thousands of haversine calls per
+// candidate (tens of ms each, several candidates, all on the main thread right
+// after the network wait), and the bbox prefilter can't help when the recorded
+// history sits exactly where the candidates are, which is the normal case.
+//
+// So bucket the points into a grid of ~thresholdM cells: anything within the
+// threshold of a point must lie in that point's own cell or one of the eight
+// around it, so only those need testing. Results are IDENTICAL to the full
+// scan (same threshold, same haversine) — it just skips pairs that could never
+// have qualified. Pinned by a brute-force equivalence test.
+type PointLike = [number, number, number | null];
+
+const M_PER_DEG_LAT = 111320;
+
+class ProximityGrid {
+  private cells = new Map<string, number[]>();
+  private dLat: number;
+  private dLng: number;
+  constructor(private points: PointLike[], cellM: number) {
+    this.dLat = cellM / M_PER_DEG_LAT;
+    // Longitude degrees shrink with latitude; size the cell at the set's own
+    // latitude so cells stay >= cellM wide (never narrower, which would let a
+    // qualifying neighbour fall outside the 3x3 window).
+    const lat0 = points.length ? points[0][0] : 0;
+    const cosLat = Math.max(0.01, Math.abs(Math.cos(lat0 * (Math.PI / 180))));
+    this.dLng = cellM / (M_PER_DEG_LAT * cosLat);
+    points.forEach((p, i) => {
+      const key = this.key(p[0], p[1]);
+      const bucket = this.cells.get(key);
+      if (bucket) bucket.push(i); else this.cells.set(key, [i]);
+    });
+  }
+  private key(lat: number, lng: number): string {
+    return Math.floor(lat / this.dLat) + "," + Math.floor(lng / this.dLng);
+  }
+  // Indices of every point in the 3x3 cell block around `p` — a superset of the
+  // points within the threshold, which the caller still distance-tests.
+  near(p: PointLike): number[] {
+    const row = Math.floor(p[0] / this.dLat), col = Math.floor(p[1] / this.dLng);
+    const out: number[] = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const bucket = this.cells.get((row + dr) + "," + (col + dc));
+        if (bucket) out.push(...bucket);
+      }
+    }
+    return out;
+  }
+}
+
 // ── Pure geometry helpers (tested) ──────────────────────────────────────────
 
 // One-line character bucket from an ORS `extras.surface.summary` array
@@ -73,8 +126,12 @@ export function selfOverlapPct(points: [number, number, number | null][], thresh
   // return path retraces the outbound one) flags almost every point and scores
   // near 1 — flagging only the later point would cap it at ~0.5.
   const overlapped = new Array<boolean>(n).fill(false);
+  const grid = new ProximityGrid(points, thresholdM);
   for (let i = 0; i < n; i++) {
-    for (let j = 0; j < i - OVERLAP_MIN_IDX_GAP; j++) {
+    // Same pair set as a full j < i - gap scan: any j within thresholdM is in
+    // the 3x3 block, and the index/closure filters below are unchanged.
+    for (const j of grid.near(points[i])) {
+      if (j >= i - OVERLAP_MIN_IDX_GAP) continue;
       // Skip the loop-closure: a finish point near a start point is expected.
       if (i >= nearEnd && j <= nearStart) continue;
       if (haversineM(points[i], points[j]) < thresholdM) { overlapped[i] = overlapped[j] = true; }
@@ -94,9 +151,13 @@ export function overlapWithHistory(
 ): number {
   if (!points.length || !history.length) return 0;
   let near = 0;
+  // Index the history once, then each candidate point only tests the recorded
+  // points in its own neighbourhood — the case the bbox prefilter can't help
+  // with is precisely when history and candidates overlap, which is here.
+  const grid = new ProximityGrid(history, thresholdM);
   for (const p of points) {
-    for (const h of history) {
-      if (haversineM(p, h) < thresholdM) { near++; break; }
+    for (const j of grid.near(p)) {
+      if (haversineM(p, history[j]) < thresholdM) { near++; break; }
     }
   }
   return near / points.length;

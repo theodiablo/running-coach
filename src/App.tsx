@@ -254,10 +254,15 @@ export default function App() {
   // premium mid-session) would stay locked until the app restarted — days, in a
   // long-lived native WebView. Called when a premium teaser opens, which is
   // exactly when a stale "locked" state is about to be shown.
+  // Returns the FRESH value as well as storing it, so a caller can decide what
+  // to show from this read instead of from the state it had a moment ago (React
+  // won't have re-rendered yet). Never rejects — null means free.
   const uid = session?.user.id;
-  const refreshPremium = useCallback(() => {
-    if (!uid) return;
-    fetchPremiumUntil(uid).then(v => setPremium({ uid, until: v }));
+  const refreshPremium = useCallback(async (): Promise<string | null> => {
+    if (!uid) return null;
+    const until = await fetchPremiumUntil(uid);
+    setPremium({ uid, until });
+    return until;
   }, [uid]);
   // Derived during render: only the entitlement read for THIS user counts.
   const premiumUntil = premium && premium.uid === uid ? premium.until : null;

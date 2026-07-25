@@ -104,8 +104,19 @@ function cleanUserContext(value: unknown): { notes: string } {
 // not a quietly smaller allowance.
 // deno-lint-ignore no-explicit-any
 async function getDailyLimit(admin: any, userId: string): Promise<number> {
-  const { data, error } = await admin.from("profiles")
+  let { data, error } = await admin.from("profiles")
     .select("coach_daily_limit, premium_until").eq("id", userId).maybeSingle();
+  // 42703 = undefined_column: the premium migration hasn't been applied yet.
+  // Functions auto-deploy on push to main while migrations are applied by hand,
+  // so this ordering is reachable — and it must NOT take the coach down for
+  // everyone (a throw here surfaces as COACH_UNAVAILABLE). Without the column
+  // nobody can be premium anyway, so re-read the pre-premium shape and carry on
+  // with the free budget; any per-user override still applies.
+  if (error?.code === "42703") {
+    console.error("coach-agent: profiles.premium_until missing — apply the premium migration");
+    ({ data, error } = await admin.from("profiles")
+      .select("coach_daily_limit").eq("id", userId).maybeSingle());
+  }
   if (error) throw error;
   const n = Number(data?.coach_daily_limit);
   if (Number.isFinite(n) && n > 0) return n;

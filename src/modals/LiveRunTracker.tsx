@@ -21,7 +21,7 @@ import { RouteFinderSheet } from "./RouteFinderSheet";
 import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
 import { isNative, isAndroid, isIos } from "../native";
 import { BG_LOC_DISCLOSED_KEY, routeSuggestEnabled } from "../constants";
-import { canShowPremiumTeaser } from "../premium";
+import { canShowPremiumTeaser, isPremiumActive } from "../premium";
 import { track } from "../telemetry";
 import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
 
@@ -37,9 +37,10 @@ type LiveRunTrackerProps = {
   // this distance pre-filled.
   initialFindKm?: number;
   // "Find a route" is premium-only. UI affordance only — the route-suggest edge
-  // function is the gate that matters.
+  // function is the gate that matters. onRefreshPremium resolves with the fresh
+  // entitlement so the tap can act on it immediately.
   isPremium?: boolean;
-  onRefreshPremium?: () => void;
+  onRefreshPremium?: () => Promise<string | null>;
 };
 
 type LocationPreview = { lat: number; lng: number; acc?: number | null };
@@ -102,13 +103,21 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   const [showPremiumTeaser, setShowPremiumTeaser] = useState(
     routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm);
   const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
-  // Opening the teaser is the one moment a stale "locked" state is about to be
-  // shown, so re-read the entitlement then (the sign-in fetch runs once, and may
-  // have failed offline or predated a grant).
-  const openFinderOrTeaser = () => {
+  // Tapping the locked entry point is the one moment a stale "locked" state is
+  // about to be shown, so re-read the entitlement and DECIDE ON THAT READ. The
+  // sign-in fetch runs once and may have failed offline or predated a grant, so
+  // a premium user can legitimately land here — showing them the "not available
+  // yet" sheet (and logging a premium_teaser_shown that never happened) would
+  // be wrong on both counts.
+  const [checkingPremium, setCheckingPremium] = useState(false);
+  const openFinderOrTeaser = async () => {
     if (routeFinderReady) { setShowFinder(true); return; }
-    onRefreshPremium?.();
-    setShowPremiumTeaser(true);
+    if (checkingPremium) return;
+    setCheckingPremium(true);
+    const until = await onRefreshPremium?.();
+    setCheckingPremium(false);
+    if (routeSuggestEnabled && isPremiumActive(until)) setShowFinder(true);
+    else setShowPremiumTeaser(true);
   };
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
@@ -463,9 +472,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                     className="ml-auto p-1 text-slate-400 hover:text-white"><X size={15} /></button>
                 </div>
               ) : (
-                <button onClick={openFinderOrTeaser}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-semibold bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 active:scale-95 transition-[background-color,transform]">
-                  {isPremium ? <Search size={18} /> : <Lock size={16} className="text-slate-300" />}
+                <button onClick={openFinderOrTeaser} disabled={checkingPremium}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-semibold bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 active:scale-95 transition-[background-color,transform] disabled:opacity-60">
+                  {isPremium ? <Search size={18} />
+                    : checkingPremium ? <Loader size={16} className="animate-spin" />
+                    : <Lock size={16} className="text-slate-300" />}
                   {t("routeFinder.button")}
                   {!isPremium && (
                     <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
