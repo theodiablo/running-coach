@@ -68,7 +68,8 @@ limit is a safety valve; monetization must come from new value.
 ## What a paid tier would actually contain
 
 Premium value should be _new_, and the app's own architecture points at the
-strongest candidates:
+strongest candidates. (The reasoning is here; the concrete, status-tracked list
+is "Planned premium lineup" below.)
 
 1. **Proactive coach (best fit — cost-aligned).** Today the coach is reactive
    (user opens the chat). Premium flips it proactive, reusing the existing engine
@@ -90,12 +91,16 @@ strongest candidates:
 ## Sequence
 
 1. **Now:** tip jar (done) — real money possible today, no vaporware tier.
-2. **When ready to charge:** the proactive-coach Supporter tier — entitlements
-   table + RevenueCat (Play Billing + StoreKit + Stripe web) + per-user limit in
-   `checkRateLimit` + an upsell on the `RATE_LIMIT` error, plus an honest pricing
-   section in `src/marketing/marketing.*.json` (keep the free tier's non-numeric
-   fair-use phrasing true).
-3. **Later, with traffic:** race-registration affiliates/partnerships via the
+2. **Now:** the entitlement seam exists and premium features are being built
+   behind it, **invisible to free users** — see "Planned premium lineup" below.
+   No tier is announced, so there is nothing to be impatient about.
+3. **When the lineup is worth paying for:** unveil the Supporter tier in one go
+   — flip `canShowPremiumTeaser`, add RevenueCat (Play Billing + StoreKit +
+   Stripe web) writing `premium_until` + the entitlement-events table, an upsell
+   on the `RATE_LIMIT` error, and an honest pricing section in
+   `src/marketing/marketing.*.json` (keep the free tier's non-numeric fair-use
+   phrasing true).
+4. **Later, with traffic:** race-registration affiliates/partnerships via the
    catalogue.
 
 At current (beta) scale, growth matters more than conversion — but the
@@ -168,14 +173,65 @@ and beta testers so the feature has real users and the lock isn't purely
 theoretical. Lapse is silent (no cron, no notice): acceptable while the gated
 feature is ephemeral route suggestions and grants are manual.
 
-**Free-user UX:** locked entry point + `PremiumTeaserSheet` on web/Android;
-**hidden entirely on iOS** (`canShowPremiumTeaser`) while no IAP exists — a
-permanently locked "coming soon" affordance is placeholder UI under App Store
-guideline 2.1, and payment-adjacent copy next to the external tip jar invites a
-3.1.1 steering question. Teaser copy therefore names no price, no payment, and
-no "supporters", and never asserts the viewer's own tier (an offline premium
-user can land there). If no purchase path exists within ~2 quarters, demote the
-teaser to hidden rather than let "coming soon" rot.
+**Free-user UX: nothing at all, on every platform.** `canShowPremiumTeaser` is
+`false`, so a free user sees no premium entry point anywhere — for the route
+finder that means both the tracker button and the plan session's "Find a route"
+menu item are simply absent. This is the "demote the teaser to hidden rather
+than let 'coming soon' rot" call, taken early and deliberately: with no purchase
+flow, a locked affordance is a dead end that advertises a feature the user can
+do nothing about. Premium users (granted by hand) see the real feature normally.
+
+The locked-affordance + `PremiumTeaserSheet` treatment stays wired behind that
+one flag, so the tier unveils by flipping it. Two rules for whoever does:
+
+- **Gate premium affordances on `isPremium || canShowPremiumTeaser`, never on
+  `isPremium` alone** — that is what makes the whole tier reveal at once.
+- **Flip it back to `!isIos`, not `true`,** unless StoreKit purchases ship at
+  the same time: a permanently locked "coming soon" affordance is placeholder UI
+  under App Store guideline 2.1, and payment-adjacent copy next to the external
+  tip jar invites a 3.1.1 steering question. Teaser copy therefore names no
+  price, no payment and no "supporters", and never asserts the viewer's own tier
+  (an offline premium user can land there).
+
+Known consequence: a premium user whose entitlement read failed at sign-in (say,
+launched offline) now has no affordance to tap, and tapping was what triggered
+the re-read. They recover on the next sign-in or app restart. Acceptable while
+grants are manual and few; if the re-read ever becomes the only recovery path,
+give `App.tsx` a retry instead of bringing the locked button back.
+
+## Planned premium lineup (unveil together)
+
+The tier stays hidden until it is worth paying for. One locked feature is not a
+product; a handful, revealed at once alongside a purchase flow, is. This is the
+running list — status is honest, so a feature only moves to **built** when it
+actually ships behind the flag.
+
+Sequenced by the same logic as the options above: cost-aligned features first
+(they justify the price), zero-marginal-cost analytics as the volume filler,
+convenience last.
+
+| # | Feature | Why premium | Status |
+|---|---|---|---|
+| 1 | **Route finder** — loop suggestions from your location and a target distance (`docs/route-finder.md`) | Real per-call upstream cost (ORS), landed premium-first so nothing is clawed back | **Built**, hidden behind `canShowPremiumTeaser` |
+| 2 | **Post-run coach note** — a short automatic read on each saved run (pace vs plan, HR drift, what to do tomorrow) | Turns the coach from reactive to proactive; one model round per run, the clearest cost-aligned value | Planned |
+| 3 | **Weekly review** — a scheduled round that reviews the week against the plan and *proposes* next-week adjustments through the existing propose-and-confirm flow | Recurring model spend; the headline "having a coach" moment | Planned |
+| 4 | **Race strategy** — elevation-aware pacing plan plus a coach narrative for a target race | High-value, race-shaped, model-heavy | Planned |
+| 5 | **Deep analytics** — training load / fitness-fatigue trend, HR-drift and zone distribution over time, race-time predictor, PB history | Zero marginal cost, all computable client-side from existing `runs`; the Strava-premium model | Planned |
+| 6 | **Convenience** — calendar export (.ics), richer multi-race handling | Bundle filler, weak on its own | Planned |
+| 7 | **Higher coach daily budget** (`PREMIUM_RATE_LIMIT_PER_DAY`, 40 vs 5) | Already shipped as a *raise*; never framed as the reason to buy | **Built** |
+
+Rules this list must keep obeying:
+
+- **Never claw back.** Everything above is new value or a raise. Nothing that is
+  free today appears here, and the free coach limit never moves down (#7 raises
+  the paid allowance only).
+- **The free tier stays complete.** Plans, GPS tracking, the race catalogue and
+  the AI coach are the product; premium is the layer on top. The marketing
+  promise ("everything you need to train is free") must stay literally true
+  after the unveil.
+- **Unveil = lineup + purchase flow + pricing copy, in one go.** Flipping
+  `canShowPremiumTeaser` before there is something to buy just restores the dead
+  end this section replaced.
 
 ## Payments path (researched 2026-07)
 

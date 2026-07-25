@@ -12,7 +12,6 @@
 // entitlement is per-account server truth, not synced user state.
 
 import { supabase } from "./supabase";
-import { isIos } from "./native";
 
 // Whether a premium_until value is still active. Pure, so it can be re-evaluated
 // on every render (an expiry flips the UI without a refetch).
@@ -50,10 +49,22 @@ export async function fetchPremiumUntil(uid: string): Promise<string | null> {
 // Whether a FREE user may be shown the locked affordance + "coming soon" teaser
 // for a premium feature.
 //
-// False on iOS: there is no in-app purchase yet, and a permanently locked
-// button whose only outcome is a "coming soon" sheet is placeholder UI under
-// App Store guideline 2.1, with a needless brush against 3.1.1 steering rules.
-// Same reasoning that keeps the tip jar web-only (see constants.ts TIP_JAR_URL).
-// iOS free users simply don't see the entry point; premium users see the real
-// feature everywhere. Revisit when a StoreKit purchase flow ships.
-export const canShowPremiumTeaser = !isIos;
+// Currently FALSE on every platform. There is no purchase flow anywhere yet, so
+// a locked entry point is a dead end: the user sees the feature, taps it, and
+// can do nothing about it. Until the tier is ready to be unveiled, free users
+// see NO premium entry point at all; premium users (granted by hand, see
+// docs/monetization.md) still see the real feature everywhere. This is the
+// "demote the teaser to hidden rather than let 'coming soon' rot" call that
+// docs/monetization.md reserved.
+//
+// The affordances and PremiumTeaserSheet stay wired behind this one flag so the
+// tier can be unveiled by flipping it back. When that happens, restore the
+// narrower rule this replaced — `!isIos`, not `true`: with no in-app purchase a
+// permanently locked "coming soon" button is placeholder UI under App Store
+// guideline 2.1, and payment-adjacent copy next to the external tip jar invites
+// a 3.1.1 steering question (the same reasoning that keeps the tip jar web-only,
+// see constants.ts TIP_JAR_URL).
+//
+// Annotated `boolean` on purpose: without it every call site narrows to a
+// literal `false` and reads as a dead branch.
+export const canShowPremiumTeaser: boolean = false;

@@ -96,19 +96,21 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // purely visual, the runner follows it by eye. Ephemeral: never saved, gone
   // on close.
   const routeFinderReady = routeSuggestEnabled && isPremium;
-  // A free user who arrived here from a plan session's "Find a route" gets the
-  // teaser instead of the finder, so the tap still explains itself rather than
-  // opening the tracker onto nothing.
+  // While `canShowPremiumTeaser` is false a free user has no entry point to tap
+  // and can't be sent here from a plan session either, so both of these stay
+  // false for them. The teaser wiring is kept for the entitlement re-read below
+  // and for the unveil (see src/premium.ts).
   const [showFinder, setShowFinder] = useState(routeFinderReady && !!initialFindKm);
   const [showPremiumTeaser, setShowPremiumTeaser] = useState(
     routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm);
   const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
-  // Tapping the locked entry point is the one moment a stale "locked" state is
-  // about to be shown, so re-read the entitlement and DECIDE ON THAT READ. The
-  // sign-in fetch runs once and may have failed offline or predated a grant, so
-  // a premium user can legitimately land here — showing them the "not available
-  // yet" sheet (and logging a premium_teaser_shown that never happened) would
-  // be wrong on both counts.
+  // Tapping the entry point is the one moment a stale entitlement is about to
+  // decide something, so re-read it and DECIDE ON THAT READ. The sign-in fetch
+  // runs once and may have failed offline or predated a grant, so a premium user
+  // can legitimately look free here — sending them to the "not available yet"
+  // sheet (and logging a premium_teaser_shown that never happened) would be
+  // wrong on both counts. The reverse also lands here: a grant that lapsed
+  // mid-session gets the teaser rather than a button that does nothing.
   const [checkingPremium, setCheckingPremium] = useState(false);
   const openFinderOrTeaser = async () => {
     if (routeFinderReady) { setShowFinder(true); return; }

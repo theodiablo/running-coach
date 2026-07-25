@@ -130,11 +130,13 @@ an explicit var.
 - Route finder: `route_suggested` `{}` when a generation starts
   (`src/modals/RouteFinderSheet.tsx`). No coordinates, no distance — the point
   is only how often the feature is used.
-- Premium: `premium_teaser_shown` `{feature}` when a free user opens the
-  "premium feature" sheet (`src/modals/PremiumTeaserSheet.tsx`). `feature` is a
-  fixed slug (`"routeFinder"`), never free text. This is the demand signal for
-  the paid tier — how many people reach for a premium feature before there is
-  anything to sell. See `docs/monetization.md`.
+- Premium: `premium_teaser_shown` `{feature}` when the "premium feature" sheet
+  opens (`src/modals/PremiumTeaserSheet.tsx`). `feature` is a fixed slug
+  (`"routeFinder"`), never free text. It is the demand signal for the paid tier
+  — how many people reach for a premium feature before there is anything to
+  sell — but it is **dormant today**: premium entry points are hidden from free
+  users (`canShowPremiumTeaser === false`), so this fires ~never until the tier
+  is unveiled. Don't read the silence as no demand. See `docs/monetization.md`.
 - Settings → Privacy toggle (reads/writes consent directly) —
   `src/modals/SettingsModal.tsx`.
 
