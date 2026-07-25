@@ -863,9 +863,12 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
               orange accent — next to the settings gear a second muted icon
               reads as a utility, not the product's headline feature. */}
           {plan && (
-            <button onClick={() => openCoach(null, "header")} aria-label={t("app.header.coach")} title={t("app.header.coachTitle")}
-              className="flex items-center justify-center text-orange-400 hover:text-orange-300 p-1.5 rounded-lg border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 transition-colors">
-              <MessageCircle size={15}/>
+            // Labelled, not icon-only: a speech bubble alone doesn't say "AI
+            // coach". The cog beside it stays bare on purpose — see the comment
+            // there. No aria-label: the visible text is the accessible name.
+            <button onClick={() => openCoach(null, "header")} title={t("app.header.coachTitle")}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[13px] font-semibold text-orange-400 hover:text-orange-300 rounded-full border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 transition-colors">
+              <MessageCircle size={14}/>{t("app.header.coach")}
             </button>
           )}
           <button onClick={openSettings} aria-label={t("app.header.settings")}
