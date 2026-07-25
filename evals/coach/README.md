@@ -19,10 +19,10 @@ when changing `SYSTEM_PROMPT`, tool descriptions, validator rules, or
 ## Run it
 
 ```sh
-MISTRAL_API_KEY=... npm run eval:live                   # prod model (mistral-large-latest)
-COACH_EVAL_MODEL=claude-sonnet-5 ANTHROPIC_API_KEY=... npm run eval:live   # compare a Claude candidate
-COACH_EVAL_TRIALS=3 MISTRAL_API_KEY=... npm run eval:live                  # variance
-COACH_EVAL_SCENARIOS=free-day MISTRAL_API_KEY=... npm run eval:live         # one scenario
+ANTHROPIC_API_KEY=sk-ant-... npm run eval:live          # prod model (claude-sonnet-5)
+COACH_EVAL_MODEL=mistral-large-latest MISTRAL_API_KEY=... npm run eval:live  # compare a Mistral candidate
+COACH_EVAL_TRIALS=3 ANTHROPIC_API_KEY=... npm run eval:live                # variance
+COACH_EVAL_SCENARIOS=free-day ANTHROPIC_API_KEY=... npm run eval:live       # one scenario
 COACH_EVAL_MOCK=1 npm run eval:live                     # free plumbing check
 ```
 

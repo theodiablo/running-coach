@@ -26,12 +26,12 @@
 //              with requestId (delivery recovery after a dropped stream)
 //
 // Deploy:  supabase functions deploy coach-agent
-// Secrets: supabase secrets set MISTRAL_API_KEY=... (and/or ANTHROPIC_API_KEY)
+// Secrets: supabase secrets set ANTHROPIC_API_KEY=... (and/or MISTRAL_API_KEY)
 //   The provider is picked from the COACH_MODEL name: mistral*/magistral*/...
-//   route to Mistral's chat-completions API via _shared/coach/mistral.mjs,
-//   anything else to the Anthropic SDK — so setting the COACH_MODEL secret to
-//   claude-sonnet-5 is the instant rollback lever (needs ANTHROPIC_API_KEY).
-//   Optional: COACH_MODEL (default mistral-large-latest), COACH_MODEL_LIGHT
+//   route to Mistral's chat-completions API via _shared/coach/mistral.mjs
+//   (needs MISTRAL_API_KEY); anything else uses the Anthropic SDK. Switching
+//   provider is one COACH_MODEL secret change, no redeploy.
+//   Optional: COACH_MODEL (default claude-sonnet-5), COACH_MODEL_LIGHT
 //   (routing seam, default claude-haiku-4-5), RATE_LIMIT_PER_DAY (default 5;
 //   a per-user override lives in profiles.coach_daily_limit),
 //   MOCK_LLM=1 (canned responses, zero model calls — CI / local dev).
@@ -45,7 +45,7 @@ import { createMockModel } from "../_shared/coach/mock.mjs";
 import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
 
 const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
-const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "mistral-large-latest";
+const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
 const LIGHT_MODEL = Deno.env.get("COACH_MODEL_LIGHT") ?? "claude-haiku-4-5";
 const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
 // The Anthropic SDK retries transient failures (429, 5xx incl. 529 overloaded,
