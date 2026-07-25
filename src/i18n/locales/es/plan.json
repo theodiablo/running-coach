@@ -80,10 +80,6 @@
     "newTarget": "Nuevo objetivo de entrenamiento",
     "yourRace": "Tu carrera"
   },
-  "header": {
-    "coach": "Entrenador",
-    "coachTitle": "Ajusta el plan con tu entrenador"
-  },
   "progress": {
     "sessions": "{{done}} / {{total}} sesiones",
     "goal": "{{dist}} km{{elev}} · objetivo: menos de {{goal}}",

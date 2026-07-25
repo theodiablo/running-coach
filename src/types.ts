@@ -142,6 +142,12 @@ export type PlanSession = Record<string, unknown> & {
 // display strings and the canonical-English context prefix from it.
 export type CoachSessionContext = { session: PlanSession; weekNumber: number };
 
+// Which affordance opened the coach chat. Analytics only (`coach_opened`) — it
+// never changes what the coach is told. Pass one at every call site so the
+// entry points stay comparable; "other" is the defensive fallback for a bare
+// `onClick={openCoach}` wiring that hands us a click event instead.
+export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "other";
+
 export type PlanWeek = Record<string, unknown> & {
   weekNumber: number;
   startDate?: string;

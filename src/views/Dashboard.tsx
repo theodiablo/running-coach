@@ -8,7 +8,7 @@ import { computeBadges, nextBadge } from "../utils/badges";
 import { sessionSteps } from "../utils/sessionSteps";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
-import type { Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
+import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
 type DashboardProps = {
@@ -22,7 +22,7 @@ type DashboardProps = {
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
   openSettings: () => void;
-  openCoach: () => void;
+  openCoach: (session?: null, source?: CoachSource) => void;
   openRunDetail?: (run: Run) => void;
 };
 
@@ -202,7 +202,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       )}
 
       {plan && (
-        <button onClick={openCoach}
+        <button onClick={() => openCoach(null, "dashboard")}
           className="w-full bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
           <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0">
             <MessageCircle size={18} className="text-orange-400"/>

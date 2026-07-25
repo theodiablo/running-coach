@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowLeft, ChevronDown, MessageCircle } from "lucide-react";
+import { ArrowDown, ArrowLeft, ChevronDown } from "lucide-react";
 import { dayName } from "../i18n";
 import { fmt } from "../utils/format";
 import { runnerAge } from "../utils/hr";
@@ -12,7 +12,7 @@ import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { PlanSessionRow } from "../components/PlanSessionRow";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, Plan, PlanPrefill, RacesState, Run, SettingsState } from "../types";
+import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, RacesState, Run, SettingsState } from "../types";
 import { carryProgress, type PlanSessionInput } from "../utils/plan";
 
 type PlanViewProps = {
@@ -33,7 +33,7 @@ type PlanViewProps = {
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
   openSettings: () => void;
-  openCoach: (session?: CoachSessionContext) => void;
+  openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string }) => void;
   goLog: (prefill: Partial<Run>) => void;
   showToast: (msg: string, type?: string) => void;
@@ -331,14 +331,9 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
 
   return (
     <div className="p-4 max-w-lg mx-auto">
-      <div className="flex justify-between items-center mt-4 mb-4">
-        <h2 className="text-xl font-bold">{t("plan.title")}</h2>
-        <button onClick={() => openCoach()}
-          className="px-3.5 py-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/50 rounded-full transition-colors"
-          title={t("plan.header.coachTitle")}>
-          <MessageCircle size={14}/>{t("plan.header.coach")}
-        </button>
-      </div>
+      {/* No coach button here: it moved to the app header (RunningCoach.tsx) so
+          it's reachable from every tab. The per-session "Ask coach" below stays. */}
+      <h2 className="text-xl font-bold mt-4 mb-4">{t("plan.title")}</h2>
 
       {/* Plan card */}
       <div className="rounded-2xl bg-slate-800/70 border border-slate-700/50 divide-y divide-slate-700/40 mb-2.5">
@@ -422,7 +417,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
                       onDone={() => goLog({date: s.date, type: s.type, km: Number(s.km), pace: s.pace, wNum: wk.weekNumber, sId: s.id})}
                       onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                       onSkip={() => skipSess(wk.weekNumber, s.id)}
-                      onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber })}
+                      onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}
                       openSettings={openSettings}/>
                   ))}
                 </div>

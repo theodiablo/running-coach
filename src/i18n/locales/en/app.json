@@ -1,7 +1,9 @@
 {
   "signInFailed": "Sign-in failed. Please try again.",
   "header": {
-    "settings": "Settings"
+    "settings": "Settings",
+    "coach": "Coach",
+    "coachTitle": "Adjust the plan with your coach"
   },
   "beta": "Beta",
   "toasts": {

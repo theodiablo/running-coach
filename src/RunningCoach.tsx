@@ -5,7 +5,7 @@ import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { dismissTop } from "./utils/backDismiss";
 import { isLangId, setLocale } from "./i18n";
-import { Loader, Settings } from "lucide-react";
+import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
@@ -43,6 +43,7 @@ import { BottomNav } from "./components/BottomNav";
 import type {
   CatalogueRace,
   CoachSessionContext,
+  CoachSource,
   JoinedEdition,
   Plan,
   PlanPrefill,
@@ -744,6 +745,14 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
   checkWatchRef.current = scanImports;
   const goProgress = (sub?: string) => { setProgressSub(sub === "stats" || sub === "badges" ? sub : "log"); setProgressNonce(n => n + 1); setTab("progress"); };
   const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
+  // A session-context object opens the coach about that session; a bare call
+  // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
+  // so the click event never counts as a session. `source` is analytics only.
+  const openCoach = (session?: unknown, source?: CoachSource) => {
+    const ctx = session && typeof session === "object" && "session" in session ? session as CoachSessionContext : null;
+    setCoachSession(ctx); setShowCoach(true);
+    track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
+  };
   const shared = {runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
@@ -761,13 +770,7 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
       const r = run && typeof run === "object" && "durationSec" in run ? run as Run : null;
       if (r) setDetailRun(r);
     },
-    // A session-context object opens the coach about that session; a bare call
-    // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
-    // so the click event never counts as a session.
-    openCoach: (session?: unknown) => {
-      const ctx = session && typeof session === "object" && "session" in session ? session as CoachSessionContext : null;
-      setCoachSession(ctx); setShowCoach(true);
-    },
+    openCoach,
     // Manual "scan older runs" for the Integrations settings panel — wider window,
     // bypasses the once-per-session auto throttle.
     scanImportsNow: () => checkWatchRef.current({ days: WATCH_MANUAL_SCAN_DAYS, manual: true })};
@@ -822,7 +825,7 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
         onBackup={()  => { setShowSettings(false); exportData(); }}
         onRestore={() => { setShowSettings(false); setShowRestore(true); }}
         onSignOut={onSignOut}
-        onOpenCoach={plan ? () => { setShowSettings(false); setCoachSession(null); setShowCoach(true); } : undefined}
+        onOpenCoach={plan ? () => { setShowSettings(false); openCoach(null, "settings"); } : undefined}
         onDeleteAccount={() => { setShowSettings(false); setShowDeleteAccount(true); }}
         onClose={()   => setShowSettings(false)}/>}
       {showDeleteAccount && <DeleteAccountModal
@@ -852,10 +855,24 @@ export default function RunningCoach({ onSignOut = () => {} }: { onSignOut?: () 
           <BrandLogo size={15} className="text-orange-400"/>
           <span className="text-sm font-semibold">Running Coach</span>
         </div>
-        <button onClick={openSettings} aria-label={t("app.header.settings")}
-          className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 hover:bg-slate-800 transition-colors">
-          <Settings size={15}/>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Coach lives here rather than on the Plan tab so it's reachable from
+              every view. Gated on `plan` for the same reason the chat itself is
+              (`showCoach && plan` below): with no plan there is nothing to
+              adjust, so the button would open an empty overlay. Kept on the
+              orange accent — next to the settings gear a second muted icon
+              reads as a utility, not the product's headline feature. */}
+          {plan && (
+            <button onClick={() => openCoach(null, "header")} aria-label={t("app.header.coach")} title={t("app.header.coachTitle")}
+              className="flex items-center justify-center text-orange-400 hover:text-orange-300 p-1.5 rounded-lg border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 transition-colors">
+              <MessageCircle size={15}/>
+            </button>
+          )}
+          <button onClick={openSettings} aria-label={t("app.header.settings")}
+            className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 hover:bg-slate-800 transition-colors">
+            <Settings size={15}/>
+          </button>
+        </div>
       </header>
 
       <div key={tab} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
