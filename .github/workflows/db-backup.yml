@@ -29,6 +29,10 @@
 #    password is set out of band. It holds BYPASSRLS deliberately — every table
 #    in public has RLS on, so a role without it dumps zero rows.
 #
+#    This is also why the dumps call pg_dump directly rather than
+#    `supabase db dump`: every one of the CLI's dump scripts hardcodes
+#    `--role postgres`, so the CLI cannot be used with a least-privilege role.
+#
 # 2. Secret BACKUP_S3_BUCKET — a PRIVATE bucket. Do NOT reuse S3_BUCKET_NAME:
 #    that one is the CloudFront origin for the site and is world-readable.
 #    These dumps contain personal health data (runs, heart rate, notes), so
@@ -67,6 +71,9 @@ concurrency:
 
 env:
   BACKUP_PREFIX: supabase
+  # Must match the server's major version: pg_dump refuses to dump a server
+  # newer than itself. Bump this when Supabase upgrades the project.
+  PG_MAJOR: "17"
   RETENTION_DAYS: 30
   # Never prune below this many backups, however old they are. Without it, a
   # month of failed scheduled runs followed by one successful prune would leave
@@ -112,16 +119,21 @@ jobs:
         if: steps.cfg.outputs.ready == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Setup Node
+      - name: Install PostgreSQL client
         if: steps.cfg.outputs.ready == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        if: steps.cfg.outputs.ready == 'true'
-        run: npm ci
+        run: |
+          set -euo pipefail
+          # From PGDG, the PostgreSQL project's own apt repository, pinned to the
+          # server's major version. Ubuntu's default pg_dump is a major version
+          # behind and refuses to dump PG17 outright.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc > /dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "postgresql-client-${PG_MAJOR}"
+          pg_dump --version
 
       - name: Dump database
         id: dump
@@ -129,29 +141,43 @@ jobs:
         env:
           # Scoped to this step only — never a workflow-level env block.
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          # Keep the CLI strictly non-interactive: an analytics prompt would
-          # hang a scheduled job until the runner times out.
-          DO_NOT_TRACK: "1"
         run: |
           set -euo pipefail
           stamp="$(date -u +%Y%m%dT%H%M%SZ)"
           dir="backup/run-app-$stamp"
           mkdir -p "$dir"
 
-          # Three dumps, matching Supabase's documented restore order. The CLI
-          # runs pg_dump inside a container built from the server's own Postgres
-          # image, so the client version always matches the server (plain
-          # pg_dump from apt is a version behind and refuses to dump PG17).
+          # Three dumps, matching Supabase's documented restore order.
+          #
+          # pg_dump directly, NOT `supabase db dump`. All three of the CLI's dump
+          # scripts hardcode `--role postgres`, so the CLI can only ever run as a
+          # role that is a member of postgres. That is incompatible with a
+          # least-privilege backup role, and granting the membership would hand
+          # this credential the ability to drop every table, which is the exact
+          # thing the dedicated role exists to prevent. Without --role, pg_dump
+          # runs with db_backup's own privileges: pg_read_all_data + BYPASSRLS.
+          #
+          # No --quote-all-identifier either: it emits COPY "public"."app_state",
+          # which the row-count guard below would not recognise.
+          #
+          # All application data lives in public; storage is unused.
+          # supabase_migrations carries the applied-migration history, which is
+          # small and worth having alongside it.
+          schemas=(--schema public --schema supabase_migrations)
+
           echo "::group::roles"
-          npx supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f "$dir/roles.sql"
+          # --no-role-passwords reads pg_roles rather than pg_authid, which a
+          # non-superuser cannot read.
+          pg_dumpall --dbname "$SUPABASE_DB_URL" --roles-only --no-role-passwords > "$dir/roles.sql"
           echo "::endgroup::"
           echo "::group::schema"
-          npx supabase db dump --db-url "$SUPABASE_DB_URL" -f "$dir/schema.sql"
+          pg_dump --dbname "$SUPABASE_DB_URL" --schema-only "${schemas[@]}" > "$dir/schema.sql"
           echo "::endgroup::"
           echo "::group::data"
-          # --use-copy: COPY blocks restore far faster and survive rows that
-          # would trip per-statement INSERT errors.
-          npx supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy -f "$dir/data.sql"
+          # pg_dump emits COPY blocks for data by default: they restore far
+          # faster than per-row INSERTs and survive rows that would trip a
+          # per-statement error.
+          pg_dump --dbname "$SUPABASE_DB_URL" --data-only "${schemas[@]}" > "$dir/data.sql"
           echo "::endgroup::"
 
           # A backup that silently contains nothing is worse than no backup —
@@ -168,7 +194,11 @@ jobs:
           fi
           # app_state is the irreplaceable table: one jsonb row per user, no
           # history. If it is not in the data dump, the backup is worthless.
-          if ! grep -q "COPY public.app_state" "$dir/data.sql"; then
+          # Quote-tolerant: pg_dump emits COPY public.app_state, but a future
+          # --quote-all-identifier would make it COPY "public"."app_state", and
+          # a guard that silently stopped matching would wave through an empty
+          # backup rather than fail.
+          if ! grep -Eq '^COPY "?public"?\."?app_state"?[ (]' "$dir/data.sql"; then
             echo "::error::data.sql has no COPY public.app_state block — refusing to upload."
             exit 1
           fi
@@ -186,11 +216,11 @@ jobs:
           # run to end of file, and the guard would pass on a dump it should
           # have rejected.
           rows="$(awk '
-            BEGIN                     { term = sprintf("%c.", 92) }
-            /^COPY public.app_state / { inblock = 1; next }
-            inblock && $0 == term     { inblock = 0; next }
-            inblock                   { n++ }
-            END                       { print n + 0 }
+            BEGIN                                  { term = sprintf("%c.", 92) }
+            /^COPY "?public"?\."?app_state"?[ (]/   { inblock = 1; next }
+            inblock && $0 == term                   { inblock = 0; next }
+            inblock                                 { n++ }
+            END                                     { print n + 0 }
           ' "$dir/data.sql")"
           if [ "$rows" -lt "$MIN_APP_STATE_ROWS" ]; then
             echo "::error::data.sql has only $rows public.app_state row(s), expected at least $MIN_APP_STATE_ROWS — refusing to upload. If the backup role was recently changed, check it has BYPASSRLS."

@@ -24,11 +24,19 @@ row is still the only copy of the data. Hence this job.
 
 Every day at 02:20 UTC (and on `workflow_dispatch`):
 
-1. Dumps the database three ways with the Supabase CLI — `--role-only`,
-   schema, and `--data-only --use-copy`. The CLI runs `pg_dump` inside a
-   container built from the server's own Postgres image, so the client version
-   always matches the server; plain `pg_dump` from apt is a major version
+1. Dumps three ways with `pg_dump` / `pg_dumpall` — roles, schema, and data —
+   covering the `public` and `supabase_migrations` schemas. All application
+   data lives in `public`; storage is unused. The client comes from PGDG
+   pinned to `PG_MAJOR`, because Ubuntu's default `pg_dump` is a major version
    behind and refuses to dump PG17.
+
+   **Not `supabase db dump`.** All three of the CLI's dump scripts hardcode
+   `--role postgres`, so the CLI only works when the connecting role is a
+   member of `postgres`. Granting that membership to `db_backup` would let it
+   `SET ROLE postgres` and drop any table, which is precisely what the
+   dedicated role exists to prevent. Calling `pg_dump` directly runs it with
+   `db_backup`'s own privileges instead. This is not a preference; the CLI and
+   a least-privilege role are mutually exclusive.
 2. Refuses to upload a dump that is empty, has no `CREATE TABLE`, or carries
    fewer than `MIN_APP_STATE_ROWS` rows in its `COPY public.app_state` block. A
    backup that silently contains nothing reads as success forever, which is
@@ -162,6 +170,12 @@ psql "$TARGET_DB_URL" -f run-app-<stamp>/roles.sql
 psql "$TARGET_DB_URL" -f run-app-<stamp>/schema.sql
 psql "$TARGET_DB_URL" -f run-app-<stamp>/data.sql
 ```
+
+`roles.sql` is dumped with `--no-role-passwords` (it reads `pg_roles` rather
+than `pg_authid`, which a non-superuser cannot read) and is **not** filtered the
+way the Supabase CLI filters it. It will contain `CREATE ROLE` statements for
+platform-reserved roles that a Supabase project rejects, so expect to edit it
+before restoring. Treat it as a record of what existed, not a runnable script.
 
 Note what these dumps do **not** cover: `auth.users` is managed by the Supabase
 platform and is not included, so a restore into a new project leaves rows whose
