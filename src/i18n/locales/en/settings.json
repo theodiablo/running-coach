@@ -166,7 +166,7 @@
   },
   "guides": {
     "title": "Strava, Zepp & other apps",
-    "subtitle": "No direct connection for these, but your runs can still get here.",
+    "subtitle": "Runs from these apps land here too: import them in a few taps, or let them flow in automatically through Health Connect or Apple Health.",
     "pastRuns": "Past runs, one by one",
     "newRuns": "New runs, automatically",
     "importCta": "Import a file",
