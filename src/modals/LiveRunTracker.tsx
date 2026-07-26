@@ -435,9 +435,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             <span className="text-2xl font-bold text-white tabular-nums leading-none">{stats.hr ?? "--"}</span>
             <span className="text-[11px] text-slate-400 uppercase tracking-wide">{t("tracker.hr.bpm")}</span>
             <BetaBadge />
-            {stats.hrAvg != null
-              ? <span className="text-[11px] text-slate-500 ml-2">{t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })}</span>
-              : <span className="text-[11px] text-slate-500 ml-2">{t("tracker.hr.connecting")}</span>}
+            {/* avg/max only once the run has recorded samples; before that the
+                strap is either already reading (idle preview) or still connecting. */}
+            <span className="text-[11px] text-slate-500 ml-2">
+              {stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
+                : stats.hr != null ? t("tracker.hr.connected")
+                : t("tracker.hr.connecting")}
+            </span>
           </div>
         )}
 

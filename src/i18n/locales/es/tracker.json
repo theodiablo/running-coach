@@ -30,6 +30,7 @@
     "bpm": "ppm",
     "avgMax": "media {{avg}} · máx {{max}}",
     "connecting": "conectando…",
+    "connected": "sensor conectado",
     "postRun": "La frecuencia cardíaca se añade desde {{store}} cuando terminas."
   },
   "gps": {
