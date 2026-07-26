@@ -1,16 +1,24 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..15eaf85 100644
+index a92fcf9..b860091 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-@@ -34,6 +34,7 @@ import com.google.android.gms.tasks.OnSuccessListener;
+@@ -34,6 +34,10 @@ import com.google.android.gms.tasks.OnSuccessListener;
  
  import org.json.JSONObject;
  
++import java.util.ArrayDeque;
++import java.util.Locale;
++
 +import androidx.core.app.ActivityCompat;
  import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  
  @CapacitorPlugin(
-@@ -94,73 +95,120 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +94,329 @@ public class BackgroundGeolocation extends Plugin {
+         if (call.getBoolean("stale", false)) {
+             fetchLastLocation(call);
+         }
++        synchronized (liveLock) { liveStats = null; } // a new watcher is a new run
+         Notification backgroundNotification = null;
          String backgroundMessage = call.getString("backgroundMessage");
  
          if (backgroundMessage != null) {
@@ -64,7 +72,6 @@ index a92fcf9..15eaf85 100644
 -                }
 -            } catch (Exception e) {
 -                Logger.error("Could not set notification color", e);
--            }
 +    // Builds the foreground-service notification. When chronometerStartMs is
 +    // non-null the notification renders a live elapsed-time chronometer ticked
 +    // by the OS itself — it keeps counting even when the app's WebView is
@@ -80,9 +87,7 @@ index a92fcf9..15eaf85 100644
 +                // and should be readable on the lock screen without unlocking.
 +                .setOnlyAlertOnce(true)
 +                .setVisibility(Notification.VISIBILITY_PUBLIC);
- 
--            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
--                    getContext().getPackageName()
++
 +        if (chronometerStartMs != null) {
 +            builder.setWhen(chronometerStartMs.longValue())
 +                    .setUsesChronometer(true)
@@ -95,18 +100,7 @@ index a92fcf9..15eaf85 100644
 +            String name = getAppString(
 +                    "capacitor_background_geolocation_notification_icon",
 +                    "mipmap/ic_launcher"
-             );
--            if (launchIntent != null) {
--                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
--                builder.setContentIntent(
--                        PendingIntent.getActivity(
--                                getContext(),
--                                0,
--                                launchIntent,
--                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
--                        )
--                );
--            }
++            );
 +            String[] parts = name.split("/");
 +            // It is actually necessary to set a valid icon for the notification to behave
 +            // correctly when tapped. If there is no icon specified, tapping it will open the
@@ -117,10 +111,7 @@ index a92fcf9..15eaf85 100644
 +        } catch (Exception e) {
 +            Logger.error("Could not set notification icon", e);
 +        }
- 
--            // Set the Channel ID for Android O.
--            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
--                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
++
 +        try {
 +            String color = getAppString(
 +                    "capacitor_background_geolocation_notification_color",
@@ -133,7 +124,8 @@ index a92fcf9..15eaf85 100644
 +            Logger.error("Could not set notification color", e);
 +        }
  
--            backgroundNotification = builder.build();
+-            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
+-                    getContext().getPackageName()
 +        Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
 +                getContext().getPackageName()
 +        );
@@ -146,12 +138,18 @@ index a92fcf9..15eaf85 100644
 +                            launchIntent,
 +                            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
 +                    )
-+            );
-         }
--        service.addWatcher(
--                call.getCallbackId(),
--                backgroundNotification,
--                call.getFloat("distanceFilter", 0f)
+             );
+-            if (launchIntent != null) {
+-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+-                builder.setContentIntent(
+-                        PendingIntent.getActivity(
+-                                getContext(),
+-                                0,
+-                                launchIntent,
+-                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
+-                        )
+-                );
++        }
 +
 +        // Set the Channel ID for Android O.
 +        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -166,6 +164,11 @@ index a92fcf9..15eaf85 100644
 +    // can surface live run stats on it. Resolves { updated: boolean } — false
 +    // while no background watcher holds the foreground notification yet, so the
 +    // caller knows to retry rather than assume the update landed.
++    //
++    // The optional km/paceSecPerKm/hr/hrAtMs/tracking fields SEED the live
++    // renderer below, which keeps the message current from incoming fixes alone
++    // while the app is backgrounded and its JS cannot run. Omit them (iOS, or a
++    // caller that only wants a static message) and nothing is re-rendered.
 +    @PluginMethod()
 +    public void updateNotification(PluginCall call) {
 +        String message = call.getString("message");
@@ -179,18 +182,248 @@ index a92fcf9..15eaf85 100644
 +            call.resolve(ret);
 +            return;
 +        }
-+        Double chronometerStartMs = call.getDouble("chronometerStartMs");
++        Number chronometerStartMs = optNumber(call, "chronometerStartMs");
 +        Notification notification = buildNotification(
 +                call.getString("title", "Using your location"),
 +                message,
 +                chronometerStartMs == null ? null : Long.valueOf(chronometerStartMs.longValue())
-         );
-+        ret.put("updated", service.updateNotification(notification));
++        );
++        boolean updated = service.updateNotification(notification);
++        seedLiveStats(call, message, updated);
++        ret.put("updated", updated);
 +        call.resolve(ret);
++    }
++
++    // Reads a numeric option whatever JSON type it landed as. PluginCall.getDouble
++    // only unwraps Double/Float/Integer, so any epoch-ms value — which JSONObject
++    // parses as a Long, being past Integer.MAX_VALUE — silently read as absent.
++    private static Number optNumber(PluginCall call, String key) {
++        Object value = call.getData().opt(key);
++        return value instanceof Number ? (Number) value : null;
++    }
++
++    // ── Live stats, rendered natively ────────────────────────────────────────
++    // Android freezes the WebView's task queues once the app is backgrounded, so
++    // the JS push above stops the moment the screen goes off — exactly when the
++    // notification is the only thing the runner can see. The duration survives
++    // because the OS ticks the chronometer; distance and pace survive because of
++    // the state below, which the service's own location broadcasts drive.
++    //
++    // The gates and formatting MIRROR the JS side on purpose: the filters match
++    // onPos (src/hooks/useRunTracker.ts) and the message matches
++    // buildRunNotificationContent (src/utils/runNotification.ts), so both ends
++    // count the same fixes out of the same stream and render them identically —
++    // the number never jumps when the app comes back to the foreground. Keep the
++    // two in sync (docs/live-tracking.md).
++    private static final double LIVE_ACC_MAX_M = 25;
++    private static final double LIVE_ACC_WARMUP_M = 20;
++    private static final long LIVE_MIN_INTERVAL_MS = 2000;
++    private static final double LIVE_MIN_MOVE_M = 5;
++    private static final long LIVE_CUR_PACE_WINDOW_MS = 30000;
++    // An HR reading JS can no longer refresh is dropped rather than shown stale.
++    private static final long LIVE_HR_STALE_MS = 90000;
++    private static final double EARTH_RADIUS_M = 6371000;
++
++    private static class LiveStats {
++        String title;
++        Long chronometerStartMs;
++        boolean tracking;
++        double baseKm;        // authoritative distance as of the last JS push
++        double addedM;        // metres accumulated from fixes since that push
++        double fallbackPaceSecPerKm;
++        int hrBpm;
++        long hrAtMs;
++        String shown;         // last message posted, to skip no-op notifies
++        double lastLat, lastLng;
++        long lastFixMs;       // 0 = no accepted fix yet (warm-up)
++        double cumM;          // metres since the run's first accepted fix
++        // Accepted fixes in the current-pace window: { fix time ms, cumM }.
++        final ArrayDeque<double[]> paceWindow = new ArrayDeque<>();
++    }
++
++    // Written from the bridge's plugin thread (seedLiveStats), read and mutated
++    // from the main thread (onLiveLocation, via the service's broadcast) — both
++    // entry points hold liveLock so a seed can't land mid-render.
++    private final Object liveLock = new Object();
++    private LiveStats liveStats = null;
++
++    private void seedLiveStats(PluginCall call, String message, boolean updated) {
++        synchronized (liveLock) {
++            Number km = optNumber(call, "km");
++            if (km == null) {
++                liveStats = null; // caller isn't driving live stats
++                return;
++            }
++            if (liveStats == null) {
++                liveStats = new LiveStats();
+             }
++            Number pace = optNumber(call, "paceSecPerKm");
++            Number hr = optNumber(call, "hr");
++            Number hrAtMs = optNumber(call, "hrAtMs");
++            Number chronometerStartMs = optNumber(call, "chronometerStartMs");
++            liveStats.title = call.getString("title", "Using your location");
++            liveStats.chronometerStartMs = chronometerStartMs == null
++                    ? null
++                    : Long.valueOf(chronometerStartMs.longValue());
++            liveStats.tracking = call.getBoolean("tracking", false);
++            liveStats.baseKm = km.doubleValue();
++            liveStats.addedM = 0;
++            liveStats.fallbackPaceSecPerKm = pace == null ? 0 : pace.doubleValue();
++            liveStats.hrBpm = hr == null ? 0 : (int) Math.round(hr.doubleValue());
++            liveStats.hrAtMs = hrAtMs == null ? 0 : hrAtMs.longValue();
++            // Only what actually reached the shade counts as displayed, so a refused
++            // push is re-rendered by the next fix instead of being deduped away.
++            liveStats.shown = updated ? message : null;
++        }
++    }
+ 
+-            // Set the Channel ID for Android O.
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
++    // Folds one broadcast fix into the live stats and refreshes the notification.
++    // Called for every location the service reports, foreground or not.
++    private void onLiveLocation(Location location) {
++        synchronized (liveLock) {
++            LiveStats live = liveStats;
++            if (live != null && live.tracking) {
++                foldLiveLocation(live, location);
+             }
++            // no live stats, or paused — onPos ignores fixes then too
++        }
++    }
+ 
+-            backgroundNotification = builder.build();
++    private void foldLiveLocation(LiveStats live, Location location) {
++        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
++        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
++            return;
+         }
+-        service.addWatcher(
+-                call.getCallbackId(),
+-                backgroundNotification,
+-                call.getFloat("distanceFilter", 0f)
++        long t = location.getTime() > 0 ? location.getTime() : System.currentTimeMillis();
++        double lat = location.getLatitude(), lng = location.getLongitude();
++        if (live.lastFixMs == 0) {
++            // Warm-up: don't anchor on a coarse (or unknown-accuracy) pre-lock fix.
++            if (!location.hasAccuracy() || accuracy > LIVE_ACC_WARMUP_M) {
++                return;
++            }
++            live.lastLat = lat;
++            live.lastLng = lng;
++            live.lastFixMs = t;
++            live.paceWindow.clear();
++            live.paceWindow.addLast(new double[] { t, live.cumM });
++            return; // an anchor only — no leg to measure yet
++        }
++        if (t - live.lastFixMs < LIVE_MIN_INTERVAL_MS) {
++            return;
++        }
++        double moved = haversineM(live.lastLat, live.lastLng, lat, lng);
++        if (moved < Math.max(LIVE_MIN_MOVE_M, accuracy * 0.5)) {
++            return; // jitter, not movement
++        }
++        live.lastLat = lat;
++        live.lastLng = lng;
++        live.lastFixMs = t;
++        live.addedM += moved;
++        live.cumM += moved;
++        live.paceWindow.addLast(new double[] { t, live.cumM });
++        while (live.paceWindow.size() > 1
++                && t - live.paceWindow.peekFirst()[0] > LIVE_CUR_PACE_WINDOW_MS) {
++            live.paceWindow.removeFirst();
++        }
++        renderLiveStats(live);
++    }
++
++    private void renderLiveStats(LiveStats live) {
++        if (service == null) {
++            return;
++        }
++        String message = liveMessage(live);
++        if (message.equals(live.shown)) {
++            return;
++        }
++        if (service.updateNotification(buildNotification(live.title, message, live.chronometerStartMs))) {
++            live.shown = message;
++        }
++    }
++
++    // Mirrors buildRunNotificationContent's tracking branch: "5.23 km · 5:42/km"
++    // plus " · ♥ 152" when a live HR reading is still trustworthy.
++    private String liveMessage(LiveStats live) {
++        double pace = windowPaceSecPerKm(live);
++        if (pace <= 0) {
++            pace = live.fallbackPaceSecPerKm;
++        }
++        StringBuilder message = new StringBuilder(
++                String.format(Locale.US, "%.2f km", live.baseKm + live.addedM / 1000)
+         );
++        message.append(" \u00b7 ").append(formatPace(pace)).append("/km");
++        boolean hrFresh = live.hrAtMs <= 0
++                || System.currentTimeMillis() - live.hrAtMs < LIVE_HR_STALE_MS;
++        if (live.hrBpm > 0 && hrFresh) {
++            message.append(" \u00b7 \u2665 ").append(live.hrBpm);
++        }
++        return message.toString();
++    }
++
++    // Current pace over the accepted fixes of the last LIVE_CUR_PACE_WINDOW_MS,
++    // matching the tracker's curPace; 0 when the window can't support a figure.
++    private double windowPaceSecPerKm(LiveStats live) {
++        if (live.paceWindow.size() < 2) {
++            return 0;
++        }
++        double[] first = live.paceWindow.peekFirst();
++        double[] last = live.paceWindow.peekLast();
++        double km = (last[1] - first[1]) / 1000, seconds = (last[0] - first[0]) / 1000;
++        return (km > 0 && seconds > 0) ? seconds / km : 0;
++    }
++
++    // fmt.pace (src/utils/format.ts), rounding included, so the strings match.
++    private static String formatPace(double secPerKm) {
++        if (secPerKm <= 0) {
++            return "--:--";
++        }
++        long minutes = (long) Math.floor(secPerKm / 60);
++        long seconds = Math.round(secPerKm % 60);
++        return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
++    }
++
++    // haversineM (src/utils/geo.ts) — same formula and radius as the tracker's.
++    private static double haversineM(double lat1, double lng1, double lat2, double lng2) {
++        double dLat = Math.toRadians(lat2 - lat1), dLng = Math.toRadians(lng2 - lng1);
++        double s = Math.pow(Math.sin(dLat / 2), 2)
++                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
++                * Math.pow(Math.sin(dLng / 2), 2);
++        return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(s)));
      }
  
      @PermissionCallback
-@@ -324,7 +372,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +444,7 @@ public class BackgroundGeolocation extends Plugin {
+             call.reject("Missing id.");
+             return;
+         }
++        synchronized (liveLock) { liveStats = null; } // the run is over
+         service.removeWatcher(callbackId);
+         PluginCall savedCall = getBridge().getSavedCall(callbackId);
+         if (savedCall != null) {
+@@ -255,6 +512,14 @@ public class BackgroundGeolocation extends Plugin {
+             }
+             Location location = intent.getParcelableExtra("location");
+             if (location != null) {
++                // Before the bridge hop: this runs whatever the app's JS is doing,
++                // which is nothing at all once Android has frozen the WebView.
++                try {
++                    onLiveLocation(location);
++                } catch (Exception exception) {
++                    // A display failure must never cost us the fix itself.
++                    Logger.error("Failed to update live stats", exception);
++                }
+                 call.resolve(formatLocation(location));
+             } else {
+                 Logger.debug("No locations received");
+@@ -324,7 +589,7 @@ public class BackgroundGeolocation extends Plugin {
      @Override
      protected void handleOnResume() {
          if (service != null) {
@@ -199,7 +432,7 @@ index a92fcf9..15eaf85 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,10 +381,32 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,10 +598,32 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {

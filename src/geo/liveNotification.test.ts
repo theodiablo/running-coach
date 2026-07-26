@@ -28,10 +28,13 @@ vi.mock("@capacitor/core", () => ({
 vi.mock("../native", () => ({ isAndroid: false, isIos: true }));
 vi.mock("../i18n", () => ({ t: (k: string) => k }));
 
+// The `live` seed only matters to the Android backend (asserted in
+// liveNotification.android.test.ts); these iOS-path tests just carry one.
+const live = { km: 5, paceSecPerKm: 300, hr: null, hrAtMs: null, tracking: true };
 const tracking = (message: string): RunNotificationContent =>
-  ({ titleKey: "title", message, chronometerStartMs: 1000 });
+  ({ titleKey: "title", message, chronometerStartMs: 1000, live });
 const paused: RunNotificationContent =
-  { titleKey: "pausedTitle", message: "30:00 · 5.00 km", chronometerStartMs: null };
+  { titleKey: "pausedTitle", message: "30:00 · 5.00 km", chronometerStartMs: null, live: { ...live, tracking: false } };
 
 // Let the seam's .then/.finally microtasks run.
 const settle = () => new Promise((r) => { setTimeout(r, 0); });

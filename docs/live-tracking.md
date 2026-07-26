@@ -19,19 +19,19 @@ when touching tracking or the shells. Background-location policy detail is in
 
 ## Lock-screen live stats
 
-**The clock is OS-rendered, JS pushes only data.** While tracking, both shells
-show live distance/pace/HR plus a ticking duration on the lock screen — Android
-in the foreground-service notification, iOS as a Live Activity (lock screen +
-Dynamic Island). The duration is never pushed by JS: background WebView JS is
-throttled/suspended and a stationary runner (`distanceFilter: 5`) produces no
-GPS callbacks at all, so a JS-driven clock freezes exactly when the feature
-matters. Instead both platforms self-render it from a shared anchor,
+**Nothing the runner reads with the screen off may depend on JS.** While
+tracking, both shells show live distance/pace/HR plus a ticking duration on the
+lock screen — Android in the foreground-service notification, iOS as a Live
+Activity (lock screen + Dynamic Island). The duration is never pushed by JS:
+background WebView JS is frozen and a stationary runner (`distanceFilter: 5`)
+produces no GPS callbacks at all, so a JS-driven clock freezes exactly when the
+feature matters. Instead both platforms self-render it from a shared anchor,
 `chronometerStartMs = now - movingMs` (moving time, pauses excluded): Android
 via a notification **chronometer** (`setUsesChronometer(true)`, patched plugin
 — see the patches section below), iOS via `Text(_, style: .timer)`.
 
-Data pushes ride the bridge-callback-driven renders through one `useRunTracker`
-effect on `[state, stats]` → pure `buildRunNotificationContent`
+Data pushes ride the render pipeline through one `useRunTracker` effect on
+`[state, stats]` → pure `buildRunNotificationContent`
 (`src/utils/runNotification.ts`, i18n-free, returns a `titleKey`) →
 `pushRunNotification` (`src/geo/liveNotification.ts`, the platform-routing
 seam: content-gated with ~3s chronometer tolerance, retries until native
@@ -42,6 +42,29 @@ no-op'd by the content gate. Pause is an explicit state push (chronometer off,
 frozen time in the text). Stop: Android tears down with the watcher; iOS ends
 its Live Activity via `resetRunNotification` (idempotent `cleared` flag; the
 first reset after mount also sweeps a stale card left by a crashed session).
+
+**On Android a JS push is a seed, not the update mechanism.** Android freezes
+the WebView's task queues once the app is backgrounded, so *no* JS runs with the
+screen off — not a throttled trickle, nothing: the bridge callback that delivers
+a fix does not wake it. Recording is unaffected (the fixes queue natively and
+land when the app comes back), but every JS-driven push stops, which is why the
+notification used to sit unchanged for a whole run and only refresh on unlock.
+So each push also carries `content.live` — `{km, paceSecPerKm, hr, hrAtMs,
+tracking}` — and the patched plugin folds every subsequent fix into that
+distance itself, re-posting the notification from the process that is still
+running (`patches/`, section below). JS stays the authority: each push re-bases
+`km`, so the number the runner sees when the screen comes back is the app's own.
+
+**That native renderer mirrors the JS one and must stay in step.** Its gates are
+`onPos`'s (accuracy ≤ 25m, ≥ 2s apart, move ≥ max(5m, accuracy/2), the 20m
+warm-up floor), its distance is `haversineM`'s formula and radius, its pace is
+the same 30s window as `stats.curPace`, and its text is
+`buildRunNotificationContent`'s — same inputs, same string, so nothing jumps
+when the app returns to the foreground. `useRunTracker.notification.test.ts`
+pins the JS output for a known straight-line track; that literal is the
+reference to check the Java against if either side changes. HR is the one thing
+the service cannot recompute (the strap streams into JS), so a reading it can no
+longer refresh is dropped after 90s rather than displayed stale.
 
 iOS backend detail: the local `LiveActivityPlugin`
 (`ios/App/App/LiveActivityPlugin.swift`, push/end, gated
@@ -309,12 +332,20 @@ annotation-reflection path — on every activity pause/resume; the patch compute
 the same both-granted COARSE+FINE check via
 `ActivityCompat.checkSelfPermission` in a try/catch instead.
 (2) Lock-screen live run stats: an `updateNotification({title, message,
-chronometerStartMs?})` plugin method (upstream has no post-start notification
-API) that rebuilds the foreground-service notification (extracted
-`buildNotification` helper; `VISIBILITY_PUBLIC`, `setOnlyAlertOnce`, optional
-OS-rendered chronometer) and re-posts it via the service binder with the same
-NOTIFICATION_ID, resolving `{updated}` so a push that raced ahead of
-`addWatcher` gets retried by the JS seam (`src/geo/liveNotification.ts`). The
+chronometerStartMs?, km?, paceSecPerKm?, hr?, hrAtMs?, tracking?})` plugin
+method (upstream has no post-start notification API) that rebuilds the
+foreground-service notification (extracted `buildNotification` helper;
+`VISIBILITY_PUBLIC`, `setOnlyAlertOnce`, optional OS-rendered chronometer) and
+re-posts it via the service binder with the same NOTIFICATION_ID, resolving
+`{updated}` so a push that raced ahead of `addWatcher` gets retried by the JS
+seam (`src/geo/liveNotification.ts`). The `km`/`pace`/`hr`/`tracking` fields
+seed the patch's own renderer (`seedLiveStats` / `onLiveLocation`), which folds
+each incoming fix into the distance and re-posts without JS — see the
+lock-screen section above for why that has to be native. Numbers cross the
+bridge as JSON, so **read them with the patch's `optNumber`, never
+`PluginCall.getDouble`**: `getDouble` only unwraps Double/Float/Integer, and any
+epoch-ms value arrives as a `Long` — which is how `chronometerStartMs` was
+silently dropped (no ticking clock) until this was found. The
 dependency is **pinned exact** (no `^`) so the patch always matches; on a
 version bump, check whether upstream fixed the lifecycle permission check (repo
 issue tracker was silent as of 1.2.26 and the plugin lags on Capacitor majors —

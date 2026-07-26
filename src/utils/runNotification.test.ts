@@ -38,6 +38,14 @@ describe("buildRunNotificationContent", () => {
     expect(c.chronometerStartMs).toBeNull();
     expect(c.message).toBe("30:00 · 5.23 km · 5:42/km");
   });
+
+  it("seeds the native renderer with the numbers behind the text", () => {
+    expect(buildRunNotificationContent({ ...base, hr: 152, hrAt: NOW - 900 }).live).toEqual({
+      km: 5.234, paceSecPerKm: 342, hr: 152, hrAtMs: NOW - 900, tracking: true,
+    });
+    // Paused: the service must stop folding fixes into the distance.
+    expect(buildRunNotificationContent({ ...base, state: "paused" }).live.tracking).toBe(false);
+  });
 });
 
 describe("sameNotificationContent", () => {
