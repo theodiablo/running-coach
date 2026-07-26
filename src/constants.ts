@@ -139,29 +139,14 @@ export const TESTFLIGHT_BETA_URL = "https://testflight.apple.com/join/T73yu15A";
 // payment links inside the iOS app. Empty string hides the link.
 export const TIP_JAR_URL = "https://buymeacoffee.com/theo.camboulive";
 
-// Map basemap. A keyed free-tier provider (MapTiler) — raw OSM tiles aren't
-// allowed for a multi-user app under the OSMF tile policy. Set VITE_MAPTILER_KEY
-// (a publishable, domain-restricted client key) at build. No default key is
-// baked in: shipping a real key in a public repo lets anyone drain the owner's
-// quota. Without the env var the tracker still records — RouteMap just shows a
-// "needs key" notice instead of tiles. Attribution stays visible per the OSM
-// data licence.
+// Map basemap. Keyed free-tier provider (MapTiler) — raw OSM tiles aren't
+// allowed for a multi-user app under the OSMF tile policy. VITE_MAPTILER_KEY is
+// a publishable, domain-restricted client key (no default baked in — a real key
+// in a public repo would let anyone drain the owner's quota); without it the
+// tracker still records, RouteMap just shows a "needs key" notice.
 //
-// Style is the built-in standard `streets-v2` slug. Built-in slugs ship
-// pre-rendered raster tiles on every MapTiler plan (incl. free) and render with
-// ANY valid key. Shared by every map surface (live tracker, run detail, history
-// preview, race location picker) via this one constant.
-//
-// NOTE: a custom decluttered style (id 019f92a7-d9f3-7642-824f-18d8d0da7000)
-// was tried here but reverted. Root cause, confirmed from an allowed origin
-// with the production key: the style's vector `style.json` returns 200 but its
-// raster `.../256/{z}/{x}/{y}.png` endpoint returns 403 — server-side RASTER
-// rendering of a CUSTOM style is a paid-plan feature, while built-in slugs are
-// pre-rendered for all tiers. It is NOT the URL, key, account, publish state,
-// or Android. To use the custom style as raster: upgrade the MapTiler plan
-// (then just set MAP_TILE_URL back to `.../maps/${id}/256/...`, zero other
-// changes). To use it for free: render it as vector via MapLibre GL (a larger
-// change, away from the CSP/WebView-safe Leaflet raster setup).
+// Built-in `streets-v2` slug on purpose: raster tiles for a CUSTOM style are a
+// paid MapTiler plan feature, while built-in slugs render on any tier/key.
 export const MAP_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
 export const MAP_TILE_URL =
   "https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=" + MAP_KEY;

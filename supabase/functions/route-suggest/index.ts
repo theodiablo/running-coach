@@ -1,35 +1,13 @@
 // route-suggest — server side of the "Find a route" loop suggestion feature.
-//
-// Why server-side: the openrouteservice (ORS) API key is quota-bearing and,
-// unlike the publishable MapTiler key, CANNOT be domain-restricted, so it must
-// never ship in the SPA bundle (same rule as coach-agent's Anthropic key and
-// polar-import's Polar secret). This thin proxy verifies the caller's JWT,
-// enforces a per-user daily budget, reads ORS_API_KEY from function secrets,
-// fans out a few seeded round-trip requests, and passes the raw GeoJSON back —
-// ALL parsing/scoring stays in tested client code (src/utils/routeSuggest.ts),
-// so the numbers the user sees come from the same geo utils the tracker records
-// with. The client only ever talks to this function, so no routing host reaches
-// the browser and the one index.html CSP (connect-src https://*.supabase.co)
-// needs no change on any platform.
-//
-// Premium-only: "Find a route" is the app's first paid-tier feature. THIS is
-// the gate — profiles.premium_until is service-role-writable only, so the
-// client's copy (src/premium.ts) is a UI hint and nothing more.
-//
-// Request (JSON body, caller JWT forwarded by functions.invoke):
-//   { lat, lng, km, elevation?: "flat"|"rolling"|"hilly", seedBase?, count? }
-// Response:
-//   { configured: false }                        ORS_API_KEY unset — dormant
-//   { error, code: "PREMIUM_REQUIRED" }          not a premium account
-//   { error, code: "RATE_LIMIT", usage }         daily budget spent
-//   { configured: true, features: GeoJSONFeature[] }   0..count loop candidates
-//
-// Deploy:  supabase functions deploy route-suggest
-// Secrets: supabase secrets set ORS_API_KEY=...
-//
-// Backend independence (Phase 4): the ORS call is isolated in fetchLoopGeoJSON
-// below. Self-hosting GraphHopper OSS or BRouter later means repointing THAT
-// one function — the request/response contract the client sees never changes.
+// The ORS API key is quota-bearing and can't be domain-restricted, so it must
+// never ship client-side (same rule as coach-agent/polar-import secrets). This
+// proxy verifies the JWT, enforces the daily budget and premium gate
+// (profiles.premium_until, service-role-writable only — src/premium.ts is a UI
+// hint only), fans out seeded ORS requests, and returns raw GeoJSON; all
+// parsing/scoring stays in tested client code (src/utils/routeSuggest.ts).
+// The ORS call is isolated in fetchLoopGeoJSON below so swapping backends
+// later (GraphHopper/BRouter) never changes the client-facing contract.
+// Request/response shape and deploy/secrets: docs/route-finder.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

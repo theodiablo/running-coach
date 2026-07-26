@@ -62,25 +62,10 @@ const RESULT_POLL_TIMEOUT_MS = 10000;
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-// Map a functions.invoke() *transport* failure to a message that tells the user
-// what actually went wrong and what to do. This is NOT the path for app-level
-// failures (rate limit, "no plan yet", etc.) — the edge function always replies
-// 200 and carries those in `data.error`, surfaced verbatim below. `error` here
-// only fires for genuine transport problems, and the main kinds want different
-// wording:
-//   * FunctionsFetchError — the fetch never completed: offline, a client timeout,
-//     or a connection dropped mid-flight. Only the true network-looking cases say
-//     "check your connection"; timeouts point at cold start / retry.
-//   * FunctionsRelayError — Supabase's relay could not reach/start the function;
-//     retry usually lands on a warm isolate.
-//   * FunctionsHttpError — the edge *platform* returned non-2xx before/around
-//     our handler: an expired JWT (401/403 from verify_jwt) or a boot that ran
-//     long / timed out (5xx). Split those two — one needs re-auth, the other a
-//     plain retry onto a now-warm isolate.
-//   * anything else — keep the original generic line. This includes the raw
-//     SyntaxError/TypeError functions-js lets escape when a 200 response's
-//     BODY is truncated mid-stream (it only wraps errors from the initial
-//     fetch) — the delivery failure that recoverRound() below targets.
+// Maps a functions.invoke() *transport* failure to a user-facing message.
+// App-level failures (rate limit, etc.) reply 200 with `data.error` instead —
+// this only fires for genuine transport problems (offline, relay down, edge
+// platform 401/5xx); see recoverRound() below for the truncated-body case.
 type CoachAction =
   | { action: "ping" }
   | { action: "propose"; message: string }
@@ -99,6 +84,8 @@ export type CoachResponse = {
 
 function transportMessage(error: unknown) {
   if (error instanceof FunctionsFetchError) {
+    // Fetch never completed — only true network drops say "offline"; a
+    // client-side timeout/abort points at cold start / retry instead.
     const reason = error.context as { name?: string } | undefined;
     if (reason?.name === "TimeoutError" || reason?.name === "AbortError") {
       return t("coach.errors.transport.timeout");
@@ -106,12 +93,12 @@ function transportMessage(error: unknown) {
     return t("coach.errors.transport.offline");
   }
   if (error instanceof FunctionsRelayError) {
-    return t("coach.errors.transport.timeout");
+    return t("coach.errors.transport.timeout"); // retry usually lands on a warm isolate
   }
   if (error instanceof FunctionsHttpError) {
     const status = error.context?.status;
-    if (status === 401 || status === 403) return t("coach.errors.transport.reauth");
-    return t("coach.errors.transport.timeout");
+    if (status === 401 || status === 403) return t("coach.errors.transport.reauth"); // expired JWT
+    return t("coach.errors.transport.timeout"); // boot ran long / timed out
   }
   return t("coach.errors.transport.unavailable");
 }

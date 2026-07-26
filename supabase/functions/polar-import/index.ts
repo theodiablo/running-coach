@@ -1,30 +1,8 @@
-// polar-import — server side of the Polar (AccessLink) cloud import.
-//
-// Why server-side: OAuth needs the Polar client SECRET, which can never ship in
-// the SPA bundle (same rule as coach-agent's Anthropic key). The user's long-
-// lived Polar access token is stored in `polar_tokens` (service-role-only RLS)
-// and never returned to the client — the client only ever receives finished
-// runs. Strava is excluded because its terms ban AI use of API data and the
-// coach reads runs; Polar's agreement has no such clause (see docs).
-//
-// Actions (JSON body { action, ... }, caller JWT forwarded by functions.invoke):
-//   status              → { connected }
-//   exchange { code, redirectUri }
-//                       → swap an OAuth code for a token, register the user with
-//                         AccessLink, store it. → { connected: true }
-//   sync                → pull new exercises via a transaction and return each
-//                         one's summary + GPX text for the CLIENT to parse with
-//                         its existing tested GPX parser. → { exercises: [...] }
-//   disconnect          → forget the stored token. → { ok: true }
-//
-// Deploy:  supabase functions deploy polar-import
-// Secrets: supabase secrets set POLAR_CLIENT_ID=... POLAR_CLIENT_SECRET=...
-//          Without them every action returns { skipped } and the client provider
-//          stays invisible (VITE_POLAR_CLIENT_ID unset) — a safe no-op.
-//
-// NOTE: this talks to Polar's live cloud, which can't be exercised in CI or the
-// dev sandbox — verify end-to-end once a Polar app is registered (docs/
-// integrations-polar.md). The AccessLink calls follow Polar's documented v3 API.
+// polar-import — server side of the Polar (AccessLink) cloud import: holds the
+// OAuth secret and the user's token, never returned to the client. Actions:
+// status, exchange, sync, disconnect. Can't be exercised in CI (live Polar
+// cloud) — verify end-to-end after registering a Polar app.
+// Architecture, actions, deploy/secrets: docs/integrations-polar.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 

@@ -1,19 +1,8 @@
-// The "this is a premium feature" sheet a FREE user gets where a premium
-// feature's entry point would be.
-//
-// Copy rules (deliberate, see docs/monetization.md):
-//   - No payment words. No price, no "supporters", no "subscribe", no link out.
-//     There is no purchase flow yet, so anything implying an unlockable action
-//     would be a promise the app can't keep — and payment-adjacent copy next to
-//     an external tip jar is exactly what App Store guideline 3.1.1 polices.
-//   - Never asserts anything about THIS user's tier ("you are on the free
-//     plan"). A premium user whose entitlement read failed (offline at sign-in)
-//     can land here, so the sheet talks about the feature, not the person.
-// Currently DORMANT for free users: `canShowPremiumTeaser` is false on every
-// platform while there is no purchase flow, so a free user never sees a premium
-// entry point and never reaches this sheet. It stays wired up for the unveil,
-// and for the one path that still reaches it today — a premium user whose grant
-// lapsed mid-session tapping the entry point they already had.
+// The "this is a premium feature" sheet a free user gets in place of a premium
+// entry point. No payment words (no purchase flow yet — App Store 3.1.1) and
+// never asserts the viewer's tier (an offline premium user can land here too).
+// Dormant for free users while `canShowPremiumTeaser` is false; still reachable
+// by a premium user whose grant lapsed mid-session. See docs/monetization.md.
 
 import { Lock } from "lucide-react";
 import { useEffect } from "react";

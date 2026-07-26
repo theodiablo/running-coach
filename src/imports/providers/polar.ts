@@ -8,34 +8,10 @@ import {
 } from "../../polarPreinit";
 import type { ImportProvider, ImportedRun } from "../types";
 
-// Polar (AccessLink) cloud import — the first real vendor-cloud provider, for
-// runners who leave the phone at home. The secret half (OAuth token exchange +
-// exercise pull) lives in the `polar-import` edge function; this client only
-// starts the OAuth redirect and maps the finished exercises the server returns.
-//
-// Dormant until configured: without VITE_POLAR_CLIENT_ID the provider's
-// isAvailable() is false, so nothing renders and no request is made — exactly
-// like garminCloudProvider. Activation steps: docs/integrations-polar.md.
-//
-// Works on web AND in the native shells, with one OAuth return path each:
-//  - web: full-page redirect out and back; polarPreinit stashes the ?code= on
-//    the way back in (sessionStorage) and completePolarAuth (RunningCoach boot)
-//    exchanges it.
-//  - native: the authorization page opens in the system browser (Android:
-//    plain top-frame navigation → Bridge.launchIntent hands it to the OS;
-//    iOS: SFSafariViewController). Polar can only redirect to the registered
-//    https web origin, so the return lands on the web app, whose polarPreinit
-//    detects the `:native:` state marker and bounces code+state to the
-//    solutions.camboulive.run://polar-callback deep link; App.tsx stashes them
-//    (localStorage — survives the OS killing the app under the browser) and
-//    fires "rc-polar-return", which RunningCoach answers with the same
-//    completePolarAuth exchange.
-//
-// GPX (route + HR extensions) is parsed by the app's existing, tested
-// parseActivityFile — the same path a user-picked .gpx takes — so a Polar import
-// gets the same map/pace/HR-series/zone detail (persistImportedRoute folds the
-// HR stream into stats.hrSamples). A summary-only exercise (indoor, no GPS) still
-// imports its totals.
+// Polar (AccessLink) cloud import. Secret half (OAuth exchange + exercise pull)
+// lives in the `polar-import` edge function; this client starts the OAuth
+// redirect and maps the returned exercises. Dormant until VITE_POLAR_CLIENT_ID
+// is set. Architecture, OAuth return paths (web vs native): docs/integrations-polar.md.
 
 const POLAR_CLIENT_ID = import.meta.env?.VITE_POLAR_CLIENT_ID as string | undefined;
 const POLAR_AUTH_URL = "https://flow.polar.com/oauth2/authorization";

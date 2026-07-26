@@ -46,25 +46,9 @@ export async function fetchPremiumUntil(uid: string): Promise<string | null> {
   }
 }
 
-// Whether a FREE user may be shown the locked affordance + "coming soon" teaser
-// for a premium feature.
-//
-// Currently FALSE on every platform. There is no purchase flow anywhere yet, so
-// a locked entry point is a dead end: the user sees the feature, taps it, and
-// can do nothing about it. Until the tier is ready to be unveiled, free users
-// see NO premium entry point at all; premium users (granted by hand, see
-// docs/monetization.md) still see the real feature everywhere. This is the
-// "demote the teaser to hidden rather than let 'coming soon' rot" call that
-// docs/monetization.md reserved.
-//
-// The affordances and PremiumTeaserSheet stay wired behind this one flag so the
-// tier can be unveiled by flipping it back. When that happens, restore the
-// narrower rule this replaced — `!isIos`, not `true`: with no in-app purchase a
-// permanently locked "coming soon" button is placeholder UI under App Store
-// guideline 2.1, and payment-adjacent copy next to the external tip jar invites
-// a 3.1.1 steering question (the same reasoning that keeps the tip jar web-only,
-// see constants.ts TIP_JAR_URL).
-//
-// Annotated `boolean` on purpose: without it every call site narrows to a
-// literal `false` and reads as a dead branch.
+// Whether a free user may see the locked "coming soon" teaser for a premium
+// feature. False until there's a purchase flow (a permanently locked button is
+// App Store guideline 2.1 placeholder UI) — see docs/monetization.md for the
+// unveil plan and why it must flip back to `!isIos`, not `true`.
+// Annotated `boolean` so call sites don't narrow to a literal `false`.
 export const canShowPremiumTeaser: boolean = false;

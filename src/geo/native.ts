@@ -99,47 +99,17 @@ const isGranted = (p: { location?: string; coarseLocation?: string } | null | un
 // "Approximate" (coarse) while denying precise, which leaves `location` un-granted.
 const isFineGranted = (p: { location?: string } | null | undefined) => !!p && p.location === "granted";
 
-// Request foreground location, reliably showing the OS dialog(s). Returns true if
-// location is usable; never throws (fast to check below).
-//
-// `highAccuracy` (default true — run tracking needs PRECISE GPS) decides which
-// Android permission is requested, which decides whether the OS dialog even
-// OFFERS a "Precise" toggle: the Capacitor Geolocation plugin requests the
-// COARSE-only permission alias when enableHighAccuracy is false (Android 12+),
-// so a false here means the user is only ever offered "Approximate" and can
-// never grant precise — the exact "can't request precise location" bug. Pass
-// true so ACCESS_FINE_LOCATION is requested and the precise toggle appears; the
-// background-geolocation watcher then finds fine already granted. Discover's
-// coarse-only "races near me" fix passes false (approximate is all it needs).
-//
-// checkPermissions()/requestPermissions() are the plugin's OWN gate on Android:
-// they check whether the device's system Location Services are switched on FIRST,
-// and REJECT immediately if not — before ever showing the OS permission dialog.
-// That's exactly the "no prompt at all" bug users hit with location off: relying
-// on requestPermissions() alone as the ask means we dead-end with a rejected
-// promise and never show anything. getCurrentPosition() has no such gate — it
-// requests the runtime permission itself, then (via Google Play Services)
-// surfaces the system "turn on device location" dialog if needed. So use it as
-// the real ask whenever the fast-path check doesn't already confirm we're good.
-// (That gate is an Android/Play-Services quirk; on iOS the getCurrentPosition
-// probe is harmless — it just triggers the standard permission prompt — so the
-// one code path serves both shells.)
-//
-// The fast-path "already granted" check is accuracy-aware: a high-accuracy ask
-// is NOT satisfied by a coarse-only grant, so a user who previously granted only
-// "Approximate" is re-prompted (via the getCurrentPosition probe) to upgrade to
-// precise instead of being silently pinned to approximate forever.
+// Requests foreground location, reliably showing the OS dialog(s); never throws.
+// `checkPermissions()` alone can silently no-op with Location Services off, so
+// the real ask is `getCurrentPosition()`, which surfaces the OS dialogs itself.
+// `highAccuracy` must be true for run tracking (false = user can never grant
+// precise). Details: docs/live-tracking.md.
 export async function ensureForegroundPermission(highAccuracy = true) {
   try {
     const status = await Geolocation.checkPermissions();
     if (highAccuracy ? isFineGranted(status) : isGranted(status)) return true;
   } catch { /* location services likely off — fall through to the real ask below */ }
   try {
-    // The probe requests FINE when highAccuracy (so the OS offers the precise
-    // toggle). A resolved probe means location is USABLE — return true even if
-    // the user picked "Approximate", so choosing approximate degrades accuracy
-    // rather than blocking the run. The strict fast-path above still routes an
-    // approximate-only user back through this probe to re-offer precise.
     await Geolocation.getCurrentPosition({ enableHighAccuracy: highAccuracy, timeout: 15000 });
     return true;
   } catch {
@@ -156,19 +126,10 @@ export const nativeSource = {
     return isGranted(await Geolocation.checkPermissions());
   },
 
-  // Request the location we need to record, showing the OS dialog(s). Called from
-  // the consent flow so the prompt appears right after the user accepts the
-  // disclosure — not only when recording starts. Precise (FINE) so the OS offers
-  // the precise toggle — run tracking needs GPS accuracy.
-  //
-  // Two-step by Android mandate: foreground FIRST, then the ACCESS_BACKGROUND_LOCATION
-  // ("Allow all the time") upgrade. On Android 11+ background CANNOT be offered in
-  // the first dialog and always routes to a Settings screen, so the best we can do
-  // is fire it immediately after the foreground grant here (during consent) rather
-  // than deferring it to Start, where it read as a surprise mid-run redirect. Once
-  // per install; a no-op where the permission isn't declared (web/iOS). Returns
-  // whether foreground location is usable — a declined background upgrade never
-  // blocks the run (recording still works while the screen is on).
+  // Foreground first, then the background ("Allow all the time") upgrade —
+  // Android 11+ can't offer background in the first dialog, so we fire it
+  // right after the foreground grant rather than surprise the user mid-run.
+  // Declining background never blocks the run. Details: docs/live-tracking.md.
   async requestPermissions() {
     const granted = await ensureForegroundPermission(true);
     if (granted) await ensureBackgroundLocationOnce(); // "Allow all the time" upgrade

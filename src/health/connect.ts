@@ -2,22 +2,11 @@ import { healthConnectSource } from "../hr/healthconnect";
 import { watchImportSource } from "../watch/import";
 import type { WatchImportAvailability } from "../watch/plugin";
 
-// The app reads two kinds of data from Android Health Connect, historically
-// behind two separate connect flows:
-//   • post-run heart rate   (src/hr/healthconnect.ts — pianissimo plugin, HeartRateSeries)
-//   • finished exercise runs (src/watch/import.ts    — WatchImport plugin, Exercise/Distance/Elevation/HR)
-// But Health Connect permissions are granted per *app*, not per plugin, and its
-// consent screen lists whatever record types the request asks for. Requesting
-// the two scope sets from two buttons meant a user connected "Health Connect"
-// for heart rate and never saw — or granted — the exercise/distance/elevation
-// scopes, so activity never synced.
-//
-// connectHealthConnect() is the single entry point both settings screens now use:
-// it asks for EVERYTHING the app reads on one consent screen (the WatchImport
-// plugin already lists all four record types) and then reconciles each feature's
-// device-local grant marker against reality, so a partial grant (e.g. the user
-// unticks Exercise but keeps Heart rate) is reflected accurately per feature.
-// Never throws.
+// Health Connect permissions are granted per *app*, not per plugin, so a
+// single entry point requests EVERYTHING the app reads (HR + exercise/distance/
+// elevation) on one consent screen, then reconciles each feature's device-local
+// grant marker against reality (a partial grant reflects accurately per
+// feature). Never throws.
 
 export type HealthConnectGrant = {
   availability: WatchImportAvailability;

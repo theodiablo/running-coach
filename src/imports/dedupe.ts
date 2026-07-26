@@ -1,21 +1,13 @@
 import type { Run } from "../types";
 import type { ImportedRun } from "./types";
 
-// THE one duplicate-run rule set. Everything dedupes on the mapped run shape —
-// watch scans (newWatchSessions), the registry's cross-provider pass, and file
-// imports — so the rules can't drift between implementations:
-//  1. external-id match — hcId/extId equal, each in its own id-space;
-//  2. time-window overlap when both sides know their start instant;
-//  3. fuzzy fallback: same date and distance within 10% (opt-out).
-//
-// The fuzzy rule is a trade-off: it exists so a watch scan doesn't re-offer a
-// run the user already logged BY HAND (no startedAt to overlap against) — the
-// common case — at the cost of occasionally swallowing a genuinely distinct
-// same-day similar-distance run. Auto-scans keep it (an offer toast is cheap to
-// re-create, a double-log isn't); the file-import path turns it OFF
-// ({fuzzy:false}) because a user-picked export must never silently drop rows —
-// its runs carry startedAt (GPX/TCX always, CSV when the export has times), so
-// the precise overlap rule still catches true re-imports.
+// THE one duplicate-run rule set, shared by watch scans, the registry's
+// cross-provider pass, and file imports: (1) external-id match, (2) time-window
+// overlap when both sides have a start instant, (3) fuzzy fallback — same date
+// and distance within 10% (opt-out). Fuzzy matching is a trade-off: it catches
+// hand-logged runs (no startedAt) at the cost of occasionally swallowing a
+// distinct same-day run, so auto-scans keep it but file imports turn it off
+// ({fuzzy:false}) — a user-picked export must never silently drop rows.
 const FUZZY_KM_TOLERANCE = 0.1;
 
 type RunLike = Partial<Run>;

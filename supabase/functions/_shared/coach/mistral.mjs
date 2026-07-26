@@ -1,26 +1,10 @@
-// Mistral provider adapter for the coach agent. The engine
-// (engine.mjs generateProposal) speaks the Anthropic Messages shape end to
-// end: callModel(messages, tools) → { content: [text|tool_use blocks],
-// stop_reason, usage: { input_tokens, output_tokens } }, with tool_result
-// blocks round-tripped inside user turns. This module translates that
-// contract to Mistral's chat-completions API so the engine, tools, validator
-// and mock never learn a second wire format. Provider choice is by model
-// name: isMistralModel(COACH_MODEL) routes here, anything else stays on the
-// Anthropic client — so COACH_MODEL=claude-sonnet-5 remains the instant
-// rollback lever.
-//
-// Plain ESM + fetch, no SDK: imported by the Deno edge function, the Vitest
-// unit tests, and the live eval harness alike.
-//
-// Contract notes (kept deliberately narrow):
-//  * Mistral generates the tool-call ids (9-char alphanumerics); we pass them
-//    through unchanged, so the engine's tool_use.id ↔ tool_result.tool_use_id
-//    round-trip is Mistral-native and never needs re-mapping.
-//  * A tool_result's is_error flag has no Mistral equivalent; the content
-//    already carries the `CODE: message` text the engine builds, which is
-//    what the model actually steers on.
-//  * Mistral has no cache_control; the system prompt is sent as a plain
-//    system message (no prompt-caching discount on this provider).
+// Mistral provider adapter: translates the engine's Anthropic Messages-shaped
+// callModel(messages, tools) contract to Mistral's chat-completions API, so
+// engine/tools/validator/mock never learn a second wire format.
+// isMistralModel(COACH_MODEL) routes here; anything else uses the Anthropic
+// client. Plain ESM + fetch (no SDK) — shared by the edge function, Vitest,
+// and the live eval harness. Mistral has no cache_control equivalent, so no
+// prompt-caching discount on this path (docs/coach-agent.md).
 
 export const isMistralModel = (model) =>
   /^(mistral|magistral|ministral|codestral|pixtral|open-mistral|open-mixtral)/i.test(String(model ?? ""));
