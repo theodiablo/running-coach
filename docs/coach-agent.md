@@ -149,10 +149,10 @@ expect the gap to sit in quality, not safety.
 
 2026-07 three-model comparison (17 scenarios, live, `evals/coach/`). Safety
 held **100% for every model in every run** — the validator and the context
-guards are provider-independent, which is the whole point of the seam. Quality
-is where models separate, and the weaker two were failing the same way:
-under-acting — describing an adjustment, or offering the runner a menu of
-options, instead of calling the tools that build the proposal.
+guards are provider-independent, which is the whole point of the seam. The
+quality graders scored the other two lower, and the misses clustered on one
+behaviour: under-acting — describing an adjustment, or offering the runner a
+menu of options, instead of calling the tools that build the proposal.
 
 | Model | Quality (before prompt fix) | Quality (after) |
 | --- | --- | --- |
@@ -169,11 +169,34 @@ nothing. **Re-run the live evals after any `SYSTEM_PROMPT` change**: prompt
 text that reads as neutral to Sonnet can be worth ~15 quality points to a
 smaller model.
 
+**How far to trust the quality column.** The safety row is objective — those
+graders are validator- and structure-based, so they measure the same thing
+whoever answers. The quality numbers are softer than a single percentage
+suggests, and four things bound them:
+
+- By the harness's own design, a quality miss does not fail the run, because
+  "models legitimately vary here, and the score trend across runs is the
+  signal" (`graders.mjs`). The column is a trend indicator, not a verdict.
+- Trials were `n=1` per scenario at ~3 quality checks each, so the post-fix
+  Sonnet/Mistral gap is a handful of individual checks; the 92/94/94% spread
+  across Mistral runs is noise, not resolution.
+- Some quality graders regex-match English phrasing in the rationale
+  (`rationaleMentions`). A model that gives equivalent advice in different
+  words scores a miss, so the column partly measures conformity to expected
+  wording.
+- `SYSTEM_PROMPT` was written and iterated against Claude, and the under-action
+  fix above was designed by watching where the other models diverged from what
+  Sonnet already did. No Mistral-tuned prompt variant has ever been tested. A
+  fair capability comparison would give each model its own tuned prompt.
+
 Cost shape differs sharply and is worth knowing before a switch: on the same
 suite Mistral spent ~64-90k input / ~1k output tokens against Sonnet's
-~181k / ~23k — far terser rationales, and no prompt-cache discount on the
-Mistral path (see Prompt caching below). Cheaper per round, measurably worse
-at the judgment the coach exists to provide, so the default stays Sonnet 5.
+~181k / ~23k, and there is no prompt-cache discount on the Mistral path (see
+Prompt caching below). The output-token gap is mostly rationale length, which
+is a product judgment rather than a quality one — in a phone-sized chat bubble
+the shorter reply may well be the better one. The default stays Sonnet 5
+because it scores at ceiling on this suite and is the model the prompt was
+built around, not because Mistral was shown to coach badly.
 
 | Env (function secret) | Default | Notes |
 | --- | --- | --- |
