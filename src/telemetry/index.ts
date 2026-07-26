@@ -1,20 +1,7 @@
-// Vendor-agnostic telemetry (analytics + crash reporting) seam.
-//
-// Nothing ever leaves the device unless BOTH are true:
-//   1. a provider is wired in below AND its key env var is set
-//      (isTelemetryConfigured()), and
-//   2. the user has consented.
-//
-// Consent is opt-IN: nothing is collected until the user accepts via the
-// first-run ConsentBanner (EU/ePrivacy). The choice is changeable any time in
-// Settings → Privacy. Native crashes get an *additional* per-crash "send
-// report?" prompt (see ErrorBoundary), so a crash is never uploaded without an
-// explicit, in-the-moment OK even when analytics consent is on.
-//
-// The provider is PostHog (see ./posthog.js — the only file that imports an
-// SDK). Without a key (VITE_POSTHOG_KEY) the adapter reports itself
-// unconfigured and this whole module stays inert — every call a no-op, exactly
-// like the map records fine without a MapTiler key. See docs/telemetry.md.
+// Vendor-agnostic telemetry (analytics + crash reporting) seam. Nothing leaves
+// the device unless a provider is configured AND the user opted in via
+// ConsentBanner; native crashes get an additional per-crash prompt regardless.
+// Only ./posthog.js imports an SDK. See docs/telemetry.md.
 
 import { isNative } from "../native";
 import { posthogProvider } from "./posthog";

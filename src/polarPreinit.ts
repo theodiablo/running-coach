@@ -1,31 +1,12 @@
-// Runs BEFORE the Supabase client is created — imported ahead of ./App in
-// main.tsx, so its synchronous top-level code executes while supabase.ts is
-// still being pulled in. Why it must: the Supabase client is configured
-// `detectSessionInUrl: true` + `flowType: "pkce"` (src/supabase.ts), so on ANY
-// load it consumes a `?code=` query param as its OWN auth code and strips it
-// from the URL. Polar's OAuth return also lands as `?code=…` (at the app root),
-// so without this the two race and Supabase eats Polar's code before the Polar
-// handler can. Here we detect a Polar return by its `state` marker, stash the
-// code + returned state in storage, and strip the query (incl. an `?error=`
-// denial) so Supabase never acts on it; completePolarAuth()
-// (imports/providers/polar.ts) picks it up and validates the state.
+// Must run BEFORE the Supabase client exists (imported ahead of ./App in
+// main.tsx): Supabase's `detectSessionInUrl` PKCE flow consumes any `?code=`
+// as its own auth code, and Polar's OAuth return also lands as `?code=` at the
+// app root — this strips and stashes the Polar code first so Supabase never
+// sees it. completePolarAuth() (imports/providers/polar.ts) picks it up.
+// Two return shapes (web vs native bounce): docs/integrations-polar.md.
 //
-// Two return shapes, distinguished by the state prefix:
-//  - `polar_import:<nonce>` — a WEB connect. Stash for this same page's
-//    completePolarAuth (sessionStorage, per-tab).
-//  - `polar_import:native:<nonce>` — a NATIVE connect. Polar can only redirect
-//    to the registered https web origin, so the return lands here, in the
-//    phone's browser — this page is just a bounce pad: forward code+state to
-//    the app's deep link (solutions.camboulive.run://polar-callback), where
-//    App.tsx stashes them and the in-app completePolarAuth exchanges. The
-//    scripted redirect is attempted, but browsers frequently block
-//    custom-scheme navigation without a user gesture (Chrome's "external
-//    protocol request blocked"), so a minimal overlay with a real <a> tap
-//    target is always injected as the reliable path.
-//
-// This module must stay dependency-free (no React, no i18n, no supabase): it
-// runs pre-boot, and importing supabase here would create the client early —
-// the exact race this file exists to win.
+// Stay dependency-free (no React, no i18n, no supabase) — importing supabase
+// here would create the client early, the exact race this file exists to win.
 
 export const POLAR_STATE_PREFIX = "polar_import";
 // Native-initiated connects mark their state so this bounce knows the return

@@ -1,18 +1,9 @@
-// FIT activity-file parsing for the file import provider.
-//
-// FIT (Garmin/ANT's binary Flexible and Interoperable Data Transfer format) is
-// what Zepp, Garmin and most watches record natively — and what Strava hands back
-// from an activity's "Export Original". Unlike GPX/TCX it is *binary*, so the
-// caller reads it as bytes, not text. This decoder is small and dependency-free
-// like gpx.ts/csv.ts: it walks the record structure and pulls just the `record`
-// messages (position, altitude, heart rate, timestamp) needed to rebuild the
-// trace, then reuses the SAME reducer (activityToRun) as GPX/TCX so an imported
-// FIT map and its stats agree with a GPX one point-for-point.
-//
-// Reference: the FIT file format — 12/14-byte header, then a stream of
-// definition + data messages. We decode normal and compressed-timestamp record
-// headers; developer fields are skipped. Fields we don't recognise are skipped by
-// their declared size, so vendor extensions never derail the parse.
+// FIT (Garmin/ANT's binary format; what Zepp/Garmin/Strava exports use) decoder
+// for the file import provider. Unlike GPX/TCX it's binary, read as bytes. Small
+// and dependency-free: walks header + definition/data messages, pulls only
+// `record` fields (position, altitude, HR, timestamp), skips unrecognized
+// fields by their declared size, then reuses the SAME reducer (activityToRun)
+// as GPX/TCX so stats agree point-for-point.
 import { activityToRun, type ActivityParseResult } from "./gpx";
 import type { TrackPointOrGap } from "./geo";
 

@@ -1,28 +1,8 @@
-// Lock-screen live run stats — the native seam.
-//
-// One JS contract, two platform backends:
-//   - Android: the background-geolocation foreground-service notification,
-//     via the patched plugin's `updateNotification` method (see patches/).
-//   - iOS: a Live Activity (lock screen + Dynamic Island), via the local
-//     LiveActivityPlugin (ios/App/App/LiveActivityPlugin.swift) — push()
-//     starts-or-updates, end() dismisses.
-//
-// The ticking duration is NOT pushed from here on either platform: Android
-// renders an OS chronometer, iOS renders Text(style: .timer), both anchored at
-// chronometerStartMs (see src/utils/runNotification.ts) — so the clock keeps
-// counting while the WebView is throttled in the background. This seam only
-// fires when data changes, from the tracker's bridge-callback-driven renders.
-// No-op on web. Best-effort by design: a display failure must never affect
-// recording.
-//
-// Native calls are SERIALIZED (one in flight at a time, latest content queued,
-// end ordered after the in-flight push). This matters for correctness, not
-// just politeness: a pause/stop that lands while a data push is in flight must
-// still be delivered — a paused lock screen showing a ticking chronometer, or
-// an ended run whose in-flight push resurrects the iOS Live Activity, are the
-// two races this queue exists to prevent. A native call that never settles
-// (bridge hang) is written off after INFLIGHT_STALE_MS so one hang can't
-// freeze the lock screen for the rest of the session.
+// Lock-screen live run stats — one JS contract, two native backends (Android
+// foreground-service notification, iOS Live Activity). No-op on web,
+// best-effort (a display failure must never affect recording). Calls are
+// serialized (queued, end ordered after in-flight) to avoid a paused/ended
+// run resurrecting a stale native display. Details: docs/live-tracking.md.
 
 import { registerPlugin } from "@capacitor/core";
 import { isAndroid, isIos } from "../native";

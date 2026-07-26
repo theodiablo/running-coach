@@ -1,24 +1,9 @@
-// Shared training-plan validator — the ONE validator for both callers:
-// the deterministic generator (src/utils/plan.js buildPlan, confirmed by tests
-// in src/utils/coachValidation.test.js) and the coach agent (the edge function
-// validates every proposal before the user ever sees it).
-//
-// Plain ESM JS on purpose: imported by the Deno edge function (relative .mjs
-// import) AND by the Vite app / Vitest (re-exported via src/utils/coachValidation.js).
-// Keep it dependency-free.
-//
-// Policy ordering is explicit: safety > consistency > peak performance. Checks
-// are grouped and reported in that order; a "safety" error can never be traded
-// away for a "performance" gain because errors of any group block the proposal.
-//
-// Severity model: `errors` block a proposal; `warnings` pass but are surfaced
-// to the model (and logged) so it can improve. A user's EXISTING plan can
-// legitimately violate a rule (aggressive short-horizon generator output, a
-// user-chosen back-to-back day pair, a secondary race dropped next to a long
-// run). The agent must still be able to *help* with such a plan — so
-// `validatePlan(plan, { baseline })` waives errors that exist identically in
-// the baseline: the agent may not make the plan worse, but isn't bricked by
-// pre-existing conditions it didn't create.
+// Shared training-plan validator — the ONE validator for buildPlan and the
+// coach agent. Plain dependency-free ESM: imported by the Deno edge function
+// and re-exported for the Vite app / Vitest. `errors` block a proposal,
+// `warnings` pass but are surfaced; `validatePlan(plan, { baseline })` waives
+// errors that already exist identically in the baseline, so a pre-existing
+// issue never bricks the agent. Rules and severities: docs/coach-agent.md.
 
 export const SESSION_TYPES = ["EASY", "TEMPO", "INTERVALS", "LONG", "RACE", "WALK", "OTHER"];
 export const PHASES = ["BASE", "BUILD", "PEAK", "TAPER", "RACE"];

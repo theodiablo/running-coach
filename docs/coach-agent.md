@@ -132,7 +132,7 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
 ## Deploy & configuration
 
 ```sh
-supabase db push                          # migration 20260702120000_coach_agent.sql
+supabase db push                          # migration 20260703135900_coach_agent.sql
 supabase functions deploy coach-agent
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-...  # and/or MISTRAL_API_KEY=...
 ```

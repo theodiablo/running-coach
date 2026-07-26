@@ -1,15 +1,8 @@
-// Pure content builder for the Android lock-screen run notification.
-//
-// Architecture (see docs in the PR / plan): the ticking duration is rendered by
-// the OS itself — the notification is posted with `setUsesChronometer(true)`
-// and a `when` anchored so that (now - when) equals the run's MOVING time — so
-// it keeps counting even when the WebView's JS is throttled or fully suspended
-// in the background. JS only pushes content when the DATA (distance/pace/HR)
-// changes, riding the bridge callbacks that already run in the background.
-// Nothing here may depend on timers.
-//
-// Kept i18n-free (returns a `titleKey`, the seam resolves it via t()) so it is
-// trivially unit-testable.
+// Pure content builder for the Android lock-screen run notification. The OS
+// renders the ticking duration itself (chronometer anchored to moving time);
+// JS only pushes content when distance/pace/HR changes — nothing here may
+// depend on timers. i18n-free (returns a `titleKey`) so it's unit-testable.
+// Details: docs/live-tracking.md.
 
 import { fmt } from "./format";
 

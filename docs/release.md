@@ -160,8 +160,9 @@ This naming is load-bearing: the entrypoint's `../_shared/coach/*.mjs` imports
 only resolve because `_shared` sits as a sibling of `source/` in the upload,
 mirroring the real `supabase/functions/` layout. No `list_edge_functions` /
 `get_edge_function` round-trip needed first — the recipe is confirmed working.
-`notify-contribution` is the only other function; redeploy it the same way with
-its own single `source/index.ts` (no `_shared` dependency).
+`notify-contribution`, `polar-import`, and `route-suggest` are the other
+functions; redeploy each the same way with its own single `source/index.ts`
+(no `_shared` dependency).
 
 Large payloads occasionally drop the MCP connection mid-call (~60KB of files) —
 retry `deploy_edge_function` verbatim; it's a transient reconnect. The remote

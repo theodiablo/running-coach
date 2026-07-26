@@ -1,17 +1,8 @@
-// Server-side run-detail digest for the coach agent's read-only get_run_detail
-// tool: collapse a run_routes row (GPS points + raw ~1Hz stats.hrSamples, which
-// can be hundreds of KB) into a ~1-2KB coordinate-free summary the model can
-// reason over — per-km splits, HR time-in-zone, and a downsampled
-// distance-indexed pace/elevation/HR series.
-//
-// These are ports of the app's pure helpers in src/utils/{geo,runSeries,
-// runSplits,hr}.ts — keep the algorithms in sync (parity-tested by
-// src/utils/runDigest.test.ts). The ported flattenTrack deliberately emits only
-// { t, alt, cumKm, segStart }: latitude/longitude never exist in this module's
-// output, so a digest cannot leak the runner's location by construction.
-//
-// Plain ESM with no imports so Deno (edge function) and Vitest (parity tests)
-// both load it directly — same contract as the other _shared/coach modules.
+// Server-side run-detail digest for the coach agent's get_run_detail tool:
+// collapses a run_routes row into a ~1-2KB coordinate-free summary (splits, HR
+// zones, downsampled series). Ports src/utils/{geo,runSeries,runSplits,hr}.ts —
+// keep in sync (parity-tested by runDigest.test.ts). flattenTrack structurally
+// never emits lat/lng, so a digest cannot leak location. Plain ESM, no imports.
 
 const R = 6371000; // Earth's mean radius, metres
 const rad = (d) => (d * Math.PI) / 180;

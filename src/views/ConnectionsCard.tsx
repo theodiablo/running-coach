@@ -19,22 +19,11 @@ import type { ImportProvider } from "../imports/types";
 import type { HrMethod, SettingsState } from "../types";
 
 // ── Connections & sync ──────────────────────────────────────────────────────
-// The ONE settings card for every external source that feeds runs or heart
-// rate, replacing the old separate "Heart-rate sensor" + "Runs from your
-// watch" sections (which surfaced Health Connect twice and read as two
-// unrelated products even though one OS grant powers both). Same structure on
-// every platform so users keep one mental model:
-//   - Bluetooth HR sensor row (native): live HR during runs.
-//   - Health store row (Health Connect on Android, Apple Health on iOS): one
-//     connection, then per-feature sub-toggles — "heart rate after runs"
-//     (settings.hrMethod) and "runs from your watch" (settings.watchImport).
-//     Only the CURRENT platform's store renders; the other's is never shown.
-//   - Cloud provider rows (Polar, later Suunto/COROS) from the import
-//     registry: web AND native.
-//   - On web, the native-only rows collapse into a single "in the mobile app"
-//     pointer with store links — not disabled grey controls.
-// The underlying settings keys and per-device markers are unchanged — this is
-// a presentation merge, not a data migration.
+// The ONE settings card for every external source feeding runs or heart rate:
+// BLE HR sensor row, one health-store row (Health Connect/Apple Health, current
+// platform only) with per-feature sub-toggles, and cloud provider rows. Web
+// collapses native-only rows into an "in the mobile app" pointer instead of
+// disabled controls. Presentation merge only — settings keys are unchanged.
 
 type ConnectionsProps = {
   settings: SettingsState;

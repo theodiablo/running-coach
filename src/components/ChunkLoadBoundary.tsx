@@ -1,23 +1,9 @@
 import { Component, type ReactNode } from "react";
 
-// A dynamic `import()` (React.lazy, route-level code splitting) can fail at
-// runtime even in a perfectly healthy app: the most common cause is a *stale
-// chunk* — the site was redeployed to S3/CloudFront while the user's tab stayed
-// open, so the hashed chunk the loaded bundle asks for no longer exists and the
-// fetch 404s. A transient network drop does the same. Without a boundary around
-// the Suspense, that rejection propagates to the app-wide ErrorBoundary and
-// white-screens the whole app.
-//
-// This bites hardest on **sign-out**: a signed-in session never loads the
-// web-only marketing chunk, so signing out is the first (and often only) time a
-// long-lived session ever fetches it — precisely when a mid-session redeploy has
-// had time to rotate the chunk. Signing out should never throw the app into the
-// crash screen, so we catch the load failure here and render a fallback (the
-// statically-imported LoginScreen) instead.
-//
-// Only *chunk-load* errors are swallowed. A genuine render bug inside the lazy
-// subtree is re-thrown so the app-wide ErrorBoundary still surfaces it (crash
-// UI + telemetry), rather than being silently masked by the fallback.
+// Catches stale-chunk load failures (a redeploy rotated the hashed chunk while
+// the tab stayed open) so sign-out never white-screens — falls back to the
+// statically-imported LoginScreen instead. Only chunk-load errors are
+// swallowed; a genuine render bug is re-thrown to the app-wide ErrorBoundary.
 
 function isChunkLoadError(err: unknown): boolean {
   const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);

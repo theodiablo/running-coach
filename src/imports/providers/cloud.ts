@@ -1,24 +1,12 @@
 import type { ImportProvider, ImportedRun } from "../types";
 import type { Run } from "../../types";
 
-// Cloud-provider scaffold — code-level interface only, NOT a user-visible
-// feature. A real vendor-cloud integration (e.g. the Garmin Connect Activity
-// API, if their developer program reopens) needs:
-//  - OAuth with the client secret held SERVER-SIDE in a Supabase edge function
-//    (mirror coach-agent / notify-contribution — a secret can never ship in the
-//    SPA bundle), which also receives the vendor's activity webhooks;
-//  - this provider then just scan()s our own backend for landed activities and
-//    maps them to runs stamped with `extId` (the vendor activity id) so the
-//    registry's dedupe treats them like any other source.
-//
-// Until then every instance is unconfigured: isAvailable() is false, so the UI
-// never renders a row (no "coming soon" placeholders — that would imply a
-// vendor partnership that doesn't exist and Play discourages stub features).
-//
-// Strava is deliberately NOT planned as a cloud provider: its API agreement
-// bans using API data in AI models, and the coach agent reads runs from
-// app_state. Users can still import their own Strava CSV/GPX exports (file
-// provider) — that's their data-portability copy, not the API.
+// Cloud-provider scaffold — interface only, not a user-visible feature until a
+// vendor OAuth integration is wired server-side (mirrors coach-agent/polar-import:
+// secret never ships client-side). Until configured, isAvailable() is false so
+// no "coming soon" placeholder renders. Strava is deliberately excluded: its API
+// terms ban AI use of the data, and the coach reads runs from app_state — users
+// can still import their own Strava exports via the file provider.
 export type CloudProviderConfig = {
   id: string;
   label: string;

@@ -27,25 +27,13 @@ function setHealthConnectAuthorization(ok: boolean) {
   } catch { /* storage unavailable — non-fatal */ }
 }
 
-// Post-run heart-rate source: read a tracked run's HR from Android Health Connect
-// (the system aggregator most watches — incl. Amazfit/Zepp — sync into), for users
-// without a live BLE sensor. Implements the PostRunHrSource contract (isAvailable /
-// requestPermissions / fetchRange); useRunTracker never streams from it —
-// LiveRunTracker calls fetchRange once on save, with a deferred retry (flushPendingHr)
-// because the watch may not have synced to Health Connect yet.
+// Post-run HR from Android Health Connect, for users without a live BLE sensor.
+// Implements PostRunHrSource; LiveRunTracker calls fetchRange once on save with
+// a deferred retry (flushPendingHr) since the watch may not have synced yet.
+// Provider choice and the Cap-7/Cap-8 peer-dependency trade-off: docs/health-integrations.md.
 //
-// Backed by @pianissimoproject/capacitor-health-connect. Chosen over the Cap-8-native
-// flomentum plugin because its readRecords reads **continuous** HeartRateSeries over an
-// arbitrary window — so the user does NOT have to also log a workout on the watch; the
-// watch's all-day HR sync is enough. Trade-off: its peer is @capacitor/core ^7, resolved
-// via the package.json `overrides` entry so a normal `npm install` picks up Cap 8
-// (--legacy-peer-deps is deliberately avoided — it silently drops recharts' react-is
-// peer). Cap-7 native code almost certainly builds against Cap 8 (stable Android plugin
-// API), but confirm with an on-device/CI Android build.
-//
-// Load the plugin lazily so merely rendering the app after sign-in cannot touch
-// the native Health Connect bridge. Some devices/versions are sensitive to the
-// Cap-7 plugin under Cap-8; failures are treated as unavailable.
+// Loaded lazily so merely rendering the app can't touch the native bridge —
+// some devices are sensitive to the Cap-7 plugin under Cap-8.
 async function getHealthConnect(): Promise<{ plugin: HealthConnectPlugin }> {
   const mod = await import("@pianissimoproject/capacitor-health-connect");
   return { plugin: mod.HealthConnect as unknown as HealthConnectPlugin };

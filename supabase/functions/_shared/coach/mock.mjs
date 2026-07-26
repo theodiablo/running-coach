@@ -1,16 +1,9 @@
-// MOCK_LLM — canned model responses so the agent runs with zero Anthropic
-// calls (CI, Vitest golden tests, local dev without a key). Deterministic and
-// keyword-driven off the runner's message:
-//   "knee|pain|hurt|injur"  → convert next hard session to WALK + reduce that week
-//   "missed|skipped"        → recovery week on the next upcoming week
-//   "add|extra + run|session|day" → add_session: a modest EASY run on the day
-//                             after the next upcoming session (outside taper)
-//   "split|heart rate|hr …"  → get_run_detail on the newest hasDetail run,
-//                             then a text-only analysis (no plan change)
-//   "force-invalid"         → repeatedly proposes intervals inside the taper,
-//                             exercising the validator-retry → no_valid_adjustment path
-//   anything else           → text-only answer, no tool calls
-//
+// MOCK_LLM — canned, keyword-driven model responses so the agent runs with
+// zero Anthropic calls (CI, Vitest golden tests, local dev). Message keyword →
+// behavior: knee/pain/hurt/injur → WALK swap + reduce week; missed/skipped →
+// recovery week; add/extra + run/session/day → add_session; split/heart
+// rate/hr → get_run_detail + text analysis; force-invalid → exercises the
+// validator-retry → no_valid_adjustment path; else → text-only answer.
 // Shape-compatible with an Anthropic Message: { content, stop_reason, usage }.
 
 const USAGE = { input_tokens: 1200, output_tokens: 180 };

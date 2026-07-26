@@ -184,6 +184,11 @@ prompt/tool-description changes.
   TEMPO, INTERVALS, LONG, RACE, WALK, OTHER.
 
 ## Conventions
+- **Comments are terse.** Default to no comment — well-named code should be
+  self-explanatory. When one is genuinely needed (a non-obvious constraint,
+  invariant, or workaround), one line max. Going longer to document a truly
+  unclear trade-off should be rare, and points at `docs/` for anything
+  architectural rather than restating it inline.
 - **French and Spanish copy:** French uses informal `tu` (app copy in
   `src/i18n/`; marketing uses `vous` — see `docs/marketing.md`); Spanish stays
   region-neutral. Reserve `course` / `carrera` for organized races, `sortie` /

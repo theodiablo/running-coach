@@ -1,18 +1,6 @@
 // generateProposal — the agent's internal validate-and-retry loop, extracted
-// from the edge function so it is unit-testable (Vitest drives it with the
-// MOCK_LLM scripts; the edge function injects the real Anthropic SDK call).
-//
-// Invariants enforced here:
-//  * The model only acts through the typed tool vocabulary (tools.mjs).
-//  * Every plan surfaced to the user has passed validatePlan (validation.mjs),
-//    with the supplied original plan as waiver baseline — the agent can never
-//    make a plan worse, and an invalid working plan is never returned.
-//  * Validation failures are fed back to the model as tool feedback, bounded
-//    by MAX_VALIDATOR_RETRIES; on exhaustion of that retry budget the round
-//    ends in the distinct `no_valid_adjustment` fate (not a 500). Exhausting
-//    MAX_MODEL_CALLS instead (the model kept issuing further valid tool
-//    calls without ever stopping to summarize) still surfaces the plan if it
-//    was already valid — only a genuinely invalid working plan is discarded.
+// from the edge function so it's unit-testable (Vitest + MOCK_LLM; the edge
+// function injects the real Anthropic SDK call). Invariants: docs/coach-agent.md.
 
 import { validatePlan, formatValidation } from "./validation.mjs";
 import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, CoachToolError } from "./tools.mjs";
@@ -301,21 +289,13 @@ export async function generateProposal({ baseline, context, history = [], messag
     messages.push({ role: "user", content: feedback });
   }
 
-  // MAX_MODEL_CALLS was exhausted (not a validator-retry break) while the
-  // working plan was already valid — e.g. the model kept making further
-  // (valid) tool calls instead of ever stopping to summarize. Surface it
-  // rather than discarding legitimate work under the "no adjustment" fate.
-  //
-  // Gate on toolCalls.length: a plan trivially "validates against itself" even
-  // when every attempt failed with a CoachToolError and `working` never moved
-  // off `baseline` (e.g. the model repeats the same out-of-range input on
-  // every turn). Without this gate that dead-end would be misreported as
-  // "proposed, nothing needs to change" instead of the honest
-  // `no_valid_adjustment` — the model never found a working edit.
-  // Read-only-only rounds (the model kept calling get_run_detail / reassess /
-  // remember without ever stopping) are NOT that dead-end: nothing failed and
-  // there is a real informational answer in lastText — surface it as an
-  // unchanged proposal instead of discarding it as no_valid_adjustment.
+  // MAX_MODEL_CALLS exhausted with an already-valid working plan (model kept
+  // calling tools instead of summarizing) — surface it rather than discard as
+  // no_valid_adjustment. Gate on toolCalls.length: a plan trivially "validates
+  // against itself" even when every attempt failed and `working` never moved
+  // off `baseline`, which must report as no_valid_adjustment, not "nothing
+  // needs to change". A read-only-only round (get_run_detail/reassess/remember,
+  // no failures) isn't that dead-end — its lastText is a real answer to surface.
   if ((toolCalls.length > 0 || (readOnlyActivity && lastText)) && lastValidation && lastValidation.ok) {
     return {
       status: "proposed", plan: working,

@@ -1,41 +1,6 @@
-// coach-agent — the AI adjustment coach. Propose-and-confirm: the model may
-// only EDIT the existing training plan through a bounded tool vocabulary
-// (_shared/coach/tools.mjs); every proposal passes the shared validator
-// (_shared/coach/validation.mjs) before the user sees it; the user accepts or
-// steers with natural-language feedback. No auto-apply.
-//
-// Trust boundary: the API key, the validator, the tool implementations, the
-// rate limit and the audit log all live here, server-side. The client sends a
-// message and renders the returned proposal.
-//
-// Two-client split (privilege separation):
-//   * userClient (anon key + caller's JWT): auth check + reading the caller's
-//     app_state blob — RLS applies.
-//   * admin (service role): agent_trajectories / agent_rounds / agent_usage —
-//     tables the user has NO write access to (tamper-proof audit log).
-// Committing an accepted plan is NOT done server-side: the client owns an
-// in-memory copy of the whole app_state blob and debounce-upserts it, so a
-// server write would be clobbered within seconds. `confirm` re-validates and
-// returns the plan; the client persists it through its normal RLS-guarded path.
-//
-// Actions (POST { action, message?, trajectoryId?, requestId? }):
-//   propose  — new trajectory from a runner message → validated proposal
-//   critique — steer an open trajectory with feedback → new validated proposal
-//   confirm  — NO model call; re-validate + mark accepted, return the plan
-//   result   — NO model call; replay the stored response of the round stamped
-//              with requestId (delivery recovery after a dropped stream)
-//
-// Deploy:  supabase functions deploy coach-agent
-// Secrets: supabase secrets set ANTHROPIC_API_KEY=... (and/or MISTRAL_API_KEY)
-//   The provider is picked from the COACH_MODEL name: mistral*/magistral*/...
-//   route to Mistral's chat-completions API via _shared/coach/mistral.mjs
-//   (needs MISTRAL_API_KEY); anything else uses the Anthropic SDK. Switching
-//   provider is one COACH_MODEL secret change, no redeploy.
-//   Optional: COACH_MODEL (default claude-sonnet-5), COACH_MODEL_LIGHT
-//   (routing seam, default claude-haiku-4-5), RATE_LIMIT_PER_DAY (default 5;
-//   premium accounts get PREMIUM_RATE_LIMIT_PER_DAY, default 40, and a per-user
-//   override lives in profiles.coach_daily_limit),
-//   MOCK_LLM=1 (canned responses, zero model calls — CI / local dev).
+// coach-agent — AI plan editor (propose-and-confirm): edits go through bounded
+// tools, validated server-side before the user sees them; no auto-apply.
+// Architecture, trust boundary, actions, and deploy/secrets: docs/coach-agent.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk";
@@ -49,31 +14,17 @@ const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
 const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
 const LIGHT_MODEL = Deno.env.get("COACH_MODEL_LIGHT") ?? "claude-haiku-4-5";
 const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
-// Premium accounts get a much larger daily coach budget. This RAISES the free
-// allowance for paying users; it never lowers anyone's — the free default stays
-// exactly where it was, which is the standing rule in docs/monetization.md (the
-// limit is cost-insurance, never a lever to force upgrades).
+// Raises the free allowance for paying users, never lowers anyone's — the
+// limit is cost-insurance, not an upgrade lever (docs/monetization.md).
 const PREMIUM_RATE_LIMIT_PER_DAY = Number(Deno.env.get("PREMIUM_RATE_LIMIT_PER_DAY") ?? 40);
-// The Anthropic SDK retries transient failures (429, 5xx incl. 529 overloaded,
-// and connection errors) with exponential backoff on its own. We set these
-// explicitly rather than leaning on the library default (maxRetries: 2) so a
-// momentarily overloaded model doesn't sink a whole coaching round on the first
-// blip, and so each attempt is bounded — one hung call can't stall the round
-// forever. The keep-alive stream (below) keeps the HTTP connection itself alive
-// while these retries happen, so the client never sees the churn.
+// Explicit retry/timeout bounds (not the SDK's maxRetries:2 default) so an
+// overloaded model doesn't sink a round, and no single attempt hangs forever.
 const MODEL_MAX_RETRIES = Number(Deno.env.get("COACH_MODEL_MAX_RETRIES") ?? 4);
 const MODEL_TIMEOUT_MS = Number(Deno.env.get("COACH_MODEL_TIMEOUT_MS") ?? 60000);
-// A propose/critique round spends most of its time awaiting the model API with
-// zero bytes flowing to the client — long enough for some intermediary
-// (mobile network, proxy) to treat the connection as dead and drop it well
-// before either side's own timeout fires, even though the round completes
-// successfully server-side. Deno.serve below sends a whitespace byte
-// immediately (flushing headers + first byte at t=0) and then on this
-// interval while a round is in flight so the connection never looks idle;
-// JSON.parse ignores leading whitespace, so the eventual real body still
-// parses cleanly. Production request logs showed connections already dead at
-// the FIRST write with the old 5s interval, so the padding starts at 0 and
-// stays tight.
+// Keep-alive interval: intermediaries (mobile network, proxy) drop a
+// connection with zero bytes flowing well before either side's own timeout;
+// Deno.serve pads whitespace at this interval so the connection never looks
+// idle (JSON.parse ignores leading whitespace).
 const KEEPALIVE_INTERVAL_MS = 2000;
 const USER_CONTEXT_MAX_CHARS = 2000;
 
@@ -96,17 +47,11 @@ function cleanUserContext(value: unknown): { notes: string } {
   return { notes: notes.replace(/\r\n?/g, "\n").slice(0, USER_CONTEXT_MAX_CHARS) };
 }
 
-// The caller's effective daily coach budget, most specific first:
-//   1. profiles.coach_daily_limit — an explicit per-user override, still the
-//      final word (it's how a single account gets a bespoke budget).
-//   2. premium (profiles.premium_until in the future) — PREMIUM_RATE_LIMIT_PER_DAY.
-//   3. the env default.
-// Both columns are service-role-writable only, so neither can be self-granted;
-// read via the admin client, which bypasses RLS on profiles.
-//
-// A failed read THROWS (caller turns it into COACH_UNAVAILABLE) rather than
-// silently falling back to the free number — a paying user should see an error,
-// not a quietly smaller allowance.
+// Caller's daily budget, most specific first: coach_daily_limit override,
+// then premium's PREMIUM_RATE_LIMIT_PER_DAY, then the env default. Both
+// columns are service-role-writable only. A failed read THROWS rather than
+// silently falling back to the free number — a paying user should see an
+// error, not a quietly smaller allowance.
 // deno-lint-ignore no-explicit-any
 async function getDailyLimit(admin: any, userId: string): Promise<number> {
   let { data, error } = await admin.from("profiles")

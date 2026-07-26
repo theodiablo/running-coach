@@ -1,22 +1,6 @@
-// notify-contribution — emails the maintainer when a user contributes a race /
-// edition, files a report, or flags an AI coach answer as wrong, and thanks the
-// contributor (contribution types only). Invoked best-effort from the client
-// (src/notify.ts `notifyContribution`) right after the DB row is written; it is
-// NEVER on the critical path. If the SES credentials are unset the function
-// returns `{ skipped: true }` and the write still stands — the row in
-// races / race_editions / race_reports / coach_feedback is the source of truth.
-//
-// Transport is AWS SES (v2 send API), signed with SigV4 via aws4fetch — no SDK,
-// no SMTP. The runtime IAM user is least-privilege: ses:SendEmail only, locked to
-// the FromAddress (see docs / the plan for the policy).
-//
-// Deploy:  supabase functions deploy notify-contribution
-// Secrets: supabase secrets set SES_AWS_ACCESS_KEY_ID=... SES_AWS_SECRET_ACCESS_KEY=...
-//          (optional: SES_REGION [default eu-west-1], FROM_EMAIL, MAINTAINER_EMAIL).
-//          Without the SES key pair this is a no-op.
-//
-// The caller's JWT is forwarded by supabase.functions.invoke, so we resolve the
-// contributor's email server-side from the token rather than trusting the body.
+// notify-contribution — best-effort email (AWS SES via aws4fetch) after a race
+// contribution, report, or coach-feedback flag is written. Never on the
+// critical path; a no-op without SES credentials. Details: docs/races.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
