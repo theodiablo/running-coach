@@ -2,9 +2,9 @@
 
 AWS resources for this app, in account `703323013899`, region `eu-west-1`.
 
-Today this covers only the database-backup bucket and its OIDC role. The site
-bucket, CloudFront distribution, deploy role and SES configuration still exist
-outside Terraform and are being adopted in a follow-up — see
+This covers the database-backup bucket and its OIDC role, the two Terraform CI
+roles, and the pre-existing site (S3 + CloudFront), deploy role, and inbound
+SES configuration — adopted via `import` blocks; see
 [Adopting existing resources](#adopting-existing-resources).
 
 ## Prerequisites
@@ -65,19 +65,33 @@ Neither role can read the *contents* of any S3 object except the state file:
 the read policy grants bucket-level actions against bucket ARNs, never
 `bucket/*`. A CI role cannot download a backup tarball.
 
-The apply role's writes are confined to buckets named `run-app-*` and roles
-named `GitHub-Actions-RunApp-*`, with three explicit Denys: it cannot modify
-either CI role (including itself), cannot attach `AdministratorAccess`,
+The apply role's S3 writes are confined to buckets named `run-app-*`, plus the
+two adopted buckets that predate that naming convention
+(`run.camboulive.solutions` and `ses-inbound-camboulive-solutions`), and its
+IAM writes to roles named `GitHub-Actions-RunApp-*`. Three explicit Denys
+apply on top: it cannot
+modify either CI role (including itself), cannot attach `AdministratorAccess`,
 `IAMFullAccess` or `PowerUserAccess` to anything, and cannot delete the state
 bucket.
+
+CloudFront and SES writes (`ManageCloudFront`, `ManageSes` in
+`terraform_roles.tf`) are **not** resource-scoped: most of their mutating
+actions (`CreateDistribution`, `CreateEmailIdentity`, and similar) don't
+support resource-level ARNs in IAM at all, so those statements grant on `*`.
 
 **Be honest about the residual risk.** A role that can create IAM roles and
 attach policies is close to an administrative credential, and those Denys close
 the obvious escalation paths rather than proving containment. It could still
-mint a new `GitHub-Actions-RunApp-*` role with a broad inline policy. Accepting
-that is the price of applying from CI; the alternative is plan-only in CI with
-apply staying manual. If the account ever holds anything materially more
-sensitive than it does today, revisit this with a permissions boundary.
+mint a new `GitHub-Actions-RunApp-*` role with a broad inline policy. The
+CloudFront/SES widening adds a second, different kind of risk: because those
+grants can't be scoped to this project's distribution or domain, a bug in a
+future `infra/` change could touch **any** CloudFront distribution or SES
+identity in the account, not just this project's — there is no IAM-level
+backstop for that, only code review of what merges. Accepting both risks is
+the price of applying from CI; the alternative is plan-only in CI with apply
+staying manual. If the account ever holds anything materially more sensitive
+than it does today, revisit this with a permissions boundary or a dedicated
+account per project.
 
 ### Bootstrapping
 
@@ -95,6 +109,12 @@ maintain them now.
 | IAM inline policy | `GitHubAction-RunApp-Backup` | Put/Get/Delete on the bucket's objects, List on the bucket. |
 | IAM role | `GitHub-Actions-RunApp-tf-plan` | Read-only role for `terraform plan` in CI. |
 | IAM role | `GitHub-Actions-RunApp-tf-apply` | Scoped read/write role for `terraform apply` on `main`. |
+| S3 bucket | `run.camboulive.solutions` | CloudFront origin for the built SPA. Private (OAC), world-readable only through CloudFront. Adopted. |
+| CloudFront distribution | `E42OGU5IVYJ14` | Serves `run.camboulive.solutions`. Adopted. |
+| IAM role | `GitHub-Actions-RunApp-deploy` | Assumed by the deploy workflow to push the build and invalidate CloudFront. Adopted. |
+| SES domain identity | `camboulive.solutions` | Verified sending/receiving identity, DKIM enabled. Adopted. |
+| SES receipt rule set | `camboulive-solutions-inbound` | Active; the one rule (`forward-all`) writes inbound mail to S3 and invokes the forwarder Lambda. Adopted. |
+| S3 bucket | `ses-inbound-camboulive-solutions` | Inbound mail landing zone, 30-day expiry on `inbound/`. Adopted. |
 
 Two deliberate non-decisions worth knowing before you change them:
 
@@ -105,6 +125,14 @@ Two deliberate non-decisions worth knowing before you change them:
 - **The GitHub OIDC provider is a `data` source, not a resource.** It is
   account-wide and shared with unrelated projects, so this configuration must
   not be able to destroy it.
+
+Also deliberately unmanaged, referenced only by ARN/value where a resource
+needs to point at them: the ACM certificate backing the CloudFront
+distribution (DNS-validated certs need their validation records adopted too,
+and nothing here needs to reissue or rotate it), the
+`ses-forwarder-camboulive-solutions` Lambda and its role (not part of this
+adoption's scope), and the Route 53 records for `camboulive.solutions` (MX,
+DKIM, SPF, mail-from).
 
 ## State
 
@@ -201,9 +229,25 @@ to match whatever the config happens to say. That matters most for the deploy
 role and the CloudFront distribution, which are in the path of every push to
 `main`.
 
-Still to adopt: the site bucket, CloudFront distribution `E42OGU5IVYJ14`, the
-`GitHub-Actions-RunApp-deploy` role and its policies, and the SES
-configuration.
+The site bucket (`site.tf`), CloudFront distribution, the
+`GitHub-Actions-RunApp-deploy` role and its policies (`deploy_role.tf`), and
+the SES domain identity/receipt rule/inbound bucket (`ses.tf`) were adopted
+this way. Two things worth knowing if you touch them again:
+
+- Adopting them required temporarily granting the local workstation IAM user
+  a handful of read-only SES actions (`ses:DescribeReceiptRule`,
+  `ses:ListTagsForResource`) and, once importing began writing tags,
+  `ses:TagResource`/`ses:UntagResource` — CI's `tf-plan`/`tf-apply` roles
+  already had the read actions via the wildcard `ReadAdoptionTargets`
+  statement, but a workstation user doing the import needs them too.
+- `terraform plan -generate-config-out` produced an invalid
+  `aws_s3_bucket_lifecycle_configuration` block for the SES inbound bucket
+  (both `days` and `expired_object_delete_marker` set on the same
+  `expiration` block, which the provider rejects) — fixed by hand when
+  folding the generated config into `ses.tf`.
+- The site bucket and the CloudFront distribution both carry
+  `lifecycle { prevent_destroy = true }`, same reasoning as the backup
+  bucket: they are in the path of every push to `main`.
 
 ## Related
 

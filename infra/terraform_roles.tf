@@ -152,6 +152,10 @@ data "aws_iam_policy_document" "tf_read" {
       "iam:ListOpenIDConnectProviders",
       "iam:ListRolePolicies",
       "iam:ListRoleTags",
+      # For infra/permissions-check.sh: proves the write policy without
+      # performing any write, so a policy bug is caught before it depends on a
+      # merge to main to surface.
+      "iam:SimulatePrincipalPolicy",
     ]
     resources = ["*"]
   }
@@ -201,8 +205,10 @@ data "aws_iam_policy_document" "tf_apply" {
     ]
   }
 
-  # Bucket management is confined to this project's naming prefix, so the role
-  # cannot touch the buckets belonging to unrelated projects in this account.
+  # Bucket management is confined to this project's naming prefix, plus the
+  # two adopted buckets that predate the run-app-* convention (the site
+  # bucket and the SES inbound bucket), so the role cannot touch the buckets
+  # belonging to unrelated projects in this account.
   statement {
     sid    = "ManageProjectBuckets"
     effect = "Allow"
@@ -227,7 +233,51 @@ data "aws_iam_policy_document" "tf_apply" {
       "s3:PutLifecycleConfiguration",
       "s3:PutReplicationConfiguration",
     ]
-    resources = ["arn:aws:s3:::run-app-*"]
+    resources = [
+      "arn:aws:s3:::run-app-*",
+      "arn:aws:s3:::${local.site_bucket_name}",
+      "arn:aws:s3:::${local.ses_inbound_bucket}",
+    ]
+  }
+
+  # CloudFront mostly doesn't support resource-level permissions on these
+  # actions (AWS requires "*"), so this is scoped by account, not ARN.
+  statement {
+    sid    = "ManageCloudFront"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateDistribution",
+      "cloudfront:UpdateDistribution",
+      "cloudfront:DeleteDistribution",
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:UpdateOriginAccessControl",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:TagResource",
+      "cloudfront:UntagResource",
+    ]
+    resources = ["*"]
+  }
+
+  # Same reasoning as CloudFront: SES's write actions don't take a
+  # resource-scoped ARN either.
+  statement {
+    sid    = "ManageSes"
+    effect = "Allow"
+    actions = [
+      "ses:CreateEmailIdentity",
+      "ses:DeleteEmailIdentity",
+      "ses:PutEmailIdentityDkimSigningAttributes",
+      "ses:TagResource",
+      "ses:UntagResource",
+      "ses:CreateReceiptRuleSet",
+      "ses:DeleteReceiptRuleSet",
+      "ses:CreateReceiptRule",
+      "ses:UpdateReceiptRule",
+      "ses:DeleteReceiptRule",
+      "ses:ReorderReceiptRuleSet",
+      "ses:SetActiveReceiptRuleSet",
+    ]
+    resources = ["*"]
   }
 
   statement {
