@@ -25,6 +25,20 @@ android/app/release.keystore
 google-services.json
 GoogleService-Info.plist
 
+# Terraform (infra/) — .terraform.lock.hcl IS committed, on purpose
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/generated.tf
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
