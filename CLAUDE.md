@@ -83,7 +83,14 @@ rules, not a changelog; delete anything stale.
   config can never destroy them. Detail: `infra/README.md`.
 - **Migrations are append-only** once a version may have reached Supabase:
   never rename/remove a pushed `supabase/migrations/*.sql` version — keep a
-  no-op marker and put real schema in a later migration.
+  no-op marker and put real schema in a later migration. **Never hand-pick the
+  timestamp** — use `supabase migration new <name>`, which stamps a real UTC
+  one. Supabase keys applied migrations by the version prefix alone, so two
+  files sharing one are indistinguishable: the second is treated as already
+  applied and silently never runs (this happened on 2026-07-26 and an auth
+  trigger went missing). `src/migrations.test.ts` fails CI on a collision.
+  Apply with `supabase db push`, never a path that assigns its own version, or
+  the repo and `schema_migrations` drift apart and `db push` stops working.
 - **Auth callbacks:** every native deep link is classified by the pure
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
