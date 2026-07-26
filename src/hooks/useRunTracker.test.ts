@@ -319,9 +319,26 @@ describe("useRunTracker — live heart rate", () => {
 
     act(() => hr.watches[0].onSample({ bpm: 128, t: START }));
     expect(result.current.stats.hr).toBe(128);
+    // hrAt travels with it, so the notification's staleness check reads the
+    // instant this bpm was measured rather than the last recorded sample's.
+    expect(result.current.stats.hrAt).toBe(START);
     // Display only — a pre-run beat is never part of the run.
     expect(result.current.hrSamples).toEqual([]);
     expect(result.current.stats.hrAvg).toBeNull();
+  });
+
+  it("keeps the reading live while paused without recording it", () => {
+    const { result } = renderWithStrap();
+    act(() => result.current.start());
+    act(() => hr.watches[0].onSample({ bpm: 150, t: START + 1000 }));
+    act(() => result.current.pause());
+
+    act(() => hr.watches[0].onSample({ bpm: 110, t: START + 20_000 }));
+    expect(result.current.stats.hr).toBe(110);
+    expect(result.current.stats.hrAt).toBe(START + 20_000);
+    // The breather doesn't drag the recorded average down.
+    expect(result.current.hrSamples.length).toBe(1);
+    expect(result.current.stats.hrAvg).toBe(150);
   });
 
   it("carries the idle connection into the run rather than reconnecting", () => {

@@ -31,8 +31,10 @@ carries a `live` flag:
   on an already-connected sensor — and is deliberately not torn down on the
   idle → tracking transition (`start`'s `startHrWatch` is then a no-op);
   `stop`/`reset`/unmount own the teardown. Pre-Start samples are display-only:
-  they feed `stats.hr` via the `hrLive` state, never `hrSamples`, so `hrAvg`/
-  `hrMax` stay strictly what the run recorded.
+  they feed `stats.hr`/`stats.hrAt` via the `hrLast` state, never `hrSamples`,
+  so `hrAvg`/`hrMax` stay strictly what the run recorded. `hr` and `hrAt` always
+  come from the same sample — the lock-screen notification drops a reading it
+  can't date.
 - **Post-run** (`src/hr/healthconnect.ts`, `healthConnectSource`): reads HR
   from Android Health Connect after the run via
   **@pianissimoproject/capacitor-health-connect**, dynamic-`import()`ed lazily
