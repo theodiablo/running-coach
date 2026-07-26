@@ -35,21 +35,11 @@ const MarketingGate = import.meta.env.VITE_NATIVE_BUILD
 // never leave the user staring at the splash spinner forever.
 const AUTH_INIT_TIMEOUT_MS = 20000;
 
-// Resolve an email-change confirmation against SERVER truth and report what
-// actually landed.
-//
-// The redirect alone cannot tell us: with secure email change every change
-// needs two confirmations (current address + new address), and the first one
-// comes back as a bare `?message=` with no code and no session — while the
-// second may come back as a `?code=` this device cannot exchange (the PKCE
-// verifier lives on whichever device started the change) even though the change
-// itself has already been applied. Re-reading the user is the only honest
-// answer, and it doubles as the refresh that clears the "waiting for
-// confirmation" banner: without it the app keeps rendering the stale cached
-// user and the tap looks like it did nothing.
-//
-// `pendingBefore` is user.new_email as it was BEFORE the callback; what that
-// means is decided by the pure emailChangeOutcome (tested in authCallback.test).
+// Resolve an email-change confirmation against SERVER truth (the redirect can
+// lie either way — see emailChangeOutcome) and report what actually landed. The
+// re-read doubles as the refresh that clears the "waiting for confirmation"
+// banner; without it the app renders the stale cached user and the tap looks
+// like it did nothing. `pendingBefore` is user.new_email before the callback.
 async function settleEmailChange(pendingBefore: string | null, opts: { user?: User | null; failure?: string } = {}) {
   let user = opts.user ?? null;
   if (!user) {
@@ -225,9 +215,8 @@ export default function App() {
           }
           if (signedIn) await settleEmailChange(pendingBefore);
           return;
-        // GoTrue accepted the link but handed back nothing to exchange: the
-        // first of the two secure-email-change confirmations. Nothing to do
-        // locally except re-read the account and tell the user where they are.
+        // GoTrue accepted the link but handed back nothing to exchange.
+        // Nothing to do locally except re-read and say where the change stands.
         case "notice":
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore);
@@ -236,15 +225,14 @@ export default function App() {
           closeAuthBrowser();
           try {
             const { data } = await supabase.auth.exchangeCodeForSession(cb.code);
-            // Signed in already: this was the second email-change confirmation,
-            // not a sign-in. The exchange just handed us a fresh user, so report
-            // from that rather than spending another round trip on it.
+            // Signed in already: an email-change confirmation, not a sign-in.
+            // The exchange handed us a fresh user, so skip the extra round trip.
             if (signedIn) await settleEmailChange(pendingBefore, { user: data.session?.user ?? null });
           } catch (err) {
             console.error("Deep-link auth exchange failed", err);
             // The exchange needs the PKCE verifier from the device that started
-            // the flow, so a second link opened elsewhere fails here even though
-            // the change landed server-side. Never report that as a failure.
+            // the flow, so a link opened elsewhere fails here even though the
+            // change landed server-side. Never report that as a failure.
             if (signedIn) await settleEmailChange(pendingBefore, { failure: err instanceof Error ? err.message : "exchange failed" });
             else reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
           }

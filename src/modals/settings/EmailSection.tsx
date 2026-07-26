@@ -5,18 +5,14 @@ import { supabase, authRedirectTo } from "../../supabase";
 import { INPUT_CLS } from "../../constants";
 import type { User } from "@supabase/supabase-js";
 
-// Change the account email. Supabase is configured with double_confirm_changes,
-// so this sends a link to BOTH the current and the new address and the change
-// only lands once both are opened — the copy says so, because a user who opens
-// only one link would otherwise think it silently failed. `user.new_email` is
-// set server-side while that's outstanding, so the pending note survives an app
-// restart without any local state.
+// Change the account email: one confirmation link, sent to the new address only
+// (double_confirm_changes is off), and the old address gets a notification once
+// it lands. `user.new_email` is set server-side while that's outstanding, so the
+// pending note survives an app restart without any local state.
 //
-// That server-side truth is also why this refreshes on mount: `user` comes from
-// the cached session, so a confirmation opened anywhere else (the other inbox,
-// another device, a link tapped while the app was backgrounded) would otherwise
-// leave the "waiting for confirmation" note up forever on an account that has
-// already changed. App.tsx does the same after an email-change callback.
+// The link is opened in the NEW inbox, which is very often a different device —
+// hence the re-read on mount: `user` comes from the cached session and would
+// otherwise leave the note up forever on an account that already changed.
 //
 // Works for Google sign-in accounts too: the Google identity is matched by its
 // provider `sub`, not the email, so signing in with Google keeps working.
@@ -29,10 +25,8 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
   const [sent, setSent] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  // refreshSession re-reads the user from the server and, because it emits an
-  // auth event, updates the session App holds — so `user.new_email` here clears
-  // on its own once both links are open. Costs one request, and only while a
-  // change is actually outstanding.
+  // refreshSession re-reads the user and emits an auth event, so the session App
+  // holds updates and `user.new_email` here clears itself once the link is open.
   const recheck = async () => {
     setChecking(true);
     try { await supabase.auth.refreshSession(); } catch { /* offline — the note just stays */ }
@@ -89,11 +83,7 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
 
       {user.new_email && (
         <div className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2 space-y-1.5">
-          {/* Name BOTH addresses: the two links are identical mails sent to two
-              different inboxes, and the only way to act on "open both" is to
-              know which two. */}
           <p>{t("settings.account.emailPending", { email: user.new_email })}</p>
-          <p className="text-amber-400/80">{t("settings.account.emailPendingWhere", { current: user.email, next: user.new_email })}</p>
           <button type="button" onClick={() => { void recheck(); }} disabled={checking}
             className="flex items-center gap-1.5 text-amber-300 hover:text-amber-200 disabled:opacity-50">
             {checking && <Loader size={12} className="animate-spin"/>}
@@ -117,7 +107,7 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
             {busy && <Loader size={15} className="animate-spin"/>}
             {t("settings.account.emailSubmit")}
           </button>
-          <p className="text-xs text-slate-500">{t("settings.account.emailDoubleConfirm")}</p>
+          <p className="text-xs text-slate-500">{t("settings.account.emailConfirmNote")}</p>
         </form>
       )}
     </div>

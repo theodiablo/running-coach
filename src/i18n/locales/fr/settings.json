@@ -71,11 +71,10 @@
     "emailChangeAria": "Modifier l'e-mail",
     "emailCancelAria": "Annuler le changement d'e-mail",
     "emailNew": "Nouvelle adresse e-mail",
-    "emailSubmit": "Envoyer les liens de confirmation",
-    "emailDoubleConfirm": "Par sécurité, nous écrivons à ton adresse actuelle et à la nouvelle. Le changement ne prend effet qu'une fois les deux liens ouverts.",
-    "emailSent": "Deux e-mails de confirmation identiques arrivent : un à ton adresse actuelle, un à la nouvelle. Ouvre les deux liens.",
-    "emailSentToast": "Liens de confirmation envoyés aux deux adresses.",
-    "emailPending": "En attente de la confirmation de {{email}}.",
+    "emailSubmit": "Envoyer le lien de confirmation",
+    "emailSent": "Regarde ta nouvelle boîte mail : le lien de confirmation vient d'y arriver.",
+    "emailSentToast": "Lien de confirmation envoyé.",
+    "emailPending": "En attente de confirmation. Ouvre le lien envoyé à {{email}} pour terminer.",
     "emailRateLimited": "Trop d'e-mails envoyés récemment. Réessaie dans une heure.",
     "emailError": "Impossible de modifier ton e-mail. Réessaie.",
     "passwordLabel": "Mot de passe",
@@ -90,8 +89,8 @@
     "passwordMismatch": "Les deux mots de passe ne correspondent pas.",
     "passwordUpdated": "Mot de passe mis à jour.",
     "passwordError": "Impossible de modifier ton mot de passe. Réessaie.",
-    "emailPendingWhere": "Deux liens ont été envoyés : un à {{current}}, un à {{next}}. Ouvre les deux, le changement ne prend effet qu'après le second.",
-    "emailPendingCheck": "J'ai ouvert les deux, vérifier à nouveau"
+    "emailPendingCheck": "Je l'ai ouvert, vérifier à nouveau",
+    "emailConfirmNote": "Nous envoyons un lien de confirmation à la nouvelle adresse. Rien ne change tant que tu ne l'ouvres pas, et ton adresse actuelle est prévenue une fois que c'est fait."
   },
   "deleteAccount": {
     "title": "Supprimer le compte",

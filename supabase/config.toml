@@ -227,7 +227,10 @@ web3 = 30
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
-double_confirm_changes = true
+# OFF deliberately: two links to open (and two identical-looking mails) was more
+# confusing than it was worth. The old address is still told, by the
+# email_changed notification below, so a change is never silent.
+double_confirm_changes = false
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
@@ -263,6 +266,15 @@ otp_expiry = 3600
 [auth.email.template.email_change]
 subject = "Confirm your Running Coach email change"
 content_path = "./supabase/templates/email_change.html"
+
+# The security tripwire that replaces the second confirmation link: sent AFTER
+# the address changes, carries no link to open, and is the only thing that would
+# tell the previous owner an account was taken over. Keep it enabled while
+# double_confirm_changes is off.
+[auth.email.notification.email_changed]
+enabled = true
+subject = "The email address on your Running Coach account was changed"
+content_path = "./supabase/templates/email_changed_notification.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

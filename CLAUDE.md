@@ -95,15 +95,17 @@ rules, not a changelog; delete anything stale.
   reported there is invisible — emit `AUTH_NOTICE_EVENT` (toasted by
   `RunningCoach`) instead. `auth.users.email` is mirrored into
   `profiles.email` by a DB trigger — never write that column from the client.
-- **Email change is a two-link, server-truth flow** (`double_confirm_changes`):
-  the same mail goes to the current *and* the new address and nothing changes
-  until both links are opened. The redirect params can't tell you where the
-  change stands (first link = bare `?message=`; second = a `?code=` only the
-  originating device can exchange), so always re-read the user
-  (`refreshSession`) and let `user.new_email` decide what to say —
-  `settleEmailChange` in `App.tsx`. Supabase Auth email templates are project
-  config, not migrations: `supabase/templates/*.html` is the source of truth and
-  the hosted project's copy is synced by hand (`docs/release.md`).
+- **Email change is one link + one notification, decided by server truth.**
+  `double_confirm_changes` is **off** (two links to open read as a bug), so the
+  confirmation goes to the new address only and the `email_changed` notification
+  tells the old one afterwards — keep that notification on, it's the only thing
+  left guarding against a silent takeover. The redirect can't tell you where the
+  change stands (the link is opened in the new inbox, usually another device,
+  where its `?code=` is unexchangeable even though the change landed), so always
+  re-read the user (`refreshSession`) and let `user.new_email` decide what to
+  say — `settleEmailChange` in `App.tsx`. Supabase Auth email templates are
+  project config, not migrations: `supabase/templates/*.html` is the source of
+  truth and the hosted project's copy is synced by hand (`docs/release.md`).
 - **Multi-user:** open public signups — no single-user assumptions; per-user
   isolation via RLS on `app_state` and `profiles`.
 - **Plan building:** `buildPlan(raceDate, goalSec, planSessions, distanceKm,

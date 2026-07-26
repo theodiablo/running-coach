@@ -177,20 +177,36 @@ The transactional emails Supabase Auth sends (confirm signup, reset password,
 **change email address**) are **project configuration, not migrations** — no
 workflow, migration or MCP tool deploys them. Source of truth lives in
 `supabase/templates/*.html`, wired into `supabase/config.toml` under
-`[auth.email.template.*]`, which is what `supabase start` uses locally. The
-hosted project reads only what's in **Dashboard → Authentication → Emails**, so
-after changing a template file, paste the same body (and subject) into the
-matching dashboard template. Nothing warns you if you forget: the change simply
-never reaches a real user.
+`[auth.email.template.*]` / `[auth.email.notification.*]`, which is what
+`supabase start` uses locally. The hosted project reads only what's in
+**Dashboard → Authentication → Emails**, so after changing a template file,
+paste the same body (and subject) into the matching dashboard template — and
+flip the matching toggle where one exists. Nothing warns you if you forget: the
+change simply never reaches a real user.
 
-`email_change.html` is the one that matters most. `double_confirm_changes` is
-on, so GoTrue sends the *same* template to both the current and the new address
-with a different one-time link in each, and it cannot tell the template which
-recipient it is rendering for — so the copy must read correctly from either
-inbox and must say that both links have to be opened. Supabase's stock copy does
-neither, which is exactly how "why did I get two identical emails, and why did
-clicking one do nothing?" happens. Test a change by actually running the flow:
-Settings → Account → Change, then open the links in both inboxes.
+### The email-change pair
+
+Two templates, and the settings they depend on, must move together:
+
+| File | Dashboard template | Sent to |
+|---|---|---|
+| `email_change.html` | Change Email Address | the **new** address — the confirmation link |
+| `email_changed_notification.html` | Email Changed Notification (needs its toggle **on**) | the previous address — after the fact, no link |
+
+This shape is deliberate. **Secure email change (`double_confirm_changes`) is
+OFF**: with it on, GoTrue sends the *same* `email_change` template to both
+addresses with a different one-time link in each and cannot tell the template
+which recipient it is rendering for, so a user gets two identical-looking mails
+and the change lands only after both links — which reads as "why two emails, and
+why did clicking one do nothing?". The `email_changed` notification restores the
+security property that removed (the old address still hears about the change)
+without adding a second thing to act on.
+
+If you ever turn `double_confirm_changes` back on, `email_change.html` and the
+app copy in `src/i18n/locales/*/settings.json` (`emailConfirmNote`,
+`emailPending`) both become wrong — they name a single inbox. Test any change by
+running the real flow: Settings → Account → Change, open the link in the new
+inbox, and confirm the notification arrives at the old one.
 
 ## CI caching & budget
 
