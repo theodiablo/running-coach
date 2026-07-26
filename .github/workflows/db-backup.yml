@@ -17,11 +17,17 @@
 # ---------------------------------------------------------------------------
 # Setup (the job skips itself, loudly, until these exist)
 #
-# 1. Secret SUPABASE_DB_URL — Dashboard → Connect → Session pooler → URI,
-#    with the real password substituted. Use the POOLER host, not
+# 1. Secret SUPABASE_DB_URL — Dashboard → Connect → Session pooler → URI, with
+#    the real password substituted. Use the POOLER host, not
 #    db.<ref>.supabase.co: direct database hostnames are IPv6-only and GitHub
 #    runners are IPv4-only. Percent-encode any special characters in the
 #    password.
+#
+#    Connect as the dedicated `db_backup` role, NOT as postgres. The job only
+#    reads, and postgres owns every table in public and can drop them. The role
+#    is created by supabase/migrations/20260726120000_db_backup_role.sql; its
+#    password is set out of band. It holds BYPASSRLS deliberately — every table
+#    in public has RLS on, so a role without it dumps zero rows.
 #
 # 2. Secret BACKUP_S3_BUCKET — a PRIVATE bucket. Do NOT reuse S3_BUCKET_NAME:
 #    that one is the CloudFront origin for the site and is world-readable.
@@ -66,6 +72,11 @@ env:
   # month of failed scheduled runs followed by one successful prune would leave
   # the bucket empty.
   MIN_KEEP: 7
+  # Reject a dump carrying fewer than this many app_state rows. Guards against a
+  # dump that is structurally valid but silently empty, which is what an RLS
+  # filter produces when the connecting role lacks BYPASSRLS. Raise it if you
+  # want a tighter floor; it must stay at or below the real account count.
+  MIN_APP_STATE_ROWS: 1
 
 jobs:
   backup:
@@ -158,9 +169,34 @@ jobs:
           # app_state is the irreplaceable table: one jsonb row per user, no
           # history. If it is not in the data dump, the backup is worthless.
           if ! grep -q "COPY public.app_state" "$dir/data.sql"; then
-            echo "::error::data.sql contains no public.app_state rows — refusing to upload."
+            echo "::error::data.sql has no COPY public.app_state block — refusing to upload."
             exit 1
           fi
+
+          # ...and the COPY block must actually contain rows. Presence of the
+          # header proves nothing: every table in public has RLS enabled, so a
+          # connection whose role lacks BYPASSRLS dumps the header followed
+          # immediately by the \. terminator, with every row filtered out. That
+          # is a backup that is empty but reads as success forever, which is the
+          # precise failure this job exists to prevent. Count the rows between
+          # the header and the terminator.
+          # The terminator is built with sprintf rather than written as a literal
+          # "\\." so that no YAML/shell/awk escaping layer can silently eat the
+          # backslash. If it did, the block would never close, the count would
+          # run to end of file, and the guard would pass on a dump it should
+          # have rejected.
+          rows="$(awk '
+            BEGIN                     { term = sprintf("%c.", 92) }
+            /^COPY public.app_state / { inblock = 1; next }
+            inblock && $0 == term     { inblock = 0; next }
+            inblock                   { n++ }
+            END                       { print n + 0 }
+          ' "$dir/data.sql")"
+          if [ "$rows" -lt "$MIN_APP_STATE_ROWS" ]; then
+            echo "::error::data.sql has only $rows public.app_state row(s), expected at least $MIN_APP_STATE_ROWS — refusing to upload. If the backup role was recently changed, check it has BYPASSRLS."
+            exit 1
+          fi
+          echo "app_state rows in dump: $rows"
 
           archive="run-app-$stamp.tar.gz"
           tar -czf "$archive" -C backup "run-app-$stamp"

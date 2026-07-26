@@ -29,9 +29,11 @@ Every day at 02:20 UTC (and on `workflow_dispatch`):
    container built from the server's own Postgres image, so the client version
    always matches the server; plain `pg_dump` from apt is a major version
    behind and refuses to dump PG17.
-2. Refuses to upload a dump that is empty, has no `CREATE TABLE`, or contains
-   no `COPY public.app_state` rows. A backup that silently contains nothing
-   reads as success forever, which is worse than a loud failure.
+2. Refuses to upload a dump that is empty, has no `CREATE TABLE`, or carries
+   fewer than `MIN_APP_STATE_ROWS` rows in its `COPY public.app_state` block. A
+   backup that silently contains nothing reads as success forever, which is
+   worse than a loud failure. The rows are counted, not just the COPY header:
+   see [Why the row count matters](#why-the-row-count-matters).
 3. Uploads one tarball to
    `s3://$BACKUP_S3_BUCKET/supabase/run-app-<UTC stamp>.tar.gz` with SSE, then
    re-reads its size to confirm the object is not truncated.
@@ -39,7 +41,8 @@ Every day at 02:20 UTC (and on `workflow_dispatch`):
    7 most recent** (`MIN_KEEP`) whatever their age, and only ever touching keys
    matching its own `run-app-<stamp>.tar.gz` pattern under its own prefix.
 
-Both retention knobs are `env:` at the top of the workflow.
+All three knobs (`RETENTION_DAYS`, `MIN_KEEP`, `MIN_APP_STATE_ROWS`) are `env:`
+at the top of the workflow.
 
 ## Setup
 
@@ -47,20 +50,75 @@ The job skips itself with a warning until these exist.
 
 | Secret | What |
 | --- | --- |
-| `SUPABASE_DB_URL` | Dashboard → Connect → **Session pooler** → URI, password substituted and percent-encoded |
-| `BACKUP_S3_BUCKET` | A **private** bucket, separate from `S3_BUCKET_NAME` |
-| `AWS_BACKUP_ROLE_ARN` | Optional; falls back to `AWS_DEPLOY_ROLE_ARN` |
+| `SUPABASE_DB_URL` | Session pooler URI for the `db_backup` role — see below |
+| `BACKUP_S3_BUCKET` | `run-app-db-backups` |
+| `AWS_BACKUP_ROLE_ARN` | `arn:aws:iam::703323013899:role/GitHub-Actions-RunApp-backup` |
 
-Use the **pooler** host, not `db.<ref>.supabase.co` — direct database hostnames
-are IPv6-only and GitHub runners are IPv4-only.
+### AWS
 
-Do **not** reuse `S3_BUCKET_NAME`: that bucket is the CloudFront origin for the
-site and is world-readable. These dumps contain personal health data (runs,
-heart rate, notes), so the backup bucket needs Block Public Access on. A
-dedicated `AWS_BACKUP_ROLE_ARN` is preferred over the deploy role so that write
-access to backups stays out of the site-deploy path. The role needs
-`s3:PutObject`, `s3:GetObject` and `s3:DeleteObject` on
-`arn:aws:s3:::<bucket>/*` plus `s3:ListBucket` on the bucket itself.
+Both AWS resources are Terraform-managed in `infra/` and already exist, as are
+the two secrets naming them. See `infra/README.md`.
+
+The bucket is private and deliberately separate from `S3_BUCKET_NAME`, which is
+the CloudFront origin for the site and world-readable — these dumps contain
+personal health data (runs, heart rate, notes). The role is separate from the
+deploy role so that permission to delete backups stays out of the path that runs
+on every push to `main`, and it is scoped to the default branch, so the job
+cannot be dispatched from a topic branch.
+
+### The `db_backup` database role
+
+The job only ever reads, so it does not use the `postgres` credential:
+`postgres` owns every table in `public` and can drop them. It connects as
+`db_backup`, created by
+`supabase/migrations/20260726120000_db_backup_role.sql` with `LOGIN`,
+`BYPASSRLS` and `pg_read_all_data` — reads everything, writes nothing.
+
+The migration sets **no password**, because that would commit a credential to
+git. Set it once, out of band, then build the secret:
+
+```sql
+alter role db_backup with password '<generated>';
+```
+
+```bash
+# Session pooler URI. Take the host and port from Dashboard -> Connect ->
+# Session pooler, and swap the role in both the username and the credential.
+gh secret set SUPABASE_DB_URL \
+  --body 'postgresql://db_backup.<project-ref>:<password>@<pooler-host>:5432/postgres'
+```
+
+Until that runs, the role cannot authenticate and the migration is inert.
+
+Two things to get right:
+
+- Use the **pooler** host, not `db.<ref>.supabase.co`. Direct database hostnames
+  are IPv6-only and GitHub runners are IPv4-only.
+- Percent-encode any special characters in the password.
+
+### Why the row count matters
+
+Every table in `public` has row level security enabled. `postgres` dumps them
+because it owns them; any other role is subject to every policy unless it has
+`BYPASSRLS`. A role without it produces this:
+
+```
+COPY public.app_state (user_id, data, updated_at) FROM stdin;
+\.
+```
+
+A valid dump, structurally. Zero rows. The original guard tested only for the
+presence of the `COPY public.app_state` line, which that output still satisfies,
+so it would have uploaded an empty backup and reported success — the exact
+failure this job exists to prevent, reintroduced through the back door. Hence
+counting the rows between the header and the `\.` terminator, and hence
+`BYPASSRLS` on the role being load-bearing rather than incidental.
+
+If the guard ever fires with `0 rows`, check the role's attributes first:
+
+```sql
+select rolname, rolbypassrls, rolcanlogin from pg_roles where rolname = 'db_backup';
+```
 
 ## Restoring
 
