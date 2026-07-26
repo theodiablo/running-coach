@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Mail, Loader } from "lucide-react";
 import { supabase, authRedirectTo } from "../../supabase";
@@ -12,6 +12,12 @@ import type { User } from "@supabase/supabase-js";
 // set server-side while that's outstanding, so the pending note survives an app
 // restart without any local state.
 //
+// That server-side truth is also why this refreshes on mount: `user` comes from
+// the cached session, so a confirmation opened anywhere else (the other inbox,
+// another device, a link tapped while the app was backgrounded) would otherwise
+// leave the "waiting for confirmation" note up forever on an account that has
+// already changed. App.tsx does the same after an email-change callback.
+//
 // Works for Google sign-in accounts too: the Google identity is matched by its
 // provider `sub`, not the email, so signing in with Google keeps working.
 export function EmailSection({ user, showToast }: { user: User; showToast?: (msg: string, type?: string) => void }) {
@@ -21,6 +27,23 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  // refreshSession re-reads the user from the server and, because it emits an
+  // auth event, updates the session App holds — so `user.new_email` here clears
+  // on its own once both links are open. Costs one request, and only while a
+  // change is actually outstanding.
+  const recheck = async () => {
+    setChecking(true);
+    try { await supabase.auth.refreshSession(); } catch { /* offline — the note just stays */ }
+    setChecking(false);
+  };
+  const rechecked = useRef(false);
+  useEffect(() => {
+    if (!user.new_email || rechecked.current) return;
+    rechecked.current = true;
+    void recheck();
+  }, [user.new_email]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,9 +88,18 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
       </div>
 
       {user.new_email && (
-        <p className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2">
-          {t("settings.account.emailPending", { email: user.new_email })}
-        </p>
+        <div className="text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2 space-y-1.5">
+          {/* Name BOTH addresses: the two links are identical mails sent to two
+              different inboxes, and the only way to act on "open both" is to
+              know which two. */}
+          <p>{t("settings.account.emailPending", { email: user.new_email })}</p>
+          <p className="text-amber-400/80">{t("settings.account.emailPendingWhere", { current: user.email, next: user.new_email })}</p>
+          <button type="button" onClick={() => { void recheck(); }} disabled={checking}
+            className="flex items-center gap-1.5 text-amber-300 hover:text-amber-200 disabled:opacity-50">
+            {checking && <Loader size={12} className="animate-spin"/>}
+            {t("settings.account.emailPendingCheck")}
+          </button>
+        </div>
       )}
 
       {sent && !user.new_email && (

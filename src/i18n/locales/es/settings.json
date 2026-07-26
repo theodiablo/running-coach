@@ -72,10 +72,10 @@
     "emailCancelAria": "Cancelar el cambio de correo",
     "emailNew": "Nuevo correo electrónico",
     "emailSubmit": "Enviar enlaces de confirmación",
-    "emailDoubleConfirm": "Por seguridad escribimos a tu dirección actual y a la nueva. Abre ambos enlaces para completar el cambio.",
-    "emailSent": "Revisa las dos bandejas de entrada: enviamos un enlace de confirmación a tu dirección actual y a la nueva.",
-    "emailSentToast": "Enlaces de confirmación enviados.",
-    "emailPending": "Esperando la confirmación de {{email}}. Abre el enlace en ambas bandejas para completarlo.",
+    "emailDoubleConfirm": "Por seguridad escribimos a tu dirección actual y a la nueva. El cambio solo se aplica cuando se abren los dos enlaces.",
+    "emailSent": "Llegan dos correos de confirmación idénticos: uno a tu dirección actual y otro a la nueva. Abre los dos enlaces.",
+    "emailSentToast": "Enlaces de confirmación enviados a ambas direcciones.",
+    "emailPending": "Esperando la confirmación de {{email}}.",
     "emailRateLimited": "Se han enviado demasiados correos hace poco. Inténtalo de nuevo en una hora.",
     "emailError": "No se pudo actualizar tu correo. Inténtalo de nuevo.",
     "passwordLabel": "Contraseña",
@@ -89,7 +89,9 @@
     "passwordRules": "Al menos 12 caracteres, con una mayúscula, una minúscula y un número.",
     "passwordMismatch": "Las dos contraseñas no coinciden.",
     "passwordUpdated": "Contraseña actualizada.",
-    "passwordError": "No se pudo actualizar tu contraseña. Inténtalo de nuevo."
+    "passwordError": "No se pudo actualizar tu contraseña. Inténtalo de nuevo.",
+    "emailPendingWhere": "Se enviaron dos enlaces: uno a {{current}} y otro a {{next}}. Abre los dos; el cambio solo se aplica tras el segundo.",
+    "emailPendingCheck": "Ya abrí los dos, comprobar de nuevo"
   },
   "deleteAccount": {
     "title": "Eliminar cuenta",
@@ -126,7 +128,6 @@
   "connections": {
     "title": "Conexiones y sincronización",
     "subtitle": "Sensores, relojes y cuentas que añaden entrenamientos y frecuencia cardíaca automáticamente.",
-    "howItWorks": "Cómo funciona",
     "notSetUp": "Sin configurar",
     "connected": "Conectado",
     "reconnect": "Reconectar",
@@ -152,7 +153,9 @@
     "help": {
       "oneHrSource": "Una sola fuente de frecuencia cardíaca a la vez: al activar una se desactiva la otra.",
       "hrEditable": "Los valores importados siguen siendo editables en cada entrenamiento."
-    }
+    },
+    "howItWorksNamed": "Cómo funciona {{name}}",
+    "aboutLabel": "Sobre estas conexiones"
   },
   "hrDisclosure": {
     "title": "Conectar un sensor de frecuencia cardíaca",

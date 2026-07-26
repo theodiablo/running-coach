@@ -25,7 +25,10 @@
     "foundRun": "Found a run from your watch — {{km}} km on {{date}}",
     "foundRuns": "Found {{n}} runs from your watch",
     "review": "Review",
-    "importAll": "Import all"
+    "importAll": "Import all",
+    "emailChangeHalf": "Confirmation accepted. Open the link in the other inbox to finish.",
+    "emailChangeDone": "Email address updated to {{email}}.",
+    "emailChangeFailed": "That confirmation link has expired or was already used. Start the change again from Settings."
   },
   "consent": {
     "title": "Help improve the app?",

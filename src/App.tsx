@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, useCallback, lazy, Suspense } from "react"
 import { Loader } from "lucide-react";
 import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
-import type { Session } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isNative, isIos } from "./native";
 import { stashPolarReturn } from "./polarPreinit";
-import { classifyAuthUrl } from "./utils/authCallback";
+import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
+import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow } from "./db";
@@ -33,6 +34,35 @@ const MarketingGate = import.meta.env.VITE_NATIVE_BUILD
 // settle well within this; it exists only so a never-resolving auth check can
 // never leave the user staring at the splash spinner forever.
 const AUTH_INIT_TIMEOUT_MS = 20000;
+
+// Resolve an email-change confirmation against SERVER truth and report what
+// actually landed.
+//
+// The redirect alone cannot tell us: with secure email change every change
+// needs two confirmations (current address + new address), and the first one
+// comes back as a bare `?message=` with no code and no session — while the
+// second may come back as a `?code=` this device cannot exchange (the PKCE
+// verifier lives on whichever device started the change) even though the change
+// itself has already been applied. Re-reading the user is the only honest
+// answer, and it doubles as the refresh that clears the "waiting for
+// confirmation" banner: without it the app keeps rendering the stale cached
+// user and the tap looks like it did nothing.
+//
+// `pendingBefore` is user.new_email as it was BEFORE the callback; what that
+// means is decided by the pure emailChangeOutcome (tested in authCallback.test).
+async function settleEmailChange(pendingBefore: string | null, opts: { user?: User | null; failure?: string } = {}) {
+  let user = opts.user ?? null;
+  if (!user) {
+    try {
+      const { data } = await supabase.auth.refreshSession();
+      user = data.session?.user ?? null;
+    } catch (err) {
+      console.error("Could not re-read the account after an email-change link", err);
+    }
+  }
+  const notice = emailChangeOutcome(pendingBefore, user, opts.failure);
+  emitAuthNotice(notice.key, notice.type, notice.vars);
+}
 
 function Splash() {
   return (
@@ -71,6 +101,8 @@ export default function App() {
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
   // time with a brand-new session object.
   const loadedUidRef = useRef<string | null>(null);
+  // Latest session, readable from the once-registered deep-link listener below.
+  const sessionRef = useRef<Session | null>(null);
 
   // Track the auth session.
   useEffect(() => {
@@ -120,6 +152,11 @@ export default function App() {
   // is never exchanged twice (codes are single-use; a double call yields invalid_grant).
   const lastUrlRef = useRef<string | null>(null);
 
+  // Mirror of `session` for the long-lived deep-link listener below: it is
+  // registered once, so a captured `session` would be stuck at its first value.
+  // eslint-disable-next-line react-hooks/refs
+  sessionRef.current = session ?? null;
+
   useEffect(() => {
     if (!isNative) return;
     let mounted = true;
@@ -145,6 +182,11 @@ export default function App() {
       if (!url || url === lastUrlRef.current) return; // de-dupe appUrlOpen vs getLaunchUrl
       lastUrlRef.current = url;
       const cb = classifyAuthUrl(url);
+      // Read BEFORE any await: an email-change callback updates the session
+      // mid-flight, and settleEmailChange needs the pre-callback value to tell
+      // "the change just completed" from "that link was never valid".
+      const signedIn = !!sessionRef.current;
+      const pendingBefore = sessionRef.current?.user?.new_email ?? null;
       switch (cb.kind) {
         // Polar OAuth return, bounced from the web origin by polarPreinit. Its
         // ?code= is NOT a Supabase auth code — classifyAuthUrl routes it before
@@ -161,17 +203,19 @@ export default function App() {
           window.dispatchEvent(new Event("rc-polar-return"));
           return;
         // Provider-side denial/error (e.g. user cancels Google consent) carries
-        // no `code` — surface it instead of silently no-oping.
+        // no `code` — surface it instead of silently no-oping. Signed OUT that
+        // means the login screen; signed IN it can only be an email-change link
+        // (the app is on screen, and LoginScreen — the only thing that renders
+        // reportAuthError — is not), and an expired/already-used link there does
+        // NOT mean the change failed, so let the server have the last word.
         case "error":
           closeAuthBrowser();
-          reportAuthError(cb.message);
+          if (signedIn) await settleEmailChange(pendingBefore, { failure: cb.message });
+          else reportAuthError(cb.message);
           return;
-        // Email-change confirmation link (Settings -> Account). These arrive as
-        // ?token_hash=&type=email_change, not ?code=, so they need verifyOtp.
-        // With double_confirm_changes each of the two links (old + new address)
-        // lands here once. A failure is NOT a login-screen error — the user is
-        // signed in — so it stays silent here; the Account page's pending state
-        // simply persists until a working link is opened.
+        // Email-change confirmation link (Settings -> Account) in its
+        // ?token_hash=&type=email_change shape — sent when the mail template
+        // uses {{ .TokenHash }}; these need verifyOtp, not the PKCE exchange.
         case "otp":
           closeAuthBrowser();
           try {
@@ -179,14 +223,30 @@ export default function App() {
           } catch (err) {
             console.error("Email confirmation failed", err);
           }
+          if (signedIn) await settleEmailChange(pendingBefore);
+          return;
+        // GoTrue accepted the link but handed back nothing to exchange: the
+        // first of the two secure-email-change confirmations. Nothing to do
+        // locally except re-read the account and tell the user where they are.
+        case "notice":
+          closeAuthBrowser();
+          if (signedIn) await settleEmailChange(pendingBefore);
           return;
         case "code":
           closeAuthBrowser();
           try {
-            await supabase.auth.exchangeCodeForSession(cb.code);
+            const { data } = await supabase.auth.exchangeCodeForSession(cb.code);
+            // Signed in already: this was the second email-change confirmation,
+            // not a sign-in. The exchange just handed us a fresh user, so report
+            // from that rather than spending another round trip on it.
+            if (signedIn) await settleEmailChange(pendingBefore, { user: data.session?.user ?? null });
           } catch (err) {
             console.error("Deep-link auth exchange failed", err);
-            reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+            // The exchange needs the PKCE verifier from the device that started
+            // the flow, so a second link opened elsewhere fails here even though
+            // the change landed server-side. Never report that as a failure.
+            if (signedIn) await settleEmailChange(pendingBefore, { failure: err instanceof Error ? err.message : "exchange failed" });
+            else reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
           }
           return;
         case "none":
@@ -209,6 +269,28 @@ export default function App() {
 
     return () => { mounted = false; listenerHandle?.remove?.(); };
   }, []);
+
+  // Web twin of the handler above, for email-change links only. In the browser
+  // the confirmation redirect lands back on our own origin: supabase-js consumes
+  // a `?code=` itself (detectSessionInUrl), but the `?message=` (first of two)
+  // and `?error=` (expired/used link) returns are ours to read — and without
+  // this, opening the link on the web is the same silent no-op the native shell
+  // had. Signed-in only: signed out, these are sign-in failures, not ours.
+  const webCallbackRef = useRef(false);
+  useEffect(() => {
+    if (isNative || !session?.user || webCallbackRef.current) return;
+    const cb = classifyAuthUrl(window.location.href);
+    if (cb.kind !== "notice" && cb.kind !== "error") return;
+    webCallbackRef.current = true;
+    // Strip the params first so a reload (or the refreshSession below landing a
+    // new session) can never replay the notice.
+    const url = new URL(window.location.href);
+    for (const k of ["message", "error", "error_code", "error_description"]) url.searchParams.delete(k);
+    const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+    const cleanHash = hash.has("error") || hash.has("message") ? "" : url.hash;
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${cleanHash}`);
+    settleEmailChange(session.user.new_email ?? null, cb.kind === "error" ? { failure: cb.message } : {});
+  }, [session]);
 
   // Native-only version gate: compare the installed app version against the
   // remote app_config row. A failed check (offline, etc.) is ignored so it can

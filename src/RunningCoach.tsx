@@ -11,6 +11,7 @@ import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
 import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
+import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
 import { ymd, fmt } from "./utils/format";
@@ -200,6 +201,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // An optional `action` ({label, onClick}) turns the toast into an undoable one.
   const showToast = (msg: string, type = "ok", action?: ToastAction) =>
     setToast({id: toastIdRef.current++, msg, type, action});
+  // Latest-ref so the once-registered window listeners below (auth notices)
+  // don't have to re-subscribe on every render to reach this render's closure.
+  const showToastRef = useRef(showToast);
+  // eslint-disable-next-line react-hooks/refs
+  showToastRef.current = showToast;
   const withLimitNotice = (ctx: UserContextState) => {
     const notes = ctx?.notes || "";
     if (notes.length < USER_CONTEXT_NOTICE_CHARS) return ctx;
@@ -465,6 +471,20 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     window.addEventListener("rc-polar-return", onPolarReturn);
     return () => window.removeEventListener("rc-polar-return", onPolarReturn);
   }, []);
+
+  // App.tsx handles auth callbacks (deep link on native, URL params on web) but
+  // has no toast of its own — it emits this instead. Today that's the
+  // email-change confirmation coming back from the mail app: it must say
+  // something, because the user just left the app, tapped a link and returned.
+  useEffect(() => {
+    const drain = () => {
+      const notice = takeAuthNotice();
+      if (notice) showToastRef.current(t(notice.key, notice.vars || {}), notice.type);
+    };
+    drain(); // a deep link that cold-started the app was handled before this mounted
+    window.addEventListener(AUTH_NOTICE_EVENT, drain);
+    return () => window.removeEventListener(AUTH_NOTICE_EVENT, drain);
+  }, [t]);
   const saveUserContext = (next: Partial<UserContextState>) => {
     const clean = withLimitNotice({ notes: String(next?.notes || "").slice(0, USER_CONTEXT_MAX_CHARS), lastLimitNoticeAt: next?.lastLimitNoticeAt || null });
     userContextRef.current = clean;

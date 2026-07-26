@@ -69,15 +69,19 @@ function Switch({ on, onToggle, label, disabled }: { on: boolean; onToggle: () =
 // permanently occupying screens of scroll. Exported for the vendor guides on
 // the Integrations page, which are the same "tap to read, otherwise stay out of
 // the way" shape.
-export function HowItWorks({ label, children }: { label?: string; children: React.ReactNode }) {
-  const { t } = useTranslation();
+//
+// `label` is REQUIRED, and must name what it explains ("How Polar works", not
+// "How it works"). This page stacks several of these a few pixels apart — one
+// per connection row plus the card's own — and identically-labelled neighbours
+// are unreadable: you cannot tell which disclosure answers which row.
+export function HowItWorks({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
         className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-300">
         <ChevronDown size={13} className={"transition-transform " + (open ? "rotate-180" : "")} />
-        {label || t("settings.connections.howItWorks")}
+        {label}
       </button>
       {open && <div className="mt-2 space-y-2 text-xs text-slate-500">{children}</div>}
     </div>
@@ -397,6 +401,14 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
           )}
         </div>
       )}
+      {/* Which watches this store actually covers — row help, same shape as the
+          cloud rows below. It used to live in the card-level footnote, where it
+          read as an answer to whatever row happened to sit above it. */}
+      <div className="pl-[26px]">
+        <HowItWorks label={t("settings.connections.howItWorksNamed", { name: storeLabel })}>
+          <p>{t(isAndroid ? "settings.integrations.providers.healthconnect.help" : "settings.integrations.providers.healthkit.help")}</p>
+        </HowItWorks>
+      </div>
     </div>
   );
 }
@@ -500,7 +512,16 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
           {t("settings.integrations.scan30")}
         </button>
       )}
-      {help && !on && <HowItWorks><p>{help}</p></HowItWorks>}
+      {/* Named after the provider, and indented under its row: the card closes
+          with its own collapsible, and two disclosures a few pixels apart both
+          reading "How it works" is unreadable — you can't tell which one
+          answers "what does connecting Polar do?". Indent + name = the row's
+          help, not the card's. */}
+      {help && !on && (
+        <div className="pl-[26px]">
+          <HowItWorks label={t("settings.connections.howItWorksNamed", { name: label })}><p>{help}</p></HowItWorks>
+        </div>
+      )}
     </div>
   );
 }
@@ -580,12 +601,12 @@ export function ConnectionsCard(props: ConnectionsProps) {
       {cloudProviders.map(p => <CloudRow key={p.id} provider={p} {...props} />)}
       {!isNative && <MobileAppPointer />}
 
-      <HowItWorks>
+      {/* Card-level footnote: caveats that apply to EVERY row above, so it is
+          labelled for the card, not "How it works" (which a reader lands on
+          right after a row's own help and reasonably takes for more of it). */}
+      <HowItWorks label={t("settings.connections.aboutLabel")}>
         <p>{t("settings.connections.betaNote")}</p>
         {isNative && <p>{t("settings.connections.help.oneHrSource")}</p>}
-        {isNative && (
-          <p>{t(isAndroid ? "settings.integrations.providers.healthconnect.help" : "settings.integrations.providers.healthkit.help")}</p>
-        )}
         <p>{t("settings.connections.help.hrEditable")}</p>
       </HowItWorks>
 

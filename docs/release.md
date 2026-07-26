@@ -170,6 +170,27 @@ a post-deploy `curl` smoke test isn't possible there — confirm via the deploy
 call's returned `status: "ACTIVE"` and, for request-level confirmation,
 `mcp__Supabase__get_logs` with `service: "edge-function"`.
 
+## Supabase Auth email templates (manual sync)
+
+The transactional emails Supabase Auth sends (confirm signup, reset password,
+**change email address**) are **project configuration, not migrations** — no
+workflow, migration or MCP tool deploys them. Source of truth lives in
+`supabase/templates/*.html`, wired into `supabase/config.toml` under
+`[auth.email.template.*]`, which is what `supabase start` uses locally. The
+hosted project reads only what's in **Dashboard → Authentication → Emails**, so
+after changing a template file, paste the same body (and subject) into the
+matching dashboard template. Nothing warns you if you forget: the change simply
+never reaches a real user.
+
+`email_change.html` is the one that matters most. `double_confirm_changes` is
+on, so GoTrue sends the *same* template to both the current and the new address
+with a different one-time link in each, and it cannot tell the template which
+recipient it is rendering for — so the copy must read correctly from either
+inbox and must say that both links have to be opened. Supabase's stock copy does
+neither, which is exactly how "why did I get two identical emails, and why did
+clicking one do nothing?" happens. Test a change by actually running the flow:
+Settings → Account → Change, then open the links in both inboxes.
+
 ## CI caching & budget
 
 - **All workflows use Node 22** (Capacitor 8 CLI floor) — keep new workflows on

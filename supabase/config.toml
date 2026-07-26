@@ -254,6 +254,16 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# Email-change confirmation. double_confirm_changes above sends this SAME
+# template to both the current and the new address, and Supabase's stock copy
+# ("Confirm your new email address") gives the recipient no way to tell why two
+# identical mails arrived or that both links must be opened. Ours says so.
+# Applies locally on `supabase start`; the hosted project's copy is dashboard
+# config — keep the two in sync by hand (docs/release.md).
+[auth.email.template.email_change]
+subject = "Confirm your Running Coach email change"
+content_path = "./supabase/templates/email_change.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

@@ -5,13 +5,20 @@ import type { SettingsState } from "../../types";
 import type { User, UserIdentity } from "@supabase/supabase-js";
 
 const updateUser = vi.fn();
+const refreshSession = vi.fn();
 vi.mock("../../supabase", () => ({
-  supabase: { auth: { updateUser: (...args: unknown[]) => updateUser(...args) } },
+  supabase: { auth: {
+    updateUser: (...args: unknown[]) => updateUser(...args),
+    refreshSession: (...args: unknown[]) => refreshSession(...args),
+  } },
   authRedirectTo: () => "https://run.example/",
 }));
 
 afterEach(cleanup);
-beforeEach(() => { updateUser.mockReset(); updateUser.mockResolvedValue({ error: null }); });
+beforeEach(() => {
+  updateUser.mockReset(); updateUser.mockResolvedValue({ error: null });
+  refreshSession.mockReset(); refreshSession.mockResolvedValue({ data: { session: null }, error: null });
+});
 
 const makeUser = (providers: string[], extra: Partial<User> = {}) => ({
   email: "runner@example.com",
@@ -96,8 +103,24 @@ describe("AccountPage email form", () => {
     await screen.findByText("Too many emails sent recently. Please try again in an hour.");
   });
 
-  it("shows a pending note while a change is unconfirmed", () => {
+  it("shows a pending note naming BOTH inboxes while a change is unconfirmed", () => {
     renderPage(makeUser(["email"], { new_email: "new@example.com" }));
     expect(screen.getByText(/Waiting for confirmation of new@example.com/)).toBeInTheDocument();
+    // "Open both links" is only actionable if the note says which two.
+    expect(screen.getByText(/one to runner@example.com, one to new@example.com/)).toBeInTheDocument();
+  });
+
+  // `user` comes from the cached session, so a confirmation opened anywhere else
+  // (other inbox, another device) would leave the pending note up on an account
+  // that has already changed.
+  it("re-reads the account on mount while a change is pending", async () => {
+    renderPage(makeUser(["email"], { new_email: "new@example.com" }));
+    await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not re-read the account when nothing is pending", async () => {
+    renderPage(makeUser(["email"]));
+    await waitFor(() => expect(screen.getByText("Email")).toBeInTheDocument());
+    expect(refreshSession).not.toHaveBeenCalled();
   });
 });
