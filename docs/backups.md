@@ -82,19 +82,28 @@ alter role db_backup with password '<generated>';
 ```
 
 ```bash
-# Session pooler URI. Take the host and port from Dashboard -> Connect ->
-# Session pooler, and swap the role in both the username and the credential.
 gh secret set SUPABASE_DB_URL \
-  --body 'postgresql://db_backup.<project-ref>:<password>@<pooler-host>:5432/postgres'
+  --body 'postgresql://db_backup.jpnxghiyjpuqnznxyfaf:<password>@aws-1-eu-central-2.pooler.supabase.com:5432/postgres'
 ```
 
 Until that runs, the role cannot authenticate and the migration is inert.
 
-Two things to get right:
+Three things to get right:
 
-- Use the **pooler** host, not `db.<ref>.supabase.co`. Direct database hostnames
-  are IPv6-only and GitHub runners are IPv4-only.
-- Percent-encode any special characters in the password.
+- **`aws-1`, not `aws-0`.** Supabase runs more than one Supavisor cluster per
+  region and a project lives on exactly one. The project is in `eu-central-2`,
+  and `aws-0-eu-central-2` answers `tenant/user not found` for this ref. If the
+  assignment ever changes, the dashboard (Connect → Session pooler) is
+  authoritative.
+- **Port 5432, session mode.** Transaction mode on 6543 does not hold the
+  session state `pg_dump` relies on.
+- Use the pooler host, not `db.<ref>.supabase.co`. Direct database hostnames are
+  IPv6-only and GitHub runners are IPv4-only. Percent-encode any special
+  characters in the password (`openssl rand -hex 32` avoids the issue).
+
+Supavisor accepts custom roles in its `<role>.<project-ref>` username format,
+not just `postgres` — verified against the live pooler, which returns a SASL
+challenge for `db_backup.<ref>` rather than rejecting the tenant.
 
 ### Why the row count matters
 
