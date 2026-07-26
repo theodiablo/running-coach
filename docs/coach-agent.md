@@ -144,9 +144,36 @@ chat-completions API through that adapter; anything else calls the Anthropic
 SDK. The adapter translates to/from the engine's Anthropic-shaped
 `callModel(messages, tools)` contract, so engine/tools/validator/mock are
 provider-agnostic. Switching model/provider is one `COACH_MODEL` secret
-change, no redeploy — run `npm run eval:live` on a candidate first (the
-2026-07 Mistral Large 3 comparison: safety held 100% but quality dropped to
-~79% vs Sonnet 5's 100%, mostly under-action on pain scenarios — see PR #137).
+change, no redeploy — **run `npm run eval:live` on a candidate first**, and
+expect the gap to sit in quality, not safety.
+
+2026-07 three-model comparison (17 scenarios, live, `evals/coach/`). Safety
+held **100% for every model in every run** — the validator and the context
+guards are provider-independent, which is the whole point of the seam. Quality
+is where models separate, and the weaker two were failing the same way:
+under-acting — describing an adjustment, or offering the runner a menu of
+options, instead of calling the tools that build the proposal.
+
+| Model | Quality (before prompt fix) | Quality (after) |
+| --- | --- | --- |
+| `claude-sonnet-5` (default) | 100% | 100% |
+| `claude-haiku-4-5` | 82% | 97% |
+| `mistral-large-latest` | 79-81% | 92-94% |
+
+The fix was three sentences in `SYSTEM_PROMPT` (`_shared/coach/engine.mjs`)
+making the propose-and-confirm contract explicit: the Confirm button IS the
+confirmation, never offer a menu instead of acting, and declining in plain text
+with no tool calls is itself a complete response. Sonnet was already doing all
+three, so it did not move — a weak-model fix that costs the strong model
+nothing. **Re-run the live evals after any `SYSTEM_PROMPT` change**: prompt
+text that reads as neutral to Sonnet can be worth ~15 quality points to a
+smaller model.
+
+Cost shape differs sharply and is worth knowing before a switch: on the same
+suite Mistral spent ~64-90k input / ~1k output tokens against Sonnet's
+~181k / ~23k — far terser rationales, and no prompt-cache discount on the
+Mistral path (see Prompt caching below). Cheaper per round, measurably worse
+at the judgment the coach exists to provide, so the default stays Sonnet 5.
 
 | Env (function secret) | Default | Notes |
 | --- | --- | --- |
