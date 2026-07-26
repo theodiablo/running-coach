@@ -71,11 +71,10 @@
     "emailChangeAria": "Cambiar el correo",
     "emailCancelAria": "Cancelar el cambio de correo",
     "emailNew": "Nuevo correo electrónico",
-    "emailSubmit": "Enviar enlaces de confirmación",
-    "emailDoubleConfirm": "Por seguridad escribimos a tu dirección actual y a la nueva. El cambio solo se aplica cuando se abren los dos enlaces.",
-    "emailSent": "Llegan dos correos de confirmación idénticos: uno a tu dirección actual y otro a la nueva. Abre los dos enlaces.",
-    "emailSentToast": "Enlaces de confirmación enviados a ambas direcciones.",
-    "emailPending": "Esperando la confirmación de {{email}}.",
+    "emailSubmit": "Enviar el enlace de confirmación",
+    "emailSent": "Mira tu nuevo buzón: acabamos de enviarle un enlace de confirmación.",
+    "emailSentToast": "Enlace de confirmación enviado.",
+    "emailPending": "Esperando la confirmación. Abre el enlace enviado a {{email}} para terminar.",
     "emailRateLimited": "Se han enviado demasiados correos hace poco. Inténtalo de nuevo en una hora.",
     "emailError": "No se pudo actualizar tu correo. Inténtalo de nuevo.",
     "passwordLabel": "Contraseña",
@@ -90,8 +89,8 @@
     "passwordMismatch": "Las dos contraseñas no coinciden.",
     "passwordUpdated": "Contraseña actualizada.",
     "passwordError": "No se pudo actualizar tu contraseña. Inténtalo de nuevo.",
-    "emailPendingWhere": "Se enviaron dos enlaces: uno a {{current}} y otro a {{next}}. Abre los dos; el cambio solo se aplica tras el segundo.",
-    "emailPendingCheck": "Ya abrí los dos, comprobar de nuevo"
+    "emailPendingCheck": "Ya lo abrí, comprobar de nuevo",
+    "emailConfirmNote": "Enviamos un enlace de confirmación a la nueva dirección. No cambia nada hasta que lo abras, y avisamos a tu dirección actual cuando ocurra."
   },
   "deleteAccount": {
     "title": "Eliminar cuenta",

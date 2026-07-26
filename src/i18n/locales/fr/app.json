@@ -26,9 +26,9 @@
     "foundRuns": "Sorties trouvées sur ta montre : {{n}}",
     "review": "Examiner",
     "importAll": "Tout importer",
-    "emailChangeHalf": "Confirmation acceptée. Ouvre le lien dans l'autre boîte mail pour terminer.",
     "emailChangeDone": "Adresse e-mail mise à jour vers {{email}}.",
-    "emailChangeFailed": "Ce lien de confirmation a expiré ou a déjà été utilisé. Relance le changement depuis les réglages."
+    "emailChangeFailed": "Ce lien de confirmation a expiré ou a déjà été utilisé. Relance le changement depuis les réglages.",
+    "emailChangePending": "Toujours en attente de la confirmation de ta nouvelle adresse."
   },
   "consent": {
     "title": "Nous aider à améliorer l'app ?",

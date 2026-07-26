@@ -9,14 +9,11 @@ import { POLAR_DEEP_LINK } from "../polarPreinit";
 //   3. Email OTP confirmation (?token_hash=&type=email_change) — sent when the
 //      email template is customised to use {{ .TokenHash }}; Supabase's PKCE
 //      ?code= path does not cover those links, they need verifyOtp.
-//   4. GoTrue notice (?message=) — what /auth/v1/verify redirects with when it
-//      accepted a link but has nothing to hand back. The only real-world source
-//      is the FIRST of the two secure-email-change confirmations ("Confirmation
-//      link accepted. Please proceed to confirm link sent to the other email"):
-//      no code, no token, no session. Classifying it is what stops that tap
-//      from being a silent no-op that reads as "the link did nothing".
-//   5. Supabase PKCE ?code= — OAuth sign-in return, and the SECOND
-//      email-change confirmation (which does issue a session).
+//   4. GoTrue notice (?message=) — /auth/v1/verify accepted a link but has
+//      nothing to hand back (no code, no token, no session). Unclassified, that
+//      tap is a silent no-op that reads as "the link did nothing".
+//   5. Supabase PKCE ?code= — OAuth sign-in return, and the email-change
+//      confirmation (which does issue a session).
 export type AuthCallback =
   | { kind: "polar"; code: string | null; state: string | null }
   | { kind: "error"; message: string }
@@ -61,15 +58,13 @@ export function classifyAuthUrl(url: string): AuthCallback {
   return { kind: "none" };
 }
 
-// What to tell the user after they open an email-change confirmation link.
-//
-// The redirect can't answer that on its own: with secure email change a change
-// needs two confirmations, the first comes back as a bare notice, and the second
-// can come back as a ?code= the device can't exchange even though the change
-// already landed. So the decision is made from the re-read account
-// (`user`, null when the server was unreachable) against `pendingBefore` —
-// user.new_email as it was BEFORE the link was opened, which is the only thing
-// that separates "the change just completed" from "that link was never valid".
+// What to tell the user after they open an email-change confirmation link. The
+// redirect can't answer that — the link is opened in the new address's inbox,
+// often on another device, where the ?code= is unexchangeable even though the
+// change landed. Decided instead from the re-read account (`user`, null when the
+// server was unreachable) against `pendingBefore`: user.new_email as it was
+// BEFORE the link was opened, the only thing separating "the change just
+// completed" from "that link was never valid".
 export type AuthNoticeSpec = { key: string; type: "ok" | "err"; vars?: Record<string, string> };
 
 export function emailChangeOutcome(
@@ -82,11 +77,9 @@ export function emailChangeOutcome(
   if (!user) {
     return failure
       ? { key: "app.toasts.emailChangeFailed", type: "err" }
-      : { key: "app.toasts.emailChangeHalf", type: "ok" };
+      : { key: "app.toasts.emailChangePending", type: "ok" };
   }
-  // Still outstanding: this was the first of the two links (or the other one
-  // hasn't been opened yet).
-  if (user.new_email) return { key: "app.toasts.emailChangeHalf", type: "ok" };
+  if (user.new_email) return { key: "app.toasts.emailChangePending", type: "ok" };
   // Something was pending and now isn't — it went through, whatever the
   // redirect said on the way back.
   if (pendingBefore) {

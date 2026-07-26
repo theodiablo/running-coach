@@ -103,16 +103,14 @@ describe("AccountPage email form", () => {
     await screen.findByText("Too many emails sent recently. Please try again in an hour.");
   });
 
-  it("shows a pending note naming BOTH inboxes while a change is unconfirmed", () => {
+  it("names the inbox holding the link while a change is unconfirmed", () => {
     renderPage(makeUser(["email"], { new_email: "new@example.com" }));
-    expect(screen.getByText(/Waiting for confirmation of new@example.com/)).toBeInTheDocument();
-    // "Open both links" is only actionable if the note says which two.
-    expect(screen.getByText(/one to runner@example.com, one to new@example.com/)).toBeInTheDocument();
+    expect(screen.getByText(/Open the link we sent to new@example.com/)).toBeInTheDocument();
   });
 
-  // `user` comes from the cached session, so a confirmation opened anywhere else
-  // (other inbox, another device) would leave the pending note up on an account
-  // that has already changed.
+  // `user` comes from the cached session, and the link is opened in the NEW
+  // inbox — often another device — so without this the pending note stays up on
+  // an account that has already changed.
   it("re-reads the account on mount while a change is pending", async () => {
     renderPage(makeUser(["email"], { new_email: "new@example.com" }));
     await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));

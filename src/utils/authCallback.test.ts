@@ -35,11 +35,10 @@ describe("classifyAuthUrl", () => {
     expect(classifyAuthUrl(url)).toEqual({ kind: "code", code: "pkce-code" });
   });
 
-  // The real redirect behind "I clicked the link and nothing happened": with
-  // secure email change, GoTrue answers the FIRST of the two confirmations with
-  // a bare ?message= — no code, no token, no session. Classified as `none` it
-  // was a silent no-op.
-  it("recognises the first-of-two email-change acceptance", () => {
+  // The redirect behind "I clicked the link and nothing happened": GoTrue can
+  // accept a link and answer with a bare ?message= — no code, no token, no
+  // session. Classified as `none` it was a silent no-op.
+  it("recognises a bare GoTrue acceptance notice", () => {
     const url = "solutions.camboulive.run://auth-callback?message=Confirmation+link+accepted.+Please+proceed+to+confirm+link+sent+to+the+other+email";
     expect(classifyAuthUrl(url)).toEqual({
       kind: "notice",
@@ -71,12 +70,12 @@ describe("classifyAuthUrl", () => {
 // must say SOMETHING: staying mute is what made a working first confirmation
 // look like a dead link.
 describe("emailChangeOutcome", () => {
-  const half = { key: "app.toasts.emailChangeHalf", type: "ok" };
+  const pending = { key: "app.toasts.emailChangePending", type: "ok" };
   const failed = { key: "app.toasts.emailChangeFailed", type: "err" };
 
-  it("asks for the other inbox while the change is still outstanding", () => {
-    expect(emailChangeOutcome(null, { email: "old@x.com", new_email: "new@x.com" })).toEqual(half);
-    expect(emailChangeOutcome("new@x.com", { email: "old@x.com", new_email: "new@x.com" })).toEqual(half);
+  it("says still-waiting while the change is outstanding", () => {
+    expect(emailChangeOutcome(null, { email: "old@x.com", new_email: "new@x.com" })).toEqual(pending);
+    expect(emailChangeOutcome("new@x.com", { email: "old@x.com", new_email: "new@x.com" })).toEqual(pending);
   });
 
   it("reports success once a pending change is gone", () => {
@@ -85,9 +84,10 @@ describe("emailChangeOutcome", () => {
     });
   });
 
-  // The second link opened on another device fails to exchange locally (the PKCE
-  // verifier lives on the device that started the change) even though the change
-  // itself landed. GoTrue's complaint must not override the account state.
+  // The link is opened in the new address's inbox, often on another device,
+  // where the ?code= can't be exchanged (the PKCE verifier lives on the device
+  // that started the change) even though the change landed. GoTrue's complaint
+  // must not override the account state.
   it("reports success even when the link came back as an error", () => {
     expect(emailChangeOutcome("new@x.com", { email: "new@x.com" }, "invalid request").key)
       .toBe("app.toasts.emailChangeDone");
@@ -99,7 +99,7 @@ describe("emailChangeOutcome", () => {
   });
 
   it("falls back to what GoTrue said when the account can't be re-read", () => {
-    expect(emailChangeOutcome("new@x.com", null)).toEqual(half);              // link accepted
+    expect(emailChangeOutcome("new@x.com", null)).toEqual(pending);           // link accepted
     expect(emailChangeOutcome("new@x.com", null, "otp_expired")).toEqual(failed); // link rejected
   });
 });

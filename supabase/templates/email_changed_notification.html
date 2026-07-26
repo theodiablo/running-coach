@@ -1,0 +1,22 @@
+<!--
+  Sent AFTER the account email actually changes. No link, no action — this is
+  the security notice that replaces the second confirmation link we used to
+  require (double_confirm_changes), so a change can never happen silently.
+
+  Variables: .OldEmail (the address before the change), .Email (the new one).
+
+  Not auto-deployed — paste into Dashboard -> Authentication -> Emails ->
+  "Email Changed Notification" when it changes (docs/release.md).
+-->
+<h2>Your email address was changed</h2>
+
+<p>
+  The email address on your Running Coach account was changed from
+  <strong>{{ .OldEmail }}</strong> to <strong>{{ .Email }}</strong>.
+  Sign in with the new address from now on.
+</p>
+
+<p>
+  If you didn't make this change, someone else may have access to your account.
+  Reply to this email straight away.
+</p>
