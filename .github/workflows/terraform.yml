@@ -62,11 +62,15 @@ jobs:
         env:
           PLAN_ROLE: ${{ secrets.AWS_TF_PLAN_ROLE_ARN }}
           APPLY_ROLE: ${{ secrets.AWS_TF_APPLY_ROLE_ARN }}
+          # Context values reach run: through env, never through ${{ }}
+          # interpolation, which splices them into the script before bash sees
+          # it. Enforced by semgrep's run-shell-injection rule.
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           # Same pattern as db-backup.yml: skip loudly rather than fail red
           # while the secrets are still missing.
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "$EVENT_NAME" = "pull_request" ]; then
             role="$PLAN_ROLE"; name="AWS_TF_PLAN_ROLE_ARN"
           else
             role="$APPLY_ROLE"; name="AWS_TF_APPLY_ROLE_ARN"
@@ -126,12 +130,14 @@ jobs:
       - name: Terraform plan
         id: plan
         if: steps.cfg.outputs.ready == 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           # -lock=false on pull requests: the plan role is strictly read-only and
           # cannot write a lock file. Apply below takes the lock normally.
           lock=true
-          if [ "${{ github.event_name }}" = "pull_request" ]; then lock=false; fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then lock=false; fi
 
           terraform plan -input=false -no-color -lock=$lock -out=tfplan \
             | tee plan.txt
@@ -196,11 +202,13 @@ jobs:
 
       - name: Block destructive apply
         if: steps.cfg.outputs.ready == 'true' && github.event_name != 'pull_request'
+        env:
+          DESTROYS: ${{ steps.plan.outputs.destroys }}
+          ALLOW_DESTROY: ${{ inputs.allow_destroy }}
         run: |
           set -euo pipefail
-          if [ "${{ steps.plan.outputs.destroys }}" -gt 0 ] \
-             && [ "${{ inputs.allow_destroy }}" != "true" ]; then
-            echo "::error::This plan destroys or replaces ${{ steps.plan.outputs.destroys }} resource(s). Re-run via workflow_dispatch with allow_destroy: true if that is intended."
+          if [ "$DESTROYS" -gt 0 ] && [ "$ALLOW_DESTROY" != "true" ]; then
+            echo "::error::This plan destroys or replaces $DESTROYS resource(s). Re-run via workflow_dispatch with allow_destroy: true if that is intended."
             exit 1
           fi
 
@@ -210,18 +218,22 @@ jobs:
 
       - name: Summary
         if: steps.cfg.outputs.ready == 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGES: ${{ steps.plan.outputs.changes }}
+          DESTROYS: ${{ steps.plan.outputs.destroys }}
         run: |
           {
             echo "## Terraform"
             echo
             echo "| | |"
             echo "| --- | --- |"
-            echo "| Event | ${{ github.event_name }} |"
-            echo "| Changes | ${{ steps.plan.outputs.changes }} |"
-            echo "| Destructive | ${{ steps.plan.outputs.destroys }} |"
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "| Event | $EVENT_NAME |"
+            echo "| Changes | $CHANGES |"
+            echo "| Destructive | $DESTROYS |"
+            if [ "$EVENT_NAME" = "pull_request" ]; then
               echo "| Applied | no (plan only) |"
-            elif [ "${{ steps.plan.outputs.changes }}" = "0" ]; then
+            elif [ "$CHANGES" = "0" ]; then
               echo "| Applied | nothing to do |"
             else
               echo "| Applied | yes |"

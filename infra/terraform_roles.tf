@@ -139,6 +139,11 @@ data "aws_iam_policy_document" "tf_read" {
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      # The aws_iam_openid_connect_provider data source resolves the provider by
+      # URL, not by ARN, so it enumerates before it can Get. Without List, every
+      # plan fails at the data source with AccessDenied.
+      "iam:ListOpenIDConnectProviders",
       "iam:ListRolePolicies",
       "iam:ListRoleTags",
     ]
