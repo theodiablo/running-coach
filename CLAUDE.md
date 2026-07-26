@@ -66,11 +66,14 @@ rules, not a changelog; delete anything stale.
   credentials anywhere else.
 - **AWS resources are Terraform** (`infra/`, state in `s3://run-app-tfstate`).
   New AWS resources are declared there, not clicked in the console or created
-  with a one-off CLI call. Resources that predate Terraform are adopted with
-  `import` blocks, and you only apply once `terraform plan` reports no changes.
-  Account-wide things shared with unrelated projects (the GitHub OIDC provider)
-  stay `data` sources so this config can never destroy them. Detail:
-  `infra/README.md`.
+  with a one-off CLI call. `terraform.yml` plans on PRs (comment) and **applies
+  on merge to `main`** — so merging an `infra/` change changes AWS. Apply
+  refuses any plan that destroys or replaces a resource unless dispatched with
+  `allow_destroy`; the backup bucket also carries `prevent_destroy`. Resources
+  that predate Terraform are adopted with `import` blocks, and you only apply
+  once `terraform plan` reports no changes. Account-wide things shared with
+  unrelated projects (the GitHub OIDC provider) stay `data` sources so this
+  config can never destroy them. Detail: `infra/README.md`.
 - **Migrations are append-only** once a version may have reached Supabase:
   never rename/remove a pushed `supabase/migrations/*.sql` version — keep a
   no-op marker and put real schema in a later migration.

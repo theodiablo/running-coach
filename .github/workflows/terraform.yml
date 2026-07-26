@@ -1,0 +1,229 @@
+# Terraform plan on pull requests, apply on merge to main.
+#
+# Two OIDC roles rather than one, because plan and apply have very different
+# blast radii (see infra/terraform_roles.tf):
+#
+#   AWS_TF_PLAN_ROLE_ARN   read-only, assumable from pull requests
+#   AWS_TF_APPLY_ROLE_ARN  read/write, assumable only from main
+#
+# Apply refuses to destroy anything unless it is dispatched manually with
+# allow_destroy: true. Everything in infra/ is either irreplaceable (the backup
+# bucket) or in the path of a live deploy (the roles), so an unattended
+# destroy-on-merge is not a failure mode worth having. The backup bucket also
+# carries prevent_destroy, which stops such a plan being generated at all.
+
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      allow_destroy:
+        description: "Permit a plan that destroys or replaces resources"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write # OIDC -> AWS
+  contents: read
+
+env:
+  TF_VERSION: "1.15.8"
+  TF_IN_AUTOMATION: "1"
+
+concurrency:
+  # Applies must not overlap: they share one state file and one lock.
+  group: terraform-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write # to post the plan comment
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - name: Check configuration
+        id: cfg
+        working-directory: .
+        env:
+          PLAN_ROLE: ${{ secrets.AWS_TF_PLAN_ROLE_ARN }}
+          APPLY_ROLE: ${{ secrets.AWS_TF_APPLY_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          # Same pattern as db-backup.yml: skip loudly rather than fail red
+          # while the secrets are still missing.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            role="$PLAN_ROLE"; name="AWS_TF_PLAN_ROLE_ARN"
+          else
+            role="$APPLY_ROLE"; name="AWS_TF_APPLY_ROLE_ARN"
+          fi
+          if [ -z "$role" ]; then
+            echo "::warning::terraform skipped — $name is not set."
+            {
+              echo "## Terraform skipped"
+              echo
+              echo "\`$name\` is not set. See \`infra/README.md\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "role=$role" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Terraform
+        if: steps.cfg.outputs.ready == 'true'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          # Installed from the official release archive with its published
+          # checksum, rather than via a third-party action, so the supply chain
+          # here is one pinned version and one verified hash.
+          base="https://releases.hashicorp.com/terraform/${TF_VERSION}"
+          zip="terraform_${TF_VERSION}_linux_amd64.zip"
+          curl -fsSL -o "$zip" "$base/$zip"
+          curl -fsSL -o SHA256SUMS "$base/terraform_${TF_VERSION}_SHA256SUMS"
+          grep " ${zip}$" SHA256SUMS | sha256sum -c -
+          sudo unzip -o -q "$zip" -d /usr/local/bin
+          rm -f "$zip" SHA256SUMS
+          terraform version
+
+      - name: Configure AWS credentials
+        if: steps.cfg.outputs.ready == 'true'
+        uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ steps.cfg.outputs.role }}
+
+      - name: Terraform init
+        if: steps.cfg.outputs.ready == 'true'
+        run: terraform init -input=false -lockfile=readonly
+
+      - name: Terraform fmt and validate
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          terraform fmt -check -recursive
+          terraform validate -no-color
+
+      - name: Terraform plan
+        id: plan
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          # -lock=false on pull requests: the plan role is strictly read-only and
+          # cannot write a lock file. Apply below takes the lock normally.
+          lock=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then lock=false; fi
+
+          terraform plan -input=false -no-color -lock=$lock -out=tfplan \
+            | tee plan.txt
+
+          terraform show -json tfplan > plan.json
+
+          # index("delete") matches both destroys and replacements, since a
+          # replace is a delete followed by a create.
+          destroys="$(jq '[.resource_changes[]?
+                           | select(.change.actions | index("delete"))] | length' plan.json)"
+          changes="$(jq '[.resource_changes[]?
+                          | select(.change.actions != ["no-op"])] | length' plan.json)"
+
+          echo "destroys=$destroys" >> "$GITHUB_OUTPUT"
+          echo "changes=$changes"   >> "$GITHUB_OUTPUT"
+          echo "Plan: $changes change(s), $destroys involving destruction."
+
+          if [ "$destroys" -gt 0 ]; then
+            jq -r '.resource_changes[]?
+                   | select(.change.actions | index("delete"))
+                   | "  " + .address + " -> " + (.change.actions | join(","))' plan.json
+          fi
+
+      - name: Comment plan on the pull request
+        if: steps.cfg.outputs.ready == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.number }}
+          CHANGES: ${{ steps.plan.outputs.changes }}
+          DESTROYS: ${{ steps.plan.outputs.destroys }}
+        run: |
+          set -euo pipefail
+          {
+            echo "<!-- terraform-plan -->"
+            echo "## Terraform plan"
+            echo
+            if [ "$CHANGES" = "0" ]; then
+              echo "No changes. The configuration matches what is live."
+            else
+              echo "**$CHANGES change(s)**, $DESTROYS involving destruction."
+              if [ "$DESTROYS" != "0" ]; then
+                echo
+                echo "> This plan destroys or replaces resources. Merging will NOT apply it —"
+                echo "> apply refuses destructive plans unless dispatched with \`allow_destroy\`."
+              fi
+            fi
+            echo
+            echo '<details><summary>Full plan</summary>'
+            echo
+            echo '```terraform'
+            # Trim to stay under GitHub's 65536-character comment limit.
+            tail -c 60000 plan.txt
+            echo '```'
+            echo
+            echo '</details>'
+          } > comment.md
+
+          # Replace our previous comment when there is one, so a long-lived PR
+          # does not accumulate a plan per push.
+          gh pr comment "$PR" --edit-last --body-file comment.md \
+            || gh pr comment "$PR" --body-file comment.md
+
+      - name: Block destructive apply
+        if: steps.cfg.outputs.ready == 'true' && github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.plan.outputs.destroys }}" -gt 0 ] \
+             && [ "${{ inputs.allow_destroy }}" != "true" ]; then
+            echo "::error::This plan destroys or replaces ${{ steps.plan.outputs.destroys }} resource(s). Re-run via workflow_dispatch with allow_destroy: true if that is intended."
+            exit 1
+          fi
+
+      - name: Terraform apply
+        if: steps.cfg.outputs.ready == 'true' && github.event_name != 'pull_request' && steps.plan.outputs.changes != '0'
+        run: terraform apply -input=false -no-color tfplan
+
+      - name: Summary
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          {
+            echo "## Terraform"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Event | ${{ github.event_name }} |"
+            echo "| Changes | ${{ steps.plan.outputs.changes }} |"
+            echo "| Destructive | ${{ steps.plan.outputs.destroys }} |"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "| Applied | no (plan only) |"
+            elif [ "${{ steps.plan.outputs.changes }}" = "0" ]; then
+              echo "| Applied | nothing to do |"
+            else
+              echo "| Applied | yes |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

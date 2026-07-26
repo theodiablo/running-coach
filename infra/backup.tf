@@ -15,6 +15,14 @@
 # health data: runs, heart rate, notes.
 resource "aws_s3_bucket" "backups" {
   bucket = var.backup_bucket_name
+
+  # Now that apply runs in CI, a config change that happens to destroy this
+  # bucket would take every backup with it, unreviewed. Terraform refuses to
+  # produce such a plan at all. Removing this line is the deliberate act
+  # required to delete the bucket, and it belongs in its own reviewed commit.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "backups" {

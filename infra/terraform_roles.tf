@@ -1,0 +1,295 @@
+# OIDC roles for the Terraform CI workflow (.github/workflows/terraform.yml).
+#
+# Two roles, not one, because plan and apply have very different blast radii:
+#
+#   tf-plan   read-only, assumable from pull requests. Cannot write anything,
+#             so a plan rendered from an untrusted branch cannot change AWS.
+#   tf-apply  read/write, assumable only from the default branch.
+#
+# These are the one bootstrap wrinkle in the setup: they must exist before CI
+# can assume them, so they were applied once from a workstation. After that they
+# are managed here like everything else.
+
+locals {
+  account_id     = data.aws_caller_identity.current.account_id
+  state_bucket   = "run-app-tfstate"
+  state_key      = "run-app/terraform.tfstate"
+  tf_plan_role   = "GitHub-Actions-RunApp-tf-plan"
+  tf_apply_role  = "GitHub-Actions-RunApp-tf-apply"
+  tf_plan_arn    = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/GitHub-Actions-RunApp-tf-plan"
+  tf_apply_arn   = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/GitHub-Actions-RunApp-tf-apply"
+  managed_prefix = "GitHub-Actions-RunApp-"
+}
+
+data "aws_caller_identity" "current" {}
+
+# Both repo subject formats, for the reason documented on github_repo_immutable.
+locals {
+  oidc_subjects = {
+    for scope, suffixes in {
+      # Pull requests get `:pull_request`, not a branch ref. Fork PRs never
+      # receive an id-token in the first place, so this cannot be used to plan
+      # from an untrusted fork.
+      plan  = ["pull_request", "ref:refs/heads/main"]
+      apply = ["ref:refs/heads/main"]
+      } : scope => flatten([
+        for repo in [var.github_repo, var.github_repo_immutable] : [
+          for suffix in suffixes : "repo:${repo}:${suffix}"
+        ]
+    ])
+  }
+}
+
+data "aws_iam_policy_document" "tf_plan_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.oidc_subjects.plan
+    }
+  }
+}
+
+data "aws_iam_policy_document" "tf_apply_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.oidc_subjects.apply
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Read-only policy, shared by both roles
+# ---------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "tf_read" {
+  statement {
+    sid       = "ReadState"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::${local.state_bucket}/${local.state_key}"]
+  }
+
+  # Bucket configuration only. Note the resources are bucket ARNs, never
+  # `bucket/*`, so neither role can read the contents of a backup tarball —
+  # which is the whole reason the backup bucket is private in the first place.
+  statement {
+    sid    = "ReadBucketConfiguration"
+    effect = "Allow"
+    actions = [
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucketAcl",
+      "s3:GetBucketCORS",
+      "s3:GetBucketLocation",
+      "s3:GetBucketLogging",
+      "s3:GetBucketNotification",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketTagging",
+      "s3:GetBucketVersioning",
+      "s3:GetBucketWebsite",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
+      "s3:ListBucket",
+    ]
+    resources = ["arn:aws:s3:::*"]
+  }
+
+  statement {
+    sid    = "ReadIam"
+    effect = "Allow"
+    actions = [
+      "iam:GetOpenIDConnectProvider",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListRolePolicies",
+      "iam:ListRoleTags",
+    ]
+    resources = ["*"]
+  }
+
+  # Read-only ahead of the adoption of the site bucket, CloudFront and SES, so
+  # that plans covering them work without another policy change.
+  statement {
+    sid    = "ReadAdoptionTargets"
+    effect = "Allow"
+    actions = [
+      "cloudfront:Get*",
+      "cloudfront:List*",
+      "ses:Describe*",
+      "ses:Get*",
+      "ses:List*",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "tf_plan" {
+  name               = local.tf_plan_role
+  description        = "Read-only OIDC role for terraform plan in CI. Cannot write to AWS."
+  assume_role_policy = data.aws_iam_policy_document.tf_plan_assume.json
+}
+
+resource "aws_iam_role_policy" "tf_plan" {
+  name   = "TerraformPlanRead"
+  role   = aws_iam_role.tf_plan.id
+  policy = data.aws_iam_policy_document.tf_read.json
+}
+
+# ---------------------------------------------------------------------------
+# Apply policy: everything above, plus scoped writes and explicit guardrails
+# ---------------------------------------------------------------------------
+
+data "aws_iam_policy_document" "tf_apply" {
+  source_policy_documents = [data.aws_iam_policy_document.tf_read.json]
+
+  statement {
+    sid     = "WriteState"
+    effect  = "Allow"
+    actions = ["s3:PutObject", "s3:DeleteObject"]
+    resources = [
+      "arn:aws:s3:::${local.state_bucket}/${local.state_key}",
+      "arn:aws:s3:::${local.state_bucket}/${local.state_key}.tflock",
+    ]
+  }
+
+  # Bucket management is confined to this project's naming prefix, so the role
+  # cannot touch the buckets belonging to unrelated projects in this account.
+  statement {
+    sid    = "ManageProjectBuckets"
+    effect = "Allow"
+    actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:DeleteBucketPolicy",
+      "s3:PutAccelerateConfiguration",
+      "s3:PutBucketAcl",
+      "s3:PutBucketCORS",
+      "s3:PutBucketLogging",
+      "s3:PutBucketNotification",
+      "s3:PutBucketObjectLockConfiguration",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:PutBucketRequestPayment",
+      "s3:PutBucketTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutBucketWebsite",
+      "s3:PutEncryptionConfiguration",
+      "s3:PutLifecycleConfiguration",
+      "s3:PutReplicationConfiguration",
+    ]
+    resources = ["arn:aws:s3:::run-app-*"]
+  }
+
+  statement {
+    sid    = "ManageProjectRoles"
+    effect = "Allow"
+    actions = [
+      "iam:AttachRolePolicy",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:DeleteRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRole",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:role/${local.managed_prefix}*"]
+  }
+
+  # --- Guardrails -----------------------------------------------------------
+  #
+  # IAM write access is inherently close to admin: a role that can create roles
+  # and attach policies can usually escalate. These Denys close the obvious
+  # paths. They are not a proof of containment, and that trade-off is recorded
+  # in infra/README.md.
+
+  # Without this, the apply role could rewrite its own policy (its name matches
+  # the managed prefix) and grant itself anything.
+  statement {
+    sid       = "DenySelfModification"
+    effect    = "Deny"
+    actions   = ["iam:*"]
+    resources = [local.tf_plan_arn, local.tf_apply_arn]
+  }
+
+  # Blocks the other obvious route: mint a new prefixed role and hand it an
+  # AWS-managed admin policy.
+  statement {
+    sid       = "DenyPrivilegedManagedPolicies"
+    effect    = "Deny"
+    actions   = ["iam:AttachRolePolicy"]
+    resources = ["*"]
+
+    condition {
+      test     = "ArnLike"
+      variable = "iam:PolicyARN"
+      values = [
+        "arn:aws:iam::aws:policy/AdministratorAccess",
+        "arn:aws:iam::aws:policy/IAMFullAccess",
+        "arn:aws:iam::aws:policy/PowerUserAccess",
+      ]
+    }
+  }
+
+  # The state bucket matches run-app-*, and deleting it would strand every
+  # resource Terraform manages.
+  statement {
+    sid       = "DenyStateBucketDeletion"
+    effect    = "Deny"
+    actions   = ["s3:DeleteBucket"]
+    resources = ["arn:aws:s3:::${local.state_bucket}"]
+  }
+}
+
+resource "aws_iam_role" "tf_apply" {
+  name               = local.tf_apply_role
+  description        = "OIDC role for terraform apply in CI, restricted to the default branch."
+  assume_role_policy = data.aws_iam_policy_document.tf_apply_assume.json
+}
+
+resource "aws_iam_role_policy" "tf_apply" {
+  name   = "TerraformApply"
+  role   = aws_iam_role.tf_apply.id
+  policy = data.aws_iam_policy_document.tf_apply.json
+}

@@ -38,6 +38,12 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 infra/generated.tf
+# Plan artefacts, written by terraform.yml and by local plan runs. tfplan in
+# particular is a binary containing the full resource state.
+infra/tfplan
+infra/plan.json
+infra/plan.txt
+infra/comment.md
 
 # Editor directories and files
 .vscode/*

@@ -12,7 +12,22 @@ outside Terraform and are being adopted in a follow-up — see
 - Terraform `~> 1.15` (`terraform version`).
 - AWS credentials with permission to manage S3 and IAM in the account.
 
-## Usage
+## How it gets deployed
+
+CI, via `.github/workflows/terraform.yml`:
+
+- **Pull requests** touching `infra/` get a `terraform plan` posted as a comment
+  (replaced in place on each push, not appended). Read-only: the plan role
+  cannot write to AWS at all.
+- **Merges to `main`** run `terraform apply`. Merging is what changes AWS.
+
+So the normal workflow is to open a PR and read the plan comment. Nothing is
+applied until it merges.
+
+### Running it locally
+
+Still supported, and needed for anything CI cannot do (bootstrapping, imports,
+inspecting state):
 
 ```bash
 cd infra
@@ -21,8 +36,55 @@ terraform plan      # always read this before applying
 terraform apply
 ```
 
-`terraform plan` is safe to run any time and is the quickest way to see whether
-anything has drifted.
+Local applies use your own AWS credentials, which are broader than the CI role.
+Prefer letting CI apply, so that what ran is recorded against a merge commit.
+
+### Destructive plans are blocked
+
+Apply refuses any plan that destroys or replaces a resource. To go through with
+one, dispatch the workflow manually with `allow_destroy: true`.
+
+Everything here is either irreplaceable (the backup bucket) or in the path of a
+live deploy (the roles), so an unattended destroy-on-merge is not a failure mode
+worth having. The backup bucket additionally carries `prevent_destroy`, which
+stops such a plan from being generated in the first place — deleting it means
+removing that line in its own reviewed commit.
+
+Note that "replace" counts as destructive. Renaming a resource, or changing an
+attribute that forces replacement, will trip this guard. That is intended: on a
+bucket, replacement means the data goes away.
+
+### The CI roles, and what they can do
+
+| Role | Secret | Trust | Can |
+| --- | --- | --- | --- |
+| `GitHub-Actions-RunApp-tf-plan` | `AWS_TF_PLAN_ROLE_ARN` | pull requests + `main` | read only |
+| `GitHub-Actions-RunApp-tf-apply` | `AWS_TF_APPLY_ROLE_ARN` | `main` only | read/write, scoped |
+
+Neither role can read the *contents* of any S3 object except the state file:
+the read policy grants bucket-level actions against bucket ARNs, never
+`bucket/*`. A CI role cannot download a backup tarball.
+
+The apply role's writes are confined to buckets named `run-app-*` and roles
+named `GitHub-Actions-RunApp-*`, with three explicit Denys: it cannot modify
+either CI role (including itself), cannot attach `AdministratorAccess`,
+`IAMFullAccess` or `PowerUserAccess` to anything, and cannot delete the state
+bucket.
+
+**Be honest about the residual risk.** A role that can create IAM roles and
+attach policies is close to an administrative credential, and those Denys close
+the obvious escalation paths rather than proving containment. It could still
+mint a new `GitHub-Actions-RunApp-*` role with a broad inline policy. Accepting
+that is the price of applying from CI; the alternative is plan-only in CI with
+apply staying manual. If the account ever holds anything materially more
+sensitive than it does today, revisit this with a permissions boundary.
+
+### Bootstrapping
+
+Both CI roles are declared in `terraform_roles.tf` but had to exist before CI
+could assume them, so they were applied once from a workstation. Same
+chicken-and-egg as the state bucket, one level up. Nothing special is needed to
+maintain them now.
 
 ## What is managed
 
@@ -31,6 +93,8 @@ anything has drifted.
 | S3 bucket | `run-app-db-backups` | Daily database dumps from `db-backup.yml`. Private, versioned, SSE. |
 | IAM role | `GitHub-Actions-RunApp-backup` | Assumed via OIDC by `db-backup.yml`. |
 | IAM inline policy | `GitHubAction-RunApp-Backup` | Put/Get/Delete on the bucket's objects, List on the bucket. |
+| IAM role | `GitHub-Actions-RunApp-tf-plan` | Read-only role for `terraform plan` in CI. |
+| IAM role | `GitHub-Actions-RunApp-tf-apply` | Scoped read/write role for `terraform apply` on `main`. |
 
 Two deliberate non-decisions worth knowing before you change them:
 
