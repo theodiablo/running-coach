@@ -60,6 +60,13 @@ rules, not a changelog; delete anything stale.
   `src/constants.ts`). Every state change is mirrored to `db` in the same
   handler that calls `setState`. Writes debounce ~600ms into a single upsert
   and flush on page hide/unload.
+- **A failed load must never become a write.** The upsert replaces the whole
+  `data` blob, so an unpopulated cache would erase the row — one offline cold
+  start once wiped a real user's runs and plan. `initStore` resolves
+  `false` on a failed read and the store stays read-only (`isStoreLoaded()`)
+  until a load succeeds; `App.tsx` renders `StoreLoadError` (retry) rather than
+  falling through to the app, which would read as a new account and trigger
+  onboarding. Never "recover" from a read failure with an empty default.
 - **Supabase config:** URL + anon key in `src/config.ts`.
   `VITE_SUPABASE_URL` is required at build time; workflows construct it from
   repo variable `SUPABASE_PROJECT_REF`. Don't hardcode project refs or
@@ -258,6 +265,7 @@ prompt/tool-description changes.
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
+- `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
 - `docs/monetization.md` — monetization direction, the premium seam, payments path.

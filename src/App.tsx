@@ -8,11 +8,12 @@ import { isNative, isIos } from "./native";
 import { POLAR_DEEP_LINK, stashPolarReturn } from "./polarPreinit";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
-import { initStore, clearStore } from "./db";
+import { initStore, clearStore, flushNow } from "./db";
 import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
+import { StoreLoadError } from "./components/StoreLoadError";
 import RunningCoach from "./RunningCoach";
 import LoginScreen from "./LoginScreen";
 
@@ -43,6 +44,16 @@ function Splash() {
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = still resolving
   const [storeReady, setStoreReady] = useState(false);
+  // The user id whose app_state row could not be read, or null. Distinct from
+  // "not ready yet": the store refuses to write until a load succeeds (db.ts),
+  // so rendering the app here would show an empty account the user cannot save
+  // out of. Offer a retry instead.
+  //
+  // Held WITH the user id (same pattern as `premium` above) so sign-out and a
+  // user switch invalidate it during render rather than from an effect.
+  // `storeAttempt` re-runs the load effect.
+  const [storeFailedUid, setStoreFailedUid] = useState<string | null>(null);
+  const [storeAttempt, setStoreAttempt] = useState(0);
   // Premium entitlement (profiles.premium_until). Server truth, read for UI
   // only — every premium feature is enforced in its edge function. Free until
   // the fetch lands, and on any failure.
@@ -221,11 +232,17 @@ export default function App() {
       // Tie telemetry to the Supabase user id (no-op without consent/provider).
       identifyUser(session.user.id);
       setStoreReady(false);
-      initStore(session.user.id).then(() => {
-        if (!cancelled) {
-          loadedUidRef.current = session.user.id;
-          setStoreReady(true);
+      initStore(session.user.id).then((ok) => {
+        if (cancelled) return;
+        if (!ok) {
+          // Leave loadedUidRef unset so a retry re-runs this effect rather than
+          // short-circuiting on the "already loaded" guard.
+          setStoreFailedUid(session.user.id);
+          return;
         }
+        loadedUidRef.current = session.user.id;
+        setStoreFailedUid(null);
+        setStoreReady(true);
       });
       // Entitlement rides alongside the store load but is deliberately NOT
       // awaited before storeReady: a slow or failed read must never hold up the
@@ -247,7 +264,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, storeAttempt]);
 
   // Re-read the entitlement on demand. The load above runs once per sign-in, so
   // without this a user who was offline at cold start (or who was granted
@@ -266,6 +283,14 @@ export default function App() {
   }, [uid]);
   // Derived during render: only the entitlement read for THIS user counts.
   const premiumUntil = premium && premium.uid === uid ? premium.until : null;
+
+  // Persist anything still in the debounce buffer BEFORE tearing the session
+  // down. clearStore() drops the pending timer, and once signOut() lands the
+  // JWT is gone and the write would fail RLS, so the last ~600ms of edits
+  // (ticking a session, editing a run) would silently never reach the row.
+  const signOutFlushed = useCallback(() => {
+    flushNow().finally(() => { supabase.auth.signOut(); });
+  }, []);
 
   // Hard version gate blocks everything, even the login screen.
   if (updateState === "must-update") return <UpdateRequired />;
@@ -301,11 +326,21 @@ export default function App() {
       </>
     );
   }
+  // The load failed. Never fall through to the app: an empty store reads as a
+  // brand-new account (onboarding), and writing from it would replace the row.
+  if (storeFailedUid === session.user.id) {
+    return (
+      <StoreLoadError
+        onRetry={() => { setStoreFailedUid(null); setStoreAttempt(n => n + 1); }}
+        onSignOut={signOutFlushed}
+      />
+    );
+  }
   if (!storeReady) return <Splash />;
   return (
     <>
       {updateState === "update-available" && <UpdateBanner />}
-      <RunningCoach onSignOut={() => supabase.auth.signOut()}
+      <RunningCoach onSignOut={signOutFlushed}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>

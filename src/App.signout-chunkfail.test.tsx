@@ -34,7 +34,7 @@ vi.mock("./supabase", () => ({
 vi.mock("./native", () => ({ isNative: false, isIos: false, isAndroid: false, platform: "web" }));
 
 vi.mock("./db", () => ({
-  initStore: vi.fn(async () => {}),
+  initStore: vi.fn(async () => true),
   clearStore: vi.fn(),
   db: { get: vi.fn(async () => null), set: vi.fn() },
   currentUserId: () => "u1",
