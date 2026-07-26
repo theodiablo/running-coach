@@ -45,6 +45,12 @@
     "sent": "Crash report sent. Thank you.",
     "reload": "Reload"
   },
+  "storeError": {
+    "title": "Couldn't load your data",
+    "body": "We couldn't reach your training data just now, so the app is paused to keep it safe. Check your connection and try again. Nothing has been changed or lost.",
+    "retry": "Try again",
+    "signOut": "Sign out"
+  },
   "update": {
     "requiredTitle": "Update required",
     "requiredBody": "This version of Running Coach is no longer supported. Please update to the latest version to keep using the app.",

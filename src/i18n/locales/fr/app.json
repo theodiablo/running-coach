@@ -45,6 +45,12 @@
     "sent": "Rapport de plantage envoyé. Merci.",
     "reload": "Recharger"
   },
+  "storeError": {
+    "title": "Impossible de charger tes données",
+    "body": "Nous n'avons pas pu récupérer tes données d'entraînement, donc l'app est en pause pour les préserver. Vérifie ta connexion et réessaie. Rien n'a été modifié ni perdu.",
+    "retry": "Réessayer",
+    "signOut": "Se déconnecter"
+  },
   "update": {
     "requiredTitle": "Mise à jour requise",
     "requiredBody": "Cette version de Running Coach n'est plus prise en charge. Mets-la à jour vers la dernière version pour continuer à utiliser l'app.",
