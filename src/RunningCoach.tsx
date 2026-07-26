@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { isNative } from "./native";
 import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
+import type { User } from "@supabase/supabase-js";
 import { dismissTop } from "./utils/backDismiss";
 import { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
@@ -93,8 +94,11 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null, onRefreshPremium = async () => null }: {
+export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null }: {
   onSignOut?: () => void;
+  // The auth user, owned by App — refreshed via onAuthStateChange (USER_UPDATED
+  // after an email/password change), so Settings -> Account stays current.
+  user?: User;
   // Entitlement, owned by App (the auth owner) — see src/premium.ts.
   // onRefreshPremium re-reads it and RESOLVES with the fresh value, so a caller
   // can act on this read rather than on pre-refresh state.
@@ -120,6 +124,7 @@ export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null
   const [celebrate,   setCelebrate]   = useState(false);
   const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { wNum?: number; sId?: string }) | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
+  const [logImportOpen, setLogImportOpen] = useState(false);
   const [showBackup,  setShowBackup]  = useState(false);
   const [showRestore, setShowRestore] = useState(false);
   const [showSettings,setShowSettings]= useState(false);
@@ -710,7 +715,11 @@ export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null
     </div>
   );
 
-  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string }) => { setLogPrefill(prefill || null); setTab("log"); if (prefill) setPrefillVer(v => v + 1); };
+  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); if (prefill) setPrefillVer(v => v + 1); };
+  // Land on the Log tab with the file-import panel open (Settings ->
+  // Integrations vendor guides). Bumps prefillVer so LogView remounts and reads
+  // openImport as initial state even when already on the Log tab.
+  const goImport = () => { setLogPrefill(null); setLogImportOpen(true); setTab("log"); setPrefillVer(v => v + 1); };
 
   // Scan every registered import integration (src/imports/registry.ts — today
   // effectively Health Connect) for finished runs and offer to import them. Auto
@@ -839,11 +848,12 @@ export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null
       {showRestore && <RestoreModal onRestore={handleRestore}     onClose={() => setShowRestore(false)}/>}
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
-        scanImportsNow={shared.scanImportsNow}
+        scanImportsNow={shared.scanImportsNow} user={user}
         onBackup={()  => { setShowSettings(false); exportData(); }}
         onRestore={() => { setShowSettings(false); setShowRestore(true); }}
         onSignOut={onSignOut}
         onOpenCoach={plan ? () => { setShowSettings(false); openCoach(null, "settings"); } : undefined}
+        onImportFile={() => { setShowSettings(false); goImport(); }}
         onDeleteAccount={() => { setShowSettings(false); setShowDeleteAccount(true); }}
         onClose={()   => setShowSettings(false)}/>}
       {showDeleteAccount && <DeleteAccountModal
@@ -899,7 +909,7 @@ export default function RunningCoach({ onSignOut = () => {}, premiumUntil = null
       <div key={tab} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}/>}
-        {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill}
+        {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
           onSaved={() => { if (logPrefill?.wNum != null && logPrefill?.sId) toggleSess(logPrefill.wNum, logPrefill.sId); }}
           onDone={() => { setLogPrefill(null); setTab("dash"); }}/>}
         {tab === "races" && <RacesView {...shared}/>}

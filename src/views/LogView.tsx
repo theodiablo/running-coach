@@ -40,9 +40,13 @@ type LogViewProps = {
   openTracker?: () => void;
   // Existing log, used to dedupe file imports (comes in via the shared bag).
   runs?: Run[];
+  // Land with the file-import panel already open (Settings -> Integrations
+  // vendor guides jump here). Read once as initial state — RunningCoach
+  // remounts LogView (key) on every goLog/goImport navigation.
+  openImport?: boolean;
 };
 
-export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs}: LogViewProps) {
+export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs, openImport}: LogViewProps) {
   const { t } = useTranslation();
   // A GPS-tracked run prefills its real measured duration; a plan session
   // prefills an estimate from km × prescribed pace.
@@ -62,7 +66,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs}: 
   };
   const [f,      setF]    = useState<LogForm>(INIT);
   const [busy,   setBusy] = useState(false);
-  const [showImp,setImp]  = useState(false);
+  const [showImp,setImp]  = useState(!!openImport);
   const [csvMsg, setCsvMsg] = useState("");
   const [csvOk,  setCsvOk]  = useState(false);
   const fRef = useRef<HTMLInputElement | null>(null);
