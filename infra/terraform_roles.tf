@@ -152,6 +152,10 @@ data "aws_iam_policy_document" "tf_read" {
       "iam:ListOpenIDConnectProviders",
       "iam:ListRolePolicies",
       "iam:ListRoleTags",
+      # For infra/permissions-check.sh: proves the write policy without
+      # performing any write, so a policy bug is caught before it depends on a
+      # merge to main to surface.
+      "iam:SimulatePrincipalPolicy",
     ]
     resources = ["*"]
   }
