@@ -112,7 +112,8 @@
     "runSummaryClimb": "({{km}} km in {{dur}}, {{climb}} m climb)",
     "bestEffortExplainer": "<0>Best-effort</0> projects your strongest run {{run}} to each distance with Riegel's formula.",
     "hrExplainer": "<0>HR-modelled</0> fits your pace against heart rate across {{n}} runs and extrapolates to threshold effort (~{{thr}} bpm) — so easy runs handled well count too, not just your fastest day.",
-    "hrLocked": "Add your max HR in Settings and log more runs across easy + hard efforts to unlock the HR-based estimate.",
+    "hrExplainerCapped": "<0>HR-modelled</0> fits your pace against heart rate across {{n}} runs and reads it off at ~{{thr}} bpm — as far past your hardest logged effort as the data will carry. Log a harder session to project all the way to threshold (~{{full}} bpm).",
+    "hrLocked": "Add your max HR in Settings and log more runs across easy + hard efforts to unlock the HR-based estimate. It stays hidden while your pace at a given heart rate is too scattered to project from.",
     "gradeNoteClimb": "Runs are grade-adjusted for elevation gain. Times are for a flat course; the race-day row includes its {{m}} m climb.",
     "gradeNoteFlat": "Runs are grade-adjusted for elevation gain. Times are for a flat course, except the race-day row once you set its climb in the Plan settings.",
     "info": {
@@ -126,8 +127,8 @@
       "bestTitle": "Best-effort estimate",
       "bestBody": "Picks your single <0>strongest run</0> (≥ 3 km with a time) and projects it to every distance. It isn't simply your fastest pace — a quick 1 km blip shouldn't outrank a strong 12 km — so each run is first normalised to its Riegel-equivalent 10 km time, and the best one wins.",
       "hrTitle": "HR-modelled estimate",
-      "hrP1": "Fits a line through <0>pace vs. heart rate</0> across all your runs that recorded HR, then reads off the pace you could hold at threshold effort (~88–90% of max HR, roughly a one-hour race) and projects that with Riegel.",
-      "hrP2": "This rewards efficiency: a fast pace held at a low HR pulls the estimate quicker, so your easy runs count too — not just your single best day. It only appears once the data supports it (≥ 8 HR runs, a real spread of efforts, and a sensible fit).",
+      "hrP1": "Fits a line through <0>pace vs. heart rate</0> across your runs that recorded HR, then reads off the pace you could hold at threshold effort (~88–90% of max HR, roughly a one-hour race) and projects that with Riegel. Recovery-zone sessions sit out — they're walk-paced, so a couple of them would tilt the whole line.",
+      "hrP2": "This rewards efficiency: a fast pace held at a low HR pulls the estimate quicker, so your easy runs count too — not just your single best day. Reading a line off past the end of your data is the risky part, so the estimate never reaches more than 8 bpm beyond your hardest logged effort, and it only appears once ≥ 8 HR runs, a real spread of efforts, and a tight enough fit back it up.",
       "elevTitle": "Elevation adjustment",
       "elevBody": "Hills make a run slower than its flat twin, so each metre climbed is credited as ~8 extra flat metres before the maths runs. This stops hilly runs from looking unfit. Listed times are for a flat course; the <0>race-day row</0> adds back your course's climb once you set it in the Plan.",
       "footer": "These are projections from past efforts, not promises — treat them as a fitness gauge that sharpens as you log more runs."

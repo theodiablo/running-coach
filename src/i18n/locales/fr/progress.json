@@ -112,7 +112,8 @@
     "runSummaryClimb": "({{km}} km en {{dur}}, {{climb}} m de dénivelé)",
     "bestEffortExplainer": "<0>Le meilleur effort</0> projette ta sortie la plus solide {{run}} sur chaque distance avec la formule de Riegel.",
     "hrExplainer": "<0>La modélisation FC</0> établit la relation entre l'allure et la fréquence cardiaque sur {{n}} sorties, puis extrapole à l'effort au seuil (~{{thr}} bpm). Les footings faciles bien maîtrisés comptent donc aussi, pas seulement ton meilleur chrono.",
-    "hrLocked": "Ajoute ta FC max dans les Paramètres et enregistre davantage de sorties faciles et intenses pour débloquer l'estimation basée sur la FC.",
+    "hrExplainerCapped": "<0>La modélisation FC</0> établit la relation entre l'allure et la fréquence cardiaque sur {{n}} sorties, puis la lit à ~{{thr}} bpm, soit le maximum que tes données autorisent au-delà de ton effort le plus intense. Enregistre une séance plus dure pour projeter jusqu'au seuil (~{{full}} bpm).",
+    "hrLocked": "Ajoute ta FC max dans les Paramètres et enregistre davantage de sorties faciles et intenses pour débloquer l'estimation basée sur la FC. Elle reste masquée tant que ton allure à une FC donnée est trop dispersée pour en tirer une projection.",
     "gradeNoteClimb": "Les sorties sont ajustées selon le dénivelé positif. Les temps valent pour un parcours plat ; la ligne du jour de course inclut ses {{m}} m de dénivelé.",
     "gradeNoteFlat": "Les sorties sont ajustées selon le dénivelé positif. Les temps valent pour un parcours plat, sauf la ligne du jour de course une fois son dénivelé renseigné dans les paramètres du plan.",
     "info": {
@@ -126,8 +127,8 @@
       "bestTitle": "Estimation au meilleur effort",
       "bestBody": "Sélectionne ta <0>meilleure sortie</0> d'au moins 3 km avec un chrono et la projette sur chaque distance. Il ne s'agit pas simplement de l'allure la plus rapide : chaque sortie est d'abord convertie en chrono équivalent sur 10 km selon Riegel.",
       "hrTitle": "Estimation modélisée sur la FC",
-      "hrP1": "Établit la relation entre <0>l'allure et la fréquence cardiaque</0> sur toutes tes sorties avec FC. La méthode en déduit l'allure que tu pourrais tenir au seuil (~88–90 % de la FC max, soit environ une heure de course) et la projette avec Riegel.",
-      "hrP2": "Cette méthode récompense l'efficacité : une allure rapide tenue à une FC basse améliore le chrono estimé, donc tes footings faciles comptent aussi. Elle n'apparaît que lorsque les données le permettent (≥ 8 sorties avec FC, une vraie diversité d'efforts et un ajustement cohérent).",
+      "hrP1": "Établit la relation entre <0>l'allure et la fréquence cardiaque</0> sur tes sorties avec FC. La méthode en déduit l'allure que tu pourrais tenir au seuil (~88–90 % de la FC max, soit environ une heure de course) et la projette avec Riegel. Les sorties en zone de récupération sont écartées : allure de marche, elles feraient basculer toute la droite.",
+      "hrP2": "Cette méthode récompense l'efficacité : une allure rapide tenue à une FC basse améliore le chrono estimé, donc tes footings faciles comptent aussi. Prolonger la droite au-delà de tes données est la partie risquée : l'estimation ne dépasse donc jamais de plus de 8 bpm ton effort le plus intense, et elle n'apparaît que lorsque les données le permettent (≥ 8 sorties avec FC, une vraie diversité d'efforts et un ajustement suffisamment net).",
       "elevTitle": "Ajustement du dénivelé",
       "elevBody": "Les côtes ralentissent une sortie par rapport au plat. Avant le calcul, chaque mètre grimpé équivaut approximativement à 8 mètres supplémentaires sur le plat pour que les parcours vallonnés ne donnent pas une image faussée de ta forme. Les temps indiqués valent pour un parcours plat ; la <0>ligne du jour de course</0> rajoute le dénivelé une fois renseigné dans le plan.",
       "footer": "Ces projections reposent sur tes efforts passés, mais ne sont pas des promesses. Utilise-les comme un indicateur de forme qui s'affine à mesure que tu enregistres des sorties."
