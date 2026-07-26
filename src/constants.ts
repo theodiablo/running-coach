@@ -104,6 +104,12 @@ export const PRIVACY_URL = WEB_APP_ORIGIN + "/privacy.html";
 // Linked from the in-app onboarding disclaimer so the full version is reachable.
 export const DISCLAIMER_URL = WEB_APP_ORIGIN + "/disclaimer.html";
 
+// Mirrors `minimum_password_length` in supabase/config.toml. Sign-up and the
+// Settings -> Account password form both validate against it so a rejection
+// happens in the form rather than after a round trip; the server stays the
+// authority (it also enforces password_requirements: lower + upper + digits).
+export const PASSWORD_MIN_LENGTH = 12;
+
 // Version of the medical/liability disclaimer shown in onboarding. Stored
 // alongside the user's acknowledgment (`settings.healthAck`) so a future change
 // to the disclaimer copy can detect a stale acknowledgment and re-prompt. Bump

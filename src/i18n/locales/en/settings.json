@@ -4,6 +4,20 @@
     "label": "Language"
   },
   "newBeta": "New beta",
+  "hub": {
+    "account": {
+      "title": "Account",
+      "desc": "Your name, language, sign-in details and your data."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "desc": "Watches, sensors and apps that add your runs automatically."
+    },
+    "training": {
+      "title": "Training profile",
+      "desc": "Heart rate and what your coach remembers about you."
+    }
+  },
   "profile": {
     "title": "Profile",
     "name": "Your name"
@@ -50,7 +64,32 @@
     "submit": "Restore Data"
   },
   "account": {
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "signInTitle": "Sign-in details",
+    "emailLabel": "Email",
+    "emailChange": "Change",
+    "emailChangeAria": "Change email",
+    "emailCancelAria": "Cancel email change",
+    "emailNew": "New email address",
+    "emailSubmit": "Send confirmation links",
+    "emailDoubleConfirm": "For your security we email both your current and your new address. Open both links to finish the change.",
+    "emailSent": "Check both inboxes — we sent a confirmation link to your current and your new address.",
+    "emailSentToast": "Confirmation links sent.",
+    "emailPending": "Waiting for confirmation of {{email}}. Open the link in both inboxes to finish.",
+    "emailRateLimited": "Too many emails sent recently. Please try again in an hour.",
+    "emailError": "Couldn't update your email. Please try again.",
+    "passwordLabel": "Password",
+    "passwordChange": "Change",
+    "passwordChangeAria": "Change password",
+    "passwordCancelAria": "Cancel password change",
+    "passwordSet": "Set a password",
+    "passwordSetDesc": "You sign in with Google. Add a password to also sign in with your email.",
+    "passwordNew": "New password",
+    "passwordConfirm": "Confirm new password",
+    "passwordRules": "At least 12 characters, with an uppercase letter, a lowercase letter and a digit.",
+    "passwordMismatch": "The two passwords don't match.",
+    "passwordUpdated": "Password updated.",
+    "passwordError": "Couldn't update your password. Please try again."
   },
   "deleteAccount": {
     "title": "Delete account",
@@ -124,6 +163,28 @@
     "bullet3": "Nothing is sold or shared with third parties.",
     "policy": "See our <link>Privacy Policy</link>. When you tap Allow, Android will ask to use nearby Bluetooth devices.",
     "accept": "Allow & continue"
+  },
+  "guides": {
+    "title": "Strava, Zepp & other apps",
+    "subtitle": "No direct connection for these, but your runs can still get here.",
+    "pastRuns": "Past runs, one by one",
+    "newRuns": "New runs, automatically",
+    "importCta": "Import a file",
+    "recordNote": "You can also just record with Running Coach when you take your phone: no import needed.",
+    "strava": {
+      "title": "Strava",
+      "history": "For one run: open the activity on strava.com, then ••• → Export Original (the .fit file, with route and heart rate) or Export GPX. For everything at once: Settings → My Account → Download or Delete Your Account → Request Archive.",
+      "syncAndroid": "In the Strava app: Settings → Applications, Services and Devices → Health Connect, and allow it to write workouts. Runs then arrive through the Health Connect connection above. If your watch app (Garmin, Zepp, Polar…) writes to Health Connect too, connecting it directly is usually faster.",
+      "syncIos": "Strava doesn't write to Apple Health, so use your watch's own app instead (Garmin Connect, Polar Flow, Zepp…): allow it to write workouts to Apple Health and connect Apple Health above.",
+      "syncWeb": "Automatic sync needs the mobile app, using Health Connect on Android or Apple Health on iPhone. On the web, import a file instead."
+    },
+    "zepp": {
+      "title": "Zepp / Amazfit",
+      "history": "In the Zepp app: Profile → Privacy Center → Export Personal Data for a CSV of your runs. For a single run with its route and heart rate, a .fit file exported from Strava (••• → Export Original) is more detailed.",
+      "syncAndroid": "In the Zepp app: Profile → 3rd-party access → Health Connect, and allow it to write workouts. Runs then arrive through the Health Connect connection above, usually a few minutes after your watch syncs. Note that Zepp doesn't pass on elevation gain, so climbing stays empty on imported runs.",
+      "syncIos": "In the Zepp app: Profile → 3rd-party access → Apple Health, and allow it to write workouts. Runs then arrive through the Apple Health connection above, usually a few minutes after your watch syncs. Note that Zepp doesn't pass on elevation gain, so climbing stays empty on imported runs.",
+      "syncWeb": "Automatic sync needs the mobile app, using Health Connect on Android or Apple Health on iPhone. On the web, import a file instead."
+    }
   },
   "integrations": {
     "scan30": "Scan last 30 days",
