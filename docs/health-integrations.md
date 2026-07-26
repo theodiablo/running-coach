@@ -26,7 +26,13 @@ carries a `live` flag:
   `stats.{hr,hrAvg,hrMax}`, and persisted in the `LIVE_RUN_KEY` recovery
   buffer. Parsing of the `0x2A37` characteristic is the pure, unit-tested
   `parseHrMeasurement` in `src/utils/hr.ts` (takes the plugin/Web-Bluetooth
-  DataView).
+  DataView). The watch opens **while the tracker is idle** — the HR analogue of
+  the position preview, so the strap's bpm shows before Start and the run begins
+  on an already-connected sensor — and is deliberately not torn down on the
+  idle → tracking transition (`start`'s `startHrWatch` is then a no-op);
+  `stop`/`reset`/unmount own the teardown. Pre-Start samples are display-only:
+  they feed `stats.hr` via the `hrLive` state, never `hrSamples`, so `hrAvg`/
+  `hrMax` stay strictly what the run recorded.
 - **Post-run** (`src/hr/healthconnect.ts`, `healthConnectSource`): reads HR
   from Android Health Connect after the run via
   **@pianissimoproject/capacitor-health-connect**, dynamic-`import()`ed lazily

@@ -32,9 +32,29 @@ const h = vi.hoisted(() => {
   return { watchers, geoSource };
 });
 
+// Same treatment for the live heart-rate seam: a fake Bluetooth-style source
+// whose watch handle we drive by hand. `enabled`/`device` are flipped per test
+// (default off, so every GPS test above behaves as if HR were off).
+const hr = vi.hoisted(() => {
+  type HrSample = { bpm: number; t: number };
+  type HrWatch = { onSample: (s: HrSample) => void; stopped: boolean };
+  const watches: HrWatch[] = [];
+  const source = {
+    id: "bluetooth",
+    live: true,
+    watch: vi.fn((onSample: (s: HrSample) => void) => {
+      const handle = { onSample, stopped: false };
+      watches.push(handle);
+      return handle;
+    }),
+    clearWatch: vi.fn((handle: HrWatch | null | undefined) => { if (handle) handle.stopped = true; }),
+  };
+  return { watches, source, enabled: false, device: null as { id: string } | null };
+});
+
 vi.mock("../geo/source", () => ({ geoSource: h.geoSource }));
-vi.mock("../hr/source", () => ({ getHrSource: () => null }));
-vi.mock("../hr/device", () => ({ getPairedDevice: () => null }));
+vi.mock("../hr/source", () => ({ getHrSource: () => (hr.enabled ? hr.source : null) }));
+vi.mock("../hr/device", () => ({ getPairedDevice: () => hr.device }));
 vi.mock("../native", () => ({ isNative: false }));
 
 import { useRunTracker } from "./useRunTracker";
@@ -52,6 +72,9 @@ const START = 1_700_000_000_000; // fixed wall clock for deterministic timing
 beforeEach(() => {
   localStorage.clear();
   h.watchers.length = 0;
+  hr.watches.length = 0;
+  hr.enabled = false;
+  hr.device = null;
   h.geoSource.isAvailable.mockReturnValue(true);
   h.geoSource.requestPermissions.mockResolvedValue(true);
   vi.useFakeTimers();
@@ -279,5 +302,65 @@ describe("useRunTracker — permissions & availability", () => {
     act(() => result.current.start());
     expect(result.current.state).toBe("idle");
     expect(result.current.error).toBeTruthy();
+  });
+});
+
+describe("useRunTracker — live heart rate", () => {
+  const renderWithStrap = () => {
+    hr.enabled = true;
+    hr.device = { id: "strap-1" };
+    return renderHook(() => useRunTracker({ hrMethod: "bluetooth" }));
+  };
+
+  it("connects the sensor while idle and shows the reading before Start", () => {
+    const { result } = renderWithStrap();
+    expect(result.current.state).toBe("idle");
+    expect(hr.watches.length).toBe(1);
+
+    act(() => hr.watches[0].onSample({ bpm: 128, t: START }));
+    expect(result.current.stats.hr).toBe(128);
+    // Display only — a pre-run beat is never part of the run.
+    expect(result.current.hrSamples).toEqual([]);
+    expect(result.current.stats.hrAvg).toBeNull();
+  });
+
+  it("carries the idle connection into the run rather than reconnecting", () => {
+    const { result } = renderWithStrap();
+    act(() => hr.watches[0].onSample({ bpm: 128, t: START }));
+
+    act(() => result.current.start());
+    expect(hr.watches.length).toBe(1);
+    expect(hr.watches[0].stopped).toBe(false);
+
+    act(() => hr.watches[0].onSample({ bpm: 150, t: START + 1000 }));
+    expect(result.current.hrSamples).toEqual([{ bpm: 150, t: START + 1000 }]);
+    expect(result.current.stats.hrAvg).toBe(150);
+    expect(result.current.stats.hr).toBe(150);
+  });
+
+  it("stops the sensor on stop, and reconnects a fresh preview after reset", () => {
+    const { result } = renderWithStrap();
+    act(() => result.current.start());
+    act(() => hr.watches[0].onSample({ bpm: 150, t: START + 1000 }));
+
+    act(() => result.current.stop());
+    expect(hr.watches[0].stopped).toBe(true);
+
+    act(() => result.current.reset());
+    expect(result.current.state).toBe("idle");
+    expect(result.current.stats.hr).toBeNull();
+    expect(hr.watches.length).toBe(2);
+  });
+
+  it("does not connect when nothing is paired, or when HR is off", () => {
+    hr.enabled = true;
+    hr.device = null;
+    renderHook(() => useRunTracker({ hrMethod: "bluetooth" }));
+    expect(hr.watches.length).toBe(0);
+
+    hr.enabled = false;
+    hr.device = { id: "strap-1" };
+    renderHook(() => useRunTracker({ hrMethod: "off" }));
+    expect(hr.watches.length).toBe(0);
   });
 });

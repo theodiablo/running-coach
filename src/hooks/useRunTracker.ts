@@ -102,6 +102,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   const [state, setState] = useState<TrackerState>("idle");
   const [points, setPoints] = useState<TrackPointOrGap[]>([]);
   const [hrSamples, setHrSamples] = useState<BleHrSample[]>([]); // { bpm, t } from a live HR sensor
+  const [hrLast, setHrLast] = useState<BleHrSample | null>(null); // latest sample off the sensor, incl. the idle preview before Start
   const [error, setError] = useState<string | null>(null);
   const [movingSec, setMovingSec] = useState(0);
   const [location, setLocation] = useState<LocationPreview | null>(null); // preview position shown before recording starts
@@ -212,12 +213,14 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
 
   // ── live heart-rate callback ─────────────────────────────────────────────
   // Append a sample only while actively tracking (mirrors onPos ignoring fixes
-  // when paused) so a paused breather doesn't drag the average down. The state
-  // update always happens (so the live BPM tile is current), but persisting the
+  // when paused) so a paused breather doesn't drag the average down — the live
+  // BPM readout above is fed by `hrLast` in every state instead, including the
+  // idle preview. The state update always happens, but persisting the
   // whole recovery buffer is throttled to MIN_HR_PERSIST_MS — a strap notifies
   // at sensor rate (~1/s), and GPS fixes already keep the buffer fresh every
   // ~2s via onPos's own persist() while a run is actually moving.
   const onHrSample = useCallback((sample: BleHrSample) => {
+    setHrLast(sample); // display-only, so it also lands during the idle preview
     if (stateRef.current !== "tracking") return;
     hrSamplesRef.current = [...hrSamplesRef.current, sample];
     setHrSamples(hrSamplesRef.current);
@@ -360,6 +363,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
     setPoints([]);
     hrSamplesRef.current = [];
     setHrSamples([]);
+    setHrLast(null);
     lastHrPersistRef.current = 0;
     accRef.current = 0;
     startRef.current = null;
@@ -477,6 +481,20 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
     return () => trackerGeoSource.clearWatch(handle);
   }, [state, permGranted]);
 
+  // Connect a LIVE heart-rate source (Bluetooth strap) as soon as the tracker is
+  // idle — the same "see it before you commit" contract as the position preview
+  // above: the runner can check the strap is picking them up while GPS settles,
+  // and the run then starts on an already-connected sensor instead of waiting
+  // out the connect/subscribe round-trip. No-op for "off"/web/post-run sources
+  // and when nothing is paired (startHrWatch's own guards). Deliberately NOT
+  // torn down on the idle → tracking transition: the watch carries straight into
+  // the run (start's startHrWatch is then a no-op), and stop/reset/unmount own
+  // the teardown. Samples arriving before Start are display-only — onHrSample
+  // records into hrSamples only while tracking.
+  useEffect(() => {
+    if (state === "idle") startHrWatch();
+  }, [state, startHrWatch]);
+
   // ── derived stats ──────────────────────────────────────────────────────────
   // Split from the HR summary on purpose: a live HR sensor notifies at ~1 Hz,
   // far more often than GPS fixes land, so keying one memo on both `points` and
@@ -502,14 +520,19 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
     return { km, elevation, movingSec, avgPace, curPace, n: points.filter(Boolean).length };
   }, [points, movingSec]);
 
-  // `hrAt` (epoch ms of the latest sample) rides along for the lock-screen
-  // notification, whose native renderer drops an HR reading it can no longer
-  // trust. Kept out of hrSummary: that shape is spread into saved run fields.
-  const stats = useMemo(() => ({
-    ...gpsStats,
-    ...hrSummary(hrSamples),
-    hrAt: hrSamples.length ? hrSamples[hrSamples.length - 1].t : null,
-  }), [gpsStats, hrSamples]);
+  // `hr`/`hrAt` are the latest reading and its epoch ms, taken from the sensor
+  // stream (`hrLast`) rather than the recorded samples so they're live before
+  // Start and while paused — the two travel together, since the lock-screen
+  // notification's native renderer drops an HR reading it can no longer trust by
+  // its timestamp. `hrLast` falls back to the last recorded sample for a
+  // recovered run, whose samples predate this session's stream. hrAvg/hrMax stay
+  // strictly what was recorded, since they're what the run saves; hrAt is kept
+  // out of hrSummary because that shape is spread into saved run fields.
+  const stats = useMemo(() => {
+    const hr = hrSummary(hrSamples);
+    const latest = hrLast ?? (hrSamples.length ? hrSamples[hrSamples.length - 1] : null);
+    return { ...gpsStats, ...hr, hr: latest?.bpm ?? null, hrAt: latest?.t ?? null };
+  }, [gpsStats, hrSamples, hrLast]);
 
   // Lock-screen live stats (Android): mirror distance/pace/HR into the
   // foreground-service notification. The DURATION is deliberately not pushed —
