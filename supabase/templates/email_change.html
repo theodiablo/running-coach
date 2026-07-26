@@ -1,0 +1,39 @@
+<!--
+  Sent when a user changes their account email from Settings -> Account.
+
+  Because secure email change (double_confirm_changes) is on, GoTrue sends this
+  ONE template to BOTH addresses — the current one and the new one — with a
+  different single-use link in each. It cannot tell the template which recipient
+  it is rendering for, so the copy has to read correctly from either inbox.
+
+  Supabase's stock template does not: it is titled "Confirm your new email
+  address" and names only the new address, so the copy that lands in the CURRENT
+  inbox looks like a duplicate of the one in the new inbox — two identical mails,
+  no explanation of why there are two, and no hint that BOTH links must be
+  opened before anything changes. Hence this version: it states the change in
+  full (from -> to), says two mails were sent, and says the change only lands
+  after the second link.
+
+  Available variables: .Email (current), .NewEmail, .ConfirmationURL, .TokenHash,
+  .Token, .SiteURL, .RedirectTo.
+
+  Not auto-deployed: Supabase Auth templates are project config, not migrations.
+  Paste this into Dashboard -> Authentication -> Emails -> "Change Email Address"
+  when it changes (see docs/release.md).
+-->
+<h2>Confirm your email change</h2>
+
+<p>
+  You asked to change the email address on your Running Coach account from
+  <strong>{{ .Email }}</strong> to <strong>{{ .NewEmail }}</strong>.
+</p>
+
+<p><a href="{{ .ConfirmationURL }}">Confirm this change</a></p>
+
+<p>
+  For your security we sent this to both addresses, so you will find the same
+  email in each inbox. Your address changes only once <em>both</em> links have
+  been opened, so please open the other one too.
+</p>
+
+<p>If you didn't request this change, ignore this email and nothing will happen.</p>

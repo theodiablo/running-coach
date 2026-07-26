@@ -45,6 +45,21 @@ describe("ConnectionsCard (Android shell)", () => {
     });
   });
 
+  // Regression: the card used to stack two disclosures both labelled "How it
+  // works" — one for the row above, one for the card as a whole — which read as
+  // a duplicated section and left it unclear which one described the connection
+  // you were looking at. Every disclosure names its subject now.
+  it("labels each help disclosure by what it explains, never twice the same", async () => {
+    render(<ConnectionsCard settings={{} as SettingsState} saveSettings={() => {}} />);
+    await screen.findByRole("button", { name: "How Health Connect works" });
+    expect(screen.getByRole("button", { name: "About these connections" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "How it works" })).toBeNull();
+    const labels = screen.getAllByRole("button")
+      .map(b => b.textContent?.trim())
+      .filter((l): l is string => !!l && (l.startsWith("How ") || l.startsWith("About ")));
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it("hrMethod drives the HR sub-toggle; flipping it writes only hrMethod", async () => {
     const saved: SettingsState[] = [];
     render(<ConnectionsCard

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyAuthUrl } from "./authCallback";
+import { classifyAuthUrl, emailChangeOutcome } from "./authCallback";
 import { POLAR_DEEP_LINK } from "../polarPreinit";
 
 // The routing rules for native deep links. Order matters: Polar's ?code= is NOT
@@ -35,8 +35,71 @@ describe("classifyAuthUrl", () => {
     expect(classifyAuthUrl(url)).toEqual({ kind: "code", code: "pkce-code" });
   });
 
+  // The real redirect behind "I clicked the link and nothing happened": with
+  // secure email change, GoTrue answers the FIRST of the two confirmations with
+  // a bare ?message= — no code, no token, no session. Classified as `none` it
+  // was a silent no-op.
+  it("recognises the first-of-two email-change acceptance", () => {
+    const url = "solutions.camboulive.run://auth-callback?message=Confirmation+link+accepted.+Please+proceed+to+confirm+link+sent+to+the+other+email";
+    expect(classifyAuthUrl(url)).toEqual({
+      kind: "notice",
+      message: "Confirmation link accepted. Please proceed to confirm link sent to the other email",
+    });
+  });
+
+  it("prefers a code over a message when both are present", () => {
+    const url = "solutions.camboulive.run://auth-callback?code=pkce-code&message=Something";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "code", code: "pkce-code" });
+  });
+
+  // GoTrue's error redirect fills in the fragment as well as the query, and the
+  // implicit flow uses the fragment only.
+  it("reads callback params from the fragment too", () => {
+    const url = "solutions.camboulive.run://auth-callback#error=access_denied&error_description=Email+link+is+invalid+or+has+expired";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "error", message: "Email link is invalid or has expired" });
+    expect(classifyAuthUrl("solutions.camboulive.run://auth-callback#message=Accepted")).toEqual({ kind: "notice", message: "Accepted" });
+  });
+
   it("returns none for an unrelated or malformed url", () => {
     expect(classifyAuthUrl("solutions.camboulive.run://auth-callback")).toEqual({ kind: "none" });
     expect(classifyAuthUrl("not a url")).toEqual({ kind: "none" });
+  });
+});
+
+// What the user is told after opening an email-change link. The redirect can't
+// answer that (see emailChangeOutcome) — the re-read account does. Every branch
+// must say SOMETHING: staying mute is what made a working first confirmation
+// look like a dead link.
+describe("emailChangeOutcome", () => {
+  const half = { key: "app.toasts.emailChangeHalf", type: "ok" };
+  const failed = { key: "app.toasts.emailChangeFailed", type: "err" };
+
+  it("asks for the other inbox while the change is still outstanding", () => {
+    expect(emailChangeOutcome(null, { email: "old@x.com", new_email: "new@x.com" })).toEqual(half);
+    expect(emailChangeOutcome("new@x.com", { email: "old@x.com", new_email: "new@x.com" })).toEqual(half);
+  });
+
+  it("reports success once a pending change is gone", () => {
+    expect(emailChangeOutcome("new@x.com", { email: "new@x.com", new_email: null })).toEqual({
+      key: "app.toasts.emailChangeDone", type: "ok", vars: { email: "new@x.com" },
+    });
+  });
+
+  // The second link opened on another device fails to exchange locally (the PKCE
+  // verifier lives on the device that started the change) even though the change
+  // itself landed. GoTrue's complaint must not override the account state.
+  it("reports success even when the link came back as an error", () => {
+    expect(emailChangeOutcome("new@x.com", { email: "new@x.com" }, "invalid request").key)
+      .toBe("app.toasts.emailChangeDone");
+  });
+
+  it("reports a dead link only when nothing was pending either side of it", () => {
+    expect(emailChangeOutcome(null, { email: "old@x.com" }, "otp_expired")).toEqual(failed);
+    expect(emailChangeOutcome(null, { email: "old@x.com" })).toEqual(failed);
+  });
+
+  it("falls back to what GoTrue said when the account can't be re-read", () => {
+    expect(emailChangeOutcome("new@x.com", null)).toEqual(half);              // link accepted
+    expect(emailChangeOutcome("new@x.com", null, "otp_expired")).toEqual(failed); // link rejected
   });
 });

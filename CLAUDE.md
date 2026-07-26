@@ -88,9 +88,22 @@ rules, not a changelog; delete anything stale.
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
   email-change OTP (`?token_hash=&type=`, which needs `verifyOtp`, not the PKCE
-  exchange), then `?code=`. Add new callback shapes there, with a test, not as
-  another branch in `App.tsx`. `auth.users.email` is mirrored into
+  exchange), then `?code=`, then GoTrue's bare `?message=` notice. Params are
+  read from the query *and* the fragment. Add new callback shapes there, with a
+  test, not as another branch in `App.tsx`. **Every branch must end in visible
+  feedback**: a signed-in user never sees `LoginScreen`, so an auth failure
+  reported there is invisible — emit `AUTH_NOTICE_EVENT` (toasted by
+  `RunningCoach`) instead. `auth.users.email` is mirrored into
   `profiles.email` by a DB trigger — never write that column from the client.
+- **Email change is a two-link, server-truth flow** (`double_confirm_changes`):
+  the same mail goes to the current *and* the new address and nothing changes
+  until both links are opened. The redirect params can't tell you where the
+  change stands (first link = bare `?message=`; second = a `?code=` only the
+  originating device can exchange), so always re-read the user
+  (`refreshSession`) and let `user.new_email` decide what to say —
+  `settleEmailChange` in `App.tsx`. Supabase Auth email templates are project
+  config, not migrations: `supabase/templates/*.html` is the source of truth and
+  the hosted project's copy is synced by hand (`docs/release.md`).
 - **Multi-user:** open public signups — no single-user assumptions; per-user
   isolation via RLS on `app_state` and `profiles`.
 - **Plan building:** `buildPlan(raceDate, goalSec, planSessions, distanceKm,

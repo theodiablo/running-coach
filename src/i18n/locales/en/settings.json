@@ -72,10 +72,10 @@
     "emailCancelAria": "Cancel email change",
     "emailNew": "New email address",
     "emailSubmit": "Send confirmation links",
-    "emailDoubleConfirm": "For your security we email both your current and your new address. Open both links to finish the change.",
-    "emailSent": "Check both inboxes — we sent a confirmation link to your current and your new address.",
-    "emailSentToast": "Confirmation links sent.",
-    "emailPending": "Waiting for confirmation of {{email}}. Open the link in both inboxes to finish.",
+    "emailDoubleConfirm": "For your security we email both your current and your new address. The change only lands once both links are opened.",
+    "emailSent": "Two identical confirmation emails are on their way — one to your current address, one to the new one. Open both links.",
+    "emailSentToast": "Confirmation links sent to both addresses.",
+    "emailPending": "Waiting for confirmation of {{email}}.",
     "emailRateLimited": "Too many emails sent recently. Please try again in an hour.",
     "emailError": "Couldn't update your email. Please try again.",
     "passwordLabel": "Password",
@@ -89,7 +89,9 @@
     "passwordRules": "At least 12 characters, with an uppercase letter, a lowercase letter and a digit.",
     "passwordMismatch": "The two passwords don't match.",
     "passwordUpdated": "Password updated.",
-    "passwordError": "Couldn't update your password. Please try again."
+    "passwordError": "Couldn't update your password. Please try again.",
+    "emailPendingWhere": "Two links were sent: one to {{current}}, one to {{next}}. Open both — the change only lands after the second.",
+    "emailPendingCheck": "I've opened both — check again"
   },
   "deleteAccount": {
     "title": "Delete account",
@@ -126,7 +128,6 @@
   "connections": {
     "title": "Connections & sync",
     "subtitle": "Sensors, watches and accounts that add runs and heart rate automatically.",
-    "howItWorks": "How it works",
     "notSetUp": "Not set up",
     "connected": "Connected",
     "reconnect": "Reconnect",
@@ -152,7 +153,9 @@
     "help": {
       "oneHrSource": "One heart-rate source at a time: turning one on switches the other off.",
       "hrEditable": "Imported values stay editable on every run."
-    }
+    },
+    "howItWorksNamed": "How {{name}} works",
+    "aboutLabel": "About these connections"
   },
   "hrDisclosure": {
     "title": "Connect a heart-rate sensor",

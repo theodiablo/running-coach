@@ -25,7 +25,10 @@
     "foundRun": "Hemos encontrado un entrenamiento de tu reloj: {{km}} km el {{date}}",
     "foundRuns": "Hemos encontrado {{n}} entrenamientos de tu reloj",
     "review": "Revisar",
-    "importAll": "Importar todas"
+    "importAll": "Importar todas",
+    "emailChangeHalf": "Confirmación aceptada. Abre el enlace del otro buzón para terminar.",
+    "emailChangeDone": "Dirección de correo actualizada a {{email}}.",
+    "emailChangeFailed": "Ese enlace de confirmación ha caducado o ya se ha usado. Vuelve a iniciar el cambio desde los ajustes."
   },
   "consent": {
     "title": "¿Nos ayudas a mejorar la app?",
