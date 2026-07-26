@@ -79,10 +79,20 @@ gh secret set BACKUP_S3_BUCKET    --body "$(terraform output -raw backup_bucket)
 gh secret set AWS_BACKUP_ROLE_ARN --body "$(terraform output -raw backup_role_arn)"
 ```
 
-The third, `SUPABASE_DB_URL`, is not in Terraform: it carries the database
-password and comes from the Supabase dashboard (Connect → **Session pooler** →
-URI). Use the pooler host, not `db.<ref>.supabase.co`, which is IPv6-only while
-GitHub runners are IPv4-only.
+The third, `SUPABASE_DB_URL`, is deliberately **not** in Terraform. It carries
+the database password, and Terraform state records resource attributes
+verbatim, so putting it here would write the credential in plaintext into the
+state bucket. It is strictly worse than a GitHub secret, which is encrypted at
+rest and never printed. The Supabase provider could not supply it anyway: its
+`supabase_pooler` data source returns the connection string with a
+`[YOUR-PASSWORD]` placeholder, and no resource or data source can read or
+rotate the password.
+
+Build it by hand instead, connecting as the read-only `db_backup` role (created
+by `supabase/migrations/20260726120000_db_backup_role.sql`, not as `postgres`).
+The host and port come from the Supabase dashboard, Connect → **Session
+pooler**; use the pooler host, not `db.<ref>.supabase.co`, which is IPv6-only
+while GitHub runners are IPv4-only. Full procedure in `../docs/backups.md`.
 
 ## OIDC trust
 
