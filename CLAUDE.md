@@ -255,6 +255,7 @@ prompt/tool-description changes.
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
+- `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
 - `docs/monetization.md` — monetization direction, the premium seam, payments path.
