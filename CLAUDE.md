@@ -84,6 +84,13 @@ rules, not a changelog; delete anything stale.
 - **Migrations are append-only** once a version may have reached Supabase:
   never rename/remove a pushed `supabase/migrations/*.sql` version — keep a
   no-op marker and put real schema in a later migration.
+- **Auth callbacks:** every native deep link is classified by the pure
+  `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
+  return first (its `?code=` is not a Supabase code), then provider error, then
+  email-change OTP (`?token_hash=&type=`, which needs `verifyOtp`, not the PKCE
+  exchange), then `?code=`. Add new callback shapes there, with a test, not as
+  another branch in `App.tsx`. `auth.users.email` is mirrored into
+  `profiles.email` by a DB trigger — never write that column from the client.
 - **Multi-user:** open public signups — no single-user assumptions; per-user
   isolation via RLS on `app_state` and `profiles`.
 - **Plan building:** `buildPlan(raceDate, goalSec, planSessions, distanceKm,
@@ -230,9 +237,16 @@ prompt/tool-description changes.
 - `LogView` accepts a `prefill` prop and an `onSaved` callback (fires only on a
   real manual save) — used to log a run straight from a plan session and
   auto-tick it.
-- **Settings = configure, not analyse.** Section order: Profile, Privacy,
-  Backup & restore, Account (destructive last). Analysis surfaces (full HR
-  zones reference) live in Progress → Stats.
+- **Settings = configure, not analyse.** Settings is a **hub**
+  (`src/modals/SettingsModal.tsx`) whose root is only a menu; every control
+  lives on a sub-page in `src/modals/settings/`: **Account** (identity,
+  language, email/password, privacy, backup & restore, destructive last),
+  **Integrations** (`ConnectionsCard` + the Strava/Zepp guides), **Training
+  Profile** (HR zones, coach memory). Sub-pages mount over the hub and register
+  their own `useDismissable`, so back pops one level. A vendor we can't connect
+  to gets a *guide* in `VendorGuides.tsx` (export a file → import it here;
+  vendor app → health store), never a fake integration. Analysis surfaces (full
+  HR zones reference) live in Progress → Stats.
 
 ## Git / PR workflow
 - **Open a PR automatically when a task is finished** — committed, pushed, and

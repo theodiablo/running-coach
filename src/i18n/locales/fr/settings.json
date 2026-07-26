@@ -4,6 +4,20 @@
     "label": "Langue"
   },
   "newBeta": "Nouveauté · bêta",
+  "hub": {
+    "account": {
+      "title": "Compte",
+      "desc": "Ton nom, ta langue, tes identifiants et tes données."
+    },
+    "integrations": {
+      "title": "Intégrations",
+      "desc": "Montres, capteurs et applis qui ajoutent tes sorties automatiquement."
+    },
+    "training": {
+      "title": "Profil d'entraînement",
+      "desc": "Fréquence cardiaque et ce que ton coach retient de toi."
+    }
+  },
   "profile": {
     "title": "Profil",
     "name": "Ton nom"
@@ -50,7 +64,32 @@
     "submit": "Restaurer les données"
   },
   "account": {
-    "signOut": "Se déconnecter"
+    "signOut": "Se déconnecter",
+    "signInTitle": "Identifiants de connexion",
+    "emailLabel": "E-mail",
+    "emailChange": "Modifier",
+    "emailChangeAria": "Modifier l'e-mail",
+    "emailCancelAria": "Annuler le changement d'e-mail",
+    "emailNew": "Nouvelle adresse e-mail",
+    "emailSubmit": "Envoyer les liens de confirmation",
+    "emailDoubleConfirm": "Par sécurité, nous écrivons à ton adresse actuelle et à la nouvelle. Ouvre les deux liens pour finaliser le changement.",
+    "emailSent": "Vérifie tes deux boîtes mail : un lien de confirmation a été envoyé à ton adresse actuelle et à la nouvelle.",
+    "emailSentToast": "Liens de confirmation envoyés.",
+    "emailPending": "En attente de confirmation de {{email}}. Ouvre le lien dans les deux boîtes mail pour finaliser.",
+    "emailRateLimited": "Trop d'e-mails envoyés récemment. Réessaie dans une heure.",
+    "emailError": "Impossible de modifier ton e-mail. Réessaie.",
+    "passwordLabel": "Mot de passe",
+    "passwordChange": "Modifier",
+    "passwordChangeAria": "Modifier le mot de passe",
+    "passwordCancelAria": "Annuler le changement de mot de passe",
+    "passwordSet": "Définir un mot de passe",
+    "passwordSetDesc": "Tu te connectes avec Google. Ajoute un mot de passe pour te connecter aussi avec ton e-mail.",
+    "passwordNew": "Nouveau mot de passe",
+    "passwordConfirm": "Confirme le nouveau mot de passe",
+    "passwordRules": "Au moins 12 caractères, avec une majuscule, une minuscule et un chiffre.",
+    "passwordMismatch": "Les deux mots de passe ne correspondent pas.",
+    "passwordUpdated": "Mot de passe mis à jour.",
+    "passwordError": "Impossible de modifier ton mot de passe. Réessaie."
   },
   "deleteAccount": {
     "title": "Supprimer le compte",
@@ -124,6 +163,28 @@
     "bullet3": "Aucune donnée n'est vendue ni partagée avec des tiers.",
     "policy": "Consulte notre <link>Politique de confidentialité</link>. Lorsque tu touches Autoriser, Android demande l'accès aux appareils Bluetooth à proximité.",
     "accept": "Autoriser et continuer"
+  },
+  "guides": {
+    "title": "Strava, Zepp et autres applis",
+    "subtitle": "Tes sorties depuis ces applis arrivent ici aussi : importe-les en quelques gestes, ou laisse-les se synchroniser automatiquement via Health Connect ou Apple Santé.",
+    "pastRuns": "Sorties passées, une par une",
+    "newRuns": "Nouvelles sorties, automatiquement",
+    "importCta": "Importer un fichier",
+    "recordNote": "Tu peux aussi simplement enregistrer avec Running Coach quand tu emportes ton téléphone : aucun import nécessaire.",
+    "strava": {
+      "title": "Strava",
+      "history": "Pour une sortie : ouvre l'activité sur strava.com, puis ••• → Exporter l'original (le fichier .fit, avec l'itinéraire et la fréquence cardiaque) ou Exporter en GPX. Pour tout d'un coup : Paramètres → Mon compte → Télécharger ou supprimer ton compte → Demander une archive.",
+      "syncAndroid": "Dans l'appli Strava : Paramètres → Applications, services et appareils → Health Connect, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Health Connect ci-dessus. Si l'appli de ta montre (Garmin, Zepp, Polar…) écrit aussi dans Health Connect, la connecter directement est souvent plus rapide.",
+      "syncIos": "Strava n'écrit pas dans Apple Santé : utilise plutôt l'appli de ta montre (Garmin Connect, Polar Flow, Zepp…), autorise-la à écrire les séances dans Apple Santé et connecte Apple Santé ci-dessus.",
+      "syncWeb": "La synchronisation automatique nécessite l'appli mobile, avec Health Connect sur Android ou Apple Santé sur iPhone. Sur le web, importe plutôt un fichier."
+    },
+    "zepp": {
+      "title": "Zepp / Amazfit",
+      "history": "Dans l'appli Zepp : Profil → Centre de confidentialité → Exporter les données personnelles, pour un CSV de tes sorties. Pour une seule sortie avec son itinéraire et sa fréquence cardiaque, un fichier .fit exporté depuis Strava (••• → Exporter l'original) est plus détaillé.",
+      "syncAndroid": "Dans l'appli Zepp : Profil → Accès tiers → Health Connect, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Health Connect ci-dessus, en général quelques minutes après la synchro de ta montre. À noter : Zepp ne transmet pas le dénivelé, qui restera donc vide sur les sorties importées.",
+      "syncIos": "Dans l'appli Zepp : Profil → Accès tiers → Apple Santé, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Apple Santé ci-dessus, en général quelques minutes après la synchro de ta montre. À noter : Zepp ne transmet pas le dénivelé, qui restera donc vide sur les sorties importées.",
+      "syncWeb": "La synchronisation automatique nécessite l'appli mobile, avec Health Connect sur Android ou Apple Santé sur iPhone. Sur le web, importe plutôt un fichier."
+    }
   },
   "integrations": {
     "scan30": "Rechercher dans les 30 derniers jours",

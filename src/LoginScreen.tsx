@@ -5,7 +5,7 @@ import { BrandLogo } from "./components/BrandLogo";
 import { Browser } from "@capacitor/browser";
 import { supabase, authRedirectTo } from "./supabase";
 import { isNative, isAndroid } from "./native";
-import { PRIVACY_URL } from "./constants";
+import { PRIVACY_URL, PASSWORD_MIN_LENGTH } from "./constants";
 
 type LoginMode = "signin" | "signup";
 type LoginMessage = { type: "err" | "ok"; text: string };
@@ -153,7 +153,9 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
                   required
                   // Enforce the stronger policy on sign-up only; sign-in must
                   // still accept existing accounts created under the old rule.
-                  minLength={mode === "signup" ? 8 : 6}
+                  // Sign-up mirrors the server's minimum_password_length so the
+                  // form rejects a weak password instead of the API doing it.
+                  minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : 6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="flex-1 bg-transparent py-2 text-sm text-white outline-none"

@@ -108,6 +108,16 @@ health-store grant auto-enables watch import and — only when `hrMethod` is
 `"off"` — post-run HR; it never silently replaces a configured method (BLE or
 one synced from another device).
 
+It lives on the **Integrations** sub-page (`src/modals/settings/`), below which
+`VendorGuides.tsx` explains the vendors we cannot connect to (Strava, Zepp — see
+below). Each guide teaches the two paths we DO support, so "no integration"
+never reads as "unsupported": export a file → the existing file importer (its
+button calls `onImportFile`, which lands on the Log tab with the import panel
+open), and vendor app → platform health store → the connection above. The sync
+copy is platform-branched (Health Connect / Apple Health / "use the mobile app"
+on web). Adding a vendor is a `VENDORS` entry plus its i18n keys under
+`settings.guides.<id>` in all three locales.
+
 ## Watch run import (phone-free runs)
 
 For runners who leave the phone at home (e.g. Garmin Forerunner, Amazfit):
@@ -266,7 +276,8 @@ data and the coach reads runs — users' own CSV/GPX exports are fine, that's
 data portability, not the API. Polar's agreement has no such clause (the reason
 it's the pilot). There is **no usable Zepp cloud API** for indies (official one
 is corporate-partner only); password-based scraping libs are ToS-violating —
-Amazfit rides Health Connect or files.
+Amazfit rides Health Connect or files. Both are covered in-app by the
+Settings → Integrations guides (`VendorGuides.tsx`) rather than by silence.
 
 ## The ONE dedupe rule set
 

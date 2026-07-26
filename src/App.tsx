@@ -5,7 +5,8 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isNative, isIos } from "./native";
-import { POLAR_DEEP_LINK, stashPolarReturn } from "./polarPreinit";
+import { stashPolarReturn } from "./polarPreinit";
+import { classifyAuthUrl } from "./utils/authCallback";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow } from "./db";
@@ -143,39 +144,53 @@ export default function App() {
     const processUrl = async (url: string) => {
       if (!url || url === lastUrlRef.current) return; // de-dupe appUrlOpen vs getLaunchUrl
       lastUrlRef.current = url;
-      // Polar OAuth return, bounced from the web origin by polarPreinit. It
-      // carries a ?code= that is NOT a Supabase auth code — route it before the
-      // exchangeCodeForSession below can eat it (the native twin of
-      // polarPreinit's web-side guard). Stash for completePolarAuth (which
-      // CSRF-validates the state) and wake whoever is mounted: RunningCoach
-      // listens for the event (warm return), and its boot path re-reads the
-      // stash anyway (cold start, where this may run before it mounts).
-      if (url.startsWith(POLAR_DEEP_LINK)) {
-        closeAuthBrowser(); // iOS: the OAuth SFSafariViewController is still up
-        try {
-          const p = new URL(url).searchParams;
-          const code = p.get("code"), state = p.get("state");
+      const cb = classifyAuthUrl(url);
+      switch (cb.kind) {
+        // Polar OAuth return, bounced from the web origin by polarPreinit. Its
+        // ?code= is NOT a Supabase auth code — classifyAuthUrl routes it before
+        // the exchangeCodeForSession below can eat it (the native twin of
+        // polarPreinit's web-side guard). Stash for completePolarAuth (which
+        // CSRF-validates the state) and wake whoever is mounted: RunningCoach
+        // listens for the event (warm return), and its boot path re-reads the
+        // stash anyway (cold start, where this may run before it mounts).
+        case "polar":
+          closeAuthBrowser(); // iOS: the OAuth SFSafariViewController is still up
           // A denial carries no code — stay silent (same choice as the web flow)
           // but still close the browser sheet above.
-          if (code && state) stashPolarReturn(code, state);
-        } catch { /* malformed — ignore */ }
-        window.dispatchEvent(new Event("rc-polar-return"));
-        return;
-      }
-      let params;
-      try { params = new URL(url).searchParams; } catch { return; }
-      // Provider-side denial/error (e.g. user cancels Google consent) carries no
-      // `code` — surface it instead of silently no-oping.
-      const provErr = params.get("error_description") || params.get("error");
-      if (provErr) { closeAuthBrowser(); reportAuthError(provErr); return; }
-      const code = params.get("code");
-      if (!code) return; // not an auth callback
-      closeAuthBrowser();
-      try {
-        await supabase.auth.exchangeCodeForSession(code);
-      } catch (err) {
-        console.error("Deep-link auth exchange failed", err);
-        reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+          if (cb.code && cb.state) stashPolarReturn(cb.code, cb.state);
+          window.dispatchEvent(new Event("rc-polar-return"));
+          return;
+        // Provider-side denial/error (e.g. user cancels Google consent) carries
+        // no `code` — surface it instead of silently no-oping.
+        case "error":
+          closeAuthBrowser();
+          reportAuthError(cb.message);
+          return;
+        // Email-change confirmation link (Settings -> Account). These arrive as
+        // ?token_hash=&type=email_change, not ?code=, so they need verifyOtp.
+        // With double_confirm_changes each of the two links (old + new address)
+        // lands here once. A failure is NOT a login-screen error — the user is
+        // signed in — so it stays silent here; the Account page's pending state
+        // simply persists until a working link is opened.
+        case "otp":
+          closeAuthBrowser();
+          try {
+            await supabase.auth.verifyOtp({ token_hash: cb.tokenHash, type: cb.otpType });
+          } catch (err) {
+            console.error("Email confirmation failed", err);
+          }
+          return;
+        case "code":
+          closeAuthBrowser();
+          try {
+            await supabase.auth.exchangeCodeForSession(cb.code);
+          } catch (err) {
+            console.error("Deep-link auth exchange failed", err);
+            reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+          }
+          return;
+        case "none":
+          return;
       }
     };
 
@@ -340,7 +355,7 @@ export default function App() {
   return (
     <>
       {updateState === "update-available" && <UpdateBanner />}
-      <RunningCoach onSignOut={signOutFlushed}
+      <RunningCoach onSignOut={signOutFlushed} user={session.user}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>

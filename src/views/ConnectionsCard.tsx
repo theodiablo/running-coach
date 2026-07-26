@@ -66,8 +66,10 @@ function Switch({ on, onToggle, label, disabled }: { on: boolean; onToggle: () =
 
 // Collapsible help: settings should configure, not lecture — the long
 // explanations (and the beta caveat) live behind this tap instead of
-// permanently occupying screens of scroll.
-function HowItWorks({ children }: { children: React.ReactNode }) {
+// permanently occupying screens of scroll. Exported for the vendor guides on
+// the Integrations page, which are the same "tap to read, otherwise stay out of
+// the way" shape.
+export function HowItWorks({ label, children }: { label?: string; children: React.ReactNode }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
@@ -75,7 +77,7 @@ function HowItWorks({ children }: { children: React.ReactNode }) {
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
         className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-300">
         <ChevronDown size={13} className={"transition-transform " + (open ? "rotate-180" : "")} />
-        {t("settings.connections.howItWorks")}
+        {label || t("settings.connections.howItWorks")}
       </button>
       {open && <div className="mt-2 space-y-2 text-xs text-slate-500">{children}</div>}
     </div>
@@ -433,7 +435,7 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
     try {
       // connect() resolving false means "authorization was refused, in place".
       // "pending" means the flow left for the system browser (native OAuth) and
-      // the outcome arrives later via the rc-polar-connected event — no toast,
+      // the outcome arrives later via the rc-cloud-connected event — no toast,
       // no state change now. A WEB redirect provider instead returns a
       // never-settling promise (the page navigates away before it could
       // resolve), so this spinner simply rides into the redirect.
