@@ -1,6 +1,9 @@
 // Lock-screen live run stats — one JS contract, two native backends (Android
 // foreground-service notification, iOS Live Activity). No-op on web,
-// best-effort (a display failure must never affect recording). Calls are
+// best-effort (a display failure must never affect recording). A push is a
+// SEED, not the only update: Android's WebView is frozen while the app is
+// backgrounded, so the foreground service keeps re-rendering distance/pace from
+// the last seed until JS runs again. Calls are
 // serialized (queued, end ordered after in-flight) to avoid a paused/ended
 // run resurrecting a stale native display. Details: docs/live-tracking.md.
 
@@ -13,6 +16,13 @@ type PushOptions = {
   title: string;
   message: string;
   chronometerStartMs?: number;
+  // Android only (the patched plugin): the seed it re-renders distance/pace from
+  // while the WebView is frozen in the background. iOS gets none of these.
+  km?: number;
+  paceSecPerKm?: number;
+  hr?: number;
+  hrAtMs?: number;
+  tracking?: boolean;
 };
 type PushResult = { updated?: boolean };
 
@@ -66,6 +76,12 @@ function sendNow(content: RunNotificationContent): void {
     title: t(`tracker.notif.${content.titleKey}`),
     message: content.message,
     ...(content.chronometerStartMs != null ? { chronometerStartMs: content.chronometerStartMs } : {}),
+    ...(isAndroid ? {
+      km: content.live.km,
+      paceSecPerKm: content.live.paceSecPerKm,
+      tracking: content.live.tracking,
+      ...(content.live.hr ? { hr: content.live.hr, hrAtMs: content.live.hrAtMs ?? 0 } : {}),
+    } : {}),
   };
   (isAndroid ? BackgroundGeolocation.updateNotification(options) : LiveActivity.push(options))
     .then((res) => { if (gen === generation) lastApplied = res?.updated === true; })

@@ -165,6 +165,13 @@ rules, not a changelog; delete anything stale.
   pairings are per-install. A synced setting (`hrMethod`, `watchImport`) is a
   *preference*; check the local per-device marker before touching any native
   bridge.
+- **Backgrounded Android runs NO JS.** Once the app leaves the foreground the
+  WebView's task queues are frozen — a native bridge callback does not wake it,
+  so anything that must keep changing with the screen off (the live-run
+  notification's distance/pace) has to be computed natively, with JS pushing a
+  seed. Numbers read on the Java side need a `Number`-tolerant reader:
+  `PluginCall.getDouble` returns its default for a `Long`, which every epoch-ms
+  value becomes. Detail: `docs/live-tracking.md`.
 - Detail, including the hard-won permission/signing/build gotchas:
   `docs/live-tracking.md` (GPS, shells, R8, patches),
   `docs/health-integrations.md` (HR, watch/file/cloud imports),

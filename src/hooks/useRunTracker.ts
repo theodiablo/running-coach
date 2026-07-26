@@ -502,17 +502,27 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
     return { km, elevation, movingSec, avgPace, curPace, n: points.filter(Boolean).length };
   }, [points, movingSec]);
 
-  const stats = useMemo(() => ({ ...gpsStats, ...hrSummary(hrSamples) }), [gpsStats, hrSamples]);
+  // `hrAt` (epoch ms of the latest sample) rides along for the lock-screen
+  // notification, whose native renderer drops an HR reading it can no longer
+  // trust. Kept out of hrSummary: that shape is spread into saved run fields.
+  const stats = useMemo(() => ({
+    ...gpsStats,
+    ...hrSummary(hrSamples),
+    hrAt: hrSamples.length ? hrSamples[hrSamples.length - 1].t : null,
+  }), [gpsStats, hrSamples]);
 
   // Lock-screen live stats (Android): mirror distance/pace/HR into the
   // foreground-service notification. The DURATION is deliberately not pushed —
   // the notification carries an OS-rendered chronometer anchored at
-  // now - movingMs, so the clock ticks natively even when this JS is throttled
-  // in the background. This effect re-runs off the same renders the bridge
-  // callbacks (onPos/onHrSample) and the control handlers trigger — never off
-  // a timer — and pushRunNotification's content gate turns the foreground
-  // 1s-tick re-runs into no-ops. Do not move this onto the setInterval above:
-  // that interval is exactly what stops in the background.
+  // now - movingMs, so the clock ticks natively even when this JS is frozen in
+  // the background. Distance/pace are the same story: this effect only runs
+  // while the app is in the foreground, so each push doubles as the SEED the
+  // native service extrapolates from (`content.live`) once the screen goes off.
+  // It re-runs off the same renders the bridge callbacks (onPos/onHrSample) and
+  // the control handlers trigger — never off a timer — and
+  // pushRunNotification's content gate turns the foreground 1s-tick re-runs
+  // into no-ops. Do not move this onto the setInterval above: that interval is
+  // exactly what stops in the background.
   useEffect(() => {
     if (!isNative) return;
     if (state !== "tracking" && state !== "paused") { resetRunNotification(); return; }
@@ -521,6 +531,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
       km: stats.km,
       paceSecPerKm: state === "tracking" ? (stats.curPace || stats.avgPace) : stats.avgPace,
       hr: stats.hr,
+      hrAt: stats.hrAt,
       // computeMoving reads stateRef, synced by the ref-mirror effect declared
       // above this one (same-commit ordering), so it agrees with `state` here.
       movingMs: computeMoving() * 1000,
