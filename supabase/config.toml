@@ -271,10 +271,11 @@ content_path = "./supabase/templates/email_change.html"
 # the address changes, carries no link to open, and is the only thing that would
 # tell the previous owner an account was taken over. Keep it enabled while
 # double_confirm_changes is off.
+# content_path here resolves from supabase/, not the repo root that [template] uses.
 [auth.email.notification.email_changed]
 enabled = true
 subject = "The email address on your Running Coach account was changed"
-content_path = "./supabase/templates/email_changed_notification.html"
+content_path = "./templates/email_changed_notification.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
