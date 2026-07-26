@@ -94,10 +94,16 @@ data "aws_iam_policy_document" "tf_apply_assume" {
 
 data "aws_iam_policy_document" "tf_read" {
   statement {
-    sid       = "ReadState"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::${local.state_bucket}/${local.state_key}"]
+    sid     = "ReadState"
+    effect  = "Allow"
+    actions = ["s3:GetObject"]
+    resources = [
+      "arn:aws:s3:::${local.state_bucket}/${local.state_key}",
+      # Terraform reads the lock object back in order to release it. Without
+      # this, an otherwise successful run ends with "Error releasing the state
+      # lock" and leaves a stale lock that blocks every later run.
+      "arn:aws:s3:::${local.state_bucket}/${local.state_key}.tflock",
+    ]
   }
 
   # Bucket configuration only. Note the resources are bucket ARNs, never
@@ -251,10 +257,30 @@ data "aws_iam_policy_document" "tf_apply" {
 
   # Without this, the apply role could rewrite its own policy (its name matches
   # the managed prefix) and grant itself anything.
+  #
+  # Mutating actions ONLY. Terraform manages both of these roles, so it reads
+  # them on every refresh; denying `iam:*` here denied iam:GetRole and made
+  # every plan fail before it produced any output.
+  #
+  # The consequence is deliberate: a change to either CI role's own definition
+  # cannot be applied by CI, and needs a local apply with real credentials. That
+  # is the correct blast radius for "the thing that grants CI its permissions",
+  # but it does mean such a PR merges green and then fails at apply.
   statement {
-    sid       = "DenySelfModification"
-    effect    = "Deny"
-    actions   = ["iam:*"]
+    sid    = "DenySelfModification"
+    effect = "Deny"
+    actions = [
+      "iam:AttachRolePolicy",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:DeleteRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRole",
+    ]
     resources = [local.tf_plan_arn, local.tf_apply_arn]
   }
 
