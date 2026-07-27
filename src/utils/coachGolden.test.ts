@@ -200,6 +200,18 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(SYSTEM_PROMPT).toContain("before reframing it as a goal-settings issue");
   });
 
+  // Production regression (2026-07, mistral-large-latest): an informational
+  // round answered a "how was my run" question, then announced "One Small
+  // Adjustment Made ... I've reduced Week 5's volume" having made ZERO tool
+  // calls, so nothing was proposed and nothing was confirmable. The pre-send
+  // self-check and the no-tool-calls summary rule below exist to stop that.
+  it("system prompt forbids past-tense change claims without tool calls", () => {
+    expect(SYSTEM_PROMPT).toContain("Past-tense claims are the trap");
+    expect(SYSTEM_PROMPT).toContain("never write one when you made no tool calls");
+    expect(SYSTEM_PROMPT).toContain("Never leave the runner believing their plan moved when it did not");
+    expect(SYSTEM_PROMPT).toContain("If you made no tool calls in this response, say plainly that nothing in the plan has changed");
+  });
+
   it("memory-only tool suggestions do not mark the plan changed", async () => {
     const context = makeContext("please remember I prefer Sunday long runs");
     let calls = 0;
