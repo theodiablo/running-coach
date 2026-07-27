@@ -74,6 +74,19 @@ ending one never is.
 A policy rejection (`42501`) latches the publisher off for the rest of the run,
 so a tampered client or a lapsed grant doesn't retry every 30s forever.
 
+**Supabase's security advisor flags `is_premium()`** as a `SECURITY DEFINER`
+function executable by `authenticated`, reachable at `/rest/v1/rpc/is_premium`.
+That is expected and must stay: `authenticated` needs `EXECUTE` or the insert
+policy cannot evaluate it. It leaks nothing — being argument-free, it only ever
+reports the caller's own tier, which they can already read from their own
+`profiles` row. Do not "fix" it by revoking EXECUTE; that silently breaks
+starting a broadcast.
+
+`live_runs_touch` pins `search_path` (migration `20260727183713`) — not just
+lint hygiene: with a mutable one, `now()` is resolvable to something other than
+`pg_catalog.now()`, handing back control of the very column the trigger exists
+to make server truth.
+
 Client-side, the toggle is gated on `isPremium || canShowPremiumTeaser` (never
 `isPremium` alone), so the whole tier still reveals by flipping that one flag.
 Tapping it while apparently free re-reads the entitlement and decides on that
