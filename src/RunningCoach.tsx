@@ -369,8 +369,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         // purpose: that path writes a captured `bootRuns` array wholesale, so an
         // overlapping backfill patch would be overwritten. Silent and optional —
         // runs it can't measure keep their whole-run estimate.
-        if (backfillDone()) return;
-        return backfillBestEfforts(bootRuns).then(patches => {
+        // Marker is per user, not per device: localStorage outlives sign-out.
+        if (backfillDone(user?.id)) return;
+        return backfillBestEfforts(bootRuns, user?.id).then(patches => {
           if (!patches.length) return;
           const byId = new Map(patches.map(p => [p.id, p.bestEfforts]));
           setRuns(prev => {

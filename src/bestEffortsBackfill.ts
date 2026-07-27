@@ -16,21 +16,31 @@
 //   - sequential, off the critical path, and entirely silent.
 //   - the done-marker is per-device localStorage, and is only set once a pass
 //     completes with no fetch failures, so an offline cold start retries later.
+//
+// The marker is keyed by USER id. It lives in localStorage, which survives sign
+// out, so a device-global key would tell the second account on a shared phone
+// that its own pre-feature runs had already been measured — producing exactly
+// the false "first 5K on record" this exists to prevent.
 
 import { getRoute } from "./routes";
 import { bestEffortsFromTrack, type BestEfforts } from "./utils/bestEfforts";
 import type { Run } from "./types";
 
-const MARKER_KEY = "rc_best_efforts_backfill";
+const MARKER_PREFIX = "rc_best_efforts_backfill";
 const MARKER_VERSION = "1";
 export const RUN_LIMIT = 40;
 
 export type EffortPatch = { id: string; bestEfforts: BestEfforts };
 
+const markerKey = (userId: string) => `${MARKER_PREFIX}:${userId}`;
+
 // A blocked/absent localStorage reads as "already done": without somewhere to
-// record completion this would re-download traces on every single boot.
-export function backfillDone(): boolean {
-  try { return localStorage.getItem(MARKER_KEY) === MARKER_VERSION; }
+// record completion this would re-download traces on every single boot. So does
+// a missing user id — a marker written before the session is known would be
+// unreachable once it is, leaving the pass to repeat forever.
+export function backfillDone(userId?: string | null): boolean {
+  if (!userId) return true;
+  try { return localStorage.getItem(markerKey(userId)) === MARKER_VERSION; }
   catch { return true; }
 }
 
@@ -43,7 +53,7 @@ export function runsNeedingBackfill(runs: Run[]): Run[] {
 // Measure each candidate's stored trace and hand the patches back for the caller
 // to merge — this module never writes state itself, so the single blob write
 // stays with the owner of `runs`.
-export async function backfillBestEfforts(runs: Run[]): Promise<EffortPatch[]> {
+export async function backfillBestEfforts(runs: Run[], userId?: string | null): Promise<EffortPatch[]> {
   const patches: EffortPatch[] = [];
   let failed = 0;
   for (const r of runsNeedingBackfill(runs)) {
@@ -54,8 +64,8 @@ export async function backfillBestEfforts(runs: Run[]): Promise<EffortPatch[]> {
       patches.push({ id: r.id!, bestEfforts: trace?.points?.length ? bestEffortsFromTrack(trace.points) : {} });
     } catch { failed++; }
   }
-  if (!failed) {
-    try { localStorage.setItem(MARKER_KEY, MARKER_VERSION); } catch { /* quota */ }
+  if (!failed && userId) {
+    try { localStorage.setItem(markerKey(userId), MARKER_VERSION); } catch { /* quota */ }
   }
   return patches;
 }

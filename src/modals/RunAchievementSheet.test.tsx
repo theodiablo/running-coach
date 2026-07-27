@@ -10,7 +10,7 @@ afterEach(cleanup);
 const run: Run = { id: "new", date: "2026-07-20", km: 10.2, durationSec: 3060 };
 
 const effort = (over: Partial<EffortRank> = {}): EffortRank => ({
-  key: "5k", km: 5, sec: 1400, rank: 1, total: 4,
+  key: "5k", km: 5, sec: 1400, rank: 1, total: 4, estimated: false,
   previousBest: { sec: 1450, date: "2026-06-01" }, gainSec: 50, ...over,
 });
 

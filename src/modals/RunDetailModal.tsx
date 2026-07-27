@@ -8,7 +8,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import { useRouteTrace } from "../hooks/useRouteTrace";
 import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
-import { rankRunEfforts, hasMeasuredEfforts } from "../utils/bestEfforts";
+import { rankRunEfforts } from "../utils/bestEfforts";
 import { timeInZones, effectiveMaxHR, HR_ZONES } from "../utils/hr";
 import { flattenTrack, haversineM } from "../utils/geo";
 import { activeIndexFromChartState } from "../utils/chartCursor";
@@ -195,7 +195,6 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
   // never measured) — never the fetched trace, so the card renders immediately
   // and identically for a manual run with no trace to fetch.
   const efforts = useMemo(() => rankRunEfforts(run, runs || []), [run, runs]);
-  const measured = hasMeasuredEfforts(run);
 
   const header = (
     <header className="flex items-center justify-between px-4 border-b border-slate-800 shrink-0"
@@ -335,7 +334,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
           <div className="bg-slate-800 rounded-2xl p-4 space-y-2">
             <p className="text-slate-400 text-sm font-medium">{t("bestEfforts.card.title")}</p>
             {efforts.map(e => <EffortRow key={e.key} effort={e} />)}
-            {!measured && <p className="text-slate-500 text-xs">{t("bestEfforts.card.estimated")}</p>}
+            {efforts.some(e => e.estimated) && <p className="text-slate-500 text-xs">{t("bestEfforts.card.estimated")}</p>}
           </div>
         )}
 

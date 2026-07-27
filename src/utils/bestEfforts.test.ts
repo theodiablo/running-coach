@@ -3,7 +3,7 @@ import {
   bestEffortsFromTrack,
   wholeRunEfforts,
   effortsFor,
-  hasMeasuredEfforts,
+  measuredEfforts,
   rankRunEfforts,
   runAchievements,
   isPersonalBest,
@@ -63,8 +63,9 @@ describe("bestEffortsFromTrack", () => {
     expect(efforts["5k"]!).toBeLessThan(1700);
   });
 
-  it("never reports a window faster than the ground truth", () => {
-    // Interpolating the start but pinning the end to a sample can only overshoot.
+  it("does not report an even-paced window faster than the ground truth", () => {
+    // At a constant pace the start interpolation is exact, so all that is left is
+    // the end pinned to a real fix — which can only overshoot.
     const efforts = bestEffortsFromTrack(flat(5200, 300));
     expect(efforts["5k"]!).toBeGreaterThanOrEqual(1500);
     expect(efforts["5k"]!).toBeLessThan(1500 + 10);
@@ -103,6 +104,47 @@ describe("bestEffortsFromTrack", () => {
     const efforts = bestEffortsFromTrack([...first, ...still, ...second]);
     expect(efforts["1k"]).toBeCloseTo(300, -1);
   });
+
+  it("does not run a window through a stretch that was travelled, not run", () => {
+    // The shape an import produces: a 1.2 km jog, the watch paused for a 20 km
+    // drive over 10 min, then another 1.2 km jog. No import path emits gap
+    // markers, so this arrives as one unbroken array and the drive is just a very
+    // long leg. Interpolating across it used to yield a 30-second kilometre.
+    const t0 = 1_700_000_000_000;
+    const first = flat(1200, 300);
+    const lastLng = first[first.length - 1]![1] as number;
+    const lastT = first[first.length - 1]![2] as number;
+    const resumeLng = lastLng + 20_000 / M_PER_DEG, resumeT = lastT + 600_000;
+    const second = flat(1200, 300).map(p => p &&
+      [0, (p[1] as number) + resumeLng, (p[2] as number) - t0 + resumeT, p[3]] as TrackPointOrGap);
+    const efforts = bestEffortsFromTrack([...first, ...second]);
+    expect(efforts["1k"]).toBeCloseTo(300, -1);
+    expect(efforts["5k"]).toBeUndefined();
+    expect(efforts["10k"]).toBeUndefined();
+    expect(efforts["hm"]).toBeUndefined();
+  });
+
+  it("drops a teleporting GPS fix rather than measuring the jump", () => {
+    // One bad fix 500 m off-course and back, mid-run. The 500 m it invents would
+    // otherwise land inside a 1K window as free distance.
+    const pts = flat(3000, 300);
+    const spike = pts[150]!;
+    pts[150] = [0, (spike[1] as number) + 500 / M_PER_DEG, spike[2], spike[3]] as TrackPointOrGap;
+    expect(bestEffortsFromTrack(pts)["1k"]).toBeCloseTo(300, -1);
+  });
+
+  it("tolerates whole-second import timestamps without cutting the track up", () => {
+    // GPX timestamps are commonly 1 s resolution, so fixes 4 m apart at 4:00/km
+    // land on the same second. A raw distance/dt reads those legs as infinitely
+    // fast and would shred a perfectly good trace into unmeasurable slivers.
+    const t0 = 1_700_000_000_000;
+    const pts: TrackPointOrGap[] = [];
+    for (let i = 0; i <= 500; i++) {
+      pts.push([0, (i * 4) / M_PER_DEG, t0 + Math.floor(i * 0.96) * 1000, 0]);
+    }
+    expect(pts.some((p, i) => i > 0 && p![2] === pts[i - 1]![2])).toBe(true);
+    expect(bestEffortsFromTrack(pts)["1k"]).toBeCloseTo(240, -1);
+  });
 });
 
 describe("wholeRunEfforts", () => {
@@ -130,6 +172,19 @@ describe("wholeRunEfforts", () => {
     expect(wholeRunEfforts({ km: 21.1, durationSec: 6330 })["hm"]).toBe(6329);
     expect(wholeRunEfforts({ km: 42.2, durationSec: 12660 })["fm"]).toBe(12658);
   });
+
+  it("credits a half logged as a round 21 km, and a marathon as 42", () => {
+    // The common way people (and some catalogue editions) record them. Scaling a
+    // slightly-short run UP lengthens its time, so the tolerance can't invent a
+    // fast one.
+    expect(wholeRunEfforts({ km: 21, durationSec: 6300 })["hm"]).toBe(6329);
+    expect(wholeRunEfforts({ km: 42, durationSec: 12600 })["fm"]).toBe(12659);
+  });
+
+  it("still credits nothing to a run meaningfully short of the distance", () => {
+    expect(wholeRunEfforts({ km: 4.5, durationSec: 1350 })).toEqual({});
+    expect(wholeRunEfforts({ km: 9.5, durationSec: 2850 })).toEqual({});
+  });
 });
 
 describe("effortsFor", () => {
@@ -154,13 +209,32 @@ describe("effortsFor", () => {
       bestEfforts: { "5k": 0, "10k": -3, "1k": Number.NaN, hm: 5000 } } as unknown as Run;
     expect(effortsFor(run)).toEqual({ hm: 5000 });
   });
+
+  it("fills a distance the trace missed without discarding the measured ones", () => {
+    // A GPS 5K: the stored trace is jitter-gated and 5 m-simplified, so its
+    // cumulative distance lands just under 5 km and only a 1K window exists.
+    // All-or-nothing fallback left this run with no 5K at all — for good, since
+    // a non-empty stored map also keeps the backfill away — while the very same
+    // run typed in by hand ranked fine.
+    const run: Run = { date: "2026-07-01", km: 5.014, durationSec: 1500, bestEfforts: { "1k": 292 } };
+    expect(effortsFor(run)).toEqual({ "1k": 292, "5k": 1496 });
+  });
+
+  it("gives a walk or a cross-training entry no efforts at all", () => {
+    // "First 5K on the board" for a family walk is a false claim, and counting
+    // one inflates `total`, loosening the rank < total guard.
+    expect(effortsFor({ type: "WALK", km: 5, durationSec: 3000 })).toEqual({});
+    expect(effortsFor({ type: "OTHER", km: 5, durationSec: 1500, bestEfforts: { "5k": 1400 } })).toEqual({});
+    expect(effortsFor({ type: "EASY", km: 5, durationSec: 1500 })).toEqual({ "5k": 1500 });
+    expect(effortsFor({ km: 5, durationSec: 1500 })).toEqual({ "5k": 1500 });
+  });
 });
 
-describe("hasMeasuredEfforts", () => {
-  it("distinguishes measured from estimated", () => {
-    expect(hasMeasuredEfforts({ km: 5, durationSec: 1500, bestEfforts: { "5k": 1490 } })).toBe(true);
-    expect(hasMeasuredEfforts({ km: 5, durationSec: 1500 })).toBe(false);
-    expect(hasMeasuredEfforts({ km: 5, durationSec: 1500, bestEfforts: {} })).toBe(false);
+describe("measuredEfforts", () => {
+  it("reports only what the trace yielded", () => {
+    expect(measuredEfforts({ km: 5, durationSec: 1500, bestEfforts: { "5k": 1490 } })).toEqual({ "5k": 1490 });
+    expect(measuredEfforts({ km: 5, durationSec: 1500 })).toEqual({});
+    expect(measuredEfforts({ km: 5, durationSec: 1500, bestEfforts: {} })).toEqual({});
   });
 });
 
@@ -207,6 +281,21 @@ describe("rankRunEfforts", () => {
 
   it("returns nothing for a run with no efforts at all", () => {
     expect(rankRunEfforts({ id: "a", date: "2026-07-20", km: 0.4, durationSec: 120 }, [])).toEqual([]);
+  });
+
+  it("flags each effort as measured or estimated, not the run as a whole", () => {
+    // The mixed case the per-distance fallback creates: a measured 1K next to a
+    // 5K the trace fell short of. The detail card footnotes off this.
+    const target: Run = { id: "b", date: "2026-07-20", km: 5.014, durationSec: 1500, bestEfforts: { "1k": 292 } };
+    const ranks = rankRunEfforts(target, [target]);
+    expect(ranks.map(r => [r.key, r.estimated])).toEqual([["1k", false], ["5k", true]]);
+  });
+
+  it("does not let a walk into the comparison pool", () => {
+    const target = run("b", "2026-07-20", { "5k": 1500 });
+    const walk: Run = { id: "w", date: "2026-05-01", type: "WALK", km: 5, durationSec: 3000 };
+    const [e] = rankRunEfforts(target, [target, walk]);
+    expect(e).toMatchObject({ rank: 1, total: 1, previousBest: null });
   });
 
   it("compares measured runs against estimated history", () => {

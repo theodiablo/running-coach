@@ -23,6 +23,6 @@
   "standingBest": "Mejor {{dur}} · {{date}}",
   "card": {
     "title": "Mejores esfuerzos",
-    "estimated": "Estimado a partir del ritmo medio de este entrenamiento. Los entrenamientos grabados con GPS tienen esfuerzos medidos."
+    "estimated": "Algunos de estos tiempos son estimados a partir del ritmo medio de este entrenamiento en lugar de medidos con una traza GPS."
   }
 }

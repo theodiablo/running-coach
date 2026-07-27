@@ -23,6 +23,6 @@
   "standingBest": "Record {{dur}} · {{date}}",
   "card": {
     "title": "Meilleurs efforts",
-    "estimated": "Estimé à partir de l'allure moyenne de cette sortie. Les sorties enregistrées en GPS ont des efforts mesurés."
+    "estimated": "Certains de ces temps sont estimés à partir de l'allure moyenne de cette sortie plutôt que mesurés sur une trace GPS."
   }
 }

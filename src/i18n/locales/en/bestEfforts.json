@@ -23,6 +23,6 @@
   "standingBest": "Best {{dur}} · {{date}}",
   "card": {
     "title": "Best efforts",
-    "estimated": "Estimated from this run's average pace. Runs recorded with GPS get measured efforts."
+    "estimated": "Some of these are estimated from this run's average pace rather than measured from a GPS trace."
   }
 }

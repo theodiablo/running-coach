@@ -6,7 +6,8 @@ vi.mock("./routes", () => ({ getRoute: (...args: unknown[]) => getRoute(...args)
 import { backfillBestEfforts, backfillDone, runsNeedingBackfill, RUN_LIMIT } from "./bestEffortsBackfill";
 import type { Run } from "./types";
 
-const MARKER_KEY = "rc_best_efforts_backfill";
+const USER = "user-1";
+const MARKER_KEY = `rc_best_efforts_backfill:${USER}`;
 
 // A straight 2 km trace at 5:00/km — long enough to yield a 1K effort.
 const trace = () => {
@@ -47,61 +48,77 @@ describe("runsNeedingBackfill", () => {
 describe("backfillBestEfforts", () => {
   it("measures each candidate trace and marks the pass done", async () => {
     getRoute.mockResolvedValue(trace());
-    const patches = await backfillBestEfforts([gpsRun("a")]);
+    const patches = await backfillBestEfforts([gpsRun("a")], USER);
     expect(patches).toHaveLength(1);
     expect(patches[0].id).toBe("a");
     expect(patches[0].bestEfforts["1k"]).toBeCloseTo(300, -1);
-    expect(backfillDone()).toBe(true);
+    expect(backfillDone(USER)).toBe(true);
   });
 
   it("fetches points only, never the heavy stats sidecar", async () => {
     getRoute.mockResolvedValue(trace());
-    await backfillBestEfforts([gpsRun("a")]);
+    await backfillBestEfforts([gpsRun("a")], USER);
     expect(getRoute).toHaveBeenCalledWith("route-a", false);
   });
 
   it("settles a missing or empty trace instead of retrying it forever", async () => {
     getRoute.mockResolvedValue(null);
-    const patches = await backfillBestEfforts([gpsRun("a")]);
+    const patches = await backfillBestEfforts([gpsRun("a")], USER);
     expect(patches).toEqual([{ id: "a", bestEfforts: {} }]);
-    expect(backfillDone()).toBe(true);
+    expect(backfillDone(USER)).toBe(true);
   });
 
   it("leaves the pass unmarked when a fetch fails, so an offline boot retries", async () => {
     getRoute.mockRejectedValue(new Error("offline"));
-    expect(await backfillBestEfforts([gpsRun("a")])).toEqual([]);
-    expect(backfillDone()).toBe(false);
+    expect(await backfillBestEfforts([gpsRun("a")], USER)).toEqual([]);
+    expect(backfillDone(USER)).toBe(false);
   });
 
   it("keeps what it did measure even when a later run fails", async () => {
     getRoute.mockResolvedValueOnce(trace()).mockRejectedValueOnce(new Error("offline"));
-    const patches = await backfillBestEfforts([gpsRun("a"), gpsRun("b")]);
+    const patches = await backfillBestEfforts([gpsRun("a"), gpsRun("b")], USER);
     expect(patches.map(p => p.id)).toEqual(["a"]);
-    expect(backfillDone()).toBe(false);
+    expect(backfillDone(USER)).toBe(false);
   });
 
   it("marks done without fetching anything when there is nothing to measure", async () => {
-    expect(await backfillBestEfforts([])).toEqual([]);
+    expect(await backfillBestEfforts([], USER)).toEqual([]);
     expect(getRoute).not.toHaveBeenCalled();
-    expect(backfillDone()).toBe(true);
+    expect(backfillDone(USER)).toBe(true);
   });
 });
 
 describe("backfillDone", () => {
   it("is false before a pass and true after the marker is written", () => {
-    expect(backfillDone()).toBe(false);
+    expect(backfillDone(USER)).toBe(false);
     localStorage.setItem(MARKER_KEY, "1");
-    expect(backfillDone()).toBe(true);
+    expect(backfillDone(USER)).toBe(true);
+  });
+
+  it("does not let one account's pass count for another on the same device", async () => {
+    // localStorage survives sign-out, so a device-global marker would tell the
+    // second account its pre-feature runs were already measured.
+    getRoute.mockResolvedValue(trace());
+    await backfillBestEfforts([gpsRun("a")], USER);
+    expect(backfillDone(USER)).toBe(true);
+    expect(backfillDone("user-2")).toBe(false);
+  });
+
+  it("reads as done, and marks nothing, without a user id", async () => {
+    getRoute.mockResolvedValue(trace());
+    expect(backfillDone(undefined)).toBe(true);
+    await backfillBestEfforts([gpsRun("a")], null);
+    expect(localStorage.length).toBe(0);
   });
 
   it("ignores a marker from a different version", () => {
     localStorage.setItem(MARKER_KEY, "0");
-    expect(backfillDone()).toBe(false);
+    expect(backfillDone(USER)).toBe(false);
   });
 
   it("reads as done when localStorage is unavailable, rather than refetching every boot", () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    expect(backfillDone()).toBe(true);
+    expect(backfillDone(USER)).toBe(true);
     spy.mockRestore();
   });
 });

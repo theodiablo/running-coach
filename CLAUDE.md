@@ -129,9 +129,11 @@ rules, not a changelog; delete anything stale.
   **once at save time** from the trace and stored on the run as `bestEfforts`,
   so every PB comparison is an in-memory scan of `runs` — never refetch traces
   to rank a run. Read them through `effortsFor` / `rankRunEfforts`
-  (`src/utils/bestEfforts.ts`), never off the raw field. No surface may claim
-  more than the log supports (`isFirstEffort` vs `isPersonalBest`,
-  `hasMeasuredEfforts` for estimates). Detail: `docs/best-efforts.md`.
+  (`src/utils/bestEfforts.ts`), never off the raw field — that's where the
+  whole-run estimate fills the distances a trace missed, and where walks and
+  `OTHER` entries are kept out of the pool. No surface may claim more than the
+  log supports (`isFirstEffort` vs `isPersonalBest`, and `EffortRank.estimated`
+  per distance). Detail: `docs/best-efforts.md`.
 - `raceDate`, `distanceKm`, `goalSec` start **empty** (`""`) — no seeded race
   defaults; guard before reading them.
 - **Derived-state resets happen during render, not in effects** — see the
