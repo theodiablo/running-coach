@@ -178,7 +178,14 @@ The transactional emails Supabase Auth sends (confirm signup, reset password,
 workflow, migration or MCP tool deploys them. Source of truth lives in
 `supabase/templates/*.html`, wired into `supabase/config.toml` under
 `[auth.email.template.*]` / `[auth.email.notification.*]`, which is what
-`supabase start` uses locally. The hosted project reads only what's in
+`supabase start` uses locally. The two sections resolve `content_path` from
+**different bases** — `[template]` from the directory the CLI runs in (the repo
+root, so `./supabase/templates/x.html`), `[notification]` from the config file's
+own directory (so `./templates/x.html`). Copying one convention onto the other
+breaks *every* CLI command that loads the config, including the release
+workflow's version-staging step, which runs after the stores are published;
+`src/supabaseConfig.test.ts` fails CI on a path that doesn't resolve. The hosted
+project reads only what's in
 **Dashboard → Authentication → Emails**, so after changing a template file,
 paste the same body (and subject) into the matching dashboard template — and
 flip the matching toggle where one exists. Nothing warns you if you forget: the
