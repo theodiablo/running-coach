@@ -110,6 +110,14 @@ export type Run = Record<string, unknown> & {
   // the synced blob by an old phone. Old clients ignore unknown fields, so the
   // iOS marker rides here untouched until the iPhone resolves it.
   hrPendingHk?: HrPending | null;
+  // Fastest contiguous 1K/5K/10K/half/marathon found inside this run's GPS
+  // trace, in seconds, keyed by BestEffortKey (src/utils/bestEfforts.ts).
+  // Extracted ONCE at save time, so every later PB comparison is an in-memory
+  // scan of `runs` — no refetch of the trace, no server call. An empty object
+  // means "measured, covers no standard distance"; absent means never measured
+  // (a manual run, or a GPS run older than the feature), and readers fall back
+  // to the whole-run estimate via effortsFor(). Old clients ignore the field.
+  bestEfforts?: Record<string, number>;
   // Health Connect exercise-session id this run was imported from (source:"watch").
   // Used to dedupe repeated scans idempotently.
   hcId?: string;

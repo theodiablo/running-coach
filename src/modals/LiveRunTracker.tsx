@@ -5,6 +5,7 @@ import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
+import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { useRunTracker } from "../hooks/useRunTracker";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -441,6 +442,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       if (res && res.hrAvg) { hr = res.hrAvg; hrMax = res.hrMax; }
       else hrPending = { start: startMs, end: endMs, source: hrSrc.id };
     }
+    // Fastest 1K/5K/10K/half/marathon inside the trace, measured once here off
+    // the SAME simplified points that get stored, so the run detail view and any
+    // later comparison read identical numbers. Cheap (a two-pointer sweep) and
+    // local — the post-run PB check never refetches a trace or calls the server.
+    const bestEfforts = bestEffortsFromTrack(simplified);
     // Stamp the run's real start instant so a later watch import of the same run
     // (Health Connect) can dedupe by time overlap instead of double-logging it.
     const startedAtMs = rt.runWindow().startedAt || points.find(Boolean)?.[2] || null;
@@ -451,6 +457,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       durationSec: stats.movingSec,
       elevation: stats.elevation || undefined,
       source: "gps",
+      // Always stamped, even when empty ("measured, covers no standard
+      // distance") — that's what keeps the one-time backfill off this run.
+      bestEfforts,
       ...(startedAtMs ? { startedAt: new Date(startedAtMs).toISOString() } : {}),
       ...(routeId ? { routeId } : {}),
       ...(routeTmp ? { routeTmp, routePending: true } : {}),

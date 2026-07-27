@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { RouteMap } from "../components/RouteMap";
+import { EffortRow } from "../components/EffortRow";
 import { useDismissable } from "../hooks/useDismissable";
 import { useRouteTrace } from "../hooks/useRouteTrace";
 import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
+import { rankRunEfforts, hasMeasuredEfforts } from "../utils/bestEfforts";
 import { timeInZones, effectiveMaxHR, HR_ZONES } from "../utils/hr";
 import { flattenTrack, haversineM } from "../utils/geo";
 import { activeIndexFromChartState } from "../utils/chartCursor";
@@ -15,7 +17,10 @@ import type { HrSample, RunSeriesRow } from "../utils/runSeries";
 import type { TrackPointOrGap } from "../utils/geo";
 import type { Run, SettingsState } from "../types";
 
-type Props = { run: Run; settings: SettingsState; onClose: () => void };
+// `runs` is the whole log, used only to rank this run's best efforts against it
+// (an in-memory scan — see src/utils/bestEfforts.ts). Optional so a render test
+// can mount the modal without one.
+type Props = { run: Run; settings: SettingsState; runs?: Run[]; onClose: () => void };
 
 const ELEV_CLR = "#10b981", PACE_CLR = "#38bdf8", HR_CLR = "#f87171";
 const tt = { background: "#1e293b", border: "none", borderRadius: 8, color: "#fff", fontSize: 12 };
@@ -124,8 +129,9 @@ function Tile({ label, value }: { label: string; value: string }) {
 
 // Full-screen per-run analytics: route map, a combined elevation/pace/HR chart
 // with toggleable series, a per-km split table, an HR time-in-zone card (BLE runs
-// only), and summary tiles. Self-fetches the trace (kept out of the synced blob).
-export function RunDetailModal({ run, settings, onClose }: Props) {
+// only), best efforts, and summary tiles. Self-fetches the trace (kept out of
+// the synced blob).
+export function RunDetailModal({ run, settings, runs, onClose }: Props) {
   const { t } = useTranslation();
   const { route } = useRouteTrace(run, { withStats: true });
   const [show, setShow] = useState({ elev: true, pace: true, hr: true });
@@ -184,6 +190,12 @@ export function RunDetailModal({ run, settings, onClose }: Props) {
   }, [derived.flat]);
 
   const pace = run.km && run.durationSec ? run.durationSec / run.km : 0;
+
+  // Reads the stored `bestEfforts` (or the whole-run estimate for a run that was
+  // never measured) — never the fetched trace, so the card renders immediately
+  // and identically for a manual run with no trace to fetch.
+  const efforts = useMemo(() => rankRunEfforts(run, runs || []), [run, runs]);
+  const measured = hasMeasuredEfforts(run);
 
   const header = (
     <header className="flex items-center justify-between px-4 border-b border-slate-800 shrink-0"
@@ -316,6 +328,16 @@ export function RunDetailModal({ run, settings, onClose }: Props) {
         )}
 
         {tiles}
+
+        {/* Best efforts + where they sit in the log. Not gated on a trace: a
+            manually logged 5K still ranks, off its own time. */}
+        {efforts.length > 0 && (
+          <div className="bg-slate-800 rounded-2xl p-4 space-y-2">
+            <p className="text-slate-400 text-sm font-medium">{t("bestEfforts.card.title")}</p>
+            {efforts.map(e => <EffortRow key={e.key} effort={e} />)}
+            {!measured && <p className="text-slate-500 text-xs">{t("bestEfforts.card.estimated")}</p>}
+          </div>
+        )}
 
         {run.notes && <p className="text-slate-400 text-sm">{run.notes}</p>}
       </div>

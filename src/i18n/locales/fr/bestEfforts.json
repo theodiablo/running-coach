@@ -1,0 +1,28 @@
+{
+  "dist": {
+    "1k": "1 km",
+    "5k": "5 km",
+    "10k": "10 km",
+    "hm": "Semi-marathon",
+    "fm": "Marathon"
+  },
+  "sheet": {
+    "titlePb": "Nouveau record personnel !",
+    "titleFirst": "Une première au compteur",
+    "titleRank": "Belle allure",
+    "summary": "{{km}} km · {{dur}} · {{pace}}/km",
+    "close": "Super"
+  },
+  "badge": {
+    "pb": "Ton meilleur temps",
+    "first": "Premier enregistré",
+    "rank2": "2e plus rapide",
+    "rank3": "3e plus rapide"
+  },
+  "faster": "{{delta}} de mieux qu'avant",
+  "standingBest": "Record {{dur}} · {{date}}",
+  "card": {
+    "title": "Meilleurs efforts",
+    "estimated": "Estimé à partir de l'allure moyenne de cette sortie. Les sorties enregistrées en GPS ont des efforts mesurés."
+  }
+}

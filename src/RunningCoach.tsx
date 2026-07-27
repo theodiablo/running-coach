@@ -16,6 +16,8 @@ import { track } from "./telemetry";
 import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
 import { ymd, fmt } from "./utils/format";
 import { computeBadges, unlockedIds } from "./utils/badges";
+import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEfforts";
+import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
 import { detectAnyRace, findEdition, editionLabel, loadCatalogue } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
@@ -40,6 +42,7 @@ import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
+import { RunAchievementSheet } from "./modals/RunAchievementSheet";
 import { Dashboard } from "./views/Dashboard";
 import { PlanView } from "./views/PlanView";
 import { LogView } from "./views/LogView";
@@ -126,6 +129,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // otherwise hard-unmounts the moment the auto-dismiss timer nulls it).
   const toastP = usePresence(toast, 200);
   const [celebrate,   setCelebrate]   = useState(false);
+  // The post-run reward, set by addRuns when a single saved run lands in the top
+  // three for a standard distance. Null the rest of the time — there is no
+  // "nothing to report" sheet.
+  const [achievement, setAchievement] = useState<{ run: Run; efforts: EffortRank[]; confetti: boolean } | null>(null);
   const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { wNum?: number; sId?: string }) | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
   const [logImportOpen, setLogImportOpen] = useState(false);
@@ -354,7 +361,25 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         flushPendingHkHr(bootRuns, patchBootRunHr, {
           enabled: s?.hrMethod === "healthkit",
         }).catch(() => {}),
-      ]).then(() => notifyHrAdded(bootHrFilled));
+      ]).then(() => {
+        notifyHrAdded(bootHrFilled);
+        // Measure best efforts for GPS runs that predate the feature, so the
+        // post-run reward has real history to rank against instead of greeting a
+        // veteran with "first 5K on record". Chained AFTER the HR flush on
+        // purpose: that path writes a captured `bootRuns` array wholesale, so an
+        // overlapping backfill patch would be overwritten. Silent and optional —
+        // runs it can't measure keep their whole-run estimate.
+        if (backfillDone()) return;
+        return backfillBestEfforts(bootRuns).then(patches => {
+          if (!patches.length) return;
+          const byId = new Map(patches.map(p => [p.id, p.bestEfforts]));
+          setRuns(prev => {
+            const next = prev.map(x => (x.id && byId.has(x.id)) ? { ...x, bestEfforts: byId.get(x.id) } : x);
+            db.set(STORAGE_KEYS.RUNS, next);
+            return next;
+          });
+        });
+      });
     })();
     // Boot-once load: `t` is stable and must not re-trigger the whole boot on a
     // language switch, so it is intentionally omitted from the deps.
@@ -664,6 +689,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       showToast(t("app.toasts.loggedAsRace", { label: det.label }), "ok",
         { label: t("common.undo"), onClick: () => commitRaces(reconcileBadges(nextRuns, { ...merged, participations: det.undoParts })) });
     }
+    // Post-run reward: how the run that just landed ranks against the log. Only
+    // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
+    // import the user is only skimming. Pure and local, so this costs nothing.
+    if (added.length === 1) {
+      const efforts = runAchievements(added[0], nextRuns);
+      // One burst per save: race day already fires its own confetti.
+      if (efforts.length) setAchievement({ run: added[0], efforts, confetti: !det?.isMain && efforts.some(isPersonalBest) });
+    }
     // Return the runs as stored (with generated ids) so a caller can flag them.
     return added;
   };
@@ -916,7 +949,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         catalogue={catalogue} addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
-      {detailRun && <RunDetailModal run={detailRun} settings={settings} onClose={() => setDetailRun(null)}/>}
+      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
+      {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
 
       <header className="fixed top-0 inset-x-0 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20"
         style={{height:"calc(44px + var(--safe-top))", paddingTop:"var(--safe-top)"}}>

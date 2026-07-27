@@ -1,4 +1,5 @@
 import { simplify } from "../utils/geo";
+import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { saveRoute, queuePendingRoute } from "../routes";
 import type { ImportedRun } from "./types";
 import type { Run } from "../types";
@@ -22,6 +23,10 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
   const hasHr = !!hrSamples?.length;
   if (!hasRoute && !hasHr) return run;
   const pts = hasRoute ? simplify(points!, 5) : [];
+  // Same measurement a live-tracked run gets, off the same simplified points, so
+  // an imported GPS run ranks against phone-tracked ones on equal terms. An
+  // HR-only import has no distance axis and keeps the whole-run estimate.
+  const efforts = hasRoute ? { bestEfforts: bestEffortsFromTrack(pts) } : {};
   const stats = {
     km: run.km || 0,
     durationSec: run.durationSec || 0,
@@ -31,7 +36,7 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
   };
   try {
     const id = await saveRoute({ points: pts, stats });
-    return hasRoute ? { ...run, routeId: id } : { ...run, hrRouteId: id };
+    return hasRoute ? { ...run, ...efforts, routeId: id } : { ...run, hrRouteId: id };
   } catch {
     // Offline / save failed. TRADE-OFF (deliberate): only a GPS trace is queued
     // for retry; an HR-only sidecar (no GPS — the HealthKit / Health Connect HR
@@ -47,7 +52,7 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
     if (!hasRoute) return run;
     const routeTmp = "rt" + Date.now();
     queuePendingRoute({ tmpId: routeTmp, points: pts, stats });
-    return { ...run, routeTmp, routePending: true };
+    return { ...run, ...efforts, routeTmp, routePending: true };
   }
 }
 

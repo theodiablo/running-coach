@@ -1,0 +1,28 @@
+{
+  "dist": {
+    "1k": "1K",
+    "5k": "5K",
+    "10k": "10K",
+    "hm": "Half marathon",
+    "fm": "Marathon"
+  },
+  "sheet": {
+    "titlePb": "New personal best!",
+    "titleFirst": "First one on the board",
+    "titleRank": "That was quick",
+    "summary": "{{km}} km · {{dur}} · {{pace}}/km",
+    "close": "Nice"
+  },
+  "badge": {
+    "pb": "Fastest ever",
+    "first": "First on record",
+    "rank2": "2nd fastest",
+    "rank3": "3rd fastest"
+  },
+  "faster": "{{delta}} faster than before",
+  "standingBest": "Best {{dur}} · {{date}}",
+  "card": {
+    "title": "Best efforts",
+    "estimated": "Estimated from this run's average pace. Runs recorded with GPS get measured efforts."
+  }
+}
