@@ -84,7 +84,10 @@ is "Planned premium lineup" below.)
 2. **Deep analytics (zero marginal cost).** Training-load / fitness-fatigue
    trends, HR-drift and zone distribution over time, a race-time predictor, PB
    history — all computable client-side from existing `runs` data. The
-   Strava-premium model.
+   Strava-premium model. **Note the split decided in 2026-07** (see the
+   best-efforts entry below): the zero-cost *moment* can be free while the
+   *analysis* stays premium. Cost can't justify a gate here, so the line is
+   drawn on product value, not compute.
 3. **Convenience:** calendar export (.ics), richer multi-race handling. Bundle
    filler, weak on its own.
 
@@ -216,10 +219,44 @@ convenience last.
 | 2 | **Post-run coach note** — a short automatic read on each saved run (pace vs plan, HR drift, what to do tomorrow) | Turns the coach from reactive to proactive; one model round per run, the clearest cost-aligned value | Planned |
 | 3 | **Weekly review** — a scheduled round that reviews the week against the plan and *proposes* next-week adjustments through the existing propose-and-confirm flow | Recurring model spend; the headline "having a coach" moment | Planned |
 | 4 | **Race strategy** — elevation-aware pacing plan plus a coach narrative for a target race | High-value, race-shaped, model-heavy | Planned |
-| 5 | **Deep analytics** — training load / fitness-fatigue trend, HR-drift and zone distribution over time, race-time predictor, PB history | Zero marginal cost, all computable client-side from existing `runs`; the Strava-premium model | Planned |
+| 5 | **Deep analytics** — training load / fitness-fatigue trend, HR-drift and zone distribution over time, race-time predictor, **PB progression / best-effort history** | Zero marginal cost, all computable client-side from existing `runs`; the Strava-premium model | Planned — the *data* shipped free (see below), the *history surface* is the premium half |
 | 6 | **Convenience** — calendar export (.ics), richer multi-race handling | Bundle filler, weak on its own | Planned |
 | 6b | **Live run sharing** — follow a run as it happens from your own other signed-in sessions (`docs/live-sharing.md`) | Ongoing write traffic and stored rows for the duration of every shared run; emotionally the strongest "show someone" feature, and new value rather than a claw-back (a run has never been visible mid-run) | **Built** (same-account v1), hidden behind `canShowPremiumTeaser` |
 | 7 | **Higher coach daily budget** (`PREMIUM_RATE_LIMIT_PER_DAY`, 40 vs 5) | Already shipped as a *raise*; never framed as the reason to buy | **Built** |
+
+### Best efforts: the moment is free, the history is premium (2026-07)
+
+The first feature where the free/premium line had to be drawn *inside* one idea,
+and the precedent for the rest of #5. Full detail: `docs/best-efforts.md`.
+
+**Shipped free:** best-effort extraction (fastest 1K/5K/10K/half/marathon per
+run), PB ranking against the log, the post-run reward sheet, and the best-efforts
+card in run detail.
+
+**Why free, when it was floated as premium.** The cost analysis that gates every
+other decision here says nothing: efforts are extracted once at save time from a
+trace the app already holds, so ranking a run is an in-memory scan of `runs` —
+no model call, no edge function, not even a network request. With no cost to
+recover, a gate would have to be justified on product value alone, and at this
+stage the "you just PB'd" moment is worth more as a retention hook than as a
+conversion one. It is also the moment that makes finishing a run *in this app*
+worthwhile rather than in Strava.
+
+**A Strava-style time window was considered and rejected** ("last 30/60 days free,
+full history premium"). It is the most gating machinery for the least clarity, it
+is hard to word without contradicting "everything you need to train is free", and
+it is precisely the move that earned Strava a backlash.
+
+**Still premium, and unchanged in the lineup:** the PB *progression* surface —
+per-distance best-effort history over time, trends, and the race-time predictor
+re-anchored on true best efforts rather than whole-run pace. That's analysis, it
+belongs in Progress → Stats with the rest of #5, and it is new value rather than
+anything clawed back. The stored `bestEfforts` field is exactly the substrate it
+will read; nothing extra needs building on the data side.
+
+One thing that premium surface will want: the free backfill deliberately caps at
+the newest 40 GPS runs to keep cold start cheap. A full-history PB view should do
+its own deeper, user-initiated pass rather than widening the free boot path.
 
 Rules this list must keep obeying:
 

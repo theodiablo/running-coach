@@ -1,0 +1,28 @@
+{
+  "dist": {
+    "1k": "1 km",
+    "5k": "5 km",
+    "10k": "10 km",
+    "hm": "Media maratón",
+    "fm": "Maratón"
+  },
+  "sheet": {
+    "titlePb": "¡Nuevo récord personal!",
+    "titleFirst": "El primero en el registro",
+    "titleRank": "Buen ritmo",
+    "summary": "{{km}} km · {{dur}} · {{pace}}/km",
+    "close": "Genial"
+  },
+  "badge": {
+    "pb": "El más rápido",
+    "first": "Primero registrado",
+    "rank2": "2º más rápido",
+    "rank3": "3º más rápido"
+  },
+  "faster": "{{delta}} más rápido que antes",
+  "standingBest": "Mejor {{dur}} · {{date}}",
+  "card": {
+    "title": "Mejores esfuerzos",
+    "estimated": "Algunos de estos tiempos son estimados a partir del ritmo medio de este entrenamiento en lugar de medidos con una traza GPS."
+  }
+}

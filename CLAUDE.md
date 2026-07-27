@@ -125,6 +125,15 @@ rules, not a changelog; delete anything stale.
   (`coachValidation.test.ts` matrix). Rebuilds that replace an existing plan go
   through `carryProgress` so done/skipped aren't wiped. Detail (opts, long-run
   scaling, fitness level, suggested days): `docs/training-plan.md`.
+- **Best efforts** (fastest 1K/5K/10K/half/marathon in a run) are extracted
+  **once at save time** from the trace and stored on the run as `bestEfforts`,
+  so every PB comparison is an in-memory scan of `runs` — never refetch traces
+  to rank a run. Read them through `effortsFor` / `rankRunEfforts`
+  (`src/utils/bestEfforts.ts`), never off the raw field — that's where the
+  whole-run estimate fills the distances a trace missed, and where walks and
+  `OTHER` entries are kept out of the pool. No surface may claim more than the
+  log supports (`isFirstEffort` vs `isPersonalBest`, and `EffortRank.estimated`
+  per distance). Detail: `docs/best-efforts.md`.
 - `raceDate`, `distanceKm`, `goalSec` start **empty** (`""`) — no seeded race
   defaults; guard before reading them.
 - **Derived-state resets happen during render, not in effects** — see the
@@ -208,7 +217,8 @@ prompt/tool-description changes.
   sidecar rides `hrRouteId`; transient post-run-HR markers are the
   per-platform fields `hrPending` / `hrPendingHk` (see
   `docs/health-integrations.md`). `id` is generated in `addRuns` if absent;
-  runs are kept sorted newest-first.
+  runs are kept sorted newest-first. Measured best efforts ride `bestEfforts`
+  (`{}` = measured, covers no standard distance; absent = never measured).
 - **Route:** `run_routes` row `{id, user_id, points, stats, created_at}`;
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form
@@ -317,6 +327,7 @@ prompt/tool-description changes.
 - `docs/background-location.md` — Android background-location policy.
 - `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup.
 - `docs/races.md` — race catalogue, contributions, badges.
+- `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.

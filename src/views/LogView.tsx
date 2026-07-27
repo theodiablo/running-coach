@@ -87,6 +87,9 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs, o
       // Carry the GPS trace reference through from a live-tracked run.
       ...(prefill?.source   ? { source: prefill.source } : {}),
       ...(prefill?.routeId  ? { routeId: prefill.routeId } : {}),
+      // Best efforts came from the trace, which this form can't edit — so they
+      // survive the user correcting the distance or duration on the way in.
+      ...(prefill?.bestEfforts ? { bestEfforts: prefill.bestEfforts } : {}),
       ...(prefill?.routeTmp ? { routeTmp: prefill.routeTmp, routePending: true } : {}),
       // HR-only sidecar (health-store import with HR but no GPS) — powers the
       // detail HR chart/zones; see the hrRouteId note in src/types.ts.
