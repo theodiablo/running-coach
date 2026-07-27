@@ -87,6 +87,13 @@ create policy "live_runs insert own"
 -- Update and delete stay own-row-only WITHOUT the premium check on purpose: an
 -- entitlement that lapses mid-run must not strand a live row that the runner can
 -- no longer update or clean up. The insert gate already decided who may start.
+--
+-- This asymmetry is only reachable if the CLIENT writes the two paths
+-- separately. An upsert is INSERT ... ON CONFLICT DO UPDATE, and Postgres checks
+-- an INSERT policy's WITH CHECK for every row *proposed* for insertion, whether
+-- or not it ends up inserted — so an upsert is premium-gated here too, and a
+-- lapse mid-run would 42501 the run off the air. src/live/publisher.ts therefore
+-- opens a broadcast with insert() and continues it with update(). Keep it that way.
 drop policy if exists "live_runs update own" on public.live_runs;
 create policy "live_runs update own"
   on public.live_runs for update to authenticated

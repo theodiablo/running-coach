@@ -53,7 +53,12 @@ export function LiveWatchModal({ row, onClose }: LiveWatchModalProps) {
   const updatedAt = row ? Date.parse(row.updated_at) : NaN;
   const quietMs = Number.isFinite(updatedAt) ? Math.max(0, now - updatedAt) : 0;
   const ended = !row || row.status === "ended";
-  const quiet = !ended && quietMs >= QUIET_MS;
+  const paused = row?.status === "paused";
+  // A paused run publishes nothing BY DESIGN — it drops fixes, and the pause was
+  // itself pushed through as a status change. So silence after one is expected,
+  // not a lost signal: the row already says exactly what is going on, and the
+  // freshness line below still reports how old that answer is.
+  const quiet = !ended && !paused && quietMs >= QUIET_MS;
   const hasTrack = points.some(Boolean);
 
   const freshness = () => {
@@ -71,7 +76,7 @@ export function LiveWatchModal({ row, onClose }: LiveWatchModalProps) {
         <div className="flex items-center gap-1.5">
           {ended ? (
             <Radio size={15} className="text-slate-500" />
-          ) : row?.status === "paused" ? (
+          ) : paused ? (
             <Pause size={15} className="text-amber-400" />
           ) : (
             <span className="relative flex h-2.5 w-2.5" aria-hidden>
@@ -112,7 +117,7 @@ export function LiveWatchModal({ row, onClose }: LiveWatchModalProps) {
           </p>
         ) : (
           <p className="text-[11px] text-center text-slate-500">
-            {row?.status === "paused" ? t("liveShare.watch.paused") + " · " : ""}{freshness()}
+            {paused ? t("liveShare.watch.paused") + " · " : ""}{freshness()}
           </p>
         )}
       </div>

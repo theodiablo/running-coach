@@ -321,8 +321,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         });
       });
       // Sweep a live-sharing row left on the air by an app that was killed
-      // mid-run. No-op when a recoverable run buffer is still present — that run
-      // can still be resumed, and a watcher may be looking at it right now.
+      // mid-run. Scoped to a broadcast THIS device published and never confirmed
+      // the teardown of — the row is per-account, so an unscoped sweep would have
+      // a watching session delete the run it just opened the app to follow.
+      // No-op too when a recoverable run buffer is still present: that run can
+      // still be resumed, and a watcher may be looking at it right now.
       void clearStaleLiveRun();
       // Same deferred cleanup for Health Connect HR: a run saved before the watch
       // had synced its HR is stamped hrPending.

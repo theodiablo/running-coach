@@ -4,7 +4,7 @@ import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
-import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher } from "../live/publisher";
+import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
 import { useRunTracker } from "../hooks/useRunTracker";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -132,9 +132,18 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     try { return localStorage.getItem(LIVE_SHARE_KEY) === "1"; } catch { return false; }
   });
   const [checkingSharePremium, setCheckingSharePremium] = useState(false);
+  // Entry point present? Same gate as every other premium affordance, never
+  // `isPremium` alone (see src/premium.ts).
+  const shareAvailable = isPremium || canShowPremiumTeaser;
+  // What actually governs publishing and the on-air indicator. The stored choice
+  // only counts while the toggle that sets it is on screen: an entitlement that
+  // lapsed since the last run would otherwise leave a permanent "Share live · On"
+  // badge, with no control to clear it and nothing being shared behind it.
+  const sharing = shareLive && shareAvailable;
   // Set the moment the broadcast is torn down, so a re-render after the row has
-  // been deleted can't resurrect it with one last "ended" upsert.
+  // been deleted can't resurrect it with one last "ended" write.
   const shareEndedRef = useRef(false);
+  const sweptRef = useRef(false);
   const armShare = (on: boolean) => {
     setShareLive(on);
     try { localStorage.setItem(LIVE_SHARE_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
@@ -157,6 +166,14 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (shareEndedRef.current) return;
     shareEndedRef.current = true;
     void endLiveRun();
+  };
+  // Throwing away a recovered run takes it off the air with it. The boot sweep
+  // deliberately spared the row while the buffer existed — this is the moment
+  // that decision is resolved, and nothing else will resolve it.
+  const discardRecovered = () => {
+    sweptRef.current = true;
+    void sweepOwnLiveRun();
+    rt.discardPrevious();
   };
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
@@ -339,7 +356,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // simplify() so the ~1/s foreground clock ticks don't re-simplify a long trace
   // only to throw it away.
   useEffect(() => {
-    if (!shareLive || shareEndedRef.current) return;
+    if (!sharing || shareEndedRef.current) return;
     const status = state === "tracking" ? "live" : state === "paused" ? "paused" : state === "stopped" ? "ended" : null;
     if (!status) return;
     if (!canPublishNow(status)) return;
@@ -351,7 +368,17 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
-  }, [shareLive, state, points, stats, rt]);
+  }, [sharing, state, points, stats, rt]);
+
+  // Recording with sharing OFF ends any broadcast this device left behind — a
+  // killed app, then a resume. The boot sweep skipped it (the recovery buffer was
+  // still there) and nothing will publish over it, so this is its last chance to
+  // come down before the 6h window expires.
+  useEffect(() => {
+    if (sharing || sweptRef.current || state !== "tracking") return;
+    sweptRef.current = true;
+    void sweepOwnLiveRun();
+  }, [sharing, state]);
 
   const handleClose = () => {
     if ((live || state === "stopped") && hasTrack &&
@@ -488,7 +515,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             <div className="flex gap-2">
               <button onClick={rt.resumePrevious}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-semibold">{t("tracker.resume.resume")}</button>
-              <button onClick={rt.discardPrevious}
+              <button onClick={discardRecovered}
                 className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-sm font-semibold">{t("tracker.resume.discard")}</button>
             </div>
           </div>
@@ -537,7 +564,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             {/* Live sharing. Gated on `isPremium || canShowPremiumTeaser` (never
                 isPremium alone) so the whole tier still reveals by flipping that
                 one flag — while it is false a free user sees no entry point. */}
-            {(isPremium || canShowPremiumTeaser) && (
+            {shareAvailable && (
               <div className="space-y-1.5">
                 <button onClick={toggleShareLive} disabled={checkingSharePremium} aria-pressed={shareLive}
                   className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-[background-color,transform] active:scale-95 disabled:opacity-60 "
@@ -614,7 +641,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
         {/* A broadcast in progress must be visible on the recording device — an
             invisible one is a privacy problem, not a feature. */}
-        {live && shareLive && (
+        {live && sharing && (
           <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
             <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
           </p>

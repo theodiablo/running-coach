@@ -14,18 +14,18 @@ the same pipeline (see the end of this file).
 | Piece | File |
 |---|---|
 | Table, RLS, premium gate | `supabase/migrations/20260727135028_live_runs.sql` |
-| Recorder (upserts) | `src/live/publisher.ts` |
+| Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle + publish effect + teardown | `src/modals/LiveRunTracker.tsx` |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
 | Dashboard banner | `src/views/Dashboard.tsx` |
 | Watch screen | `src/modals/LiveWatchModal.tsx` |
 
-One row per user in `live_runs` (`user_id` is the primary key), upserted while
+One row per user in `live_runs` (`user_id` is the primary key), written while
 the run is on and deleted when it ends.
 
 ## Why a table, not a broadcast
 
-Every upsert carries the **whole simplified trace**, not a delta. That single
+Every write carries the **whole simplified trace**, not a delta. That single
 decision buys three things:
 
 - a watcher who opens the app mid-run gets the full route immediately — no
@@ -71,6 +71,22 @@ is deliberate: an entitlement lapsing mid-run must not strand a row the runner
 can no longer update or clean up. Starting a broadcast is the privileged act;
 ending one never is.
 
+**That asymmetry only exists if the client writes the two paths separately, so
+the publisher opens a broadcast with an `insert` and continues it with an
+`update` — never an upsert.** PostgREST's `upsert` is `INSERT ... ON CONFLICT DO
+UPDATE`, and Postgres checks an INSERT policy's `WITH CHECK` *"for all rows
+proposed for insertion, regardless of whether or not they end up being
+inserted"* — so an upsert is premium-gated on the **update** path too. Written
+that way, a grant lapsing mid-run 42501s, latches `blocked`, and takes the run
+off the air: precisely the outcome the premium-free UPDATE policy was written to
+prevent. Do not "simplify" the two calls back into one.
+
+An `insert` that hits the primary key (`23505`) means a leftover row from a
+killed run is in the way; the publisher deletes it and re-inserts, so a new
+broadcast always stamps its own `started_at` rather than inheriting one. An
+`update` that matches no rows means the row was swept from under it, and clears
+the flag so the next fix re-opens the broadcast instead of publishing into a void.
+
 A policy rejection (`42501`) latches the publisher off for the rest of the run,
 so a tampered client or a lapsed grant doesn't retry every 30s forever.
 
@@ -92,6 +108,13 @@ Client-side, the toggle is gated on `isPremium || canShowPremiumTeaser` (never
 Tapping it while apparently free re-reads the entitlement and decides on that
 read — the sign-in fetch may have failed offline or predated a grant.
 
+**Publishing and the on-air indicator are gated on that same expression, not on
+the stored choice alone.** `LIVE_SHARE_KEY` persists per device, so an
+entitlement that lapsed between runs would otherwise leave a permanent
+"Share live · On" badge with no toggle on screen to clear it, over a broadcast
+RLS is refusing anyway. The stored choice only counts while the control that sets
+it is visible; it re-arms by itself if premium comes back.
+
 ## Staleness, and why the copy is careful
 
 Silence is ambiguous *by construction*. A runner waiting at a crossing, a phone
@@ -99,7 +122,10 @@ in a tunnel, and an app the OS killed are indistinguishable from the watcher's
 side. So:
 
 - the watch screen never asserts something is wrong, it reports how long it has
-  been quiet (`QUIET_MS`, 3 min, well above the 30s cadence);
+  been quiet (`QUIET_MS`, 3 min, well above the 30s cadence). A **paused** run is
+  excluded from that: it drops fixes by design and the pause itself was pushed
+  through as a status change, so the row already says what is happening — calling
+  it a lost signal would replace a definite answer with a worried guess;
 - `isActive()` keeps a row live for up to 6h, mirroring the tracker's own resume
   window, so a long quiet stretch never reads as "not running";
 - `updated_at` is **server-stamped** by a trigger. A client-supplied value would
@@ -113,24 +139,55 @@ something a user relies on for help.
 
 | Event | What happens |
 |---|---|
-| Start (toggle on) | first upsert stamps `started_at` |
-| Pause / resume | status upsert, bypassing the throttle |
+| Start (toggle on) | `insert` stamps `started_at` and marks this device the publisher |
+| Pause / resume | status `update`, bypassing the throttle |
 | Finish | status `ended` — the watcher shows the run as over rather than going quiet |
 | Save or discard | row deleted (`endLiveRun`), fire-and-forget so it can never block a save |
-| App killed mid-run | row survives; `clearStaleLiveRun()` sweeps it on next boot |
+| App killed mid-run | row survives; swept when that device next opens the app |
+| Recovery discarded | swept there and then — the boot sweep already spared it |
+| Start with sharing off | swept once recording begins — nothing will publish over it |
 
-The boot sweep **skips** when a recoverable run buffer exists in `localStorage`:
-that run can still be resumed, and a watcher may be following it right now.
+### The sweep is scoped to the publishing device, twice over
+
+`live_runs` is keyed by `user_id`, and **a watching session is by definition
+another session of the same account**. So a delete-my-own-row sweep on boot is
+indistinguishable from sabotage: opening the app to watch a run is exactly what
+would take it off the air, and — because the recorder only publishes on an
+accepted GPS fix — it would not come back until the runner moved again, never
+while paused or standing still. The sweep is therefore gated on both:
+
+- **`LIVE_PUBLISHED_KEY`** (per-device `localStorage`, the `started_at` of a
+  broadcast this device opened and has not confirmed the deletion of). Set on the
+  first successful write, cleared **only** by a confirmed delete — an optimistic
+  clear would strand the row when the teardown didn't land. No marker, no sweep,
+  which is every watching device.
+- **the row still carrying that `started_at`.** If it doesn't, another device has
+  since started its own broadcast over ours; leave it and drop the marker.
+
+`clearStaleLiveRun()` (boot) additionally **skips** while a recoverable run buffer
+exists in `localStorage`: that run can still be resumed, and a watcher may be
+following it right now. Resolving that deferral is what the last three rows of
+the table above are for — otherwise a row spared on boot would sit on the air for
+the full 6h window. The buffer check applies the same freshness cutoff
+(`RESUME_MAX_AGE_MS`) the tracker uses before offering the resume, or a buffer too
+old to ever be offered would block the sweep forever.
 
 `shareEndedRef` in the tracker stops a re-render after teardown from resurrecting
-the row with one last `ended` upsert.
+the row with one last `ended` write, and `endLiveRun()` **awaits any write already
+on the wire** before deleting — the `ended` write fired on Stop carries the whole
+trace, and a delete that overtakes it is undone the moment it lands.
 
 ## Load discipline on the watcher
 
-In order of preference: one snapshot read → Realtime pushes → 30s polling only
-as a fallback. The poll runs **only** when Realtime is down *and* a run is
-actually live; polling for a row we know isn't there buys nothing, so with
-nothing live we just re-read on `visibilitychange`.
+In order of preference: one snapshot read → Realtime pushes → polling only as a
+fallback, and only while Realtime is down and the page is visible.
+
+The poll is **not** gated on a run being live, tempting as that is: with Realtime
+down, "a run is live" can only ever become true through that same poll, so gating
+on it means a run starting after page load is invisible until something else
+happens to trigger a read. The gate is a cadence instead — the publisher's 30s
+while a run is live, `IDLE_POLL_MS` (2 min) while nothing is — and it stops
+entirely when the tab is hidden, since `visibilitychange` catches up on return.
 
 The snapshot read is made from the `subscribe` callback rather than before it,
 so an update landing between the read and the subscription can't slip through
@@ -144,8 +201,17 @@ subscribing would be a read per app load that can never return anything.
 
 ## Known limits
 
-- **Two devices recording the same account** share one row, last writer wins.
+- **Two devices recording the same account** share one row, last writer wins
+  (the second one's `insert` hits `23505`, clears the first, and takes over).
   Not defended against — recording the same run twice is already incoherent.
+- **A row survives a device that never opens the app again.** The sweep runs on
+  the publishing device, so nothing collects for an uninstalled or dead phone;
+  watchers stop showing it after 6h (`isActive`), but the row itself remains. A
+  scheduled server-side delete of rows past that window is the fix if this ever
+  matters — it needs `pg_cron`, which this project doesn't currently use.
+- **A lapsed account that keeps a row alive** can go on updating it: that is the
+  direct cost of the premium-free UPDATE policy, and it is bounded — the row is
+  deleted when the run ends, and re-opening one is an `insert`, which is gated.
 - Freshness is computed against the watcher's local clock, so a badly skewed
   watching device mislabels "x ago". Server-stamping `updated_at` bounds this to
   the watcher's own skew.

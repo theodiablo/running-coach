@@ -8,22 +8,26 @@
 // Load discipline, in order of preference:
 //   1. one select when the hook activates,
 //   2. Realtime pushes for everything after that,
-//   3. a 30s poll ONLY as a fallback, and only while a run is actually live —
-//      polling for a row we know isn't there buys nothing, so when nothing is
-//      live we simply re-check when the page becomes visible again.
+//   3. a poll ONLY as a fallback, only while Realtime is down, and only while
+//      the page is visible — fast while a run is live, slow otherwise.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
+import { RESUME_MAX_AGE_MS } from "../constants";
 import type { LiveRunRow } from "../live/publisher";
 
 // Matches the publisher's cadence: reading faster than the phone writes can only
 // return what we already have.
 const POLL_MS = 30000;
+// With nothing live there is nothing to follow, only a start to notice — so keep
+// checking (a run can begin at any time and Realtime is what would have told us),
+// just rarely enough that a broken websocket isn't expensive.
+const IDLE_POLL_MS = 120000;
 
 // Past this, a row is treated as leftover rather than live — an app killed
-// mid-run leaves one behind, and the boot sweep only runs on the recorder's own
-// device. Mirrors the tracker's own resume window.
-const MAX_AGE_MS = 6 * 3600 * 1000;
+// mid-run leaves one behind, and only the recording device can sweep it.
+// Mirrors the tracker's own resume window.
+const MAX_AGE_MS = RESUME_MAX_AGE_MS;
 
 export type LiveRun = {
   row: LiveRunRow | null;
@@ -94,23 +98,32 @@ export function useLiveRun(uid: string | null | undefined, enabled: boolean): Li
 
   const active = isActive(row);
 
-  // Fallback polling — deliberately narrow: only when Realtime is down AND
-  // there is a live run to follow. With nothing live there is nothing to poll
-  // for, and the visibility refresh below covers "a run started while I was
-  // away" without a standing timer.
-  useEffect(() => {
-    if (!enabled || !uid || realtimeOk || !active) return;
-    const id = setInterval(() => { void fetchRow(); }, POLL_MS);
-    return () => clearInterval(id);
-  }, [enabled, uid, realtimeOk, active, fetchRow]);
-
-  // Cheap catch-up when the user comes back to the app: one read, no timer.
+  // Cheap catch-up when the user comes back to the app: one read, no timer. The
+  // visibility is also held in state, because it gates the poll below.
+  const [visible, setVisible] = useState(() => document.visibilityState === "visible");
   useEffect(() => {
     if (!enabled || !uid) return;
-    const onVis = () => { if (document.visibilityState === "visible") void fetchRow(); };
+    const onVis = () => {
+      const now = document.visibilityState === "visible";
+      setVisible(now);
+      if (now) void fetchRow();
+    };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [enabled, uid, fetchRow]);
+
+  // Fallback polling, for when Realtime can't be established (blocked websocket,
+  // project without Realtime). Deliberately NOT gated on `active`: with Realtime
+  // down, `active` can only ever become true through this very poll, so gating on
+  // it means a run that starts after the page loads is invisible until something
+  // else happens to trigger a read. Cadence instead of a gate — the publisher's
+  // 30s while a run is live, a slow tick while nothing is — and paused entirely
+  // while the tab is hidden, since the handler above catches up on return.
+  useEffect(() => {
+    if (!enabled || !uid || realtimeOk || !visible) return;
+    const id = setInterval(() => { void fetchRow(); }, active ? POLL_MS : IDLE_POLL_MS);
+    return () => clearInterval(id);
+  }, [enabled, uid, realtimeOk, visible, active, fetchRow]);
 
   return { row, active, refresh: fetchRow };
 }
