@@ -189,6 +189,23 @@ suggests, and four things bound them:
   Sonnet already did. No Mistral-tuned prompt variant has ever been tested. A
   fair capability comparison would give each model its own tuned prompt.
 
+**The suite's blind spot, found in production (2026-07).** Running
+`mistral-large-latest` live, an *informational* round — the runner asked how a
+run went — answered with analysis and then announced "One Small Adjustment
+Made … I've reduced Week 5's volume" having made **zero tool calls**. Nothing
+was proposed, nothing was confirmable, and the runner reasonably believed their
+plan had moved. The suite had scored that model 92-94% and structurally could
+not have caught this: **all 17 scenarios are single-turn**, and this failure
+needs a conversation that starts informational and drifts into a change claim.
+The prompt now carries a pre-send self-check and an explicit no-tool-calls
+summary rule (asserted in `coachGolden.test.ts`), but the durable lesson is
+about the harness, not the model — a high quality score on a single-turn suite
+says nothing about multi-turn honesty. **Add a multi-turn scenario before
+trusting the column again.** Note also that the structural fix is cheap and
+provider-independent: the engine already knows `toolCalls.length === 0`, so a
+claimed-but-unmade edit is detectable server-side rather than only discouraged
+in prose.
+
 Cost shape differs sharply and is worth knowing before a switch: on the same
 suite Mistral spent ~64-90k input / ~1k output tokens against Sonnet's
 ~181k / ~23k, and there is no prompt-cache discount on the Mistral path (see
