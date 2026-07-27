@@ -7,10 +7,22 @@
 # Runs against the plan role only. Simulation is a read-only IAM action, so
 # the plan role's read-only assumability from any branch is enough — this
 # never needs the apply role's credentials.
+#
+# Simulation evaluates the policy that is *deployed*, not the one in the diff,
+# so this cannot run on a pull request: on a PR branch it would re-assert the
+# live policy and pass no matter what the change says. The earliest honest
+# moment is right after apply, which is what the workflow_run trigger is for.
 
 name: Terraform permissions check
 
 on:
+  # Terraform applies on merge to main, so this is the first run against the
+  # policy the change actually produced. Waiting for the weekly cron would leave
+  # a broken apply policy undetected for up to seven days.
+  workflow_run:
+    workflows: ["Terraform"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch: {}
   schedule:
     # Mondays 06:00 UTC. Catches drift from a manual/local apply that changed
@@ -24,6 +36,12 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A cancelled or skipped Terraform run changed nothing; a failed one may have
+    # applied part of a policy change, which is exactly when this matters.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion != 'cancelled' &&
+       github.event.workflow_run.conclusion != 'skipped')
     steps:
       - name: Check configuration
         id: cfg

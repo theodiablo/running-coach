@@ -24,14 +24,16 @@ locals {
 data "aws_caller_identity" "current" {}
 
 # Both repo subject formats, for the reason documented on github_repo_immutable.
+# Also used by the deploy role (deploy_role.tf).
 locals {
   oidc_subjects = {
     for scope, suffixes in {
       # Pull requests get `:pull_request`, not a branch ref. Fork PRs never
       # receive an id-token in the first place, so this cannot be used to plan
       # from an untrusted fork.
-      plan  = ["pull_request", "ref:refs/heads/main"]
-      apply = ["ref:refs/heads/main"]
+      plan   = ["pull_request", "ref:refs/heads/main"]
+      apply  = ["ref:refs/heads/main"]
+      deploy = var.github_deploy_subjects
       } : scope => flatten([
         for repo in [var.github_repo, var.github_repo_immutable] : [
           for suffix in suffixes : "repo:${repo}:${suffix}"
@@ -216,6 +218,9 @@ data "aws_iam_policy_document" "tf_apply" {
       "s3:CreateBucket",
       "s3:DeleteBucket",
       "s3:DeleteBucketPolicy",
+      # Removing a website configuration is its own action (unlike CORS or
+      # lifecycle, whose DELETE maps back to the matching Put*).
+      "s3:DeleteBucketWebsite",
       "s3:PutAccelerateConfiguration",
       "s3:PutBucketAcl",
       "s3:PutBucketCORS",
@@ -240,15 +245,29 @@ data "aws_iam_policy_document" "tf_apply" {
     ]
   }
 
-  # CloudFront mostly doesn't support resource-level permissions on these
-  # actions (AWS requires "*"), so this is scoped by account, not ARN.
+  # Distributions DO take resource-level ARNs, so the two actions that can
+  # break or delete a live site are pinned to this project's distribution. The
+  # cost is that adding a second distribution means widening this list first —
+  # and because of DenySelfModification, from a workstation.
+  statement {
+    sid    = "ManageSiteDistribution"
+    effect = "Allow"
+    actions = [
+      "cloudfront:UpdateDistribution",
+      "cloudfront:DeleteDistribution",
+    ]
+    resources = [aws_cloudfront_distribution.site.arn]
+  }
+
+  # The rest genuinely cannot be scoped: a create has no ARN yet, and origin
+  # access controls have no IAM resource type at all. Tagging stays on "*"
+  # because default_tags applies it to every CloudFront resource kind, and it
+  # is not destructive.
   statement {
     sid    = "ManageCloudFront"
     effect = "Allow"
     actions = [
       "cloudfront:CreateDistribution",
-      "cloudfront:UpdateDistribution",
-      "cloudfront:DeleteDistribution",
       "cloudfront:CreateOriginAccessControl",
       "cloudfront:UpdateOriginAccessControl",
       "cloudfront:DeleteOriginAccessControl",
@@ -353,13 +372,22 @@ data "aws_iam_policy_document" "tf_apply" {
     }
   }
 
-  # The state bucket matches run-app-*, and deleting it would strand every
-  # resource Terraform manages.
+  # Deleting any of these is unrecoverable in a way an apply should never be
+  # able to do on its own: the state bucket (matches run-app-*, and losing it
+  # strands every resource Terraform manages), the live CloudFront origin, and
+  # the landing zone for inbound mail. The site bucket carries prevent_destroy
+  # too, but that is a plan-time guard in this repo — this one holds even if the
+  # config says otherwise. Removing either adopted bucket therefore needs a
+  # local apply, which is the right ceremony for it.
   statement {
-    sid       = "DenyStateBucketDeletion"
-    effect    = "Deny"
-    actions   = ["s3:DeleteBucket"]
-    resources = ["arn:aws:s3:::${local.state_bucket}"]
+    sid     = "DenyProtectedBucketDeletion"
+    effect  = "Deny"
+    actions = ["s3:DeleteBucket"]
+    resources = [
+      "arn:aws:s3:::${local.state_bucket}",
+      "arn:aws:s3:::${local.site_bucket_name}",
+      "arn:aws:s3:::${local.ses_inbound_bucket}",
+    ]
   }
 }
 

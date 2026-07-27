@@ -72,26 +72,50 @@ IAM writes to roles named `GitHub-Actions-RunApp-*`. Three explicit Denys
 apply on top: it cannot
 modify either CI role (including itself), cannot attach `AdministratorAccess`,
 `IAMFullAccess` or `PowerUserAccess` to anything, and cannot delete the state
-bucket.
+bucket or either adopted bucket. Deleting one of those means a local apply —
+deliberately, since bucket-level *configuration* on them is routine and
+deletion never is.
 
 CloudFront and SES writes (`ManageCloudFront`, `ManageSes` in
-`terraform_roles.tf`) are **not** resource-scoped: most of their mutating
-actions (`CreateDistribution`, `CreateEmailIdentity`, and similar) don't
-support resource-level ARNs in IAM at all, so those statements grant on `*`.
+`terraform_roles.tf`) are mostly **not** resource-scoped: creates have no ARN
+to name yet, origin access controls have no IAM resource type at all, and SES's
+mutating actions don't take one either, so those statements grant on `*`.
+Distributions are the exception and are treated as one: `UpdateDistribution`
+and `DeleteDistribution` — the two that can break or delete a live site — are
+pinned to this project's distribution (`ManageSiteDistribution`). Adding a
+second distribution therefore means widening that statement first, from a
+workstation, because of `DenySelfModification`.
 
 **Be honest about the residual risk.** A role that can create IAM roles and
 attach policies is close to an administrative credential, and those Denys close
 the obvious escalation paths rather than proving containment. It could still
 mint a new `GitHub-Actions-RunApp-*` role with a broad inline policy. The
-CloudFront/SES widening adds a second, different kind of risk: because those
-grants can't be scoped to this project's distribution or domain, a bug in a
-future `infra/` change could touch **any** CloudFront distribution or SES
-identity in the account, not just this project's — there is no IAM-level
-backstop for that, only code review of what merges. Accepting both risks is
-the price of applying from CI; the alternative is plan-only in CI with apply
-staying manual. If the account ever holds anything materially more sensitive
-than it does today, revisit this with a permissions boundary or a dedicated
-account per project.
+CloudFront/SES widening adds a second, different kind of risk: for everything
+that can't be pinned to an ARN, a bug in a future `infra/` change could touch
+**any** SES identity or origin access control in the account, not just this
+project's — there is no IAM-level backstop for that, only code review of what
+merges. Accepting both risks is the price of applying from CI; the alternative
+is plan-only in CI with apply staying manual. If the account ever holds
+anything materially more sensitive than it does today, revisit this with a
+permissions boundary or a dedicated account per project.
+
+### Proving the policies
+
+`infra/permissions-check.sh` asserts what each role can and cannot do via
+`iam:SimulatePrincipalPolicy` — positive cases (the apply role can configure the
+site bucket, update this distribution, manage the receipt rule) and the negative
+ones that are security properties (no CI role can read a backup tarball; the
+apply role cannot rewrite its own policy, delete a protected bucket, or touch
+another distribution).
+
+Simulation evaluates the policy that is **deployed**, not the one in the diff,
+so `.github/workflows/terraform-permissions.yml` cannot usefully run on a pull
+request — on a PR branch it would re-assert the live policy and pass regardless
+of the change. It runs on `workflow_run` after the Terraform workflow completes
+on `main` (the first moment the new policy exists), on a weekly cron to catch
+drift from a local apply, and on demand. When you widen or narrow a policy,
+extend the script in the same commit — a grant with no assertion is a grant
+nobody is checking.
 
 ### Bootstrapping
 
@@ -116,7 +140,7 @@ maintain them now.
 | SES receipt rule set | `camboulive-solutions-inbound` | Active; the one rule (`forward-all`) writes inbound mail to S3 and invokes the forwarder Lambda. Adopted. |
 | S3 bucket | `ses-inbound-camboulive-solutions` | Inbound mail landing zone, 30-day expiry on `inbound/`. Adopted. |
 
-Two deliberate non-decisions worth knowing before you change them:
+Three deliberate non-decisions worth knowing before you change them:
 
 - **The backup bucket has no object-expiry lifecycle rule.** Retention belongs
   to the workflow, which always keeps the 7 most recent backups regardless of
@@ -125,6 +149,17 @@ Two deliberate non-decisions worth knowing before you change them:
 - **The GitHub OIDC provider is a `data` source, not a resource.** It is
   account-wide and shared with unrelated projects, so this configuration must
   not be able to destroy it.
+- **The distribution's response headers policy belongs to `deploy.yml`, not to
+  Terraform.** That workflow creates/updates the custom
+  `run-app-security-headers` policy (clickjacking protection, which a `<meta>`
+  CSP cannot set) and attaches it on every push to `main`. Two writers on one
+  field is the failure mode to avoid, so
+  `default_cache_behavior[0].response_headers_policy_id` is under
+  `ignore_changes` here and the ID in `site.tf` is only a from-scratch initial
+  value — it is **not** the AWS-managed `SecurityHeadersPolicy`. Adopting the
+  policy as an `aws_cloudfront_response_headers_policy` and dropping the
+  workflow step would be a real improvement; it needs the deploy role's
+  `CloudFrontFullAccess` narrowed in the same change, not before it.
 
 Also deliberately unmanaged, referenced only by ARN/value where a resource
 needs to point at them: the ACM certificate backing the CloudFront
@@ -200,6 +235,11 @@ things about this repository's `sub` claim are easy to get wrong:
   delete objects, so a pull-request branch should not be able to assume it. If
   you need to `workflow_dispatch` from a topic branch, widen that variable
   temporarily.
+- The deploy role is restricted to `pull_request` and the default branch
+  (`github_deploy_subjects`) — production deploys and PR previews, which is all
+  that assumes it. It can overwrite the live site, so trusting every ref put
+  the whole gate in `deploy-pr.yml`'s `author_association` check, i.e. in YAML
+  rather than in IAM. Same "widen temporarily" escape hatch as the backup role.
 
 If an assume-role call fails, decode the real token claims rather than guessing:
 add a throwaway workflow that curls

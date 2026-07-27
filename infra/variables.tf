@@ -39,6 +39,21 @@ variable "github_allowed_subjects" {
   default     = ["ref:refs/heads/main"]
 }
 
+variable "github_deploy_subjects" {
+  description = <<-EOT
+    Subject suffixes (everything after `repo:<repo>:`) allowed to assume the
+    deploy role.
+
+    Production deploys run on the default branch and PR previews run on
+    `pull_request` (never `pull_request_target`, so forks get no token), which
+    is the whole list. The role can overwrite the live site, so it is not
+    trusted from an arbitrary ref. Widen temporarily if you need to dispatch
+    deploy.yml or deploy-pr.yml from a topic branch.
+  EOT
+  type        = list(string)
+  default     = ["pull_request", "ref:refs/heads/main"]
+}
+
 variable "backup_bucket_name" {
   description = "Private bucket holding the daily database dumps. Must not be the site bucket, which is a public CloudFront origin."
   type        = string
