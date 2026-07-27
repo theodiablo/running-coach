@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { VERT_COST } from "../constants";
 import { fmt, ymd } from "../utils/format";
 import { effectiveMaxHR } from "../utils/hr";
-import { riegel, bestEffortAnchor, hrModelAnchor } from "../utils/predictions";
+import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable } from "../utils/predictions";
 import { PredictionsInfo } from "../components/PredictionsInfo";
 import { HRZonesCard } from "../components/HRZonesCard";
 import type { Run, SettingsState } from "../types";
@@ -202,9 +202,8 @@ function RacePredictions({runs, settings}: StatsViewProps) {
   const restHR = settings.restHR || 60;
 
   const best = bestEffortAnchor(fRuns);
-  const hr   = hrModelAnchor(fRuns, effMax, restHR);
-  // Only trust the HR model with a real spread of efforts and a sane fit.
-  const hrOk = hr && hr.n >= 8 && hr.spread >= 15 && hr.slope < 0 && hr.r2 >= 0.3;
+  const hr   = hrModelAnchor(fRuns, effMax, restHR, best);
+  const hrOk = hrModelUsable(hr);
 
   // 5 / 10 / 20 km, plus the race-day distance when it isn't already one of them.
   const dists = [5, 10, 20];
@@ -290,8 +289,8 @@ function RacePredictions({runs, settings}: StatsViewProps) {
             </p>
             {hrOk ? (
               <p className="text-slate-400 text-xs">
-                <Trans i18nKey="progress.predictions.hrExplainer"
-                  values={{n: hr.n, thr: hr.thrHR}}
+                <Trans i18nKey={"progress.predictions." + (hr.capped ? "hrExplainerCapped" : "hrExplainer")}
+                  values={{n: hr.n, thr: hr.atHR, full: hr.thrHR}}
                   components={[<span className="text-sky-400 font-semibold"/>]}/>
               </p>
             ) : (

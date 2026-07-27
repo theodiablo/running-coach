@@ -112,7 +112,8 @@
     "runSummaryClimb": "({{km}} km en {{dur}}, {{climb}} m de desnivel)",
     "bestEffortExplainer": "<0>Mejor esfuerzo</0> proyecta tu entrenamiento más sólido {{run}} a cada distancia con la fórmula de Riegel.",
     "hrExplainer": "<0>Modelo de FC</0> relaciona tu ritmo con la frecuencia cardíaca en {{n}} entrenamientos y extrapola al esfuerzo de umbral (~{{thr}} ppm). Así también cuentan los rodajes suaves bien gestionados, no solo tu día más rápido.",
-    "hrLocked": "Añade tu FC máxima en Ajustes y registra más entrenamientos con esfuerzos suaves e intensos para desbloquear la estimación basada en la FC.",
+    "hrExplainerCapped": "<0>Modelo de FC</0> relaciona tu ritmo con la frecuencia cardíaca en {{n}} entrenamientos y lo lee a ~{{thr}} ppm, el máximo que permiten tus datos más allá de tu esfuerzo más intenso. Registra una sesión más exigente para proyectar hasta el umbral (~{{full}} ppm).",
+    "hrLocked": "Añade tu FC máxima en Ajustes y registra más entrenamientos con esfuerzos suaves e intensos para desbloquear la estimación basada en la FC. Permanece oculta mientras tu ritmo a una FC dada sea demasiado disperso para proyectarlo.",
     "gradeNoteClimb": "Los entrenamientos se ajustan según el desnivel positivo. Los tiempos corresponden a un recorrido llano; la fila del día de la carrera incluye sus {{m}} m de desnivel.",
     "gradeNoteFlat": "Los entrenamientos se ajustan según el desnivel positivo. Los tiempos corresponden a un recorrido llano, excepto la fila del día de la carrera cuando configures el desnivel en los ajustes del plan.",
     "info": {
@@ -126,8 +127,8 @@
       "bestTitle": "Estimación por mejor esfuerzo",
       "bestBody": "Elige tu <0>mejor entrenamiento</0> de al menos 3 km con tiempo y lo proyecta a cada distancia. No se limita a buscar el ritmo más rápido: cada actividad se convierte primero en un tiempo equivalente de 10 km según Riegel y se conserva la mejor.",
       "hrTitle": "Estimación por modelo de FC",
-      "hrP1": "Calcula una recta que relaciona <0>ritmo y frecuencia cardíaca</0> en todos tus entrenamientos con FC. Después estima el ritmo que podrías mantener al esfuerzo de umbral (~88–90 % de la FC máxima, aproximadamente una carrera de una hora) y lo proyecta con Riegel.",
-      "hrP2": "Este método premia la eficiencia: un ritmo rápido mantenido con una FC baja mejora el tiempo estimado, por lo que también cuentan tus rodajes suaves. Solo aparece cuando los datos lo respaldan (≥ 8 entrenamientos con FC, una variedad real de esfuerzos y un ajuste razonable).",
+      "hrP1": "Calcula una recta que relaciona <0>ritmo y frecuencia cardíaca</0> en tus entrenamientos con FC. Después estima el ritmo que podrías mantener al esfuerzo de umbral (~88–90 % de la FC máxima, aproximadamente una carrera de una hora) y lo proyecta con Riegel. Los entrenamientos en zona de recuperación quedan fuera: van a ritmo de caminata y bastarían un par para inclinar toda la recta.",
+      "hrP2": "Este método premia la eficiencia: un ritmo rápido mantenido con una FC baja mejora el tiempo estimado, por lo que también cuentan tus rodajes suaves. Prolongar la recta más allá de tus datos es lo arriesgado: por eso la estimación nunca supera en más de 8 ppm tu esfuerzo más intenso, y solo aparece cuando los datos lo respaldan (≥ 8 entrenamientos con FC, una variedad real de esfuerzos y un ajuste suficientemente nítido).",
       "elevTitle": "Ajuste por desnivel",
       "elevBody": "Las cuestas hacen que un entrenamiento sea más lento que su equivalente en llano. Antes del cálculo, cada metro ascendido se convierte en unos 8 metros llanos adicionales para que los recorridos con cuestas no hagan parecer que estás en peor forma. Los tiempos indicados son para un recorrido llano; la <0>fila del día de carrera</0> vuelve a sumar el desnivel cuando lo configuras en el plan.",
       "footer": "Son proyecciones basadas en esfuerzos anteriores, no promesas. Úsalas como un indicador de forma que mejora a medida que registras más entrenamientos."
