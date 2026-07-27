@@ -1,0 +1,28 @@
+{
+  "toggle": {
+    "label": "Compartir en directo",
+    "hint": "Tu posición se comparte con tus otros dispositivos con la sesión iniciada mientras grabas, y deja de compartirse en cuanto guardas o descartas el entrenamiento. No es un dispositivo de seguridad: nunca cuentes con esto para pedir ayuda.",
+    "on": "Activado",
+    "off": "Desactivado"
+  },
+  "banner": {
+    "title": "Entrenamiento en curso",
+    "subtitle": "{{km}} km hasta ahora",
+    "action": "Seguir"
+  },
+  "watch": {
+    "title": "Entrenamiento en directo",
+    "waiting": "Esperando la primera posición",
+    "paused": "En pausa",
+    "updatedNow": "Actualizado ahora mismo",
+    "updatedSecs": "Actualizado hace {{secs}} s",
+    "updatedMins": "Actualizado hace {{mins}} min",
+    "signalLost": "Sin actualizaciones desde hace un rato. Puede que se haya perdido la señal o que el entrenamiento esté en pausa.",
+    "ended": "Este entrenamiento ha terminado.",
+    "stats": {
+      "distance": "Distancia",
+      "pace": "Ritmo",
+      "time": "Tiempo"
+    }
+  }
+}

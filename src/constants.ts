@@ -22,6 +22,12 @@ export const USER_CONTEXT_NOTICE_CHARS = 1800;
 // it's high-frequency local scratch space, flushed only on a real save.
 export const LIVE_RUN_KEY = "rc_live_run";
 
+// localStorage flag: last "share this run live" choice (premium). Per-device
+// like the other recording concerns, NOT a synced setting: whether you broadcast
+// a run is a property of the phone in your hand, and a synced "on" would silently
+// put a run on the air from a device the user never armed.
+export const LIVE_SHARE_KEY = "rc_live_share";
+
 // localStorage flag: the user has seen and accepted the background-location
 // prominent disclosure (native shell only). Set once per install so we show it
 // before the first OS permission prompt but don't nag on every run.

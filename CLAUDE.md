@@ -161,6 +161,11 @@ rules, not a changelog; delete anything stale.
   all run imports through the provider registry (`src/imports/`). Add sources
   by implementing the interface — never touch `navigator.geolocation` or a
   native bridge directly from UI code.
+- **Anything that must keep working with the screen off rides the accepted-GPS-fix
+  render path, never a timer** — background JS timers are throttled to a crawl,
+  which is exactly when a run is being recorded. The lock-screen notification
+  (`useRunTracker`) and live-sharing uploads (`docs/live-sharing.md`) both do
+  this; a stationary runner emits no fixes, so the *consumer* owns staleness.
 - **Synced preferences vs per-device grants:** OS permissions and device
   pairings are per-install. A synced setting (`hrMethod`, `watchImport`) is a
   *preference*; check the local per-device marker before touching any native
@@ -303,6 +308,7 @@ prompt/tool-description changes.
 - `docs/health-integrations.md` — HR sources, watch/file/cloud imports,
   dedupe rules, Health Connect/HealthKit.
 - `docs/background-location.md` — Android background-location policy.
+- `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup.
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.

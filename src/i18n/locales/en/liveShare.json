@@ -1,0 +1,28 @@
+{
+  "toggle": {
+    "label": "Share live",
+    "hint": "Your position is shared with your other signed-in devices while you record, and stops the moment you save or discard. Not a safety device: never rely on it for help.",
+    "on": "On",
+    "off": "Off"
+  },
+  "banner": {
+    "title": "Run in progress",
+    "subtitle": "{{km}} km so far",
+    "action": "Follow"
+  },
+  "watch": {
+    "title": "Live run",
+    "waiting": "Waiting for the first position",
+    "paused": "Paused",
+    "updatedNow": "Updated just now",
+    "updatedSecs": "Updated {{secs}}s ago",
+    "updatedMins": "Updated {{mins}} min ago",
+    "signalLost": "No update for a while. The signal may have dropped, or the run may be on hold.",
+    "ended": "This run has ended.",
+    "stats": {
+      "distance": "Distance",
+      "pace": "Pace",
+      "time": "Time"
+    }
+  }
+}

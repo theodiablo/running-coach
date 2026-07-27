@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
+import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher } from "../live/publisher";
 import { useRunTracker } from "../hooks/useRunTracker";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -20,7 +21,7 @@ import { BgLocationDisclosure } from "./BgLocationDisclosure";
 import { RouteFinderSheet } from "./RouteFinderSheet";
 import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
 import { isNative, isAndroid, isIos } from "../native";
-import { BG_LOC_DISCLOSED_KEY, routeSuggestEnabled } from "../constants";
+import { BG_LOC_DISCLOSED_KEY, LIVE_SHARE_KEY, routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser, isPremiumActive } from "../premium";
 import { track } from "../telemetry";
 import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
@@ -101,8 +102,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // false for them. The teaser wiring is kept for the entitlement re-read below
   // and for the unveil (see src/premium.ts).
   const [showFinder, setShowFinder] = useState(routeFinderReady && !!initialFindKm);
-  const [showPremiumTeaser, setShowPremiumTeaser] = useState(
-    routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm);
+  // Which premium feature slug the teaser is standing in for (null = closed);
+  // more than one entry point on this screen now routes here.
+  const [premiumTeaser, setPremiumTeaser] = useState<string | null>(
+    routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm ? "routeFinder" : null);
   const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
   // Tapping the entry point is the one moment a stale entitlement is about to
   // decide something, so re-read it and DECIDE ON THAT READ. The sign-in fetch
@@ -119,7 +122,41 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     const until = await onRefreshPremium?.();
     setCheckingPremium(false);
     if (routeSuggestEnabled && isPremiumActive(until)) setShowFinder(true);
-    else setShowPremiumTeaser(true);
+    else setPremiumTeaser("routeFinder");
+  };
+  // ── Live sharing (premium) ───────────────────────────────────────────────
+  // Broadcasts the run to the user's OWN other signed-in sessions. The choice is
+  // per-device (see LIVE_SHARE_KEY): whether this phone goes on the air is not
+  // something another device should decide for it.
+  const [shareLive, setShareLive] = useState(() => {
+    try { return localStorage.getItem(LIVE_SHARE_KEY) === "1"; } catch { return false; }
+  });
+  const [checkingSharePremium, setCheckingSharePremium] = useState(false);
+  // Set the moment the broadcast is torn down, so a re-render after the row has
+  // been deleted can't resurrect it with one last "ended" upsert.
+  const shareEndedRef = useRef(false);
+  const armShare = (on: boolean) => {
+    setShareLive(on);
+    try { localStorage.setItem(LIVE_SHARE_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
+    if (on) track("live_share_enabled", {});
+  };
+  // Same re-read-and-decide as the route finder: the sign-in entitlement fetch
+  // may have failed offline or predated a grant, so don't let a stale read send
+  // a genuine premium user to the "not available" sheet.
+  const toggleShareLive = async () => {
+    if (shareLive) { armShare(false); return; }
+    if (isPremium) { armShare(true); return; }
+    if (checkingSharePremium) return;
+    setCheckingSharePremium(true);
+    const until = await onRefreshPremium?.();
+    setCheckingSharePremium(false);
+    if (isPremiumActive(until)) armShare(true);
+    else setPremiumTeaser("liveShare");
+  };
+  const endShare = () => {
+    if (shareEndedRef.current) return;
+    shareEndedRef.current = true;
+    void endLiveRun();
   };
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
@@ -128,7 +165,14 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // disclosure / permission / HR-nudge gates and the countdown — never on the
   // button tap and never on Resume, so it counts genuine live-run starts only.
   // No properties (consent-gated in track(); a plain count is all we want).
-  const startTracking = () => { track("live_run_started", {}); rt.start(); };
+  const startTracking = () => {
+    track("live_run_started", {});
+    // Fresh broadcast state so this run stamps its own started_at rather than
+    // inheriting a previous one, and re-arms after an earlier run was ended.
+    resetLivePublisher();
+    shareEndedRef.current = false;
+    rt.start();
+  };
   const countdown = useCountdown(startTracking);
   const startWithCountdown = () => (reducedMotion ? startTracking() : countdown.start(3));
   // Resolve the HR source once per render from the seam (source.js), instead of
@@ -288,9 +332,33 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (run) fn?.();
   };
 
+  // Mirror of the lock-screen notification effect in useRunTracker, and driven by
+  // the same renders: an accepted GPS fix changes `points`, which re-runs this.
+  // Never a timer — those are throttled in the background, which is exactly when
+  // a run is being recorded with the screen off. canPublishNow is checked BEFORE
+  // simplify() so the ~1/s foreground clock ticks don't re-simplify a long trace
+  // only to throw it away.
+  useEffect(() => {
+    if (!shareLive || shareEndedRef.current) return;
+    const status = state === "tracking" ? "live" : state === "paused" ? "paused" : state === "stopped" ? "ended" : null;
+    if (!status) return;
+    if (!canPublishNow(status)) return;
+    void publishLiveRun({
+      status,
+      points: simplify(points, 5),
+      stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
+      startedAt: rt.runWindow().startedAt,
+    });
+    // `stats` is in the deps because the moving clock (and HR) can advance
+    // without `points` changing — e.g. a paused runner resuming.
+  }, [shareLive, state, points, stats, rt]);
+
   const handleClose = () => {
     if ((live || state === "stopped") && hasTrack &&
       !window.confirm(t("tracker.discardConfirm"))) return;
+    // Discarding takes the run off the air too — the trace is being thrown away,
+    // so leaving a row behind would show a watcher a run that no longer exists.
+    if (live || state === "stopped") endShare();
     // Only tear down (which clears the crash-recovery buffer) for an in-progress
     // or just-finished run. Backing out while idle must NOT wipe an unresumed
     // recovery buffer — it should still be offered next time the tracker opens.
@@ -300,6 +368,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
   const handleSave = async () => {
     setBusy(true);
+    // Off the air first, and deliberately not awaited: the run is over either
+    // way, and a failed delete must never stand between the runner and a saved
+    // run (the boot sweep clears an orphan row).
+    endShare();
     const simplified = simplify(points, 5);
     const km = +stats.km.toFixed(2);
     // Persist the raw ~1Hz HR stream as a sidecar on the route stats (BLE runs
@@ -462,6 +534,35 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 <Play size={20} />{t("tracker.controls.start")}
               </Ctrl>
             </div>
+            {/* Live sharing. Gated on `isPremium || canShowPremiumTeaser` (never
+                isPremium alone) so the whole tier still reveals by flipping that
+                one flag — while it is false a free user sees no entry point. */}
+            {(isPremium || canShowPremiumTeaser) && (
+              <div className="space-y-1.5">
+                <button onClick={toggleShareLive} disabled={checkingSharePremium} aria-pressed={shareLive}
+                  className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-[background-color,transform] active:scale-95 disabled:opacity-60 "
+                    + (shareLive
+                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+                      : "bg-slate-800 border-slate-700 text-slate-200")}>
+                  {checkingSharePremium
+                    ? <Loader size={16} className="animate-spin shrink-0" />
+                    : isPremium ? <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
+                    : <Lock size={16} className="text-slate-300 shrink-0" />}
+                  <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
+                  {!isPremium && (
+                    <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
+                      {t("premium.badge")}
+                    </span>
+                  )}
+                  <span className={"text-[11px] uppercase tracking-wide " + (shareLive ? "text-emerald-300" : "text-slate-500")}>
+                    {t(shareLive ? "liveShare.toggle.on" : "liveShare.toggle.off")}
+                  </span>
+                </button>
+                {shareLive && (
+                  <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
+                )}
+              </div>
+            )}
             {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
               plannedRoute ? (
                 <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
@@ -509,6 +610,14 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
               {busy ? <Loader size={18} className="animate-spin" /> : null}{t("tracker.controls.save")}
             </Ctrl>
           </div>
+        )}
+
+        {/* A broadcast in progress must be visible on the recording device — an
+            invisible one is a privacy problem, not a feature. */}
+        {live && shareLive && (
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
+            <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
+          </p>
         )}
 
         {live && !isNative && (
@@ -572,8 +681,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           onClose={() => setShowFinder(false)} />
       )}
 
-      {showPremiumTeaser && (
-        <PremiumTeaserSheet feature="routeFinder" onClose={() => setShowPremiumTeaser(false)} />
+      {premiumTeaser && (
+        <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)} />
       )}
     </div>
   );
