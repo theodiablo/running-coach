@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LIVE_RUN_KEY } from "../constants";
+import { LIVE_RUN_KEY, RESUME_MAX_AGE_MS } from "../constants";
 import { accuracyOK, distanceKm, elevGainM, haversineM } from "../utils/geo";
 import { hrSummary } from "../utils/hr";
 import { geoSource } from "../geo/source";
@@ -37,7 +37,6 @@ const GAP_MS = 60000;         // silence longer than this starts a new segment (
                              // not lost signal, so we don't break the track over them.
 const TICK_MS = 1000;         // UI clock refresh while tracking
 const CUR_PACE_WINDOW_MS = 30000; // current-pace look-back
-const RESUME_MAX_AGE_MS = 6 * 3600 * 1000; // offer to resume a buffer this fresh
 
 // Permission-denied copy, shared by onErr and requestPermissions so the native
 // and web wording can't drift between the two. isNative is fixed at module load;

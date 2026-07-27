@@ -19,6 +19,8 @@ import { computeBadges, unlockedIds } from "./utils/badges";
 import { detectAnyRace, findEdition, editionLabel, loadCatalogue } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
+import { clearStaleLiveRun } from "./live/publisher";
+import { useLiveRun } from "./hooks/useLiveRun";
 import { flushPendingHr, hasHealthConnectAuthorization } from "./hr/healthconnect";
 import { flushPendingHkHr } from "./hr/healthkit";
 import { markSeen, WATCH_MANUAL_SCAN_DAYS, WATCH_AUTO_SCAN_COOLDOWN_MS } from "./watch/import";
@@ -36,6 +38,7 @@ import { SettingsModal } from "./modals/SettingsModal";
 import { DeleteAccountModal } from "./modals/DeleteAccountModal";
 import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
+import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { Dashboard } from "./views/Dashboard";
 import { PlanView } from "./views/PlanView";
@@ -132,6 +135,16 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [showDeleteAccount,setShowDeleteAccount]= useState(false);
   const [onboarding,  setOnboarding]  = useState(false);
   const [showTracker, setShowTracker] = useState(false);
+  const [showLiveWatch, setShowLiveWatch] = useState(false);
+  // Recomputed every render (not memoised) so an expiry flips the UI to free
+  // without needing a refetch. UI only — the server enforces every premium
+  // feature independently.
+  const isPremium = isPremiumActive(premiumUntil);
+  // Live run sharing: subscribed ONCE here (not per consumer) so the dashboard
+  // banner and the watch modal share a single Realtime channel. Only for premium
+  // accounts — a row can't exist for anyone else, so subscribing would be a read
+  // per app load that can never return anything.
+  const liveRun = useLiveRun(user?.id, isPremium);
   // Plan session the tracker was opened from ("Record run" on a session card),
   // threaded into the save prefill so LogView's onSaved auto-ticks it.
   const [trackerLink, setTrackerLink] = useState<{ wNum: number; sId: string } | null>(null);
@@ -307,6 +320,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           return next;
         });
       });
+      // Sweep a live-sharing row left on the air by an app that was killed
+      // mid-run. Scoped to a broadcast THIS device published and never confirmed
+      // the teardown of — the row is per-account, so an unscoped sweep would have
+      // a watching session delete the run it just opened the app to follow.
+      // No-op too when a recoverable run buffer is still present: that run can
+      // still be resumed, and a watcher may be looking at it right now.
+      void clearStaleLiveRun();
       // Same deferred cleanup for Health Connect HR: a run saved before the watch
       // had synced its HR is stamped hrPending.
       // On boot, only open Health Connect if this *device* has previously granted
@@ -794,10 +814,6 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     setCoachSession(ctx); setShowCoach(true);
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  // Recomputed every render (not memoised) so an expiry flips the UI to free
-  // without needing a refetch. UI only — the server enforces every premium
-  // feature independently.
-  const isPremium = isPremiumActive(premiumUntil);
   const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
@@ -817,6 +833,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       if (r) setDetailRun(r);
     },
     openCoach,
+    // A live run to follow, and the way in. Suppressed while the tracker is open:
+    // the recording device must not offer to watch itself.
+    liveRun: showTracker ? null : (liveRun.active ? liveRun.row : null),
+    openLiveWatch: () => setShowLiveWatch(true),
     // Manual "scan older runs" for the Integrations settings panel — wider window,
     // bypasses the once-per-session auto throttle.
     scanImportsNow: () => checkWatchRef.current({ days: WATCH_MANUAL_SCAN_DAYS, manual: true })};
@@ -861,6 +881,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
+      {showLiveWatch && <LiveWatchModal row={liveRun.row} onClose={() => setShowLiveWatch(false)}/>}
       {showBackup && <BackupModal
         data={{runs, plan, settings, races, userContext, ...(backupRoutes.length ? {routes: backupRoutes} : {})}}
         onClose={() => setShowBackup(false)}/>

@@ -22,6 +22,26 @@ export const USER_CONTEXT_NOTICE_CHARS = 1800;
 // it's high-frequency local scratch space, flushed only on a real save.
 export const LIVE_RUN_KEY = "rc_live_run";
 
+// How fresh that buffer must be to still be offered as a resumable run — and,
+// because a resumable run may still be on the air, the same window the live
+// publisher uses before it will sweep a leftover broadcast. The watcher mirrors
+// it too (useLiveRun), so all three agree on when a run stops counting as one.
+export const RESUME_MAX_AGE_MS = 6 * 3600 * 1000;
+
+// localStorage flag: last "share this run live" choice (premium). Per-device
+// like the other recording concerns, NOT a synced setting: whether you broadcast
+// a run is a property of the phone in your hand, and a synced "on" would silently
+// put a run on the air from a device the user never armed.
+export const LIVE_SHARE_KEY = "rc_live_share";
+
+// localStorage marker: the `started_at` of a broadcast THIS device put on the
+// air and has not confirmed the deletion of. The `live_runs` row is per-account
+// and a watching session is by definition another session of the same account,
+// so without a per-device marker the cleanup sweep can't tell "my own row, left
+// by a killed app" from "the run I opened the app to watch" — and would delete
+// the latter. Set on the first successful publish, cleared on a confirmed delete.
+export const LIVE_PUBLISHED_KEY = "rc_live_published";
+
 // localStorage flag: the user has seen and accepted the background-location
 // prominent disclosure (native shell only). Set once per install so we show it
 // before the first OS permission prompt but don't nag on every run.

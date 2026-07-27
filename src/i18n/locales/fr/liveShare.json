@@ -1,0 +1,28 @@
+{
+  "toggle": {
+    "label": "Partager en direct",
+    "hint": "Ta position est partagée avec tes autres appareils connectés pendant l'enregistrement, et le partage s'arrête dès que tu enregistres ou annules la sortie. Ce n'est pas un dispositif de sécurité : ne compte jamais dessus pour obtenir de l'aide.",
+    "on": "Activé",
+    "off": "Désactivé"
+  },
+  "banner": {
+    "title": "Sortie en cours",
+    "subtitle": "{{km}} km parcourus",
+    "action": "Suivre"
+  },
+  "watch": {
+    "title": "Sortie en direct",
+    "waiting": "En attente de la première position",
+    "paused": "En pause",
+    "updatedNow": "Mis à jour à l'instant",
+    "updatedSecs": "Mis à jour il y a {{secs}} s",
+    "updatedMins": "Mis à jour il y a {{mins}} min",
+    "signalLost": "Aucune mise à jour depuis un moment. Le signal a peut-être été perdu, ou la sortie est peut-être en pause.",
+    "ended": "Cette sortie est terminée.",
+    "stats": {
+      "distance": "Distance",
+      "pace": "Allure",
+      "time": "Temps"
+    }
+  }
+}

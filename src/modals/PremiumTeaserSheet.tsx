@@ -35,7 +35,11 @@ export function PremiumTeaserSheet({ feature, onClose }: PremiumTeaserSheetProps
           <Lock size={20} className="text-orange-300" />
         </div>
         <h3 className="text-lg font-bold text-white">{t("premium.teaser.title")}</h3>
-        <p className="text-sm text-slate-300 leading-relaxed">{t("premium.teaser.body")}</p>
+        {/* Per-feature copy where we have it, generic otherwise — one sheet now
+            stands in for more than one entry point. */}
+        <p className="text-sm text-slate-300 leading-relaxed">
+          {t("premium.teaser.bodies." + feature, { defaultValue: t("premium.teaser.body") })}
+        </p>
         <button onClick={onClose}
           className="w-full py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white">
           {t("premium.teaser.ok")}

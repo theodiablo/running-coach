@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, Check, ChevronRight, MessageCircle, Plus, Route, X, Zap } from "lucide-react";
+import { Activity, Award, Check, ChevronRight, MessageCircle, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
+import type { LiveRunRow } from "../live/publisher";
 import { fmt, ymd, estMin } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
@@ -24,11 +25,15 @@ type DashboardProps = {
   openSettings: () => void;
   openCoach: (session?: null, source?: CoachSource) => void;
   openRunDetail?: (run: Run) => void;
+  // A run this account is recording on another device right now (premium live
+  // sharing). Null whenever there is nothing to follow.
+  liveRun?: LiveRunRow | null;
+  openLiveWatch?: () => void;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch}: DashboardProps) {
   const { t } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -72,6 +77,23 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           <h1 className="text-2xl font-bold">{t("dashboard.greetingAnon")}</h1>
         )}
       </div>
+
+      {liveRun && openLiveWatch && (
+        <button onClick={openLiveWatch}
+          className="w-full rounded-xl p-3.5 flex items-center gap-3 text-left border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15 transition-colors">
+          <span className="relative flex h-2.5 w-2.5 flex-shrink-0" aria-hidden>
+            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"/>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400"/>
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-100">{t("liveShare.banner.title")}</p>
+            <p className="text-xs text-emerald-300/80">{t("liveShare.banner.subtitle", {km: (liveRun.stats?.km ?? 0).toFixed(1)})}</p>
+          </div>
+          <span className="flex items-center gap-1 text-xs font-semibold text-emerald-200 flex-shrink-0">
+            <Radio size={14}/>{t("liveShare.banner.action")}
+          </span>
+        </button>
+      )}
 
       <div className="rounded-2xl p-5 border border-orange-500/30"
         style={{background:"linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))"}}>

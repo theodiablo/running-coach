@@ -218,6 +218,7 @@ convenience last.
 | 4 | **Race strategy** — elevation-aware pacing plan plus a coach narrative for a target race | High-value, race-shaped, model-heavy | Planned |
 | 5 | **Deep analytics** — training load / fitness-fatigue trend, HR-drift and zone distribution over time, race-time predictor, PB history | Zero marginal cost, all computable client-side from existing `runs`; the Strava-premium model | Planned |
 | 6 | **Convenience** — calendar export (.ics), richer multi-race handling | Bundle filler, weak on its own | Planned |
+| 6b | **Live run sharing** — follow a run as it happens from your own other signed-in sessions (`docs/live-sharing.md`) | Ongoing write traffic and stored rows for the duration of every shared run; emotionally the strongest "show someone" feature, and new value rather than a claw-back (a run has never been visible mid-run) | **Built** (same-account v1), hidden behind `canShowPremiumTeaser` |
 | 7 | **Higher coach daily budget** (`PREMIUM_RATE_LIMIT_PER_DAY`, 40 vs 5) | Already shipped as a *raise*; never framed as the reason to buy | **Built** |
 
 Rules this list must keep obeying:
