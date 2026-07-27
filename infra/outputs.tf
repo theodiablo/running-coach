@@ -27,3 +27,13 @@ output "tf_apply_role_arn" {
   description = "Read/write role for terraform apply in CI, default branch only (secret AWS_TF_APPLY_ROLE_ARN)."
   value       = aws_iam_role.tf_apply.arn
 }
+
+# Read from the resource rather than repeated as a literal, so it survives a
+# distribution ever being recreated:
+#
+#   gh secret set CLOUDFRONT_DISTRIBUTION_ID --body "$(terraform output -raw site_distribution_id)"
+
+output "site_distribution_id" {
+  description = "CloudFront distribution serving the site (secret CLOUDFRONT_DISTRIBUTION_ID)."
+  value       = aws_cloudfront_distribution.site.id
+}

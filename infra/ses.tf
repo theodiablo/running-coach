@@ -91,6 +91,12 @@ resource "aws_ses_receipt_rule_set" "inbound" {
 }
 
 resource "aws_ses_receipt_rule" "forward_all" {
+  # SES validates that it can write to the bucket when the rule is created, so
+  # on a from-scratch apply the bucket policy has to be in place first —
+  # otherwise it fails with "Could not write to bucket". Nothing in the
+  # attributes below implies that ordering.
+  depends_on = [aws_s3_bucket_policy.ses_inbound]
+
   name          = "forward-all"
   rule_set_name = aws_ses_receipt_rule_set.inbound.rule_set_name
   recipients    = [local.ses_domain]

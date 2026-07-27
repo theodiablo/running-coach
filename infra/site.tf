@@ -6,8 +6,7 @@
 # classification; see backup.tf.
 
 locals {
-  site_bucket_name     = "run.camboulive.solutions"
-  site_distribution_id = "E42OGU5IVYJ14"
+  site_bucket_name = "run.camboulive.solutions"
 }
 
 resource "aws_s3_bucket" "site" {
@@ -90,8 +89,14 @@ resource "aws_cloudfront_origin_access_control" "site" {
 resource "aws_cloudfront_distribution" "site" {
   # In the path of every push to main (the deploy workflow invalidates it).
   # Replacement would mean a new distribution ID and domain name.
+  #
+  # response_headers_policy_id is owned by deploy.yml, not by Terraform — see
+  # the note on default_cache_behavior below. Without ignore_changes, a policy
+  # the workflow recreates (new ID) would be reverted here to a stale one on the
+  # next apply, silently dropping the site's clickjacking headers.
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [default_cache_behavior[0].response_headers_policy_id]
   }
 
   enabled             = true
@@ -115,8 +120,15 @@ resource "aws_cloudfront_distribution" "site" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    # Managed policies (not custom TTLs): "CachingOptimized" and
-    # "SecurityHeadersPolicy".
+    # cache_policy_id is the AWS-managed "CachingOptimized" policy.
+    #
+    # response_headers_policy_id is NOT an AWS-managed policy: it is the custom
+    # `run-app-security-headers` policy that deploy.yml creates and attaches on
+    # every push to main (frame-ancestors + X-Frame-Options, which a <meta> CSP
+    # cannot set). That workflow owns the field — this value is only the initial
+    # one for a from-scratch create, and drift is ignored via `lifecycle` above.
+    # Adopting the policy here and dropping the workflow step is the eventual
+    # cleanup; see infra/README.md.
     cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
     response_headers_policy_id = "d2b8c523-04e4-43fe-8ccb-ebb5692fb6c7"
   }
