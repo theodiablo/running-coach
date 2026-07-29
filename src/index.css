@@ -27,6 +27,24 @@
   }
 }
 
+/* iOS zooms the whole page in when a focused text control's font-size is under
+   16px, and the Capacitor WebView disables pinch-zoom (Capacitor's
+   `zoomEnabled` defaults to false and its scroll delegate kills the pinch
+   recogniser), so there is no way back out — one tap on the sign-in email field
+   leaves the app stuck zoomed until it is force-quit. Keeping every text-entry
+   control at 16px on iOS removes the trigger. `-webkit-touch-callout` only
+   exists on iOS/iPadOS, so web, Android and desktop render unchanged. Unlayered
+   on purpose: it has to win over Tailwind's `text-*` utilities. No control in
+   the app is larger than 16px, so nothing shrinks. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    font-size: 16px;
+  }
+}
+
 /* Animation primitives (Tailwind v4 CSS-first config). Each `--animate-*` token
    generates an `animate-*` utility; the paired @keyframes below are emitted only
    when a utility is actually used. Everything is transform/opacity-only so it

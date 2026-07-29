@@ -268,6 +268,12 @@ prompt/tool-description changes.
 - Number inputs: keep an emptied field empty while editing — no
   `parseFloat(v) || 0` in `onChange`; coalesce at use time. Settings fields
   auto-save (commit on blur/Enter), keeping local string state.
+- **Text controls render at 16px on iOS** — one `@supports
+  (-webkit-touch-callout: none)` block in `src/index.css`. Anything smaller
+  makes the WebView zoom the page in on focus, and Capacitor disables
+  pinch-zoom, so the app stays stuck zoomed. Don't defeat it with a stronger
+  font-size rule, and never "fix" zoom via `maximum-scale` / `user-scalable=no`
+  in the viewport meta — that would kill pinch zoom for web users.
 - **iOS safe-area insets:** any surface pinned to a screen edge must pad with
   the `--safe-top` / `--safe-bottom` CSS vars (`src/index.css`; 0 on
   web/Android) via inline `calc()`. Verify on a notched device.
