@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LogOut } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { SettingsHub, type SettingsPage } from "./settings/SettingsHub";
 import { SubPage } from "./settings/SubPage";
@@ -49,6 +50,12 @@ export function SettingsModal({settings, saveSettings, userContext, saveUserCont
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto p-4 space-y-5" style={{paddingBottom:"calc(1rem + var(--safe-bottom))"}}>
           <SettingsHub onOpen={setPage}/>
+          {onSignOut && (
+            <button onClick={onSignOut}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-2 transition-colors">
+              <LogOut size={15}/>{t("settings.signOut")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -57,7 +64,7 @@ export function SettingsModal({settings, saveSettings, userContext, saveUserCont
         <SubPage key={page} title={t(`settings.hub.${page}.title`)} onBack={() => setPage(null)}>
           {page === "account" && (
             <AccountPage settings={settings} saveSettings={saveSettings} user={user}
-              onBackup={onBackup} onRestore={onRestore} onSignOut={onSignOut}
+              onBackup={onBackup} onRestore={onRestore}
               onDeleteAccount={onDeleteAccount} showToast={showToast}/>
           )}
           {page === "integrations" && (

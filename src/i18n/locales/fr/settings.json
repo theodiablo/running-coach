@@ -1,5 +1,6 @@
 {
   "title": "Paramètres",
+  "signOut": "Se déconnecter",
   "language": {
     "label": "Langue"
   },
@@ -64,7 +65,6 @@
     "submit": "Restaurer les données"
   },
   "account": {
-    "signOut": "Se déconnecter",
     "signInTitle": "Identifiants de connexion",
     "emailLabel": "E-mail",
     "emailChange": "Modifier",
