@@ -1,5 +1,6 @@
 {
   "title": "Ajustes",
+  "signOut": "Cerrar sesión",
   "language": {
     "label": "Idioma"
   },
@@ -64,7 +65,6 @@
     "submit": "Restaurar datos"
   },
   "account": {
-    "signOut": "Cerrar sesión",
     "signInTitle": "Datos de acceso",
     "emailLabel": "Correo electrónico",
     "emailChange": "Cambiar",

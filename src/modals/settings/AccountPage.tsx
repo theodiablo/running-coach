@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Upload, LogOut, Trash2, Shield } from "lucide-react";
+import { Download, Upload, Trash2, Shield } from "lucide-react";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../../i18n";
 import { INPUT_CLS, PRIVACY_URL, DISCLAIMER_URL } from "../../constants";
 import { isNative } from "../../native";
@@ -18,12 +18,11 @@ type AccountPageProps = {
   user?: User;
   onBackup: () => void;
   onRestore: () => void;
-  onSignOut?: () => void;
   onDeleteAccount?: () => void;
   showToast?: (msg: string, type?: string) => void;
 };
 
-export function AccountPage({ settings, saveSettings, user, onBackup, onRestore, onSignOut, onDeleteAccount, showToast }: AccountPageProps) {
+export function AccountPage({ settings, saveSettings, user, onBackup, onRestore, onDeleteAccount, showToast }: AccountPageProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(settings.name || "");
   // Language: synced preference, falling back to whatever the UI is showing
@@ -136,25 +135,17 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
         </div>
       </div>
 
-      {/* Session & deletion */}
-      {(onSignOut || onDeleteAccount) && (
+      {/* Deletion */}
+      {onDeleteAccount && (
         <div className="bg-slate-800 rounded-2xl p-4 space-y-2">
-          {onSignOut && (
-            <button onClick={onSignOut}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center gap-2 transition-colors">
-              <LogOut size={15}/>{t("settings.account.signOut")}
-            </button>
-          )}
           {/* In-app account deletion must be reachable on every platform:
               the App Store REQUIRES it for apps with account creation, and
               Play's data-deletion policy is happiest with it too. The flow
               is a plain Supabase RPC — nothing web-only about it. */}
-          {onDeleteAccount && (
-            <button onClick={onDeleteAccount}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-red-400 flex items-center justify-center gap-2 transition-colors">
-              <Trash2 size={15}/>{t("settings.deleteAccount.title")}
-            </button>
-          )}
+          <button onClick={onDeleteAccount}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-red-400 flex items-center justify-center gap-2 transition-colors">
+            <Trash2 size={15}/>{t("settings.deleteAccount.title")}
+          </button>
         </div>
       )}
     </>

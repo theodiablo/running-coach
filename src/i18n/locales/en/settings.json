@@ -1,5 +1,6 @@
 {
   "title": "Settings",
+  "signOut": "Sign out",
   "language": {
     "label": "Language"
   },
@@ -64,7 +65,6 @@
     "submit": "Restore Data"
   },
   "account": {
-    "signOut": "Sign out",
     "signInTitle": "Sign-in details",
     "emailLabel": "Email",
     "emailChange": "Change",

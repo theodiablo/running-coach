@@ -16,8 +16,9 @@ const baseProps = {
   onClose: () => {},
 };
 
-// The hub is a menu: nothing configurable on the root, one tap to each page,
-// and back/Escape pops exactly one level (the LIFO dismiss stack).
+// The hub is a menu: nothing configurable on the root besides sign out, one
+// tap to each page, and back/Escape pops exactly one level (the LIFO dismiss
+// stack).
 describe("SettingsModal hub", () => {
   it("shows only the three menu rows at the root", () => {
     render(<SettingsModal {...baseProps} />);
@@ -27,6 +28,22 @@ describe("SettingsModal hub", () => {
     // No controls from the old single-page settings.
     expect(screen.queryByText("Your name")).toBeNull();
     expect(screen.queryByText("Connections & sync")).toBeNull();
+  });
+
+  it("shows sign out at the root, not inside Account", () => {
+    const onSignOut = vi.fn();
+    render(<SettingsModal {...baseProps} onSignOut={onSignOut} />);
+    fireEvent.click(screen.getByText("Sign out"));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+
+    // Opening Account doesn't add a second sign-out control to the page.
+    fireEvent.click(screen.getByText("Account"));
+    expect(screen.getAllByText("Sign out")).toHaveLength(1);
+  });
+
+  it("hides sign out when no handler is provided", () => {
+    render(<SettingsModal {...baseProps} />);
+    expect(screen.queryByText("Sign out")).toBeNull();
   });
 
   it("opens Training profile with the HR fields and coach memory", () => {
