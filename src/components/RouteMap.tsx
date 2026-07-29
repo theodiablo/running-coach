@@ -83,6 +83,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   const locCircleRef = useRef<Circle | null>(null);  // accuracy circle around the preview dot
   const locCenteredRef = useRef(false);
   const zoomCtrlRef = useRef<Control | null>(null);
+  const recenterMountedRef = useRef(false);           // skips the recenter effect's initial mount firing
   const followingRef = useRef(true);                 // nav-follow armed & not user-suspended
   const programmaticRef = useRef(false);             // guards our own setView from the gesture handler
   const onFollowingChangeRef = useRef(onFollowingChange);
@@ -379,10 +380,14 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
 
   // Snap-back: a bump of `recenterSignal` (recenter button, or returning from a
   // locked screen) recentres on the current head at the default zoom and re-arms
-  // follow. The initial mount (signal 0) is a no-op — there's no head yet.
+  // follow. The initial mount must stay a no-op even when points (and so a head)
+  // are already present at mount (History / run-detail) — otherwise this fires
+  // right after the track effect's fitBounds and snaps a tight zoom onto the
+  // head, undoing the whole-route fit.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (!recenterMountedRef.current) { recenterMountedRef.current = true; return; }
     if (headRef.current) programmaticSetView(headRef.current, LIVE_DEFAULT_ZOOM);
     emitFollowing(true);
   }, [recenterSignal, emitFollowing, programmaticSetView]);
