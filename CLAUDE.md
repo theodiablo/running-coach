@@ -315,6 +315,9 @@ prompt/tool-description changes.
   push in-scope fixes until green; use `AskUserQuestion` for ambiguous or
   architectural calls; surface (don't go silent on) out-of-scope or
   non-converging failures. Green CI is the terminal state — report it.
+  **Don't schedule an hourly self check-in** — `subscribe_pr_activity`
+  delivers CI/review/mergeability events as they happen, so a polling
+  check-in on top of it just burns tokens.
 - We squash-merge. A reused branch diverges after its squash-merge: before the
   next PR from the same branch, `git fetch origin main && git rebase
   origin/main` then `git push --force-with-lease`.
