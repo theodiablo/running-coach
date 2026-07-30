@@ -11,6 +11,10 @@ server-side transaction** (so the sync cursor lives in our row), and pushes
 
 ## How it's wired
 
+- **OAuth**: the shared `makeCloudOauth` seam with `pkce: true` — PKCE is
+  opt-in per provider so Polar's live authorization URL stays byte-identical;
+  Suunto (never shipped without it) sends `code_challenge` S256 to defang
+  Android deep-link interception.
 - **Rows**: `integration_connections` `provider = 'suunto'` —
   `external_user_id` is the Suunto app username (from the access-token JWT; maps
   webhooks back to app users), plus `refresh_token`/`expires_at` and the
@@ -34,6 +38,22 @@ server-side transaction** (so the sync cursor lives in our row), and pushes
     `greatest()`, rewind-proof) + staged-row deletion. The client acks only
     AFTER runs are saved — an unacked page re-serves next scan.
   - `disconnect` → delete row + staged rows.
+- **Client-side safeguards** (`providers/suunto.ts` scan loop):
+  - *Calibration tripwire*: a page whose every fetched workout (≥3) maps to
+    null is treated as a probable summary-schema mismatch — the scan stops
+    WITHOUT acking, so a mis-calibrated field name can't silently consume the
+    backfill. Logged as `possible schema mismatch`.
+  - *FIT retry budget*: a workout whose FIT specifically fails 3 scans in a
+    row (`rc_suunto_fit_fails`, per-device) imports as summary-only and stops
+    blocking the batch — one broken workout can't wedge all later history.
+    Quota/network/reauth transients never spend the budget (global, not the
+    workout's fault).
+  - *Run cache*: mapped runs are cached per session, so a batch whose import
+    toast was ignored re-serves without re-downloading FITs (quota-neutral).
+  - *No-progress break*: while runs are pending a save the server cursor is
+    frozen, so the page loop stops as soon as a sync makes no progress —
+    real throughput is one listing (~100 workouts) per user-confirmed scan.
+  - `disconnect` resets all of this (cache, retry budget, backfill flag).
 - **Cursor rules** (the load-bearing part, in `sync`):
   - The watermark is computed from **since-listed workouts only, never staged
     ones** — a staged workout is today's run arriving mid-backfill; letting it

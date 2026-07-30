@@ -26,6 +26,10 @@ export type CloudOauthSpec = {
   scope: string;
   // Edge function name for the exchange (and the provider's other actions).
   functionName: string;
+  // Opt-in per provider: PKCE changes the live authorization request, which
+  // can't be exercised against a shipped integration's OAuth server (Polar) —
+  // enable it only for providers verified with it (Suunto) or new ones.
+  pkce?: boolean;
 };
 
 export type CloudOauth = {
@@ -51,9 +55,9 @@ const b64url = (bytes: Uint8Array): string =>
 
 // PKCE (S256). The custom-scheme deep link is claimable by any Android app, so
 // an intercepted code alone must be useless: the token exchange also needs this
-// verifier, which never leaves the initiating device's storage. Providers that
-// don't support PKCE ignore the extra params (RFC 6749 requires it). Null when
-// WebCrypto is unavailable (insecure context) — the flow proceeds without PKCE.
+// verifier, which never leaves the initiating device's storage. Only used when
+// the provider spec opts in (spec.pkce). Null when WebCrypto is unavailable
+// (insecure context) — the flow proceeds without PKCE.
 async function newPkce(): Promise<{ verifier: string; challenge: string } | null> {
   try {
     if (typeof crypto === "undefined" || !crypto.subtle || !crypto.getRandomValues) return null;
@@ -97,6 +101,25 @@ const writeConnectValue = (key: string, value: string): void => {
   } catch { /* storage unavailable — the return's state check will just fail closed */ }
 };
 
+// Pure authorization-URL builder — exported so tests can assert exactly what
+// a provider's connect() navigates to (PKCE params present only when opted in).
+export function buildAuthUrl(
+  spec: Pick<CloudOauthSpec, "authUrl" | "clientId" | "scope">,
+  opts: { state: string; redirectUri: string; challenge?: string | null },
+): string {
+  const url = new URL(spec.authUrl);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", spec.clientId!);
+  url.searchParams.set("redirect_uri", opts.redirectUri);
+  url.searchParams.set("scope", spec.scope);
+  url.searchParams.set("state", opts.state);
+  if (opts.challenge) {
+    url.searchParams.set("code_challenge", opts.challenge);
+    url.searchParams.set("code_challenge_method", "S256");
+  }
+  return url.toString();
+}
+
 export function makeCloudOauth(spec: CloudOauthSpec): CloudOauth {
   const keys = CLOUD_OAUTH[spec.provider];
   const enabled = !!spec.clientId;
@@ -122,18 +145,13 @@ export function makeCloudOauth(spec: CloudOauthSpec): CloudOauth {
     if (!enabled || typeof window === "undefined") return false;
     const nonce = newNonce();
     writeConnectValue(keys.nonceKey, nonce);
-    const url = new URL(spec.authUrl);
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("client_id", spec.clientId!);
-    url.searchParams.set("redirect_uri", redirectUri());
-    url.searchParams.set("scope", spec.scope);
-    url.searchParams.set("state", (isNative ? keys.nativeStatePrefix : keys.statePrefix) + ":" + nonce);
-    const pkce = await newPkce();
-    if (pkce) {
-      writeConnectValue(keys.verifierKey, pkce.verifier);
-      url.searchParams.set("code_challenge", pkce.challenge);
-      url.searchParams.set("code_challenge_method", "S256");
-    }
+    const pkce = spec.pkce ? await newPkce() : null;
+    if (pkce) writeConnectValue(keys.verifierKey, pkce.verifier);
+    const url = new URL(buildAuthUrl(spec, {
+      state: (isNative ? keys.nativeStatePrefix : keys.statePrefix) + ":" + nonce,
+      redirectUri: redirectUri(),
+      challenge: pkce?.challenge,
+    }));
     if (isNative) {
       // The app itself stays alive under the external browser, so resolve
       // "pending": the caller drops its spinner without toasting, and the real
