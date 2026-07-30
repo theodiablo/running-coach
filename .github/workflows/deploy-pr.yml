@@ -97,6 +97,10 @@ jobs:
           # in the Polar app — production (run.camboulive.solutions) is the real
           # test target. See docs/integrations-polar.md.
           VITE_POLAR_CLIENT_ID: ${{ vars.VITE_POLAR_CLIENT_ID }}
+          # Suunto cloud import — same pattern as Polar (public client id;
+          # the secret half lives in the suunto-import edge function). See
+          # docs/integrations-suunto.md.
+          VITE_SUUNTO_CLIENT_ID: ${{ vars.VITE_SUUNTO_CLIENT_ID }}
           VITE_APP_ENV: preview
 
       - name: Configure AWS credentials

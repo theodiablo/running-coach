@@ -8,7 +8,7 @@
 // Stay dependency-free (no React, no i18n, no supabase) — importing supabase
 // here would create the client early, the exact race this file exists to win.
 
-export type CloudOauthProviderId = "polar";
+export type CloudOauthProviderId = "polar" | "suunto";
 
 export type CloudOauthConfig = {
   // OAuth `state` markers. Native-initiated connects mark their state so the
@@ -41,6 +41,15 @@ export const CLOUD_OAUTH: Record<CloudOauthProviderId, CloudOauthConfig> = {
     stateKey: "rc_polar_oauth_state",
     nonceKey: "rc_polar_oauth_nonce",
     verifierKey: "rc_polar_oauth_verifier",
+  },
+  suunto: {
+    statePrefix: "suunto_import",
+    nativeStatePrefix: "suunto_import:native",
+    deepLink: "solutions.camboulive.run://suunto-callback",
+    codeKey: "rc_suunto_oauth_code",
+    stateKey: "rc_suunto_oauth_state",
+    nonceKey: "rc_suunto_oauth_nonce",
+    verifierKey: "rc_suunto_oauth_verifier",
   },
 };
 

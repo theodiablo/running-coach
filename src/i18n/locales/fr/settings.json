@@ -197,6 +197,8 @@
     "connectFailed": "La connexion n'a pas pu aboutir. Réessaie.",
     "noRuns30": "Aucune nouvelle sortie trouvée dans les 30 derniers jours.",
     "scanFailed": "Impossible de lire tes sources connectées.",
+    "syncProgress_one": "Synchronisation… {{count}} sortie trouvée",
+    "syncProgress_other": "Synchronisation… {{count}} sorties trouvées",
     "providers": {
       "healthconnect": {
         "label": "Ta montre (Health Connect)",
@@ -209,6 +211,10 @@
       "polar": {
         "label": "Polar",
         "help": "Connecte ton compte Polar pour importer tes sorties terminées, avec tracé, allure, dénivelé et fréquence cardiaque, depuis ta montre Polar, même quand tu laisses ton téléphone à la maison."
+      },
+      "suunto": {
+        "label": "Suunto",
+        "help": "Connecte ton compte Suunto pour importer tes sorties terminées, avec tracé, allure, dénivelé et fréquence cardiaque, depuis ta montre Suunto, même quand tu laisses ton téléphone à la maison. Tout ton historique est importé à la première connexion."
       }
     }
   }

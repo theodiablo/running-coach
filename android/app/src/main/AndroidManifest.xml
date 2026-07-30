@@ -32,15 +32,23 @@
                 <data android:scheme="solutions.camboulive.run" android:host="auth-callback" />
             </intent-filter>
 
-            <!-- Polar OAuth return deep link. Polar redirects to the registered
-                 https web origin; the web app's polarPreinit bounces the code
-                 here (state marker "polar_import:native:…"). App.tsx stashes it
-                 and completePolarAuth exchanges it server-side. -->
+            <!-- Cloud-provider OAuth return deep links (one host per provider —
+                 see CLOUD_OAUTH in src/cloudOauthPreinit.ts). The provider
+                 redirects to the registered https web origin; the web app's
+                 cloudOauthPreinit bounces the code here (state marker
+                 "<provider>_import:native:…"). App.tsx stashes it and the
+                 provider's completeAuth exchanges it server-side. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="solutions.camboulive.run" android:host="polar-callback" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="solutions.camboulive.run" android:host="suunto-callback" />
             </intent-filter>
 
             <!-- Health Connect client declaration (Android 14+, where Health Connect is

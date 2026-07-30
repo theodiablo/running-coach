@@ -408,6 +408,20 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
   const [connected, setConnected] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  // Live progress of this provider's sync (the first-connect backfill can run
+  // for a while) — null when idle. Fed by the id-scoped rc-cloud-sync-progress
+  // events the provider's scan dispatches.
+  const [syncCount, setSyncCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const onProgress = (e: Event) => {
+      const d = (e as CustomEvent<{ id?: string; fetched?: number; done?: boolean }>).detail;
+      if (d?.id !== provider.id) return;
+      setSyncCount(d.done ? null : (d.fetched ?? 0));
+    };
+    window.addEventListener("rc-cloud-sync-progress", onProgress);
+    return () => window.removeEventListener("rc-cloud-sync-progress", onProgress);
+  }, [provider]);
 
   useEffect(() => {
     let cancelled = false;
@@ -482,7 +496,9 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
       <RowShell
         icon={<Watch size={16} />}
         label={label}
-        status={on ? t("settings.connections.connected") : t("settings.connections.notSetUp")}
+        status={syncCount != null
+          ? t("settings.integrations.syncProgress", { count: syncCount })
+          : on ? t("settings.connections.connected") : t("settings.connections.notSetUp")}
         control={on ? (
           <button type="button" onClick={turnOff}
             className="text-xs text-slate-400 hover:text-slate-200 shrink-0">{t("settings.integrations.turnOff")}</button>

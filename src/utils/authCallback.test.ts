@@ -16,6 +16,11 @@ describe("classifyAuthUrl", () => {
     expect(classifyAuthUrl(url)).toEqual({ kind: "cloudOauth", provider: "polar", code: null, state: "polar_import:native:abc" });
   });
 
+  it("routes a Suunto return to its own provider id", () => {
+    const url = CLOUD_OAUTH.suunto.deepLink + "?state=suunto_import%3Anative%3Aabc&code=xyz";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "cloudOauth", provider: "suunto", code: "xyz", state: "suunto_import:native:abc" });
+  });
+
   it("surfaces a provider error", () => {
     const url = "solutions.camboulive.run://auth-callback?error=access_denied&error_description=User%20cancelled";
     expect(classifyAuthUrl(url)).toEqual({ kind: "error", message: "User cancelled" });

@@ -197,6 +197,8 @@
     "connectFailed": "Couldn't complete the connection. Please try again.",
     "noRuns30": "No new runs found in the last 30 days.",
     "scanFailed": "Couldn't read your connected sources.",
+    "syncProgress_one": "Syncing… {{count}} run found",
+    "syncProgress_other": "Syncing… {{count}} runs found",
     "providers": {
       "healthconnect": {
         "label": "Your watch (Health Connect)",
@@ -209,6 +211,10 @@
       "polar": {
         "label": "Polar",
         "help": "Connect your Polar account to import finished runs — route, pace, elevation and heart rate — from your Polar watch, even when you leave your phone at home."
+      },
+      "suunto": {
+        "label": "Suunto",
+        "help": "Connect your Suunto account to import finished runs — route, pace, elevation and heart rate — from your Suunto watch, even when you leave your phone at home. Your full history imports when you first connect."
       }
     }
   }

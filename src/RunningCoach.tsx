@@ -26,7 +26,7 @@ import { useLiveRun } from "./hooks/useLiveRun";
 import { flushPendingHr, hasHealthConnectAuthorization } from "./hr/healthconnect";
 import { flushPendingHkHr } from "./hr/healthkit";
 import { markSeen, WATCH_MANUAL_SCAN_DAYS, WATCH_AUTO_SCAN_COOLDOWN_MS } from "./watch/import";
-import { scanAllProviders, providerEnabledInSettings, cloudAuthCompleters } from "./imports/registry";
+import { scanAllProviders, providerEnabledInSettings, cloudAuthCompleters, commitCloudScans, cloudBackfillPending } from "./imports/registry";
 import { persistImportedRoutes } from "./imports/persistRoutes";
 import { Toast } from "./components/Toast";
 import { Confetti } from "./components/Confetti";
@@ -808,7 +808,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // and the user can fix its type); several land as a batch. Returns how many new
   // runs were found (for the Settings UI's feedback).
   const scanImports = async ({ days, manual = false }: { days?: number; manual?: boolean } = {}) => {
-    if (!manual && (watchAutoShownRef.current || Date.now() - watchLastScanRef.current < WATCH_AUTO_SCAN_COOLDOWN_MS)) return 0;
+    // The once-per-session gate exists to keep health-store round-trips quiet;
+    // a cloud backfill mid-flight (more history behind the page cap) is exempt
+    // so it can continue on later foreground scans. The cooldown still applies.
+    if (!manual && ((watchAutoShownRef.current && !cloudBackfillPending()) || Date.now() - watchLastScanRef.current < WATCH_AUTO_SCAN_COOLDOWN_MS)) return 0;
     watchLastScanRef.current = Date.now();
     const scanned = await scanAllProviders(runsRef.current, {
       ...(days ? { days } : {}),
@@ -823,16 +826,27 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // never belong in the stored run (blob bloat). HealthKit imports Apple Watch
     // routes + HR; Health Connect imports HR series (no routes exist there yet).
     const found = scanned.length ? await persistImportedRoutes(scanned) : [];
-    if (!found.length) return 0;
+    if (!found.length) {
+      // Nothing survived dedupe → nothing for the user to confirm, but a cloud
+      // provider may still hold a deferred ack for pages whose candidates all
+      // collapsed as duplicates — commit it or those pages re-serve forever.
+      await commitCloudScans();
+      return 0;
+    }
     if (!manual) watchAutoShownRef.current = true;
     if (found.length === 1) {
       const r = found[0];
+      // The deferred cloud ack for this run rides LogView's onSaved (the
+      // prefill carries extId) — a dismissed review re-serves it next scan.
       showToast(t("app.toasts.foundRun", { km: r.km, date: fmt.sht(r.date || "") }), "ok",
         { label: t("app.toasts.review"), onClick: () => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "") || {}) }) });
     } else {
       showToast(t("app.toasts.foundRuns", { n: found.length }), "ok",
         { label: t("app.toasts.importAll"), onClick: () => {
           const added = addRuns(found);
+          // The runs are saved — cloud providers may now ack their pages
+          // (a missed toast would instead re-serve them next scan).
+          commitCloudScans();
           // Jump to History and flag the freshly imported runs as "New".
           goToRuns(added.map(a => a.id).filter((id): id is string => !!id), t("progress.history.newBadge"));
         } });
@@ -991,7 +1005,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
-          onSaved={() => { if (logPrefill?.wNum != null && logPrefill?.sId) toggleSess(logPrefill.wNum, logPrefill.sId); }}
+          onSaved={() => {
+            if (logPrefill?.wNum != null && logPrefill?.sId) toggleSess(logPrefill.wNum, logPrefill.sId);
+            // A saved single-run import review (prefill carries the provider
+            // extId) confirms the cloud page — release its deferred ack.
+            if (logPrefill?.extId) commitCloudScans();
+          }}
           onDone={() => { setLogPrefill(null); setTab("dash"); }}/>}
         {tab === "races" && <RacesView {...shared}/>}
         {tab === "progress" && <ProgressView {...shared} initialSub={progressSub} navKey={progressNonce}/>}

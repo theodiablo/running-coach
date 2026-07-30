@@ -86,6 +86,10 @@ jobs:
           # Polar cloud import — lets a sideloaded PR APK exercise the native
           # OAuth deep-link flow end-to-end (public client id, repo variable).
           VITE_POLAR_CLIENT_ID: ${{ vars.VITE_POLAR_CLIENT_ID }}
+          # Suunto cloud import — same pattern as Polar (public client id;
+          # the secret half lives in the suunto-import edge function). See
+          # docs/integrations-suunto.md.
+          VITE_SUUNTO_CLIENT_ID: ${{ vars.VITE_SUUNTO_CLIENT_ID }}
           VITE_APP_ENV: preview
 
       - name: Sync Capacitor
