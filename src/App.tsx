@@ -5,7 +5,7 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isNative, isIos } from "./native";
-import { stashPolarReturn } from "./polarPreinit";
+import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
@@ -178,19 +178,20 @@ export default function App() {
       const signedIn = !!sessionRef.current;
       const pendingBefore = sessionRef.current?.user?.new_email ?? null;
       switch (cb.kind) {
-        // Polar OAuth return, bounced from the web origin by polarPreinit. Its
-        // ?code= is NOT a Supabase auth code — classifyAuthUrl routes it before
-        // the exchangeCodeForSession below can eat it (the native twin of
-        // polarPreinit's web-side guard). Stash for completePolarAuth (which
-        // CSRF-validates the state) and wake whoever is mounted: RunningCoach
-        // listens for the event (warm return), and its boot path re-reads the
-        // stash anyway (cold start, where this may run before it mounts).
-        case "polar":
+        // Cloud-provider OAuth return, bounced from the web origin by
+        // cloudOauthPreinit. Its ?code= is NOT a Supabase auth code —
+        // classifyAuthUrl routes it before the exchangeCodeForSession below can
+        // eat it (the native twin of the preinit's web-side guard). Stash for
+        // the provider's completeAuth (which CSRF-validates the state) and wake
+        // whoever is mounted: RunningCoach listens for the event (warm return),
+        // and its boot path re-reads the stash anyway (cold start, where this
+        // may run before it mounts).
+        case "cloudOauth":
           closeAuthBrowser(); // iOS: the OAuth SFSafariViewController is still up
           // A denial carries no code — stay silent (same choice as the web flow)
           // but still close the browser sheet above.
-          if (cb.code && cb.state) stashPolarReturn(cb.code, cb.state);
-          window.dispatchEvent(new Event("rc-polar-return"));
+          if (cb.code && cb.state) stashCloudReturn(cb.provider, cb.code, cb.state);
+          window.dispatchEvent(new CustomEvent("rc-cloud-oauth-return", { detail: { id: cb.provider } }));
           return;
         // Provider-side denial/error (e.g. user cancels Google consent) carries
         // no `code` — surface it instead of silently no-oping. Signed OUT that

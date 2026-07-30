@@ -2,9 +2,10 @@ import { healthConnectProvider } from "./providers/healthConnect";
 import { healthKitProvider } from "./providers/healthkit";
 import { fileProvider } from "./providers/file";
 import { garminCloudProvider } from "./providers/cloud";
-import { polarProvider } from "./providers/polar";
+import { polarProvider, completePolarAuth } from "./providers/polar";
 import { getSeenIds } from "../watch/import";
 import { isDuplicateRun } from "./dedupe";
+import type { CloudAuthResult } from "./cloudOauth";
 import type { ImportProvider, ImportedRun } from "./types";
 import type { Run } from "../types";
 
@@ -18,6 +19,14 @@ export const importProviders: ImportProvider[] = [
   polarProvider,       // web cloud: isAvailable() is false until VITE_POLAR_CLIENT_ID is set
   garminCloudProvider, // scaffold: isAvailable() is false until actually wired
 ];
+
+// One OAuth-return completer per cloud provider. RunningCoach runs every entry
+// at boot and on the "rc-cloud-oauth-return" deep-link event — each is a no-op
+// ("idle") unless that provider's return is actually stashed, so the fan-out is
+// free on normal loads.
+export const cloudAuthCompleters: Record<string, () => Promise<CloudAuthResult>> = {
+  polar: completePolarAuth,
+};
 
 // The on-device health-store providers (one per platform) share the synced
 // settings.watchImport enable-flag — it means "import finished runs from my
