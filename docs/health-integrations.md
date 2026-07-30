@@ -260,14 +260,14 @@ pipeline needs no changes. Three providers:
   ships as a safe no-op, like `garminCloudProvider` (`providers/cloud.ts`,
   still scaffold-only). The edge function returns each exercise's raw **GPX**,
   parsed **client-side** by the app's existing `parseActivityFile`.
-  `completePolarAuth()` (RunningCoach boot + the `rc-polar-return` event)
+  `completePolarAuth()` (RunningCoach boot + the `rc-cloud-oauth-return` event)
   finishes the OAuth return, gated on a `state` marker so it never collides
   with Supabase's own `?code=` PKCE flow. **Native OAuth is a bounce**: Polar
   has ONE registered https redirect (the web origin), so a native connect marks
   its state `polar_import:native:<nonce>`, opens the system browser (Android
   via plain top-frame navigation / Bridge.launchIntent — never
   `@capacitor/browser` there; iOS via `Browser.open`), and the returning web
-  page's `polarPreinit` forwards code+state to the
+  page's `cloudOauthPreinit` forwards code+state to the
   `solutions.camboulive.run://polar-callback` deep link (scripted redirect +
   always-rendered tap fallback, since browsers gesture-gate custom-scheme
   navigation). `App.tsx` must route that deep link BEFORE its Supabase

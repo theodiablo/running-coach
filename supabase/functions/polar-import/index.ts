@@ -23,7 +23,9 @@ const json = (body: unknown, status = 200) =>
 // ── Polar AccessLink calls ─────────────────────────────────────────────────
 
 // Exchange an authorization code for a long-lived access token (+ x_user_id).
-async function exchangeCode(code: string, redirectUri: string) {
+// codeVerifier is the client's PKCE verifier (cloudOauth.ts) — forwarded when
+// present; Polar ignores it if unsupported (RFC 6749 requires that).
+async function exchangeCode(code: string, redirectUri: string, codeVerifier?: string) {
   const basic = btoa(`${POLAR_CLIENT_ID}:${POLAR_CLIENT_SECRET}`);
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -32,9 +34,14 @@ async function exchangeCode(code: string, redirectUri: string) {
       "Content-Type": "application/x-www-form-urlencoded",
       "Accept": "application/json",
     },
-    body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: redirectUri }),
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
+    }),
   });
-  if (!res.ok) throw new Error(`polar token exchange failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new Error(`polar token exchange failed: ${res.status}`);
   return await res.json() as { access_token: string; x_user_id?: number };
 }
 
@@ -164,10 +171,31 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Credentials live in the generic integration_connections table
+    // (provider = 'polar'). Dual-read fallback: a connect that landed on the
+    // OLD deployed function between the migration's `db push` and this
+    // rewrite's deploy wrote only polar_tokens — read it on a miss and copy the
+    // row forward. Removed (with the polar_tokens drop) once verified live.
     const loadToken = async () => {
-      const { data } = await admin.from("polar_tokens")
+      const { data } = await admin.from("integration_connections")
+        .select("external_user_id, access_token")
+        .eq("user_id", user.id).eq("provider", "polar").maybeSingle();
+      if (data) {
+        const row = data as { external_user_id: string; access_token: string };
+        return { polar_user_id: row.external_user_id, access_token: row.access_token };
+      }
+      const { data: legacy } = await admin.from("polar_tokens")
         .select("polar_user_id, access_token").eq("user_id", user.id).maybeSingle();
-      return data as { polar_user_id: string; access_token: string } | null;
+      if (!legacy) return null;
+      const old = legacy as { polar_user_id: string; access_token: string };
+      await admin.from("integration_connections").upsert({
+        user_id: user.id,
+        provider: "polar",
+        external_user_id: old.polar_user_id,
+        access_token: old.access_token,
+        updated_at: new Date().toISOString(),
+      });
+      return old;
     };
 
     if (action === "status") {
@@ -175,6 +203,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "disconnect") {
+      await admin.from("integration_connections").delete()
+        .eq("user_id", user.id).eq("provider", "polar");
+      // Also drop any legacy row so the dual-read can't resurrect it.
       await admin.from("polar_tokens").delete().eq("user_id", user.id);
       return json({ ok: true });
     }
@@ -182,12 +213,14 @@ Deno.serve(async (req) => {
     if (action === "exchange") {
       const code = typeof payload.code === "string" ? payload.code : "";
       const redirectUri = typeof payload.redirectUri === "string" ? payload.redirectUri : "";
+      const codeVerifier = typeof payload.codeVerifier === "string" ? payload.codeVerifier : undefined;
       if (!code || !redirectUri) return json({ error: "code and redirectUri are required" }, 400);
-      const tok = await exchangeCode(code, redirectUri);
+      const tok = await exchangeCode(code, redirectUri, codeVerifier);
       const polarUserId = await registerUser(tok.access_token, user.id, tok.x_user_id);
-      const { error } = await admin.from("polar_tokens").upsert({
+      const { error } = await admin.from("integration_connections").upsert({
         user_id: user.id,
-        polar_user_id: polarUserId,
+        provider: "polar",
+        external_user_id: polarUserId,
         access_token: tok.access_token,
         updated_at: new Date().toISOString(),
       });
