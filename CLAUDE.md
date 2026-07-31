@@ -186,6 +186,17 @@ rules, not a changelog; delete anything stale.
   seed. Numbers read on the Java side need a `Number`-tolerant reader:
   `PluginCall.getDouble` returns its default for a `Long`, which every epoch-ms
   value becomes. Detail: `docs/live-tracking.md`.
+- **iOS 15.0 is the deployment floor, and a regex lookbehind (`(?<=`/`(?<!`)
+  anywhere in the bundle breaks it** — JavaScriptCore before 16.4 fails to
+  *parse* the module, so the whole chunk dies (a lazily-imported one as an
+  unhandled rejection). It reaches us through dependencies, not our own code, so
+  `scripts/check-bundle-regex.mjs` scans the build output and fails
+  `npm run build`; fix a dependency with `patch-package`. Lookahead, named
+  groups and `\p{…}` are fine.
+- **A fire-and-forget `import()` must `.catch()`.** Un-caught, its rejection
+  hits `ErrorBoundary`'s `unhandledrejection` listener and paints the
+  full-screen crash overlay over a working app — how an unparseable prefetched
+  chunk read as "signing in with Google crashes".
 - Detail, including the hard-won permission/signing/build gotchas:
   `docs/live-tracking.md` (GPS, shells, R8, patches),
   `docs/health-integrations.md` (HR, watch/file/cloud imports),

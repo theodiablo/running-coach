@@ -36,5 +36,11 @@ jobs:
       - name: Test
         run: npm test
 
+      # Also runs scripts/check-bundle-regex.mjs, which fails on a shipped regex
+      # lookbehind — unparseable on our iOS 15 target, and only ever introduced
+      # by a dependency, so the built bundle is the only place to catch it.
+      - name: Build
+        run: npm run build
+
       - name: Offline coach eval
         run: npm run eval

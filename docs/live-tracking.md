@@ -323,8 +323,34 @@ surface, not wired through i18n), mirroring `WatchSyncLog`.
 
 Applied by `postinstall` → `patch-package`; native plugin modules compile
 straight out of `node_modules` (`android/capacitor.settings.gradle`), so a
-committed patch reaches every local and CI build. Current patch:
-`@capacitor-community/background-geolocation`, two independent changes.
+committed patch reaches every local and CI build. Two packages are patched.
+
+### `mdast-util-gfm-autolink-literal` (iOS 15 regex lookbehind)
+
+Pulled in by `remark-gfm`, which renders the coach's markdown replies. It
+shipped its bare-email autolink regex with a **lookbehind**
+(`(?<=` …), which **iOS < 16.4 JavaScriptCore cannot parse** — Safari only
+shipped lookbehind in 16.4, and our deployment target is 15.0. A lookbehind is
+fatal at *parse* time, not match time, so the entire `CoachChat` chunk failed to
+load with `SyntaxError: Invalid regular expression: invalid group specifier
+name`. Because `RunningCoach` warms that chunk with a bare `import()` right
+after sign-in, an iPhone on iOS 15 hit the app-wide crash overlay the moment it
+signed in — reported as "Google login crashes". The patch deletes the
+lookbehind; `findEmail` already re-checks the preceding character in JS
+(`previous(match, true)`, whose `index === 0 || unicodeWhitespace ||
+unicodePunctuation` test covers exactly `^ | \s | \p{P} | \p{S}`, since
+micromark defines `unicodePunctuation` as `/\p{P}|\p{S}/u`), so autolinking is
+unchanged — pinned by `src/coachMarkdown.test.tsx`.
+
+**The general rule: no regex lookbehind may reach the bundle.** It only ever
+arrives through a dependency, so `scripts/check-bundle-regex.mjs` scans the
+build output and fails `npm run build` (and therefore CI, which now builds).
+Lookahead, named groups and `\p{…}` escapes are all fine on iOS 15 — lookbehind
+is the lone gap.
+
+### `@capacitor-community/background-geolocation`
+
+Two independent changes.
 (1) Lifecycle NPE fix: it crashed in production ("Unable to pause activity" →
 NPE at `Bridge.getPermissionStates`, Bridge.java:1217) because its
 `handleOnPause`/`handleOnResume` call `getPermissionState("location")` — the
