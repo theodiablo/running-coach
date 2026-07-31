@@ -1,0 +1,21 @@
+diff --git a/node_modules/mdast-util-gfm-autolink-literal/lib/index.js b/node_modules/mdast-util-gfm-autolink-literal/lib/index.js
+index c5ca771..a8511ae 100644
+--- a/node_modules/mdast-util-gfm-autolink-literal/lib/index.js
++++ b/node_modules/mdast-util-gfm-autolink-literal/lib/index.js
+@@ -132,7 +132,15 @@ function transformGfmAutolinkLiterals(tree) {
+     tree,
+     [
+       [/(https?:\/\/|www(?=\.))([-.\w]+)([^ \t\r\n]*)/gi, findUrl],
+-      [/(?<=^|\s|\p{P}|\p{S})([-.\w+]+)@([-\w]+(?:\.[-\w]+)+)/gu, findEmail]
++      // PATCH: the lookbehind `(?<=^|\s|\p{P}|\p{S})` this regex shipped with is
++      // unparseable in iOS < 16.4 JavaScriptCore, so merely *loading* this module
++      // threw `SyntaxError: Invalid regular expression: invalid group specifier
++      // name` and took the whole chunk down. Dropping it is safe: `findEmail`
++      // already re-checks the preceding character in JS via `previous(match,
++      // true)`, whose `match.index === 0 || unicodeWhitespace || unicodePunctuation`
++      // test covers exactly `^ | \s | \p{P} | \p{S}` (micromark-util-character
++      // defines unicodePunctuation as `/\p{P}|\p{S}/u`).
++      [/([-.\w+]+)@([-\w]+(?:\.[-\w]+)+)/gu, findEmail]
+     ],
+     {ignore: ['link', 'linkReference']}
+   )

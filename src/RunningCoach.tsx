@@ -175,7 +175,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // fetching it early costs nothing. The web build deliberately skips this and
   // only fetches on first open, keeping the ~47 KB react-markdown dependency
   // off the initial page load.
-  useEffect(() => { if (isNative) import("./modals/CoachChat"); }, []);
+  // Caught: un-caught, a failed warm-up reaches ErrorBoundary's
+  // `unhandledrejection` listener and crash-screens a working app. Opening the
+  // coach still surfaces a real failure, via ChunkLoadBoundary.
+  useEffect(() => { if (isNative) import("./modals/CoachChat").catch(() => {}); }, []);
   // Freshest runs, for the foreground Health Connect HR retry below (an effect
   // with [] deps must read current runs from a ref, not a stale closure).
   const runsRef = useRef(runs);
