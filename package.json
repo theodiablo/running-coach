@@ -44,16 +44,19 @@
     "remark-gfm": "^4.0.1"
   },
   "comments": {
-    "overrides": "@pianissimoproject/capacitor-health-connect declares a @capacitor/core ^7 peer, but this app is on Capacitor 8 (whose Android plugin API is compatible). Override the peer so a NORMAL npm install resolves — avoiding --legacy-peer-deps, which skips ALL peer auto-installs and silently drops recharts' react-is peer, breaking the build.",
+    "overrides": "@pianissimoproject/capacitor-health-connect declares a @capacitor/core ^7 peer, but this app is on Capacitor 8 (whose Android plugin API is compatible). Override the peer so a NORMAL npm install resolves — avoiding --legacy-peer-deps, which skips ALL peer auto-installs and silently drops recharts' react-is peer, breaking the build. @capacitor/cli 8.5.0 added a direct dependency on xcode@^3.0.1, which pins uuid@^7.0.3 (GHSA-w5hq-g745-h8pq, moderate: missing buffer bounds check in v3/v5/v6 when a buffer is supplied). No xcode release fixes this yet (only unpublished nightlies), so the transitive uuid is overridden straight to the patched 11.1.1 — devDependency-only, iOS build tooling, not shipped in the app bundle. Revisit once xcode ships a release with a fixed uuid.",
     "patches": "patches/ (applied by the postinstall patch-package run) fixes a production Android crash in @capacitor-community/background-geolocation: its handleOnPause/handleOnResume called Bridge.getPermissionStates, which NPEs during some activity pause/teardown sequences ('Unable to pause activity', Bridge.java:1217). The version is pinned exactly so the patch always matches; when bumping it, re-check whether upstream fixed the lifecycle permission check and regenerate or drop the patch."
   },
   "overrides": {
     "@pianissimoproject/capacitor-health-connect": {
       "@capacitor/core": "$@capacitor/core"
+    },
+    "xcode": {
+      "uuid": "^11.1.1"
     }
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.114.0",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/ios": "^8.4.2",
