@@ -193,6 +193,11 @@ rules, not a changelog; delete anything stale.
   `scripts/check-bundle-regex.mjs` scans the build output and fails
   `npm run build`; fix a dependency with `patch-package`. Lookahead, named
   groups and `\p{…}` are fine.
+- **`build.target` must never outrun `IPHONEOS_DEPLOYMENT_TARGET`** — WKWebView's
+  engine is the OS version, so an iOS 15 shell runs a Safari 15 engine. Vite's
+  default is `baseline-widely-available` (= ios16.4), so the target is pinned in
+  `vite.config.ts` and `src/iosCompat.test.ts` fails CI if the two drift. It
+  lowers *syntax* only — no regex feature is ever lowered, and no API polyfilled.
 - **A fire-and-forget `import()` must `.catch()`.** Un-caught, its rejection
   hits `ErrorBoundary`'s `unhandledrejection` listener and paints the
   full-screen crash overlay over a working app — how an unparseable prefetched

@@ -348,6 +348,30 @@ build output and fails `npm run build` (and therefore CI, which now builds).
 Lookahead, named groups and `\p{…}` escapes are all fine on iOS 15 — lookbehind
 is the lone gap.
 
+## The iOS 15 compatibility floor
+
+Three separate things have to agree, and only the first is enforced by the
+compiler:
+
+1. **Syntax — `build.target` in `vite.config.ts`.** WKWebView's JS engine *is*
+   the OS version, so an iPhone on iOS 15 runs a Safari 15 engine no matter how
+   current the app is. Vite's default target is `baseline-widely-available`,
+   which resolves to **ios16.4** — it was emitting class static blocks, which
+   iOS 15 cannot parse. The target now pins `safari15`/`ios15` (the other three
+   legs keep the baseline, since one bundle serves web too), and
+   `src/iosCompat.test.ts` fails CI if it ever drifts past
+   `IPHONEOS_DEPLOYMENT_TARGET`. Raise both together, never just one.
+2. **Regex — `scripts/check-bundle-regex.mjs`.** Setting the target does *not*
+   help here: the bundler leaves an unsupported regex literal exactly as it
+   found it, no error and no warning (verified). Hence the separate scan.
+3. **Runtime APIs — neither of the above.** A target lowers syntax; it never
+   polyfills a method. `Object.hasOwn` and `structuredClone` (both Safari
+   **15.4**) reach the bundle today via `es-toolkit`, pulled in by `recharts`
+   for the Progress charts — so they would throw on iOS **15.0–15.3** only.
+   Nothing guards this. If that band matters, polyfill at the `main.tsx` entry;
+   if it doesn't, raise `IPHONEOS_DEPLOYMENT_TARGET` to 15.4 so the floor is
+   honest and the test above enforces the real number.
+
 ### `@capacitor-community/background-geolocation`
 
 Two independent changes.
