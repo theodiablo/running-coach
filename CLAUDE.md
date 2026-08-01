@@ -186,7 +186,7 @@ rules, not a changelog; delete anything stale.
   seed. Numbers read on the Java side need a `Number`-tolerant reader:
   `PluginCall.getDouble` returns its default for a `Long`, which every epoch-ms
   value becomes. Detail: `docs/live-tracking.md`.
-- **iOS 15.0 is the deployment floor, and a regex lookbehind (`(?<=`/`(?<!`)
+- **iOS 15.4 is the deployment floor, and a regex lookbehind (`(?<=`/`(?<!`)
   anywhere in the bundle breaks it** — JavaScriptCore before 16.4 fails to
   *parse* the module, so the whole chunk dies (a lazily-imported one as an
   unhandled rejection). It reaches us through dependencies, not our own code, so

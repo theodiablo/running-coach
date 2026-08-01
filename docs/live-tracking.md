@@ -68,7 +68,7 @@ longer refresh is dropped after 90s rather than displayed stale.
 
 iOS backend detail: the local `LiveActivityPlugin`
 (`ios/App/App/LiveActivityPlugin.swift`, push/end, gated
-`#available(iOS 16.2, *)` — the app deployment target stays 15.0, older
+`#available(iOS 16.2, *)` — the app deployment target stays 15.4, older
 devices just don't get the card). The card UI lives in the widget extension
 target `LiveActivityWidgetExtension` (`ios/App/LiveActivityWidget/`,
 deployment target 16.2); `RunActivityAttributes.swift` is compiled into BOTH
@@ -330,7 +330,7 @@ committed patch reaches every local and CI build. Two packages are patched.
 Pulled in by `remark-gfm`, which renders the coach's markdown replies. It
 shipped its bare-email autolink regex with a **lookbehind**
 (`(?<=` …), which **iOS < 16.4 JavaScriptCore cannot parse** — Safari only
-shipped lookbehind in 16.4, and our deployment target is 15.0. A lookbehind is
+shipped lookbehind in 16.4, and our deployment target is 15.4. A lookbehind is
 fatal at *parse* time, not match time, so the entire `CoachChat` chunk failed to
 load with `SyntaxError: Invalid regular expression: invalid group specifier
 name`. Because `RunningCoach` warms that chunk with a bare `import()` right
@@ -348,7 +348,7 @@ build output and fails `npm run build` (and therefore CI, which now builds).
 Lookahead, named groups and `\p{…}` escapes are all fine on iOS 15 — lookbehind
 is the lone gap.
 
-## The iOS 15 compatibility floor
+## The iOS 15.4 compatibility floor
 
 Three separate things have to agree, and only the first is enforced by the
 compiler:
@@ -357,8 +357,8 @@ compiler:
    the OS version, so an iPhone on iOS 15 runs a Safari 15 engine no matter how
    current the app is. Vite's default target is `baseline-widely-available`,
    which resolves to **ios16.4** — it was emitting class static blocks, which
-   iOS 15 cannot parse. The target now pins `safari15`/`ios15` (the other three
-   legs keep the baseline, since one bundle serves web too), and
+   iOS 15 cannot parse. The target now pins `safari15.4`/`ios15.4` (the other
+   three legs keep the baseline, since one bundle serves web too), and
    `src/iosCompat.test.ts` fails CI if it ever drifts past
    `IPHONEOS_DEPLOYMENT_TARGET`. Raise both together, never just one.
 2. **Regex — `scripts/check-bundle-regex.mjs`.** Setting the target does *not*
@@ -366,11 +366,20 @@ compiler:
    found it, no error and no warning (verified). Hence the separate scan.
 3. **Runtime APIs — neither of the above.** A target lowers syntax; it never
    polyfills a method. `Object.hasOwn` and `structuredClone` (both Safari
-   **15.4**) reach the bundle today via `es-toolkit`, pulled in by `recharts`
-   for the Progress charts — so they would throw on iOS **15.0–15.3** only.
-   Nothing guards this. If that band matters, polyfill at the `main.tsx` entry;
-   if it doesn't, raise `IPHONEOS_DEPLOYMENT_TARGET` to 15.4 so the floor is
-   honest and the test above enforces the real number.
+   **15.4**) reach the bundle via `es-toolkit`, pulled in by `recharts` for the
+   Progress charts, and would throw on iOS 15.0–15.3. **This is why the floor is
+   15.4, not 15.0** — the alternative was polyfilling for every user, and a
+   correct `structuredClone` is not cheap. The band it drops was 0.21% of iOS
+   devices worldwide (~1 in 480, and 9.6% of iOS 15 itself; ~90% of iOS 15 was
+   already on 15.4+, since Apple still ships 15.8.x security updates to the
+   iPhone 6s/7/SE1 generation that is stuck there), lower again in Europe, on
+   2015–2016 hardware that struggles with GPS tracking anyway.
+
+   Nothing enforces this leg, so it stays a review question: **an API newer than
+   the floor is invisible to both the target and the regex scan.** If a
+   dependency ever pulls in one that matters, either polyfill at the `main.tsx`
+   entry or raise the floor again — and if you raise it, raise `build.target`
+   with it.
 
 ### `@capacitor-community/background-geolocation`
 
