@@ -38,5 +38,10 @@
     "noRuns": "No runs yet.",
     "hint": "Tap Record below to add your first one.",
     "restore": "Had data from a previous version? Open Settings (gear, top right) → Restore."
+  },
+  "recovery": {
+    "title": "Interrupted run found",
+    "subtitle": "{{km}} km recorded on {{date}} — resume or save it",
+    "action": "Open"
   }
 }

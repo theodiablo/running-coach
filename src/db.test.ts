@@ -32,8 +32,11 @@ vi.mock("./supabase", () => ({
 }));
 
 import { db, initStore, clearStore, flushNow, isStoreLoaded, currentUserId } from "./db";
+import { UNSYNCED_STATE_KEY } from "./constants";
 
-const loadOk = (data: unknown) => { h.state.result = { data: { data }, error: null }; };
+const loadOk = (data: unknown, updatedAt?: string) => {
+  h.state.result = { data: { data, ...(updatedAt ? { updated_at: updatedAt } : {}) }, error: null };
+};
 const loadErrors = () => { h.state.result = { data: null, error: { message: "boom" } }; };
 const loadThrows = () => { h.state.result = new Error("network down"); };
 
@@ -43,7 +46,9 @@ const settle = async () => { await vi.advanceTimersByTimeAsync(700); };
 describe("db store", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    localStorage.clear();
     h.upsert.mockClear();
+    h.upsert.mockImplementation(async () => ({ error: null }));
     vi.spyOn(console, "error").mockImplementation(() => {});
     clearStore();
   });
@@ -165,5 +170,97 @@ describe("db store", () => {
     await flushNow();
     expect(h.upsert).toHaveBeenCalledTimes(1);
     expect(h.upsert.mock.calls[0][0]).toMatchObject({ data: { rc_runs: ["pending"] } });
+  });
+});
+
+// A run saved offline used to live only in memory: the failed upsert was logged
+// and forgotten, so killing the app before reconnecting lost the run for good
+// (only its route trace survived, as an orphan). These pin the durability path:
+// snapshot on every attempt, retry on reconnect/timer, restore on next boot.
+describe("db store — offline durability", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    localStorage.clear();
+    h.upsert.mockClear();
+    h.upsert.mockImplementation(async () => ({ error: null }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    clearStore();
+  });
+  afterEach(() => {
+    clearStore();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a snapshot after a failed flush and syncs it on reconnect", async () => {
+    loadOk({});
+    await initStore("u1");
+    h.upsert.mockResolvedValueOnce({ error: { message: "offline" } as never });
+
+    await db.set("rc_runs", ["saved offline"]);
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy();
+
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(h.upsert).toHaveBeenCalledTimes(2);
+    expect(h.upsert.mock.calls[1][0]).toMatchObject({ data: { rc_runs: ["saved offline"] } });
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("retries a failed flush on its own timer", async () => {
+    loadOk({});
+    await initStore("u1");
+    h.upsert.mockResolvedValueOnce({ error: { message: "offline" } as never });
+
+    await db.set("rc_runs", ["saved offline"]);
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(h.upsert).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("restores a newer snapshot over the server row on boot, then re-flushes it", async () => {
+    const now = Date.now();
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({
+      userId: "u1", data: { rc_runs: ["offline run"] }, savedAt: now,
+    }));
+    loadOk({ rc_runs: ["server run"] }, new Date(now - 60_000).toISOString());
+
+    expect(await initStore("u1")).toBe(true);
+    expect(await db.get("rc_runs")).toEqual(["offline run"]);
+
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    expect(h.upsert.mock.calls[0][0]).toMatchObject({ data: { rc_runs: ["offline run"] } });
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("drops a snapshot superseded by a newer server write (another device won)", async () => {
+    const now = Date.now();
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({
+      userId: "u1", data: { rc_runs: ["stale offline run"] }, savedAt: now - 120_000,
+    }));
+    loadOk({ rc_runs: ["server run"] }, new Date(now).toISOString());
+
+    expect(await initStore("u1")).toBe(true);
+    expect(await db.get("rc_runs")).toEqual(["server run"]);
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+    await settle();
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  it("leaves another account's snapshot untouched and unapplied", async () => {
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({
+      userId: "u2", data: { rc_runs: ["u2's run"] }, savedAt: Date.now(),
+    }));
+    loadOk({ rc_runs: ["u1's run"] });
+
+    expect(await initStore("u1")).toBe(true);
+    expect(await db.get("rc_runs")).toEqual(["u1's run"]);
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy(); // kept for u2's next sign-in
   });
 });

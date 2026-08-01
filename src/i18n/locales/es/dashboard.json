@@ -38,5 +38,10 @@
     "noRuns": "Aún no hay entrenamientos registrados.",
     "hint": "Toca Registrar abajo para añadir el primero.",
     "restore": "¿Tenías datos de una versión anterior? Abre Ajustes (engranaje, arriba a la derecha) → Restaurar."
+  },
+  "recovery": {
+    "title": "Entrenamiento interrumpido detectado",
+    "subtitle": "{{km}} km registrados el {{date}}. Puedes reanudarlo o guardarlo.",
+    "action": "Abrir"
   }
 }

@@ -18,7 +18,8 @@
     "pointsSaved_one": "{{count}} point enregistré.",
     "pointsSaved_other": "{{count}} points enregistrés.",
     "resume": "Reprendre",
-    "discard": "Abandonner"
+    "discard": "Abandonner",
+    "from": "Enregistrée le {{date}}."
   },
   "stats": {
     "km": "km",
@@ -80,5 +81,11 @@
   "hrTarget": {
     "addProfile": "Ajoute ton profil FC dans les Paramètres pour voir une zone cible",
     "range": "❤️ {{lo}}–{{hi}} bpm"
+  },
+  "batteryNudge": {
+    "title": "Empêche Android d'arrêter l'enregistrement",
+    "body": "Ce téléphone limite l'utilisation de la batterie pour Running Coach, ce qui peut interrompre une sortie en cours. Autorise une utilisation sans restriction pour un suivi fiable avec l'écran éteint.",
+    "open": "Ouvrir les réglages",
+    "dismiss": "Compris"
   }
 }

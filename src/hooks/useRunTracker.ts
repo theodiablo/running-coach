@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LIVE_RUN_KEY, RESUME_MAX_AGE_MS } from "../constants";
+import { LIVE_RUN_KEY } from "../constants";
 import { accuracyOK, distanceKm, elevGainM, haversineM } from "../utils/geo";
 import { hrSummary } from "../utils/hr";
 import { geoSource } from "../geo/source";
 import { pushRunNotification, resetRunNotification } from "../geo/liveNotification";
 import { buildRunNotificationContent } from "../utils/runNotification";
 import { logTrack } from "../geo/trackLog";
+import { clearNativeFixJournal, readNativeFixJournal } from "../geo/fixJournal";
+import { normalizeRecovery, readRecoveryBuffer, type RecoveredRun } from "../utils/runRecovery";
 import { getHrSource } from "../hr/source";
 import { getPairedDevice } from "../hr/device";
-import { isNative } from "../native";
+import { isAndroid, isNative } from "../native";
 import { t } from "../i18n";
 import type { BleHrSample, BleWatchHandle } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
@@ -70,26 +72,8 @@ type TrackerGeoSource = {
   watchPosition: (onPos: (position: GeoPosition) => void, onErr?: (error: GeoError) => void, opts?: { background?: boolean }) => GeoWatchHandle;
   clearWatch: (handle: GeoWatchHandle | null | undefined) => void;
 };
-type LiveRunBuffer = {
-  points?: TrackPointOrGap[];
-  hrSamples?: BleHrSample[];
-  accSec?: number;
-  startAt?: number | null;
-  startedAt?: number | null;
-  stoppedAt?: number | null;
-  state?: TrackerState;
-  savedAt?: number;
-};
-
 const trackerGeoSource = geoSource as TrackerGeoSource;
 
-const readBuffer = (): LiveRunBuffer | null => {
-  try {
-    const raw = localStorage.getItem(LIVE_RUN_KEY);
-    return raw ? JSON.parse(raw) as LiveRunBuffer : null;
-  }
-  catch { return null; }
-};
 const clearBuffer = () => { try { localStorage.removeItem(LIVE_RUN_KEY); } catch { /* ignore */ } };
 
 type UseRunTrackerOptions = { hrMethod?: string };
@@ -110,13 +94,13 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   // never auto-prompt out of context — it flips true once permission is granted
   // (already-granted users via the check below, or via the consent accept flow).
   const [permGranted, setPermGranted] = useState(!isNative);
-  // A recoverable in-progress run from a previous session, read once on mount. A
-  // buffer older than the cutoff is dropped so a days-old run can't reappear.
-  const [pending, setPending] = useState(() => {
-    const buf = readBuffer();
-    if (buf && buf.points?.length && Date.now() - (buf.savedAt || 0) < RESUME_MAX_AGE_MS) return buf;
-    if (buf) clearBuffer();
-    return null;
+  // A recoverable in-progress run from a previous session, read once on mount.
+  // Offered whatever its age — an old buffer is still the runner's data, so it
+  // is resolved by an explicit resume/discard, never expired away silently.
+  // (RESUME_MAX_AGE_MS only bounds the live-sharing sweep, not this offer.)
+  const [pending, setPending] = useState<RecoveredRun | null>(() => {
+    const buf = readRecoveryBuffer();
+    return buf ? normalizeRecovery(buf) : null;
   });
 
   const stateRef = useRef(state);
@@ -295,6 +279,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   // ── controls ─────────────────────────────────────────────────────────────
   const start = useCallback(() => {
     setError(null);
+    clearNativeFixJournal(); // a fresh run must not inherit a previous run's journal
     pointsRef.current = [];
     setPoints([]);
     hrSamplesRef.current = [];
@@ -374,6 +359,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
     stateRef.current = "idle";
     setState("idle");
     clearBuffer();
+    clearNativeFixJournal();
   }, [stopWatch, stopHrWatch, releaseWake]);
 
   // Load a recoverable buffer into an active (paused) session.
@@ -387,7 +373,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
       // still bridges it with the straight-line minimum — fine for an in-run
       // crash, but if the runner travelled by other means before resuming that
       // leg will be counted; the runner can edit the saved distance if so.
-      const recovered = buf.points || [];
+      const recovered = [...(buf.points || [])];
       if (recovered.length && recovered[recovered.length - 1] != null) recovered.push(null);
       pointsRef.current = recovered;
       setPoints(pointsRef.current);
@@ -408,10 +394,13 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
 
   const discardPrevious = useCallback(() => {
     clearBuffer();
+    clearNativeFixJournal();
     setPending(null);
   }, []);
 
-  const finalize = clearBuffer; // call after a successful save
+  // Call after a successful save. The journal goes with the buffer: both
+  // describe a run that is now safely stored as a real Run + route.
+  const finalize = useCallback(() => { clearBuffer(); clearNativeFixJournal(); }, []);
 
   // ── effects ──────────────────────────────────────────────────────────────
   // UI clock while actively tracking.
@@ -440,6 +429,23 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
 
   // Tear down on unmount.
   useEffect(() => () => { stopWatch(); stopHrWatch(); releaseWake(); }, [stopWatch, stopHrWatch, releaseWake]);
+
+  // Android: extend a recovered buffer with the native fix journal — the points
+  // the foreground service kept writing to disk after the WebView froze, which
+  // the localStorage buffer (written by JS) can never contain. Runs once on
+  // mount; a resolved offer (pending already null) is never resurrected by the
+  // async read landing late.
+  useEffect(() => {
+    if (!isAndroid) return;
+    const buf = readRecoveryBuffer();
+    if (!buf) return;
+    let cancelled = false;
+    readNativeFixJournal().then(journal => {
+      if (cancelled || !journal.length) return;
+      setPending(prev => (prev ? normalizeRecovery(buf, journal) : prev));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Native, returning user: location may already be granted from a prior session.
   // Check WITHOUT prompting so the idle preview can show straight away (the lazy

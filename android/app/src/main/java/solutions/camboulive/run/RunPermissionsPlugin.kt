@@ -1,8 +1,12 @@
 package solutions.camboulive.run
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -109,5 +113,32 @@ class RunPermissionsPlugin : Plugin() {
     @PermissionCallback
     private fun backgroundLocationCallback(call: PluginCall) {
         call.resolve(JSObject().put("declared", true).put("granted", hasBackgroundLocation()))
+    }
+
+    // Battery optimization can kill the recording app mid-run. Exposed so the
+    // tracker can nudge once toward the exemption; reports "exempt" on any
+    // failure so the nudge never nags when the answer is unknowable.
+    @PluginMethod
+    fun checkBatteryOptimization(call: PluginCall) {
+        val ignoring = try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            pm.isIgnoringBatteryOptimizations(context.packageName)
+        } catch (e: Exception) { true }
+        call.resolve(JSObject().put("ignoringOptimizations", ignoring))
+    }
+
+    // Opens the OS battery-optimization LIST screen (the user picks the app
+    // there). Deliberately not the direct per-app request dialog, which needs
+    // the Play-restricted REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission.
+    @PluginMethod
+    fun openBatteryOptimizationSettings(call: PluginCall) {
+        try {
+            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            call.resolve()
+        } catch (e: Exception) {
+            call.reject("Could not open battery optimization settings")
+        }
     }
 }

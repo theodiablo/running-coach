@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, Check, ChevronRight, MessageCircle, Plus, Radio, Route, X, Zap } from "lucide-react";
+import { Activity, Award, Check, ChevronRight, MessageCircle, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import type { LiveRunRow } from "../live/publisher";
 import { fmt, ymd, estMin } from "../utils/format";
@@ -29,11 +29,15 @@ type DashboardProps = {
   // sharing). Null whenever there is nothing to follow.
   liveRun?: LiveRunRow | null;
   openLiveWatch?: () => void;
+  // An interrupted recording waiting to be resumed/saved (the app was killed
+  // mid-run). Opening the tracker surfaces its resume/discard card.
+  recovery?: { km: number; startedAt: number | null } | null;
+  openTracker?: () => void;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker}: DashboardProps) {
   const { t } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -77,6 +81,23 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           <h1 className="text-2xl font-bold">{t("dashboard.greetingAnon")}</h1>
         )}
       </div>
+
+      {recovery && openTracker && (
+        <button onClick={() => openTracker()}
+          className="w-full rounded-xl p-3.5 flex items-center gap-3 text-left border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/15 transition-colors">
+          <Play size={18} className="text-orange-400 flex-shrink-0"/>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-orange-100">{t("dashboard.recovery.title")}</p>
+            <p className="text-xs text-orange-300/80">
+              {t("dashboard.recovery.subtitle", {
+                km: recovery.km.toFixed(1),
+                date: recovery.startedAt ? fmt.sht(ymd(new Date(recovery.startedAt))) : "",
+              })}
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-orange-200 flex-shrink-0">{t("dashboard.recovery.action")}</span>
+        </button>
+      )}
 
       {liveRun && openLiveWatch && (
         <button onClick={openLiveWatch}

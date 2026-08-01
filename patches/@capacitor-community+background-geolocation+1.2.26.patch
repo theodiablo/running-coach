@@ -1,11 +1,19 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..b860091 100644
+index a92fcf9..0225ff3 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-@@ -34,6 +34,10 @@ import com.google.android.gms.tasks.OnSuccessListener;
+@@ -32,8 +32,18 @@ import com.getcapacitor.annotation.PermissionCallback;
+ import com.google.android.gms.location.LocationServices;
+ import com.google.android.gms.tasks.OnSuccessListener;
  
++import com.getcapacitor.JSArray;
++
  import org.json.JSONObject;
  
++import java.io.BufferedReader;
++import java.io.File;
++import java.io.FileReader;
++import java.io.FileWriter;
 +import java.util.ArrayDeque;
 +import java.util.Locale;
 +
@@ -13,7 +21,7 @@ index a92fcf9..b860091 100644
  import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  
  @CapacitorPlugin(
-@@ -90,77 +94,329 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +100,419 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -28,27 +36,6 @@ index a92fcf9..b860091 100644
 -                                "backgroundTitle",
 -                                "Using your location"
 -                            )
--                    )
--                    .setContentText(backgroundMessage)
--                    .setOngoing(true)
--                    .setPriority(Notification.PRIORITY_HIGH)
--                    .setWhen(System.currentTimeMillis());
--
--            try {
--                String name = getAppString(
--                        "capacitor_background_geolocation_notification_icon",
--                        "mipmap/ic_launcher"
--                );
--                String[] parts = name.split("/");
--                // It is actually necessary to set a valid icon for the notification to behave
--                // correctly when tapped. If there is no icon specified, tapping it will open the
--                // app's settings, rather than bringing the application to the foreground.
--                builder.setSmallIcon(
--                        getAppResourceIdentifier(parts[1], parts[0])
--                );
--            } catch (Exception e) {
--                Logger.error("Could not set notification icon", e);
--            }
 +            backgroundNotification = buildNotification(
 +                    call.getString("backgroundTitle", "Using your location"),
 +                    backgroundMessage,
@@ -61,17 +48,7 @@ index a92fcf9..b860091 100644
 +                call.getFloat("distanceFilter", 0f)
 +        );
 +    }
- 
--            try {
--                String color = getAppString(
--                        "capacitor_background_geolocation_notification_color",
--                        null
--                );
--                if (color != null) {
--                    builder.setColor(Color.parseColor(color));
--                }
--            } catch (Exception e) {
--                Logger.error("Could not set notification color", e);
++
 +    // Builds the foreground-service notification. When chronometerStartMs is
 +    // non-null the notification renders a live elapsed-time chronometer ticked
 +    // by the OS itself — it keeps counting even when the app's WebView is
@@ -119,13 +96,11 @@ index a92fcf9..b860091 100644
 +            );
 +            if (color != null) {
 +                builder.setColor(Color.parseColor(color));
-             }
++            }
 +        } catch (Exception e) {
 +            Logger.error("Could not set notification color", e);
 +        }
- 
--            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
--                    getContext().getPackageName()
++
 +        Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
 +                getContext().getPackageName()
 +        );
@@ -137,20 +112,14 @@ index a92fcf9..b860091 100644
 +                            0,
 +                            launchIntent,
 +                            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
-+                    )
-             );
--            if (launchIntent != null) {
--                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
--                builder.setContentIntent(
--                        PendingIntent.getActivity(
--                                getContext(),
--                                0,
--                                launchIntent,
--                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
--                        )
--                );
+                     )
+-                    .setContentText(backgroundMessage)
+-                    .setOngoing(true)
+-                    .setPriority(Notification.PRIORITY_HIGH)
+-                    .setWhen(System.currentTimeMillis());
++            );
 +        }
-+
+ 
 +        // Set the Channel ID for Android O.
 +        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 +            builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
@@ -247,6 +216,131 @@ index a92fcf9..b860091 100644
 +    private final Object liveLock = new Object();
 +    private LiveStats liveStats = null;
 +
++    // ── Fix journal (crash durability) ───────────────────────────────────────
++    // Every fix the live renderer accepts is also appended to a file on disk, so
++    // the points recorded after the WebView froze survive the process being
++    // killed — the app's localStorage recovery buffer only ever holds what JS
++    // saw, which stops at the last foreground moment. JSONL of [lat,lng,tMs,alt]
++    // lines (alt null when unknown), read back by getFixJournal on recovery and
++    // cleared from JS when a run starts fresh or its recovery is resolved.
++    // Best-effort throughout: journaling must never cost us the fix itself.
++    private static final String FIX_JOURNAL_FILE = "run_fix_journal.jsonl";
++    private static final long FIX_JOURNAL_MAX_BYTES = 2_000_000; // safety cap, ~a multi-day run
++    private final Object journalLock = new Object();
++
++    private File journalFile() {
++        return new File(getContext().getFilesDir(), FIX_JOURNAL_FILE);
++    }
++
++    private void journalFix(double lat, double lng, long t, Location location) {
++        synchronized (journalLock) {
+             try {
+-                String name = getAppString(
+-                        "capacitor_background_geolocation_notification_icon",
+-                        "mipmap/ic_launcher"
+-                );
+-                String[] parts = name.split("/");
+-                // It is actually necessary to set a valid icon for the notification to behave
+-                // correctly when tapped. If there is no icon specified, tapping it will open the
+-                // app's settings, rather than bringing the application to the foreground.
+-                builder.setSmallIcon(
+-                        getAppResourceIdentifier(parts[1], parts[0])
+-                );
+-            } catch (Exception e) {
+-                Logger.error("Could not set notification icon", e);
++                File file = journalFile();
++                if (file.length() > FIX_JOURNAL_MAX_BYTES) {
++                    return;
++                }
++                String alt = location.hasAltitude()
++                        ? String.valueOf(Math.round(location.getAltitude()))
++                        : "null";
++                String line = String.format(Locale.US, "[%.6f,%.6f,%d,%s]%n", lat, lng, t, alt);
++                FileWriter writer = new FileWriter(file, true);
++                try {
++                    writer.write(line);
++                } finally {
++                    writer.close();
++                }
++            } catch (Exception exception) {
++                // Best-effort: a journalling failure must never affect recording.
+             }
++        }
++    }
+ 
++    // Resolves { points: [[lat,lng,tMs,alt|null], ...] }. Each line parses on
++    // its own so a torn last line (process killed mid-write) costs one point,
++    // not the whole journal.
++    @PluginMethod()
++    public void getFixJournal(PluginCall call) {
++        JSArray points = new JSArray();
++        synchronized (journalLock) {
+             try {
+-                String color = getAppString(
+-                        "capacitor_background_geolocation_notification_color",
+-                        null
+-                );
+-                if (color != null) {
+-                    builder.setColor(Color.parseColor(color));
++                File file = journalFile();
++                if (file.exists()) {
++                    BufferedReader reader = new BufferedReader(new FileReader(file));
++                    try {
++                        String line;
++                        while ((line = reader.readLine()) != null) {
++                            line = line.trim();
++                            if (line.isEmpty()) {
++                                continue;
++                            }
++                            try {
++                                points.put(new JSArray(line));
++                            } catch (Exception malformed) {
++                                // skip a torn line
++                            }
++                        }
++                    } finally {
++                        reader.close();
++                    }
+                 }
+-            } catch (Exception e) {
+-                Logger.error("Could not set notification color", e);
++            } catch (Exception exception) {
++                Logger.error("Failed to read fix journal", exception);
+             }
++        }
++        JSObject ret = new JSObject();
++        ret.put("points", points);
++        call.resolve(ret);
++    }
+ 
+-            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
+-                    getContext().getPackageName()
+-            );
+-            if (launchIntent != null) {
+-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+-                builder.setContentIntent(
+-                        PendingIntent.getActivity(
+-                                getContext(),
+-                                0,
+-                                launchIntent,
+-                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
+-                        )
+-                );
++    @PluginMethod()
++    public void clearFixJournal(PluginCall call) {
++        synchronized (journalLock) {
++            try {
++                journalFile().delete();
++            } catch (Exception ignored) {
++                // nothing to clear / not deletable — either way, best-effort
+             }
++        }
++        call.resolve();
++    }
+ 
+-            // Set the Channel ID for Android O.
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
 +    private void seedLiveStats(PluginCall call, String message, boolean updated) {
 +        synchronized (liveLock) {
 +            Number km = optNumber(call, "km");
@@ -277,9 +371,7 @@ index a92fcf9..b860091 100644
 +        }
 +    }
  
--            // Set the Channel ID for Android O.
--            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
--                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
+-            backgroundNotification = builder.build();
 +    // Folds one broadcast fix into the live stats and refreshes the notification.
 +    // Called for every location the service reports, foreground or not.
 +    private void onLiveLocation(Location location) {
@@ -287,21 +379,20 @@ index a92fcf9..b860091 100644
 +            LiveStats live = liveStats;
 +            if (live != null && live.tracking) {
 +                foldLiveLocation(live, location);
-             }
++            }
 +            // no live stats, or paused — onPos ignores fixes then too
-+        }
-+    }
- 
--            backgroundNotification = builder.build();
-+    private void foldLiveLocation(LiveStats live, Location location) {
-+        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
-+        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
-+            return;
          }
 -        service.addWatcher(
 -                call.getCallbackId(),
 -                backgroundNotification,
 -                call.getFloat("distanceFilter", 0f)
++    }
++
++    private void foldLiveLocation(LiveStats live, Location location) {
++        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
++        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
++            return;
++        }
 +        long t = location.getTime() > 0 ? location.getTime() : System.currentTimeMillis();
 +        double lat = location.getLatitude(), lng = location.getLongitude();
 +        if (live.lastFixMs == 0) {
@@ -314,6 +405,7 @@ index a92fcf9..b860091 100644
 +            live.lastFixMs = t;
 +            live.paceWindow.clear();
 +            live.paceWindow.addLast(new double[] { t, live.cumM });
++            journalFix(lat, lng, t, location);
 +            return; // an anchor only — no leg to measure yet
 +        }
 +        if (t - live.lastFixMs < LIVE_MIN_INTERVAL_MS) {
@@ -333,6 +425,7 @@ index a92fcf9..b860091 100644
 +                && t - live.paceWindow.peekFirst()[0] > LIVE_CUR_PACE_WINDOW_MS) {
 +            live.paceWindow.removeFirst();
 +        }
++        journalFix(lat, lng, t, location);
 +        renderLiveStats(live);
 +    }
 +
@@ -400,7 +493,7 @@ index a92fcf9..b860091 100644
      }
  
      @PermissionCallback
-@@ -188,6 +444,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +540,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -408,7 +501,7 @@ index a92fcf9..b860091 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -255,6 +512,14 @@ public class BackgroundGeolocation extends Plugin {
+@@ -255,6 +608,14 @@ public class BackgroundGeolocation extends Plugin {
              }
              Location location = intent.getParcelableExtra("location");
              if (location != null) {
@@ -423,7 +516,7 @@ index a92fcf9..b860091 100644
                  call.resolve(formatLocation(location));
              } else {
                  Logger.debug("No locations received");
-@@ -324,7 +589,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -324,7 +685,7 @@ public class BackgroundGeolocation extends Plugin {
      @Override
      protected void handleOnResume() {
          if (service != null) {
@@ -432,7 +525,7 @@ index a92fcf9..b860091 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,10 +598,32 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,10 +694,32 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {
