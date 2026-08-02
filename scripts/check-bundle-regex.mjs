@@ -21,25 +21,35 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const ASSETS = "dist/assets";
+const DIST = "dist";
 const LOOKBEHIND = /\(\?<[=!]/g;
+// Walk everything, not just dist/assets/*.js: a chunk emitted at the dist root
+// or in a nested dir ships to the device exactly the same, and index.html can
+// carry an inline module script. Scoping this to one directory left those
+// unguarded for no reason.
+const SCANNABLE = /\.(js|mjs|cjs|html)$/;
+
+const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+  const path = join(dir, entry.name);
+  return entry.isDirectory() ? walk(path) : SCANNABLE.test(entry.name) ? [path] : [];
+});
 
 let files;
 try {
-  files = readdirSync(ASSETS).filter(f => f.endsWith(".js"));
+  files = walk(DIST);
 } catch {
-  console.error(`check-bundle-regex: ${ASSETS} not found — run \`vite build\` first.`);
+  console.error(`check-bundle-regex: ${DIST} not found — run \`vite build\` first.`);
   process.exit(1);
 }
 
 if (!files.length) {
-  console.error(`check-bundle-regex: no .js chunks in ${ASSETS} — did the build emit anything?`);
+  console.error(`check-bundle-regex: no scannable files in ${DIST} — did the build emit anything?`);
   process.exit(1);
 }
 
 const offences = [];
 for (const file of files) {
-  const code = readFileSync(join(ASSETS, file), "utf8");
+  const code = readFileSync(file, "utf8");
   for (const match of code.matchAll(LOOKBEHIND)) {
     // Minified output is one long line, so quote a window around the hit
     // instead of a line number — enough to recognise the offending regex.
@@ -53,7 +63,7 @@ if (offences.length) {
     `These crash iOS < 16.4 at module-parse time (our iOS target is 15.4).\n`,
   );
   for (const { file, snippet } of offences) {
-    console.error(`  ${ASSETS}/${file}\n    ...${snippet}...\n`);
+    console.error(`  ${file}\n    ...${snippet}...\n`);
   }
   console.error(
     "Fix the source if it's ours; if it's a dependency, patch it with\n" +
@@ -62,4 +72,4 @@ if (offences.length) {
   process.exit(1);
 }
 
-console.log(`check-bundle-regex: ${files.length} chunks clean (no lookbehind).`);
+console.log(`check-bundle-regex: ${files.length} files clean (no lookbehind).`);
