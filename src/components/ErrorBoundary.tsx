@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import { isNative } from "../native";
+import { isNative, nativeBuildLabel } from "../native";
 import { getConsent, captureError } from "../telemetry";
 // Bound t (not the hook): ErrorBoundary is a class and renders only on crash,
 // by which point initI18n has run, so the active language is available.
@@ -99,6 +99,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       "Time: " + new Date().toISOString(),
       "Kind: " + this.kind,
       "Native: " + String(isNative),
+      // Without this a native trace can't be tied to a released build, so a
+      // crash from a stale install is indistinguishable from a regression.
+      isNative ? "App: " + (nativeBuildLabel() || "unknown") : "",
       "URL: " + window.location.href,
       "User agent: " + navigator.userAgent,
       "",

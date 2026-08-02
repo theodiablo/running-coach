@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { App as CapApp } from "@capacitor/app";
 
 declare global {
   interface Window {
@@ -26,4 +27,18 @@ export const isIos = platform === "ios";
 // debugging). The app itself branches on the `isNative` export above.
 if (typeof window !== "undefined" && isNative) {
   window.__NATIVE_SHELL__ = true;
+}
+
+// Installed version/build, cached because the crash reporter builds its trace
+// synchronously. A trace that can't name its build is untriageable: an iOS 15
+// lookbehind crash arrived from a binary predating the fix and read as a
+// regression, with no way to tell the two apart. Empty until getInfo resolves,
+// and on web (continuously deployed, so the store version means nothing).
+let buildLabel = "";
+export const nativeBuildLabel = () => buildLabel;
+
+if (isNative) {
+  CapApp.getInfo()
+    .then(info => { buildLabel = `${info.version} (${info.build})`; })
+    .catch(() => { /* diagnostics only — never let this break startup */ });
 }
