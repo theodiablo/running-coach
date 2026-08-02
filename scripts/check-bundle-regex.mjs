@@ -1,7 +1,7 @@
 // Fails the build if any shipped chunk contains a regex lookbehind.
 //
 // iOS 15/16.0-16.3 JavaScriptCore cannot *parse* `(?<=` / `(?<!` (Safari only
-// shipped lookbehind in 16.4), and our iOS deployment target is 15.0. A single
+// shipped lookbehind in 16.4), and our iOS deployment target is 15.4. A single
 // lookbehind anywhere in a chunk is fatal at parse time, not at match time: the
 // whole module fails with `SyntaxError: Invalid regular expression: invalid
 // group specifier name`, so the feature is dead and — for a dynamic import() —
@@ -50,7 +50,7 @@ for (const file of files) {
 if (offences.length) {
   console.error(
     `check-bundle-regex: found ${offences.length} regex lookbehind(s) in the build output.\n` +
-    `These crash iOS < 16.4 at module-parse time (our iOS target is 15.0).\n`,
+    `These crash iOS < 16.4 at module-parse time (our iOS target is 15.4).\n`,
   );
   for (const { file, snippet } of offences) {
     console.error(`  ${ASSETS}/${file}\n    ...${snippet}...\n`);
