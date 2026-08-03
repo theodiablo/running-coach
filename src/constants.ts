@@ -22,11 +22,23 @@ export const USER_CONTEXT_NOTICE_CHARS = 1800;
 // it's high-frequency local scratch space, flushed only on a real save.
 export const LIVE_RUN_KEY = "rc_live_run";
 
-// How fresh that buffer must be to still be offered as a resumable run — and,
-// because a resumable run may still be on the air, the same window the live
-// publisher uses before it will sweep a leftover broadcast. The watcher mirrors
-// it too (useLiveRun), so all three agree on when a run stops counting as one.
+// How fresh the buffer must be to count as possibly still ON THE AIR (live
+// sharing): past this window the publisher sweeps a leftover broadcast and the
+// watcher stops treating the run as live (useLiveRun). The recovery OFFER is
+// deliberately not bound by it — an interrupted run's data is offered for
+// resume/save whatever its age, never silently discarded (see utils/runRecovery).
 export const RESUME_MAX_AGE_MS = 6 * 3600 * 1000;
+
+// localStorage snapshot of the app_state cache while a cloud upsert is pending
+// or has failed (offline save). Written before every flush attempt, cleared on
+// a confirmed upsert, restored on the next boot when it is newer than the
+// server row — so a run saved offline survives the process being killed.
+export const UNSYNCED_STATE_KEY = "rc_unsynced_state";
+
+// localStorage flag: the one-time Android battery-optimization nudge was shown
+// (the OS killing the app mid-run is the #1 cause of lost recordings). Once per
+// install, mirrors the other one-shot recording prompts above.
+export const BATTERY_NUDGE_KEY = "rc_battery_nudge";
 
 // localStorage flag: last "share this run live" choice (premium). Per-device
 // like the other recording concerns, NOT a synced setting: whether you broadcast

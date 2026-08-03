@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { isNative } from "./native";
 import { App as CapApp } from "@capacitor/app";
@@ -14,6 +14,8 @@ import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from 
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
+import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
+import { distanceKm } from "./utils/geo";
 import { ymd, fmt } from "./utils/format";
 import { computeBadges, unlockedIds } from "./utils/badges";
 import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEfforts";
@@ -143,6 +145,33 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [onboarding,  setOnboarding]  = useState(false);
   const [showTracker, setShowTracker] = useState(false);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
+  // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
+  // a Dashboard banner so the runner doesn't have to know to reopen the recorder
+  // — the tracker's own resume card only shows once they get there. Re-read when
+  // the tracker closes (that's where the offer gets resolved), via the
+  // derived-state-during-render pattern (see PlanView's plan !== prevPlan).
+  const [recovery, setRecovery] = useState<RecoveryBuffer | null>(() => readRecoveryBuffer());
+  const [prevShowTracker, setPrevShowTracker] = useState(showTracker);
+  if (showTracker !== prevShowTracker) {
+    setPrevShowTracker(showTracker);
+    if (!showTracker) setRecovery(readRecoveryBuffer());
+  }
+  // Count each buffer as offered once (keyed by savedAt) — analytics only.
+  const recoveryOfferedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!recovery || showTracker) return;
+    if (recoveryOfferedRef.current === (recovery.savedAt || 0)) return;
+    recoveryOfferedRef.current = recovery.savedAt || 0;
+    track("live_run_recovery_offered", {
+      surface: "dashboard",
+      points: (recovery.points || []).filter(Boolean).length,
+      ageMin: recovery.savedAt ? Math.max(0, Math.round((Date.now() - recovery.savedAt) / 60000)) : null,
+    });
+  }, [recovery, showTracker]);
+  const recoveryInfo = useMemo(() => recovery ? {
+    km: distanceKm(recovery.points || []),
+    startedAt: recovery.startedAt || recovery.savedAt || null,
+  } : null, [recovery]);
   // Recomputed every render (not memoised) so an expiry flips the UI to free
   // without needing a refetch. UI only — the server enforces every premium
   // feature independently.
@@ -388,6 +417,22 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Boot-once load: `t` is stable and must not re-trigger the whole boot on a
     // language switch, so it is intentionally omitted from the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Back online: retry queued route uploads straight away — they otherwise wait
+  // for the next app load, and a killed app never reaches it. The app_state blob
+  // retries itself (src/db.ts owns that seam).
+  useEffect(() => {
+    const onOnline = () => flushPendingRoutes((tmpId, routeId) => {
+      setRuns(prev => {
+        const next = prev.map(r => r.routeTmp === tmpId
+          ? { ...r, routeId, routePending: false, routeTmp: undefined } : r);
+        db.set(STORAGE_KEYS.RUNS, next);
+        return next;
+      });
+    });
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, []);
 
   // Auto-dismiss the toast. setState here runs from a timer callback (not
@@ -870,6 +915,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       if (r) setDetailRun(r);
     },
     openCoach,
+    // An interrupted run waiting to be resumed/saved (Dashboard banner). The
+    // tracker owns the actual resume/discard; the banner is just the way in.
+    recovery: recoveryInfo,
     // A live run to follow, and the way in. Suppressed while the tracker is open:
     // the recording device must not offer to watch itself.
     liveRun: showTracker ? null : (liveRun.active ? liveRun.row : null),

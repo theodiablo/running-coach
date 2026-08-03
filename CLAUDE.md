@@ -59,7 +59,10 @@ rules, not a changelog; delete anything stale.
 - **Persistence:** `db.get/set(STORAGE_KEYS.*)` (`src/db.ts`,
   `src/constants.ts`). Every state change is mirrored to `db` in the same
   handler that calls `setState`. Writes debounce ~600ms into a single upsert
-  and flush on page hide/unload.
+  and flush on page hide/unload. Every flush attempt first snapshots the cache
+  to localStorage (`UNSYNCED_STATE_KEY`); a failed upsert retries (online
+  event + timer) and a snapshot newer than the server row is restored on the
+  next boot — an offline save must survive the process being killed.
 - **A failed load must never become a write.** The upsert replaces the whole
   `data` blob, so an unpopulated cache would erase the row — one offline cold
   start once wiped a real user's runs and plan. `initStore` resolves

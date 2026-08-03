@@ -18,7 +18,8 @@
     "pointsSaved_one": "{{count}} point saved.",
     "pointsSaved_other": "{{count}} points saved.",
     "resume": "Resume",
-    "discard": "Discard"
+    "discard": "Discard",
+    "from": "Recorded {{date}}."
   },
   "stats": {
     "km": "km",
@@ -80,5 +81,11 @@
   "hrTarget": {
     "addProfile": "Add your HR profile in Settings to see a target zone",
     "range": "❤️ {{lo}}–{{hi}} bpm"
+  },
+  "batteryNudge": {
+    "title": "Keep Android from stopping your recording",
+    "body": "This phone limits battery use for Running Coach, which can end a recording mid-run. Allow unrestricted battery use for reliable tracking with the screen off.",
+    "open": "Open settings",
+    "dismiss": "Got it"
   }
 }

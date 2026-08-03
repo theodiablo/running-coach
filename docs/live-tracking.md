@@ -17,6 +17,36 @@ when touching tracking or the shells. Background-location policy detail is in
   into the normal save path — `goLog(prefill)` → `LogView` → `addRuns` —
   passing measured `durationSec`/`elevation` and the trace ref.
 
+## Crash recovery (interrupted runs)
+
+An OS-killed recording (battery optimization is the usual culprit — a real user
+lost a run this way) is recovered from three layers; the shared read/normalize
+logic is `src/utils/runRecovery.ts`:
+
+- **The localStorage buffer** (`LIVE_RUN_KEY`, persisted by `useRunTracker` on
+  every accepted fix) is **never expired silently** — an old buffer is still
+  offered; `RESUME_MAX_AGE_MS` only bounds the live-sharing sweep/watcher.
+  `normalizeRecovery` also closes the moving-time segment left open by the
+  crash (`accSec` alone undercounts a never-paused run to 0:00).
+- **The native fix journal** (Android): the patched plugin appends every fix
+  its live renderer accepts to `run_fix_journal.jsonl` in app files, so points
+  recorded after the WebView froze survive process death — JS can never have
+  them in the buffer. Read via `getFixJournal` (`src/geo/fixJournal.ts`),
+  merged by timestamp into the recovery offer on tracker mount; cleared on a
+  fresh start and when the recovery is resolved (save/discard).
+- **The Dashboard banner** (`RunningCoach` → `Dashboard`): a recoverable buffer
+  is surfaced app-wide, not just inside the recorder — after a kill+relaunch
+  the user lands on the dashboard and would otherwise never know. The tracker
+  keeps sole ownership of resume/discard; the banner just opens it.
+
+Related: the one-time **battery-optimization nudge** (`src/geo/battery.ts` +
+`RunPermissionsPlugin.kt`) offers the OS exemption LIST screen while idle in
+the tracker — deliberately not the direct request dialog, whose
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` manifest permission is Play-restricted.
+It never gates Start. Offline saves are covered separately: queued routes flush
+on the `online` event too (`RunningCoach`), and the app_state blob snapshots
+itself to localStorage around every upsert attempt (`src/db.ts`).
+
 ## Lock-screen live stats
 
 **Nothing the runner reads with the screen off may depend on JS.** While
@@ -383,7 +413,7 @@ compiler:
 
 ### `@capacitor-community/background-geolocation`
 
-Two independent changes.
+Three independent changes.
 (1) Lifecycle NPE fix: it crashed in production ("Unable to pause activity" →
 NPE at `Bridge.getPermissionStates`, Bridge.java:1217) because its
 `handleOnPause`/`handleOnResume` call `getPermissionState("location")` — the
@@ -400,7 +430,13 @@ re-posts it via the service binder with the same NOTIFICATION_ID, resolving
 seam (`src/geo/liveNotification.ts`). The `km`/`pace`/`hr`/`tracking` fields
 seed the patch's own renderer (`seedLiveStats` / `onLiveLocation`), which folds
 each incoming fix into the distance and re-posts without JS — see the
-lock-screen section above for why that has to be native. Numbers cross the
+lock-screen section above for why that has to be native.
+(3) Fix journal: every fix that live renderer accepts is also appended to
+`run_fix_journal.jsonl` (app files dir, size-capped, best-effort), with
+`getFixJournal`/`clearFixJournal` plugin methods — the crash-recovery layer
+that survives process death (see *Crash recovery* above). Lines parse
+individually so a torn last write costs one point, not the file.
+Numbers cross the
 bridge as JSON, so **read them with the patch's `optNumber`, never
 `PluginCall.getDouble`**: `getDouble` only unwraps Double/Float/Integer, and any
 epoch-ms value arrives as a `Long` — which is how `chronometerStartMs` was

@@ -115,6 +115,16 @@ an explicit var.
   actually begins (after the disclosure / permission / HR gates and the
   countdown, never on Resume) — `src/modals/LiveRunTracker.tsx`. Pairs with
   `run_logged {source:"gps"}` as a start→save funnel.
+- `live_run_stopped` `{km, durationSec}` — the runner taps Finish
+  (`src/modals/LiveRunTracker.tsx`). Completes the start→finish funnel with
+  `live_run_started`: a start with no stop is the lost-recording signal (app
+  killed mid-run). Limited: distance/duration numbers only, never coordinates.
+- Interrupted-run recovery: `live_run_recovery_offered`
+  `{surface:"dashboard", points, ageMin}` when a crash-recovery buffer is
+  surfaced on the Dashboard banner (`src/RunningCoach.tsx`), and
+  `live_run_recovery_resumed` / `live_run_recovery_discarded` `{}` when the
+  runner resolves the tracker's resume card (`src/modals/LiveRunTracker.tsx`).
+  Measures how often recordings are interrupted and whether recovery works.
 - Coach agent events: `coach_opened`
   `{source:"header"|"dashboard"|"plan_session"|"settings"|"other"}` when the
   chat is opened, fired in the hub's one `openCoach` seam

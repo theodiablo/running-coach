@@ -28,7 +28,7 @@ const h = vi.hoisted(() => {
 vi.mock("../geo/source", () => ({ geoSource: h.geoSource }));
 vi.mock("../hr/source", () => ({ getHrSource: () => null }));
 vi.mock("../hr/device", () => ({ getPairedDevice: () => null }));
-vi.mock("../native", () => ({ isNative: true }));
+vi.mock("../native", () => ({ isNative: true, isAndroid: false, isIos: false, platform: "ios" }));
 vi.mock("../geo/liveNotification", () => ({
   pushRunNotification: (content: unknown) => { h.pushed.push(content); },
   resetRunNotification: () => {},

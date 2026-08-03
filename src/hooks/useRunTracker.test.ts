@@ -55,7 +55,7 @@ const hr = vi.hoisted(() => {
 vi.mock("../geo/source", () => ({ geoSource: h.geoSource }));
 vi.mock("../hr/source", () => ({ getHrSource: () => (hr.enabled ? hr.source : null) }));
 vi.mock("../hr/device", () => ({ getPairedDevice: () => hr.device }));
-vi.mock("../native", () => ({ isNative: false }));
+vi.mock("../native", () => ({ isNative: false, isAndroid: false, isIos: false, platform: "web" }));
 
 import { useRunTracker } from "./useRunTracker";
 
@@ -246,12 +246,25 @@ describe("useRunTracker — recovery buffer", () => {
     expect(result.current.pending!.points!.length).toBe(2);
   });
 
-  it("drops a stale buffer (older than the resume cutoff)", () => {
-    // Saved 7h ago — beyond the 6h RESUME_MAX_AGE_MS.
+  it("still offers an old buffer (an interrupted run is never expired away)", () => {
+    // Saved 7h ago — past RESUME_MAX_AGE_MS, which only bounds live sharing.
     localStorage.setItem(LIVE_RUN_KEY, buffer(START - 7 * 3600 * 1000));
     const { result } = renderHook(() => useRunTracker());
-    expect(result.current.pending).toBeNull();
-    expect(localStorage.getItem(LIVE_RUN_KEY)).toBeNull();
+    expect(result.current.pending).toBeTruthy();
+    expect(localStorage.getItem(LIVE_RUN_KEY)).toBeTruthy();
+  });
+
+  it("recovers the open segment's moving time for a run that died while tracking", () => {
+    // accSec only holds COMPLETED segments; the segment open at the crash
+    // (startAt) is closed against the last evidence of recording (savedAt).
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify({
+      points: [[48.85, 2.29, START, 30]], accSec: 42, hrSamples: [],
+      startAt: START - 60_000, startedAt: START - 102_000, stoppedAt: null,
+      state: "tracking", savedAt: START,
+    }));
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.resumePrevious());
+    expect(result.current.stats.movingSec).toBe(102); // 42 completed + 60 open
   });
 
   it("resumePrevious loads the buffer into a paused session and appends a gap", () => {

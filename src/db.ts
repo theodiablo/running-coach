@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { UNSYNCED_STATE_KEY } from "./constants";
 
 // Cloud-backed key/value store over the per-user `app_state` row.
 //
@@ -6,10 +7,21 @@ import { supabase } from "./supabase";
 // (app_state.data) keyed by user_id. We mirror that blob in an in-memory
 // cache so the synchronous-style db.get/db.set the app already uses keep
 // working; writes are debounced into a single upsert.
+//
+// Offline durability: every flush attempt first snapshots the cache to
+// localStorage (UNSYNCED_STATE_KEY) and only a CONFIRMED upsert clears it, so
+// a write that failed offline — or was in flight when the process died —
+// survives to the next boot, where initStore restores it if it is newer than
+// the server row (same last-writer-wins the debounced whole-blob upsert
+// already implies). A failed flush also retries itself: on the `online` event
+// and on a timer, so recovering connectivity syncs without waiting for the
+// user's next edit.
 
 let userId: string | null = null;
 let cache: Record<string, unknown> = {};
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+const RETRY_MS = 30_000;
 // Did the cache come from a SUCCESSFUL read of this user's row? Writes are
 // gated on this, and it is the single most important invariant in this file.
 //
@@ -50,7 +62,7 @@ export async function initStore(uid: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
       .from("app_state")
-      .select("data")
+      .select("data, updated_at")
       .eq("user_id", uid)
       .maybeSingle();
     if (error) {
@@ -59,11 +71,50 @@ export async function initStore(uid: string): Promise<boolean> {
     }
     cache = data && data.data ? data.data : {};
     loaded = true;
+    restoreSnapshot(uid, data?.updated_at ?? null);
     return true;
   } catch (err) {
     console.error("app_state load threw", err);
     return false;
   }
+}
+
+// A same-user snapshot newer than the server row is an offline write that never
+// landed (e.g. a run saved in airplane mode, app killed before reconnecting):
+// restore it over the loaded cache and schedule the flush it was waiting for.
+// An older-or-equal snapshot was superseded — by its own confirmed upsert or a
+// newer write from another device — and is dropped. Only ever called AFTER a
+// successful load, so the never-write-an-unloaded-cache invariant is untouched.
+function restoreSnapshot(uid: string, serverUpdatedAt: string | null) {
+  const snap = readSnapshot();
+  if (!snap || snap.userId !== uid) return; // another account's snapshot stays for its owner
+  const serverAt = serverUpdatedAt ? Date.parse(serverUpdatedAt) || 0 : 0;
+  if (snap.savedAt > serverAt && snap.data && typeof snap.data === "object") {
+    cache = snap.data as Record<string, unknown>;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 600);
+  } else {
+    clearSnapshot();
+  }
+}
+
+type Snapshot = { userId: string; data: unknown; savedAt: number };
+
+function readSnapshot(): Snapshot | null {
+  try {
+    const raw = localStorage.getItem(UNSYNCED_STATE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw) as Snapshot;
+    return snap && typeof snap.userId === "string" && typeof snap.savedAt === "number" ? snap : null;
+  } catch { return null; }
+}
+function writeSnapshot() {
+  try {
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({ userId, data: cache, savedAt: Date.now() }));
+  } catch { /* quota / storage unavailable — the upsert may still succeed */ }
+}
+function clearSnapshot() {
+  try { localStorage.removeItem(UNSYNCED_STATE_KEY); } catch { /* ignore */ }
 }
 
 // The signed-in user's id, for direct-table access modules (e.g. src/routes.ts)
@@ -79,6 +130,8 @@ export function clearStore() {
   loaded = false;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
 }
 
 async function flush() {
@@ -91,12 +144,30 @@ async function flush() {
     console.error("app_state save skipped: store was never loaded");
     return;
   }
+  // Snapshot BEFORE the network attempt: if the process dies mid-flight (or
+  // the upsert fails offline) the write still exists on disk for the next boot.
+  writeSnapshot();
   const { error } = await supabase.from("app_state").upsert({
     user_id: userId,
     data: cache,
     updated_at: new Date().toISOString(),
   });
-  if (error) console.error("app_state save failed", error);
+  if (error) {
+    console.error("app_state save failed", error);
+    scheduleRetry();
+  } else {
+    clearSnapshot();
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+}
+
+// A failed flush retries on its own — connectivity comes back without the user
+// necessarily touching anything, and the cache is only durable in-memory plus
+// the snapshot until an upsert is confirmed.
+function scheduleRetry() {
+  if (retryTimer) return;
+  retryTimer = setTimeout(() => { retryTimer = null; flush(); }, RETRY_MS);
 }
 
 // Flush immediately if a debounced write is pending. Safe to call when nothing
@@ -116,6 +187,11 @@ if (typeof window !== "undefined") {
     if (document.visibilityState === "hidden") persistOnExit();
   });
   window.addEventListener("pagehide", persistOnExit);
+  // Back online: sync a pending or previously-failed write straight away
+  // instead of waiting out the retry timer (or the user's next edit).
+  window.addEventListener("online", () => {
+    if (saveTimer || retryTimer) flush();
+  });
 }
 
 export const db = {

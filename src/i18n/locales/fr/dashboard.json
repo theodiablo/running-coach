@@ -38,5 +38,10 @@
     "noRuns": "Pas encore de sortie.",
     "hint": "Touche Enregistrer en bas pour ajouter ta première sortie.",
     "restore": "Des données d'une version précédente ? Ouvre Paramètres (engrenage, en haut à droite) → Restaurer."
+  },
+  "recovery": {
+    "title": "Sortie interrompue détectée",
+    "subtitle": "{{km}} km enregistrés le {{date}}. Reprends-la ou sauvegarde-la.",
+    "action": "Ouvrir"
   }
 }

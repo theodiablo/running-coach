@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
@@ -12,6 +12,7 @@ import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
 import { getHrSource } from "../hr/source";
 import { requestRunNotificationsOnce } from "../geo/notifications";
+import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudgeBatteryOptimization } from "../geo/battery";
 import { getPairedDevice } from "../hr/device";
 import { hasHealthConnectAuthorization } from "../hr/healthconnect";
 import { hasHealthKitAuthorization } from "../healthkit/import";
@@ -172,9 +173,34 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // deliberately spared the row while the buffer existed — this is the moment
   // that decision is resolved, and nothing else will resolve it.
   const discardRecovered = () => {
+    track("live_run_recovery_discarded", {});
     sweptRef.current = true;
     void sweepOwnLiveRun();
     rt.discardPrevious();
+  };
+  const resumeRecovered = () => {
+    track("live_run_recovery_resumed", {});
+    rt.resumePrevious();
+  };
+  // Pairs with live_run_started as a start→finish funnel; km/duration only
+  // (never location or free text — see docs/telemetry.md).
+  const finishRun = () => {
+    track("live_run_stopped", { km: +stats.km.toFixed(2), durationSec: stats.movingSec });
+    rt.stop();
+  };
+  // One-time Android nudge: with battery optimization active the OS can kill the
+  // app mid-run — the #1 cause of a lost recording. Shown as an idle-screen card
+  // (never a Start gate); either button dismisses it for good.
+  const [showBatteryNudge, setShowBatteryNudge] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    shouldNudgeBatteryOptimization().then(show => { if (!cancelled && show) setShowBatteryNudge(true); });
+    return () => { cancelled = true; };
+  }, []);
+  const dismissBatteryNudge = (openSettings: boolean) => {
+    markBatteryNudgeDismissed();
+    setShowBatteryNudge(false);
+    if (openSettings) openBatteryOptimizationSettings();
   };
   const reducedMotion = usePrefersReducedMotion();
   // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
@@ -521,8 +547,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-slate-700">
             <p className="text-sm text-slate-200">{t("tracker.resume.title")}
               <span className="text-slate-400"> {t("tracker.resume.pointsSaved", { count: (pending.points || []).filter(Boolean).length })}</span></p>
+            {(pending.startedAt || pending.savedAt) ? (
+              <p className="text-xs text-slate-400">
+                {t("tracker.resume.from", { date: fmt.sht(ymd(new Date(pending.startedAt || pending.savedAt))) })}
+              </p>
+            ) : null}
             <div className="flex gap-2">
-              <button onClick={rt.resumePrevious}
+              <button onClick={resumeRecovered}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-semibold">{t("tracker.resume.resume")}</button>
               <button onClick={discardRecovered}
                 className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-sm font-semibold">{t("tracker.resume.discard")}</button>
@@ -563,6 +594,21 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
         {state === "idle" && (
           <>
+            {showBatteryNudge && (
+              <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-amber-500/30">
+                <div className="flex items-center gap-2">
+                  <BatteryCharging size={16} className="text-amber-400 shrink-0" />
+                  <p className="text-sm font-semibold text-slate-200">{t("tracker.batteryNudge.title")}</p>
+                </div>
+                <p className="text-xs text-slate-400 leading-snug">{t("tracker.batteryNudge.body")}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => dismissBatteryNudge(true)}
+                    className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 py-2 rounded-lg text-sm font-semibold">{t("tracker.batteryNudge.open")}</button>
+                  <button onClick={() => dismissBatteryNudge(false)}
+                    className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-sm font-semibold">{t("tracker.batteryNudge.dismiss")}</button>
+                </div>
+              </div>
+            )}
             {location?.acc != null && (
               <p className={"text-[11px] text-center " + (
                 location.acc <= 15 ? "text-emerald-400" : location.acc <= 30 ? "text-amber-400" : "text-red-400")}>
@@ -634,13 +680,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         {state === "tracking" && (
           <div className="flex gap-2">
             <Ctrl onClick={rt.pause} color="bg-slate-700 hover:bg-slate-600 text-slate-100"><Pause size={20} />{t("tracker.controls.pause")}</Ctrl>
-            <Ctrl onClick={rt.stop} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
+            <Ctrl onClick={finishRun} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
           </div>
         )}
         {state === "paused" && (
           <div className="flex gap-2">
             <Ctrl onClick={() => guardedStart(rt.resume)} color="bg-orange-500 hover:bg-orange-600 text-white"><Play size={20} />{t("tracker.controls.resume")}</Ctrl>
-            <Ctrl onClick={rt.stop} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
+            <Ctrl onClick={finishRun} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
           </div>
         )}
         {state === "stopped" && (
