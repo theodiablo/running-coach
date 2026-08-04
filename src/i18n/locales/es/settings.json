@@ -197,6 +197,8 @@
     "connectFailed": "No se pudo completar la conexión. Vuelve a intentarlo.",
     "noRuns30": "No se encontraron entrenamientos nuevos en los últimos 30 días.",
     "scanFailed": "No se pudieron leer tus fuentes conectadas.",
+    "syncProgress_one": "Sincronizando… {{count}} entrenamiento encontrado",
+    "syncProgress_other": "Sincronizando… {{count}} entrenamientos encontrados",
     "providers": {
       "healthconnect": {
         "label": "Tu reloj (Health Connect)",
@@ -209,6 +211,10 @@
       "polar": {
         "label": "Polar",
         "help": "Conecta tu cuenta de Polar para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj Polar, incluso si dejas el teléfono en casa."
+      },
+      "suunto": {
+        "label": "Suunto",
+        "help": "Conecta tu cuenta de Suunto para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj Suunto, incluso si dejas el teléfono en casa. Todo tu historial se importa en la primera conexión."
       }
     }
   }

@@ -83,27 +83,62 @@ describe("polarExerciseToRun", () => {
 
 // ── Native deep-link OAuth plumbing (pure parts) ─────────────────────────────
 import { expectedPolarStates } from "./polar";
-import { classifyPolarReturn, POLAR_STATE_PREFIX, POLAR_NATIVE_STATE_PREFIX } from "../../polarPreinit";
+import { buildAuthUrl } from "../cloudOauth";
+import { classifyCloudReturn, CLOUD_OAUTH, cloudOauthProviderIds } from "../../cloudOauthPreinit";
 
-describe("polar OAuth state helpers", () => {
+describe("buildAuthUrl", () => {
+  const spec = { authUrl: "https://flow.polar.com/oauth2/authorization", clientId: "cid", scope: "accesslink.read_all" };
+  const opts = { state: "polar_import:n1", redirectUri: "https://run.example/" };
+
+  it("omits PKCE params unless a challenge is supplied (Polar's live URL stays untouched)", () => {
+    const url = new URL(buildAuthUrl(spec, opts));
+    expect(url.searchParams.get("response_type")).toBe("code");
+    expect(url.searchParams.get("client_id")).toBe("cid");
+    expect(url.searchParams.get("state")).toBe("polar_import:n1");
+    expect(url.searchParams.has("code_challenge")).toBe(false);
+    expect(url.searchParams.has("code_challenge_method")).toBe(false);
+  });
+
+  it("appends S256 PKCE params when a challenge is supplied (Suunto opts in)", () => {
+    const url = new URL(buildAuthUrl(spec, { ...opts, challenge: "chal" }));
+    expect(url.searchParams.get("code_challenge")).toBe("chal");
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+  });
+});
+
+describe("cloud OAuth state helpers", () => {
   it("accepts both the web and the native state format for one nonce", () => {
     expect(expectedPolarStates("abc")).toEqual(["polar_import:abc", "polar_import:native:abc"]);
   });
 
-  it("classifyPolarReturn tells web returns, native returns and non-Polar loads apart", () => {
-    expect(classifyPolarReturn("").kind).toBe("none");
-    // Supabase's own PKCE return (?code= with no Polar state) is NOT ours.
-    expect(classifyPolarReturn("?code=supa").kind).toBe("none");
-    expect(classifyPolarReturn("?state=other:xyz&code=c").kind).toBe("none");
-    expect(classifyPolarReturn(`?state=${POLAR_STATE_PREFIX}:xyz&code=c`))
-      .toEqual({ kind: "web", code: "c", state: "polar_import:xyz" });
+  it("classifyCloudReturn tells web returns, native returns and non-provider loads apart", () => {
+    expect(classifyCloudReturn("").provider).toBeNull();
+    // Supabase's own PKCE return (?code= with no provider state) is NOT ours.
+    expect(classifyCloudReturn("?code=supa").provider).toBeNull();
+    expect(classifyCloudReturn("?state=other:xyz&code=c").provider).toBeNull();
+    expect(classifyCloudReturn(`?state=${CLOUD_OAUTH.polar.statePrefix}:xyz&code=c`))
+      .toEqual({ provider: "polar", kind: "web", code: "c", state: "polar_import:xyz" });
     // Native marker also starts with the plain prefix — must classify native,
     // not web (order of the startsWith checks is load-bearing).
-    expect(classifyPolarReturn(`?state=${POLAR_NATIVE_STATE_PREFIX}:xyz&code=c`))
-      .toEqual({ kind: "native", code: "c", state: "polar_import:native:xyz" });
+    expect(classifyCloudReturn(`?state=${CLOUD_OAUTH.polar.nativeStatePrefix}:xyz&code=c`))
+      .toEqual({ provider: "polar", kind: "native", code: "c", state: "polar_import:native:xyz" });
     // A denial carries error and no code — still classified so the URL gets
     // stripped (web) or bounced (native, to close the iOS browser sheet).
-    expect(classifyPolarReturn(`?state=${POLAR_STATE_PREFIX}:xyz&error=access_denied`))
-      .toEqual({ kind: "web", code: null, state: "polar_import:xyz" });
+    expect(classifyCloudReturn(`?state=${CLOUD_OAUTH.polar.statePrefix}:xyz&error=access_denied`))
+      .toEqual({ provider: "polar", kind: "web", code: null, state: "polar_import:xyz" });
+  });
+
+  it("keeps providers unambiguous: disjoint state prefixes, unique keys and deep links", () => {
+    const cfgs = cloudOauthProviderIds.map(id => CLOUD_OAUTH[id]);
+    for (let i = 0; i < cfgs.length; i++) {
+      for (let j = 0; j < cfgs.length; j++) {
+        if (i === j) continue;
+        // A shared prefix would let one provider's return classify as another's.
+        expect(cfgs[j].statePrefix.startsWith(cfgs[i].statePrefix + ":")).toBe(false);
+        expect(cfgs[j].statePrefix).not.toBe(cfgs[i].statePrefix);
+      }
+    }
+    const allKeys = cfgs.flatMap(c => [c.codeKey, c.stateKey, c.nonceKey, c.verifierKey, c.deepLink]);
+    expect(new Set(allKeys).size).toBe(allKeys.length);
   });
 });

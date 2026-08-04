@@ -4,10 +4,11 @@ import './index.css'
 // Sets window.__NATIVE_SHELL__ inside the Capacitor shell before the app renders
 // (no-op in the browser). Imported first so the flag is ready for everything.
 import './native'
-// Captures a Polar OAuth `?code=` return and strips it BEFORE the Supabase
-// client (imported via ./App below) can consume it as its own PKCE code. Must
-// stay above ./App. No-op on every normal load. See src/polarPreinit.ts.
-import './polarPreinit'
+// Captures a cloud provider's OAuth `?code=` return (Polar, …) and strips it
+// BEFORE the Supabase client (imported via ./App below) can consume it as its
+// own PKCE code. Must stay above ./App. No-op on every normal load. See
+// src/cloudOauthPreinit.ts.
+import './cloudOauthPreinit'
 import { initI18n, detectInitialLocale } from './i18n'
 import { initTelemetry, installGlobalErrorHandlers } from './telemetry'
 import { ErrorBoundary } from './components/ErrorBoundary'

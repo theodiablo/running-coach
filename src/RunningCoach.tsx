@@ -28,8 +28,7 @@ import { useLiveRun } from "./hooks/useLiveRun";
 import { flushPendingHr, hasHealthConnectAuthorization } from "./hr/healthconnect";
 import { flushPendingHkHr } from "./hr/healthkit";
 import { markSeen, WATCH_MANUAL_SCAN_DAYS, WATCH_AUTO_SCAN_COOLDOWN_MS } from "./watch/import";
-import { scanAllProviders, providerEnabledInSettings } from "./imports/registry";
-import { completePolarAuth } from "./imports/providers/polar";
+import { scanAllProviders, providerEnabledInSettings, cloudAuthCompleters, commitCloudScans, cloudBackfillPending } from "./imports/registry";
 import { persistImportedRoutes } from "./imports/persistRoutes";
 import { Toast } from "./components/Toast";
 import { Confetti } from "./components/Confetti";
@@ -525,45 +524,51 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
   const saveSettings = (s: SettingsState) => { setSettings(s); db.set(STORAGE_KEYS.SETTINGS, s); };
 
-  // Complete a Polar OAuth return (a no-op on every normal load and when Polar is
-  // unconfigured — gated on the state marker inside). On success, flip the
-  // provider's enable flag on and scan straight away for anything already synced;
-  // on a failed exchange, tell the user (they authorized and expect a result).
-  // Two triggers share this: the boot effect (web returns — the page reloaded
-  // through the redirect — and native cold-start relaunches), and the
-  // "rc-polar-return" event App.tsx fires when the deep link lands warm.
-  const finishPolarReturn = () => {
-    completePolarAuth().then(result => {
+  // Complete a cloud provider's OAuth return (a no-op on every normal load and
+  // when the provider is unconfigured — gated on the state marker inside). On
+  // success, flip the provider's enable flag on and scan straight away for
+  // anything already synced; on a failed exchange, tell the user (they
+  // authorized and expect a result). Two triggers share this: the boot effect
+  // (web returns — the page reloaded through the redirect — and native
+  // cold-start relaunches), and the "rc-cloud-oauth-return" event App.tsx fires
+  // when the deep link lands warm.
+  const finishCloudReturn = (id: string) => {
+    const complete = cloudAuthCompleters[id];
+    if (!complete) return;
+    complete().then(result => {
       if (result === "idle") return;
       if (result === "failed") { showToast(t("settings.integrations.connectFailed"), "err"); return; }
-      const next = { ...settingsRef.current, imports: { ...settingsRef.current.imports, polar: true } };
+      const next = { ...settingsRef.current, imports: { ...settingsRef.current.imports, [id]: true } };
       saveSettings(next);
       // Update the ref synchronously too: the [settings] sync effect only runs
       // after React commits (a macrotask), but the scan below runs this tick and
-      // gates Polar on providerEnabledInSettings(settingsRef.current) — without
-      // this, the "scan straight away" would skip Polar until the next boot.
+      // gates the provider on providerEnabledInSettings(settingsRef.current) —
+      // without this, the "scan straight away" would skip it until the next boot.
       settingsRef.current = next;
       showToast(t("settings.integrations.connectSuccess"));
-      // Let an open settings panel flip its Polar row to "connected" without a
-      // reopen (its per-provider isConnected checks only run on mount). The id
-      // in detail scopes it to the Polar row (future Suunto/COROS rows ignore it).
-      window.dispatchEvent(new CustomEvent("rc-cloud-connected", { detail: { id: "polar" } }));
+      // Let an open settings panel flip this provider's row to "connected"
+      // without a reopen (its per-provider isConnected checks only run on
+      // mount). The id in detail scopes it to the one row.
+      window.dispatchEvent(new CustomEvent("rc-cloud-connected", { detail: { id } }));
       checkWatchRef.current({ manual: true }).catch(() => {});
     }).catch(() => {});
   };
-  const finishPolarReturnRef = useRef(finishPolarReturn);
+  const finishCloudReturnRef = useRef(finishCloudReturn);
   // Latest-ref pattern (same as checkWatchRef above): the long-lived deep-link
   // listener below must call this render's closure, not a stale one.
   // eslint-disable-next-line react-hooks/refs
-  finishPolarReturnRef.current = finishPolarReturn;
+  finishCloudReturnRef.current = finishCloudReturn;
   useEffect(() => {
     if (loading) return;
-    finishPolarReturnRef.current();
+    for (const id of Object.keys(cloudAuthCompleters)) finishCloudReturnRef.current(id);
   }, [loading]);
   useEffect(() => {
-    const onPolarReturn = () => finishPolarReturnRef.current();
-    window.addEventListener("rc-polar-return", onPolarReturn);
-    return () => window.removeEventListener("rc-polar-return", onPolarReturn);
+    const onCloudReturn = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id;
+      if (typeof id === "string") finishCloudReturnRef.current(id);
+    };
+    window.addEventListener("rc-cloud-oauth-return", onCloudReturn);
+    return () => window.removeEventListener("rc-cloud-oauth-return", onCloudReturn);
   }, []);
 
   // App.tsx handles auth callbacks (deep link on native, URL params on web) but
@@ -851,7 +856,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // and the user can fix its type); several land as a batch. Returns how many new
   // runs were found (for the Settings UI's feedback).
   const scanImports = async ({ days, manual = false }: { days?: number; manual?: boolean } = {}) => {
-    if (!manual && (watchAutoShownRef.current || Date.now() - watchLastScanRef.current < WATCH_AUTO_SCAN_COOLDOWN_MS)) return 0;
+    // The once-per-session gate exists to keep health-store round-trips quiet;
+    // a cloud backfill mid-flight (more history behind the page cap) is exempt
+    // so it can continue on later foreground scans. The cooldown still applies.
+    if (!manual && ((watchAutoShownRef.current && !cloudBackfillPending()) || Date.now() - watchLastScanRef.current < WATCH_AUTO_SCAN_COOLDOWN_MS)) return 0;
     watchLastScanRef.current = Date.now();
     const scanned = await scanAllProviders(runsRef.current, {
       ...(days ? { days } : {}),
@@ -866,16 +874,27 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // never belong in the stored run (blob bloat). HealthKit imports Apple Watch
     // routes + HR; Health Connect imports HR series (no routes exist there yet).
     const found = scanned.length ? await persistImportedRoutes(scanned) : [];
-    if (!found.length) return 0;
+    if (!found.length) {
+      // Nothing survived dedupe → nothing for the user to confirm, but a cloud
+      // provider may still hold a deferred ack for pages whose candidates all
+      // collapsed as duplicates — commit it or those pages re-serve forever.
+      await commitCloudScans();
+      return 0;
+    }
     if (!manual) watchAutoShownRef.current = true;
     if (found.length === 1) {
       const r = found[0];
+      // The deferred cloud ack for this run rides LogView's onSaved (the
+      // prefill carries extId) — a dismissed review re-serves it next scan.
       showToast(t("app.toasts.foundRun", { km: r.km, date: fmt.sht(r.date || "") }), "ok",
         { label: t("app.toasts.review"), onClick: () => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "") || {}) }) });
     } else {
       showToast(t("app.toasts.foundRuns", { n: found.length }), "ok",
         { label: t("app.toasts.importAll"), onClick: () => {
           const added = addRuns(found);
+          // The runs are saved — cloud providers may now ack their pages
+          // (a missed toast would instead re-serve them next scan).
+          commitCloudScans();
           // Jump to History and flag the freshly imported runs as "New".
           goToRuns(added.map(a => a.id).filter((id): id is string => !!id), t("progress.history.newBadge"));
         } });
@@ -1037,7 +1056,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
-          onSaved={() => { if (logPrefill?.wNum != null && logPrefill?.sId) toggleSess(logPrefill.wNum, logPrefill.sId); }}
+          onSaved={() => {
+            if (logPrefill?.wNum != null && logPrefill?.sId) toggleSess(logPrefill.wNum, logPrefill.sId);
+            // A saved single-run import review (prefill carries the provider
+            // extId) confirms the cloud page — release its deferred ack.
+            if (logPrefill?.extId) commitCloudScans();
+          }}
           onDone={() => { setLogPrefill(null); setTab("dash"); }}/>}
         {tab === "races" && <RacesView {...shared}/>}
         {tab === "progress" && <ProgressView {...shared} initialSub={progressSub} navKey={progressNonce}/>}

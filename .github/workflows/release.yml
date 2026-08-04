@@ -167,6 +167,10 @@ jobs:
           # this the provider is dormant and the Polar row never renders in the
           # apps. Same variable as the web deploy (docs/integrations-polar.md).
           VITE_POLAR_CLIENT_ID: ${{ vars.VITE_POLAR_CLIENT_ID }}
+          # Suunto cloud import — same pattern as Polar (public client id;
+          # the secret half lives in the suunto-import edge function). See
+          # docs/integrations-suunto.md.
+          VITE_SUUNTO_CLIENT_ID: ${{ vars.VITE_SUUNTO_CLIENT_ID }}
           # Released native apps — production telemetry (PR builds tag "preview").
           VITE_APP_ENV: production
           # Native build: drop the web-only marketing landing chunk entirely so

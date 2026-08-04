@@ -2,7 +2,6 @@
   "version": "5",
   "specifiers": {
     "npm:@anthropic-ai/sdk@*": "0.110.0",
-    "npm:@capacitor-community/background-geolocation@^1.2.26": "1.2.26_@capacitor+core@8.4.1",
     "npm:@capacitor-community/bluetooth-le@^8.2.0": "8.2.0_@capacitor+core@8.4.1",
     "npm:@capacitor/android@^8.4.1": "8.4.1_@capacitor+core@8.4.1",
     "npm:@capacitor/app@^8.1.0": "8.1.0_@capacitor+core@8.4.1",
@@ -14,7 +13,6 @@
     "npm:@pianissimoproject/capacitor-health-connect@~0.7.1": "0.7.1_@capacitor+core@8.4.1",
     "npm:@supabase/supabase-js@^2.107.0": "2.110.1",
     "npm:@tailwindcss/vite@^4.3.0": "4.3.2_vite@8.1.3",
-    "npm:@testing-library/jest-dom@^6.9.1": "6.9.1",
     "npm:@testing-library/react@^16.3.2": "16.3.2_@testing-library+dom@10.4.1_@types+react@19.2.17_@types+react-dom@19.2.3__@types+react@19.2.17_react@19.2.7_react-dom@19.2.7__react@19.2.7",
     "npm:@types/react-dom@^19.2.3": "19.2.3_@types+react@19.2.17",
     "npm:@types/react@^19.2.14": "19.2.17",
@@ -3442,8 +3440,8 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@anthropic-ai/sdk@0.110",
-        "npm:@capacitor-community/background-geolocation@^1.2.26",
+        "npm:@anthropic-ai/sdk@0.114",
+        "npm:@capacitor-community/background-geolocation@1.2.26",
         "npm:@capacitor-community/bluetooth-le@^8.2.0",
         "npm:@capacitor/android@^8.4.1",
         "npm:@capacitor/app@^8.1.0",
@@ -3451,11 +3449,15 @@
         "npm:@capacitor/cli@^8.4.1",
         "npm:@capacitor/core@^8.4.1",
         "npm:@capacitor/geolocation@^8.2.0",
+        "npm:@capacitor/ios@^8.4.2",
         "npm:@eslint/js@^10.0.1",
+        "npm:@fontsource/archivo@^5.2.8",
         "npm:@pianissimoproject/capacitor-health-connect@~0.7.1",
+        "npm:@resvg/resvg-js@^2.6.2",
         "npm:@supabase/supabase-js@^2.107.0",
         "npm:@tailwindcss/vite@^4.3.0",
-        "npm:@testing-library/jest-dom@^6.9.1",
+        "npm:@testing-library/dom@^10.4.1",
+        "npm:@testing-library/jest-dom@7",
         "npm:@testing-library/react@^16.3.2",
         "npm:@types/react-dom@^19.2.3",
         "npm:@types/react@^19.2.14",
@@ -3465,11 +3467,14 @@
         "npm:eslint-plugin-react-refresh@~0.5.2",
         "npm:eslint@^10.3.0",
         "npm:globals@^17.6.0",
+        "npm:i18next@^26.3.6",
         "npm:jsdom@^29.1.1",
         "npm:leaflet@^1.9.4",
         "npm:lucide-react@^1.17.0",
+        "npm:patch-package@^8.0.1",
         "npm:posthog-js@^1.393.4",
         "npm:react-dom@^19.2.6",
+        "npm:react-i18next@^17.0.9",
         "npm:react-markdown@^10.1.0",
         "npm:react@^19.2.6",
         "npm:recharts@^3.8.1",
@@ -3480,7 +3485,12 @@
         "npm:typescript@^6.0.3",
         "npm:vite@^8.0.12",
         "npm:vitest@^4.1.8"
-      ]
+      ],
+      "overrides": {
+        "@pianissimoproject/capacitor-health-connect": {
+          "@capacitor/core": "$@capacitor/core"
+        }
+      }
     }
   }
 }

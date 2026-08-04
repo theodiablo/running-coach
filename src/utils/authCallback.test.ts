@@ -1,18 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { classifyAuthUrl, emailChangeOutcome } from "./authCallback";
-import { POLAR_DEEP_LINK } from "../polarPreinit";
+import { CLOUD_OAUTH } from "../cloudOauthPreinit";
 
-// The routing rules for native deep links. Order matters: Polar's ?code= is NOT
-// a Supabase auth code, and an email-change link carries no ?code= at all.
+// The routing rules for native deep links. Order matters: a cloud provider's
+// ?code= is NOT a Supabase auth code, and an email-change link carries no
+// ?code= at all.
 describe("classifyAuthUrl", () => {
   it("routes a Polar return before the Supabase code branch", () => {
-    const url = POLAR_DEEP_LINK + "?state=polar_import%3Anative%3Aabc&code=xyz";
-    expect(classifyAuthUrl(url)).toEqual({ kind: "polar", code: "xyz", state: "polar_import:native:abc" });
+    const url = CLOUD_OAUTH.polar.deepLink + "?state=polar_import%3Anative%3Aabc&code=xyz";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "cloudOauth", provider: "polar", code: "xyz", state: "polar_import:native:abc" });
   });
 
-  it("routes a Polar denial (no code) as polar, not as none", () => {
-    const url = POLAR_DEEP_LINK + "?state=polar_import%3Anative%3Aabc";
-    expect(classifyAuthUrl(url)).toEqual({ kind: "polar", code: null, state: "polar_import:native:abc" });
+  it("routes a Polar denial (no code) as cloudOauth, not as none", () => {
+    const url = CLOUD_OAUTH.polar.deepLink + "?state=polar_import%3Anative%3Aabc";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "cloudOauth", provider: "polar", code: null, state: "polar_import:native:abc" });
+  });
+
+  it("routes a Suunto return to its own provider id", () => {
+    const url = CLOUD_OAUTH.suunto.deepLink + "?state=suunto_import%3Anative%3Aabc&code=xyz";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "cloudOauth", provider: "suunto", code: "xyz", state: "suunto_import:native:abc" });
   });
 
   it("surfaces a provider error", () => {

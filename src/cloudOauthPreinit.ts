@@ -1,46 +1,87 @@
 // Must run BEFORE the Supabase client exists (imported ahead of ./App in
 // main.tsx): Supabase's `detectSessionInUrl` PKCE flow consumes any `?code=`
-// as its own auth code, and Polar's OAuth return also lands as `?code=` at the
-// app root — this strips and stashes the Polar code first so Supabase never
-// sees it. completePolarAuth() (imports/providers/polar.ts) picks it up.
-// Two return shapes (web vs native bounce): docs/integrations-polar.md.
+// as its own auth code, and a cloud provider's OAuth return also lands as
+// `?code=` at the app root — this strips and stashes the provider's code first
+// so Supabase never sees it. The provider's completeAuth (imports/cloudOauth.ts)
+// picks it up. Two return shapes (web vs native bounce): docs/integrations-polar.md.
 //
 // Stay dependency-free (no React, no i18n, no supabase) — importing supabase
 // here would create the client early, the exact race this file exists to win.
 
-export const POLAR_STATE_PREFIX = "polar_import";
-// Native-initiated connects mark their state so this bounce knows the return
-// belongs to the app, not this browser tab. Still starts with the plain prefix,
-// so order the checks native-first.
-export const POLAR_NATIVE_STATE_PREFIX = POLAR_STATE_PREFIX + ":native";
-export const POLAR_CODE_KEY = "rc_polar_oauth_code";
-export const POLAR_RETURNED_STATE_KEY = "rc_polar_oauth_state";
-export const POLAR_NONCE_KEY = "rc_polar_oauth_nonce";
+export type CloudOauthProviderId = "polar" | "suunto";
 
-// The app's Polar OAuth deep link. Same scheme as AUTH_DEEP_LINK (supabase.ts),
-// different host — Android needs a matching intent filter (AndroidManifest),
-// iOS already claims the whole scheme via CFBundleURLTypes. Duplicated rather
-// than imported from supabase.ts to keep this module dependency-free.
-export const POLAR_DEEP_LINK = "solutions.camboulive.run://polar-callback";
+export type CloudOauthConfig = {
+  // OAuth `state` markers. Native-initiated connects mark their state so the
+  // web bounce knows the return belongs to the app, not the browser tab. The
+  // native prefix still starts with the plain one, so check native FIRST.
+  statePrefix: string;
+  nativeStatePrefix: string;
+  // The provider's deep link. Same scheme as AUTH_DEEP_LINK (supabase.ts),
+  // different host — Android needs a matching intent filter (AndroidManifest),
+  // iOS already claims the whole scheme via CFBundleURLTypes.
+  deepLink: string;
+  // Storage keys for the OAuth handshake (code/state stashed on return; nonce
+  // and PKCE verifier written at connect() time).
+  codeKey: string;
+  stateKey: string;
+  nonceKey: string;
+  verifierKey: string;
+};
+
+// Every cloud OAuth provider this preinit watches for. Adding one = add its
+// entry here (keys must stay globally unique and no provider's statePrefix may
+// be a prefix of another's — asserted in polar.test.ts) plus an AndroidManifest
+// intent filter for the deep-link host.
+export const CLOUD_OAUTH: Record<CloudOauthProviderId, CloudOauthConfig> = {
+  polar: {
+    statePrefix: "polar_import",
+    nativeStatePrefix: "polar_import:native",
+    deepLink: "solutions.camboulive.run://polar-callback",
+    codeKey: "rc_polar_oauth_code",
+    stateKey: "rc_polar_oauth_state",
+    nonceKey: "rc_polar_oauth_nonce",
+    verifierKey: "rc_polar_oauth_verifier",
+  },
+  suunto: {
+    statePrefix: "suunto_import",
+    nativeStatePrefix: "suunto_import:native",
+    deepLink: "solutions.camboulive.run://suunto-callback",
+    codeKey: "rc_suunto_oauth_code",
+    stateKey: "rc_suunto_oauth_state",
+    nonceKey: "rc_suunto_oauth_nonce",
+    verifierKey: "rc_suunto_oauth_verifier",
+  },
+};
+
+export const cloudOauthProviderIds = Object.keys(CLOUD_OAUTH) as CloudOauthProviderId[];
 
 // Native-side stash, written by App.tsx when the deep link arrives. localStorage,
 // NOT sessionStorage: the OS may have killed the app while the OAuth browser was
 // open, and the cold-start relaunch is a fresh WebView session.
-export function stashPolarReturn(code: string, state: string): void {
+export function stashCloudReturn(provider: CloudOauthProviderId, code: string, state: string): void {
+  const cfg = CLOUD_OAUTH[provider];
   try {
-    localStorage.setItem(POLAR_CODE_KEY, code);
-    localStorage.setItem(POLAR_RETURNED_STATE_KEY, state);
+    localStorage.setItem(cfg.codeKey, code);
+    localStorage.setItem(cfg.stateKey, state);
   } catch { /* storage unavailable — the exchange will just not happen */ }
 }
 
 // Pure classification of a landing URL's query — exported for tests.
-export type PolarReturnKind = "none" | "web" | "native";
-export function classifyPolarReturn(search: string): { kind: PolarReturnKind; code: string | null; state: string | null } {
+export type CloudReturn =
+  | { provider: CloudOauthProviderId; kind: "web" | "native"; code: string | null; state: string }
+  | { provider: null; kind: "none"; code: null; state: null };
+
+export function classifyCloudReturn(search: string): CloudReturn {
   const params = new URLSearchParams(search);
   const state = params.get("state");
-  if (!state || !state.startsWith(POLAR_STATE_PREFIX + ":")) return { kind: "none", code: null, state: null };
-  const kind = state.startsWith(POLAR_NATIVE_STATE_PREFIX + ":") ? "native" : "web";
-  return { kind, code: params.get("code"), state };
+  if (!state) return { provider: null, kind: "none", code: null, state: null };
+  for (const provider of cloudOauthProviderIds) {
+    const cfg = CLOUD_OAUTH[provider];
+    if (!state.startsWith(cfg.statePrefix + ":")) continue;
+    const kind = state.startsWith(cfg.nativeStatePrefix + ":") ? "native" : "web";
+    return { provider, kind, code: params.get("code"), state };
+  }
+  return { provider: null, kind: "none", code: null, state: null };
 }
 
 // The bounce overlay is pre-React and pre-i18n, so it carries its own three
@@ -87,15 +128,17 @@ function showBounceOverlay(target: string): void {
 
 try {
   if (typeof window !== "undefined") {
-    const ret = classifyPolarReturn(window.location.search);
-    if (ret.kind !== "none") {
+    const ret = classifyCloudReturn(window.location.search);
+    if (ret.provider) {
+      const cfg = CLOUD_OAUTH[ret.provider];
       if (ret.kind === "web") {
         // A web-connect return (success carries `code`; a denial carries `error`
-        // and no code). Stash a code for completePolarAuth to validate + exchange.
+        // and no code). Stash a code for the provider's completeAuth to
+        // validate + exchange.
         if (ret.code) {
           try {
-            sessionStorage.setItem(POLAR_CODE_KEY, ret.code);
-            sessionStorage.setItem(POLAR_RETURNED_STATE_KEY, ret.state!);
+            sessionStorage.setItem(cfg.codeKey, ret.code);
+            sessionStorage.setItem(cfg.stateKey, ret.state);
           } catch { /* storage unavailable — non-fatal */ }
         }
       }
@@ -110,7 +153,7 @@ try {
         // validates the state against the nonce it stored at connect() time
         // (CSRF), this page performs no validation of its own. A denial (no
         // code) is still forwarded so the app can close its iOS browser sheet.
-        const target = POLAR_DEEP_LINK + "?state=" + encodeURIComponent(ret.state!) +
+        const target = cfg.deepLink + "?state=" + encodeURIComponent(ret.state) +
           (ret.code ? "&code=" + encodeURIComponent(ret.code) : "");
         showBounceOverlay(target);
         try { window.location.replace(target); } catch { /* blocked — the overlay's tap target remains */ }

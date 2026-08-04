@@ -254,20 +254,20 @@ pipeline needs no changes. Three providers:
   (`providers/polar.ts`, the first real one — see
   `docs/integrations-polar.md`) works on **web AND native** and is **dormant
   until configured**: the secret half lives in the `polar-import` edge function
-  + `polar_tokens` table (service-role-only), and the provider's
+  + `integration_connections` table (service-role-only), and the provider's
   `isAvailable()` is false without `VITE_POLAR_CLIENT_ID` (wired into
   `deploy.yml`/`deploy-pr.yml` AND `release.yml`/`android-pr.yml`) — so it
   ships as a safe no-op, like `garminCloudProvider` (`providers/cloud.ts`,
   still scaffold-only). The edge function returns each exercise's raw **GPX**,
   parsed **client-side** by the app's existing `parseActivityFile`.
-  `completePolarAuth()` (RunningCoach boot + the `rc-polar-return` event)
+  `completePolarAuth()` (RunningCoach boot + the `rc-cloud-oauth-return` event)
   finishes the OAuth return, gated on a `state` marker so it never collides
   with Supabase's own `?code=` PKCE flow. **Native OAuth is a bounce**: Polar
   has ONE registered https redirect (the web origin), so a native connect marks
   its state `polar_import:native:<nonce>`, opens the system browser (Android
   via plain top-frame navigation / Bridge.launchIntent — never
   `@capacitor/browser` there; iOS via `Browser.open`), and the returning web
-  page's `polarPreinit` forwards code+state to the
+  page's `cloudOauthPreinit` forwards code+state to the
   `solutions.camboulive.run://polar-callback` deep link (scripted redirect +
   always-rendered tap fallback, since browsers gesture-gate custom-scheme
   navigation). `App.tsx` must route that deep link BEFORE its Supabase
@@ -276,8 +276,17 @@ pipeline needs no changes. Three providers:
   `completePolarAuth` only clears the stash when a code is actually consumed —
   wiping the nonce on a codeless boot would reject an in-flight return. The
   exchange passes the SAME https redirect_uri (`WEB_APP_ORIGIN`), never the
-  WebView origin. Provider order for the next cloud integrations (Suunto,
-  COROS): reuse this seam.
+  WebView origin. All of that plumbing is provider-generic (`CLOUD_OAUTH` in
+  `src/cloudOauthPreinit.ts` + `makeCloudOauth` in `src/imports/cloudOauth.ts`,
+  with PKCE). **Suunto** (`providers/suunto.ts`, see
+  `docs/integrations-suunto.md`) rides the same seam with a different sync
+  shape: short-lived tokens (server-side refresh), **FIT** parsed client-side
+  by `parseFitFile`, a server-held cursor + deferred ack (acked only after the
+  runs are saved — `commitCloudScans` in the registry), full-history backfill
+  on first connect, and `suunto-webhook` staging new workouts server-side.
+  Credentials for every cloud provider live in the generic
+  `integration_connections` table (service-role-only). COROS next: reuse this
+  seam.
 
 **Strava API is deliberately excluded**: its agreement bans AI-model use of API
 data and the coach reads runs — users' own CSV/GPX exports are fine, that's

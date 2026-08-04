@@ -400,6 +400,14 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Suunto's webhook calls carry no Supabase JWT — authentication is the
+# HMAC-SHA256 signature verified inside the function. Everything else keeps the
+# default JWT gate. If a deploy ever ignores this block, scope a
+# --no-verify-jwt fallback to THIS function name in
+# deploy-supabase-functions.yml — never blanket the deploy loop.
+[functions.suunto-webhook]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

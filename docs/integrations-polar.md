@@ -20,10 +20,17 @@ polar.ts`) registered in `src/imports/registry.ts`, plus a Supabase edge functio
 (`supabase/functions/polar-import`) that holds the OAuth **secret** and the
 user's token — neither ever reaches the SPA bundle, mirroring `coach-agent`.
 
-- **`polar_tokens` table** (`supabase/migrations/20260721120000_polar_tokens.sql`)
-  stores `{ user_id, polar_user_id, access_token }`. It is **service-role only**:
-  RLS on, zero `authenticated` grants, so a client can never read the token —
-  only the edge function (service_role) touches it.
+- **`integration_connections` table** (`supabase/migrations/
+  20260730133032_integration_connections.sql`) stores the token as the
+  `provider = 'polar'` row: `{ user_id, provider, external_user_id (the
+  AccessLink user id), access_token }` (`refresh_token`/`expires_at` stay null —
+  Polar tokens don't expire). One generic table serves every cloud provider
+  (Suunto, COROS…). It is **service-role only**: RLS on, zero `authenticated`
+  grants, so a client can never read the token — only the edge function
+  (service_role) touches it. The original `polar_tokens` table
+  (`20260721120000_polar_tokens.sql`) was copied into it by that migration; the
+  function dual-reads (legacy fallback) until `polar_tokens` is dropped in a
+  cleanup migration after live verification.
 - **`polar-import` edge function** actions: `status`, `exchange` (code → token,
   register the user with AccessLink, store), `sync` (transaction pull → return
   each exercise's summary + GPX **text**), `disconnect`. It never parses GPX —
@@ -32,7 +39,7 @@ user's token — neither ever reaches the SPA bundle, mirroring `coach-agent`.
   time-in-zone detail a user-picked `.gpx` does.
 - **Client provider**: `connect()` is a full-page OAuth redirect. The return is
   handled in two steps to avoid a collision with Supabase's own PKCE `?code=`
-  handling (`detectSessionInUrl: true`): `src/polarPreinit.ts` — imported ahead
+  handling (`detectSessionInUrl: true`): `src/cloudOauthPreinit.ts` — imported ahead
   of `./App` in `main.tsx` — runs first, detects the Polar return by its `state`
   marker, stashes the code in `sessionStorage` and strips the URL **before** the
   Supabase client can consume it; then `completePolarAuth()` (`RunningCoach`
@@ -45,7 +52,7 @@ user's token — neither ever reaches the SPA bundle, mirroring `coach-agent`.
   hands it to the OS; iOS: `Browser.open` / SFSafariViewController) and marks the
   OAuth `state` with a `:native:` segment. Polar can only redirect to the ONE
   registered https redirect URL (the web origin), so the return lands on the web
-  app in that browser — whose `polarPreinit` detects the native marker and
+  app in that browser — whose `cloudOauthPreinit` detects the native marker and
   **bounces** code+state to the `solutions.camboulive.run://polar-callback` deep
   link (scripted redirect attempted, plus an always-rendered "Open the app" tap
   target because browsers block scripted custom-scheme navigation without a
@@ -53,7 +60,7 @@ user's token — neither ever reaches the SPA bundle, mirroring `coach-agent`.
   exchange (the native twin of the preinit's web-side guard), stashes code+state
   in localStorage (survives the OS killing the app under the browser; the nonce
   is stored in localStorage on native for the same reason) and fires
-  `rc-polar-return`; `RunningCoach` answers with the same `completePolarAuth()`
+  `rc-cloud-oauth-return`; `RunningCoach` answers with the same `completePolarAuth()`
   exchange, which passes the SAME https redirect_uri (`WEB_APP_ORIGIN`) the
   authorization used. No Polar-side changes needed — one registered redirect URL
   serves both platforms. Native builds need `VITE_POLAR_CLIENT_ID` at web-bundle
@@ -80,8 +87,8 @@ edge function returns `{ skipped }`. To turn it on:
    → Actions → Variables). It's wired into the web build in `deploy.yml` /
    `deploy-pr.yml`; the next production deploy inlines it and flips the provider
    visible.
-5. **Apply the migration** (`supabase db push`, or it flows on merge) so
-   `polar_tokens` exists.
+5. **Apply the migration** (`supabase db push` — always BEFORE merging the
+   function, which auto-deploys on merge) so `integration_connections` exists.
 
 Once live, users see a **Polar** row in Settings → Integrations → Connect,
 authorize on Polar, land back in the app connected, and their runs sync.
@@ -93,7 +100,7 @@ in CI or the dev sandbox** (no credentials; the proxy blocks polar.com). Verify
 end-to-end after step 4 with a real Polar account: connect, record/sync a run on
 the watch, then confirm it imports with a map + HR chart.
 
-The Supabase `?code=` collision is already handled in code (`src/polarPreinit.ts`
+The Supabase `?code=` collision is already handled in code (`src/cloudOauthPreinit.ts`
 strips the Polar return before the Supabase client sees it), so the remaining
 first-run snags to check are Polar-API shapes, which the sandbox can't reach:
 

@@ -133,3 +133,13 @@ describe("cloud scaffold", () => {
     expect(await p.scan!([])).toHaveLength(1);
   });
 });
+
+describe("suunto registration", () => {
+  it("is registered but dormant without VITE_SUUNTO_CLIENT_ID", async () => {
+    const { getProvider } = await import("./registry");
+    const p = getProvider("suunto");
+    expect(p).toBeTruthy();
+    expect(p!.kind).toBe("cloud");
+    expect(await p!.isAvailable()).toBe(false); // no env in tests → invisible, scans skip it
+  });
+});

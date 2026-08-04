@@ -2,9 +2,11 @@ import { healthConnectProvider } from "./providers/healthConnect";
 import { healthKitProvider } from "./providers/healthkit";
 import { fileProvider } from "./providers/file";
 import { garminCloudProvider } from "./providers/cloud";
-import { polarProvider } from "./providers/polar";
+import { polarProvider, completePolarAuth } from "./providers/polar";
+import { suuntoProvider, completeSuuntoAuth, commitSuuntoScan, suuntoBackfillPending } from "./providers/suunto";
 import { getSeenIds } from "../watch/import";
 import { isDuplicateRun } from "./dedupe";
+import type { CloudAuthResult } from "./cloudOauth";
 import type { ImportProvider, ImportedRun } from "./types";
 import type { Run } from "../types";
 
@@ -15,9 +17,33 @@ export const importProviders: ImportProvider[] = [
   healthConnectProvider, // Android
   healthKitProvider,     // iOS — never both: each isAvailable() checks its platform
   fileProvider,
-  polarProvider,       // web cloud: isAvailable() is false until VITE_POLAR_CLIENT_ID is set
+  polarProvider,       // cloud: isAvailable() is false until VITE_POLAR_CLIENT_ID is set
+  suuntoProvider,      // cloud: isAvailable() is false until VITE_SUUNTO_CLIENT_ID is set
   garminCloudProvider, // scaffold: isAvailable() is false until actually wired
 ];
+
+// One OAuth-return completer per cloud provider. RunningCoach runs every entry
+// at boot and on the "rc-cloud-oauth-return" deep-link event — each is a no-op
+// ("idle") unless that provider's return is actually stashed, so the fan-out is
+// free on normal loads.
+export const cloudAuthCompleters: Record<string, () => Promise<CloudAuthResult>> = {
+  polar: completePolarAuth,
+  suunto: completeSuuntoAuth,
+};
+
+// Deferred-ack seam: a cloud provider whose sync protocol needs a server-side
+// acknowledgement only after imported runs are actually SAVED registers its
+// commit here. RunningCoach calls this from the "Import all" toast action and
+// LogView's onSaved — an unconfirmed import is never acked, so the provider
+// re-serves it next scan instead of losing it. Never throws.
+export async function commitCloudScans(): Promise<void> {
+  await commitSuuntoScan().catch(() => { /* re-served next scan */ });
+}
+
+// True while a cloud provider's last scan ended with more history behind the
+// page cap (the first-connect backfill). RunningCoach exempts continuation
+// scans from the once-per-session auto-scan gate while this holds.
+export const cloudBackfillPending = (): boolean => suuntoBackfillPending();
 
 // The on-device health-store providers (one per platform) share the synced
 // settings.watchImport enable-flag — it means "import finished runs from my
