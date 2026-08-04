@@ -166,7 +166,7 @@ demote a lifetime supporter to free at both ends. Use a concrete far-future date
 update public.profiles
    set premium_until = now() + interval '1 year',
        premium_since = coalesce(premium_since, now())
- where email = 'someone@example.com';
+ where id = (select id from auth.users where email = 'someone@example.com');
 ```
 
 The same statement from the app (anon/authenticated) fails on column

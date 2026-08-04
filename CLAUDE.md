@@ -103,8 +103,9 @@ rules, not a changelog; delete anything stale.
   test, not as another branch in `App.tsx`. **Every branch must end in visible
   feedback**: a signed-in user never sees `LoginScreen`, so an auth failure
   reported there is invisible — emit `AUTH_NOTICE_EVENT` (toasted by
-  `RunningCoach`) instead. `auth.users.email` is mirrored into
-  `profiles.email` by a DB trigger — never write that column from the client.
+  `RunningCoach`) instead. `profiles` has no email column — the account email
+  lives only in `auth.users`; read it from the auth session (`user.email`),
+  and admin SQL joins `auth.users` for address lookups.
 - **Email change is one link + one notification, decided by server truth.**
   `double_confirm_changes` is **off** (two links to open read as a bug), so the
   confirmation goes to the new address only and the `email_changed` notification
