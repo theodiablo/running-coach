@@ -10,6 +10,7 @@
 // Request/response shape and deploy/secrets: docs/route-finder.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { CORS, json } from "../_shared/cors.mjs";
 
 const ORS_API_KEY = Deno.env.get("ORS_API_KEY");
 const ORS_BASE = Deno.env.get("ORS_BASE_URL") ?? "https://api.openrouteservice.org";
@@ -22,13 +23,6 @@ const MAX_CANDIDATES = 5; // hard cap on ORS calls per generation (quota guard)
 // range at least ~3 of the returned loops land near the asked distance and the
 // client can reliably show three. (Centre ~0.85; the spread brackets it.)
 const LENGTH_FACTORS = [0.65, 0.75, 0.85, 0.95, 1.05];
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 // Map the user's elevation preference to an ORS foot profile. foot-hiking
 // prefers trails/tracks and tolerates more climb (the "hilly" intent);

@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
-import { RESUME_MAX_AGE_MS } from "../constants";
+import { LIVE_MAX_AGE_MS } from "../live/shareLink";
 import type { LiveRunRow } from "../live/publisher";
 
 // Matches the publisher's cadence: reading faster than the phone writes can only
@@ -26,8 +26,8 @@ const IDLE_POLL_MS = 120000;
 
 // Past this, a row is treated as leftover rather than live — an app killed
 // mid-run leaves one behind, and only the recording device can sweep it.
-// Mirrors the tracker's own resume window.
-const MAX_AGE_MS = RESUME_MAX_AGE_MS;
+// Shared with the live-watch edge function so both ends expire together.
+const MAX_AGE_MS = LIVE_MAX_AGE_MS;
 
 export type LiveRun = {
   row: LiveRunRow | null;

@@ -16,18 +16,12 @@ import { Pause, Radio } from "lucide-react";
 import { fmt } from "../utils/format";
 import { RouteMap } from "./RouteMap";
 import type { PublicLiveRun } from "../live/shareLink";
+import { liveWatchDotState } from "../live/watchStatus";
 
 // How long without an update before we say so. Generously above the publisher's
 // 30s cadence: a couple of missed uploads is a red light, not an incident.
 const QUIET_MS = 180000;
 const TICK_MS = 10000; // relabel "x ago" locally — no network, no DB read
-
-export type LiveWatchStatus = {
-  ended: boolean;
-  paused: boolean;
-  quiet: boolean;
-  hasTrack: boolean;
-};
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -54,10 +48,10 @@ export function LiveWatchDot({ ended, paused }: { ended: boolean; paused: boolea
 // (the modal's close button, the public page's masthead), because that is the
 // only part the two surfaces legitimately disagree about.
 export function LiveWatchView(
-  { run, onStatus, bottomInset = true }:
+  { run, bottomInset = true }:
   // `bottomInset` false when the caller renders its own chrome below this (the
   // public page's footer), so the iOS home-indicator gap is padded once.
-  { run: PublicLiveRun | null; onStatus?: (s: LiveWatchStatus) => void; bottomInset?: boolean },
+  { run: PublicLiveRun | null; bottomInset?: boolean },
 ) {
   const { t } = useTranslation();
 
@@ -75,19 +69,13 @@ export function LiveWatchView(
   const stats = run?.stats || {};
   const updatedAt = run ? Date.parse(run.updated_at) : NaN;
   const quietMs = Number.isFinite(updatedAt) ? Math.max(0, now - updatedAt) : 0;
-  const ended = !run || run.status === "ended";
-  const paused = run?.status === "paused";
+  const { ended, paused } = liveWatchDotState(run);
   // A paused run publishes nothing BY DESIGN — it drops fixes, and the pause was
   // itself pushed through as a status change. So silence after one is expected,
   // not a lost signal: the row already says exactly what is going on, and the
   // freshness line below still reports how old that answer is.
   const quiet = !ended && !paused && quietMs >= QUIET_MS;
   const hasTrack = points.some(Boolean);
-
-  // Report the derived state up so the caller's header can show the same dot
-  // without recomputing (and re-deriving) it. Effect rather than render-time so
-  // the parent's setState never lands during this component's render.
-  useEffect(() => { onStatus?.({ ended, paused, quiet, hasTrack }); }, [ended, paused, quiet, hasTrack, onStatus]);
 
   const freshness = () => {
     if (!Number.isFinite(updatedAt)) return "";

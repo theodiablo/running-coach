@@ -22,6 +22,13 @@ export function isValidShareToken(value) {
   return typeof value === "string" && SHARE_TOKEN_RE.test(value);
 }
 
+// How long after its last update a broadcast still counts as live, on BOTH
+// ends: the watcher stops treating the row as live (useLiveRun) and live-watch
+// stops serving it — a row left behind by a phone that never opens the app
+// again is swept by nothing, so past this window the link goes dark on its own.
+// Here so the two runtimes cannot drift apart.
+export const LIVE_MAX_AGE_MS = 6 * 3600 * 1000;
+
 // Encode random bytes as base64url. Shared so the client's minting and any
 // server-side minting can never produce different alphabets — a token that
 // round-trips through a URL path segment must contain no +, / or =.

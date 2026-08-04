@@ -23,10 +23,12 @@ export const USER_CONTEXT_NOTICE_CHARS = 1800;
 export const LIVE_RUN_KEY = "rc_live_run";
 
 // How fresh the buffer must be to count as possibly still ON THE AIR (live
-// sharing): past this window the publisher sweeps a leftover broadcast and the
-// watcher stops treating the run as live (useLiveRun). The recovery OFFER is
-// deliberately not bound by it — an interrupted run's data is offered for
-// resume/save whatever its age, never silently discarded (see utils/runRecovery).
+// sharing): past this window the publisher sweeps a leftover broadcast. Kept
+// equal to LIVE_MAX_AGE_MS (_shared/liveShare.mjs — the window the watcher and
+// the live-watch function enforce) so a resumable run is still on the air. The
+// recovery OFFER is deliberately not bound by it — an interrupted run's data is
+// offered for resume/save whatever its age, never silently discarded (see
+// utils/runRecovery).
 export const RESUME_MAX_AGE_MS = 6 * 3600 * 1000;
 
 // localStorage snapshot of the app_state cache while a cloud upsert is pending

@@ -5,6 +5,7 @@
 // Architecture, actions, deploy/secrets: docs/integrations-polar.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { CORS, json } from "../_shared/cors.mjs";
 
 const POLAR_CLIENT_ID = Deno.env.get("POLAR_CLIENT_ID");
 const POLAR_CLIENT_SECRET = Deno.env.get("POLAR_CLIENT_SECRET");
@@ -12,13 +13,6 @@ const hasPolarCreds = Boolean(POLAR_CLIENT_ID && POLAR_CLIENT_SECRET);
 
 const TOKEN_URL = "https://polarremote.com/v2/oauth2/token";
 const API = "https://www.polaraccesslink.com";
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 // ── Polar AccessLink calls ─────────────────────────────────────────────────
 

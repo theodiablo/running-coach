@@ -30,8 +30,13 @@ const watchToken = PublicWatch ? parseWatchToken(window.location.pathname) : nul
 
 // Start telemetry (no-op until a provider is wired in and the user consents)
 // and catch foreground errors that escape React. Both honour the consent flag.
-initTelemetry()
-installGlobalErrorHandlers()
+// Never on the watch page: on a device that consented in the app, a $pageview's
+// $current_url would carry the share token — the page's entire authorization —
+// to the analytics vendor (docs/telemetry.md says never the token).
+if (!watchToken) {
+  initTelemetry()
+  installGlobalErrorHandlers()
+}
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Root element not found')

@@ -4,6 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
+import { CORS, json } from "../_shared/cors.mjs";
 
 const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "theo.camboulive.dev@gmail.com";
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "Running Coach <noreply@camboulive.solutions>";
@@ -22,14 +23,6 @@ const aws = hasSesCreds
       service: "ses",
     })
   : null;
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const asString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 

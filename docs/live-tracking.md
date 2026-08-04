@@ -25,7 +25,8 @@ logic is `src/utils/runRecovery.ts`:
 
 - **The localStorage buffer** (`LIVE_RUN_KEY`, persisted by `useRunTracker` on
   every accepted fix) is **never expired silently** — an old buffer is still
-  offered; `RESUME_MAX_AGE_MS` only bounds the live-sharing sweep/watcher.
+  offered; `RESUME_MAX_AGE_MS` only bounds the live-sharing sweep (the
+  watcher and live-watch function share the equal `LIVE_MAX_AGE_MS`).
   `normalizeRecovery` also closes the moving-time segment left open by the
   crash (`accSec` alone undercounts a never-paused run to 0:00).
 - **The native fix journal** (Android): the patched plugin appends every fix

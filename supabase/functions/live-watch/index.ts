@@ -25,14 +25,8 @@
 // yet, because that is true.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isValidShareToken } from "../_shared/liveShare.mjs";
-
-// Mirrors RESUME_MAX_AGE_MS / useLiveRun's MAX_AGE_MS on the client. Enforced
-// HERE too, not just in the UI: a row left behind by a phone that never opens
-// the app again is swept by nothing (see docs/live-sharing.md "Known limits"),
-// and a public link must not keep serving someone's route for the rest of time
-// because their battery died. Past this window the link goes dark on its own.
-const MAX_AGE_MS = 6 * 3600 * 1000;
+import { isValidShareToken, LIVE_MAX_AGE_MS } from "../_shared/liveShare.mjs";
+import { CORS as SHARED_CORS, json as sharedJson } from "../_shared/cors.mjs";
 
 // Per-IP request budget. Defence in depth only — the token's entropy is the
 // real control — so this is deliberately generous: a watcher polls every 30s,
@@ -42,23 +36,15 @@ const RATE_MAX = Number(Deno.env.get("LIVE_WATCH_RATE_MAX") ?? 60);
 // Bound the bookkeeping so a spray of unique IPs can't grow the map unchecked.
 const RATE_MAX_KEYS = 5000;
 
-// `*` on purpose, matching route-suggest. Locking this to our own origin would
-// protect nothing: the token is the capability, and anyone holding one can read
-// the run from curl, where CORS does not apply. What actually limits abuse is
-// the rate limit above and the fact that a token buys exactly one run.
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+// Shared headers (`*` rationale in _shared/cors.mjs — here the token is the
+// capability and curl needs no CORS), plus the methods this unauthenticated
+// endpoint answers, for the preflight response.
+const CORS = { ...SHARED_CORS, "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
 
 // no-store, because a shared CDN/proxy cache keyed on the URL would go on
 // serving a run's position after the runner ended the broadcast.
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store", ...extra },
-  });
+  sharedJson(body, status, { "Cache-Control": "no-store", ...extra });
 
 // The one response for everything that is not a live run. Kept as a function so
 // no branch below can accidentally give a probing client something to compare.
@@ -136,10 +122,11 @@ Deno.serve(async (req) => {
     if (error) throw error;
     if (!data) return notLive();
 
-    // Server-side expiry. `updated_at` is trigger-stamped, so this is real
-    // server time on both sides of the comparison.
+    // Server-side expiry, enforced HERE too, not just in the UI (see
+    // liveShare.mjs). `updated_at` is trigger-stamped, so this is real server
+    // time on both sides of the comparison.
     const updated = Date.parse(String(data.updated_at));
-    if (!Number.isFinite(updated) || Date.now() - updated > MAX_AGE_MS) return notLive();
+    if (!Number.isFinite(updated) || Date.now() - updated > LIVE_MAX_AGE_MS) return notLive();
 
     // An `ended` run IS returned, deliberately: someone watching the finish
     // should see "this run has ended" rather than the page blinking into

@@ -11,7 +11,8 @@
 // the only thing that can resolve a token anyway.
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
-import { LIVE_SHARE_TOKEN_KEY } from "../constants";
+import { LIVE_SHARE_TOKEN_KEY, WEB_APP_ORIGIN } from "../constants";
+import { isNative } from "../native";
 import type { LiveRunRow } from "./publisher";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedLiveShare from "../../supabase/functions/_shared/liveShare.mjs";
@@ -19,12 +20,13 @@ import * as sharedLiveShare from "../../supabase/functions/_shared/liveShare.mjs
 type LiveShareExports = {
   SHARE_TOKEN_RE: RegExp;
   SHARE_TOKEN_BYTES: number;
+  LIVE_MAX_AGE_MS: number;
   isValidShareToken: (value: unknown) => boolean;
   toBase64Url: (bytes: Uint8Array) => string;
 };
 const shared = sharedLiveShare as LiveShareExports;
 
-export const { SHARE_TOKEN_RE, SHARE_TOKEN_BYTES, isValidShareToken, toBase64Url } = shared;
+export const { SHARE_TOKEN_RE, SHARE_TOKEN_BYTES, LIVE_MAX_AGE_MS, isValidShareToken, toBase64Url } = shared;
 
 // Everything the public page renders. Structurally the live_runs row MINUS
 // user_id — the edge function never returns it, so a viewer can't learn whose
@@ -42,16 +44,21 @@ export function mintShareToken(): string {
   return toBase64Url(bytes);
 }
 
-export const watchUrl = (token: string, origin: string = window.location.origin): string =>
+// Inside the Capacitor shell the page origin is capacitor://localhost —
+// unreachable from any browser — so a link minted there must name the web app
+// (same rule as Polar's redirect_uri, src/imports/providers/polar.ts).
+export const watchUrl = (token: string, origin: string = isNative ? WEB_APP_ORIGIN : window.location.origin): string =>
   `${origin}${WATCH_PATH_PREFIX}${token}`;
 
 // The router, such as it is. Returns the token for a /watch/:token path and
 // null for everything else, so main.tsx can branch before App mounts. Validates
 // the shape here rather than in the page, so a junk path never reaches the
-// network and a trailing slash or extra segment is simply not a watch URL.
+// network and an extra segment is simply not a watch URL. A trailing slash is
+// tolerated — chat apps and shorteners append one, and '/' is not in the token
+// alphabet, so stripping it is unambiguous.
 export function parseWatchToken(pathname: string): string | null {
   if (!pathname.startsWith(WATCH_PATH_PREFIX)) return null;
-  const token = pathname.slice(WATCH_PATH_PREFIX.length);
+  const token = pathname.slice(WATCH_PATH_PREFIX.length).replace(/\/+$/, "");
   return isValidShareToken(token) ? token : null;
 }
 

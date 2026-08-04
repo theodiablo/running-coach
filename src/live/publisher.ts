@@ -115,8 +115,15 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   // not let the next fix queue a second one the moment it lands.
   lastPublishAt = Date.now();
   lastStatus = args.status;
+  const prevShareToken = lastShareToken;
   lastShareToken = shareToken;
-  const write: Promise<void> = writeRow(user_id, args).finally(() => {
+  const write: Promise<void> = writeRow(user_id, args).then((landed) => {
+    // A token change that never landed must not spend the throttle bypass: put
+    // the memo back so the next call retries it promptly (a revoke while paused
+    // gets no further fixes to ride). dropToken's null is left alone — a
+    // rejected token was resolved, not lost.
+    if (!landed && lastShareToken === shareToken) lastShareToken = prevShareToken;
+  }).finally(() => {
     inFlight = false;
     if (inFlightWrite === write) inFlightWrite = null;
   });
@@ -132,7 +139,9 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
 // exactly what the premium-free UPDATE policy exists to prevent. Splitting the
 // two is what makes "starting a broadcast is the privileged act, continuing one
 // isn't" true rather than aspirational. Never reject: recording must not care.
-async function writeRow(user_id: string, { status, points, stats, startedAt, shareToken, onShareTokenRejected }: PublishArgs): Promise<void> {
+// Resolves true when the write landed, false when it didn't — the caller uses
+// that to un-spend the throttle bypass, nothing more. Still never rejects.
+async function writeRow(user_id: string, { status, points, stats, startedAt, shareToken, onShareTokenRejected }: PublishArgs): Promise<boolean> {
   const row = { status, points, stats };
   const share_token = shareToken ?? null;
   // Someone who was GIVEN a link can squat its token on their own row, which
@@ -140,8 +149,13 @@ async function writeRow(user_id: string, { status, points, stats, startedAt, sha
   // migration). Losing the link is an acceptable outcome; losing the broadcast
   // is not — so a token conflict is retried without the token, and the caller
   // is told so the UI stops offering a link that resolves to nothing.
-  const isTokenConflict = (err: { code?: string | null; message?: string } | null) =>
-    err?.code === "23505" && String(err.message || "").includes("live_runs_share_token_key");
+  // Discriminated by Postgres's DETAIL (keyed on the column, so it survives an
+  // index rename), with the index name in `message` as fallback — DETAIL is
+  // suppressed when the role lacks SELECT on the key column.
+  const isTokenConflict = (err: { code?: string | null; message?: string; details?: string | null } | null) =>
+    err?.code === "23505" &&
+    (String(err.details || "").includes("(share_token)") ||
+      String(err.message || "").includes("live_runs_share_token_key"));
   const dropToken = () => {
     storeShareToken(null);
     lastShareToken = null;
@@ -152,18 +166,21 @@ async function writeRow(user_id: string, { status, points, stats, startedAt, sha
       const update = (token: string | null) => supabase.from("live_runs")
         .update({ ...row, share_token: token }).eq("user_id", user_id).select("user_id");
       let { data, error } = await update(share_token);
-      if (isTokenConflict(error)) {
+      // No sniffing here: user_id never changes in an update and the token
+      // index is the table's only other unique constraint, so ANY 23505 on
+      // this path is a token conflict by construction.
+      if (error?.code === "23505") {
         dropToken();
         ({ data, error } = await update(null));
       }
       if (error) {
         if (isPolicyError(error.code)) blocked = true;
-        return; // retried on the next fix, never before the interval
+        return false; // retried on the next fix, never before the interval
       }
       // Nothing matched: the row was swept from under us (another session ended
       // the run). Re-open it on the next fix rather than publishing into a void.
       if (!data?.length) rowCreated = false;
-      return;
+      return true;
     }
     // A fresh broadcast stamps its own start instant, so a row left by a killed
     // app gets its clock reset rather than inherited.
@@ -184,12 +201,14 @@ async function writeRow(user_id: string, { status, points, stats, startedAt, sha
     }
     if (error) {
       if (isPolicyError(error.code)) blocked = true;
-      return;
+      return false;
     }
     rowCreated = true;
     markPublished(started_at);
+    return true;
   } catch {
     /* offline — the next accepted fix republishes the full trace */
+    return false;
   }
 }
 

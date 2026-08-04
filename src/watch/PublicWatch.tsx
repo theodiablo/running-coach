@@ -14,8 +14,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader, Radio } from "lucide-react";
-import { LiveWatchDot, LiveWatchView, type LiveWatchStatus } from "../components/LiveWatchView";
+import { LiveWatchDot, LiveWatchView } from "../components/LiveWatchView";
 import { fetchLiveWatch, type PublicLiveRun } from "../live/shareLink";
+import { liveWatchDotState } from "../live/watchStatus";
 
 // Matches the publisher's cadence: reading faster than the phone writes can
 // only return what we already have.
@@ -60,14 +61,21 @@ function useWatchedRun(token: string) {
   // A self-scheduling chain rather than setInterval: the delay changes with
   // what came back (live / idle / rate-limited), and a slow response must not
   // let a second read stack up behind the first. Paused entirely while the tab
-  // is hidden — the visibility handler catches up on return.
+  // is hidden — the visibility handler catches up on return. `timer` and
+  // `inFlight` together tell onVis whether the chain is alive: a tick nulls its
+  // own handle on entry (a fired timeout id must not read as a live schedule)
+  // and parks instead of scheduling into a hidden tab.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
     let stopped = false;
     const tick = async () => {
-      if (stopped || document.visibilityState !== "visible") return;
+      timer = null;
+      if (stopped || inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
       const wait = await load();
-      if (stopped) return;
+      inFlight = false;
+      if (stopped || document.visibilityState !== "visible") return;
       timer = setTimeout(tick, wait);
     };
     const onVis = () => {
@@ -76,7 +84,7 @@ function useWatchedRun(token: string) {
         timer = null;
         return;
       }
-      if (!timer) void tick();
+      if (!timer && !inFlight) void tick();
     };
     void tick();
     document.addEventListener("visibilitychange", onVis);
@@ -126,8 +134,6 @@ function useUnlistedPage(title: string) {
 export default function PublicWatch({ token }: { token: string }) {
   const { t } = useTranslation();
   const { run, settled, unreachable, refresh } = useWatchedRun(token);
-  const [status, setStatus] = useState<LiveWatchStatus | null>(null);
-  const onStatus = useCallback((s: LiveWatchStatus) => setStatus(s), []);
   useUnlistedPage(t("liveShare.public.docTitle"));
 
   return (
@@ -135,7 +141,7 @@ export default function PublicWatch({ token }: { token: string }) {
       <header className="flex items-center justify-between gap-3 px-4 border-b border-slate-800"
         style={{ height: "calc(52px + var(--safe-top))", paddingTop: "var(--safe-top)" }}>
         <div className="flex items-center gap-1.5 min-w-0">
-          {run ? <LiveWatchDot ended={status?.ended ?? false} paused={status?.paused ?? false} />
+          {run ? <LiveWatchDot {...liveWatchDotState(run)} />
             : <Radio size={15} className="text-slate-500" />}
           {/* Nothing here names the runner: the link is theirs to hand out, not
               an introduction. The edge function never returns the account id. */}
@@ -147,7 +153,7 @@ export default function PublicWatch({ token }: { token: string }) {
       </header>
 
       {run ? (
-        <LiveWatchView run={run} onStatus={onStatus} bottomInset={false} />
+        <LiveWatchView run={run} bottomInset={false} />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
           {!settled ? (

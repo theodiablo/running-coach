@@ -9,6 +9,7 @@ import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
 import { createMockModel } from "../_shared/coach/mock.mjs";
 import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
+import { CORS } from "../_shared/cors.mjs";
 
 const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
 const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
@@ -27,11 +28,6 @@ const MODEL_TIMEOUT_MS = Number(Deno.env.get("COACH_MODEL_TIMEOUT_MS") ?? 60000)
 // idle (JSON.parse ignores leading whitespace).
 const KEEPALIVE_INTERVAL_MS = 2000;
 const USER_CONTEXT_MAX_CHARS = 2000;
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 // Routing seam (Phase 5): everything is judgment-heavy coaching for v1, so
 // always the default model. To route trivial edits to LIGHT_MODEL later, add a

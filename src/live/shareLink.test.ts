@@ -72,6 +72,11 @@ describe("parseWatchToken", () => {
     expect(parseWatchToken("/nope/" + token)).toBeNull();
   });
 
+  it("tolerates a trailing slash added by a chat app or shortener", () => {
+    expect(parseWatchToken(`/watch/${token}/`)).toBe(token);
+    expect(parseWatchToken(`/watch/${token}//`)).toBe(token);
+  });
+
   it("refuses a malformed token instead of passing it on", () => {
     // A junk path must never reach the network: a crawler walking short strings
     // should cost us a regex, not a request.

@@ -237,6 +237,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   const discardRecovered = () => {
     track("live_run_recovery_discarded", {});
     sweptRef.current = true;
+    // The sweep spends the stored token; the state copy adopted at mount must
+    // die with it, or the NEXT run would republish under the discarded run's link.
+    setShareToken(null);
     void sweepOwnLiveRun();
     rt.discardPrevious();
   };
