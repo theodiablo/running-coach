@@ -108,7 +108,12 @@ describe.skipIf(!runnable)(`coach live eval (${MODEL}, ${TRIALS} trial(s)/scenar
       const { context, baseline } = makeFixture(scenario);
       const { callModel, observedTools } = makeCallModel(context);
       const t0 = Date.now();
-      const result = await generateProposal({ baseline, context, callModel, fetchRunDetail: makeFetchRunDetail(context) });
+      // Multi-turn scenarios carry prior rounds (history) and a follow-up
+      // message, exactly like the edge function's critique path.
+      const result = await generateProposal({
+        baseline, context, callModel, fetchRunDetail: makeFetchRunDetail(context),
+        history: scenario.history ?? [], message: scenario.message ?? null,
+      });
       const ms = Date.now() - t0;
 
       const outcome = { result, baseline, context, observedTools };
