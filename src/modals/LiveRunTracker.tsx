@@ -575,10 +575,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             <span className="text-[11px] text-slate-400 uppercase tracking-wide">{t("tracker.hr.bpm")}</span>
             <BetaBadge />
             {/* avg/max only once the run has recorded samples; before that the
-                strap is either already reading (idle preview) or still connecting. */}
+                strap is either already reading (idle preview), still connecting,
+                or reported unreachable by the source (kept retrying). */}
             <span className="text-[11px] text-slate-500 ml-2">
               {stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
                 : stats.hr != null ? t("tracker.hr.connected")
+                : rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach")
                 : t("tracker.hr.connecting")}
             </span>
           </div>

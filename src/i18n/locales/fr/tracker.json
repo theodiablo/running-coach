@@ -32,6 +32,7 @@
     "avgMax": "moy {{avg}} · max {{max}}",
     "connecting": "connexion…",
     "connected": "capteur connecté",
+    "cantReach": "capteur introuvable",
     "postRun": "La fréquence cardiaque est ajoutée depuis {{store}} à la fin de ta sortie."
   },
   "gps": {
