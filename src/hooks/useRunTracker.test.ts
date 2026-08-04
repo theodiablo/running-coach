@@ -37,24 +37,29 @@ const h = vi.hoisted(() => {
 // (default off, so every GPS test above behaves as if HR were off).
 const hr = vi.hoisted(() => {
   type HrSample = { bpm: number; t: number };
-  type HrWatch = { onSample: (s: HrSample) => void; stopped: boolean };
+  type HrWatchOpts = {
+    deviceId?: string; deviceName?: string;
+    onDeviceChange?: (d: { id: string; name: string }) => void;
+    onStatus?: (s: string) => void;
+  };
+  type HrWatch = { onSample: (s: HrSample) => void; opts: HrWatchOpts; stopped: boolean };
   const watches: HrWatch[] = [];
   const source = {
     id: "bluetooth",
     live: true,
-    watch: vi.fn((onSample: (s: HrSample) => void) => {
-      const handle = { onSample, stopped: false };
+    watch: vi.fn((onSample: (s: HrSample) => void, _onErr?: unknown, opts: HrWatchOpts = {}) => {
+      const handle = { onSample, opts, stopped: false };
       watches.push(handle);
       return handle;
     }),
     clearWatch: vi.fn((handle: HrWatch | null | undefined) => { if (handle) handle.stopped = true; }),
   };
-  return { watches, source, enabled: false, device: null as { id: string } | null };
+  return { watches, source, enabled: false, device: null as { id: string; name?: string } | null, setPairedDevice: vi.fn() };
 });
 
 vi.mock("../geo/source", () => ({ geoSource: h.geoSource }));
 vi.mock("../hr/source", () => ({ getHrSource: () => (hr.enabled ? hr.source : null) }));
-vi.mock("../hr/device", () => ({ getPairedDevice: () => hr.device }));
+vi.mock("../hr/device", () => ({ getPairedDevice: () => hr.device, setPairedDevice: hr.setPairedDevice }));
 vi.mock("../native", () => ({ isNative: false, isAndroid: false, isIos: false, platform: "web" }));
 
 import { useRunTracker } from "./useRunTracker";
@@ -392,5 +397,27 @@ describe("useRunTracker — live heart rate", () => {
     hr.device = { id: "strap-1" };
     renderHook(() => useRunTracker({ hrMethod: "off" }));
     expect(hr.watches.length).toBe(0);
+  });
+
+  it("surfaces the source's connection status and clears it on teardown", () => {
+    const { result } = renderWithStrap();
+    expect(result.current.hrStatus).toBeNull();
+    act(() => hr.watches[0].opts.onStatus!("unreachable"));
+    expect(result.current.hrStatus).toBe("unreachable");
+
+    act(() => result.current.start());
+    act(() => result.current.stop());
+    expect(result.current.hrStatus).toBeNull();
+  });
+
+  it("passes the paired identity and persists an address rotation", () => {
+    hr.enabled = true;
+    hr.device = { id: "strap-1", name: "Polar H10" };
+    renderHook(() => useRunTracker({ hrMethod: "bluetooth" }));
+    const { opts } = hr.watches[0];
+    expect(opts.deviceId).toBe("strap-1");
+    expect(opts.deviceName).toBe("Polar H10");
+    act(() => opts.onDeviceChange!({ id: "strap-2", name: "Polar H10" }));
+    expect(hr.setPairedDevice).toHaveBeenCalledWith({ id: "strap-2", name: "Polar H10" });
   });
 });

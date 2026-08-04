@@ -9,10 +9,10 @@ import { logTrack } from "../geo/trackLog";
 import { clearNativeFixJournal, readNativeFixJournal } from "../geo/fixJournal";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveredRun } from "../utils/runRecovery";
 import { getHrSource } from "../hr/source";
-import { getPairedDevice } from "../hr/device";
+import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
 import { t } from "../i18n";
-import type { BleHrSample, BleWatchHandle } from "../hr/ble";
+import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
 
 // Live GPS run tracker. All geolocation access is funnelled through this one hook
@@ -74,6 +74,10 @@ type TrackerGeoSource = {
 };
 const trackerGeoSource = geoSource as TrackerGeoSource;
 
+// The live HR source, narrowed by the `live` discriminant (post-run sources
+// have live:false and are never watched here).
+type LiveHrSource = Extract<NonNullable<ReturnType<typeof getHrSource>>, { live: true }>;
+
 const clearBuffer = () => { try { localStorage.removeItem(LIVE_RUN_KEY); } catch { /* ignore */ } };
 
 type UseRunTrackerOptions = { hrMethod?: string };
@@ -86,6 +90,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   const [points, setPoints] = useState<TrackPointOrGap[]>([]);
   const [hrSamples, setHrSamples] = useState<BleHrSample[]>([]); // { bpm, t } from a live HR sensor
   const [hrLast, setHrLast] = useState<BleHrSample | null>(null); // latest sample off the sensor, incl. the idle preview before Start
+  const [hrStatus, setHrStatus] = useState<BleWatchStatus | null>(null); // live sensor connection status (null = no live watch)
   const [error, setError] = useState<string | null>(null);
   const [movingSec, setMovingSec] = useState(0);
   const [location, setLocation] = useState<LocationPreview | null>(null); // preview position shown before recording starts
@@ -107,7 +112,10 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   const pointsRef = useRef(points);
   const hrSamplesRef = useRef(hrSamples); // mirror so the async HR callback sees latest
   const lastHrPersistRef = useRef(0); // epoch ms of the last HR-triggered persist (throttle)
-  const hrWatchRef = useRef<BleWatchHandle | null>(null);  // live HR source watch handle (null when not streaming)
+  // Live HR watch: the handle AND the source it came from, so teardown always
+  // reaches the source that opened the connection even if hrMethod has since
+  // changed (a re-resolved source could be null → leaked BLE connection).
+  const hrWatchRef = useRef<{ src: LiveHrSource; handle: BleWatchHandle } | null>(null);
   const runStartRef = useRef<number | null>(null); // wall-clock run start (whole run, incl. pauses)
   const runEndRef = useRef<number | null>(null);   // wall-clock run stop — the Health Connect fetch window
   const accRef = useRef(0);        // completed moving seconds
@@ -217,18 +225,26 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   const startHrWatch = useCallback(() => {
     if (hrWatchRef.current) return; // already streaming (e.g. resume)
     const src = getHrSource(hrMethod);
-    if (!src || !("watch" in src)) return;  // off / web / post-run source → nothing to stream
+    if (!src || !src.live || !("watch" in src)) return;  // off / web / post-run source → nothing to stream
     const device = getPairedDevice();
     if (!device?.id) return;
-    hrWatchRef.current = src.watch(onHrSample, () => { /* non-fatal; run continues */ },
-      { deviceId: device?.id });
+    const handle = src.watch(onHrSample, () => { /* non-fatal; run continues */ }, {
+      deviceId: device.id,
+      deviceName: device.name,
+      // Re-discovery followed an address rotation — persist the new id so the
+      // next session connects directly again.
+      onDeviceChange: setPairedDevice,
+      onStatus: setHrStatus,
+    });
+    hrWatchRef.current = { src, handle };
   }, [hrMethod, onHrSample]);
 
   const stopHrWatch = useCallback(() => {
-    const src = getHrSource(hrMethod);
-    if (hrWatchRef.current && src && "clearWatch" in src) src.clearWatch(hrWatchRef.current);
+    const watching = hrWatchRef.current;
+    if (watching) watching.src.clearWatch(watching.handle);
     hrWatchRef.current = null;
-  }, [hrMethod]);
+    setHrStatus(null);
+  }, []);
 
   const onErr = useCallback((err: GeoError) => {
     logTrack("error", { msg: `code=${err.code} ${err.message || ""}`.trim() });
@@ -568,7 +584,7 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   }, [state, stats, computeMoving]);
 
   return {
-    state, points, stats, error, pending, location, hrSamples,
+    state, points, stats, error, pending, location, hrSamples, hrStatus,
     // Wall-clock run window, read on demand from an event handler (never during
     // render) — used by handleSave to scope the Health Connect HR fetch.
     runWindow: () => ({ startedAt: runStartRef.current, stoppedAt: runEndRef.current }),

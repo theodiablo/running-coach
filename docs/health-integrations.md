@@ -34,7 +34,25 @@ carries a `live` flag:
   they feed `stats.hr`/`stats.hrAt` via the `hrLast` state, never `hrSamples`,
   so `hrAvg`/`hrMax` stay strictly what the run recorded. `hr` and `hrAt` always
   come from the same sample — the lock-screen notification drops a reading it
-  can't date.
+  can't date. **Connection resilience** (the preview churns a connection per
+  screen open/close, so the watch has to survive its own races): every attempt
+  re-runs `initialize` (a failed first init must not wedge the watch);
+  `clearWatch` teardowns chain and a new watch's first connect awaits the chain,
+  so a closing watch's in-flight disconnect can never land on (and kill) a
+  successor's fresh connection — the plugin serializes all calls through one
+  global queue, which is what made that interleaving possible; a stopped watch
+  whose connect resolves late only disconnects if no newer watch owns the
+  sensor. After a failed direct connect the watch **re-discovers** the sensor
+  with a short HR-filtered scan: Android can only connect to an unbonded
+  peripheral it has recently seen advertise, and a sensor using resolvable
+  private addresses invalidates the saved id when it rotates (pairing works,
+  then "stuck connecting" forever) — the scan matches the saved *name* and a
+  changed id is persisted via `onDeviceChange` → `setPairedDevice`.
+  `useRunTracker` keeps the source object with the watch handle (teardown must
+  reach the source that opened it, whatever `hrMethod` says now) and exposes
+  `hrStatus` (`onStatus`: connecting / scanning / connected / unreachable);
+  the record screen swaps "connecting…" for "can't reach sensor" once two full
+  connect+scan cycles fail, while the watch keeps retrying with capped backoff.
 - **Post-run** (`src/hr/healthconnect.ts`, `healthConnectSource`): reads HR
   from Android Health Connect after the run via
   **@pianissimoproject/capacitor-health-connect**, dynamic-`import()`ed lazily

@@ -32,6 +32,7 @@
     "avgMax": "media {{avg}} · máx {{max}}",
     "connecting": "conectando…",
     "connected": "sensor conectado",
+    "cantReach": "no se encuentra el sensor",
     "postRun": "La frecuencia cardíaca se añade desde {{store}} cuando terminas."
   },
   "gps": {

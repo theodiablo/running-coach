@@ -32,6 +32,7 @@
     "avgMax": "avg {{avg}} · max {{max}}",
     "connecting": "connecting…",
     "connected": "sensor connected",
+    "cantReach": "can't reach sensor",
     "postRun": "Heart rate is added from {{store}} after you finish."
   },
   "gps": {
