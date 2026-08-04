@@ -4,7 +4,7 @@ import { isNative } from "./native";
 import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import type { User } from "@supabase/supabase-js";
-import { dismissTop } from "./utils/backDismiss";
+import { dismissAll, dismissTop } from "./utils/backDismiss";
 import { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
@@ -248,6 +248,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Runs to scroll to + flag in History after an async change (HR relink, watch
   // import). Set by goToRuns from a toast action; auto-cleared on a timeout.
   const [highlight,    setHighlight]    = useState<RunHighlight | null>(null);
+  // Bumped by goHome so the Home view remounts even when it's already the active
+  // tab — with no router, remounting IS how a view's own screen state is dropped.
+  const [homeNonce,    setHomeNonce]    = useState(0);
 
   // An optional `action` ({label, onClick}) turns the toast into an undoable one.
   const showToast = (msg: string, type = "ok", action?: ToastAction) =>
@@ -906,6 +909,18 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // eslint-disable-next-line react-hooks/refs
   checkWatchRef.current = scanImports;
   const goProgress = (sub?: string) => { setProgressSub(sub === "stats" || sub === "badges" ? sub : "log"); setProgressNonce(n => n + 1); setTab("progress"); };
+  // The header brand mark's "back to Home". Unlike back/Escape (one level, see
+  // backDismiss) this is a full reset: every open overlay is dismissed through
+  // its OWN close handler — so a guarded one (a recording tracker, a busy
+  // delete) still gets to refuse — and every pending navigation intent is
+  // dropped, so Home comes up the way a cold start would show it.
+  const goHome = () => {
+    dismissAll();
+    setLogPrefill(null); setLogImportOpen(false); setPlanPrefill(null);
+    setProgressSub("log"); setHighlight(null);
+    setTab("dash"); setHomeNonce(n => n + 1);
+    window.scrollTo(0, 0);
+  };
   const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
   // A session-context object opens the coach about that session; a bare call
   // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
@@ -1025,10 +1040,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
       <header className="fixed top-0 inset-x-0 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20"
         style={{height:"calc(44px + var(--safe-top))", paddingTop:"var(--safe-top)"}}>
-        <div className="flex items-center gap-1.5">
+        {/* The brand mark doubles as the way Home from anywhere. No aria-label:
+            the wordmark beside it is the accessible name. */}
+        <button onClick={goHome} title={t("app.header.home")}
+          className="flex items-center gap-1.5 -mx-1 px-1 py-1 rounded-lg hover:bg-slate-800 transition-colors">
           <BrandLogo size={15} className="text-orange-400"/>
           <span className="text-sm font-semibold">Running Coach</span>
-        </div>
+        </button>
         <div className="flex items-center gap-2">
           {/* Coach lives here rather than on the Plan tab so it's reachable from
               every view. Gated on `plan` for the same reason the chat itself is
@@ -1052,7 +1070,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </div>
       </header>
 
-      <div key={tab} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
+      <div key={`${tab}:${homeNonce}`} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}

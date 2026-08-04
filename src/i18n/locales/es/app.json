@@ -2,6 +2,7 @@
   "signInFailed": "No se pudo iniciar sesión. Inténtalo de nuevo.",
   "header": {
     "settings": "Ajustes",
+    "home": "Volver al inicio",
     "coach": "Entrenador",
     "coachTitle": "Ajusta el plan con tu entrenador"
   },

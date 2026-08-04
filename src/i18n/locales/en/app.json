@@ -2,6 +2,7 @@
   "signInFailed": "Sign-in failed. Please try again.",
   "header": {
     "settings": "Settings",
+    "home": "Back to Home",
     "coach": "Coach",
     "coachTitle": "Adjust the plan with your coach"
   },
