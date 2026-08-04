@@ -48,7 +48,10 @@ rules, not a changelog; delete anything stale.
   builds), not a bare `isNative` runtime check, which still ships the code in
   the APK. Marketing copy commitments, SEO, and the brand mark:
   `docs/marketing.md`.
-- **No router.** `src/RunningCoach.tsx` is the single state hub: it owns
+- **One route, no router.** `main.tsx` branches on `/watch/:token` (the public
+  live-run page) *before* `<App/>` mounts, so none of App's auth/store effects
+  run for a visitor with no account — `docs/live-sharing.md`. Everything else is
+  routeless: `src/RunningCoach.tsx` is the single state hub: it owns
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
   a center FAB (an action, not a destination); the four row tabs are Home ·
@@ -254,8 +257,9 @@ prompt/tool-description changes.
   unclear trade-off should be rare, and points at `docs/` for anything
   architectural rather than restating it inline.
 - **French and Spanish copy:** French uses informal `tu` (app copy in
-  `src/i18n/`; marketing uses `vous` — see `docs/marketing.md`); Spanish stays
-  region-neutral. Reserve `course` / `carrera` for organized races, `sortie` /
+  `src/i18n/`); `vous` is for surfaces read by people who aren't users yet —
+  marketing (`docs/marketing.md`) and the public live-run watch page
+  (`liveShare.public.*`). Spanish stays informal and region-neutral throughout. Reserve `course` / `carrera` for organized races, `sortie` /
   `entrenamiento` for logged runs. No em dashes (`—`) in either locale.
   Enforced in `src/i18n/i18n.test.ts`.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
@@ -354,7 +358,7 @@ prompt/tool-description changes.
 - `docs/health-integrations.md` — HR sources, watch/file/cloud imports,
   dedupe rules, Health Connect/HealthKit.
 - `docs/background-location.md` — Android background-location policy.
-- `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup.
+- `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup, public `/watch/:token` links.
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
