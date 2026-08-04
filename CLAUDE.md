@@ -259,8 +259,9 @@ prompt/tool-description changes.
 - **French and Spanish copy:** French uses informal `tu` (app copy in
   `src/i18n/`); `vous` is for surfaces read by people who aren't users yet —
   marketing (`docs/marketing.md`) and the public live-run watch page
-  (`liveShare.public.*`). Spanish stays informal and region-neutral throughout. Reserve `course` / `carrera` for organized races, `sortie` /
-  `entrenamiento` for logged runs. No em dashes (`—`) in either locale.
+  (`liveShare.public.*`). Spanish stays informal and region-neutral throughout.
+  Reserve `course` / `carrera` for organized races, `sortie` / `entrenamiento`
+  for logged runs. No em dashes (`—`) in either locale.
   Enforced in `src/i18n/i18n.test.ts`.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
   the one `@theme` block in `src/index.css` (Tailwind v4 CSS-first, no

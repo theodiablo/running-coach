@@ -16,7 +16,7 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Piece | File |
 |---|---|
 | Table, RLS, premium gate | `supabase/migrations/20260727135028_live_runs.sql` |
-| Share-token column | `supabase/migrations/20260804122010_live_runs_share_token.sql` |
+| Share-token column | `supabase/migrations/20260804190422_live_runs_share_token.sql` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
