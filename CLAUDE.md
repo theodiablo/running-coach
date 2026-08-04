@@ -52,7 +52,10 @@ rules, not a changelog; delete anything stale.
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
   a center FAB (an action, not a destination); the four row tabs are Home ·
-  Plan · Races · Progress. To add cross-view state or an action, define it
+  Plan · Races · Progress. The header brand mark is `goHome`: a full reset
+  (`dismissAll` + drop pending prefills/highlights + remount the view via
+  `homeNonce`), not just `setTab("dash")` — new navigation intent state added to
+  the hub belongs in it. To add cross-view state or an action, define it
   there and add it to `shared` (e.g. `goTab`, `goLog`, `addRuns`).
 - **Layout:** views in `src/views/`, modals/full-screen flows in `src/modals/`,
   reusable widgets in `src/components/`, pure helpers in `src/utils/`.
@@ -267,7 +270,8 @@ prompt/tool-description changes.
   `usePresence`).
 - **Any new modal/sheet must call `useDismissable`** (`src/hooks/`) so Android
   back / web Escape close it via the LIFO registry
-  (`src/utils/backDismiss.ts`). Register in the overlay's OWN component; pass
+  (`src/utils/backDismiss.ts`) — and so the header's go-Home reset
+  (`dismissAll`) can clear it. Register in the overlay's OWN component; pass
   the guarded close where one exists. `OnboardingWizard` deliberately does NOT
   register (unskippable gate).
 - Reuse existing form pieces: `SessionConfigurator`, `GoalConfigurator`,

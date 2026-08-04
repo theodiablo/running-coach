@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import RunningCoach from "./RunningCoach";
 import { STORAGE_KEYS } from "./constants";
 
@@ -50,5 +50,19 @@ describe("RunningCoach (smoke)", () => {
     // booted header rather than on a still-loading splash.
     expect(await screen.findByRole("button", { name: "Settings" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Coach" })).not.toBeInTheDocument();
+  });
+
+  // With no router the header brand mark is the only "go Home from anywhere"
+  // affordance, so it has to work from a tab the bottom nav put you on.
+  it("tapping the brand mark returns to Home from another tab", async () => {
+    store = { [STORAGE_KEYS.SETTINGS]: SETTINGS, [STORAGE_KEYS.PLAN]: PLAN };
+    render(<RunningCoach onSignOut={() => {}} />);
+    expect(await screen.findByText(/Ada/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    expect(screen.queryByText(/Ada/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Running Coach" }));
+    expect(screen.getByText(/Ada/)).toBeInTheDocument();
   });
 });

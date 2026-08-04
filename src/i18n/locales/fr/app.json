@@ -2,6 +2,7 @@
   "signInFailed": "La connexion a échoué. Réessaie.",
   "header": {
     "settings": "Paramètres",
+    "home": "Retour à l'accueil",
     "coach": "Coach",
     "coachTitle": "Ajuste le plan avec ton coach"
   },

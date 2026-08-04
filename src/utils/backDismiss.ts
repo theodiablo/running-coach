@@ -36,3 +36,12 @@ export function dismissTop(): boolean {
   top.fn();
   return true;
 }
+
+// Invoke every registered handler, topmost first — the "go home" reset behind
+// the header brand mark, which clears the whole overlay stack rather than one
+// level. Iterates a snapshot, so a handler that opens a confirmation on its way
+// out isn't itself dismissed; as with dismissTop, a guarded handler that refuses
+// to close stays open.
+export function dismissAll(): void {
+  for (const entry of [...stack].reverse()) entry.fn();
+}
