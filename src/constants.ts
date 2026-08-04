@@ -54,6 +54,14 @@ export const LIVE_SHARE_KEY = "rc_live_share";
 // the latter. Set on the first successful publish, cleared on a confirmed delete.
 export const LIVE_PUBLISHED_KEY = "rc_live_published";
 
+// localStorage: the public share token minted for the CURRENT broadcast, if the
+// runner asked for a link (see src/live/shareLink.ts). Per-device for the same
+// reason as LIVE_SHARE_KEY, and per-run: it is cleared when the run ends, so a
+// link dies with the broadcast it was minted for rather than becoming a standing
+// window onto wherever this person happens to be running. It survives an app
+// kill so a recovered run republishes under the link already sent out.
+export const LIVE_SHARE_TOKEN_KEY = "rc_live_share_token";
+
 // localStorage flag: the user has seen and accepted the background-location
 // prominent disclosure (native shell only). Set once per install so we show it
 // before the first OS permission prompt but don't nag on every run.

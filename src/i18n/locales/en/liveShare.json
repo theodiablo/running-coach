@@ -5,6 +5,15 @@
     "on": "On",
     "off": "Off"
   },
+  "link": {
+    "create": "Share a link",
+    "share": "Send link",
+    "copied": "Copied",
+    "active": "Link shared",
+    "stop": "Stop sharing the link",
+    "hint": "Anyone with the link can follow this run, no account needed. The link stops working as soon as you save or discard the run.",
+    "rejected": "That link could not be created. Your run is still shared with your own devices."
+  },
   "banner": {
     "title": "Run in progress",
     "subtitle": "{{km}} km so far",
@@ -24,5 +33,14 @@
       "pace": "Pace",
       "time": "Time"
     }
+  },
+  "public": {
+    "title": "Live run",
+    "docTitle": "Live run · Running Coach",
+    "openApp": "Running Coach",
+    "nothing": "Nothing live here right now.",
+    "nothingHint": "If someone sent you this link before their run, keep this page open: it updates on its own once they set off.",
+    "retry": "Try again",
+    "madeWith": "Tracked with Running Coach"
   }
 }

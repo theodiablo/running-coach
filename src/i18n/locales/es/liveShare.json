@@ -5,6 +5,15 @@
     "on": "Activado",
     "off": "Desactivado"
   },
+  "link": {
+    "create": "Compartir un enlace",
+    "share": "Enviar enlace",
+    "copied": "Copiado",
+    "active": "Enlace compartido",
+    "stop": "Dejar de compartir el enlace",
+    "hint": "Cualquiera con el enlace puede seguir este entrenamiento, sin necesidad de cuenta. El enlace deja de funcionar en cuanto guardas o descartas el entrenamiento.",
+    "rejected": "No se ha podido crear ese enlace. Tu entrenamiento sigue compartido con tus propios dispositivos."
+  },
   "banner": {
     "title": "Entrenamiento en curso",
     "subtitle": "{{km}} km hasta ahora",
@@ -24,5 +33,14 @@
       "pace": "Ritmo",
       "time": "Tiempo"
     }
+  },
+  "public": {
+    "title": "Entrenamiento en directo",
+    "docTitle": "Entrenamiento en directo · Running Coach",
+    "openApp": "Running Coach",
+    "nothing": "Aquí no hay nada en directo ahora mismo.",
+    "nothingHint": "Si alguien te ha enviado este enlace antes de salir, deja esta página abierta: se actualiza sola cuando empiece.",
+    "retry": "Reintentar",
+    "madeWith": "Registrado con Running Coach"
   }
 }

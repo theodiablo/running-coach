@@ -5,6 +5,15 @@
     "on": "Activé",
     "off": "Désactivé"
   },
+  "link": {
+    "create": "Partager un lien",
+    "share": "Envoyer le lien",
+    "copied": "Copié",
+    "active": "Lien partagé",
+    "stop": "Arrêter de partager le lien",
+    "hint": "Toute personne disposant du lien peut suivre cette sortie, sans compte. Le lien cesse de fonctionner dès que tu enregistres ou annules la sortie.",
+    "rejected": "Ce lien n'a pas pu être créé. Ta sortie reste partagée avec tes propres appareils."
+  },
   "banner": {
     "title": "Sortie en cours",
     "subtitle": "{{km}} km parcourus",
@@ -24,5 +33,14 @@
       "pace": "Allure",
       "time": "Temps"
     }
+  },
+  "public": {
+    "title": "Sortie en direct",
+    "docTitle": "Sortie en direct · Running Coach",
+    "openApp": "Running Coach",
+    "nothing": "Rien en direct ici pour le moment.",
+    "nothingHint": "Si quelqu'un vous a envoyé ce lien avant sa sortie, gardez cette page ouverte : elle se met à jour toute seule au départ.",
+    "retry": "Réessayer",
+    "madeWith": "Suivi avec Running Coach"
   }
 }
