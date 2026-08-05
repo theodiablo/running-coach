@@ -44,19 +44,29 @@ jobs:
 
       # Fail fast with a clear message instead of silently skipping the suite
       # (the harness skips itself when the key is absent, which would read as
-      # a green no-op run here).
-      - name: Check ANTHROPIC_API_KEY is configured
+      # a green no-op run here). The required key follows the model name,
+      # mirroring the harness's own provider routing (mistral.mjs).
+      - name: Check the model's API key is configured
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MODEL: ${{ inputs.model }}
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY repo secret is not set — add it under Settings → Secrets and variables → Actions."
+          case "$MODEL" in
+            mistral*|magistral*|ministral*|codestral*|pixtral*|open-mistral*|open-mixtral*)
+              KEY_NAME=MISTRAL_API_KEY KEY_VALUE="$MISTRAL_API_KEY" ;;
+            *)
+              KEY_NAME=ANTHROPIC_API_KEY KEY_VALUE="$ANTHROPIC_API_KEY" ;;
+          esac
+          if [ -z "$KEY_VALUE" ]; then
+            echo "::error::$KEY_NAME repo secret is not set (required for model $MODEL) — add it under Settings → Secrets and variables → Actions."
             exit 1
           fi
 
       - name: Live eval
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           COACH_EVAL_MODEL: ${{ inputs.model }}
           COACH_EVAL_TRIALS: ${{ inputs.trials }}
           COACH_EVAL_SCENARIOS: ${{ inputs.scenarios }}
