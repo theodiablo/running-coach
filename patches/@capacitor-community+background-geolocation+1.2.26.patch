@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..0225ff3 100644
+index a92fcf9..e9030fd 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 @@ -32,8 +32,18 @@ import com.getcapacitor.annotation.PermissionCallback;
@@ -21,7 +21,16 @@ index a92fcf9..0225ff3 100644
  import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  
  @CapacitorPlugin(
-@@ -90,77 +100,419 @@ public class BackgroundGeolocation extends Plugin {
+@@ -50,6 +60,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+ )
+ public class BackgroundGeolocation extends Plugin {
+     private BackgroundGeolocationService.LocalBinder service = null;
++    // Held so handleOnDestroy can unregister it (see there for why).
++    private ServiceReceiver serviceReceiver = null;
+     private Boolean stoppedWithoutPermissions = false;
+ 
+     private void fetchLastLocation(PluginCall call) {
+@@ -90,77 +102,468 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -119,7 +128,7 @@ index a92fcf9..0225ff3 100644
 -                    .setWhen(System.currentTimeMillis());
 +            );
 +        }
- 
++
 +        // Set the Channel ID for Android O.
 +        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 +            builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
@@ -127,7 +136,7 @@ index a92fcf9..0225ff3 100644
 +
 +        return builder.build();
 +    }
-+
+ 
 +    // Replaces the foreground-service notification's content in place (same id,
 +    // same channel, ongoing flags re-asserted by the builder above) so a caller
 +    // can surface live run stats on it. Resolves { updated: boolean } — false
@@ -215,6 +224,19 @@ index a92fcf9..0225ff3 100644
 +    // entry points hold liveLock so a seed can't land mid-render.
 +    private final Object liveLock = new Object();
 +    private LiveStats liveStats = null;
++
++    // ── LIVE_FIX relay (native screen-off uploads) ───────────────────────────
++    // Every fix foldLiveLocation ACCEPTS is re-broadcast on this app-owned
++    // action, carrying the point plus the derived stats, so the app-local
++    // LivePublish plugin can upload while the WebView is frozen WITHOUT
++    // duplicating the acceptance gates or the distance/pace fold (they must
++    // match the lock-screen numbers by construction). The action string is ours
++    // (the app's namespace, not this package's) and is mirrored in
++    // LivePublishPlugin.kt — keep the two in step.
++    static final String LIVE_FIX_ACTION = "solutions.camboulive.run.LIVE_FIX";
++    // Interval that opens a GAP marker, mirroring useRunTracker's GAP_MS: the
++    // relayed stream must not draw a tunnel as a straight bridge.
++    private static final long LIVE_GAP_MS = 60_000;
 +
 +    // ── Fix journal (crash durability) ───────────────────────────────────────
 +    // Every fix the live renderer accepts is also appended to a file on disk, so
@@ -347,10 +369,10 @@ index a92fcf9..0225ff3 100644
 +            if (km == null) {
 +                liveStats = null; // caller isn't driving live stats
 +                return;
-+            }
+             }
 +            if (liveStats == null) {
 +                liveStats = new LiveStats();
-             }
++            }
 +            Number pace = optNumber(call, "paceSecPerKm");
 +            Number hr = optNumber(call, "hr");
 +            Number hrAtMs = optNumber(call, "hrAtMs");
@@ -406,6 +428,7 @@ index a92fcf9..0225ff3 100644
 +            live.paceWindow.clear();
 +            live.paceWindow.addLast(new double[] { t, live.cumM });
 +            journalFix(lat, lng, t, location);
++            relayLiveFix(live, lat, lng, t, location, false);
 +            return; // an anchor only — no leg to measure yet
 +        }
 +        if (t - live.lastFixMs < LIVE_MIN_INTERVAL_MS) {
@@ -415,6 +438,7 @@ index a92fcf9..0225ff3 100644
 +        if (moved < Math.max(LIVE_MIN_MOVE_M, accuracy * 0.5)) {
 +            return; // jitter, not movement
 +        }
++        boolean gapBefore = t - live.lastFixMs > LIVE_GAP_MS;
 +        live.lastLat = lat;
 +        live.lastLng = lng;
 +        live.lastFixMs = t;
@@ -426,7 +450,41 @@ index a92fcf9..0225ff3 100644
 +            live.paceWindow.removeFirst();
 +        }
 +        journalFix(lat, lng, t, location);
++        relayLiveFix(live, lat, lng, t, location, gapBefore);
 +        renderLiveStats(live);
++    }
++
++    // Broadcast one ACCEPTED fix with the derived stats for the LivePublish
++    // uploader. Same numbers as the notification (baseKm + addedM, the pace
++    // window, the chronometer anchor) so the watcher can never disagree with
++    // the lock screen. Best-effort: the relay must never cost us the fix.
++    private void relayLiveFix(LiveStats live, double lat, double lng, long t,
++                              Location location, boolean gapBefore) {
++        try {
++            Intent intent = new Intent(LIVE_FIX_ACTION);
++            intent.putExtra("lat", lat);
++            intent.putExtra("lng", lng);
++            intent.putExtra("t", t);
++            if (location.hasAltitude()) {
++                intent.putExtra("alt", (double) Math.round(location.getAltitude()));
++            }
++            intent.putExtra("gapBefore", gapBefore);
++            intent.putExtra("km", live.baseKm + live.addedM / 1000d);
++            if (live.chronometerStartMs != null) {
++                intent.putExtra("durationSec",
++                        Math.max(0, (System.currentTimeMillis() - live.chronometerStartMs) / 1000));
++            }
++            double pace = windowPaceSecPerKm(live);
++            if (pace <= 0) {
++                pace = live.fallbackPaceSecPerKm;
++            }
++            if (pace > 0) {
++                intent.putExtra("curPaceSecPerKm", pace);
++            }
++            LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
++        } catch (Exception exception) {
++            Logger.error("Failed to relay live fix", exception);
++        }
 +    }
 +
 +    private void renderLiveStats(LiveStats live) {
@@ -493,7 +551,7 @@ index a92fcf9..0225ff3 100644
      }
  
      @PermissionCallback
-@@ -188,6 +540,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +591,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -501,22 +559,54 @@ index a92fcf9..0225ff3 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -255,6 +608,14 @@ public class BackgroundGeolocation extends Plugin {
+@@ -248,17 +652,29 @@ public class BackgroundGeolocation extends Plugin {
+     private class ServiceReceiver extends BroadcastReceiver {
+         @Override
+         public void onReceive(Context context, Intent intent) {
++            Location location = intent.getParcelableExtra("location");
++            if (location == null) {
++                Logger.debug("No locations received");
++                return;
++            }
++            // BEFORE the saved-call lookup, not just before the bridge hop: a
++            // WebView reload releases saved calls while this service keeps
++            // running and broadcasting, and gating the native fold on the call
++            // silently froze the notification, the fix journal AND the LIVE_FIX
++            // relay for the rest of the run. The pure-Java path must survive
++            // anything the WebView does.
++            try {
++                onLiveLocation(location);
++            } catch (Exception exception) {
++                // A display failure must never cost us the fix itself.
++                Logger.error("Failed to update live stats", exception);
++            }
+             String id = intent.getStringExtra("id");
+             PluginCall call = getBridge().getSavedCall(id);
+             if (call == null) {
+                 return;
              }
-             Location location = intent.getParcelableExtra("location");
-             if (location != null) {
-+                // Before the bridge hop: this runs whatever the app's JS is doing,
-+                // which is nothing at all once Android has frozen the WebView.
-+                try {
-+                    onLiveLocation(location);
-+                } catch (Exception exception) {
-+                    // A display failure must never cost us the fix itself.
-+                    Logger.error("Failed to update live stats", exception);
-+                }
-                 call.resolve(formatLocation(location));
-             } else {
-                 Logger.debug("No locations received");
-@@ -324,7 +685,7 @@ public class BackgroundGeolocation extends Plugin {
+-            Location location = intent.getParcelableExtra("location");
+-            if (location != null) {
+-                call.resolve(formatLocation(location));
+-            } else {
+-                Logger.debug("No locations received");
+-            }
++            call.resolve(formatLocation(location));
+         }
+     }
+ 
+@@ -315,8 +731,9 @@ public class BackgroundGeolocation extends Plugin {
+                 Context.BIND_AUTO_CREATE
+         );
+ 
++        serviceReceiver = new ServiceReceiver();
+         LocalBroadcastManager.getInstance(this.getContext()).registerReceiver(
+-                new ServiceReceiver(),
++                serviceReceiver,
+                 new IntentFilter(BackgroundGeolocationService.ACTION_BROADCAST)
+         );
+     }
+@@ -324,7 +741,7 @@ public class BackgroundGeolocation extends Plugin {
      @Override
      protected void handleOnResume() {
          if (service != null) {
@@ -525,7 +615,7 @@ index a92fcf9..0225ff3 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,10 +694,32 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,12 +750,45 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {
@@ -558,7 +648,20 @@ index a92fcf9..0225ff3 100644
 +
      @Override
      protected void handleOnDestroy() {
++        // Unregister, or a destroyed instance's receiver outlives it (the
++        // manager is application-scoped) and an activity recreation leaves two
++        // instances folding — and relaying — every fix twice.
++        if (serviceReceiver != null) {
++            try {
++                LocalBroadcastManager.getInstance(getContext()).unregisterReceiver(serviceReceiver);
++            } catch (RuntimeException ignored) {
++                // a torn-down bridge can fail getContext(); nothing left to leak
++            }
++            serviceReceiver = null;
++        }
          if (service != null) {
+             service.stopService();
+         }
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
 index fafbb86..e95e748 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { LIVE_PUBLISHED_KEY, LIVE_RUN_KEY, LIVE_SHARE_TOKEN_KEY, RESUME_MAX_AGE_MS } from "../constants";
+import { LIVE_PUBLISHED_KEY, LIVE_PUBLISH_TOKEN_KEY, LIVE_RUN_KEY, LIVE_SHARE_TOKEN_KEY, RESUME_MAX_AGE_MS } from "../constants";
 
 // The publisher's job is deciding WHEN to hit the network and WITH WHICH verb: a
 // run publishes off GPS fixes (never a timer), at most every 30s, with status
@@ -15,12 +15,22 @@ const h = vi.hoisted(() => {
   type DbError = { code?: string; message?: string };
   const insert = vi.fn<(row: Record<string, unknown>) => Promise<{ error: DbError | null }>>(
     async () => ({ error: null }));
-  const delEq = vi.fn<(col: string, val: string) => Promise<{ error: DbError | null }>>(
-    async () => ({ error: null }));
+  // Deletes are a lazy chainable builder like the real client: `.eq()` narrows
+  // and the await runs delExec — so token-scoped deletes (`.eq(user_id).eq(
+  // publish_token)`) work against the mock too. Stub RESULTS via delExec.
+  const delExec = vi.fn<() => Promise<{ error: DbError | null }>>(async () => ({ error: null }));
+  type DelBuilder = { eq: (col: string, val: string) => DelBuilder } & PromiseLike<{ error: DbError | null }>;
+  const delEq = vi.fn<(col: string, val: string) => DelBuilder>();
+  const mkDelBuilder = (): DelBuilder => ({
+    eq: delEq as unknown as DelBuilder["eq"],
+    then: (onF, onR) => delExec().then(onF, onR),
+  });
+  delEq.mockImplementation(() => mkDelBuilder());
   const del = vi.fn(() => ({ eq: delEq }));
   const updateSelect = vi.fn<() => Promise<{ data: unknown[] | null; error: DbError | null }>>(
     async () => ({ data: [{ user_id: "u1" }], error: null }));
-  const updateEq = vi.fn(() => ({ select: updateSelect }));
+  const updateEq2 = vi.fn(() => ({ select: updateSelect }));
+  const updateEq = vi.fn(() => ({ select: updateSelect, eq: updateEq2 }));
   const update = vi.fn<(row: Record<string, unknown>) => { eq: typeof updateEq }>(() => ({ eq: updateEq }));
   const maybeSingle = vi.fn<() => Promise<{ data: { started_at: string } | null; error: DbError | null }>>(
     async () => ({ data: null, error: null }));
@@ -29,7 +39,7 @@ const h = vi.hoisted(() => {
   const from = vi.fn(() => ({ insert, update, delete: del, select }));
   let uid: string | null = "u1";
   return {
-    insert, update, updateEq, updateSelect, del, delEq, select, maybeSingle, from,
+    insert, update, updateEq, updateEq2, updateSelect, del, delEq, delExec, select, maybeSingle, from,
     currentUserId: () => uid, setUid: (v: string | null) => { uid = v; },
   };
 });
@@ -42,6 +52,7 @@ import {
   publishLiveRun, resetLivePublisher, shouldPublish, sweepOwnLiveRun,
 } from "./publisher";
 import { storeShareToken } from "./shareLink";
+import { storePublishToken } from "./publishToken";
 
 const START = 1_700_000_000_000;
 const STARTED_ISO = new Date(START).toISOString();
@@ -62,7 +73,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.setUid("u1");
   h.insert.mockResolvedValue({ error: null });
-  h.delEq.mockResolvedValue({ error: null });
+  h.delExec.mockResolvedValue({ error: null });
   h.updateSelect.mockResolvedValue({ data: [{ user_id: "u1" }], error: null });
   h.maybeSingle.mockResolvedValue({ data: null, error: null });
   resetLivePublisher();
@@ -209,7 +220,7 @@ describe("endLiveRun", () => {
     h.insert.mockImplementationOnce(() => new Promise(resolve => {
       land = () => { order.push("write"); resolve({ error: null }); };
     }));
-    h.delEq.mockImplementation(async () => { order.push("delete"); return { error: null }; });
+    h.delExec.mockImplementation(async () => { order.push("delete"); return { error: null }; });
 
     void publishLiveRun(args());
     const ending = endLiveRun();
@@ -223,7 +234,7 @@ describe("endLiveRun", () => {
     // The boot sweep is the fallback, and it only runs for a device still holding
     // the marker — clearing it optimistically would strand the row forever.
     await publishLiveRun(args());
-    h.delEq.mockResolvedValueOnce({ error: { code: "500" } });
+    h.delExec.mockResolvedValueOnce({ error: { code: "500" } });
     await endLiveRun();
     expect(localStorage.getItem(LIVE_PUBLISHED_KEY)).toBe(STARTED_ISO);
 
@@ -377,6 +388,85 @@ describe("public share link", () => {
     expect(h.update).not.toHaveBeenCalled();
     await publishLiveRun(tokenArgs(OTHER));
     expect(h.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("publish token (native uploads)", () => {
+  const P = "p".repeat(22);
+  const pubArgs = (publishToken: string | null, onPublishTokenChanged?: (t: string) => void) =>
+    ({ ...args(), publishToken, onPublishTokenChanged });
+  const publishConflict = { code: "23505", message: 'duplicate key value violates unique constraint "live_runs_publish_token_key"' };
+
+  it("carries the token on the opening insert and every update", async () => {
+    await publishLiveRun(pubArgs(P));
+    expect(h.insert.mock.calls[0][0]).toMatchObject({ publish_token: P });
+    vi.setSystemTime(START + LIVE_PUBLISH_INTERVAL_MS);
+    await publishLiveRun(pubArgs(P));
+    expect(h.update.mock.calls[0][0]).toMatchObject({ publish_token: P });
+  });
+
+  it("scopes the continuing update to the tokened row", async () => {
+    // If another device's broadcast replaced ours, the update must match
+    // NOTHING (and re-open via insert) rather than stamping our tokens over
+    // their live run.
+    await publishLiveRun(pubArgs(P));
+    vi.setSystemTime(START + LIVE_PUBLISH_INTERVAL_MS);
+    await publishLiveRun(pubArgs(P));
+    expect(h.updateEq).toHaveBeenCalledWith("user_id", "u1");
+    expect(h.updateEq2).toHaveBeenCalledWith("publish_token", P);
+  });
+
+  it("re-mints on a publish-token collision instead of deleting its own row", async () => {
+    // A DISTINCT index means a distinct branch: the share token is dropped
+    // when squatted, but nobody was ever handed a publish token — a collision
+    // is pure bad luck, so re-mint, retry, and tell the caller to re-seed.
+    const onPublishTokenChanged = vi.fn();
+    h.insert.mockResolvedValueOnce({ error: publishConflict });
+    await publishLiveRun(pubArgs(P, onPublishTokenChanged));
+    expect(h.del).not.toHaveBeenCalled();
+    expect(h.insert).toHaveBeenCalledTimes(2);
+    const reminted = (h.insert.mock.calls[1][0] as { publish_token: string }).publish_token;
+    expect(reminted).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(reminted).not.toBe(P);
+    expect(onPublishTokenChanged).toHaveBeenCalledWith(reminted);
+  });
+
+  it("degrades to v2 writes while the publish_token column doesn't exist yet", async () => {
+    // Functions and app code deploy on merge; the migration is applied by
+    // hand. The window must cost native uploads only, never the broadcast.
+    h.insert.mockResolvedValueOnce({ error: { code: "PGRST204", message: "Could not find the 'publish_token' column" } });
+    await publishLiveRun(pubArgs(P));
+    expect(h.insert).toHaveBeenCalledTimes(2);
+    expect(h.insert.mock.calls[1][0]).not.toHaveProperty("publish_token");
+    // Latched: later writes stop sending the column without another round-trip.
+    vi.setSystemTime(START + LIVE_PUBLISH_INTERVAL_MS);
+    await publishLiveRun(pubArgs(P));
+    expect(h.update.mock.calls[0][0]).not.toHaveProperty("publish_token");
+  });
+
+  it("spends the stored token when the run ends, scoping the delete to its row", async () => {
+    storePublishToken(P);
+    await publishLiveRun(pubArgs(P));
+    await endLiveRun();
+    expect(h.delEq).toHaveBeenCalledWith("user_id", "u1");
+    expect(h.delEq).toHaveBeenCalledWith("publish_token", P);
+    expect(localStorage.getItem(LIVE_PUBLISH_TOKEN_KEY)).toBeNull();
+  });
+
+  it("tears down through the edge function when signed out at save", async () => {
+    // An expired session must still be able to take the run off the air: the
+    // capability outlives the JWT, and the function's end path is the fallback.
+    storePublishToken(P);
+    const fetchMock = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    h.setUid(null);
+    await endLiveRun();
+    expect(h.del).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/functions/v1/live-publish");
+    expect(JSON.parse(String(init.body))).toEqual({ token: P, end: true });
+    vi.unstubAllGlobals();
   });
 });
 
