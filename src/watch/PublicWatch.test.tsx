@@ -95,6 +95,47 @@ describe("PublicWatch", () => {
     expect(fetchLiveWatch).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the finished route after the row is swept, and stops reading", async () => {
+    // Stop publishes status "ended" with the whole trace; Save then deletes the
+    // row. A spectator who watched the run keeps the finished route — and with
+    // the token spent alongside the row, nothing can ever appear under it
+    // again, so the page stops polling for good.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run() });
+    render(<PublicWatch token={TOKEN} />);
+    expect(await screen.findByTestId("route-map")).toBeInTheDocument();
+
+    fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run({ status: "ended" }) });
+    await act(async () => { await vi.advanceTimersByTimeAsync(31000); });
+    expect(screen.getByText(/This run has ended/i)).toBeInTheDocument();
+
+    fetchLiveWatch.mockResolvedValue({ kind: "none" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(31000); });
+    expect(screen.getByTestId("route-map")).toBeInTheDocument();
+    expect(screen.getByText("3.20")).toBeInTheDocument();
+    expect(screen.getByText(/This run has ended/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing live here/i)).toBeNull();
+
+    const calls = fetchLiveWatch.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(600000); });
+    expect(fetchLiveWatch).toHaveBeenCalledTimes(calls);
+  });
+
+  it("goes dark when a live run vanishes without ending", async () => {
+    // A mid-run revocation (share_token cleared) never writes "ended" — the
+    // page must NOT hold the trace on a mere live-to-gone transition, or
+    // revoking a link would stop working on any page already open.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run() });
+    render(<PublicWatch token={TOKEN} />);
+    expect(await screen.findByTestId("route-map")).toBeInTheDocument();
+
+    fetchLiveWatch.mockResolvedValue({ kind: "none" });
+    await act(async () => { await vi.advanceTimersByTimeAsync(31000); });
+    expect(screen.queryByTestId("route-map")).toBeNull();
+    expect(screen.getByText(/Nothing live here right now/i)).toBeInTheDocument();
+  });
+
   it("keeps itself out of search results while it is up", async () => {
     // A link pasted into a public thread must not get indexed and then crawled;
     // no-referrer keeps the token out of any outbound Referer header.

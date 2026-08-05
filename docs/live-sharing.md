@@ -403,6 +403,18 @@ lie this page could tell — and `noindex, nofollow` + `referrer: no-referrer`
 while it is mounted, so a link pasted into a public thread isn't indexed and the
 token never leaves in a `Referer` header.
 
+**The finished run stays on screen.** Stop publishes `ended` with the whole
+trace; Save then deletes the row. The page latches that ended snapshot: once it
+has *seen* `status: "ended"`, a later `{ live: false }` keeps the finished route
+and final stats up instead of dropping to "nothing live", and the polling chain
+stops for good — the token is spent with the row, so nothing can ever appear
+under it again. The latch arms **only on an explicitly seen `ended`**, never on
+a mere live→gone transition: revoking the link mid-run (which never writes
+`ended`) still takes an already-open page dark, and a visitor arriving after
+cleanup still gets the uniform nothing. Deletion remains the revocation; the
+latch is purely client memory. The in-app `LiveWatchModal` holds the same Stop
+snapshot while open, so the Realtime DELETE that follows Save doesn't blank it.
+
 Known cost: the watch chunk is small, but a visitor still downloads the main app
 bundle to get to it, exactly as a signed-out visitor does for the marketing
 landing. Splitting the entry would make `App` lazy for everyone, which is a
