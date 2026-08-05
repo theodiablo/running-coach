@@ -2,23 +2,31 @@
 
 Opt-in, per run, premium: while a run is recording, the phone broadcasts the
 route so far so the runner's **own other signed-in sessions** can watch it
-happen. Off by default; nothing is sent mid-run unless the toggle is on.
+happen — and, if they mint a share link, so can anyone they send it to. Off by
+default; nothing is sent mid-run unless the toggle is on.
 
-**v1 is same-account only.** There are no share links and no anonymous access,
-which is the whole reason this ships as one small table: `auth.uid() = user_id`
-is the entire authorization story. Sharing with someone else is a v2 built on
-the same pipeline (see the end of this file).
+Two layers, and they are authorized completely differently. The same-account
+broadcast is `auth.uid() = user_id` and nothing else. The public link is a
+capability token and nothing else. Neither knows about the other, which is why
+the second one could be added without touching the cadence, the cleanup, or the
+staleness model. Public links are **"Sharing with someone else"** below.
 
 ## Shape
 
 | Piece | File |
 |---|---|
 | Table, RLS, premium gate | `supabase/migrations/20260727135028_live_runs.sql` |
+| Share-token column | `supabase/migrations/20260804190422_live_runs_share_token.sql` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
-| Toggle + publish effect + teardown | `src/modals/LiveRunTracker.tsx` |
+| Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
 | Dashboard banner | `src/views/Dashboard.tsx` |
-| Watch screen | `src/modals/LiveWatchModal.tsx` |
+| Watch display (shared by both surfaces) | `src/components/LiveWatchView.tsx` |
+| In-app watch screen | `src/modals/LiveWatchModal.tsx` |
+| Token minting, URL shape, public read | `src/live/shareLink.ts` |
+| Token contract (Deno + browser) | `supabase/functions/_shared/liveShare.mjs` |
+| Public read endpoint | `supabase/functions/live-watch/index.ts` |
+| Public `/watch/:token` page | `src/watch/PublicWatch.tsx` |
 
 One row per user in `live_runs` (`user_id` is the primary key), written while
 the run is on and deleted when it ends.
@@ -208,7 +216,9 @@ subscribing would be a read per app load that can never return anything.
   the publishing device, so nothing collects for an uninstalled or dead phone;
   watchers stop showing it after 6h (`isActive`), but the row itself remains. A
   scheduled server-side delete of rows past that window is the fix if this ever
-  matters — it needs `pg_cron`, which this project doesn't currently use.
+  matters — it needs `pg_cron`, which this project doesn't currently use. The
+  **public** side is not exposed by this: `live-watch` applies the same 6h cutoff
+  server-side, so a link goes dark on its own even when nothing sweeps the row.
 - **A lapsed account that keeps a row alive** can go on updating it: that is the
   direct cost of the premium-free UPDATE policy, and it is bounded — the row is
   deleted when the run ends, and re-opening one is an `insert`, which is gated.
@@ -218,10 +228,146 @@ subscribing would be a read per app load that can never return anything.
 - The recording device suppresses its own banner (`showTracker`), but a *second*
   session on the same account that also opens the tracker is not coordinated.
 
-## v2: sharing with someone else
+## Sharing with someone else
 
-The pipeline doesn't change — only who may read the row. Add a token column plus
-a token-scoped select policy (or an edge function that reads it with the service
-role), and a `/watch/:token` entry point, which is the first thing in this app
-that would need routing. Everything above — cadence, staleness model, cleanup,
-copy — carries over unchanged.
+A public link, opt-in per run, on top of the pipeline above rather than beside
+it: the recorder, the cadence, the cleanup and the staleness copy are all
+unchanged. The only new idea is **who may read the row**.
+
+### The token is the capability, not an identifier
+
+`live_runs.share_token` is 128 bits from `crypto.getRandomValues`, base64url,
+minted on the phone (`mintShareToken`). Whoever holds `/watch/<token>` may
+watch; being signed in grants nothing extra and is not required. That single
+decision answers both of the questions this feature raises:
+
+- **Crawling** is defeated by entropy, not by obscurity or rate limiting. At a
+  million guesses a second, finding any one live run takes longer than the
+  universe has existed. Everything else here — `noindex`, `Disallow: /watch/`,
+  the per-IP limit — is defence in depth, and none of it is load-bearing.
+- **Signed-in versus signed-out stops being a question.** There is one page, not
+  two experiences: the session authorizes nothing, so there is nothing to
+  branch on. `PublicWatch` never imports `src/supabase.ts` at all.
+
+The shape is a security parameter, so it is pinned in three places that must
+agree: the minting client, the `live_runs_share_token_shape` CHECK constraint,
+and the edge function's validation. All three read
+`supabase/functions/_shared/liveShare.mjs` or the constraint that mirrors it —
+don't let them drift.
+
+### One uniform response, and what it buys
+
+The `live-watch` edge function answers `{ live: false }` — byte for byte the
+same — for **all** of: a malformed token, a well-formed token that doesn't
+exist, a token whose run hasn't started, a swept row, and a row past the 6h
+freshness window. A crawler therefore cannot even learn whether a token exists,
+so there is no oracle to grind against.
+
+The same property is the pre-run experience, for free: a runner can send the
+link the night before a race, and the page says nothing is live yet **because
+that is true**. It starts showing the run the moment they set off, with no
+special "pending link" state to build or expire.
+
+The one deliberately non-uniform response is a `429`: someone whose household
+NAT hit the limit needs to know to wait, not to believe the run ended.
+
+### Why an edge function and not a token-scoped RLS policy
+
+Both were on the table. The function wins on four counts:
+
+- **`user_id` is the table's primary key.** A direct anon read hands every
+  viewer the runner's account UUID, permanently, for a link about one run. The
+  function's select list omits it, and nothing else identifies the account —
+  no name, no avatar, no hint. The page shows a run, not a person.
+- **RLS can't see a query parameter**, so a policy version means smuggling the
+  token through a request header: more moving parts for a weaker result.
+- **The uniform response and the rate limit are code**, not policy.
+- **Realtime is unavailable to an anonymous viewer anyway** (the table has no
+  anon-readable policy at all, by design), so the public page polls — and per
+  the cadence rule above, reading at the publisher's own 30s loses nothing.
+
+### Per run, never a standing address
+
+The token is minted per broadcast and **the row's deletion is the revocation** —
+the existing cleanup does the work with nothing added. A stable "my live link"
+was rejected on purpose: shared once with the wrong person, it becomes a
+standing window onto wherever that person runs, forever.
+
+The mechanics that keep that true:
+
+- `LIVE_SHARE_TOKEN_KEY` holds the current run's token per device. `endLiveRun`
+  and `sweepOwnLiveRun` both spend it — a token outliving its run would be
+  republished by the *next* one, silently reopening a link for a run the runner
+  never shared.
+- `resetLivePublisher` deliberately does **not** clear it: a run recovered after
+  the app was killed has to republish under the link already sent out.
+- The tracker adopts a stored token on mount **only when there is a run to
+  recover** — the same condition that spares the row from the boot sweep.
+  Otherwise a fresh tracker starts with no link, so a token left by a run that
+  never started can't be inherited by an unrelated later one.
+- Revoking mid-run writes `share_token = null` without ending the broadcast: the
+  runner's own sessions keep following it, and the public page goes back to
+  saying nothing is live — indistinguishable, again, from a token that never
+  existed.
+
+### The token rides the normal writes
+
+`share_token` is on every insert and every update, and **a change to it bypasses
+the 30s throttle** exactly like a status transition does. Minting is an explicit
+act the runner is about to act on, and revoking has to take effect now rather
+than up to 30s from now; neither is driven by GPS, so nothing else would push it
+out promptly.
+
+Someone who was handed a link can squat that token on their own row. The unique
+index would then reject the original runner's next write forever, so a token
+conflict (23505 naming `live_runs_share_token_key`) is retried **without** the
+token and reported to the UI. Losing the link is acceptable; losing the
+broadcast is not — the run still records and still reaches the runner's own
+sessions. Note the ordering in `writeRow`: the "delete my leftover row" retry is
+gated on the conflict *not* being a token conflict, or a squat would make the
+publisher delete a perfectly good row of its own.
+
+### The public page
+
+`/watch/:token` is the app's one route, and the branch lives in `main.tsx`
+**before `<App/>` mounts** — App's first effects resolve the auth session and
+load the per-user store, and none of that has any business running for a
+stranger following a link. It's a lazy chunk behind `ChunkLoadBoundary`, and
+`VITE_NATIVE_BUILD` folds it to `null` so Rollup drops it from the APK entirely
+(the `MarketingGate` pattern). CloudFront already rewrites unknown paths to
+`index.html`, so no infra change was needed.
+
+The display is `LiveWatchView`, shared with the in-app modal. That sharing is
+about the **staleness model**, not the layout: silence is ambiguous by
+construction, and a second copy of this screen would eventually start guessing.
+
+`PublicWatch` owns only what the modal can't: the polling loop (a
+self-scheduling chain, so the delay can change with what came back and a slow
+response can't stack), a `{ kind: "error" }` that is kept strictly distinct from
+`{ kind: "none" }` — a dropped connection rendered as a finished run is the one
+lie this page could tell — and `noindex, nofollow` + `referrer: no-referrer`
+while it is mounted, so a link pasted into a public thread isn't indexed and the
+token never leaves in a `Referer` header.
+
+Known cost: the watch chunk is small, but a visitor still downloads the main app
+bundle to get to it, exactly as a signed-out visitor does for the marketing
+landing. Splitting the entry would make `App` lazy for everyone, which is a
+worse trade today.
+
+### French register
+
+The public page is read by strangers, not by users of the app, so
+`liveShare.public.*` uses **`vous`** — the marketing convention, not the app's
+`tu`. The runner-facing `liveShare.link.*` keys stay on `tu`. Spanish stays
+informal throughout. The shared `liveShare.watch.*` copy is register-neutral in
+French on purpose, because both surfaces render it.
+
+### Not done, deliberately
+
+- **No start-point trimming.** The trace usually begins at home, and Strava-style
+  "hide the first 200m" is the obvious follow-up. It was left out because this
+  link is explicit, per run, and dies at the end — unlike a public activity feed,
+  which is what that feature exists for.
+- **No native deep link.** If the shells ever claim the domain with universal
+  links, tapping `/watch/...` would open an app that has no route for it. Nothing
+  to do until then; note it in `docs/live-tracking.md` when that day comes.

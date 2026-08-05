@@ -3,4 +3,12 @@
 User-agent: *
 Allow: /
 
+# Live-run share links (/watch/:token). The token in the URL is the whole
+# authorization, so a link pasted into a public thread must not also end up in
+# an index where anyone could find it. The page sets `noindex, nofollow` itself
+# for a crawler that already has the URL; this line is for one that would go
+# looking. Neither is the security boundary — 128 bits of entropy per token is
+# (see supabase/functions/live-watch/index.ts).
+Disallow: /watch/
+
 Sitemap: https://run.camboulive.solutions/sitemap.xml

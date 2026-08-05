@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Link2Off, Check } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
+import { mintShareToken, readShareToken, storeShareToken, watchUrl } from "../live/shareLink";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { useRunTracker } from "../hooks/useRunTracker";
 import { useCountdown } from "../hooks/useCountdown";
@@ -168,6 +169,67 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (shareEndedRef.current) return;
     shareEndedRef.current = true;
     void endLiveRun();
+  };
+  // ── Public share link ────────────────────────────────────────────────────
+  // A link anyone can open — signed in or not, account or no account. The token
+  // IS the authorization (src/live/shareLink.ts), so there is no viewer list to
+  // manage and nothing to revoke afterwards: the link dies with the run.
+  //
+  // Adopted from storage ONLY when there is a run to recover. That is the one
+  // situation where a link already sent out must keep working — the app was
+  // killed mid-run and the recovered run republishes under the same token. A
+  // tracker opening fresh starts with no link, so a token left behind by a run
+  // that never started can never be inherited by an unrelated later run.
+  const [shareToken, setShareToken] = useState<string | null>(() => (pending ? readShareToken() : null));
+  const [linkCopied, setLinkCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current); }, []);
+  const flashCopied = () => {
+    setLinkCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setLinkCopied(false), 2500);
+  };
+  // Mints on first use, then re-shares the same token — a run has ONE link, so
+  // tapping "Send link" twice doesn't strand whoever got the first one. Only
+  // reachable while the broadcast is already on (see shareLinkRow), which is
+  // what keeps the premium re-read in toggleShareLive alone.
+  const shareTheLink = async () => {
+    let token = shareToken;
+    if (!token) {
+      token = mintShareToken();
+      storeShareToken(token);
+      setShareToken(token);
+      track("live_share_link_created", {});
+    }
+    const url = watchUrl(token);
+    // Progressive enhancement, no native plugin: the OS share sheet where the
+    // WebView offers one, the clipboard otherwise, and the raw URL as a last
+    // resort so the runner is never left with a link they can't get at.
+    try {
+      if (navigator.share) { await navigator.share({ url }); return; }
+    } catch (err) {
+      // Dismissing the sheet is a decision, not a failure — copying anyway
+      // would answer a "no" with a "done". Anything else (the WebView refusing
+      // the call at all) falls through to the clipboard.
+      if (err instanceof Error && err.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      flashCopied();
+    } catch {
+      showToast?.(url);
+    }
+  };
+  // Takes the run off the public link WITHOUT ending the broadcast: the runner's
+  // own sessions keep following it. The next publish writes the null through
+  // (it bypasses the throttle), and the page the link points at goes back to
+  // saying nothing is live — the same thing it says for a token that never
+  // existed, so a viewer learns nothing from the change.
+  const revokeLink = () => {
+    storeShareToken(null);
+    setShareToken(null);
+    setLinkCopied(false);
+    track("live_share_link_revoked", {});
   };
   // Throwing away a recovered run takes it off the air with it. The boot sweep
   // deliberately spared the row while the buffer existed — this is the moment
@@ -386,16 +448,21 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (!sharing || shareEndedRef.current) return;
     const status = state === "tracking" ? "live" : state === "paused" ? "paused" : state === "stopped" ? "ended" : null;
     if (!status) return;
-    if (!canPublishNow(status)) return;
+    if (!canPublishNow(status, shareToken)) return;
     void publishLiveRun({
       status,
       points: simplify(points, 5),
       stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
       startedAt: rt.runWindow().startedAt,
+      shareToken,
+      // The token was taken (see writeRow): the run is on the air but the link
+      // isn't. Say so rather than leave a "Link shared" row over a page that
+      // will never show anything.
+      onShareTokenRejected: () => { setShareToken(null); showToast?.(t("liveShare.link.rejected"), "err"); },
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
-  }, [sharing, state, points, stats, rt]);
+  }, [sharing, state, points, stats, rt, shareToken, showToast, t]);
 
   // Recording with sharing OFF ends any broadcast this device left behind — a
   // killed app, then a resume. The boot sweep skipped it (the recovery buffer was
@@ -505,6 +572,33 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   useDismissable(true, handleClose);
   useDismissable(showHrNudge, () => dismissHrNudge(false));
   useDismissable(countdown.count !== null, countdown.cancel);
+
+  // The public-link control, rendered both before a run and during one (a
+  // runner who forgot to send the link shouldn't have to stop to fix that).
+  // Only offered once the broadcast itself is on: minting a link over a run
+  // that publishes nothing would hand someone a page that never fills in, and
+  // it keeps the premium re-read in exactly one place (toggleShareLive).
+  const shareLinkRow = !sharing ? null : shareToken ? (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
+        <Link2 size={15} className="text-sky-300 shrink-0" />
+        <span className="flex-1 text-left text-sky-200">{t("liveShare.link.active")}</span>
+        <button onClick={shareTheLink}
+          className="flex items-center gap-1 text-slate-300 hover:text-white underline decoration-slate-600">
+          {linkCopied ? <Check size={14} className="text-emerald-400" /> : null}
+          {t(linkCopied ? "liveShare.link.copied" : "liveShare.link.share")}
+        </button>
+        <button onClick={revokeLink} aria-label={t("liveShare.link.stop")}
+          className="p-1 text-slate-400 hover:text-white"><Link2Off size={15} /></button>
+      </div>
+      <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.link.hint")}</p>
+    </div>
+  ) : (
+    <button onClick={shareTheLink}
+      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 active:scale-95 transition-[background-color,transform]">
+      <Link2 size={16} className="text-sky-300" />{t("liveShare.link.create")}
+    </button>
+  );
 
   return (
     <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col animate-slide-up">
@@ -649,6 +743,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 {shareLive && (
                   <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
                 )}
+                {shareLinkRow}
               </div>
             )}
             {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
@@ -703,9 +798,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         {/* A broadcast in progress must be visible on the recording device — an
             invisible one is a privacy problem, not a feature. */}
         {live && sharing && (
-          <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
-            <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
-          </p>
+          <>
+            <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
+              <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
+              {shareToken ? <> · {t("liveShare.link.active")}</> : null}
+            </p>
+            {shareLinkRow}
+          </>
         )}
 
         {live && !isNative && (
