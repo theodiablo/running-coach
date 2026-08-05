@@ -35,14 +35,18 @@ function useWatchedRun(token: string) {
   const [settled, setSettled] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
   const aliveRef = useRef(true);
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => { aliveRef.current = false; };
-  }, []);
+  // The last snapshot whose status was an explicit "ended" — the Stop write,
+  // which carries the whole trace. Once the row is then swept (Save/Discard
+  // deletes it), the page keeps showing this instead of dropping to "nothing
+  // live": a spectator who watched the run deserves the finished route. Latched
+  // ONLY on a seen "ended", never on a mere live→gone transition, so revoking
+  // the link mid-run still takes an open page dark.
+  const endedRef = useRef<PublicLiveRun | null>(null);
 
-  // Returns how long to wait before the next read, so the caller's loop doesn't
-  // have to re-derive it from state it may not have re-rendered with yet.
-  const load = useCallback(async (): Promise<number> => {
+  // Returns how long to wait before the next read — or null to stop reading
+  // for good, so the caller's loop doesn't have to re-derive either from state
+  // it may not have re-rendered with yet.
+  const load = useCallback(async (): Promise<number | null> => {
     const res = await fetchLiveWatch(token);
     if (!aliveRef.current) return LIVE_POLL_MS;
     setSettled(true);
@@ -53,9 +57,26 @@ function useWatchedRun(token: string) {
       return res.retryAfterMs ?? LIVE_POLL_MS;
     }
     setUnreachable(false);
-    setRun(res.kind === "live" ? res.run : null);
-    return res.kind === "live" ? LIVE_POLL_MS : IDLE_POLL_MS;
+    if (res.kind === "live") {
+      // A live status clears the latch: a run recovered after the app was
+      // killed republishes under the same token, and must take the page back.
+      endedRef.current = res.run.status === "ended" ? res.run : null;
+      setRun(res.run);
+      return LIVE_POLL_MS;
+    }
+    if (endedRef.current) {
+      // The row is gone and we saw it end: hold the finished run. The token is
+      // spent with the row, so nothing can ever appear under it again — stop.
+      setRun(endedRef.current);
+      return null;
+    }
+    setRun(null);
+    return IDLE_POLL_MS;
   }, [token]);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
 
   // A self-scheduling chain rather than setInterval: the delay changes with
   // what came back (live / idle / rate-limited), and a slow response must not
@@ -64,10 +85,15 @@ function useWatchedRun(token: string) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
+    // Latched permanently once a load says there is nothing left to read (the
+    // ended run is held on screen) — survives visibility flips, which would
+    // otherwise restart the chain on every return to the tab.
+    let done = false;
     const tick = async () => {
-      if (stopped || document.visibilityState !== "visible") return;
+      if (stopped || done || document.visibilityState !== "visible") return;
       const wait = await load();
       if (stopped) return;
+      if (wait == null) { done = true; return; }
       timer = setTimeout(tick, wait);
     };
     const onVis = () => {

@@ -31,7 +31,9 @@
     "stats": {
       "distance": "Distance",
       "pace": "Allure",
-      "time": "Temps"
+      "time": "Temps",
+      "curPace": "Allure actuelle",
+      "elevGain": "Dénivelé"
     }
   },
   "public": {
