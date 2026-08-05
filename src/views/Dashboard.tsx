@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Activity, Award, Check, ChevronRight, MessageCircle, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import type { LiveRunRow } from "../live/publisher";
-import { fmt, ymd, estMin } from "../utils/format";
+import { fmt, ymd, estMin, weekStart } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { sessionSteps } from "../utils/sessionSteps";
@@ -59,7 +59,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         .sort((a, b) => a.date.localeCompare(b.date))[0]
     : null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
-  const wkMon = new Date(today); wkMon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const wkMon = weekStart(today);
   const wkKm  = runs.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
   const totKm = runs.reduce((s, r) => s + (r.km||0), 0);
 

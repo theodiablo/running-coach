@@ -10,7 +10,7 @@
 // React-free and unit-testable.
 
 import { t } from "../i18n";
-import { ymd } from "./format";
+import { weekKey } from "./format";
 import type { Participation, Run } from "../types";
 
 export type Badge = {
@@ -24,14 +24,6 @@ export type Badge = {
 };
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
-
-// Monday (local) of a run's week, as YYYY-MM-DD — for counting active weeks.
-const weekKey = (dateStr: string) => {
-  const d = new Date(dateStr + "T00:00:00");
-  const mon = new Date(d);
-  mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return ymd(mon);
-};
 
 const km1 = (n: number) => (n % 1 === 0 ? n : Math.round(n * 10) / 10);
 

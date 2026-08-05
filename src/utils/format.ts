@@ -47,6 +47,17 @@ export const parseDur = (str: string | null | undefined): number | null => {
 // the Sunday before), so we read the date parts in local time instead.
 export const ymd = (d: Date) => d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
 
+// Monday (local) of the week containing `d` — the app buckets weeks Mon-Sun.
+export const weekStart = (d: Date) => {
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return mon;
+};
+
+// Same, keyed off a YYYY-MM-DD run date and returned as one — the bucket key
+// for weekly charts and active-week counts.
+export const weekKey = (dateStr: string) => ymd(weekStart(new Date(dateStr + "T00:00:00")));
+
 // A YYYY-MM-DD date `n` weeks from `from` (default today, local). Used to
 // synthesize a target date for the no-race "get fit" onboarding branch so
 // buildPlan has a timeline to size the plan against.
