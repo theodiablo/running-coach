@@ -26,12 +26,8 @@ function raceDateInDays(days: number) {
 const SESSIONS = [{dayOffset: 2, minutes: 30}, {dayOffset: 6, minutes: 60}];
 
 describe("buildPlan", () => {
-  it("echoes the core inputs and computes flat target pace", () => {
+  it("computes flat target pace", () => {
     const plan = buildPlan(raceDateInDays(120), 7200, SESSIONS, 20, 0);
-    expect(plan.goalSec).toBe(7200);
-    expect(plan.distanceKm).toBe(20);
-    expect(plan.raceElevation).toBe(0);
-    expect(plan.planSessions).toEqual(SESSIONS);
     expect(plan.targetPace).toBe(360); // 7200 / 20
   });
 

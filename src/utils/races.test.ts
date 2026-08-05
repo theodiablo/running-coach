@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { detectRaceCompletion, detectAnyRace, bestTimesByDistance, isPersonalBest, findEdition, searchEditions, hydrateCatalogue } from "./races";
+import { detectAnyRace, bestTimesByDistance, isPersonalBest, findEdition, searchEditions, hydrateCatalogue } from "./races";
 
 type TestRaceCandidate = { editionId?: string; date: string; distanceKm: number };
 type TestRun = { date?: string; km?: number } | null;
-type TestSettings = { targetEditionId?: string; raceDate?: string; distanceKm?: number };
 type TestParticipation = { status: string; distanceKm: number; timeSec: number | null };
 type TestJoinedEdition = { raceId: string; name: string; edition: { date: string; distanceKm: number } };
 
-const detectTarget = detectRaceCompletion as unknown as (run: TestRun, settings: TestSettings) => string | null;
 const detectAny = detectAnyRace as unknown as (run: TestRun, candidates: TestRaceCandidate[]) => string | null;
 const bestTimes = bestTimesByDistance as unknown as (participations: TestParticipation[]) => Record<number, number>;
 const personalBest = isPersonalBest as unknown as (participation: TestParticipation, participations: TestParticipation[]) => boolean;
@@ -34,31 +32,6 @@ beforeAll(() => {
       editions: [{ id: "paris-marathon-2027-04-11", date: "2027-04-11", distanceKm: 42.2, elevation: 60, verified: true }],
     },
   ]);
-});
-
-const target = { targetEditionId: "behobia-san-sebastian-2026", raceDate: "2026-11-08", distanceKm: 20 };
-
-describe("detectRaceCompletion", () => {
-  it("matches a run on the race date within distance tolerance", () => {
-    expect(detectTarget({ date: "2026-11-08", km: 20.1 }, target))
-      .toBe("behobia-san-sebastian-2026");
-    expect(detectTarget({ date: "2026-11-08", km: 18.5 }, target))
-      .toBe("behobia-san-sebastian-2026");
-  });
-  it("rejects a run on a different day", () => {
-    expect(detectTarget({ date: "2026-11-07", km: 20 }, target)).toBeNull();
-  });
-  it("rejects a distance well outside tolerance", () => {
-    expect(detectTarget({ date: "2026-11-08", km: 10 }, target)).toBeNull();
-  });
-  it("returns null when no target is set", () => {
-    expect(detectTarget({ date: "2026-11-08", km: 20 }, { raceDate: "2026-11-08", distanceKm: 20 }))
-      .toBeNull();
-  });
-  it("handles missing run fields gracefully", () => {
-    expect(detectTarget(null, target)).toBeNull();
-    expect(detectTarget({ date: "2026-11-08" }, target)).toBeNull();
-  });
 });
 
 describe("detectAnyRace", () => {

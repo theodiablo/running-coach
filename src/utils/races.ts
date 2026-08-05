@@ -7,7 +7,7 @@
 
 import { listRaces } from "../races";
 import type { BuildPlanOptions } from "./plan";
-import type { CatalogueRace, JoinedEdition, Participation, RaceCandidate, Run, SettingsState } from "../types";
+import type { CatalogueRace, JoinedEdition, Participation, RaceCandidate, Run } from "../types";
 
 // Module-level cache: the grouped races (each with an `editions` array) plus a
 // flat edition→race join derived from them. Empty until hydrateCatalogue runs;
@@ -67,27 +67,11 @@ export function editionLabel(race?: Pick<CatalogueRace, "name"> | null, edition?
   return [race?.name, year].filter(Boolean).join(" ");
 }
 
-// Does a just-logged run look like the user's target race? Pure: compares only
-// against `settings` (the plan's real target date/distance), NOT a possibly
-// stale catalogue record. Returns the target editionId on a match, else null.
-//
-// A match needs: a target set, the run on the race date, and a distance within
-// tolerance of the target (race courses run a little long/short, and GPS drifts).
-export function detectRaceCompletion(run: Run | null | undefined, settings: SettingsState | null | undefined, tolerance = 0.18) {
-  if (!run || !settings) return null;
-  const editionId = settings.targetEditionId;
-  const target = Number(settings.distanceKm);
-  if (!editionId || !target || !run.date || !run.km) return null;
-  if (run.date !== settings.raceDate) return null;
-  if (Math.abs(run.km - target) > target * tolerance) return null;
-  return editionId;
-}
-
 // Multi-race version: match a just-logged run against ANY race on the plan.
 // `candidates` is a list of {editionId, date, distanceKm} — typically every RACE
 // session on the plan that carries an editionId (the main race + any secondary
-// races). Returns the matched editionId, or null. Same date + distance-tolerance
-// rule as detectRaceCompletion.
+// races). Returns the matched editionId, or null. Matches on the same date plus
+// a distance-tolerance rule.
 export function detectAnyRace(run: Run | null | undefined, candidates: RaceCandidate[] = [], tolerance = 0.18) {
   if (!run || !run.date || !run.km) return null;
   for (const c of candidates) {

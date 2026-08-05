@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { p2, fmt, ymd, addWeeks, estMin, cleanDesc, parseDur } from "./format";
-
-describe("p2", () => {
-  it("zero-pads single digits", () => {
-    expect(p2(5)).toBe("05");
-    expect(p2(12)).toBe("12");
-  });
-});
+import { fmt, ymd, addWeeks, estMin, cleanDesc, parseDur } from "./format";
 
 describe("fmt.pace", () => {
   const pace = fmt.pace as (secondsPerKm: number | null) => string;

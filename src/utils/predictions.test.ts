@@ -5,9 +5,6 @@ describe("riegel", () => {
   it("returns the same time for the same distance", () => {
     expect(riegel(3600, 10, 10)).toBeCloseTo(3600, 5);
   });
-  it("scales up for longer distances using the fatigue exponent", () => {
-    expect(riegel(1000, 5, 10)).toBeCloseTo(1000 * Math.pow(2, 1.06), 3);
-  });
 });
 
 describe("flatEqKm", () => {

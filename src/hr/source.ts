@@ -1,4 +1,4 @@
-import { isAndroid, isIos, platform } from "../native";
+import { isAndroid, isIos } from "../native";
 import { bleSource } from "./ble";
 import { healthConnectSource } from "./healthconnect";
 import { healthKitSource } from "./healthkit";
@@ -19,18 +19,4 @@ export function getHrSource(method: HrMethod | string | null | undefined) {
   if (method === "healthconnect" && isAndroid) return healthConnectSource;
   if (method === "healthkit" && isIos) return healthKitSource;
   return null;
-}
-
-// Selection options for the Settings UI on the current platform (label + whether
-// each is currently usable is checked lazily by the UI via the source's
-// isAvailable()). Bluetooth HR straps work on both platforms; the post-run health
-// store differs (Health Connect vs Apple Health).
-export function hrMethodsForPlatform(p: string = platform) {
-  const methods = [
-    { id: "off", label: "Off" },
-    { id: "bluetooth", label: "Bluetooth sensor" },
-  ];
-  if (p === "android") methods.push({ id: "healthconnect", label: "Health Connect" });
-  if (p === "ios") methods.push({ id: "healthkit", label: "Apple Health" });
-  return methods;
 }
