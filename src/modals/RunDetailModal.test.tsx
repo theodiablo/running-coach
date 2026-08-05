@@ -15,7 +15,7 @@ vi.mock("recharts", async (importOriginal) => {
   };
 });
 
-import { RunChart, Readout } from "./RunDetailModal";
+import { RunChart, Readout } from "../components/RunChart";
 import { activeIndexFromChartState } from "../utils/chartCursor";
 import { buildRunSeries } from "../utils/runSeries";
 import { flattenTrack } from "../utils/geo";

@@ -31,7 +31,9 @@
     "stats": {
       "distance": "Distance",
       "pace": "Pace",
-      "time": "Time"
+      "time": "Time",
+      "curPace": "Current pace",
+      "elevGain": "Elev. gain"
     }
   },
   "public": {

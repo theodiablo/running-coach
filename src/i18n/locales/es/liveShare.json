@@ -31,7 +31,9 @@
     "stats": {
       "distance": "Distancia",
       "pace": "Ritmo",
-      "time": "Tiempo"
+      "time": "Tiempo",
+      "curPace": "Ritmo actual",
+      "elevGain": "Desnivel"
     }
   },
   "public": {
