@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { HistoryView } from "./HistoryView";
 import { StatsView } from "./StatsView";
@@ -31,7 +31,7 @@ export function ProgressView(props: ProgressViewProps) {
   // even if it's the same target as last time. Render-time sync, not an effect.
   const [prevKey, setPrevKey] = useState(navKey);
   if (navKey !== prevKey) { setPrevKey(navKey); setSub(initialSub || "log"); }
-  const badges = computeBadges(runs, races?.participations || []);
+  const badges = useMemo(() => computeBadges(runs, races?.participations || []), [runs, races]);
   const unlocked = badges.filter(b => b.unlocked).length;
 
   return (

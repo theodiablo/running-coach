@@ -6,6 +6,7 @@
 // The detection/PB helpers are pure over `participations` and stay unit-testable.
 
 import { listRaces } from "../races";
+import type { BuildPlanOptions } from "./plan";
 import type { CatalogueRace, JoinedEdition, Participation, RaceCandidate, Run, SettingsState } from "../types";
 
 // Module-level cache: the grouped races (each with an `editions` array) plus a
@@ -40,25 +41,11 @@ export async function loadCatalogue() {
   return _races;
 }
 
-// Grouped races (each with `editions`) — for the Browse / Discover lists.
-export function allRaces() {
-  return _races;
-}
-
-// Every catalogue edition joined to its race.
-export function allEditions() {
-  return _editions;
-}
-
 // Resolve an editionId to its joined race+edition object, or null if it's no
 // longer in the catalogue (an orphaned participation handles its own snapshot).
 export function findEdition(editionId?: string | null) {
   if (!editionId) return null;
   return _editions.find(e => e.edition.id === editionId) || null;
-}
-
-export function findRace(raceId?: string | null) {
-  return _races.find(r => r.id === raceId) || null;
 }
 
 // Free-text search over joined editions for the onboarding race picker. Matches
@@ -130,4 +117,20 @@ export function isPersonalBest(participation: Participation | null | undefined, 
   const best = bestTimesByDistance(participations);
   const key = Math.round(participation.distanceKm * 10) / 10;
   return best[key] === participation.timeSec;
+}
+
+// Wishlisted races the user folded into the plan, as buildPlan's `races` overlay.
+// Both rebuild paths (Plan page, race toggle) go through this — a divergence
+// silently changes what lands on someone's plan. Entries without a date or
+// distance can't be placed on a week, so they're dropped rather than guessed.
+export function secondaryRaces(
+  participations: Participation[],
+  targetEditionId?: string | null,
+): NonNullable<BuildPlanOptions["races"]> {
+  return participations
+    .filter(p => p.status === "wishlist" && p.inPlan && p.editionId && p.editionId !== targetEditionId)
+    .flatMap(p => p.raceDate && p.distanceKm
+      ? [{ editionId: p.editionId as string, date: p.raceDate, distanceKm: p.distanceKm,
+           elevation: findEdition(p.editionId)?.edition?.elevation || 0 }]
+      : []);
 }

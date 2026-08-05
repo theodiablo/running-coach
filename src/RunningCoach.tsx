@@ -20,7 +20,7 @@ import { ymd, fmt } from "./utils/format";
 import { computeBadges, unlockedIds } from "./utils/badges";
 import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEfforts";
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
-import { detectAnyRace, findEdition, editionLabel, loadCatalogue } from "./utils/races";
+import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
 import { clearStaleLiveRun } from "./live/publisher";
@@ -655,10 +655,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     saveRaces({ ...races, participations: parts });
     if (inPlan) track("plan_race_added", {});
     if (plan && settings.raceDate && settings.distanceKm) {
-      const secRaces = parts
-        .filter(p => p.status === "wishlist" && p.inPlan && p.editionId !== settings.targetEditionId)
-        .map(p => ({ editionId: p.editionId, date: p.raceDate, distanceKm: p.distanceKm,
-          elevation: p.editionId ? findEdition(p.editionId)?.edition?.elevation || 0 : 0 }));
+      const secRaces = secondaryRaces(parts, settings.targetEditionId);
       const np = buildPlan(settings.raceDate, settings.goalSec, settings.planSessions,
         settings.distanceKm, settings.raceElevation,
         { recentRuns: runs, races: secRaces, mainEditionId: settings.targetEditionId ?? null,

@@ -30,7 +30,6 @@ const oauth = makeCloudOauth({
 });
 
 export const suuntoEnabled = oauth.enabled;
-export const expectedSuuntoStates = oauth.expectedStates;
 export const completeSuuntoAuth = oauth.completeAuth;
 
 const EXT_PREFIX = "suunto:";

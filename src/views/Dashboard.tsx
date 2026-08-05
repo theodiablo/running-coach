@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, Award, Check, ChevronRight, MessageCircle, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
@@ -41,7 +41,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const { t } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
-  const nb = nextBadge(computeBadges(runs, races?.participations || []));
+  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [])), [runs, races]);
   const today    = new Date(); today.setHours(0,0,0,0);
   const raceD    = new Date(settings.raceDate + "T00:00:00");
   const daysLeft = Math.max(0, Math.ceil((raceD.getTime() - today.getTime()) / 86400000));

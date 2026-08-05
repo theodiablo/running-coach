@@ -13,9 +13,6 @@ import type { Run } from "../types";
 type CsvRow = Record<string, string>;
 type CsvRun = Run;
 
-// Guard against pathologically large uploads (memory / DOM blow-up).
-export const MAX_CSV_BYTES = 5 * 1024 * 1024; // 5 MB
-
 // Split a single CSV line, respecting simple double-quoted fields.
 function splitCsvLine(line: string) {
   const out: string[] = [];
