@@ -413,7 +413,7 @@ compiler:
 
 ### `@capacitor-community/background-geolocation`
 
-Three independent changes.
+Five independent changes.
 (1) Lifecycle NPE fix: it crashed in production ("Unable to pause activity" →
 NPE at `Bridge.getPermissionStates`, Bridge.java:1217) because its
 `handleOnPause`/`handleOnResume` call `getPermissionState("location")` — the
@@ -436,6 +436,20 @@ lock-screen section above for why that has to be native.
 `getFixJournal`/`clearFixJournal` plugin methods — the crash-recovery layer
 that survives process death (see *Crash recovery* above). Lines parse
 individually so a torn last write costs one point, not the file.
+(4) `LIVE_FIX` relay: every accepted fix is ALSO re-broadcast on the app-owned
+LocalBroadcast action `solutions.camboulive.run.LIVE_FIX` with the fold's own
+derived numbers (km, durationSec, curPace, gap flag), consumed by the
+app-local `LivePublishPlugin.kt` for screen-off live-share uploads
+(`docs/live-sharing.md`). One native fold, three consumers — never duplicate
+the acceptance gates. The action string is duplicated in the Kotlin plugin;
+keep them in step.
+(5) The native fold runs BEFORE the saved-call lookup in `ServiceReceiver`,
+not just before the bridge hop: a WebView reload releases saved calls while
+the service keeps broadcasting, and gating on the call silently froze the
+notification, the journal and the relay for the rest of the run. The receiver
+is also held in a field and unregistered in `handleOnDestroy` — the manager is
+application-scoped, so a destroyed instance's receiver would otherwise survive
+activity recreation and double-fold every fix.
 Numbers cross the
 bridge as JSON, so **read them with the patch's `optNumber`, never
 `PluginCall.getDouble`**: `getDouble` only unwraps Double/Float/Integer, and any

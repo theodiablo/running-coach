@@ -27,6 +27,9 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Token contract (Deno + browser) | `supabase/functions/_shared/liveShare.mjs` |
 | Public read endpoint | `supabase/functions/live-watch/index.ts` |
 | Public `/watch/:token` page | `src/watch/PublicWatch.tsx` |
+| Publish token (write capability) | `src/live/publishToken.ts`, `supabase/functions/_shared/livePublish.mjs` |
+| Native upload endpoint | `supabase/functions/live-publish/index.ts` + RPCs in migration `20260805062612` |
+| Native uploader (Android) | `android/.../LivePublishPlugin.kt`, seam `src/geo/liveUpload.ts` |
 
 One row per user in `live_runs` (`user_id` is the primary key), written while
 the run is on and deleted when it ends.
@@ -67,6 +70,57 @@ The consequence is that **a stationary runner publishes nothing**: with
 fix at the recorder; the watcher owns staleness and says so on its own. Status
 transitions (pause / resume / finish) bypass the throttle, because a paused run
 drops fixes and would otherwise leave the watcher on a stale status indefinitely.
+
+## Native screen-off uploads (Android)
+
+Fix-triggered JS publishing has one hole, and on Android it is total: a
+backgrounded WebView runs **no JS at all** (docs/live-tracking.md), so with the
+screen off nothing publishes and a watcher sees the runner frozen at the last
+screen-on position until unlock. The fix follows the lock-screen notification's
+pattern — *native computes while backgrounded, JS seeds it and stays the
+authority* — with an upload leg:
+
+- **The publish token is a second per-run capability, the write half.** Minted
+  in `startTracking` (never inherited within a mount — a retained native batch
+  must not ride into the next run's broadcast), carried on every JS write like
+  `share_token`, stored per-device (`rc_live_publish_token`, adopted on mount
+  only alongside a recoverable run), spent by `endLiveRun`/the sweeps. Unlike
+  the share token it is never displayed and never leaves the device except
+  inside the writes it authorizes. A user JWT can't do this job: it expires
+  mid-run in a process that can't refresh it.
+- **`live-publish` (verify_jwt = false) can only continue a broadcast.** All
+  row work is in the `live_publish_append`/`live_publish_end` RPCs — a single
+  authoritative UPDATE (never SELECT-then-UPDATE, which would race the JS
+  full-trace writer; never an INSERT, so the premium model is preserved by
+  construction). The append dedupes on the stored tail's timestamp (a
+  timed-out-but-committed POST retries idempotently), clamps skewed clocks
+  rather than rejecting, refuses `ended` rows, keys freshness on `updated_at`
+  (6h, so a >6h ultra keeps working) with a 24h `started_at` backstop, and at
+  the 20k-point cap still writes stats — freezing `updated_at` would make a
+  moving runner read as "signal lost".
+- **One writer at a time.** The native uploader runs ONLY while the page is
+  hidden: `LiveRunTracker` arms it on `visibilitychange`→hidden (before the
+  freeze) and disarms on →visible, pause, stop, toggle-off, teardown and
+  unmount — directly on the bridge, never behind `liveNotification`'s queue, so
+  a disable can't be stranded by an in-flight push. Foregrounded, the JS
+  publisher's full-trace writes re-base everything, which is why a raw native
+  tail never survives long and the head marker can never snap backwards.
+- **The uploader's inputs are the patch's own numbers.** The patched
+  geolocation plugin re-broadcasts every fix its fold accepts (`LIVE_FIX`,
+  with km / durationSec / curPace from the same fold that renders the
+  notification), so the watcher and the lock screen can't disagree and the
+  acceptance gates exist in exactly one native place. `LivePublishPlugin.kt`
+  buffers (bounded, thinning past 600 points), POSTs every 30s under a timed
+  partial wake lock, and follows the response contract: `{live:true}` drop the
+  batch; `{live:false}` soft-latch 5 min, hard-disable after 3 consecutive (a
+  POST can land inside the publisher's legitimate delete-then-reinsert at run
+  start); 4xx drop the poison batch; 5xx/network keep and retry. A 90-min
+  seed self-expiry bounds how long uploads can outlive the app's intent.
+- **Degrades, never breaks:** no token (pre-token recovery) → v2 behaviour;
+  `publish_token` column not yet migrated → PGRST204 latches JS back to v2
+  writes and `live-publish` 500s (a healthy uploader keeps its batch — a
+  deploy-ordering gap must not read as "run ended"); signed out at save →
+  `endLiveRun` tears down via `{token, end:true}`.
 
 ## Premium gate
 

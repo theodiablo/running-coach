@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Link2Off, Check } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
@@ -6,6 +6,8 @@ import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
 import { mintShareToken, readShareToken, storeShareToken, watchUrl } from "../live/shareLink";
+import { mintPublishToken, readPublishToken, storePublishToken } from "../live/publishToken";
+import { enableLiveUpload, disableLiveUpload } from "../geo/liveUpload";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { useRunTracker } from "../hooks/useRunTracker";
 import { useCountdown } from "../hooks/useCountdown";
@@ -168,8 +170,26 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   const endShare = () => {
     if (shareEndedRef.current) return;
     shareEndedRef.current = true;
+    // Disarm the native uploader FIRST and directly (never via the notification
+    // queue): endLiveRun is about to delete the row, and a native batch landing
+    // after that is a no-op server-side, but there is no reason to send it.
+    disarmLiveUpload();
     void endLiveRun();
   };
+  // ── Native screen-off uploads (Android) ─────────────────────────────────
+  // One writer at a time: the native uploader runs ONLY while the WebView is
+  // hidden (it is about to be frozen); the moment JS is back it is disarmed and
+  // the JS publisher's next full-trace write re-bases everything. The publish
+  // token is the run's write capability — minted per run in startTracking,
+  // adopted from storage only alongside a recoverable run (like the share
+  // token, and for the same reason).
+  const publishTokenRef = useRef<string | null>(pending ? readPublishToken() : null);
+  const uploaderArmedRef = useRef(false);
+  const disarmLiveUpload = useCallback(() => {
+    if (!uploaderArmedRef.current) return;
+    uploaderArmedRef.current = false;
+    disableLiveUpload();
+  }, []);
   // ── Public share link ────────────────────────────────────────────────────
   // A link anyone can open — signed in or not, account or no account. The token
   // IS the authorization (src/live/shareLink.ts), so there is no viewer list to
@@ -277,6 +297,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     // inheriting a previous one, and re-arms after an earlier run was ended.
     resetLivePublisher();
     shareEndedRef.current = false;
+    // A fresh run mints its own write capability — NEVER inherited from a
+    // previous run in the same mount, or a retained native batch could append
+    // the last run's positions to this one's broadcast.
+    const publishToken = mintPublishToken();
+    storePublishToken(publishToken);
+    publishTokenRef.current = publishToken;
     rt.start();
   };
   const countdown = useCountdown(startTracking);
@@ -455,14 +481,49 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
       startedAt: rt.runWindow().startedAt,
       shareToken,
+      publishToken: publishTokenRef.current,
       // The token was taken (see writeRow): the run is on the air but the link
       // isn't. Say so rather than leave a "Link shared" row over a page that
       // will never show anything.
       onShareTokenRejected: () => { setShareToken(null); showToast?.(t("liveShare.link.rejected"), "err"); },
+      // Astronomically unlikely, but a distinct branch: the publisher re-minted
+      // after a collision, and a hidden-armed uploader must follow the new key.
+      onPublishTokenChanged: (token) => {
+        publishTokenRef.current = token;
+        if (uploaderArmedRef.current) enableLiveUpload(token);
+      },
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
   }, [sharing, state, points, stats, rt, shareToken, showToast, t]);
+
+  // The single-writer handoff. Arm the native uploader when the page goes
+  // hidden mid-broadcast (visibilitychange fires before Android freezes the
+  // WebView — the same window the recovery buffer's persist rides), disarm the
+  // moment it is visible again so the JS publisher's next full-trace write
+  // re-bases everything. Pause/stop/toggle-off re-run this via deps and disarm
+  // too — a paused run must not keep appending from the service. Never armed
+  // without a token: a pre-token recovered run simply degrades to v2 behaviour.
+  useEffect(() => {
+    const sync = () => {
+      const shouldArm = document.visibilityState === "hidden" &&
+        sharing && state === "tracking" && !shareEndedRef.current && !!publishTokenRef.current;
+      if (shouldArm && !uploaderArmedRef.current) {
+        uploaderArmedRef.current = true;
+        enableLiveUpload(publishTokenRef.current as string);
+      } else if (!shouldArm) {
+        disarmLiveUpload();
+      }
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      // Unmount (header go-Home, dismissAll): JS is demonstrably running, so
+      // the frozen-WebView writer has no business staying armed.
+      disarmLiveUpload();
+    };
+  }, [sharing, state, disarmLiveUpload]);
 
   // Recording with sharing OFF ends any broadcast this device left behind — a
   // killed app, then a resume. The boot sweep skipped it (the recovery buffer was

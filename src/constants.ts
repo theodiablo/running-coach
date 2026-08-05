@@ -62,6 +62,14 @@ export const LIVE_PUBLISHED_KEY = "rc_live_published";
 // kill so a recovered run republishes under the link already sent out.
 export const LIVE_SHARE_TOKEN_KEY = "rc_live_share_token";
 
+// localStorage: the WRITE capability for the current broadcast — what the
+// Android native uploader authenticates with while the WebView is frozen (see
+// src/live/publishToken.ts). Per-device and per-run like the share token, and
+// even more sensitive (it writes, not reads): never displayed, never synced,
+// spent by endLiveRun / the sweeps. Survives an app kill so a recovered run
+// keeps publishing under the row it opened.
+export const LIVE_PUBLISH_TOKEN_KEY = "rc_live_publish_token";
+
 // localStorage flag: the user has seen and accepted the background-location
 // prominent disclosure (native shell only). Set once per install so we show it
 // before the first OS permission prompt but don't nag on every run.

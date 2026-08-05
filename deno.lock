@@ -3440,7 +3440,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@anthropic-ai/sdk@0.114",
+        "npm:@anthropic-ai/sdk@0.115",
         "npm:@capacitor-community/background-geolocation@1.2.26",
         "npm:@capacitor-community/bluetooth-le@^8.2.0",
         "npm:@capacitor/android@^8.4.1",
@@ -3489,6 +3489,9 @@
       "overrides": {
         "@pianissimoproject/capacitor-health-connect": {
           "@capacitor/core": "$@capacitor/core"
+        },
+        "xcode": {
+          "uuid": "^11.1.1"
         }
       }
     }

@@ -164,15 +164,19 @@ mirroring the real `supabase/functions/` layout. No `list_edge_functions` /
 JWT-verified functions; redeploy each the same way with its own single
 `source/index.ts` (no `_shared` dependency).
 
-**`live-watch` is the one exception: deploy it with `verify_jwt: false`.** It
-serves the public `/watch/:token` page to people who have no account, so a
-deploy that quietly takes the default breaks every share link with a 401. The
-CLI reads this from `[functions.live-watch]` in `supabase/config.toml`; an MCP
-deploy has to be told explicitly. It also needs `_shared/liveShare.mjs`
-alongside `source/index.ts` (same sibling layout as `coach-agent` above) — the
-entrypoint imports the share-token contract from it, so omitting it breaks the
-function at boot. See `docs/live-sharing.md` for why the token alone is the
-authorization.
+**`live-watch` and `live-publish` are the two exceptions: deploy them with
+`verify_jwt: false`.** One serves the public `/watch/:token` page to people
+who have no account; the other is the native screen-off uploader, whose
+foreground service holds a publish token, not a JWT. A deploy that quietly
+takes the default breaks share links (401) or silently stops screen-off
+uploads. The CLI reads this from the `[functions.*]` entries in
+`supabase/config.toml`; an MCP deploy has to be told explicitly. Each also
+needs its `_shared` contract alongside `source/index.ts` (same sibling layout
+as `coach-agent` above): `liveShare.mjs` for `live-watch`, `livePublish.mjs`
+(which itself imports `liveShare.mjs` — upload both) for `live-publish`.
+`live-publish` additionally needs the `20260805062612_live_runs_publish_token`
+migration applied (`supabase db push`) or it answers 500 by design. See
+`docs/live-sharing.md` for the capability model.
 
 Large payloads occasionally drop the MCP connection mid-call (~60KB of files) —
 retry `deploy_edge_function` verbatim; it's a transient reconnect. The remote
