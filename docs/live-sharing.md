@@ -152,13 +152,15 @@ the flag so the next fix re-opens the broadcast instead of publishing into a voi
 A policy rejection (`42501`) latches the publisher off for the rest of the run,
 so a tampered client or a lapsed grant doesn't retry every 30s forever.
 
-**Supabase's security advisor flags `is_premium()`** as a `SECURITY DEFINER`
-function executable by `authenticated`, reachable at `/rest/v1/rpc/is_premium`.
-That is expected and must stay: `authenticated` needs `EXECUTE` or the insert
-policy cannot evaluate it. It leaks nothing — being argument-free, it only ever
-reports the caller's own tier, which they can already read from their own
-`profiles` row. Do not "fix" it by revoking EXECUTE; that silently breaks
-starting a broadcast.
+**`is_premium()` is callable by `authenticated`, at `/rest/v1/rpc/is_premium`,
+and must stay that way** — the insert policy is evaluated as the querying role,
+so revoking `EXECUTE` silently breaks starting a broadcast. It leaks nothing:
+argument-free, it only ever reports the caller's own tier, which they can
+already read from their own `profiles` row. Supabase's advisor used to flag it
+under lint 0029 (`SECURITY DEFINER` reachable by signed-in users); migration
+`20260805084721` switched it to **`SECURITY INVOKER`**, which clears the finding
+and is sound precisely because it reads nothing beyond the caller's own
+RLS-visible row. Keep it INVOKER — DEFINER buys nothing here.
 
 `live_runs_touch` pins `search_path` (migration `20260727183713`) — not just
 lint hygiene: with a mutable one, `now()` is resolvable to something other than

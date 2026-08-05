@@ -100,6 +100,15 @@ rules, not a changelog; delete anything stale.
   trigger went missing). `src/migrations.test.ts` fails CI on a collision.
   Apply with `supabase db push`, never a path that assigns its own version, or
   the repo and `schema_migrations` drift apart and `db push` stops working.
+- **New `public` functions are `security invoker` with `set search_path = ''`
+  and fully-qualified references.** Reach for `security definer` only when the
+  function must touch something the caller can't (the `auth` schema, another
+  user's row) — then revoke `EXECUTE` from `public, anon, authenticated` and
+  grant it to `service_role` alone, unless the client is the intended caller
+  (`delete_my_account`, the one accepted lint-0029 finding). Service-role-only
+  tables pair `enable row level security` (no policies = deny all) with an
+  explicit `revoke all ... from anon, authenticated`; the linter's INFO
+  `rls_enabled_no_policy` on them is the intent, not a gap.
 - **Auth callbacks:** every native deep link is classified by the pure
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
