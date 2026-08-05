@@ -1,18 +1,14 @@
-// The coach agent's bounded tool vocabulary: plan transforms over the
-// buildPlan() JSON plus one memory-suggestion tool. The model is an EDITOR,
-// never an author — it can only act through these; there is deliberately no free-form edit tool. The one
-// load-increasing tool (add_session) is tightly bounded: distance capped at
-// the plan's current longest training session, never inside the final 14
-// days, and the weekly-ramp validator still gates the result. Every transform
-// returns a NEW plan (structuredClone; the input is never mutated) and
-// refuses to touch completed (done) sessions or move RACE sessions (races are
-// fixed real-world events).
+// The coach agent's bounded tool vocabulary: plan transforms over the buildPlan
+// JSON plus one memory-suggestion tool. The model is an EDITOR, never an author
+// — it can only act through these, and there is deliberately no free-form edit
+// tool. The one load-increasing tool (add_session) is capped at the plan's
+// longest training session, barred from the final 14 days, and still gated by
+// the weekly-ramp validator. Every transform returns a NEW plan
+// (structuredClone), refuses to touch done sessions, and never moves a RACE.
 //
-// Session/phase vocabulary matches the app (src/utils/plan.js), NOT generic
-// lowercase names: EASY | TEMPO | INTERVALS | LONG | RACE | WALK | OTHER.
-// "Cross-training" maps to WALK — the app's no-impact session type.
-//
-// Plain ESM JS: imported by the Deno edge function and by Vitest.
+// Session/phase vocabulary matches the app, NOT generic lowercase names:
+// EASY | TEMPO | INTERVALS | LONG | RACE | WALK | OTHER ("cross-training" maps
+// to WALK). Plain ESM: imported by the Deno edge function and by Vitest.
 
 import { HARD_TYPES } from "./validation.mjs";
 import { stylePacing } from "./styles.mjs";

@@ -1,33 +1,10 @@
-// live-publish — the native write side of live run sharing.
-//
-// While the screen is off, Android runs no WebView JS, so the app's foreground
-// service uploads accepted GPS fixes here instead (docs/live-sharing.md,
-// "Native screen-off uploads"). Callable WITHOUT a JWT (config.toml sets
-// verify_jwt = false): the per-run publish_token IS the capability. A user JWT
-// would expire mid-run in a process that can't refresh it; this token lives
-// exactly as long as the row it writes to.
-//
-// The trust boundary is sharper than live-watch's because this endpoint
-// WRITES. Three properties keep it honest:
-//
-//  * It can only ever CONTINUE a broadcast, never start or restart one — all
-//    row work happens in the live_publish_append / live_publish_end RPCs,
-//    which UPDATE/DELETE and never insert. Opening a broadcast stays the
-//    client's RLS + premium-gated INSERT, so "starting is the privileged act,
-//    continuing never is" survives the native path.
-//  * Payloads are validated to a fixed shape and cap BEFORE the database, and
-//    stats are whitelisted in the RPC — an unauthenticated caller cannot use
-//    this as free jsonb storage.
-//  * The uniform `{ live: false }` answers a bad token, a swept row, an ended
-//    run and a stale row identically. It doubles as the native uploader's stop
-//    signal: the run is over, disable yourself.
-//
-// The response contract is three-way and the native client depends on it:
-//   `{ live: true }`  → batch accepted, drop it locally (capped: true means
-//                       points were thinned but the broadcast is alive);
-//   `{ live: false }` → the broadcast is gone: soft-latch, stop uploading;
-//   4xx               → the batch itself is bad: DROP it, never retry it;
-//   5xx / network     → transient: keep the batch, retry on a later fix.
+// live-publish — native write side of live run sharing. Callable WITHOUT a JWT:
+// the per-run publish_token IS the capability, because a user JWT would expire
+// mid-run in a process that can't refresh it. It can only ever CONTINUE a
+// broadcast, never open one — opening stays the client's premium-gated INSERT.
+// Payloads are shape/size-capped before the database, and every failure mode
+// answers a uniform `{ live: false }`, which doubles as the uploader's stop
+// signal. Detail, incl. the three-way response contract: docs/live-sharing.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isValidPublishToken, isValidPointBatch, sanitizeStats } from "../_shared/livePublish.mjs";

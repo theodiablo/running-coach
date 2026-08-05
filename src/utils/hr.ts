@@ -138,7 +138,6 @@ export function timeInZones(
   return any ? sec.map((s, i) => ({ zone: i + 1, sec: s })) : [];
 }
 
-// Resolve a session type's target bpm range from settings.
 export function sessionHR(type: RunType | string, settings: Partial<Pick<SettingsState, "maxHR" | "restHR">>) {
   const key = type in SESSION_ZONES ? type as SessionZoneType : "EASY";
   const cfg = SESSION_ZONES[key];

@@ -271,7 +271,8 @@ changes.
   (`liveShare.public.*`). Spanish stays informal and region-neutral throughout.
   Reserve `course` / `carrera` for organized races, `sortie` / `entrenamiento`
   for logged runs. No em dashes (`—`) in either locale.
-  Enforced in `src/i18n/i18n.test.ts`.
+  `src/i18n/i18n.test.ts` enforces the `tu`/`vous` split and the em-dash ban;
+  the register and vocabulary rules above it are on you to keep.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
   the one `@theme` block in `src/index.css` (Tailwind v4 CSS-first, no
   `tailwind.config`). Transform/opacity-only and short. A global

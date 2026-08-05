@@ -1,26 +1,12 @@
 // One-time, bounded backfill of `bestEfforts` onto GPS runs recorded before the
-// feature existed.
+// feature existed, so PB ranking has real history to compare against instead of
+// greeting a long-time user with "first 5K on record". Newest RUN_LIMIT runs
+// only (older ones keep their whole-run estimate, so a PB buried in an ancient
+// trace can still be missed), points-only fetches, sequential and silent.
 //
-// Why it has to exist: the post-run reward ranks a run against the log, and a
-// log with no measured history would greet a long-time user's next run with
-// "first 5K on record" — or worse, call it their fastest when an older, faster
-// 5K sits unmeasured inside a 10 km trace. Runs without a trace need no backfill
-// (effortsFor derives their whole-run estimate on the fly); only GPS runs do.
-//
-// Cost control, deliberately conservative:
-//   - newest RUN_LIMIT runs only, so a long history can't turn a cold start into
-//     a multi-megabyte download. Older runs keep their whole-run estimate, which
-//     means a genuine PB buried in an ancient trace can still be missed.
-//   - points only (`getRoute(id, false)`) — the stats sidecar can hold a whole
-//     ~1Hz HR stream, which this doesn't need.
-//   - sequential, off the critical path, and entirely silent.
-//   - the done-marker is per-device localStorage, and is only set once a pass
-//     completes with no fetch failures, so an offline cold start retries later.
-//
-// The marker is keyed by USER id. It lives in localStorage, which survives sign
+// The done-marker is keyed by USER id, not device: localStorage survives sign
 // out, so a device-global key would tell the second account on a shared phone
-// that its own pre-feature runs had already been measured — producing exactly
-// the false "first 5K on record" this exists to prevent.
+// its own pre-feature runs were already measured. Detail: docs/best-efforts.md.
 
 import { getRoute } from "./routes";
 import { bestEffortsFromTrack, type BestEfforts } from "./utils/bestEfforts";

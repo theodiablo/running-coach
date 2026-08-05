@@ -1,28 +1,11 @@
-// live-watch — the public read side of live run sharing.
-//
-// Resolves a share token from a /watch/:token link to the run currently being
-// broadcast under it. Callable WITHOUT a JWT (config.toml sets
-// verify_jwt = false for this function): the token IS the capability, and being
-// signed in grants nothing extra here.
-//
-// Why this exists at all instead of a token-scoped RLS policy on live_runs:
-//
-//  * `user_id` is that table's primary key. A direct anon read would hand every
-//    viewer the runner's account UUID, permanently, for a link meant to expose
-//    one run. The response below carries the trace and nothing that identifies
-//    the account.
-//  * RLS has no access to a query parameter, so a policy version would mean
-//    smuggling the token through a header — more moving parts, weaker result.
-//  * The uniform response and the rate limit below are code, not policy.
-//
-// THE UNIFORM RESPONSE is the anti-probing property. A bad token, a good token
-// whose run has not started, a swept row and a run that ended hours ago all
-// return exactly `{ live: false }`. A crawler therefore learns nothing from a
-// response — not even whether a token exists — so the only thing standing
-// between them and someone's run is the 128 bits of entropy in the token, which
-// is a wall, not a speed bump. It doubles as the pre-run experience: a runner
-// can send the link the night before and the page simply says nothing is live
-// yet, because that is true.
+// live-watch — public read side of live run sharing. Callable WITHOUT a JWT:
+// the share token IS the capability, and being signed in grants nothing extra.
+// It exists instead of a token-scoped RLS policy because live_runs is keyed by
+// user_id (a direct anon read would leak the runner's account UUID for a link
+// meant to expose one run) and RLS cannot see a query parameter. A bad token, a
+// run not yet started, a swept row and a finished run all answer an identical
+// `{ live: false }`, so a crawler learns nothing and only the token's 128 bits
+// stand between them and someone's run. Detail: docs/live-sharing.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
