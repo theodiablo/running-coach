@@ -38,10 +38,13 @@ type DashboardProps = {
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
 
 export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker}: DashboardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
-  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [])), [runs, races]);
+  // Keyed on the language too: computeBadges resolves its strings through t(),
+  // so a locale switch must recompute even though runs/races are unchanged.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
+  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [])), [runs, races, i18n.language]);
   const today    = new Date(); today.setHours(0,0,0,0);
   const raceD    = new Date(settings.raceDate + "T00:00:00");
   const daysLeft = Math.max(0, Math.ceil((raceD.getTime() - today.getTime()) / 86400000));

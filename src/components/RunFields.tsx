@@ -16,6 +16,11 @@ type RunFieldsProps = {
 
 export function RunFields({ form: f, onChange: set, phScope, afterHr }: RunFieldsProps) {
   const { t } = useTranslation();
+  // Literal keys, not t(phScope + ".kmPh"): i18n.test.ts's dangling-key scanner
+  // only sees literals, and these would silently rot in a locale-file cleanup.
+  const ph = phScope === "log.edit"
+    ? { km: t("log.edit.kmPh"), avgHr: t("log.edit.avgHrPh"), maxHr: t("log.edit.maxHrPh"), elev: t("log.edit.elevPh") }
+    : { km: t("log.fields.kmPh"), avgHr: t("log.fields.avgHrPh"), maxHr: t("log.fields.maxHrPh"), elev: t("log.fields.elevPh") };
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -29,7 +34,7 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr }: RunField
         </div>
       </div>
       <div><label className={LABEL_CLS}>{t("log.fields.distanceKm")}</label>
-        <input type="number" step="0.01" min="0" placeholder={t(phScope + ".kmPh")} value={f.km}
+        <input type="number" step="0.01" min="0" placeholder={ph.km} value={f.km}
           onChange={e => set("km", e.target.value)} className={INPUT_CLS}/></div>
       <div><label className={LABEL_CLS}>{t("log.fields.duration")}</label>
         <div className="grid grid-cols-3 gap-2">
@@ -40,11 +45,11 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr }: RunField
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div><label className={LABEL_CLS}>{t("log.fields.avgHr")}</label>
-          <input type="number" placeholder={t(phScope + ".avgHrPh")} value={f.hr} onChange={e => set("hr", e.target.value)} className={INPUT_CLS}/></div>
+          <input type="number" placeholder={ph.avgHr} value={f.hr} onChange={e => set("hr", e.target.value)} className={INPUT_CLS}/></div>
         <div><label className={LABEL_CLS}>{t("log.fields.maxHr")}</label>
-          <input type="number" placeholder={t(phScope + ".maxHrPh")} value={f.hrMax} onChange={e => set("hrMax", e.target.value)} className={INPUT_CLS}/></div>
+          <input type="number" placeholder={ph.maxHr} value={f.hrMax} onChange={e => set("hrMax", e.target.value)} className={INPUT_CLS}/></div>
         <div><label className={LABEL_CLS}>{t("log.fields.elevM")}</label>
-          <input type="number" placeholder={t(phScope + ".elevPh")} value={f.elev} onChange={e => set("elev", e.target.value)} className={INPUT_CLS}/></div>
+          <input type="number" placeholder={ph.elev} value={f.elev} onChange={e => set("elev", e.target.value)} className={INPUT_CLS}/></div>
       </div>
       {afterHr}
       <div>

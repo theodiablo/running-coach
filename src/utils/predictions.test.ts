@@ -5,6 +5,12 @@ describe("riegel", () => {
   it("returns the same time for the same distance", () => {
     expect(riegel(3600, 10, 10)).toBeCloseTo(3600, 5);
   });
+  // Pins the 1.06 fatigue exponent itself: doubling the distance costs ~2^1.06,
+  // not 2x. plan.ts prices every secondary race off this, so a changed exponent
+  // must fail here rather than quietly reshaping plans.
+  it("scales up superlinearly for longer distances", () => {
+    expect(riegel(1000, 5, 10)).toBeCloseTo(2084.93, 2);
+  });
 });
 
 describe("flatEqKm", () => {

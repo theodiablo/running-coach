@@ -29,8 +29,9 @@ const km1 = (n: number) => (n % 1 === 0 ? n : Math.round(n * 10) / 10);
 
 // A milestone badge: unlocked once `value >= threshold`. Label/desc come from
 // the badges.<id> dictionary entries; `unit` (km/wk/m, or null for bare counts)
-// shapes the remaining-amount hint. Strings resolve at call time so the active
-// UI language applies — computeBadges runs during render, never cached.
+// shapes the remaining-amount hint. Strings resolve at CALL time, so any caller
+// that memoises computeBadges must key on the active language as well as the
+// data — otherwise a locale switch leaves stale labels on screen.
 function milestone(id: string, Icon: Badge["Icon"], value: number, threshold: number, unit: "km" | "wk" | "m" | null): Badge {
   const unlocked = value >= threshold;
   const remaining = Math.max(0, threshold - value);

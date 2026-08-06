@@ -13,8 +13,9 @@ CLAUDE.md; keep this current when touching `src/hr/`, `src/watch/`,
 unknown / wrong platform), so the web build is unaffected (HR capture is
 native-only). Methods are platform-gated: `bluetooth` works on both shells,
 `healthconnect` is Android-only, `healthkit` iOS-only — the Settings picker
-comes from `hrMethodsForPlatform()`, and a synced off-platform method degrades
-to null. Two **narrow capability contracts**, not one fat interface — a source
+renders the per-platform rows in `ConnectionsCard`, `getHrSource` resolves a
+synced off-platform method to null, and `hrNudgeFor` (`src/utils/hrNudge.ts`)
+keeps the other platform's setup prompt off screen. Two **narrow capability contracts**, not one fat interface — a source
 carries a `live` flag:
 
 - **Live** (`src/hr/ble.ts`, `bleSource`): a standard BLE Heart Rate Profile
