@@ -19,6 +19,8 @@ declare module "leaflet" {
   export type Polyline = Layer & {
     on: (event: string, cb: (e: LeafletEvent) => void) => Polyline;
     bindTooltip: (content: string, options?: Record<string, unknown>) => Polyline;
+    // Mutates the existing SVG path — how the live track grows without a rebuild.
+    setLatLngs: (points: LatLngExpression[]) => Polyline;
   };
   export type ToggleHandler = { enable: () => void; disable: () => void };
   export type Map = {

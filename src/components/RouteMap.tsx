@@ -73,6 +73,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const linesRef = useRef<Polyline[]>([]);
+  const segCountRef = useRef(0);
   const guideLinesRef = useRef<Polyline[]>([]);
   const dotRef = useRef<Marker | null>(null);
   const startRef = useRef<Marker | null>(null);      // start-of-route marker (endpoints mode)
@@ -129,6 +130,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       map.remove();
       mapRef.current = null;
       linesRef.current = [];
+      segCountRef.current = 0;
       guideLinesRef.current = [];
       dotRef.current = null;
       startRef.current = null;
@@ -184,8 +186,6 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     const map = mapRef.current;
     if (!map) return;
 
-    linesRef.current.forEach(l => l.remove());
-    linesRef.current = [];
     const dot = (bg: string, size = 14) => L.divIcon({
       className: "",
       html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${bg};border:2px solid #fff;box-shadow:0 0 0 2px rgba(15,23,42,.35)"></div>`,
@@ -197,23 +197,38 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     };
     const drop = (ref: MutableRefObject<Marker | null>) => { if (ref.current) { ref.current.remove(); ref.current = null; } };
 
-    const segs = segments(points) as LatLngExpression[][];
-    const all: LatLngExpression[] = [];
+    const segs = (segments(points) as LatLngExpression[][]).filter(s => s.length);
+    // A live run appends to the last segment ~every 2s. Rebuilding every polyline
+    // makes Leaflet re-render the whole SVG path each fix, so as long as the
+    // SEGMENT COUNT is unchanged (same layer count: one line per segment plus a
+    // bridge between each pair) we only push new coordinates into the layers
+    // already on the map. A new gap changes the count and forces a rebuild.
+    const reuse = segs.length > 0
+      && segCountRef.current === segs.length
+      && linesRef.current.length === Math.max(0, segs.length * 2 - 1);
+    if (!reuse) {
+      linesRef.current.forEach(l => l.remove());
+      linesRef.current = [];
+    }
+    segCountRef.current = segs.length;
+
+    // Bridge a gap (signal loss / suspended background) with a faded dashed line
+    // so the route reads as one continuous run while still marking the stretch we
+    // didn't actually track — distinct from the solid, recorded segments.
+    let li = 0;
     let prevEnd: LatLngExpression | null = null;
     segs.forEach(seg => {
-      if (!seg.length) return;
-      // Bridge a gap (signal loss / suspended background) with a faded dashed line
-      // so the route reads as one continuous run while still marking the stretch we
-      // didn't actually track — distinct from the solid, recorded segments.
       if (prevEnd) {
-        const bridge = L.polyline([prevEnd, seg[0]], {
+        const coords = [prevEnd, seg[0]];
+        if (reuse) linesRef.current[li].setLatLngs(coords);
+        else linesRef.current.push(L.polyline(coords, {
           color: "#f97316", weight: 3, opacity: 0.5, dashArray: "4 8",
-        }).addTo(map);
-        linesRef.current.push(bridge);
+        }).addTo(map));
+        li++;
       }
-      const line = L.polyline(seg, { color: "#f97316", weight: 4, opacity: 0.9 }).addTo(map);
-      linesRef.current.push(line);
-      all.push(...seg);
+      if (reuse) linesRef.current[li].setLatLngs(seg);
+      else linesRef.current.push(L.polyline(seg, { color: "#f97316", weight: 4, opacity: 0.9 }).addTo(map));
+      li++;
       prevEnd = seg[seg.length - 1];
     });
 
@@ -250,12 +265,14 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     // whole route. A user-suspended live map is left exactly where they put it.
     if (follow) {
       if (followingRef.current && head) programmaticSetView(head, Math.max(map.getZoom(), LIVE_DEFAULT_ZOOM));
-    } else if (all.length) {
+    } else if (segs.length) {
+      // Flattened only here — the fit branch is the only consumer, and spreading
+      // a whole track into a second array is a stack-overflow risk at scale.
       // Guard as programmatic: fitBounds changes zoom (fires `zoomstart`), which
       // the gesture handler would otherwise read as a user pan and suspend follow
       // — spuriously showing the recenter button on tracking→paused.
       programmaticRef.current = true;
-      map.fitBounds(L.latLngBounds(all).pad(0.15), { animate: false });
+      map.fitBounds(L.latLngBounds(segs.flat()).pad(0.15), { animate: false });
       programmaticRef.current = false;
     }
   }, [points, follow, endpoints, programmaticSetView]);
