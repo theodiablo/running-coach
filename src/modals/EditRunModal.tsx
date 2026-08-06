@@ -2,22 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { Check } from "lucide-react";
-import { INPUT_CLS, LABEL_CLS } from "../constants";
+import { RunFields } from "../components/RunFields";
+import { runFormComplete, runFormToPatch, runToForm, type RunFormValues } from "../utils/runForm";
 import type { Run, RunPatch } from "../types";
-
-type EditRunForm = {
-  date: string;
-  type: string;
-  km: string;
-  dH: string;
-  dM: string;
-  dS: string;
-  hr: string;
-  hrMax: string;
-  elev: string;
-  effort: string | number;
-  notes: string;
-};
 
 type EditRunModalProps = {
   run: Run;
@@ -29,33 +16,13 @@ type EditRunModalProps = {
 export function EditRunModal({run, onSave, onClose}: EditRunModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
-  const sec = run.durationSec || 0;
-  const [f, setF] = useState<EditRunForm>({
-    date:  run.date,
-    type:  run.type || "EASY",
-    km:    run.km != null ? String(run.km) : "",
-    dH:    String(Math.floor(sec / 3600) || ""),
-    dM:    String(Math.floor((sec % 3600) / 60) || ""),
-    dS:    String(sec % 60 || ""),
-    hr:    run.hr        ? String(run.hr)        : "",
-    hrMax: run.hrMax     ? String(run.hrMax)     : "",
-    elev:  run.elevation ? String(run.elevation) : "",
-    effort: run.effort || 5,
-    notes:  run.notes || "",
-  });
+  const [f, setF] = useState<RunFormValues>(() => runToForm(run));
   const [err, setErr] = useState("");
-  const set = (k: keyof EditRunForm, v: string | number) => setF(prev => ({...prev, [k]: v}));
+  const set = (k: keyof RunFormValues, v: string | number) => setF(prev => ({...prev, [k]: v}));
 
   const save = () => {
-    if (!f.km || (!f.dM && !f.dH)) { setErr(t("log.validation.required")); return; }
-    const s = (parseInt(f.dH) || 0) * 3600 + (parseInt(f.dM) || 0) * 60 + (parseInt(f.dS) || 0);
-    onSave({
-      date: f.date, type: f.type, km: parseFloat(f.km), durationSec: s,
-      hr:        f.hr    ? parseInt(f.hr)    : null,
-      hrMax:     f.hrMax ? parseInt(f.hrMax) : null,
-      elevation: f.elev  ? parseInt(f.elev)  : undefined,
-      effort:    parseInt(String(f.effort)), notes: f.notes,
-    });
+    if (!runFormComplete(f)) { setErr(t("log.validation.required")); return; }
+    onSave(runFormToPatch(f));
     onClose();
   };
 
@@ -68,41 +35,7 @@ export function EditRunModal({run, onSave, onClose}: EditRunModalProps) {
           <button onClick={onClose} aria-label={t("common.close")} className="text-slate-400 hover:text-white text-lg leading-none px-1">x</button>
         </div>
         <div className="p-4 space-y-4 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={LABEL_CLS}>{t("log.fields.date")}</label>
-              <input type="date" value={f.date} onChange={e => set("date", e.target.value)} className={INPUT_CLS}/></div>
-            <div><label className={LABEL_CLS}>{t("log.fields.type")}</label>
-              <select value={f.type} onChange={e => set("type", e.target.value)} className={INPUT_CLS}>
-                {["EASY","TEMPO","LONG","INTERVALS","RACE","WALK","OTHER"].map(ty =>
-                  <option key={ty} value={ty}>{t("common.types." + ty, { defaultValue: ty })}</option>)}
-              </select>
-            </div>
-          </div>
-          <div><label className={LABEL_CLS}>{t("log.fields.distanceKm")}</label>
-            <input type="number" step="0.01" min="0" placeholder={t("log.edit.kmPh")} value={f.km}
-              onChange={e => set("km", e.target.value)} className={INPUT_CLS}/></div>
-          <div><label className={LABEL_CLS}>{t("log.fields.duration")}</label>
-            <div className="grid grid-cols-3 gap-2">
-              <input type="number" min="0" max="23" placeholder={t("log.fields.hoursPh")}   value={f.dH} onChange={e => set("dH", e.target.value)} className={INPUT_CLS}/>
-              <input type="number" min="0" max="59" placeholder={t("log.fields.minutesPh")} value={f.dM} onChange={e => set("dM", e.target.value)} className={INPUT_CLS}/>
-              <input type="number" min="0" max="59" placeholder={t("log.fields.secondsPh")} value={f.dS} onChange={e => set("dS", e.target.value)} className={INPUT_CLS}/>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div><label className={LABEL_CLS}>{t("log.fields.avgHr")}</label>
-              <input type="number" placeholder={t("log.edit.avgHrPh")} value={f.hr} onChange={e => set("hr", e.target.value)} className={INPUT_CLS}/></div>
-            <div><label className={LABEL_CLS}>{t("log.fields.maxHr")}</label>
-              <input type="number" placeholder={t("log.edit.maxHrPh")} value={f.hrMax} onChange={e => set("hrMax", e.target.value)} className={INPUT_CLS}/></div>
-            <div><label className={LABEL_CLS}>{t("log.fields.elevM")}</label>
-              <input type="number" placeholder={t("log.edit.elevPh")} value={f.elev} onChange={e => set("elev", e.target.value)} className={INPUT_CLS}/></div>
-          </div>
-          <div>
-            <label className={LABEL_CLS}>{t("log.fields.effort")} <span className="text-white font-semibold">{t("log.fields.effortValue", { value: f.effort })}</span></label>
-            <input type="range" min="1" max="10" value={f.effort} onChange={e => set("effort", e.target.value)} className="w-full accent-orange-500"/>
-          </div>
-          <div><label className={LABEL_CLS}>{t("log.fields.notes")}</label>
-            <textarea rows={2} placeholder={t("log.fields.notesPh")} value={f.notes}
-              onChange={e => set("notes", e.target.value)} className={INPUT_CLS + " resize-none"}/></div>
+          <RunFields form={f} onChange={set} phScope="log.edit"/>
           {err && <p className="text-xs text-red-400">{err}</p>}
           <button onClick={save}
             className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
