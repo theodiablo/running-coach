@@ -9,6 +9,7 @@ import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
 import { createMockModel } from "../_shared/coach/mock.mjs";
 import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
+import { isPremiumActive } from "../_shared/premium.mjs";
 
 const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
 const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
@@ -70,10 +71,7 @@ async function getDailyLimit(admin: any, userId: string): Promise<number> {
   if (error) throw error;
   const n = Number(data?.coach_daily_limit);
   if (Number.isFinite(n) && n > 0) return n;
-  // NaN (including the banned 'infinity' literal) reads as not-premium, exactly
-  // as isPremiumActive does on the client.
-  const until = data?.premium_until ? Date.parse(String(data.premium_until)) : NaN;
-  if (Number.isFinite(until) && until > Date.now()) return PREMIUM_RATE_LIMIT_PER_DAY;
+  if (isPremiumActive(data?.premium_until)) return PREMIUM_RATE_LIMIT_PER_DAY;
   return RATE_LIMIT_PER_DAY;
 }
 
