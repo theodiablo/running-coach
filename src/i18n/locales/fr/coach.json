@@ -52,6 +52,7 @@
   },
   "toast": {
     "planAdjusted": "Plan ajusté par ton coach ✓",
+    "planAdjustedNamed": "Plan ajusté par {{name}} ✓",
     "feedbackFailed": "Impossible d'envoyer ton signalement. Réessaie dans un instant",
     "feedbackSent": "Merci. Ton signalement a bien été envoyé.",
     "memoryDuplicate": "Déjà dans la mémoire du coach.",
@@ -102,6 +103,7 @@
   },
   "send": "Envoyer",
   "thinking": "Le coach réfléchit…",
+  "thinkingNamed": "{{name}} réfléchit…",
   "footer": "Ton coach s'appuie sur ton message, ton plan, tes sorties récentes et la mémoire enregistrée pour répondre. Consulte notre <1>politique de confidentialité</1> et notre <3>note de sécurité</3>.",
   "input": {
     "aria": "Message au coach",
