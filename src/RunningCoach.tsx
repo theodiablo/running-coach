@@ -18,6 +18,7 @@ import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
 import { distanceKm } from "./utils/geo";
 import { ymd, fmt } from "./utils/format";
 import { computeBadges, unlockedIds } from "./utils/badges";
+import { coachDisplayName } from "./utils/coachIdentity";
 import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEfforts";
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
 import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces } from "./utils/races";
@@ -1024,6 +1025,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           onError={() => { setShowCoach(false); showToast(t("coach.errors.transport.offline"), "err"); }}>
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
             <CoachChat plan={plan} onApplyPlan={applyCoachPlan} sessionContext={coachSession}
+              coachName={coachDisplayName(settings.coachName)} coachAvatarId={settings.coachAvatar}
               appendUserContext={appendUserContext} showToast={showToast} onClose={() => setShowCoach(false)}/>
           </Suspense>
         </ChunkLoadBoundary>

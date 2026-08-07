@@ -29,6 +29,20 @@
     "placeholder": "p. ex. 2026-07-06 : Préfère les sorties longues le dimanche.",
     "footer": "Seules les suggestions de l'IA que tu choisis d'enregistrer depuis tes <link>conversations avec le coach IA</link> sont ajoutées à la mémoire."
   },
+  "coachIdentity": {
+    "title": "Identité du coach",
+    "desc": "Choisis un symbole et un nom pour ton coach. Ça change son apparence, pas ses conseils.",
+    "avatarLabel": "Symbole du coach",
+    "nameLabel": "Nom du coach",
+    "marks": {
+      "pulse": "Pouls",
+      "ridge": "Crête",
+      "track": "Piste",
+      "chevrons": "Flèches d'allure",
+      "stopwatch": "Chronomètre",
+      "flag": "Drapeau d'arrivée"
+    }
+  },
   "privacy": {
     "title": "Confidentialité",
     "shareLabel": "Partager les données d'utilisation et les rapports de plantage",

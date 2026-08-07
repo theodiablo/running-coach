@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, Check, ChevronRight, MessageCircle, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
+import { Activity, Award, Check, ChevronRight, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import type { LiveRunRow } from "../live/publisher";
 import { fmt, ymd, estMin, weekStart } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { sessionSteps } from "../utils/sessionSteps";
+import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
@@ -250,9 +251,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       {plan && (
         <button onClick={() => openCoach(null, "dashboard")}
           className="w-full bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
-          <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0">
-            <MessageCircle size={18} className="text-orange-400"/>
-          </div>
+          <CoachAvatar id={settings.coachAvatar} chip size={18}/>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">{t("dashboard.coach.title")}</p>
             <p className="text-xs text-slate-400">{t("dashboard.coach.subtitle")}</p>

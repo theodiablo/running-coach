@@ -55,6 +55,9 @@ export type SettingsState = Record<string, unknown> & {
   // Self-reported running volume from onboarding ("none" | "occasional" |
   // "regular" | "frequent") — the fitness signal before any runs are logged.
   trainingLevel?: string | null;
+  // Coach identity (UI-only; never sent to the model). Absent = defaults.
+  coachName?: string;    // shown verbatim, never translated
+  coachAvatar?: string;  // CoachAvatar mark id; absent/unknown = default mark
 };
 
 export type HrPending = { start: string | number; end: string | number; source: string };

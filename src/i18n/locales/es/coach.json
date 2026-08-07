@@ -52,6 +52,7 @@
   },
   "toast": {
     "planAdjusted": "Plan ajustado por tu entrenador ✓",
+    "planAdjustedNamed": "Plan ajustado por {{name}} ✓",
     "feedbackFailed": "No se pudo enviar tu comentario. Inténtalo de nuevo en un momento",
     "feedbackSent": "Gracias. Tu comentario se ha enviado.",
     "memoryDuplicate": "Ya está en la memoria del entrenador.",
@@ -102,6 +103,7 @@
   },
   "send": "Enviar",
   "thinking": "El entrenador está pensando…",
+  "thinkingNamed": "{{name}} está pensando…",
   "footer": "Tu entrenador usa tu mensaje, tu plan, tus entrenamientos recientes y la memoria guardada para responder. Consulta nuestra <1>política de privacidad</1> y el <3>aviso de seguridad</3>.",
   "input": {
     "aria": "Mensaje para el entrenador",

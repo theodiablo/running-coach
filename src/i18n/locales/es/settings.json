@@ -29,6 +29,20 @@
     "placeholder": "p. ej., 2026-07-06: Prefiere las tiradas largas los domingos.",
     "footer": "Solo se guardan las sugerencias de la IA que decidas añadir a la memoria desde tus <link>conversaciones con el entrenador de IA</link>."
   },
+  "coachIdentity": {
+    "title": "Identidad del entrenador",
+    "desc": "Elige un símbolo y un nombre para tu entrenador. Cambia su apariencia, no sus consejos.",
+    "avatarLabel": "Símbolo del entrenador",
+    "nameLabel": "Nombre del entrenador",
+    "marks": {
+      "pulse": "Pulso",
+      "ridge": "Cresta",
+      "track": "Pista",
+      "chevrons": "Flechas de ritmo",
+      "stopwatch": "Cronómetro",
+      "flag": "Bandera de meta"
+    }
+  },
   "privacy": {
     "title": "Privacidad",
     "shareLabel": "Compartir datos de uso e informes de fallos",
