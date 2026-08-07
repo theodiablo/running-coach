@@ -2,8 +2,7 @@
 
 A React 19 + Vite single-page running-training app. State is client-side and
 mirrored through `db` into an in-memory cache that debounce-upserts to a single
-per-user Supabase `app_state` JSONB row. It's failure-tolerant: a failed load
-falls back to an empty cache so the app still renders.
+per-user Supabase `app_state` JSONB row.
 
 ## Maintaining this file
 Keep this file lean and current: durable, cross-cutting rules only. Deep
@@ -12,11 +11,18 @@ something durable, put a one-line rule here only if it applies across tasks;
 otherwise update the relevant `docs/` file in the same change. Record reusable
 rules, not a changelog; delete anything stale.
 
+## Sub-agents
+Pick the model per task, don't inherit by default: cheap mechanical sweeps
+(grep-and-verify dead code, comment/lint audits, mass renames) go to `sonnet`
+or `haiku`; work needing architectural or product judgment (what a test is
+really protecting, whether an abstraction earns its keep, security-sensitive
+review) goes to `opus`. Fan out read-only investigators in parallel and apply
+their findings yourself — parallel agents editing overlapping files conflict.
+Always re-verify a finding before acting on it; agents report false positives.
+
 ## Setup & commands
-- A Claude Code SessionStart hook (`.claude/hooks/session-start.sh`) runs
-  `npm install` automatically in web sessions. In any other fresh checkout run
-  `npm install` first — deps are not committed, so everything below fails with
-  module-not-found until you do.
+- `npm install` first in a fresh checkout (a SessionStart hook does it for you
+  in web sessions); everything below fails with module-not-found until you do.
 - `npm run dev` — Vite dev server.
 - `npm test` — Vitest (run mode); `npm run test:watch` for watch. Suite lives
   in `src/**/*.test.{ts,tsx}`.
@@ -80,26 +86,22 @@ rules, not a changelog; delete anything stale.
   `VITE_SUPABASE_URL` is required at build time; workflows construct it from
   repo variable `SUPABASE_PROJECT_REF`. Don't hardcode project refs or
   credentials anywhere else.
-- **AWS resources are Terraform** (`infra/`, state in `s3://run-app-tfstate`).
-  New AWS resources are declared there, not clicked in the console or created
-  with a one-off CLI call. `terraform.yml` plans on PRs (comment) and **applies
-  on merge to `main`** — so merging an `infra/` change changes AWS. Apply
-  refuses any plan that destroys or replaces a resource unless dispatched with
-  `allow_destroy`; the backup bucket also carries `prevent_destroy`. Resources
-  that predate Terraform are adopted with `import` blocks, and you only apply
-  once `terraform plan` reports no changes. Account-wide things shared with
-  unrelated projects (the GitHub OIDC provider) stay `data` sources so this
-  config can never destroy them. Detail: `infra/README.md`.
+- **AWS resources are Terraform** (`infra/`, state in `s3://run-app-tfstate`) —
+  never the console or a one-off CLI call. `terraform.yml` plans on PRs and
+  **applies on merge to `main`**, so merging an `infra/` change changes AWS.
+  Apply refuses any destroying/replacing plan unless dispatched with
+  `allow_destroy`. Pre-Terraform resources are adopted with `import` blocks;
+  account-wide shared ones (the GitHub OIDC provider) stay `data` sources so
+  this config can never destroy them. Detail: `infra/README.md`.
 - **Migrations are append-only** once a version may have reached Supabase:
   never rename/remove a pushed `supabase/migrations/*.sql` version — keep a
   no-op marker and put real schema in a later migration. **Never hand-pick the
-  timestamp** — use `supabase migration new <name>`, which stamps a real UTC
-  one. Supabase keys applied migrations by the version prefix alone, so two
-  files sharing one are indistinguishable: the second is treated as already
-  applied and silently never runs (this happened on 2026-07-26 and an auth
-  trigger went missing). `src/migrations.test.ts` fails CI on a collision.
-  Apply with `supabase db push`, never a path that assigns its own version, or
-  the repo and `schema_migrations` drift apart and `db push` stops working.
+  timestamp** — use `supabase migration new <name>`. Supabase keys migrations by
+  the version prefix alone, so two files sharing one are indistinguishable and
+  the second silently never runs (cost us an auth trigger);
+  `src/migrations.test.ts` fails CI on a collision. Apply with
+  `supabase db push`, never a path that assigns its own version, or the repo and
+  `schema_migrations` drift apart and `db push` stops working.
 - **New `public` functions are `security invoker` with `set search_path = ''`
   and fully-qualified references.** Reach for `security definer` only when the
   function must touch something the caller can't (the `auth` schema, another
@@ -122,16 +124,15 @@ rules, not a changelog; delete anything stale.
   lives only in `auth.users`; read it from the auth session (`user.email`),
   and admin SQL joins `auth.users` for address lookups.
 - **Email change is one link + one notification, decided by server truth.**
-  `double_confirm_changes` is **off** (two links to open read as a bug), so the
-  confirmation goes to the new address only and the `email_changed` notification
-  tells the old one afterwards — keep that notification on, it's the only thing
-  left guarding against a silent takeover. The redirect can't tell you where the
-  change stands (the link is opened in the new inbox, usually another device,
-  where its `?code=` is unexchangeable even though the change landed), so always
-  re-read the user (`refreshSession`) and let `user.new_email` decide what to
-  say — `settleEmailChange` in `App.tsx`. Supabase Auth email templates are
-  project config, not migrations: `supabase/templates/*.html` is the source of
-  truth and the hosted project's copy is synced by hand (`docs/release.md`).
+  `double_confirm_changes` is **off**, so the confirmation goes to the new
+  address only and the `email_changed` notification tells the old one — keep
+  that notification on, it's the only guard against a silent takeover. The
+  redirect can't tell you where the change stands (the link opens in the new
+  inbox, usually another device, where its `?code=` is unexchangeable even
+  though the change landed), so always `refreshSession` and let `user.new_email`
+  decide what to say — `settleEmailChange` in `App.tsx`. Auth email templates
+  are project config, not migrations: `supabase/templates/*.html` is the source
+  of truth, synced to the hosted project by hand (`docs/release.md`).
 - **Multi-user:** open public signups — no single-user assumptions; per-user
   isolation via RLS on `app_state` and `profiles`.
 - **Plan building:** `buildPlan(raceDate, goalSec, planSessions, distanceKm,
@@ -162,15 +163,13 @@ rules, not a changelog; delete anything stale.
   for loyalty history), **service-role-writable only** — never put it in the
   `app_state` blob, which the user can write. `src/premium.ts` reads the caller's
   own row for UI only (`isPremiumActive`); **the gate is always server-side** in
-  the feature's edge function. `App.tsx` owns the fetch (once per sign-in,
-  refreshed when an entry point is tapped) and threads `isPremium` through the
-  `shared` bag. A failed read means free, so premium checks must degrade safely.
-  **The tier is not unveiled yet:** `canShowPremiumTeaser` is `false`, so a free
-  user sees **no** premium entry point on any platform — gate every premium
-  affordance on `isPremium || canShowPremiumTeaser`, never on `isPremium` alone,
-  so the whole tier reveals by flipping that one flag. New premium features land
-  premium-first — never claw back something already free. See
-  `docs/monetization.md` (which also lists the planned premium features).
+  the feature's edge function. `App.tsx` owns the fetch and threads `isPremium`
+  through the `shared` bag. A failed read means free, so premium checks must
+  degrade safely. **The tier is not unveiled yet:** `canShowPremiumTeaser` is
+  `false` — gate every premium affordance on `isPremium || canShowPremiumTeaser`,
+  never on `isPremium` alone, so the whole tier reveals by flipping that one
+  flag. New premium features land premium-first — never claw back something
+  already free. See `docs/monetization.md`.
 - **Telemetry:** everything goes through the vendor-agnostic seam
   `src/telemetry/index.ts`; only `src/telemetry/posthog.ts` imports the SDK
   (dynamic import, no-op until `VITE_POSTHOG_KEY`). Consent is opt-in,
@@ -229,22 +228,20 @@ rules, not a changelog; delete anything stale.
 
 ## AI coach agent
 Propose-and-confirm plan **editor, never author** — `buildPlan` stays the
-author. The model API keys, validator, tools, rate limit, and audit log live
-server-side in `supabase/functions/coach-agent`. The provider follows the
-`COACH_MODEL` name (default `claude-sonnet-5` via the Anthropic SDK; Mistral
-models route through the `_shared/coach/mistral.mjs` adapter — engine and
-tools stay provider-agnostic); shared logic is plain ESM in
-`supabase/functions/_shared/coach/*.mjs` (imported by both Deno and Vitest).
+author. Model keys, validator, tools, rate limit, and audit log live server-side
+in `supabase/functions/coach-agent`. The provider follows the `COACH_MODEL` name
+(default `claude-sonnet-5` via the Anthropic SDK; Mistral models route through
+the `_shared/coach/mistral.mjs` adapter — engine and tools stay
+provider-agnostic); shared logic is plain ESM in
+`supabase/functions/_shared/coach/*.mjs`, imported by both Deno and Vitest.
 `confirm` makes no model call and no server write — the client applies the
-returned plan via `applyCoachPlan`. `_shared/coach/runDigest.mjs` (the
-read-only `get_run_detail` tool) ports `src/utils/{geo,runSeries,runSplits,
-hr}.ts` — keep the algorithms in sync at both ends (parity-tested by
-`src/utils/runDigest.test.ts`); digests stay coordinate-free.
-**Read `docs/coach-agent.md` before
-touching prompts, tools, validator rules, or the chat client** — it also covers
-resiliency, usage limits, memory, history, and feedback. Evals: offline in
-`npm test`; live-model in `evals/coach/` (`npm run eval:live`) — re-run after
-prompt/tool-description changes.
+returned plan via `applyCoachPlan`. `_shared/coach/runDigest.mjs` (the read-only
+`get_run_detail` tool) ports `src/utils/{geo,runSeries,runSplits,hr}.ts` — keep
+both ends in sync (parity-tested by `src/utils/runDigest.test.ts`); digests stay
+coordinate-free. **Read `docs/coach-agent.md` before touching prompts, tools,
+validator rules, or the chat client.** Evals: offline in `npm test`; live-model
+in `evals/coach/` (`npm run eval:live`) — re-run after prompt/tool-description
+changes.
 
 ## Data shapes
 - **Run:** `{id, date, type, km, durationSec, hr, hrMax, elevation, effort,
@@ -274,7 +271,8 @@ prompt/tool-description changes.
   (`liveShare.public.*`). Spanish stays informal and region-neutral throughout.
   Reserve `course` / `carrera` for organized races, `sortie` / `entrenamiento`
   for logged runs. No em dashes (`—`) in either locale.
-  Enforced in `src/i18n/i18n.test.ts`.
+  `src/i18n/i18n.test.ts` enforces the `tu`/`vous` split and the em-dash ban;
+  the register and vocabulary rules above it are on you to keep.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
   the one `@theme` block in `src/index.css` (Tailwind v4 CSS-first, no
   `tailwind.config`). Transform/opacity-only and short. A global
@@ -307,11 +305,11 @@ prompt/tool-description changes.
   `parseFloat(v) || 0` in `onChange`; coalesce at use time. Settings fields
   auto-save (commit on blur/Enter), keeping local string state.
 - **Text controls render at 16px on iOS** — one `@supports
-  (-webkit-touch-callout: none)` block in `src/index.css`. Anything smaller
-  makes the WebView zoom the page in on focus, and Capacitor disables
-  pinch-zoom, so the app stays stuck zoomed. Don't defeat it with a stronger
-  font-size rule, and never "fix" zoom via `maximum-scale` / `user-scalable=no`
-  in the viewport meta — that would kill pinch zoom for web users.
+  (-webkit-touch-callout: none)` block in `src/index.css`. Anything smaller makes
+  the WebView zoom in on focus and Capacitor disables pinch-zoom, so the app
+  stays stuck zoomed. Don't defeat it with a stronger font-size rule, and never
+  "fix" it via `maximum-scale`/`user-scalable=no` in the viewport meta — that
+  kills pinch zoom for web users.
 - **iOS safe-area insets:** any surface pinned to a screen edge must pad with
   the `--safe-top` / `--safe-bottom` CSS vars (`src/index.css`; 0 on
   web/Android) via inline `calc()`. Verify on a notched device.
@@ -322,24 +320,21 @@ prompt/tool-description changes.
   `settings.intent` (`"race"` | `"fitness"`) via the pure `onboardingSteps`
   (`src/utils/onboarding.ts`). The **Health & safety** step is the unskippable
   medical gate — "Skip" jumps *to* it, never around it; only the summary's
-  "Get started" calls `onComplete` (records `settings.healthAck`). The
-  screening answer is GDPR health data — never persisted. Progress persists
-  per-step via `onSaveProgress`, capped at the health step; clear
-  `onboardStep`/`intent` on complete/skip. Set `onboarded: true` on any
-  first-run completion/dismissal.
+  "Get started" calls `onComplete` (records `settings.healthAck`). The screening
+  answer is GDPR health data — never persisted. Progress persists per-step via
+  `onSaveProgress`, capped at the health step; clear `onboardStep`/`intent` on
+  complete/skip, and set `onboarded: true` on any first-run completion/dismissal.
 - `LogView` accepts a `prefill` prop and an `onSaved` callback (fires only on a
   real manual save) — used to log a run straight from a plan session and
   auto-tick it.
-- **Settings = configure, not analyse.** Settings is a **hub**
-  (`src/modals/SettingsModal.tsx`) whose root is only a menu; every control
-  lives on a sub-page in `src/modals/settings/`: **Account** (identity,
-  language, email/password, privacy, backup & restore, destructive last),
-  **Integrations** (`ConnectionsCard` + the Strava/Zepp guides), **Training
-  Profile** (HR zones, coach memory). Sub-pages mount over the hub and register
-  their own `useDismissable`, so back pops one level. A vendor we can't connect
-  to gets a *guide* in `VendorGuides.tsx` (export a file → import it here;
-  vendor app → health store), never a fake integration. Analysis surfaces (full
-  HR zones reference) live in Progress → Stats.
+- **Settings = configure, not analyse.** `SettingsModal.tsx` is a hub whose root
+  is only a menu; every control lives on a sub-page in `src/modals/settings/`:
+  **Account** (identity, language, email/password, privacy, backup & restore,
+  destructive last), **Integrations** (`ConnectionsCard` + vendor guides),
+  **Training Profile** (HR zones, coach memory). Sub-pages mount over the hub
+  and register their own `useDismissable`, so back pops one level. A vendor we
+  can't connect to gets a *guide* in `VendorGuides.tsx`, never a fake
+  integration. Analysis surfaces live in Progress → Stats.
 
 ## Git / PR workflow
 - **Open a PR automatically when a task is finished** — committed, pushed, and
@@ -380,5 +375,6 @@ prompt/tool-description changes.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
+- `docs/integrations-suunto.md` — Suunto cloud import.
 - `docs/monetization.md` — monetization direction, the premium seam, payments path.
 - `infra/README.md` — Terraform-managed AWS resources, remote state, OIDC trust.

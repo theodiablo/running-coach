@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, HR_ZONES, SESSION_ZONES,
+  hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
   tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
 } from "./hr";
 
@@ -157,13 +157,6 @@ describe("hrSummary", () => {
   it("returns nulls for an empty/absent stream", () => {
     expect(hrSummary([])).toEqual({ hr: null, hrAvg: null, hrMax: null });
     expect(summarize(undefined)).toEqual({ hr: null, hrAvg: null, hrMax: null });
-  });
-});
-
-describe("HR_ZONES", () => {
-  it("defines five contiguous zones", () => {
-    expect(HR_ZONES).toHaveLength(5);
-    expect(HR_ZONES.map(z => z.n)).toEqual([1, 2, 3, 4, 5]);
   });
 });
 

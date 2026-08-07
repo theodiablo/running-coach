@@ -1,20 +1,13 @@
 import { CLOUD_OAUTH, cloudOauthProviderIds, type CloudOauthProviderId } from "../cloudOauthPreinit";
 
 // Pure classification of a native deep-link URL (appUrlOpen / getLaunchUrl) so
-// App.tsx's handler is a plain switch and the routing rules are unit-testable
-// without mounting App. Order encodes priority:
-//   1. Cloud-provider OAuth return (Polar, …) — its ?code= is NOT a Supabase
-//      auth code and must never reach exchangeCodeForSession (see
-//      cloudOauthPreinit.ts).
-//   2. Provider error (user cancelled the consent screen) — surface it.
-//   3. Email OTP confirmation (?token_hash=&type=email_change) — sent when the
-//      email template is customised to use {{ .TokenHash }}; Supabase's PKCE
-//      ?code= path does not cover those links, they need verifyOtp.
-//   4. GoTrue notice (?message=) — /auth/v1/verify accepted a link but has
-//      nothing to hand back (no code, no token, no session). Unclassified, that
-//      tap is a silent no-op that reads as "the link did nothing".
-//   5. Supabase PKCE ?code= — OAuth sign-in return, and the email-change
-//      confirmation (which does issue a session).
+// App.tsx's handler is a plain switch and the rules are testable without
+// mounting App. Priority order, and why it is that order: a cloud-provider
+// OAuth return first (its ?code= is NOT a Supabase code and must never reach
+// exchangeCodeForSession), then a provider error, then an email OTP
+// (?token_hash=&type=, which needs verifyOtp — PKCE does not cover those
+// links), then GoTrue's bare ?message= notice (unclassified, that tap is a
+// silent no-op), then the Supabase PKCE ?code=. See CLAUDE.md "Auth callbacks".
 export type AuthCallback =
   | { kind: "cloudOauth"; provider: CloudOauthProviderId; code: string | null; state: string | null }
   | { kind: "error"; message: string }

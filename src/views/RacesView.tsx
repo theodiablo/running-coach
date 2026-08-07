@@ -6,6 +6,7 @@ import { t as tGlobal } from "../i18n";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { track } from "../telemetry";
 import { fmt, ymd } from "../utils/format";
+import { hmsToSec } from "../utils/runForm";
 import { findEdition, editionLabel, isPersonalBest } from "../utils/races";
 import { AddRaceCard } from "../components/AddRaceCard";
 import { haversineM } from "../utils/geo";
@@ -568,7 +569,7 @@ function ResultForm({ joined, onSave, onCancel }: ResultFormProps) {
   const [alsoLog, setAlsoLog] = useState(true);
 
   const submit = () => {
-    const sec = (parseInt(h) || 0) * 3600 + (parseInt(m) || 0) * 60 + (parseInt(s) || 0);
+    const sec = hmsToSec({ dH: h, dM: m, dS: s });
     if (!sec) return;
     onSave(joined, sec, notes, alsoLog);
   };

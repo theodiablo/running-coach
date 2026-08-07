@@ -3,7 +3,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, ReferenceLine } from "recharts";
 import { VERT_COST } from "../constants";
-import { fmt, ymd } from "../utils/format";
+import { fmt, weekKey } from "../utils/format";
 import { effectiveMaxHR } from "../utils/hr";
 import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable } from "../utils/predictions";
 import { PredictionsInfo } from "../components/PredictionsInfo";
@@ -45,10 +45,7 @@ function Overview({runs, settings}: StatsViewProps) {
   const wkBars = (() => {
     const m: Record<string, number> = {};
     fRuns.forEach(r => {
-      const d   = new Date(r.date + "T00:00:00");
-      const mon = new Date(d);
-      mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      const k = ymd(mon);
+      const k = weekKey(r.date);
       m[k] = (m[k] || 0) + (r.km || 0);
     });
     return Object.entries(m)
@@ -61,10 +58,7 @@ function Overview({runs, settings}: StatsViewProps) {
   const wkElevBars = (() => {
     const m: Record<string, number> = {};
     fRuns.forEach(r => {
-      const d   = new Date(r.date + "T00:00:00");
-      const mon = new Date(d);
-      mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-      const k = ymd(mon);
+      const k = weekKey(r.date);
       m[k] = (m[k] || 0) + (r.elevation || 0);
     });
     return Object.entries(m)

@@ -30,6 +30,14 @@ function stringValues(obj: Tree): string[] {
   );
 }
 
+function stringEntries(obj: Tree, prefix = ""): [string, string][] {
+  return Object.entries(obj).flatMap(([k, v]) => {
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === "object" && !Array.isArray(v)) return stringEntries(v as Tree, path);
+    return typeof v === "string" ? [[path, v] as [string, string]] : [];
+  });
+}
+
 // Interpolation slots must survive translation — a missing {{var}} renders a
 // hole in the sentence for that locale.
 function slots(obj: Tree, prefix = ""): Map<string, string> {
@@ -66,6 +74,19 @@ describe("locale dictionaries", () => {
     ["fr", fr, marketingFr],
   ] as const)("%s copy does not use English-style em dashes", (_lang, app, marketing) => {
     expect([...stringValues(app as Tree), ...stringValues(marketing as Tree)].filter(value => value.includes("—"))).toEqual([]);
+  });
+
+  // French app copy says `tu`. `vous` is only for people who aren't users yet:
+  // the public watch page (and marketing, which lives in its own files).
+  it("fr app copy addresses the runner as tu", () => {
+    const offenders = stringEntries(fr as Tree)
+      .filter(([path, value]) => /\b(vous|votre|vos)\b/i.test(value) && !path.startsWith("liveShare.public."))
+      .map(([path]) => path);
+    expect(offenders).toEqual([]);
+  });
+
+  it("fr marketing keeps vouvoiement", () => {
+    expect(stringValues(marketingFr as Tree).some(v => /\b(vous|votre|vos)\b/i.test(v))).toBe(true);
   });
 });
 

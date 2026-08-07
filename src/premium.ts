@@ -11,22 +11,16 @@
 // Nothing here touches `db`/app_state: that blob is client-writable, and
 // entitlement is per-account server truth, not synced user state.
 
+// @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
+import * as sharedPremium from "../supabase/functions/_shared/premium.mjs";
 import { supabase } from "./supabase";
 
-// Whether a premium_until value is still active. Pure, so it can be re-evaluated
-// on every render (an expiry flips the UI without a refetch).
-//
-// Deliberately strict about what counts as premium: anything unparseable is
-// FREE. That covers null/undefined, an empty string, and the string "infinity"
-// (Postgres accepts timestamptz 'infinity' and PostgREST serialises it as that
-// literal, which Date.parse() reports as NaN) — the migration bans it, and this
-// keeps a stray grant from reading as premium here but free in the edge
-// function, or vice versa. Exactly-now is expired.
-export function isPremiumActive(premiumUntil: string | null | undefined, now: number = Date.now()): boolean {
-  if (!premiumUntil) return false;
-  const t = Date.parse(premiumUntil);
-  return Number.isFinite(t) && t > now;
-}
+// The entitlement predicate itself lives with the edge functions so client and
+// server can't drift on what counts as premium — see that file for why anything
+// unparseable is deliberately FREE. Pure, so it can be re-evaluated on every
+// render (an expiry flips the UI without a refetch).
+export const isPremiumActive: (premiumUntil: string | null | undefined, now?: number) => boolean =
+  (sharedPremium as { isPremiumActive: (u: string | null | undefined, now?: number) => boolean }).isPremiumActive;
 
 // Read the caller's own premium_until. NEVER throws and never rejects: any
 // failure (offline, RLS, missing row, transport) resolves null, i.e. the free

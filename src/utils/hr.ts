@@ -129,16 +129,23 @@ export function timeInZones(
   if (!maxHR || !samples || samples.length < 2) return [];
   const capMs = (opts?.capSec ?? 10) * 1000;
   const sec = [0, 0, 0, 0, 0]; // zones 1..5
+  // Boundaries once, not per sample — a 2h 1Hz strap is ~7200 samples.
+  const bands = HR_ZONES.map(z => hrZoneBpm(z.lo, z.hi, maxHR, restHR));
+  const zoneOf = (hr: number) => {
+    if (!hr) return null;
+    const i = bands.findIndex((r, n) =>
+      r && (n === bands.length - 1 ? hr >= r.lo : hr >= r.lo && hr < r.hi));
+    return i >= 0 ? i + 1 : null;
+  };
   let any = false;
   for (let i = 1; i < samples.length; i++) {
     const dt = Math.min(Math.max(0, samples[i].t - samples[i - 1].t), capMs);
-    const z = runZoneIndex(samples[i - 1].bpm, maxHR, restHR);
+    const z = zoneOf(samples[i - 1].bpm);
     if (z) { sec[z - 1] += dt / 1000; any = true; }
   }
   return any ? sec.map((s, i) => ({ zone: i + 1, sec: s })) : [];
 }
 
-// Resolve a session type's target bpm range from settings.
 export function sessionHR(type: RunType | string, settings: Partial<Pick<SettingsState, "maxHR" | "restHR">>) {
   const key = type in SESSION_ZONES ? type as SessionZoneType : "EASY";
   const cfg = SESSION_ZONES[key];

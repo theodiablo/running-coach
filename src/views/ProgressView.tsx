@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { HistoryView } from "./HistoryView";
 import { StatsView } from "./StatsView";
@@ -24,14 +24,16 @@ type ProgressViewProps = {
 };
 
 export function ProgressView(props: ProgressViewProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { runs, races, initialSub, navKey } = props;
   const [sub, setSub] = useState<ProgressSub>(initialSub || "log");
   // Re-apply the requested sub-tab whenever we're navigated here (navKey bumps),
   // even if it's the same target as last time. Render-time sync, not an effect.
   const [prevKey, setPrevKey] = useState(navKey);
   if (navKey !== prevKey) { setPrevKey(navKey); setSub(initialSub || "log"); }
-  const badges = computeBadges(runs, races?.participations || []);
+  // Language is a dependency: computeBadges resolves its labels through t().
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
+  const badges = useMemo(() => computeBadges(runs, races?.participations || []), [runs, races, i18n.language]);
   const unlocked = badges.filter(b => b.unlocked).length;
 
   return (

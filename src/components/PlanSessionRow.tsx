@@ -9,7 +9,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import { HRTarget } from "./HRTarget";
 import type { PlanSession, RunType, SettingsState } from "../types";
 
-const typeClass = (type: PlanSession["type"]) => TCLR[(type as RunType) || "OTHER"] || "text-violet-400";
+const typeClass = (type: PlanSession["type"]) => TCLR[(type as RunType) || "OTHER"] || TCLR.OTHER;
 
 type PlanSessionRowProps = {
   session: PlanSession;

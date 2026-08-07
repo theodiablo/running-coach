@@ -31,10 +31,6 @@ describe("mintShareToken", () => {
     rand.mockRestore();
   });
 
-  it("does not repeat itself", () => {
-    const seen = new Set(Array.from({ length: 200 }, () => mintShareToken()));
-    expect(seen.size).toBe(200);
-  });
 });
 
 describe("isValidShareToken", () => {

@@ -25,7 +25,7 @@ type PlanSession = {
 type PlanWeek = { weekNumber: number; startDate: string; phase: string; sessions: PlanSession[] };
 type RecentRun = { date?: string; km?: number };
 type OverlayRace = { editionId: string; date: string; distanceKm: number; elevation?: number };
-type BuildPlanOptions = {
+export type BuildPlanOptions = {
   recentRuns?: RecentRun[];
   races?: OverlayRace[];
   mainEditionId?: string | null;
@@ -65,20 +65,16 @@ type WeekCtx = {
   dist: number;
 };
 
-// `opts` is additive so the positional call sites keep working:
-//   { recentRuns: Run[] }  — recent logged runs, used to seed a fitness-aware
-//                            starting volume so the plan doesn't regress a fit
-//                            athlete back to a 4.5 km "long" run.
-// (Phase 2 adds `mainEditionId` / `races` for the secondary-race overlay.)
+// `opts` is additive so the positional call sites keep working. Every app call
+// site must pass `style` — omitting it silently rebuilds as "balanced".
 export function buildPlan(
   raceDate: unknown,
   goalSec: unknown,
   planSessions?: PlanSessionInput[],
   distanceKm?: unknown,
   raceElevation?: unknown,
-  opts: unknown = {}
+  planOpts: BuildPlanOptions = {}
 ): BuiltPlan {
-  const planOpts: BuildPlanOptions = opts && typeof opts === "object" ? opts as BuildPlanOptions : {};
   if (!goalSec) goalSec = 7200;
   if (!distanceKm) distanceKm = 20;
   if (!planSessions?.length) planSessions = [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}];

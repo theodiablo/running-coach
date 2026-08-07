@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronDown } from "lucide-react";
 import { dayName } from "../i18n";
 import { fmt } from "../utils/format";
 import { runnerAge } from "../utils/hr";
-import { findEdition } from "../utils/races";
+import { secondaryRaces } from "../utils/races";
 import { routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser } from "../premium";
 import { GoalConfigurator } from "../components/GoalConfigurator";
@@ -15,7 +15,7 @@ import { PlanSessionRow } from "../components/PlanSessionRow";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
-import { carryProgress, type PlanSessionInput } from "../utils/plan";
+import { carryProgress, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 
 // ── Week windows ────────────────────────────────────────────────────────────
 // A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
@@ -55,7 +55,7 @@ type PlanViewProps = {
     planSessions: PlanSessionInput[],
     distanceKm: number | string,
     raceElevation: number | string,
-    opts?: Record<string, unknown>,
+    opts?: BuildPlanOptions,
   ) => Plan;
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
@@ -180,10 +180,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
       ? { availabilityMode: "simple" as const, availDays: clampDays(draftDays), availTime: draftBand }
       : { availabilityMode: "custom" as const, availDays: ps.length, availTime: draftBand };
     saveSettings({...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style, ...availMeta});
-    const secRaces = (races?.participations || [])
-      .filter(p => p.status === "wishlist" && p.inPlan && p.editionId !== targetEditionId)
-      .map(p => ({ editionId: p.editionId, date: p.raceDate, distanceKm: p.distanceKm,
-        elevation: p.editionId ? findEdition(p.editionId)?.edition?.elevation || 0 : 0 }));
+    const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
     const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel});
     const hadPlan = !!plan;
     // A rebuild keeps done/skipped progress by session id — the on-screen note

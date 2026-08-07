@@ -34,7 +34,7 @@ export function ConsentBanner({ onConsentChange }: ConsentBannerProps) {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[60] p-3 sm:p-4">
+    <div className="fixed inset-x-0 bottom-0 z-[60] p-3 sm:p-4 pb-[calc(0.75rem+var(--safe-bottom))] sm:pb-[calc(1rem+var(--safe-bottom))]">
       <div className="max-w-lg mx-auto bg-slate-800 border border-slate-700 rounded-2xl shadow-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Shield size={15} className="text-orange-400 shrink-0" />

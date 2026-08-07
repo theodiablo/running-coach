@@ -521,10 +521,11 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
   // far more often than GPS fixes land, so keying one memo on both `points` and
   // `hrSamples` would re-run the O(points) distance/elevation/pace scan below on
   // every heart-rate sample instead of only when the track actually changes.
-  const gpsStats = useMemo(() => {
+  // Keyed on `points` alone for the same reason: the UI clock bumps movingSec
+  // every second, and only avgPace (one division) actually depends on it.
+  const track = useMemo(() => {
     const km = distanceKm(points);
     const elevation = Math.round(elevGainM(points));
-    const avgPace = km > 0 ? movingSec / km : 0;
     // Current pace over the last window, anchored on the latest fix's time.
     let curPace = 0;
     if (points.length >= 2) {
@@ -538,8 +539,13 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
         }
       }
     }
-    return { km, elevation, movingSec, avgPace, curPace, n: points.filter(Boolean).length };
-  }, [points, movingSec]);
+    return { km, elevation, curPace, n: points.filter(Boolean).length };
+  }, [points]);
+
+  const gpsStats = useMemo(
+    () => ({ ...track, movingSec, avgPace: track.km > 0 ? movingSec / track.km : 0 }),
+    [track, movingSec],
+  );
 
   // `hr`/`hrAt` are the latest reading and its epoch ms, taken from the sensor
   // stream (`hrLast`) rather than the recorded samples so they're live before

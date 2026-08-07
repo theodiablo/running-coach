@@ -73,7 +73,6 @@ export function WatchSyncLog({ onHide }: { onHide?: () => void }) {
   const copy = () => { try { navigator.clipboard?.writeText(JSON.stringify(entries, null, 2)); } catch { /* ignore */ } };
   const hide = () => { setWatchDebug(false); onHide?.(); };
 
-  // Newest first.
   const rows = [...entries].reverse();
 
   return (

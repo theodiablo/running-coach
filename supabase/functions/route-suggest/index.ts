@@ -10,6 +10,7 @@
 // Request/response shape and deploy/secrets: docs/route-finder.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isPremiumActive } from "../_shared/premium.mjs";
 
 const ORS_API_KEY = Deno.env.get("ORS_API_KEY");
 const ORS_BASE = Deno.env.get("ORS_BASE_URL") ?? "https://api.openrouteservice.org";
@@ -55,8 +56,8 @@ function isUsableFeature(feature: unknown): boolean {
 //
 // THROWS on a read failure rather than returning false: a transient DB error
 // must land on the generic error path, never tell a paying user they aren't
-// premium. NaN (including the string "infinity", which the migration bans) is
-// treated as not-premium, matching isPremiumActive on the client exactly.
+// premium. What counts as active is _shared/premium.mjs, the same predicate the
+// client renders from.
 // deno-lint-ignore no-explicit-any
 async function isPremiumUser(admin: any, userId: string): Promise<boolean> {
   const { data, error } = await admin.from("profiles")
@@ -70,8 +71,7 @@ async function isPremiumUser(admin: any, userId: string): Promise<boolean> {
     return false;
   }
   if (error) throw error;
-  const t = data?.premium_until ? Date.parse(String(data.premium_until)) : NaN;
-  return Number.isFinite(t) && t > Date.now();
+  return isPremiumActive(data?.premium_until);
 }
 
 // ── Backend seam ────────────────────────────────────────────────────────────

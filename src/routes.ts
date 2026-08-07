@@ -15,7 +15,6 @@ type BackupRoute = RouteBackup & { id?: unknown; points?: unknown; stats?: unkno
 // keeping traces separate keeps the blob small. A run in rc_runs holds only a
 // summary + `routeId` reference; the trace is fetched lazily for replay.
 
-// Insert a trace, returning its new id.
 export async function saveRoute({ points, stats }: RouteTrace): Promise<string> {
   const user_id = currentUserId();
   if (!user_id) throw new Error("Not signed in");

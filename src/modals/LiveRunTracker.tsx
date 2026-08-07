@@ -29,6 +29,7 @@ import { isNative, isAndroid, isIos } from "../native";
 import { BG_LOC_DISCLOSED_KEY, LIVE_SHARE_KEY, routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser, isPremiumActive } from "../premium";
 import { track } from "../telemetry";
+import { hrNudgeFor } from "../utils/hrNudge";
 import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
@@ -319,37 +320,22 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // now" dismisses just this run; "Don't record" sets the opt-out only for the
   // generic off-state prompt. Never blocks Start — see guardedStart/maybeShowHrNudge.
   const [showHrNudge, setShowHrNudge] = useState(false);
-  const hrNudge = (() => {
-    if (!isNative) return null;
-    // Re-authorize nudges only make sense on the platform that owns the synced
-    // method — on the other platform the method is effectively "off" but the
-    // generic setup nudge below would mislead too, so show nothing for it.
-    if (hrMethod === "healthconnect" && isAndroid && !healthConnectAuthorized) return {
-      title: t("tracker.hrNudge.authTitle"),
-      body: t("tracker.hrNudge.authBody"),
-      acceptLabel: t("tracker.hrNudge.authAccept"),
-      allowOptOut: false,
-    };
-    if (hrMethod === "healthkit" && isIos && !healthKitAuthorized) return {
-      title: t("tracker.hrNudge.hkAuthTitle"),
-      body: t("tracker.hrNudge.hkAuthBody"),
-      acceptLabel: t("tracker.hrNudge.authAccept"),
-      allowOptOut: false,
-    };
-    if (hrMethod === "bluetooth" && !pairedHrDevice) return {
-      title: t("tracker.hrNudge.pairTitle"),
-      body: t("tracker.hrNudge.pairBody"),
-      acceptLabel: t("tracker.hrNudge.pairAccept"),
-      allowOptOut: false,
-    };
-    if ((hrMethod || "off") === "off" && !hrOptOut) return {
-      title: t("tracker.hrNudge.setupTitle"),
-      body: t("tracker.hrNudge.setupBody"),
-      acceptLabel: t("tracker.hrNudge.setupAccept"),
-      allowOptOut: true,
-    };
-    return null;
-  })();
+  // Copy for the nudge the pure rules picked; see utils/hrNudge.ts for why the
+  // other platform's synced method yields none.
+  const hrNudgeChoice = hrNudgeFor({
+    isNative, isAndroid, isIos, hrMethod,
+    healthConnectAuthorized, healthKitAuthorized,
+    pairedHrDevice: !!pairedHrDevice, hrOptOut: !!hrOptOut,
+  });
+  const HR_NUDGE_COPY = {
+    auth:   { title: t("tracker.hrNudge.authTitle"),   body: t("tracker.hrNudge.authBody"),   acceptLabel: t("tracker.hrNudge.authAccept") },
+    hkAuth: { title: t("tracker.hrNudge.hkAuthTitle"), body: t("tracker.hrNudge.hkAuthBody"), acceptLabel: t("tracker.hrNudge.authAccept") },
+    pair:   { title: t("tracker.hrNudge.pairTitle"),   body: t("tracker.hrNudge.pairBody"),   acceptLabel: t("tracker.hrNudge.pairAccept") },
+    setup:  { title: t("tracker.hrNudge.setupTitle"),  body: t("tracker.hrNudge.setupBody"),  acceptLabel: t("tracker.hrNudge.setupAccept") },
+  };
+  const hrNudge = hrNudgeChoice
+    ? { ...HR_NUDGE_COPY[hrNudgeChoice.id], allowOptOut: hrNudgeChoice.allowOptOut }
+    : null;
   const disclosed = () => {
     try { return localStorage.getItem(BG_LOC_DISCLOSED_KEY) === "1"; } catch { return false; }
   };

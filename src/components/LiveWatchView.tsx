@@ -1,19 +1,12 @@
-// The run-in-progress display, shared by the two things that show one: the
-// in-app watch modal (the runner's own other session) and the public
-// /watch/:token page (anyone holding the link).
-//
-// It lives here so the two can't drift, and the reason that matters is the
-// STALENESS MODEL rather than the layout. The recorder publishes only when a
-// GPS fix lands, so silence is ambiguous by construction: a runner waiting at a
-// crossing, a phone in a tunnel, and an app the OS killed are indistinguishable
-// from out here. Nothing below ever asserts something is wrong — it reports how
-// long it has been quiet and lets the reader draw their own conclusion. A
-// second copy of this display would eventually start guessing.
+// The run-in-progress display, shared by the in-app watch modal and the public
+// /watch/:token page. Shared so the two can't drift on the STALENESS MODEL, not
+// for the layout: the recorder publishes only when a GPS fix lands, so a runner
+// waiting at a crossing, a phone in a tunnel and an app the OS killed are
+// indistinguishable from out here. Nothing below asserts something is wrong —
+// it reports how long it has been quiet. A second copy would start guessing.
 //
 // Layout is container-queried, not viewport-queried: the same component renders
-// full-screen on the public page and inside the in-app modal, so only the
-// container's own width can decide whether the panel sits beside or below the
-// map.
+// full-screen and inside a modal. Detail: docs/live-sharing.md.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

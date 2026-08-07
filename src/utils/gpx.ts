@@ -6,6 +6,7 @@
 // <Time>, <Position>, <AltitudeMeters>, <HeartRateBpm><Value>. One file = one
 // activity; distance/elevation are derived from the trace with the same geo
 // math as live GPS runs, so an imported map and its stats agree.
+import { ymd } from "./format";
 import { distanceKm, elevGainM, type TrackPointOrGap } from "./geo";
 import { hrSummary } from "./hr";
 import { normalizeHrSamples } from "../imports/series";
@@ -45,11 +46,7 @@ function parseXml(input: string): Document | null {
   } catch { return null; }
 }
 
-function ymdLocal(ms: number) {
-  const d = new Date(ms);
-  const p2 = (n: number) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
-}
+const ymdLocal = (ms: number) => ymd(new Date(ms));
 
 // GPS-less fallback (indoor/treadmill exports): the file's own time range and
 // declared distance, used when there are no positioned trackpoints to derive

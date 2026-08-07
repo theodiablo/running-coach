@@ -22,9 +22,9 @@ lives in `src/notify.ts` — generic, not race-specific, so other
 contribution-shaped writes (e.g. coach feedback) reuse it without importing a
 races module.
 
-Keep ALL catalogue lookups going through `src/utils/races.ts` (`allRaces`,
-`allEditions`, `findEdition`, `findRace`), which holds the fetched catalogue in
-a module cache (`hydrateCatalogue`) loaded once at boot by `loadCatalogue`.
+Keep ALL catalogue lookups going through `src/utils/races.ts` (`findEdition`,
+`searchEditions`), which holds the fetched catalogue in a module cache
+(`hydrateCatalogue`) loaded once at boot by `loadCatalogue`.
 **Failure-tolerant:** a failed fetch leaves the cache `[]` and the app still
 renders (My Races falls back to participation snapshots); the boot load is
 fired **unawaited** so a slow/down Supabase never blocks the splash.
@@ -101,8 +101,8 @@ plan races, not just the target.
 Two ways to complete: manual "log result" (RacesView, optionally also adds a
 RACE run via `addRuns(..., {skipDetect:true})`), or **auto-detect** — a saved
 run on `settings.raceDate` within ±18% of the target distance triggers an
-undoable "mark done" toast (`detectRaceCompletion` + `detectCompletion` in
-`RunningCoach.tsx`).
+undoable "mark done" toast (`detectAnyRace` + `detectCompletion` in
+`RunningCoach.tsx`), which matches against every race on the plan.
 
 ## Badges
 

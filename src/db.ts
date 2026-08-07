@@ -1,21 +1,14 @@
 import { supabase } from "./supabase";
 import { UNSYNCED_STATE_KEY } from "./constants";
 
-// Cloud-backed key/value store over the per-user `app_state` row.
+// Cloud-backed key/value store over the single per-user `app_state` jsonb blob,
+// mirrored in an in-memory cache so the app's synchronous db.get/db.set keep
+// working; writes debounce into one upsert. See CLAUDE.md "Persistence".
 //
-// The whole running-coach state lives in a single jsonb blob
-// (app_state.data) keyed by user_id. We mirror that blob in an in-memory
-// cache so the synchronous-style db.get/db.set the app already uses keep
-// working; writes are debounced into a single upsert.
-//
-// Offline durability: every flush attempt first snapshots the cache to
-// localStorage (UNSYNCED_STATE_KEY) and only a CONFIRMED upsert clears it, so
-// a write that failed offline — or was in flight when the process died —
-// survives to the next boot, where initStore restores it if it is newer than
-// the server row (same last-writer-wins the debounced whole-blob upsert
-// already implies). A failed flush also retries itself: on the `online` event
-// and on a timer, so recovering connectivity syncs without waiting for the
-// user's next edit.
+// Offline durability turns on one rule: every flush snapshots the cache to
+// localStorage first and only a CONFIRMED upsert clears it, so a write that
+// failed offline — or was in flight when the process died — survives to the
+// next boot, where initStore restores it if it is newer than the server row.
 
 let userId: string | null = null;
 let cache: Record<string, unknown> = {};

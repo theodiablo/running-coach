@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Activity, Award, Check, ChevronRight, MessageCircle, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import type { LiveRunRow } from "../live/publisher";
-import { fmt, ymd, estMin } from "../utils/format";
+import { fmt, ymd, estMin, weekStart } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { sessionSteps } from "../utils/sessionSteps";
@@ -38,10 +38,13 @@ type DashboardProps = {
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
 
 export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker}: DashboardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
-  const nb = nextBadge(computeBadges(runs, races?.participations || []));
+  // Keyed on the language too: computeBadges resolves its strings through t(),
+  // so a locale switch must recompute even though runs/races are unchanged.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
+  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [])), [runs, races, i18n.language]);
   const today    = new Date(); today.setHours(0,0,0,0);
   const raceD    = new Date(settings.raceDate + "T00:00:00");
   const daysLeft = Math.max(0, Math.ceil((raceD.getTime() - today.getTime()) / 86400000));
@@ -59,7 +62,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         .sort((a, b) => a.date.localeCompare(b.date))[0]
     : null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
-  const wkMon = new Date(today); wkMon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const wkMon = weekStart(today);
   const wkKm  = runs.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
   const totKm = runs.reduce((s, r) => s + (r.km||0), 0);
 

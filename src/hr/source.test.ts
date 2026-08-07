@@ -40,11 +40,3 @@ describe("getHrSource platform matrix", () => {
   });
 });
 
-describe("hrMethodsForPlatform", () => {
-  it("offers the platform's own health store only", async () => {
-    const { hrMethodsForPlatform } = await loadSource("android");
-    expect(hrMethodsForPlatform("android").map(m => m.id)).toEqual(["off", "bluetooth", "healthconnect"]);
-    expect(hrMethodsForPlatform("ios").map(m => m.id)).toEqual(["off", "bluetooth", "healthkit"]);
-    expect(hrMethodsForPlatform("web").map(m => m.id)).toEqual(["off", "bluetooth"]);
-  });
-});

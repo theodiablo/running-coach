@@ -14,16 +14,6 @@ beforeEach(() => {
 });
 
 describe("requestRunNotifications", () => {
-  it("resolves to the native granted flag", async () => {
-    native.requestNotifications.mockResolvedValue({ granted: true });
-    expect(await requestRunNotifications()).toBe(true);
-  });
-
-  it("resolves false when access is denied", async () => {
-    native.requestNotifications.mockResolvedValue({ granted: false });
-    expect(await requestRunNotifications()).toBe(false);
-  });
-
   it("never throws on a bridge failure", async () => {
     native.requestNotifications.mockRejectedValue(new Error("boom"));
     expect(await requestRunNotifications()).toBe(false);

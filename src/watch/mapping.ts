@@ -1,5 +1,6 @@
 import type { Run } from "../types";
 import type { WatchSessionRaw } from "./plugin";
+import { p2, ymd } from "../utils/format";
 import { importedNote } from "../imports/dataOrigin";
 import { isDuplicateRun } from "../imports/dedupe";
 
@@ -19,9 +20,9 @@ export function sessionRunType(exerciseType?: number): "EASY" | "WALK" | null {
   return null;
 }
 
+// UTC counterpart of format.ts's local-time `ymd`.
 function utcYmd(ms: number): string {
   const d = new Date(ms);
-  const p2 = (n: number) => String(n).padStart(2, "0");
   return d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate());
 }
 
@@ -33,9 +34,7 @@ export function sessionLocalDate(startTime: string, zoneOffsetSec?: number | nul
   const ms = +new Date(startTime);
   if (!Number.isFinite(ms)) return "";
   if (zoneOffsetSec != null && Number.isFinite(zoneOffsetSec)) return utcYmd(ms + zoneOffsetSec * 1000);
-  const d = new Date(ms);
-  const p2 = (n: number) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
+  return ymd(new Date(ms));
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

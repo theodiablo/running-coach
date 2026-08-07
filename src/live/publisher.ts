@@ -1,23 +1,14 @@
-// Live run sharing — the recorder half.
+// Live run sharing — the recorder half. Publishes the whole simplified trace to
+// the caller's single `live_runs` row while a run is recording; deleted on save
+// or discard.
 //
-// While a run is being recorded with sharing on, the whole simplified trace is
-// written to the caller's single `live_runs` row so their own other sessions can
-// watch it. Deleted when the run is saved or discarded.
-//
-// Two constraints shape everything here:
-//
-// 1. NOTHING may be driven by a timer. A backgrounded WebView throttles JS
-//    timers to a crawl, which is precisely when a run is being recorded with
-//    the screen off. Every publish is therefore triggered by an accepted GPS
-//    fix (the same render that already drives the lock-screen notification),
-//    and this module only decides whether enough time has passed. A stationary
-//    runner emits no fixes and so publishes nothing — the WATCHER owns
-//    staleness, and says "signal lost" on its own.
-//
-// 2. NOTHING here may break recording. Every call is fire-and-forget and
-//    swallows its error; a failed publish simply retries on the next fix, and
-//    because each upsert carries the full trace, a gap heals itself rather than
-//    leaving a hole.
+// Two constraints shape everything here. NOTHING may be driven by a timer: a
+// backgrounded WebView throttles them to a crawl, which is exactly when a run is
+// being recorded, so every publish rides an accepted GPS fix and this module
+// only decides whether enough time has passed — a stationary runner publishes
+// nothing and the WATCHER owns staleness. And NOTHING here may break recording:
+// every call is fire-and-forget and swallows its error, and because each upsert
+// carries the full trace, a gap heals itself. Detail: docs/live-sharing.md.
 
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
