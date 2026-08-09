@@ -187,6 +187,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // from a plan session's "Find a route"). Kept SEPARATE from trackerLink, which
   // flows into the saved run's prefill — this must not.
   const [trackerFindKm, setTrackerFindKm] = useState<number | undefined>(undefined);
+  // The full session row behind trackerLink — the link only carries ids (for
+  // the save prefill); the tracker's guided-workout mode needs the row itself.
+  const trackerSession = useMemo(() => {
+    if (!trackerLink || !plan?.weeks) return null;
+    const wk = plan.weeks.find(w => w.weekNumber === trackerLink.wNum);
+    return wk?.sessions?.find(s => s.id === trackerLink.sId) ?? null;
+  }, [trackerLink, plan]);
   const [backupRoutes,setBackupRoutes]= useState<RouteBackup[]>([]);
   // Personal races layer (wishlist / completed + seen-badge set). seenBadges is
   // null until first-run seeding so we can tell "never computed" from "none".
@@ -992,7 +999,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           track("onboarding_completed", {});
         }}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        initialFindKm={trackerFindKm} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={() => { setShowTracker(false); openSettings(); }}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}

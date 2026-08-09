@@ -21,6 +21,14 @@ export type RunNotificationInput = {
   movingMs: number;
   /** Wall clock now (ms) — passed in so the builder stays pure. */
   nowMs: number;
+  /**
+   * Guided-workout current step ("Rep 3/6 · 800 m · 4:35/km"), pre-localized.
+   * iOS-only display (Live Activity step line): Android's step surface is the
+   * WorkoutGuide plugin's own notification, and the patched service rebuilds
+   * `message` natively — a step suffix there would flicker away on the first
+   * background fix.
+   */
+  stepText?: string | null;
 };
 
 /**
@@ -42,6 +50,8 @@ export type RunNotificationLive = {
 export type RunNotificationContent = {
   titleKey: "title" | "pausedTitle";
   message: string;
+  /** Guided-workout step line (iOS Live Activity); absent when unguided. */
+  step?: string;
   /**
    * Chronometer anchor: the OS renders elapsed = now - chronometerStartMs.
    * Anchored to now - movingMs so the displayed clock is MOVING time (pauses
@@ -67,11 +77,13 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
     hrAtMs: input.hrAt || null,
     tracking: input.state === "tracking",
   };
+  const step = input.stepText ? { step: input.stepText } : {};
   if (input.state === "paused") {
     // No OS chronometer while paused — show the frozen moving time in the text.
     return {
       titleKey: "pausedTitle",
       message: [fmt.dur(Math.round(input.movingMs / 1000)), ...parts].join(" · "),
+      ...step,
       chronometerStartMs: null,
       live,
     };
@@ -79,6 +91,7 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
   return {
     titleKey: "title",
     message: parts.join(" · "),
+    ...step,
     chronometerStartMs: Math.round(input.nowMs - input.movingMs),
     live,
   };
@@ -95,6 +108,7 @@ export function sameNotificationContent(
 ): boolean {
   if (!prev) return false;
   if (prev.titleKey !== next.titleKey || prev.message !== next.message) return false;
+  if ((prev.step || null) !== (next.step || null)) return false;
   if ((prev.chronometerStartMs == null) !== (next.chronometerStartMs == null)) return false;
   if (prev.chronometerStartMs == null || next.chronometerStartMs == null) return true;
   return Math.abs(prev.chronometerStartMs - next.chronometerStartMs) < CHRONO_TOLERANCE_MS;

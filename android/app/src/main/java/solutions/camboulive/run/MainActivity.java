@@ -8,11 +8,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Local plugins. Must be registered before super.onCreate so the bridge
         // picks them up: WatchImport (post-run exercise import from Health Connect),
-        // RunPermissions (POST_NOTIFICATIONS for the recording-run notification)
-        // and LivePublish (screen-off live-share uploads).
+        // RunPermissions (POST_NOTIFICATIONS for the recording-run notification),
+        // LivePublish (screen-off live-share uploads) and WorkoutGuide
+        // (screen-off guided-workout cues).
         registerPlugin(WatchImportPlugin.class);
         registerPlugin(RunPermissionsPlugin.class);
         registerPlugin(LivePublishPlugin.class);
+        registerPlugin(WorkoutGuidePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

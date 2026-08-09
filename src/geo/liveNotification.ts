@@ -15,6 +15,9 @@ import { sameNotificationContent, type RunNotificationContent } from "../utils/r
 type PushOptions = {
   title: string;
   message: string;
+  // iOS only: guided-workout step line rendered by the Live Activity. Android's
+  // step surface is the WorkoutGuide plugin's own notification instead.
+  step?: string;
   chronometerStartMs?: number;
   // Android only (the patched plugin): the seed it re-renders distance/pace from
   // while the WebView is frozen in the background. iOS gets none of these.
@@ -75,6 +78,7 @@ function sendNow(content: RunNotificationContent): void {
   const options: PushOptions = {
     title: t(`tracker.notif.${content.titleKey}`),
     message: content.message,
+    ...(isIos && content.step ? { step: content.step } : {}),
     ...(content.chronometerStartMs != null ? { chronometerStartMs: content.chronometerStartMs } : {}),
     ...(isAndroid ? {
       km: content.live.km,

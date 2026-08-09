@@ -27,9 +27,20 @@ const stretchStep = (): SessionStep => ({ label: L("stretch"), detail: t("plan.s
 const sdDist = (m: number | undefined): string =>
   m == null ? "" : m % 1000 === 0 ? m / 1000 + " km" : m + " m";
 
-// "5x800m", "3x3km", "6x400m" — the rep block a workout desc promises.
+// "5x800m", "3x3km", "6x400m" — the rep block a workout desc promises. One
+// regex, two consumers: the localized display form here, and the raw metres
+// form shared with compileWorkout (utils/workout.ts) so prose and guided
+// schedule read the same figures.
+const REPS_RE = /(\d+)x(\d+(?:\.\d+)?)(km|m)\b/i;
+
+export const parseRepsRaw = (desc: string): { count: number; m: number } | null => {
+  const m = desc.match(REPS_RE);
+  if (!m) return null;
+  return { count: Number(m[1]), m: m[3].toLowerCase() === "km" ? Number(m[2]) * 1000 : Number(m[2]) };
+};
+
 const parseReps = (desc: string) => {
-  const m = desc.match(/(\d+)x(\d+(?:\.\d+)?)(km|m)\b/i);
+  const m = desc.match(REPS_RE);
   if (!m) return null;
   return { count: Number(m[1]), dist: m[3].toLowerCase() === "km" ? m[2] + " km" : m[2] + " m" };
 };
@@ -49,12 +60,18 @@ const recoveryFor = (s: SessionLike, desc: string): string => {
   return m ? m[1].trim() : t("plan.steps.recPhrase.default");
 };
 
-// "run 2 min / walk 1 min" — the Galloway ratio, from sd or parsed from desc.
+// "run 2 min / walk 1 min" parsed off the desc — the Galloway ratio's fallback
+// form, shared with compileWorkout (utils/workout.ts).
+export const parseRatio = (desc: string): { run: number; walk: number } | null => {
+  const m = desc.match(/run\s+(\d+)\s*min\s*\/\s*walk\s+(\d+)\s*min/i);
+  return m ? { run: Number(m[1]), walk: Number(m[2]) } : null;
+};
+
+// The Galloway ratio, from sd or parsed from desc.
 const ratioFor = (s: SessionLike, desc: string): { run: number; walk: number } | null => {
   if (s.sd?.kind === "runwalk" && s.sd.runMin != null && s.sd.walkMin != null)
     return { run: s.sd.runMin, walk: s.sd.walkMin };
-  const m = desc.match(/run\s+(\d+)\s*min\s*\/\s*walk\s+(\d+)\s*min/i);
-  return m ? { run: Number(m[1]), walk: Number(m[2]) } : null;
+  return parseRatio(desc);
 };
 
 export function sessionSteps(s: SessionLike): SessionStep[] {

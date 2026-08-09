@@ -44,7 +44,8 @@ public class LiveActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         let state = RunActivityAttributes.ContentState(
             title: title,
             message: message,
-            startedAtMs: call.getDouble("chronometerStartMs")
+            startedAtMs: call.getDouble("chronometerStartMs"),
+            step: call.getString("step")
         )
         let content = ActivityContent(state: state, staleDate: nil)
         Task {

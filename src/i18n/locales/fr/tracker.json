@@ -83,6 +83,55 @@
     "addProfile": "Ajoute ton profil FC dans les Paramètres pour voir une zone cible",
     "range": "❤️ {{lo}}–{{hi}} bpm"
   },
+  "guided": {
+    "title": "Séance guidée",
+    "notifTitle": "Séance guidée",
+    "left": "restant",
+    "next": "Ensuite : {{step}}",
+    "mins": "{{mins}} min",
+    "done": "Séance terminée, bravo !",
+    "doneShort": "Séance terminée",
+    "cuesToggle": "Annonces vocales et bips",
+    "label": {
+      "warmup": "Échauffement",
+      "tempo": "Tempo",
+      "rep": "Rép. {{rep}}/{{reps}}",
+      "recover": "Récup",
+      "cooldown": "Retour au calme",
+      "run": "Cours",
+      "walk": "Marche"
+    },
+    "pace": {
+      "on": "Bonne allure",
+      "slow": "Accélère",
+      "fast": "Ralentis"
+    },
+    "speak": {
+      "warmup_one": "Échauffement : {{count}} minute en footing léger.",
+      "warmup_other": "Échauffement : {{count}} minutes en footing léger.",
+      "cooldown_one": "Retour au calme : {{count}} minute très facile.",
+      "cooldown_other": "Retour au calme : {{count}} minutes très faciles.",
+      "run_one": "Cours pendant {{count}} minute.",
+      "run_other": "Cours pendant {{count}} minutes.",
+      "walk_one": "Marche pendant {{count}} minute.",
+      "walk_other": "Marche pendant {{count}} minutes.",
+      "recoverSec_one": "Récupération : {{count}} seconde tranquille.",
+      "recoverSec_other": "Récupération : {{count}} secondes tranquilles.",
+      "recoverDist": "Récupération : {{dist}} en footing léger.",
+      "rep": "Répétition {{rep}} sur {{reps}} : {{dist}} à {{pace}}.",
+      "repNoPace": "Répétition {{rep}} sur {{reps}} : {{dist}}.",
+      "tempo": "Bloc tempo : {{count}} kilomètres à {{pace}}.",
+      "tempoNoPace": "Bloc tempo : {{count}} kilomètres, allure soutenue mais contrôlée.",
+      "km_one": "{{count}} kilomètre",
+      "km_other": "{{count}} kilomètres",
+      "metres_one": "{{count}} mètre",
+      "metres_other": "{{count}} mètres",
+      "pace": "{{min}} {{sec}} au kilomètre",
+      "done": "Séance terminée. Bravo !",
+      "fast": "Trop rapide. Ralentis un peu.",
+      "slow": "Un peu lent. Accélère un peu."
+    }
+  },
   "batteryNudge": {
     "title": "Empêche Android d'arrêter l'enregistrement",
     "body": "Ce téléphone limite l'utilisation de la batterie pour Running Coach, ce qui peut interrompre une sortie en cours. Autorise une utilisation sans restriction pour un suivi fiable avec l'écran éteint.",

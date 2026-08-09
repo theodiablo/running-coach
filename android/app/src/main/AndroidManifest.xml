@@ -115,6 +115,10 @@
          runtime prompt. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Guided-workout step cues (WorkoutGuidePlugin): a short buzz alongside
+         the tone/voice on each step boundary. Normal-level, no runtime prompt. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Live heart-rate sensor over Bluetooth LE (chest strap / armband / watch
          broadcasting HR). Scanning is flagged neverForLocation so it never implies
          location access; connect is needed to read the sensor. Used only while a

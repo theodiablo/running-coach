@@ -70,6 +70,11 @@ export const LIVE_SHARE_TOKEN_KEY = "rc_live_share_token";
 // keeps publishing under the row it opened.
 export const LIVE_PUBLISH_TOKEN_KEY = "rc_live_publish_token";
 
+// localStorage flag: guided-workout voice/beep cues muted ("1"). Per-device
+// like the other recording concerns — whether this phone talks during a run is
+// a property of the device (headphones, speaker context), not synced state.
+export const WORKOUT_CUES_MUTED_KEY = "rc_workout_cues_muted";
+
 // localStorage flag: the user has seen and accepted the background-location
 // prominent disclosure (native shell only). Set once per install so we show it
 // before the first OS permission prompt but don't nag on every run.

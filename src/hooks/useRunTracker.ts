@@ -80,12 +80,16 @@ type LiveHrSource = Extract<NonNullable<ReturnType<typeof getHrSource>>, { live:
 
 const clearBuffer = () => { try { localStorage.removeItem(LIVE_RUN_KEY); } catch { /* ignore */ } };
 
-type UseRunTrackerOptions = { hrMethod?: string };
+type UseRunTrackerOptions = {
+  hrMethod?: string;
+  // Guided-workout step line for the lock-screen surfaces (null = unguided).
+  stepText?: string | null;
+};
 
 // `hrMethod` (settings.hrMethod) selects an optional live heart-rate source. A
 // LIVE source (Bluetooth) streams here alongside GPS; a post-run source (Health
 // Connect) is handled at save time in LiveRunTracker, not here. Absent/web → no HR.
-export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
+export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {}) {
   const [state, setState] = useState<TrackerState>("idle");
   const [points, setPoints] = useState<TrackPointOrGap[]>([]);
   const [hrSamples, setHrSamples] = useState<BleHrSample[]>([]); // { bpm, t } from a live HR sensor
@@ -582,12 +586,13 @@ export function useRunTracker({ hrMethod }: UseRunTrackerOptions = {}) {
       paceSecPerKm: state === "tracking" ? (stats.curPace || stats.avgPace) : stats.avgPace,
       hr: stats.hr,
       hrAt: stats.hrAt,
+      stepText: stepText ?? null,
       // computeMoving reads stateRef, synced by the ref-mirror effect declared
       // above this one (same-commit ordering), so it agrees with `state` here.
       movingMs: computeMoving() * 1000,
       nowMs: Date.now(),
     }));
-  }, [state, stats, computeMoving]);
+  }, [state, stats, computeMoving, stepText]);
 
   return {
     state, points, stats, error, pending, location, hrSamples, hrStatus,

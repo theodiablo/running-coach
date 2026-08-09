@@ -10,6 +10,7 @@ import { mintPublishToken, readPublishToken, storePublishToken } from "../live/p
 import { enableLiveUpload, disableLiveUpload } from "../geo/liveUpload";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { useRunTracker } from "../hooks/useRunTracker";
+import { useGuidedWorkout } from "../hooks/useGuidedWorkout";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
@@ -20,6 +21,7 @@ import { getPairedDevice } from "../hr/device";
 import { hasHealthConnectAuthorization } from "../hr/healthconnect";
 import { hasHealthKitAuthorization } from "../healthkit/import";
 import { RouteMap } from "../components/RouteMap";
+import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
 import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
@@ -28,9 +30,10 @@ import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
 import { isNative, isAndroid, isIos } from "../native";
 import { BG_LOC_DISCLOSED_KEY, LIVE_SHARE_KEY, routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser, isPremiumActive } from "../premium";
+import { primeCues } from "../cues";
 import { track } from "../telemetry";
 import { hrNudgeFor } from "../utils/hrNudge";
-import type { HrMethod, HrPending, Run, SuggestedRoute } from "../types";
+import type { HrMethod, HrPending, PlanSession, Run, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
   onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
@@ -43,6 +46,9 @@ type LiveRunTrackerProps = {
   // When set (e.g. opened from a plan session), auto-open the route finder with
   // this distance pre-filled.
   initialFindKm?: number;
+  // The plan session the tracker was opened from — a guidable one (tempo /
+  // intervals / run-walk) turns on the guided-workout mode (premium).
+  session?: PlanSession | null;
   // "Find a route" is premium-only. UI affordance only — the route-suggest edge
   // function is the gate that matters. onRefreshPremium resolves with the fresh
   // entitlement so the tap can act on it immediately.
@@ -74,7 +80,7 @@ function Ctrl({ onClick, color, children, disabled = false }: { onClick: () => v
   );
 }
 
-export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
   const pairedHrDevice = getPairedDevice();
   const healthConnectAuthorized = hasHealthConnectAuthorization();
   const healthKitAuthorized = hasHealthKitAuthorization();
@@ -89,10 +95,37 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     || (hrMethod === "healthkit" && healthKitAuthorized);
   const effectiveHrMethod = hrReady ? hrMethod : "off";
   const { t } = useTranslation();
-  const rt = useRunTracker({ hrMethod: effectiveHrMethod });
+  // Guided-workout step line for the lock-screen surfaces. The guide hook
+  // needs the tracker's state/stats, so the value feeds BACK into
+  // useRunTracker as state, reconciled during render (the derived-state
+  // pattern) — the re-render settles before effects run, so the notification
+  // effect always pushes the settled value.
+  const [stepText, setStepText] = useState<string | null>(null);
+  const rt = useRunTracker({ hrMethod: effectiveHrMethod, stepText });
   const tracker = rt as Omit<typeof rt, "location"> & { location: LocationPreview | null };
   const { state, points, stats, error, pending, location } = tracker;
   const [busy, setBusy] = useState(false);
+  // ── Guided workout (premium) ─────────────────────────────────────────────
+  // The sign-in entitlement read can be stale (offline, or predating a grant),
+  // and guidance has no tap to re-check on — it just appears. So with a
+  // guidable session on deck and a free-looking user, re-read once and decide
+  // on that read; a confirmed grant flips guidance on mid-screen.
+  const [premiumFresh, setPremiumFresh] = useState(false);
+  const premiumForGuide = isPremium || premiumFresh;
+  const guide = useGuidedWorkout(session, premiumForGuide, state, stats);
+  const premiumRecheckedRef = useRef(false);
+  useEffect(() => {
+    if (!guide.guidable || isPremium || premiumRecheckedRef.current) return;
+    premiumRecheckedRef.current = true;
+    let cancelled = false;
+    onRefreshPremium?.().then(until => {
+      if (!cancelled && isPremiumActive(until)) setPremiumFresh(true);
+    });
+    return () => { cancelled = true; };
+  }, [guide.guidable, isPremium, onRefreshPremium]);
+  const liveStepText =
+    guide.display && (state === "tracking" || state === "paused") ? guide.display.stepText : null;
+  if (liveStepText !== stepText) setStepText(liveStepText);
   // Live map: `following` mirrors RouteMap's nav-follow (false once the user pans,
   // which surfaces the recenter button); bumping `recenterSignal` snaps back to
   // the current position at the default zoom and re-arms follow.
@@ -294,6 +327,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // No properties (consent-gated in track(); a plain count is all we want).
   const startTracking = () => {
     track("live_run_started", {});
+    // Unlock cue audio while we're still in a user gesture (autoplay policy /
+    // the iOS audio session). No-op when nothing will ever cue.
+    if (guide.active) primeCues();
     // Fresh broadcast state so this run stamps its own started_at rather than
     // inheriting a previous one, and re-arms after an earlier run was ended.
     resetLivePublisher();
@@ -700,6 +736,24 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-sm font-semibold">{t("tracker.resume.discard")}</button>
             </div>
           </div>
+        )}
+
+        {guide.active && guide.display && state !== "stopped" && (
+          <GuidedWorkoutPanel display={guide.display} muted={guide.muted}
+            onToggleMute={guide.toggleMute} live={state === "tracking"} />
+        )}
+        {/* Free user, guidable session: locked hint → teaser. Gated on
+            canShowPremiumTeaser like every premium affordance, so it stays
+            invisible until the tier unveils. */}
+        {guide.guidable && !premiumForGuide && canShowPremiumTeaser && state === "idle" && (
+          <button onClick={() => setPremiumTeaser("guidedWorkout")}
+            className="w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 active:scale-95 transition-[background-color,transform]">
+            <Lock size={16} className="text-slate-300 shrink-0" />
+            <span className="flex-1 text-left">{t("tracker.guided.title")}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
+              {t("premium.badge")}
+            </span>
+          </button>
         )}
 
         <div className="grid grid-cols-4 gap-2">
