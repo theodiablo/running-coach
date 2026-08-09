@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, Check, ChevronRight, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
+import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
 import { fmt, ymd, estMin, weekStart } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
+import { overdueSessions, nextSession } from "../utils/overdue";
 import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
@@ -38,6 +40,9 @@ type DashboardProps = {
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
 
+// How many overdue rows the card renders before deferring the rest to the plan.
+const OVERDUE_SHOWN = 3;
+
 export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
@@ -55,14 +60,20 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const nextRace = (races?.participations || [])
     .filter(p => p.status === "wishlist" && p.inPlan && p.raceDate && p.raceDate >= todayStr && p.raceDate < settings.raceDate)
       .sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)))[0];
-  // Carry the week number alongside each session so the card's Record / Mark
-  // done actions can target the right session via goLog / toggleSess.
-  const nextSess = plan
-    ? plan.weeks.flatMap(w => w.sessions.map(s => ({...s, wNum: w.weekNumber} as DashboardSession)))
-        .filter(s => !s.done && !s.skipped && new Date(s.date + "T00:00:00") >= today)
-        .sort((a, b) => a.date.localeCompare(b.date))[0]
-    : null;
+  // Both selectors carry the week number so the cards' Record / Done / Skip
+  // actions can target the right session via goLog / toggleSess.
+  const nextSess = nextSession(plan, today) as DashboardSession | null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
+  // Sessions the runner never got to. Only the freshest few are rendered — a
+  // month away must not come back as a wall of guilt.
+  const overdue = overdueSessions(plan, today) as DashboardSession[];
+  const overdueShown = overdue.slice(0, OVERDUE_SHOWN);
+
+  // Report the backlog once per size change, not per render.
+  const overdueCount = overdue.length;
+  useEffect(() => {
+    if (overdueCount) track("overdue_shown", {count: overdueCount});
+  }, [overdueCount]);
   const wkMon = weekStart(today);
   const wkKm  = runs.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
   const totKm = runs.reduce((s, r) => s + (r.km||0), 0);
@@ -180,6 +191,54 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           </div>
           <ChevronRight size={16} className="text-slate-600 flex-shrink-0"/>
         </button>
+      )}
+
+      {overdueShown.length > 0 && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4">
+          <div className="flex items-start gap-2.5">
+            <CalendarClock size={18} className="text-amber-300 flex-shrink-0 mt-0.5"/>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-100">{t("dashboard.overdue.title", {count: overdue.length})}</p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-snug">{t("dashboard.overdue.subtitle")}</p>
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            {overdueShown.map(s => (
+              <div key={s.id} className="flex items-center gap-2 rounded-xl bg-slate-800/70 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className={"text-[11px] font-bold uppercase tracking-wide " + sessionTypeClass(s.type, TCLR)}>
+                    {t("common.types." + s.type, {defaultValue: s.type})}
+                  </p>
+                  <p className="text-xs text-slate-300 truncate">{describeSession(s)}</p>
+                  <p className="text-[11px] text-slate-500">{fmt.sht(s.date) + " · " + s.km + " km"}</p>
+                </div>
+                <button
+                  onClick={() => { track("overdue_resolved", {action: "done"}); toggleSess(s.wNum, s.id); }}
+                  aria-label={t("common.done")} title={t("common.done")}
+                  className="flex-shrink-0 p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
+                  <Check size={15}/>
+                </button>
+                <button
+                  onClick={() => { track("overdue_resolved", {action: "skip"}); skipSess(s.wNum, s.id); }}
+                  aria-label={t("common.skip")} title={t("dashboard.session.skipTitle")}
+                  className="flex-shrink-0 p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-200 transition-colors">
+                  <X size={15}/>
+                </button>
+              </div>
+            ))}
+          </div>
+          {overdue.length > overdueShown.length && (
+            <button onClick={() => goTab("plan")}
+              className="mt-2 flex items-center gap-0.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+              {t("dashboard.overdue.more", {count: overdue.length - overdueShown.length})}<ChevronRight size={13}/>
+            </button>
+          )}
+          <button
+            onClick={() => { track("overdue_resolved", {action: "coach"}); openCoach(null, "dashboard"); }}
+            className="w-full mt-3 flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-100 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            <CoachAvatar chip size={15}/>{t("dashboard.overdue.adjust")}
+          </button>
+        </div>
       )}
 
       {nextSess ? (

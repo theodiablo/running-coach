@@ -20,6 +20,8 @@ import { ymd, fmt } from "./utils/format";
 import { computeBadges, unlockedIds } from "./utils/badges";
 import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEfforts";
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
+import { syncSessionReminders } from "./notify/sessionReminders";
+import { prefsFrom } from "./utils/sessionReminders";
 import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
@@ -427,6 +429,20 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // language switch, so it is intentionally omitted from the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The ONE rescheduling seam for plan-session reminders. `plan` is mutated from
+  // six places (boot, savePlan, applyCoachPlan, toggleSess, skipSess, restore);
+  // deriving the schedule here instead means none of them can forget. Syncing an
+  // external system (the OS scheduler) is what an effect is for — no state is
+  // set, so the no-setState-in-effects rule is untouched. No-op on web.
+  const reminderPrefs = prefsFrom(settings);
+  const reminderKey = JSON.stringify(reminderPrefs);
+  useEffect(() => {
+    void syncSessionReminders(plan, prefsFrom(settings));
+    // `settings` is read through the serialized reminderKey so an unrelated
+    // settings edit doesn't re-schedule the whole plan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, reminderKey]);
 
   // Back online: retry queued route uploads straight away — they otherwise wait
   // for the next app load, and a killed app never reaches it. The app_state blob
@@ -1012,7 +1028,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showRestore && <RestoreModal onRestore={handleRestore}     onClose={() => setShowRestore(false)}/>}
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
-        scanImportsNow={shared.scanImportsNow} user={user}
+        scanImportsNow={shared.scanImportsNow} user={user} plan={plan}
         onBackup={()  => { setShowSettings(false); exportData(); }}
         onRestore={() => { setShowSettings(false); setShowRestore(true); }}
         onSignOut={onSignOut}

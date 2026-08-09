@@ -111,6 +111,14 @@ an explicit var.
   signal** — `source` is `"gps"` for a live-tracked run, `"manual"` for a
   hand-logged one, or the import provider — so filter `source = 'gps'` for runs
   recorded with live tracking.
+- Overdue plan sessions (`docs/reminders.md`): `overdue_shown` `{count}` — fired
+  once per change in the size of the backlog, not per render, so it reads as
+  "how many people are carrying open sessions and how many" — and
+  `overdue_resolved` `{action:"done"|"skip"|"coach"}` when one of the card's
+  actions is used (`src/views/Dashboard.tsx`). Counts and an enum only, never a
+  session date or description. These two are the retention loop's own metric:
+  the point of the feature is that a backlog gets resolved rather than silently
+  abandoned.
 - `live_run_started` `{}` — fired the moment a live GPS tracking session
   actually begins (after the disclosure / permission / HR gates and the
   countdown, never on Resume) — `src/modals/LiveRunTracker.tsx`. Pairs with

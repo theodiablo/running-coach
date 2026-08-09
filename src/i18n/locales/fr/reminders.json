@@ -1,0 +1,27 @@
+{
+  "notif": {
+    "today": "Séance aujourd'hui",
+    "tomorrow": "Séance demain"
+  },
+  "settings": {
+    "title": "Rappels d'entraînement",
+    "subtitle": "Un rappel avant chaque séance prévue, pour que le plan ne dérive pas en silence.",
+    "toggle": "Me rappeler mes séances",
+    "time": "Me rappeler à",
+    "lead": "Quand",
+    "leadEveningBefore": "La veille au soir",
+    "leadMorningOf": "Le matin même",
+    "nextUp": "Prochain rappel : {{when}}",
+    "nonePlanned": "Aucun rappel programmé pour l'instant. Crée un plan et la prochaine séance sera mise en file.",
+    "denied": "Les notifications sont désactivées pour cette app. Active-les dans les réglages de ton appareil, puis réactive ce bouton."
+  },
+  "disclosure": {
+    "title": "Rappels d'entraînement",
+    "intro": "Running Coach peut t'envoyer un <bold>rappel avant chaque séance prévue</bold>.",
+    "bullet1": "Les rappels sont programmés <bold>sur cet appareil uniquement</bold>. Rien de ton entraînement n'est envoyé ailleurs.",
+    "bullet2": "Ils suivent ton plan : termine ou passe une séance et son rappel disparaît.",
+    "bullet3": "Tu peux les désactiver à tout moment dans les réglages, ou depuis les notifications de ton appareil.",
+    "accept": "Activer les rappels",
+    "cancel": "Plus tard"
+  }
+}

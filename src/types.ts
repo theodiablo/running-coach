@@ -38,6 +38,15 @@ export type SettingsState = Record<string, unknown> & {
   // Enable-flags for any later import providers (see src/imports/registry.ts);
   // Health Connect keeps its own watchImport key above.
   imports?: Record<string, boolean>;
+  // Plan-session reminders (native shells only; docs/reminders.md). Preference
+  // only, exactly like watchImport — the per-device SESSION_NOTIF_AUTH_KEY
+  // marker must also be set before the notification bridge is touched. Absent
+  // or false = off, which is what every web session sees.
+  sessionReminders?: boolean;
+  // "HH:MM" local time the reminder fires at. Absent = 18:00.
+  reminderTime?: string;
+  // 0 = the morning of the session, 1 = the evening before. Absent = 1.
+  reminderLeadDays?: 0 | 1;
   planSessions: PlanSessionInput[];
   // How the user configured their weekly availability on the Plan page. Metadata
   // only — planSessions stays the source of truth for buildPlan. "simple" means

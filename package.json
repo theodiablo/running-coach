@@ -29,6 +29,7 @@
     "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.4.1",
     "@capacitor/geolocation": "^8.2.0",
+    "@capacitor/local-notifications": "^8.2.1",
     "@fontsource/archivo": "^5.2.8",
     "@pianissimoproject/capacitor-health-connect": "^0.7.1",
     "@supabase/supabase-js": "^2.107.0",

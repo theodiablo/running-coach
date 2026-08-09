@@ -8,7 +8,9 @@
   "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance — consider lengthening your long day in Edit plan.",
   "week": {
     "label": "W{{number}}",
-    "now": "now"
+    "now": "now",
+    "stillOpen_one": "1 open",
+    "stillOpen_other": "{{count}} open"
   },
   "edit": {
     "goalTitle": "Your goal",

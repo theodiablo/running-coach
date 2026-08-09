@@ -19,9 +19,10 @@ import routeFinder from "./routeFinder.json";
 import premium from "./premium.json";
 import liveShare from "./liveShare.json";
 import bestEfforts from "./bestEfforts.json";
+import reminders from "./reminders.json";
 
 export default {
   common, nav, dashboard, plan, styles, races, coach, tracker,
   log, progress, badges, settings, onboarding, login, app, routeFinder, premium, liveShare,
-  bestEfforts,
+  bestEfforts, reminders,
 };

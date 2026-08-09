@@ -17,6 +17,14 @@
     "total": "Total"
   },
   "nextBadge": "Next badge",
+  "overdue": {
+    "title_one": "1 session still open",
+    "title_other": "{{count}} sessions still open",
+    "subtitle": "Life happens. Tick off what you did, skip what you didn't, or let your coach reshape the plan.",
+    "more_one": "1 more in your plan",
+    "more_other": "{{count}} more in your plan",
+    "adjust": "Adjust my plan"
+  },
   "session": {
     "today": "Today's session",
     "upNext": "Up next",

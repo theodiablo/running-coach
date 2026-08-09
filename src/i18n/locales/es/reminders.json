@@ -1,0 +1,27 @@
+{
+  "notif": {
+    "today": "Entrenamiento hoy",
+    "tomorrow": "Entrenamiento mañana"
+  },
+  "settings": {
+    "title": "Recordatorios de entrenamiento",
+    "subtitle": "Un aviso antes de cada sesión planificada, para que el plan no se desvíe en silencio.",
+    "toggle": "Recordarme las sesiones",
+    "time": "Recordarme a las",
+    "lead": "Cuándo",
+    "leadEveningBefore": "La noche anterior",
+    "leadMorningOf": "La mañana del día",
+    "nextUp": "Próximo recordatorio: {{when}}",
+    "nonePlanned": "Todavía no hay recordatorios programados. Crea un plan y la próxima sesión entrará en cola.",
+    "denied": "Las notificaciones están desactivadas para esta app. Actívalas en los ajustes de tu dispositivo y vuelve a encender esto."
+  },
+  "disclosure": {
+    "title": "Recordatorios de entrenamiento",
+    "intro": "Running Coach puede enviarte un <bold>recordatorio antes de cada sesión planificada</bold>.",
+    "bullet1": "Los recordatorios se programan <bold>solo en este dispositivo</bold>. No se envía nada de tu entrenamiento a ningún sitio.",
+    "bullet2": "Siguen tu plan: completa u omite una sesión y su recordatorio desaparece.",
+    "bullet3": "Puedes desactivarlos cuando quieras en los ajustes, o desde las notificaciones de tu dispositivo.",
+    "accept": "Activar recordatorios",
+    "cancel": "Ahora no"
+  }
+}
