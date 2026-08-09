@@ -14,6 +14,10 @@ import type { Plan } from "../types";
 // policy review for nothing.
 
 const CHANNEL_ID = "session-reminders";
+// Stamped on every reminder we schedule so cancelling only ever touches OUR
+// notifications. Without it, turning reminders off would clear the whole
+// pending queue, including anything a later feature schedules.
+const KIND = "session-reminder";
 
 const readMarker = (key: string) => {
   try { return localStorage.getItem(key) === "1"; } catch { return false; }
@@ -58,10 +62,12 @@ async function ensureChannel(): Promise<void> {
   } catch { /* channel already exists, or the API is unavailable */ }
 }
 
-async function cancelAll(): Promise<void> {
+// Drop every reminder WE scheduled, leaving anything else pending alone.
+async function cancelOurs(): Promise<void> {
   try {
     const pending = await LocalNotifications.getPending();
-    if (pending.notifications.length) await LocalNotifications.cancel(pending);
+    const ours = pending.notifications.filter(n => n.extra?.kind === KIND);
+    if (ours.length) await LocalNotifications.cancel({notifications: ours.map(n => ({id: n.id}))});
   } catch { /* nothing pending, or the bridge is unavailable */ }
 }
 
@@ -74,10 +80,10 @@ export async function syncSessionReminders(plan: Plan | null, prefs: ReminderPre
   if (!isNative) return;
   try {
     // Off, or not granted on this device: make sure nothing is left pending.
-    if (!prefs.enabled || !hasReminderGrant()) { await cancelAll(); return; }
+    if (!prefs.enabled || !hasReminderGrant()) { await cancelOurs(); return; }
 
     await ensureChannel();
-    await cancelAll();
+    await cancelOurs();
 
     const due = reminderSchedule(plan, prefs, new Date());
     if (!due.length) return;
@@ -89,7 +95,7 @@ export async function syncSessionReminders(plan: Plan | null, prefs: ReminderPre
         body: r.body,
         channelId: CHANNEL_ID,
         schedule: {at: r.at, allowWhileIdle: false},
-        extra: {sessionId: r.sessionId},
+        extra: {kind: KIND, sessionId: r.sessionId},
       })),
     });
   } catch { /* diagnostics only — a reminder must never break the app */ }
@@ -98,5 +104,5 @@ export async function syncSessionReminders(plan: Plan | null, prefs: ReminderPre
 // Drop every pending reminder (opt-out, sign-out).
 export async function clearSessionReminders(): Promise<void> {
   if (!isNative) return;
-  await cancelAll();
+  await cancelOurs();
 }

@@ -122,6 +122,27 @@ the local `RunPermissions` plugin). iOS prompts through the plugin and needs **n
 new entitlement** — local notifications are OS-scheduled, so `App.entitlements`
 and `UIBackgroundModes` are untouched and the iOS 15 floor is unaffected.
 
+### Turning them off
+
+Three independent routes, none of which can strand a pending reminder:
+
+1. **The in-app toggle** (Training Profile). Flipping it off writes
+   `sessionReminders: false`, which changes `reminderKey`, which fires the sync,
+   which cancels everything pending. One tap, no OS round-trip, and no
+   permission re-prompt on the way out.
+2. **The OS.** Reminders go out on their own Android channel
+   (`session-reminders`, "Training reminders"), deliberately *not* the
+   run-recording notification's channel — so muting them in system settings
+   silences reminders only and leaves the live-run notification intact. On iOS
+   the app-level notification switch does the same.
+3. **Revoking the OS permission.** The next sync sees no grant and cancels.
+
+Cancellation is **scoped to our own notifications**: every reminder carries
+`extra.kind === "session-reminder"` and `cancelOurs()` filters on it, so turning
+reminders off never clears something another feature scheduled. All three routes
+are covered in `src/notify/sessionReminders.test.ts` and
+`src/components/SessionRemindersCard.test.tsx`.
+
 UI lives on the **Training Profile** settings sub-page
 (`src/components/SessionRemindersCard.tsx`), next to HR zones and coach memory,
 because it is training behaviour rather than an account setting.
