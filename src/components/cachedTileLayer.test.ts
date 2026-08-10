@@ -16,7 +16,7 @@ vi.mock("../utils/tileCache", async (importOriginal) => ({
   putTile: h.putTile,
 }));
 
-import { resolveTileSrc } from "./cachedTileLayer";
+import { resolveTileSrc, fetchTileBlob } from "./cachedTileLayer";
 import { TILE_TTL_MS } from "../utils/tileCache";
 
 const NOW = 1_800_000_000_000;
@@ -32,7 +32,10 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:mock");
   URL.revokeObjectURL = vi.fn();
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("resolveTileSrc", () => {
   it("serves a fresh cached tile without fetching", async () => {
@@ -71,5 +74,29 @@ describe("resolveTileSrc", () => {
     const out = await resolveTileSrc(URL_WITH_KEY, fetchTile, NOW);
     expect(out.revoke).toBe(true);
     expect(fetchTile).toHaveBeenCalled();
+  });
+});
+
+describe("fetchTileBlob", () => {
+  const response = (ok: boolean, type: string) => ({
+    ok,
+    status: ok ? 200 : 503,
+    headers: new Headers({ "content-type": type }),
+    blob: async () => blob,
+  });
+
+  it("accepts an image response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response(true, "image/png")));
+    await expect(fetchTileBlob(URL_WITH_KEY)).resolves.toBe(blob);
+  });
+
+  it("rejects a captive-portal HTML 200 so it is never cached as a tile", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response(true, "text/html; charset=utf-8")));
+    await expect(fetchTileBlob(URL_WITH_KEY)).rejects.toThrow();
+  });
+
+  it("rejects a non-ok response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response(false, "image/png")));
+    await expect(fetchTileBlob(URL_WITH_KEY)).rejects.toThrow();
   });
 });

@@ -40,6 +40,7 @@ vi.mock("./db", () => ({
   currentUserId: () => "u1",
   flushNow: vi.fn(async () => {}),
   subscribeStoreRefresh: () => () => {},
+  clearOfflineMirror: vi.fn(),
 }));
 
 // Simulate the real-world failure: a signed-in user has never loaded the

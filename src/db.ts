@@ -99,10 +99,15 @@ export async function initStore(uid: string): Promise<StoreInitResult> {
       console.error("app_state load failed", error);
       return tryOfflineBoot(uid);
     }
-    cache = data && data.data ? data.data : {};
+    const serverData = (data && data.data ? data.data : {}) as Record<string, unknown>;
+    cache = serverData;
     loaded = true;
+    // Mirror the SERVER blob, not the post-restore cache: restoreSnapshot may
+    // put unconfirmed local writes into the cache, and a mirror claiming those
+    // as server-confirmed would later reconcile them away as "no local edits".
+    // The snapshot itself keeps carrying the unconfirmed data.
+    writeMirror(data?.updated_at ?? null, serverData);
     restoreSnapshot(uid, data?.updated_at ?? null);
-    writeMirror(data?.updated_at ?? null);
     return "loaded";
   } catch (err) {
     console.error("app_state load threw", err);
@@ -126,8 +131,12 @@ function tryOfflineBoot(uid: string): StoreInitResult {
   loaded = true;
   offlinePending = true;
   offlineBase = mirror.serverUpdatedAt || 0;
+  // Same rule as restoreSnapshot: a snapshot newer than the last CONFIRMED
+  // server write is an offline save that never landed. Compared against the
+  // server baseline, not mirror.savedAt — the mirror may have been rewritten
+  // (a later boot) long after the snapshot without ever confirming it.
   const snap = readSnapshot();
-  if (snap && snap.userId === uid && snap.savedAt > mirror.savedAt
+  if (snap && snap.userId === uid && snap.savedAt > (mirror.serverUpdatedAt || 0)
     && snap.data && typeof snap.data === "object") {
     cache = snap.data as Record<string, unknown>;
     lastLocalWriteAt = snap.savedAt;
@@ -169,7 +178,7 @@ async function reconcile(): Promise<ReconcileOutcome> {
     // when the adopted row actually differs from what the mirror booted (a
     // foreign write landed while we were offline).
     const advanced = serverAt > offlineBase;
-    writeMirror(data?.updated_at ?? null);
+    writeMirror(data?.updated_at ?? null, cache);
     if (advanced) notifyRefresh();
     return "adopted";
   } catch {
@@ -235,17 +244,21 @@ function readMirror(): Mirror | null {
     return m && typeof m.userId === "string" && typeof m.savedAt === "number" ? m : null;
   } catch { return null; }
 }
-function writeMirror(serverUpdatedAtIso: string | null) {
+function writeMirror(serverUpdatedAtIso: string | null, data: Record<string, unknown>) {
   if (!userId) return;
   const serverUpdatedAt = serverUpdatedAtIso ? Date.parse(serverUpdatedAtIso) || 0 : 0;
   offlineBase = serverUpdatedAt;
   try {
     localStorage.setItem(OFFLINE_STATE_KEY, JSON.stringify({
-      userId, data: cache, serverUpdatedAt, savedAt: Date.now(),
+      userId, data, serverUpdatedAt, savedAt: Date.now(),
     } satisfies Mirror));
   } catch { /* quota / storage unavailable — offline boot just won't be available */ }
 }
-function clearMirror() {
+// Real sign-out only (App.tsx, on the SIGNED_OUT auth event): the mirror holds
+// account data and must not linger for whoever uses the device next. The
+// unsynced snapshot is different — it may be the ONLY copy of a write and is
+// kept for its owner's next sign-in.
+export function clearOfflineMirror() {
   try { localStorage.removeItem(OFFLINE_STATE_KEY); } catch { /* ignore */ }
 }
 
@@ -257,11 +270,11 @@ export function currentUserId() {
 }
 
 export function clearStore() {
-  // Sign-out: the mirror holds this account's data and must not linger for
-  // whoever uses the device next (an offline boot needs a stored auth session
-  // anyway, which sign-out also removes). The unsynced snapshot is different —
-  // it may be the ONLY copy of a write and is kept for its owner's next sign-in.
-  clearMirror();
+  // Deliberately does NOT clear the offline mirror: clearStore runs on every
+  // null-session state, including the transient ones an offline cold start
+  // produces (auth-init timeout firing before a slow refresh settles), and
+  // wiping the mirror there would destroy the offline boot moments before it
+  // runs. App.tsx calls clearOfflineMirror() on an explicit SIGNED_OUT instead.
   userId = null;
   cache = {};
   loaded = false;
@@ -287,9 +300,14 @@ async function flush() {
   // Offline-booted: the row must be read (and possibly adopted) before it may
   // be replaced. Until the server is reachable this loops on the retry timer.
   if (offlinePending) {
+    // Snapshot BEFORE the reconcile read, not after: this flush also runs on
+    // pagehide/background, where Android freezes the WebView mid-await and the
+    // code after reconcile() never executes. An offline save must already be
+    // on disk by then. reconcile() clears it again if the server legitimately
+    // wins.
+    if (lastLocalWriteAt != null) writeSnapshot();
     const outcome = await reconcile();
     if (outcome === "unreachable") {
-      if (lastLocalWriteAt != null) writeSnapshot();
       scheduleRetry();
       return;
     }
@@ -309,7 +327,7 @@ async function flush() {
     scheduleRetry();
   } else {
     clearSnapshot();
-    writeMirror(updatedAt);
+    writeMirror(updatedAt, cache); // the upsert just confirmed the cache as the row
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
   }

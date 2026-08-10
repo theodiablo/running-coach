@@ -62,6 +62,7 @@ vi.mock("./db", () => ({
   currentUserId: () => "u1",
   flushNow: vi.fn(async () => {}),
   subscribeStoreRefresh: () => () => {},
+  clearOfflineMirror: vi.fn(),
 }));
 
 // Force the web marketing gate to be a trivial component so we exercise the

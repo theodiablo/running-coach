@@ -31,7 +31,7 @@ vi.mock("./supabase", () => ({
   },
 }));
 
-import { db, initStore, clearStore, flushNow, isStoreLoaded, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
+import { db, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
 import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
 const loadOk = (data: unknown, updatedAt?: string) => {
@@ -390,13 +390,66 @@ describe("db store — offline boot", () => {
     expect(await db.get("rc_runs")).toBeNull();
   });
 
-  it("clears the mirror on sign-out so the next user can't boot from it", async () => {
+  it("clearOfflineMirror (explicit sign-out) removes the mirror; clearStore does NOT", async () => {
     loadOk({ rc_runs: ["private"] }, iso(Date.now()));
     expect(await initStore("u1")).toBe("loaded");
     expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBeTruthy();
+
+    // clearStore runs on every null-session state, including the transient
+    // ones an offline cold start produces — it must not destroy the offline
+    // boot. Only the explicit sign-out clear does.
     clearStore();
-    expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBeNull();
+    expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBeTruthy();
     loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+
+    clearOfflineMirror();
+    expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBeNull();
+    clearStore();
     expect(await initStore("u1")).toBe("failed");
+  });
+
+  // The mirror must hold the SERVER row, never the post-restoreSnapshot cache:
+  // a mirror claiming unconfirmed local writes as server-confirmed would later
+  // reconcile them away as "no local edits" and delete the snapshot backup.
+  it("keeps an unconfirmed snapshot alive across an online boot + offline boot + reconcile", async () => {
+    const now = Date.now();
+    // A run saved offline in a previous session; its flush never landed.
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({
+      userId: "u1", data: { rc_runs: ["offline run"] }, savedAt: now,
+    }));
+    // Online boot: snapshot restored over the server row, but the process dies
+    // before the scheduled flush lands (simulated by not advancing timers).
+    loadOk({ rc_runs: ["server run"] }, iso(now - 60_000));
+    expect(await initStore("u1")).toBe("loaded");
+    expect(await db.get("rc_runs")).toEqual(["offline run"]);
+    clearStore(); // process killed: timers gone, localStorage intact
+
+    // Next boot is offline: the mirror boots the store and the snapshot —
+    // still newer than the last CONFIRMED server write — is layered on top.
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    expect(await db.get("rc_runs")).toEqual(["offline run"]);
+
+    // Reconnect: the row is unchanged server-side, so the offline run wins and
+    // finally syncs instead of being adopted away.
+    loadOk({ rc_runs: ["server run"] }, iso(now - 60_000));
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(h.upsert).toHaveBeenCalled();
+    const lastCall = h.upsert.mock.calls[h.upsert.mock.calls.length - 1][0];
+    expect(lastCall).toMatchObject({ data: { rc_runs: ["offline run"] } });
+  });
+
+  // flush() also runs on pagehide, where Android freezes the WebView mid-await:
+  // the snapshot must be on disk BEFORE the reconcile read, or an offline save
+  // dies with the process.
+  it("snapshots an offline write before the reconcile read resolves", async () => {
+    expect(await bootOffline({ rc_runs: ["mirrored"] }, Date.now() - 60_000)).toBe("offline");
+    await db.set("rc_notes", "written offline");
+    // A reconcile read that never resolves (dead network, frozen WebView).
+    h.state.result = new Promise(() => {}) as never;
+    await vi.advanceTimersByTimeAsync(700);
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy();
+    expect(h.upsert).not.toHaveBeenCalled();
   });
 });

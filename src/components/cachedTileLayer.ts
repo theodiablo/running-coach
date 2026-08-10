@@ -1,4 +1,4 @@
-import L, { type Layer, type Map } from "leaflet";
+import L, { type Layer, type Map, type TileEventHandler } from "leaflet";
 import { getTile, putTile, pruneTileCache, tileCacheKey, TILE_TTL_MS, type TileEntry } from "../utils/tileCache";
 
 // Drop-in replacement for L.tileLayer that serves tiles cache-first from
@@ -11,6 +11,18 @@ import { getTile, putTile, pruneTileCache, tileCacheKey, TILE_TTL_MS, type TileE
 
 type DoneFn = (err: Error | null, tile: HTMLElement) => void;
 
+// Blob object URLs per tile element, so they can be revoked no matter how the
+// tile's life ends (loaded, errored, or aborted by a zoom).
+const blobUrls = new WeakMap<HTMLElement, string>();
+function revokeTileUrl(tile?: HTMLElement) {
+  if (!tile) return;
+  const url = blobUrls.get(tile);
+  if (url) {
+    URL.revokeObjectURL(url);
+    blobUrls.delete(tile);
+  }
+}
+
 // Picks the tile's source. Exported for tests; `fetchTile` is the network.
 export async function resolveTileSrc(
   url: string,
@@ -20,33 +32,42 @@ export async function resolveTileSrc(
   const key = tileCacheKey(url);
   let cached: TileEntry | null = null;
   try { cached = await getTile(key); } catch { cached = null; }
-  if (cached && now - cached.at <= TILE_TTL_MS) {
-    return { src: URL.createObjectURL(cached.blob), revoke: true };
-  }
   try {
+    if (cached && now - cached.at <= TILE_TTL_MS) {
+      return { src: URL.createObjectURL(cached.blob), revoke: true };
+    }
     const blob = await fetchTile(url);
     putTile(key, blob).catch(() => {});
     return { src: URL.createObjectURL(blob), revoke: true };
   } catch {
     // Offline (or a blocked fetch): a stale tile beats a blank one; with no
     // cache at all, let the browser try the plain image load.
-    if (cached) return { src: URL.createObjectURL(cached.blob), revoke: true };
+    if (cached) {
+      try { return { src: URL.createObjectURL(cached.blob), revoke: true }; } catch { /* fall through */ }
+    }
     return { src: url, revoke: false };
   }
 }
 
-async function fetchTileBlob(url: string): Promise<Blob> {
+// Exported for tests. The content-type guard matters on captive portals: a
+// login page answers 200 with HTML, and caching that for 30 days would leave
+// the map broken long after connectivity returns.
+export async function fetchTileBlob(url: string): Promise<Blob> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`tile fetch ${res.status}`);
+  const type = res.headers.get("content-type") || "";
+  if (!res.ok || !type.startsWith("image/")) throw new Error(`tile fetch ${res.status} ${type}`);
   return res.blob();
 }
 
-function loadTile(tile: HTMLImageElement, url: string, done: DoneFn) {
-  resolveTileSrc(url, fetchTileBlob, Date.now()).then(({ src, revoke }) => {
-    tile.onload = () => { if (revoke) URL.revokeObjectURL(src); done(null, tile); };
-    tile.onerror = () => { if (revoke) URL.revokeObjectURL(src); done(new Error("tile load failed"), tile); };
-    tile.src = src;
-  });
+function loadTile(tile: HTMLImageElement, url: string) {
+  resolveTileSrc(url, fetchTileBlob, Date.now())
+    .then(({ src, revoke }) => {
+      if (revoke) blobUrls.set(tile, src);
+      tile.src = src;
+    })
+    // resolveTileSrc is defensive, but an unexpected rejection must neither
+    // strand the tile nor reach ErrorBoundary's unhandledrejection overlay.
+    .catch(() => { tile.src = url; });
 }
 
 const CachedTileLayer = L.TileLayer.extend({
@@ -54,12 +75,23 @@ const CachedTileLayer = L.TileLayer.extend({
     const tile = document.createElement("img");
     tile.alt = "";
     tile.setAttribute("role", "presentation");
-    loadTile(tile, this.getTileUrl(coords), done);
+    // addEventListener, NOT tile.onload/onerror: Leaflet's _abortLoading
+    // replaces those properties with a no-op on zoom, which would silently
+    // drop both done() and the object-URL revocation.
+    tile.addEventListener("load", () => { revokeTileUrl(tile); done(null, tile); }, { once: true });
+    tile.addEventListener("error", () => { revokeTileUrl(tile); done(new Error("tile load failed"), tile); }, { once: true });
+    loadTile(tile, this.getTileUrl(coords));
     return tile;
   },
 });
 
 export function cachedTileLayer(url: string, options?: Record<string, unknown>): Layer & { addTo: (map: Map) => Layer } {
-  pruneTileCache(); // fire-and-forget; self-limits to once per app session
-  return new CachedTileLayer(url, options);
+  pruneTileCache().catch(() => {}); // fire-and-forget; self-limits to once per app session
+  const layer = new CachedTileLayer(url, options);
+  // A tile aborted mid-flight or pruned off-screen never fires load/error, so
+  // its blob URL is revoked from the layer events instead.
+  const revoke: TileEventHandler = e => revokeTileUrl(e.tile);
+  layer.on("tileabort", revoke);
+  layer.on("tileunload", revoke);
+  return layer;
 }

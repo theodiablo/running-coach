@@ -10,8 +10,10 @@ import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
-import { initStore, clearStore, flushNow, subscribeStoreRefresh } from "./db";
+import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
 import { readOfflineSession } from "./utils/offlineSession";
+import { parkAuthNotice } from "./utils/authNotice";
+import { readRecoveryBuffer } from "./utils/runRecovery";
 import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
 import { ConsentBanner } from "./components/ConsentBanner";
@@ -137,9 +139,15 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (s) {
         offlineSessionRef.current = null; // a real session supersedes the adopted one
-      } else if (offlineSessionRef.current) {
-        if (event !== "SIGNED_OUT") return; // offline refresh failure — keep the adopted session
+      } else if (event === "SIGNED_OUT") {
         offlineSessionRef.current = null;
+        // The one place account data may leave the device: an explicit
+        // sign-out (or a dead refresh token). NOT in clearStore — that runs on
+        // transient null-session states too, where wiping the mirror would
+        // destroy the offline boot it exists for.
+        clearOfflineMirror();
+      } else if (offlineSessionRef.current) {
+        return; // offline refresh failure — keep the adopted session
       }
       settle(s);
     });
@@ -147,9 +155,18 @@ export default function App() {
     // Belt-and-suspenders: if the auth state is somehow still unresolved after
     // the cap (requests are already bounded by the fetch timeout in
     // supabase.js), drop to the login screen instead of spinning forever.
+    // This fires BEFORE a slow offline refresh settles (auth-js retries can
+    // outlast the cap on a dead network), so it must make the same offline
+    // fallback as the resolved path — settling null here would flash the login
+    // screen and tear down the store for a user who is merely offline.
     const timer = setTimeout(() => {
       setSession((curr) => {
         if (curr !== undefined) return curr;
+        const cached = readOfflineSession();
+        if (cached) {
+          offlineSessionRef.current = cached;
+          return cached;
+        }
         console.error("Auth init did not settle in time; showing login");
         return null;
       });
@@ -386,8 +403,14 @@ export default function App() {
   // After an offline boot, reconnecting may reveal a newer server row (another
   // device wrote while this one was offline). db.ts adopts it into the cache;
   // this remounts the app over it and says why the screen just refreshed.
+  // Parked, not emitted: a live dispatch would be drained by the OUTGOING
+  // RunningCoach and die in its unmount — the fresh mount drains the park.
   useEffect(() => subscribeStoreRefresh(() => {
-    emitAuthNotice("app.offline.refreshed");
+    // Never tear down a live recording (or an unresumed interrupted-run
+    // offer): the adopted data is already in the cache, so skipping the
+    // remount only leaves the current views stale until the next boot.
+    if (readRecoveryBuffer()) return;
+    parkAuthNotice("app.offline.refreshed");
     setStoreNonce(n => n + 1);
   }), []);
 

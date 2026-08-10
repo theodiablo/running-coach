@@ -36,6 +36,7 @@ vi.mock("./db", () => ({
   flushNow: h.flushNow,
   isStoreLoaded: () => false,
   subscribeStoreRefresh: () => () => {},
+  clearOfflineMirror: vi.fn(),
 }));
 
 vi.mock("./marketing/MarketingGate", () => ({ default: () => <div>Marketing landing</div> }));

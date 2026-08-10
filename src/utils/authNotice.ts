@@ -16,8 +16,16 @@ export type AuthNotice = { key: string; type: "ok" | "err"; vars?: Record<string
 let pending: AuthNotice | null = null;
 
 export function emitAuthNotice(key: string, type: "ok" | "err" = "ok", vars?: Record<string, string>) {
-  pending = { key, type, vars };
+  parkAuthNotice(key, type, vars);
   window.dispatchEvent(new Event(AUTH_NOTICE_EVENT));
+}
+
+// Park WITHOUT dispatching — for a notice aimed at a host that is about to be
+// REMOUNTED (App's store-refresh remount): a live dispatch would be drained by
+// the outgoing instance, whose toast dies with it. The incoming mount drains
+// the parked notice instead.
+export function parkAuthNotice(key: string, type: "ok" | "err" = "ok", vars?: Record<string, string>) {
+  pending = { key, type, vars };
 }
 
 // Consumes the parked notice, if any. One consumption path for both timings, so
