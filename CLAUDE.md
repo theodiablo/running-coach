@@ -154,6 +154,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   `OTHER` entries are kept out of the pool. No surface may claim more than the
   log supports (`isFirstEffort` vs `isPersonalBest`, and `EffortRank.estimated`
   per distance). Detail: `docs/best-efforts.md`.
+- **Overdue plan sessions are derived, never stored** — `overdueSessions` /
+  `nextSession` (`src/utils/overdue.ts`) are the one definition, and a session
+  must never appear in both. Copy stays forgiving ("still open", amber, never
+  red): the anti-streak stance in `badges.ts` applies to every surface that
+  mentions a missed session. Session reminders schedule through the pure
+  `reminderSchedule` (`src/utils/sessionReminders.ts`) and one effect in
+  `RunningCoach.tsx` — never per plan-mutation site, and never with exact
+  alarms. Detail: `docs/reminders.md`.
 - `raceDate`, `distanceKm`, `goalSec` start **empty** (`""`) — no seeded race
   defaults; guard before reading them.
 - **Derived-state resets happen during render, not in effects** — see the
@@ -370,6 +378,8 @@ changes.
 - `docs/background-location.md` — Android background-location policy.
 - `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup, public `/watch/:token` links.
 - `docs/guided-workouts.md` — guided tempo/interval/run-walk sessions (premium): workout compiler+engine, cue seams, native step engines.
+- `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
+- `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.

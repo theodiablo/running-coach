@@ -17,6 +17,14 @@
     "total": "Total"
   },
   "nextBadge": "Próxima insignia",
+  "overdue": {
+    "title_one": "1 sesión pendiente",
+    "title_other": "{{count}} sesiones pendientes",
+    "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o pide a tu entrenador que reajuste el plan.",
+    "more_one": "1 más en tu plan",
+    "more_other": "{{count}} más en tu plan",
+    "adjust": "Ajustar mi plan"
+  },
   "session": {
     "today": "Sesión de hoy",
     "upNext": "Próxima sesión",

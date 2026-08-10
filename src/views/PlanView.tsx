@@ -16,6 +16,7 @@ import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from 
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
 import { carryProgress, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
+import { overdueByWeek } from "../utils/overdue";
 
 // ── Week windows ────────────────────────────────────────────────────────────
 // A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
@@ -298,6 +299,9 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const done = all.filter(s => s.done).length;
   const pct  = Math.round((done / all.length) * 100);
   const today = startOfToday();
+  // Same definition of "overdue" the Dashboard card uses, so the two surfaces
+  // can never disagree about what is still open (src/utils/overdue.ts).
+  const overdueCounts = overdueByWeek(plan, today);
   const { upcoming, past } = splitWeeks(plan);
   const ps   = plan.planSessions || settings.planSessions || [];
   const sessInfo = ps.slice()
@@ -336,6 +340,9 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const isCurr = !isPast && weekStart(wk) <= today;
     const isExp  = exp === wk.weekNumber;
     const wDone  = wk.sessions.filter(s => s.done).length;
+    // Untouched sessions in a week that has already ended — without this a past
+    // week nobody ran reads exactly like one that was completed.
+    const wOpen  = isPast ? (overdueCounts[wk.weekNumber] || 0) : 0;
     const wkNumCls = isCurr ? "text-orange-400" : isPast ? "text-slate-600" : "text-slate-200";
     const wkCardCls = isCurr ? "border-orange-500/50 bg-orange-500/5" : "border-slate-700/60 bg-slate-800/50";
     const phaseLabel = t("common.phases." + wk.phase, { defaultValue: wk.phase });
@@ -347,6 +354,11 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
           <span className="text-xs text-slate-400 flex-shrink-0">{fmt.sht(wk.startDate || "")}</span>
           <span title={phaseLabel} className={"text-[10.5px] font-semibold px-2 py-0.5 rounded-full min-w-0 truncate " + phaseClass(wk.phase)}>{phaseLabel}</span>
           {isCurr && <span className="text-xs text-orange-400 flex-shrink-0">{t("plan.week.now")}</span>}
+          {wOpen > 0 && (
+            <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 bg-amber-400/15 text-amber-300">
+              {t("plan.week.stillOpen", { count: wOpen })}
+            </span>
+          )}
           <span className="flex-1"/>
           <span className="text-xs text-slate-400 whitespace-nowrap">{wDone + "/" + wk.sessions.length}</span>
           <ChevronDown size={15} className={"text-slate-500 transition-transform flex-shrink-0 " + (isExp ? "rotate-180" : "")}/>

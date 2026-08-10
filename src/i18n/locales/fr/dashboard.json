@@ -17,6 +17,14 @@
     "total": "Total"
   },
   "nextBadge": "Prochain badge",
+  "overdue": {
+    "title_one": "1 séance encore ouverte",
+    "title_other": "{{count}} séances encore ouvertes",
+    "subtitle": "La vie fait des siennes. Coche ce que tu as fait, passe ce que tu n'as pas fait, ou demande à ton coach de remodeler le plan.",
+    "more_one": "1 autre dans ton plan",
+    "more_other": "{{count}} autres dans ton plan",
+    "adjust": "Ajuster mon plan"
+  },
   "session": {
     "today": "Séance du jour",
     "upNext": "À venir",

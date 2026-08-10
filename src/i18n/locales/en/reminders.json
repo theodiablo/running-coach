@@ -1,0 +1,27 @@
+{
+  "notif": {
+    "today": "Training today",
+    "tomorrow": "Training tomorrow"
+  },
+  "settings": {
+    "title": "Training reminders",
+    "subtitle": "A nudge before each planned session, so the plan does not quietly drift.",
+    "toggle": "Remind me about sessions",
+    "time": "Remind me at",
+    "lead": "When",
+    "leadEveningBefore": "Evening before",
+    "leadMorningOf": "Morning of",
+    "nextUp": "Next reminder: {{when}}",
+    "nonePlanned": "No reminder scheduled yet. Build a plan and the next session will be queued.",
+    "denied": "Notifications are turned off for this app. Enable them in your device settings, then flip this back on."
+  },
+  "disclosure": {
+    "title": "Training reminders",
+    "intro": "Running Coach can send you a <bold>reminder before each planned session</bold>.",
+    "bullet1": "Reminders are scheduled <bold>on this device only</bold>. Nothing about your training is sent anywhere.",
+    "bullet2": "They follow your plan: complete or skip a session and its reminder disappears.",
+    "bullet3": "You can turn them off at any time in Settings, or from your device's notification settings.",
+    "accept": "Turn on reminders",
+    "cancel": "Not now"
+  }
+}

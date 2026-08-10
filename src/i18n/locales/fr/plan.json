@@ -8,7 +8,9 @@
   "longRunNudge": "Pour atteindre ton objectif, les sorties longues vont jusqu'à ~{{peak}}, au-delà de ta plus longue journée d'entraînement ({{longest}}). C'est normal pour cette distance ; envisage d'allonger ce jour dans Modifier le plan.",
   "week": {
     "label": "Sem. {{number}}",
-    "now": "cette semaine"
+    "now": "cette semaine",
+    "stillOpen_one": "1 ouverte",
+    "stillOpen_other": "{{count}} ouvertes"
   },
   "edit": {
     "goalTitle": "Ton objectif",
@@ -43,9 +45,21 @@
         "lots": "5 jours ou plus conviennent aux coureurs expérimentés ; les débutants risquent des blessures à ce volume."
       },
       "band": {
-        "short": { "label": "Court", "sub": "~30 min", "word": "~30 min" },
-        "med": { "label": "Moyen", "sub": "45-60 min", "word": "45-60 min" },
-        "long": { "label": "Long", "sub": "1 h+", "word": "1 h+" }
+        "short": {
+          "label": "Court",
+          "sub": "~30 min",
+          "word": "~30 min"
+        },
+        "med": {
+          "label": "Moyen",
+          "sub": "45-60 min",
+          "word": "45-60 min"
+        },
+        "long": {
+          "label": "Long",
+          "sub": "1 h+",
+          "word": "1 h+"
+        }
       }
     },
     "custom": {

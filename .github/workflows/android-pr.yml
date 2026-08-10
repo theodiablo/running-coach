@@ -118,9 +118,14 @@ jobs:
           retention-days: 14
 
       # Post (and keep updated) a comment linking straight to the APK artifact.
-      # Skipped for fork PRs, whose pull_request token is read-only.
+      # Skipped for fork PRs, whose pull_request token is read-only, and on
+      # workflow_dispatch, which has no PR to comment on. The event check is
+      # load-bearing, not belt-and-braces: with no PR context the fork
+      # expression is `null == false`, which Actions coerces to 0 == 0 = TRUE,
+      # so the step used to run and die on `pull_request.head` — a dispatched
+      # build could never go green even though the APK uploaded fine.
       - name: Comment with download link
-        if: ${{ github.event.pull_request.head.repo.fork == false }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           # Direct artifact download URL (requires GitHub login). Exposed by

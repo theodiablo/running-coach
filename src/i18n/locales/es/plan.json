@@ -8,7 +8,9 @@
   "longRunNudge": "Para alcanzar tu objetivo, las tiradas largas llegan a ~{{peak}}, por encima de tu día de entrenamiento más largo ({{longest}}). Es normal para esta distancia; valora alargar ese día en Editar plan.",
   "week": {
     "label": "Sem. {{number}}",
-    "now": "esta semana"
+    "now": "esta semana",
+    "stillOpen_one": "1 pendiente",
+    "stillOpen_other": "{{count}} pendientes"
   },
   "edit": {
     "goalTitle": "Tu objetivo",
@@ -43,9 +45,21 @@
         "lots": "5 días o más son para corredores con experiencia; en principiantes hay riesgo de lesión con este volumen."
       },
       "band": {
-        "short": { "label": "Corto", "sub": "~30 min", "word": "~30 min" },
-        "med": { "label": "Medio", "sub": "45-60 min", "word": "45-60 min" },
-        "long": { "label": "Largo", "sub": "1 h+", "word": "1 h+" }
+        "short": {
+          "label": "Corto",
+          "sub": "~30 min",
+          "word": "~30 min"
+        },
+        "med": {
+          "label": "Medio",
+          "sub": "45-60 min",
+          "word": "45-60 min"
+        },
+        "long": {
+          "label": "Largo",
+          "sub": "1 h+",
+          "word": "1 h+"
+        }
       }
     },
     "custom": {

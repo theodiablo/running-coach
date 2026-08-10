@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { INPUT_CLS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_WARN_CHARS, USER_CONTEXT_NOTICE_CHARS } from "../../constants";
 import { HRZones } from "../../views/HRZones";
-import type { SettingsState, UserContextState } from "../../types";
+import { SessionRemindersCard } from "../../components/SessionRemindersCard";
+import type { Plan, SettingsState, UserContextState } from "../../types";
 
 // Training Profile: what the coach and the plan reason about — your heart-rate
 // profile and the standing notes the coach carries between chats. Identity and
@@ -13,9 +14,10 @@ type TrainingProfilePageProps = {
   userContext: UserContextState;
   saveUserContext: (context: UserContextState) => void;
   onOpenCoach?: () => void;
+  plan?: Plan | null;
 };
 
-export function TrainingProfilePage({ settings, saveSettings, userContext, saveUserContext, onOpenCoach }: TrainingProfilePageProps) {
+export function TrainingProfilePage({ settings, saveSettings, userContext, saveUserContext, onOpenCoach, plan }: TrainingProfilePageProps) {
   const { t } = useTranslation();
   const sourceMemory = userContext?.notes || "";
   const [memorySource, setMemorySource] = useState(sourceMemory);
@@ -35,6 +37,8 @@ export function TrainingProfilePage({ settings, saveSettings, userContext, saveU
       <div className="bg-slate-800 rounded-2xl p-4">
         <HRZones settings={settings} saveSettings={saveSettings}/>
       </div>
+
+      <SessionRemindersCard settings={settings} saveSettings={saveSettings} plan={plan ?? null}/>
 
       <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
         <div>

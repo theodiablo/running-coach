@@ -85,6 +85,14 @@ export const BG_LOC_DISCLOSED_KEY = "rc_bg_loc_disclosed";
 // Once per install — asked the first time a run starts, never re-nagged.
 export const REC_NOTIF_ASKED_KEY = "rc_rec_notif_asked";
 
+// localStorage flags for plan-session reminders (docs/reminders.md). The
+// preference itself (settings.sessionReminders) is SYNCED — these two are the
+// per-device half: whether the OS grant was obtained on THIS install, and
+// whether the prominent disclosure has been shown once. A preference synced
+// from another phone must never assume a grant here.
+export const SESSION_NOTIF_AUTH_KEY = "rc_session_notif_auth";
+export const SESSION_NOTIF_DISCLOSED_KEY = "rc_session_notif_disclosed";
+
 // localStorage flag: we've asked once for ACCESS_BACKGROUND_LOCATION ("Allow all
 // the time"). Only ever requested on a build that DECLARES the permission (the
 // debug/personal sideload manifest — the public Play release never declares it),
