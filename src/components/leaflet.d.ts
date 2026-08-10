@@ -43,9 +43,15 @@ declare module "leaflet" {
     tap?: ToggleHandler;
   };
   type Addable<T> = T & { addTo: (map: Map) => T };
+  // Leaflet's class system: extend() returns a constructor whose prototype
+  // includes getTileUrl — enough surface for cachedTileLayer's createTile override.
+  type TileLayerClass = {
+    extend: (proto: Record<string, unknown>) => new (url: string, options?: Record<string, unknown>) => Addable<Layer>;
+  };
   type LeafletModule = {
     map: (el: HTMLElement, options?: Record<string, unknown>) => Map;
     tileLayer: (url: string, options?: Record<string, unknown>) => Addable<Layer>;
+    TileLayer: TileLayerClass;
     control: { zoom: () => Control };
     polyline: (points: LatLngExpression[], options?: Record<string, unknown>) => Addable<Polyline>;
     marker: (latlng: LatLngExpression, options?: Record<string, unknown>) => Addable<Marker>;

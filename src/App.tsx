@@ -10,7 +10,8 @@ import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
-import { initStore, clearStore, flushNow } from "./db";
+import { initStore, clearStore, flushNow, subscribeStoreRefresh } from "./db";
+import { readOfflineSession } from "./utils/offlineSession";
 import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
 import { ConsentBanner } from "./components/ConsentBanner";
@@ -75,6 +76,10 @@ export default function App() {
   // `storeAttempt` re-runs the load effect.
   const [storeFailedUid, setStoreFailedUid] = useState<string | null>(null);
   const [storeAttempt, setStoreAttempt] = useState(0);
+  // Bumped when db.ts adopts a newer server row over an offline-booted cache:
+  // the UI's copies are stale, so RunningCoach is remounted (keyed below) to
+  // re-read the store.
+  const [storeNonce, setStoreNonce] = useState(0);
   // Premium entitlement (profiles.premium_until). Server truth, read for UI
   // only — every premium feature is enforced in its edge function. Free until
   // the fetch lands, and on any failure.
@@ -94,25 +99,48 @@ export default function App() {
   // Latest session, readable from the once-registered deep-link listener below.
   const sessionRef = useRef<Session | null>(null);
 
+  // Session adopted from supabase-js's own storage because getSession() came
+  // back empty on an unreachable network (offline cold start with an expired
+  // access token — the session survives in storage but can't be refreshed).
+  // Only a real auth event may replace it: a fresh session clears it, an
+  // explicit SIGNED_OUT clears it, but the null that every failed offline
+  // refresh emits must NOT bounce the user to the login screen.
+  const offlineSessionRef = useRef<Session | null>(null);
+
   // Track the auth session.
   useEffect(() => {
     let active = true;
     const settle = (s: Session | null) => {
       if (active) setSession(s);
     };
+    // No session from the server path: before falling to the login screen, see
+    // if supabase-js still holds a recently-live session it merely failed to
+    // refresh (offline). Signed-out storage is empty, so this can never
+    // resurrect a session the user ended.
+    const settleWithFallback = (s: Session | null) => {
+      const adopted = s ?? readOfflineSession();
+      if (!s && adopted) offlineSessionRef.current = adopted;
+      settle(adopted);
+    };
 
     supabase.auth
       .getSession()
-      .then(({ data }) => settle(data.session))
+      .then(({ data }) => settleWithFallback(data.session))
       .catch((err) => {
         // A *rejected* getSession() would otherwise leave `session` stuck at
         // `undefined` (infinite <Splash/>). Log it and fall back to the login
         // screen so the user can retry rather than being stranded.
         console.error("Initial getSession() failed", err);
-        settle(null);
+        settleWithFallback(null);
       });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (s) {
+        offlineSessionRef.current = null; // a real session supersedes the adopted one
+      } else if (offlineSessionRef.current) {
+        if (event !== "SIGNED_OUT") return; // offline refresh failure — keep the adopted session
+        offlineSessionRef.current = null;
+      }
       settle(s);
     });
 
@@ -318,14 +346,17 @@ export default function App() {
       // Tie telemetry to the Supabase user id (no-op without consent/provider).
       identifyUser(session.user.id);
       setStoreReady(false);
-      initStore(session.user.id).then((ok) => {
+      initStore(session.user.id).then((result) => {
         if (cancelled) return;
-        if (!ok) {
+        if (result === "failed") {
           // Leave loadedUidRef unset so a retry re-runs this effect rather than
           // short-circuiting on the "already loaded" guard.
           setStoreFailedUid(session.user.id);
           return;
         }
+        // Offline boot: the app runs on the locally-mirrored data. Say so —
+        // silence would make any staleness look like data loss.
+        if (result === "offline") emitAuthNotice("app.offline.usingLocal");
         loadedUidRef.current = session.user.id;
         setStoreFailedUid(null);
         setStoreReady(true);
@@ -351,6 +382,14 @@ export default function App() {
       cancelled = true;
     };
   }, [session, storeAttempt]);
+
+  // After an offline boot, reconnecting may reveal a newer server row (another
+  // device wrote while this one was offline). db.ts adopts it into the cache;
+  // this remounts the app over it and says why the screen just refreshed.
+  useEffect(() => subscribeStoreRefresh(() => {
+    emitAuthNotice("app.offline.refreshed");
+    setStoreNonce(n => n + 1);
+  }), []);
 
   // Re-read the entitlement on demand. The load above runs once per sign-in, so
   // without this a user who was offline at cold start (or who was granted
@@ -426,7 +465,7 @@ export default function App() {
   return (
     <>
       {updateState === "update-available" && <UpdateBanner />}
-      <RunningCoach onSignOut={signOutFlushed} user={session.user}
+      <RunningCoach key={storeNonce} onSignOut={signOutFlushed} user={session.user}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>

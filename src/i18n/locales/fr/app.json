@@ -49,6 +49,10 @@
     "sent": "Rapport de plantage envoyé. Merci.",
     "reload": "Recharger"
   },
+  "offline": {
+    "usingLocal": "Tu es hors ligne. Tes dernières données synchronisées sont affichées ; les nouveaux changements se synchroniseront au retour de la connexion.",
+    "refreshed": "De retour en ligne. Tes données ont été mises à jour depuis le cloud."
+  },
   "storeError": {
     "title": "Impossible de charger tes données",
     "body": "Nous n'avons pas pu récupérer tes données d'entraînement, donc l'app est en pause pour les préserver. Vérifie ta connexion et réessaie. Rien n'a été modifié ni perdu.",

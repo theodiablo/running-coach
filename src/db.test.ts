@@ -31,8 +31,8 @@ vi.mock("./supabase", () => ({
   },
 }));
 
-import { db, initStore, clearStore, flushNow, isStoreLoaded, currentUserId } from "./db";
-import { UNSYNCED_STATE_KEY } from "./constants";
+import { db, initStore, clearStore, flushNow, isStoreLoaded, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
+import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
 const loadOk = (data: unknown, updatedAt?: string) => {
   h.state.result = { data: { data, ...(updatedAt ? { updated_at: updatedAt } : {}) }, error: null };
@@ -60,7 +60,7 @@ describe("db store", () => {
 
   it("loads the row and persists writes", async () => {
     loadOk({ rc_runs: ["real run"] });
-    expect(await initStore("u1")).toBe(true);
+    expect(await initStore("u1")).toBe("loaded");
     expect(isStoreLoaded()).toBe(true);
     expect(await db.get("rc_runs")).toEqual(["real run"]);
 
@@ -76,7 +76,7 @@ describe("db store", () => {
 
   it("treats an absent row as a loaded, writable empty store (new user)", async () => {
     h.state.result = { data: null, error: null };
-    expect(await initStore("new-user")).toBe(true);
+    expect(await initStore("new-user")).toBe("loaded");
     expect(isStoreLoaded()).toBe(true);
 
     await db.set("rc_settings", { onboarded: true });
@@ -89,7 +89,7 @@ describe("db store", () => {
   // with a blank slate.
   it("never writes after a failed read (PostgREST error)", async () => {
     loadErrors();
-    expect(await initStore("u1")).toBe(false);
+    expect(await initStore("u1")).toBe("failed");
     expect(isStoreLoaded()).toBe(false);
 
     await db.set("rc_settings", { onboarded: true });
@@ -101,7 +101,7 @@ describe("db store", () => {
 
   it("never writes after a thrown read (offline / aborted fetch)", async () => {
     loadThrows();
-    expect(await initStore("u1")).toBe(false);
+    expect(await initStore("u1")).toBe("failed");
 
     await db.set("rc_runs", []);
     await db.set("rc_plan", null);
@@ -113,13 +113,13 @@ describe("db store", () => {
 
   it("recovers on a successful retry and writes the real blob", async () => {
     loadThrows();
-    expect(await initStore("u1")).toBe(false);
+    expect(await initStore("u1")).toBe("failed");
     await db.set("rc_settings", { onboarded: true });
     await settle();
     expect(h.upsert).not.toHaveBeenCalled();
 
     loadOk({ rc_runs: ["real run"], rc_plan: { weeks: [1] } });
-    expect(await initStore("u1")).toBe(true);
+    expect(await initStore("u1")).toBe("loaded");
     // The retry's blob wins; the write attempted while unloaded is gone, not
     // merged on top of a phantom empty state.
     expect(await db.get("rc_runs")).toEqual(["real run"]);
@@ -139,7 +139,7 @@ describe("db store", () => {
     // Second user's load fails: the cache must not still hold u1's runs, and
     // nothing may be written under u2.
     loadThrows();
-    expect(await initStore("u2")).toBe(false);
+    expect(await initStore("u2")).toBe("failed");
     expect(currentUserId()).toBe("u2");
     expect(await db.get("rc_runs")).toBeNull();
 
@@ -230,7 +230,7 @@ describe("db store — offline durability", () => {
     }));
     loadOk({ rc_runs: ["server run"] }, new Date(now - 60_000).toISOString());
 
-    expect(await initStore("u1")).toBe(true);
+    expect(await initStore("u1")).toBe("loaded");
     expect(await db.get("rc_runs")).toEqual(["offline run"]);
 
     await settle();
@@ -246,7 +246,7 @@ describe("db store — offline durability", () => {
     }));
     loadOk({ rc_runs: ["server run"] }, new Date(now).toISOString());
 
-    expect(await initStore("u1")).toBe(true);
+    expect(await initStore("u1")).toBe("loaded");
     expect(await db.get("rc_runs")).toEqual(["server run"]);
     expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
     await settle();
@@ -259,8 +259,144 @@ describe("db store — offline durability", () => {
     }));
     loadOk({ rc_runs: ["u1's run"] });
 
-    expect(await initStore("u1")).toBe(true);
+    expect(await initStore("u1")).toBe("loaded");
     expect(await db.get("rc_runs")).toEqual(["u1's run"]);
     expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy(); // kept for u2's next sign-in
+  });
+});
+
+// An offline cold start used to dead-end on the retry screen: the boot read
+// fails, and the read-only store locks a signed-in user out of their own data.
+// Now the last server-confirmed blob is mirrored locally, boots the store when
+// the read fails, and is reconciled against the live row before anything may
+// be upserted over it.
+describe("db store — offline boot", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    localStorage.clear();
+    h.upsert.mockClear();
+    h.upsert.mockImplementation(async () => ({ error: null }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    clearStore();
+  });
+  afterEach(() => {
+    clearStore();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const iso = (t: number) => new Date(t).toISOString();
+  // A successful session yesterday leaves a mirror behind; the next boot's
+  // read fails (offline).
+  const bootOffline = async (data: unknown, serverAt: number) => {
+    loadOk(data, iso(serverAt));
+    expect(await initStore("u1")).toBe("loaded");
+    loadThrows();
+    return initStore("u1");
+  };
+
+  it("boots read-write from the mirror when the load fails, without upserting", async () => {
+    expect(await bootOffline({ rc_runs: ["mirrored run"] }, Date.now() - 60_000)).toBe("offline");
+    expect(isStoreLoaded()).toBe(true);
+    expect(await db.get("rc_runs")).toEqual(["mirrored run"]);
+
+    // A write while still offline: kept locally (snapshot), never upserted —
+    // the row must be reconciled before it may be replaced.
+    await db.set("rc_notes", "written offline");
+    await settle();
+    expect(h.upsert).not.toHaveBeenCalled();
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy();
+  });
+
+  it("flushes offline writes after reconciling against an unchanged server row", async () => {
+    const serverAt = Date.now() - 60_000;
+    expect(await bootOffline({ rc_runs: ["mirrored run"] }, serverAt)).toBe("offline");
+    await db.set("rc_notes", "written offline");
+    await settle();
+    expect(h.upsert).not.toHaveBeenCalled();
+
+    // Connectivity returns; the row is unchanged, so the local state wins.
+    loadOk({ rc_runs: ["mirrored run"] }, iso(serverAt));
+    await vi.advanceTimersByTimeAsync(31_000); // retry timer
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    expect(h.upsert.mock.calls[0][0]).toMatchObject({
+      user_id: "u1",
+      data: { rc_runs: ["mirrored run"], rc_notes: "written offline" },
+    });
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("adopts a newer server row on reconnect when nothing was written locally", async () => {
+    expect(await bootOffline({ rc_runs: ["old"] }, Date.now() - 60_000)).toBe("offline");
+    const refreshed = vi.fn();
+    const unsub = subscribeStoreRefresh(refreshed);
+
+    loadOk({ rc_runs: ["written by another device"] }, iso(Date.now() + 1000));
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(await db.get("rc_runs")).toEqual(["written by another device"]);
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(h.upsert).not.toHaveBeenCalled(); // read-only session: nothing to write back
+    unsub();
+  });
+
+  it("drops offline edits older than a foreign server write (server wins)", async () => {
+    expect(await bootOffline({ rc_runs: ["old"] }, Date.now() - 60_000)).toBe("offline");
+    await db.set("rc_notes", "loses");
+    await settle();
+
+    // Another device wrote AFTER this device's offline edit.
+    loadOk({ rc_runs: ["newer elsewhere"] }, iso(Date.now() + 60_000));
+    const refreshed = vi.fn();
+    const unsub = subscribeStoreRefresh(refreshed);
+    await vi.advanceTimersByTimeAsync(31_000);
+
+    expect(await db.get("rc_runs")).toEqual(["newer elsewhere"]);
+    expect(await db.get("rc_notes")).toBeNull();
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(h.upsert).not.toHaveBeenCalled();
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+    unsub();
+  });
+
+  it("restores an unsynced snapshot newer than the mirror on an offline boot", async () => {
+    loadOk({ rc_runs: ["mirrored"] }, iso(Date.now() - 60_000));
+    expect(await initStore("u1")).toBe("loaded");
+    // A run saved offline in a later session whose flush never landed.
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({
+      userId: "u1", data: { rc_runs: ["mirrored", "saved offline"] }, savedAt: Date.now() + 1000,
+    }));
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    expect(await db.get("rc_runs")).toEqual(["mirrored", "saved offline"]);
+  });
+
+  it("refuses a mirror older than the age cap", async () => {
+    localStorage.setItem(OFFLINE_STATE_KEY, JSON.stringify({
+      userId: "u1", data: { rc_runs: ["ancient"] },
+      serverUpdatedAt: 0, savedAt: Date.now() - OFFLINE_BOOT_MAX_AGE_MS - 1000,
+    }));
+    loadThrows();
+    expect(await initStore("u1")).toBe("failed");
+    expect(isStoreLoaded()).toBe(false);
+  });
+
+  it("never boots one account from another's mirror", async () => {
+    loadOk({ rc_runs: ["u1's runs"] }, iso(Date.now()));
+    expect(await initStore("u1")).toBe("loaded");
+    loadThrows();
+    expect(await initStore("u2")).toBe("failed");
+    expect(await db.get("rc_runs")).toBeNull();
+  });
+
+  it("clears the mirror on sign-out so the next user can't boot from it", async () => {
+    loadOk({ rc_runs: ["private"] }, iso(Date.now()));
+    expect(await initStore("u1")).toBe("loaded");
+    expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBeTruthy();
+    clearStore();
+    expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBeNull();
+    loadThrows();
+    expect(await initStore("u1")).toBe("failed");
   });
 });

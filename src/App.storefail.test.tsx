@@ -7,7 +7,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 // overwritten. They get a retry screen instead.
 
 const h = vi.hoisted(() => ({
-  initStore: vi.fn(async () => false),
+  initStore: vi.fn(async (): Promise<string> => "failed"),
   signOut: vi.fn(async () => ({ error: null })),
   flushNow: vi.fn(async () => {}),
 }));
@@ -35,6 +35,7 @@ vi.mock("./db", () => ({
   currentUserId: () => "u1",
   flushNow: h.flushNow,
   isStoreLoaded: () => false,
+  subscribeStoreRefresh: () => () => {},
 }));
 
 vi.mock("./marketing/MarketingGate", () => ({ default: () => <div>Marketing landing</div> }));
@@ -43,7 +44,7 @@ import App from "./App";
 
 describe("app_state load failure", () => {
   beforeEach(() => {
-    h.initStore.mockClear().mockResolvedValue(false);
+    h.initStore.mockClear().mockResolvedValue("failed");
     h.signOut.mockClear();
     h.flushNow.mockClear();
   });
@@ -60,7 +61,7 @@ describe("app_state load failure", () => {
     await waitFor(() => expect(screen.getByText(/Couldn't load your data/i)).toBeInTheDocument());
     expect(h.initStore).toHaveBeenCalledTimes(1);
 
-    h.initStore.mockResolvedValue(true);
+    h.initStore.mockResolvedValue("loaded");
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
 
     await waitFor(() => expect(h.initStore).toHaveBeenCalledTimes(2));

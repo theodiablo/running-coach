@@ -34,11 +34,12 @@ vi.mock("./supabase", () => ({
 vi.mock("./native", () => ({ isNative: false, isIos: false, isAndroid: false, platform: "web" }));
 
 vi.mock("./db", () => ({
-  initStore: vi.fn(async () => true),
+  initStore: vi.fn(async () => "loaded"),
   clearStore: vi.fn(),
   db: { get: vi.fn(async () => null), set: vi.fn() },
   currentUserId: () => "u1",
   flushNow: vi.fn(async () => {}),
+  subscribeStoreRefresh: () => () => {},
 }));
 
 // Simulate the real-world failure: a signed-in user has never loaded the

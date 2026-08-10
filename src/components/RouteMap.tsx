@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import L, { type Circle, type Control, type LatLngExpression, type Map, type Marker, type Polyline } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAP_ATTRIBUTION, MAP_KEY, MAP_TILE_URL } from "../constants";
+import { cachedTileLayer } from "./cachedTileLayer";
 import { segments } from "../utils/geo";
 
 // Imperative Leaflet wrapper. We drive the map directly via refs (no
@@ -118,7 +119,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       zoomControl: false,
       attributionControl: true,
     }).setView([0, 0], 2);
-    L.tileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
+    cachedTileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
     // A dedicated low-z pane so guide lines (suggested/planned loops) always sit
     // UNDER the recorded track (overlayPane z=400) and its markers, no matter the
     // order the two effects run in.

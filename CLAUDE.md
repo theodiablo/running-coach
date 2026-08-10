@@ -74,14 +74,24 @@ Always re-verify a finding before acting on it; agents report false positives.
   and flush on page hide/unload. Every flush attempt first snapshots the cache
   to localStorage (`UNSYNCED_STATE_KEY`); a failed upsert retries (online
   event + timer) and a snapshot newer than the server row is restored on the
-  next boot — an offline save must survive the process being killed.
+  next boot — an offline save must survive the process being killed. Each
+  successful load/flush also mirrors the confirmed blob to `OFFLINE_STATE_KEY`
+  for the offline boot below (cleared on sign-out — it's account data).
 - **A failed load must never become a write.** The upsert replaces the whole
   `data` blob, so an unpopulated cache would erase the row — one offline cold
-  start once wiped a real user's runs and plan. `initStore` resolves
-  `false` on a failed read and the store stays read-only (`isStoreLoaded()`)
-  until a load succeeds; `App.tsx` renders `StoreLoadError` (retry) rather than
-  falling through to the app, which would read as a new account and trigger
-  onboarding. Never "recover" from a read failure with an empty default.
+  start once wiped a real user's runs and plan. On a failed read `initStore`
+  boots from the `OFFLINE_STATE_KEY` mirror when it has one for that user
+  (≤7 days old) — a real copy of the row, so the invariant holds — returning
+  `"offline"`; the first server contact then *reconciles before any upsert*
+  (foreign newer write wins over untouched/older local state, same
+  last-write-wins rule as the snapshot restore; `subscribeStoreRefresh`
+  remounts the app when the server row is adopted). With no usable mirror it
+  returns `"failed"` and the store stays read-only (`isStoreLoaded()`);
+  `App.tsx` renders `StoreLoadError` (retry) rather than falling through to
+  the app, which would read as a new account and trigger onboarding. Never
+  "recover" from a read failure with an empty default. The auth twin: an
+  offline cold start with an expired token gets its session from
+  `readOfflineSession` (`src/utils/offlineSession.ts`), not the login screen.
 - **Supabase config:** URL + anon key in `src/config.ts`.
   `VITE_SUPABASE_URL` is required at build time; workflows construct it from
   repo variable `SUPABASE_PROJECT_REF`. Don't hardcode project refs or
@@ -295,6 +305,9 @@ changes.
 - A logged run renders as `RunRow` (`src/components/RunRow.tsx`) — shared by
   dashboard + History; use its props (`dateFmt`, `showNotes`, `actions`,
   `highlight`) rather than re-rolling the markup.
+- **Map tiles go through `cachedTileLayer`** (`src/components/cachedTileLayer.ts`;
+  cache-first IndexedDB, 30-day TTL, stale fallback offline) — never a bare
+  `L.tileLayer`, or the map goes blank without a connection.
 - **Surfacing an async run change** (HR relink, watch import): go through
   `goToRuns(ids, label)` (`RunningCoach.tsx`) — transient highlight + navigate
   + scroll — not a bare text toast.
