@@ -94,7 +94,12 @@ class WorkoutGuidePlugin : Plugin() {
     private var seedAtMs = 0L
     private var lastPaceCueAt = 0L
     private var lastCurPace = 0.0
+    // Announcement dedupe is NATIVE state: JS never speaks on Android (its
+    // playCue no-ops here), so a seed can't mean "already announced". It
+    // survives re-seeds (pause/resume/mute are same-idx) and resets only on
+    // teardown or when the engine went backwards (a fresh run).
     private var announcedIdx = -1
+    private var doneCued = false
 
     private val deadline = Runnable { evaluate() }
     private var receiver: BroadcastReceiver? = null
@@ -120,6 +125,10 @@ class WorkoutGuidePlugin : Plugin() {
     }
 
     override fun handleOnDestroy() {
+        // Full teardown, notification included: an activity swiped away
+        // mid-run must not leave an ongoing "current step" card with no
+        // engine behind it (the next mount's JS has no idea it exists).
+        teardown()
         receiver?.let {
             try {
                 LocalBroadcastManager.getInstance(context).unregisterReceiver(it)
@@ -127,7 +136,6 @@ class WorkoutGuidePlugin : Plugin() {
             }
         }
         receiver = null
-        handler.removeCallbacks(deadline)
         try { tts?.shutdown() } catch (ignored: RuntimeException) {}
         tts = null
         try { toneGen?.release() } catch (ignored: RuntimeException) {}
@@ -193,15 +201,32 @@ class WorkoutGuidePlugin : Plugin() {
         slowText = texts?.optString("slow") ?: ""
         seedAtMs = System.currentTimeMillis()
         enabled = true
-        // JS re-based the engine: it already announced this step, so don't.
-        announcedIdx = idx
+        // A seed that moved the engine backwards is a fresh run — start the
+        // announcement dedupe over. Same-idx re-seeds (pause/resume/mute)
+        // keep it, so they stay silent.
+        if (announcedIdx > idx) announcedIdx = -1
+        if (!finished) doneCued = false
         ensureTts(data.optString("lang", "en"))
+        // Announce the step the seed landed on if nothing has voiced it yet —
+        // the opening warm-up right after Go, and a foreground transition
+        // where the JS re-base beat the LIVE_FIX broadcast to the boundary.
+        if (tracking && !finished && announcedIdx != idx) {
+            announcedIdx = idx
+            stepAt(idx)?.let { cue(ToneGenerator.TONE_PROP_BEEP2, it.announce) }
+            lastPaceCueAt = System.currentTimeMillis()
+        }
+        if (finished && !doneCued) {
+            doneCued = true
+            cue(ToneGenerator.TONE_PROP_ACK, doneText)
+        }
         armDeadline()
         postNotification()
     }
 
     private fun teardown() {
         enabled = false
+        announcedIdx = -1
+        doneCued = false
         handler.removeCallbacks(deadline)
         try { tts?.stop() } catch (ignored: RuntimeException) {}
         try {
@@ -261,6 +286,7 @@ class WorkoutGuidePlugin : Plugin() {
         }
         if (advanced) {
             if (finished) {
+                doneCued = true
                 cue(ToneGenerator.TONE_PROP_ACK, doneText)
             } else if (announcedIdx != idx) {
                 announcedIdx = idx

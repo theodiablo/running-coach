@@ -195,8 +195,11 @@ export function useGuidedWorkout(
     }
     // iOS: arm the native one-shot for a time boundary (a standing recovery
     // produces no fixes to wake JS). Distance boundaries need a fix by
-    // definition, so nothing is armed for them.
-    if (step.sec != null) {
+    // definition, so nothing is armed for them. Never armed while muted —
+    // scheduleCue would no-op but the drift guard would then block the re-arm
+    // after unmute — and muting mid-step cancels the one already armed (the
+    // `muted` dep re-runs this effect on every toggle).
+    if (step.sec != null && !muted) {
       const remaining = stepRemaining(step, progress, stats);
       const inMs = (remaining.sec ?? 0) * 1000;
       const deadline = Date.now() + inMs;
@@ -210,7 +213,7 @@ export function useGuidedWorkout(
       armedDeadlineRef.current = null;
       cancelScheduledCue();
     }
-  }, [workout, state, progress, stats, announceFor, lang, t]);
+  }, [workout, state, progress, stats, muted, announceFor, lang, t]);
 
   // ── Android native engine: full-state re-base on every material change ────
   const seededRef = useRef(false);
@@ -268,7 +271,10 @@ export function useGuidedWorkout(
   // ── display state (derived at render; cheap) ──────────────────────────────
   const display = useMemo<GuidedDisplay | null>(() => {
     if (!workout) return null;
-    const step = stepAt(workout, cur.idx);
+    // A finished workout's idx points past the end — fall back to the last
+    // real step so the "workout complete" card (and the Live Activity's
+    // doneShort line) render instead of the panel vanishing at the finish.
+    const step = stepAt(workout, cur.done ? Math.max(0, cur.idx - 1) : cur.idx);
     if (!step) return null;
     const next = cur.done ? null : stepAt(workout, cur.idx + 1);
     const label = labelFor(step);
