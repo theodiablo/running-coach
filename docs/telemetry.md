@@ -112,7 +112,10 @@ an explicit var.
   hand-logged one, or the import provider — so filter `source = 'gps'` for runs
   recorded with live tracking.
 - Overdue plan sessions (`docs/reminders.md`): `overdue_shown` `{count}` — fired
-  once per change in the size of the backlog, not per render, so it reads as
+  once per change in the size of the backlog *per app session*. The
+  last-reported value is module scope, NOT a component ref: Dashboard remounts
+  on every tab switch and on the header brand-mark reset (`homeNonce`), and a
+  ref would re-fire on each, inflating the metric. So it reads as
   "how many people are carrying open sessions and how many" — and
   `overdue_resolved` `{action:"done"|"skip"|"coach"}` when one of the card's
   actions is used (`src/views/Dashboard.tsx`). Counts and an enum only, never a

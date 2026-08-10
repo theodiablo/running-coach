@@ -5,7 +5,7 @@ import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import type { User } from "@supabase/supabase-js";
 import { dismissAll, dismissTop } from "./utils/backDismiss";
-import { isLangId, setLocale } from "./i18n";
+import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
@@ -20,7 +20,7 @@ import { ymd, fmt } from "./utils/format";
 import { computeBadges, unlockedIds } from "./utils/badges";
 import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEfforts";
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
-import { syncSessionReminders } from "./notify/sessionReminders";
+import { syncSessionReminders, clearSessionReminders } from "./notify/sessionReminders";
 import { prefsFrom } from "./utils/sessionReminders";
 import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces } from "./utils/races";
 import { addRace, addEdition } from "./races";
@@ -435,14 +435,28 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // deriving the schedule here instead means none of them can forget. Syncing an
   // external system (the OS scheduler) is what an effect is for — no state is
   // set, so the no-setState-in-effects rule is untouched. No-op on web.
-  const reminderPrefs = prefsFrom(settings);
-  const reminderKey = JSON.stringify(reminderPrefs);
+  // Reminders are scheduled with the OS, which outlives the session: without
+  // this the previous account's plan keeps firing on the device after sign-out,
+  // and "Training tomorrow · Intervals 6x800m" on a shared phone leaks the
+  // content of someone else's plan to whoever signs in next.
+  const signOutClearingReminders = () => { void clearSessionReminders(); onSignOut(); };
+
+  // `loading` is load-bearing, not tidiness: before hydration `plan` is null and
+  // `settings` holds the hardcoded defaults, so an unguarded run would take the
+  // disabled branch and cancel every pending reminder on ANY launch. Restoring
+  // them depends on a second run that is not guaranteed (killed before boot
+  // resolves, or a bridge error the sync deliberately swallows). Same rule the
+  // store follows: an unpopulated state must never become a destructive write.
+  const reminderKey = JSON.stringify(prefsFrom(settings)) + "|" + i18n.language;
   useEffect(() => {
+    if (loading) return;
     void syncSessionReminders(plan, prefsFrom(settings));
     // `settings` is read through the serialized reminderKey so an unrelated
-    // settings edit doesn't re-schedule the whole plan.
+    // settings edit doesn't re-schedule the whole plan. The language is in the
+    // key because the notification text is baked by t() at schedule time —
+    // without it, pending reminders keep the language they were written in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, reminderKey]);
+  }, [plan, reminderKey, loading]);
 
   // Back online: retry queued route uploads straight away — they otherwise wait
   // for the next app load, and a killed app never reaches it. The app_state blob
@@ -1031,13 +1045,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         scanImportsNow={shared.scanImportsNow} user={user} plan={plan}
         onBackup={()  => { setShowSettings(false); exportData(); }}
         onRestore={() => { setShowSettings(false); setShowRestore(true); }}
-        onSignOut={onSignOut}
+        onSignOut={signOutClearingReminders}
         onOpenCoach={plan ? () => { setShowSettings(false); openCoach(null, "settings"); } : undefined}
         onImportFile={() => { setShowSettings(false); goImport(); }}
         onDeleteAccount={() => { setShowSettings(false); setShowDeleteAccount(true); }}
         onClose={()   => setShowSettings(false)}/>}
       {showDeleteAccount && <DeleteAccountModal
-        onSignOut={onSignOut}
+        onSignOut={signOutClearingReminders}
         onClose={() => setShowDeleteAccount(false)}/>}
       {showCoach && plan && (
         // A stale-chunk / transient network failure loading the lazy CoachChat

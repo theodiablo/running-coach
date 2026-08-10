@@ -1,5 +1,4 @@
 import { t } from "../i18n";
-import { fmt } from "./format";
 import { describeSession } from "./sessionDesc";
 import type { Plan, PlanSession, SettingsState } from "../types";
 
@@ -66,10 +65,13 @@ export function fireAt(date: string, prefs: ReminderPrefs): Date {
   return new Date(y, (m || 1) - 1, (d || 1) - prefs.leadDays, hh, mm, 0, 0);
 }
 
+// No pace suffix: describeSession already embeds it wherever it is meaningful,
+// and appending fmt.pace unconditionally rendered "· --:--/km" on WALK, OTHER
+// and any coach-authored session without one.
 function textFor(s: PlanSession, prefs: ReminderPrefs) {
   const title = prefs.leadDays === 1 ? t("reminders.notif.tomorrow") : t("reminders.notif.today");
   const type = t("common.types." + s.type, {defaultValue: String(s.type)});
-  return {title, body: type + " · " + describeSession(s) + " · " + fmt.pace(s.pace) + "/km"};
+  return {title, body: type + " · " + describeSession(s)};
 }
 
 // Every reminder that should currently be pending, soonest first.

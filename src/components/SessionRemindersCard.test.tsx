@@ -8,6 +8,7 @@ vi.mock("../native", () => ({ isNative: true, isAndroid: true, isIos: false, pla
 const requestReminderPermission = vi.fn(async () => true);
 vi.mock("../notify/sessionReminders", () => ({
   hasReminderGrant: () => localStorage.getItem(SESSION_NOTIF_AUTH_KEY) === "1",
+  refreshReminderGrant: async () => localStorage.getItem(SESSION_NOTIF_AUTH_KEY) === "1",
   requestReminderPermission: (...a: unknown[]) => requestReminderPermission(...a as []),
 }));
 
@@ -89,6 +90,36 @@ describe("turning reminders on", () => {
 
     await vi.waitFor(() => expect(screen.getByText(/Notifications are turned off/)).toBeInTheDocument());
     expect(saveSettings).not.toHaveBeenCalled();
+  });
+});
+
+// The synced preference arrives true on a freshly installed second phone where
+// no OS grant exists. Before the fix the toggle read "on" and offered only
+// "turn off", so the permission prompt was unreachable and the card promised a
+// next reminder that could never fire.
+describe("a second device with the preference already synced on", () => {
+  it("shows the toggle as off, because nothing is actually scheduled here", () => {
+    renderCard({sessionReminders: true});
+    expect(screen.getByRole("checkbox", {name: /Remind me about sessions/i})).not.toBeChecked();
+  });
+
+  it("does not claim a next reminder", () => {
+    renderCard({sessionReminders: true});
+    expect(screen.queryByText(/Next reminder/)).toBeNull();
+  });
+
+  it("can still reach the permission prompt", async () => {
+    localStorage.setItem(SESSION_NOTIF_DISCLOSED_KEY, "1");
+    renderCard({sessionReminders: true});
+    fireEvent.click(screen.getByRole("checkbox", {name: /Remind me about sessions/i}));
+    await vi.waitFor(() => expect(requestReminderPermission).toHaveBeenCalled());
+  });
+
+  it("shows as on once this device is granted too", async () => {
+    localStorage.setItem(SESSION_NOTIF_AUTH_KEY, "1");
+    renderCard({sessionReminders: true});
+    await vi.waitFor(() =>
+      expect(screen.getByRole("checkbox", {name: /Remind me about sessions/i})).toBeChecked());
   });
 });
 

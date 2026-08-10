@@ -16,6 +16,7 @@ import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from 
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
 import { carryProgress, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
+import { overdueByWeek } from "../utils/overdue";
 
 // ── Week windows ────────────────────────────────────────────────────────────
 // A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
@@ -298,6 +299,9 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const done = all.filter(s => s.done).length;
   const pct  = Math.round((done / all.length) * 100);
   const today = startOfToday();
+  // Same definition of "overdue" the Dashboard card uses, so the two surfaces
+  // can never disagree about what is still open (src/utils/overdue.ts).
+  const overdueCounts = overdueByWeek(plan, today);
   const { upcoming, past } = splitWeeks(plan);
   const ps   = plan.planSessions || settings.planSessions || [];
   const sessInfo = ps.slice()
@@ -338,7 +342,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const wDone  = wk.sessions.filter(s => s.done).length;
     // Untouched sessions in a week that has already ended — without this a past
     // week nobody ran reads exactly like one that was completed.
-    const wOpen  = isPast ? wk.sessions.filter(s => !s.done && !s.skipped).length : 0;
+    const wOpen  = isPast ? (overdueCounts[wk.weekNumber] || 0) : 0;
     const wkNumCls = isCurr ? "text-orange-400" : isPast ? "text-slate-600" : "text-slate-200";
     const wkCardCls = isCurr ? "border-orange-500/50 bg-orange-500/5" : "border-slate-700/60 bg-slate-800/50";
     const phaseLabel = t("common.phases." + wk.phase, { defaultValue: wk.phase });

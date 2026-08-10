@@ -43,6 +43,10 @@ const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, str
 // How many overdue rows the card renders before deferring the rest to the plan.
 const OVERDUE_SHOWN = 3;
 
+// Survives Dashboard remounts so `overdue_shown` counts backlog changes, not
+// visits. Session-scoped by design — a fresh app launch reports again.
+let lastReportedOverdue: number | null = null;
+
 export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
@@ -69,10 +73,15 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const overdue = overdueSessions(plan, today) as DashboardSession[];
   const overdueShown = overdue.slice(0, OVERDUE_SHOWN);
 
-  // Report the backlog once per size change, not per render.
+  // Report the backlog once per size change. The last-reported value is module
+  // scope, NOT a ref: Dashboard remounts on every tab switch and on the header
+  // brand-mark reset (homeNonce), and a per-component ref would re-fire on each
+  // one — inflating the very metric this feature will be judged on.
   const overdueCount = overdue.length;
   useEffect(() => {
-    if (overdueCount) track("overdue_shown", {count: overdueCount});
+    if (!overdueCount || overdueCount === lastReportedOverdue) return;
+    lastReportedOverdue = overdueCount;
+    track("overdue_shown", {count: overdueCount});
   }, [overdueCount]);
   const wkMon = weekStart(today);
   const wkKm  = runs.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);

@@ -36,8 +36,11 @@ and nothing else, so a plan rebuild or a coach edit can never leave a stale
 - `nextSession(plan, today)` — the soonest untouched session from today onward.
   Extracted from Dashboard so the two selectors are tested against each other:
   a session must never appear in both.
-- `overdueByWeek(plan, today)` — per-week counts for PlanView's collapsed
-  past-week headers.
+- `overdueByWeek(plan, today)` — per-week counts, used by PlanView's collapsed
+  past-week headers. PlanView must NOT recompute this inline: an inline
+  "untouched sessions in an ended week" count and this one disagree about the
+  current week, which is exactly the kind of drift a single definition exists
+  to prevent.
 
 **Surfaces.** Dashboard renders an overdue card above the next-session card,
 showing at most `OVERDUE_SHOWN` (3) rows plus an "N more" link into the plan — a
@@ -79,7 +82,11 @@ today; that limitation is understood and accepted for v1.
   is one reminder replacing another, and the next sync restores it.
 - **Cancel-then-schedule, never a diff.** A full replace is the only version that
   cannot leave a reminder behind for a session that was rebuilt, completed or
-  deleted.
+  deleted. It is only atomic against *itself*, so syncs are **serialised through
+  a module-level promise chain**: two overlapping calls (marking a session done
+  while a plan edit is in flight) could otherwise interleave as cancel-A,
+  cancel-B, schedule-B, schedule-A, and the older call's schedule would reinstate
+  a reminder for a session already done.
 - **Scheduling is inexact on purpose.** A training reminder does not need minute
   precision, and `SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM` invite a Play policy
   review for no benefit. Do not add them. (Verified: the plugin's own manifest
@@ -96,11 +103,19 @@ from each — where the seventh would be forgotten — a **single effect** keyed
 
 This does not violate the no-setState-in-effects rule: syncing an *external*
 system is exactly what an effect is for, and no state is set. `reminderKey` is
-the serialized prefs, so an unrelated settings edit doesn't reschedule the plan.
+the serialized prefs **plus `i18n.language`** — the notification text is baked by
+`t()` at schedule time, so without the language in the key up to 32 pending
+reminders would keep the language they were written in after a switch.
 
-A failed store load can never wipe pending reminders: `App.tsx` renders
-`StoreLoadError` instead of mounting `RunningCoach`, so the effect never runs
-with an empty plan.
+**The effect must stay gated on `loading`, and that guard is load-bearing.**
+`App.tsx` gating on `storeReady` is not enough: `RunningCoach` hydrates its own
+state in an effect, so the first commit has `plan === null` and the hardcoded
+default settings. An unguarded run therefore takes the disabled branch and
+**cancels every pending reminder on any launch**, with restoration depending on a
+second run that is not guaranteed (killed or backgrounded before boot resolves,
+or a bridge error the sync deliberately swallows). This is the same hazard
+`CLAUDE.md` documents for the store: an unpopulated state must never become a
+destructive write.
 
 ### Preference vs per-device grant
 
@@ -112,9 +127,12 @@ The usual doctrine (identical to `watchImport` / `hrMethod`):
 | This install has the OS grant | **Per-device** | `SESSION_NOTIF_AUTH_KEY` |
 | This install has shown the disclosure | **Per-device** | `SESSION_NOTIF_DISCLOSED_KEY` |
 
-Enabling on a second phone re-runs the disclosure and the OS prompt there. The
-bridge is never touched without checking the grant marker first — a preference
-synced from another device says nothing about a permission on this one.
+Enabling on a second phone re-runs the disclosure and the OS prompt there. A
+preference synced from another device says nothing about a permission on this
+one, so both the UI and the bridge gate on the grant — and the grant itself is
+re-read from the OS (`refreshReminderGrant`) rather than trusted from the
+localStorage cache, which goes stale the moment the runner revokes notifications
+in system settings.
 
 Android reuses the `POST_NOTIFICATIONS` path already built for the run-recording
 notification (`requestRunNotifications` in `src/geo/notifications.ts`, backed by
@@ -130,12 +148,22 @@ Three independent routes, none of which can strand a pending reminder:
    `sessionReminders: false`, which changes `reminderKey`, which fires the sync,
    which cancels everything pending. One tap, no OS round-trip, and no
    permission re-prompt on the way out.
+
+   The toggle renders `prefs.enabled && granted`, never the preference alone.
+   The preference is synced, so it arrives **true** on a freshly installed second
+   phone where no grant exists and nothing is scheduled; showing "on" there would
+   offer only "turn off" and leave no route to the permission prompt, under a
+   card promising a reminder that could never fire.
 2. **The OS.** Reminders go out on their own Android channel
    (`session-reminders`, "Training reminders"), deliberately *not* the
    run-recording notification's channel — so muting them in system settings
    silences reminders only and leaves the live-run notification intact. On iOS
    the app-level notification switch does the same.
-3. **Revoking the OS permission.** The next sync sees no grant and cancels.
+3. **Revoking the OS permission.** Every sync calls `refreshReminderGrant()`,
+   which asks `LocalNotifications.checkPermissions()` and re-caches the answer,
+   so the next sync after a revoke tears the schedule down. The localStorage
+   marker is a first-paint cache only — trusting it would leave the app
+   "scheduling" into a permission it no longer holds.
 
 Cancellation is **scoped to our own notifications**: every reminder carries
 `extra.kind === "session-reminder"` and `cancelOurs()` filters on it, so turning

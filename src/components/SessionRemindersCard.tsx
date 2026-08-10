@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BellRing } from "lucide-react";
 import { isNative } from "../native";
 import { INPUT_CLS, LABEL_CLS, SESSION_NOTIF_DISCLOSED_KEY } from "../constants";
 import { fmt, ymd } from "../utils/format";
 import { DEFAULT_REMINDER_PREFS, nextReminderPreview, prefsFrom } from "../utils/sessionReminders";
-import { hasReminderGrant, requestReminderPermission } from "../notify/sessionReminders";
+import { hasReminderGrant, refreshReminderGrant, requestReminderPermission } from "../notify/sessionReminders";
 import { SessionReminderDisclosure } from "../modals/SessionReminderDisclosure";
 import type { Plan, SettingsState } from "../types";
 
@@ -30,20 +30,31 @@ export function SessionRemindersCard({ settings, saveSettings, plan }: SessionRe
   const { t } = useTranslation();
   const [showDisclosure, setShowDisclosure] = useState(false);
   const [denied, setDenied] = useState(false);
+  // Cached for first paint, then reconciled against the OS — the runner may have
+  // revoked notifications in system settings since we last looked.
+  const [granted, setGranted] = useState(hasReminderGrant);
+  useEffect(() => { void refreshReminderGrant().then(setGranted); }, []);
   if (!isNative) return null;
 
   const prefs = prefsFrom(settings);
-  const preview = nextReminderPreview(plan, prefs, new Date());
+  // The synced preference alone is NOT enough to call these on. It arrives true
+  // on a freshly installed second phone, where no OS grant exists and nothing is
+  // scheduled — showing "on" there would offer only "turn off", leaving the
+  // runner no way to reach the permission prompt, under a card claiming a next
+  // reminder that can never fire.
+  const on = prefs.enabled && granted;
+  const preview = on ? nextReminderPreview(plan, prefs, new Date()) : null;
 
   const enable = async () => {
     setDenied(false);
-    const granted = hasReminderGrant() || await requestReminderPermission();
-    if (!granted) { setDenied(true); return; }
-    saveSettings({ ...settings, sessionReminders: true });
+    const ok = granted || await requestReminderPermission();
+    setGranted(ok);
+    if (!ok) { setDenied(true); return; }
+    if (!prefs.enabled) saveSettings({ ...settings, sessionReminders: true });
   };
 
   const onToggle = () => {
-    if (prefs.enabled) { saveSettings({ ...settings, sessionReminders: false }); return; }
+    if (on) { saveSettings({ ...settings, sessionReminders: false }); return; }
     if (!marker(SESSION_NOTIF_DISCLOSED_KEY)) { setShowDisclosure(true); return; }
     void enable();
   };
@@ -60,7 +71,7 @@ export function SessionRemindersCard({ settings, saveSettings, plan }: SessionRe
 
       <label className="flex items-center justify-between gap-3 cursor-pointer">
         <span className="text-sm text-slate-300">{t("reminders.settings.toggle")}</span>
-        <input type="checkbox" checked={prefs.enabled} onChange={onToggle}
+        <input type="checkbox" checked={on} onChange={onToggle}
           className="w-4 h-4 accent-orange-500 flex-shrink-0"/>
       </label>
 
@@ -68,7 +79,7 @@ export function SessionRemindersCard({ settings, saveSettings, plan }: SessionRe
         <p className="text-xs text-amber-300 leading-snug">{t("reminders.settings.denied")}</p>
       )}
 
-      {prefs.enabled && (
+      {on && (
         <>
           <div className="grid grid-cols-2 gap-3">
             <div>

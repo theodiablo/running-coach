@@ -1,12 +1,15 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { Dashboard } from "./Dashboard";
+import { track } from "../telemetry";
 import type { Plan, SettingsState } from "../types";
 
 afterEach(cleanup);
 
 // Fixed "now" so the fixture dates keep their past/future meaning forever.
 const NOW = new Date("2026-03-10T09:00:00");
+vi.mock("../telemetry", () => ({ track: vi.fn() }));
+
 vi.useFakeTimers({ shouldAdvanceTime: true });
 vi.setSystemTime(NOW);
 
@@ -88,6 +91,31 @@ describe("Dashboard overdue card", () => {
     renderDash(planOf([sess("today", "2026-03-10")]));
     expect(screen.queryByText(/still open/)).toBeNull();
     expect(screen.getByText("Today's session")).toBeInTheDocument();
+  });
+
+  it("reports the backlog once, not on every remount", () => {
+    // The last-reported count is module scope (deliberately — it has to survive
+    // remounts), so this uses backlog sizes no earlier test in this file has
+    // already reported.
+    vi.mocked(track).mockClear();
+    const shown = () => vi.mocked(track).mock.calls.filter(c => c[0] === "overdue_shown");
+    const seven = planOf(["01", "02", "03", "04", "05", "06", "07"].map(d => sess("s" + d, "2026-03-" + d)));
+
+    renderDash(seven);
+    expect(shown()).toHaveLength(1);
+    expect(shown()[0][1]).toEqual({count: 7});
+
+    // A tab switch or the header brand-mark reset remounts Dashboard; the same
+    // backlog must not be counted again.
+    cleanup();
+    renderDash(seven);
+    expect(shown()).toHaveLength(1);
+
+    // A genuine change in the backlog is worth reporting.
+    cleanup();
+    renderDash(planOf(["01", "02", "03", "04", "05", "06"].map(d => sess("s" + d, "2026-03-" + d))));
+    expect(shown()).toHaveLength(2);
+    expect(shown()[1][1]).toEqual({count: 6});
   });
 
   it("uses forgiving wording — no shaming, no streak language", () => {

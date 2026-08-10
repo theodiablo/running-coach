@@ -12,12 +12,14 @@ const cancel = vi.fn<(o: unknown) => Promise<void>>();
 const getPending = vi.fn(async () => ({ notifications: [] as Array<Record<string, unknown>> }));
 const createChannel = vi.fn<(o: unknown) => Promise<void>>();
 const requestPermissions = vi.fn(async () => ({ display: "granted" }));
+// The seam re-reads the live grant on every sync, so this drives "is it granted".
+const checkPermissions = vi.fn(async () => ({ display: "granted" }));
 
 vi.mock("@capacitor/local-notifications", () => ({
-  LocalNotifications: { schedule, cancel, getPending, createChannel, requestPermissions },
+  LocalNotifications: { schedule, cancel, getPending, createChannel, requestPermissions, checkPermissions },
 }));
 
-const { syncSessionReminders, clearSessionReminders, hasReminderGrant } = await import("./sessionReminders");
+const { syncSessionReminders, clearSessionReminders, hasReminderGrant, refreshReminderGrant } = await import("./sessionReminders");
 
 const sess = (id: string, date: string, extra: Record<string, unknown> = {}) =>
   ({id, date, type: "EASY", desc: "Easy run 5km", km: 5, pace: 360, ...extra});
@@ -41,6 +43,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 2, 10, 9, 0));
   localStorage.clear();
   getPending.mockResolvedValue({ notifications: [] });
+  checkPermissions.mockResolvedValue({ display: "granted" });
 });
 
 describe("turning reminders off", () => {
@@ -80,6 +83,7 @@ describe("turning reminders off", () => {
 describe("the per-device grant gates the bridge", () => {
   it("schedules nothing when the preference is on but this device has no grant", async () => {
     // The synced preference arrived from the runner's other phone.
+    checkPermissions.mockResolvedValue({ display: "denied" });
     getPending.mockResolvedValue({ notifications: pendingMix });
     expect(hasReminderGrant()).toBe(false);
 
@@ -146,6 +150,55 @@ describe("what gets scheduled", () => {
   it("swallows a bridge failure rather than breaking the app", async () => {
     schedule.mockRejectedValueOnce(new Error("bridge unavailable"));
     await expect(syncSessionReminders(plan, ON)).resolves.toBeUndefined();
+  });
+});
+
+describe("a revoked OS permission tears the schedule down", () => {
+  it("cancels and stops scheduling once the OS says denied, even with the marker set", async () => {
+    localStorage.setItem(SESSION_NOTIF_AUTH_KEY, "1");
+    checkPermissions.mockResolvedValue({ display: "denied" });
+    getPending.mockResolvedValue({ notifications: pendingMix });
+
+    await syncSessionReminders(plan, ON);
+
+    expect(schedule).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledWith({notifications: [{id: 1}, {id: 2}]});
+  });
+
+  it("refreshReminderGrant re-caches the live answer", async () => {
+    localStorage.setItem(SESSION_NOTIF_AUTH_KEY, "1");
+    checkPermissions.mockResolvedValue({ display: "denied" });
+
+    await expect(refreshReminderGrant()).resolves.toBe(false);
+    expect(hasReminderGrant()).toBe(false);
+  });
+
+  it("keeps the cached answer when the bridge check itself fails", async () => {
+    localStorage.setItem(SESSION_NOTIF_AUTH_KEY, "1");
+    checkPermissions.mockRejectedValueOnce(new Error("bridge unavailable"));
+    await expect(refreshReminderGrant()).resolves.toBe(true);
+  });
+});
+
+describe("overlapping syncs are serialised", () => {
+  it("never lets an older sync's schedule land after a newer one's cancel", async () => {
+    localStorage.setItem(SESSION_NOTIF_AUTH_KEY, "1");
+    const order: string[] = [];
+    cancel.mockImplementation(async () => { order.push("cancel"); });
+    schedule.mockImplementation(async () => { order.push("schedule"); });
+    getPending.mockResolvedValue({ notifications: pendingMix });
+
+    // Fire both without awaiting the first — a plan edit landing while a
+    // mark-as-done sync is still in flight.
+    const a = syncSessionReminders(plan, ON);
+    const b = syncSessionReminders(plan, ON);
+    await Promise.all([a, b]);
+
+    // Strict alternation proves no interleaving: each sync completed its
+    // cancel+schedule pair before the next began.
+    expect(order).toEqual(["cancel", "schedule", "cancel", "schedule"]);
+    cancel.mockImplementation(async () => {});
+    schedule.mockImplementation(async () => {});
   });
 });
 
