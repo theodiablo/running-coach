@@ -56,11 +56,13 @@ const store: Record<string, unknown> = {
 };
 
 vi.mock("./db", () => ({
-  initStore: vi.fn(async () => true),
+  initStore: vi.fn(async () => "loaded"),
   clearStore: vi.fn(),
   db: { get: vi.fn(async (k: string) => (k in store ? store[k] : null)), set: vi.fn() },
   currentUserId: () => "u1",
   flushNow: vi.fn(async () => {}),
+  subscribeStoreRefresh: () => () => {},
+  clearOfflineMirror: vi.fn(),
 }));
 
 // Force the web marketing gate to be a trivial component so we exercise the

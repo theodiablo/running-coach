@@ -43,9 +43,18 @@ declare module "leaflet" {
     tap?: ToggleHandler;
   };
   type Addable<T> = T & { addTo: (map: Map) => T };
+  // Leaflet's class system: extend() returns a constructor whose prototype
+  // includes getTileUrl — enough surface for cachedTileLayer's createTile
+  // override, plus the tile lifecycle events its blob-URL cleanup listens to.
+  export type TileEventHandler = (e: { tile?: HTMLElement }) => void;
+  type TileLayerInstance = Addable<Layer> & { on: (event: string, cb: TileEventHandler) => TileLayerInstance };
+  type TileLayerClass = {
+    extend: (proto: Record<string, unknown>) => new (url: string, options?: Record<string, unknown>) => TileLayerInstance;
+  };
   type LeafletModule = {
     map: (el: HTMLElement, options?: Record<string, unknown>) => Map;
     tileLayer: (url: string, options?: Record<string, unknown>) => Addable<Layer>;
+    TileLayer: TileLayerClass;
     control: { zoom: () => Control };
     polyline: (points: LatLngExpression[], options?: Record<string, unknown>) => Addable<Polyline>;
     marker: (latlng: LatLngExpression, options?: Record<string, unknown>) => Addable<Marker>;

@@ -35,6 +35,11 @@ export const RESUME_MAX_AGE_MS = 6 * 3600 * 1000;
 // server row — so a run saved offline survives the process being killed.
 export const UNSYNCED_STATE_KEY = "rc_unsynced_state";
 
+// localStorage mirror of the last server-confirmed app_state blob (written on
+// every successful load and flush). Boots the app offline when the cloud read
+// fails at cold start; reconciled against the live row on reconnect (db.ts).
+export const OFFLINE_STATE_KEY = "rc_offline_state";
+
 // localStorage flag: the one-time Android battery-optimization nudge was shown
 // (the OS killing the app mid-run is the #1 cause of lost recordings). Once per
 // install, mirrors the other one-shot recording prompts above.

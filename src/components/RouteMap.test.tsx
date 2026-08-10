@@ -25,6 +25,10 @@ const { polylines, makePolyline, marker } = vi.hoisted(() => {
   return { polylines, makePolyline, marker };
 });
 
+// The tile layer is a separate module (IndexedDB-backed cache); its behavior
+// has its own test — here it just needs to attach without touching the mock map.
+vi.mock("./cachedTileLayer", () => ({ cachedTileLayer: () => ({ addTo: vi.fn() }) }));
+
 vi.mock("leaflet", () => {
   const map = {
     setView: () => map,

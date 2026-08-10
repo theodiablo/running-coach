@@ -49,6 +49,10 @@
     "sent": "Informe de fallo enviado. Gracias.",
     "reload": "Recargar"
   },
+  "offline": {
+    "usingLocal": "Estás sin conexión. Se muestran tus últimos datos sincronizados; los cambios nuevos se sincronizarán cuando vuelvas a tener conexión.",
+    "refreshed": "De nuevo en línea. Tus datos se han actualizado desde la nube."
+  },
   "storeError": {
     "title": "No se han podido cargar tus datos",
     "body": "No hemos podido acceder a tus datos de entrenamiento, así que la app está en pausa para protegerlos. Comprueba tu conexión e inténtalo de nuevo. No se ha cambiado ni perdido nada.",

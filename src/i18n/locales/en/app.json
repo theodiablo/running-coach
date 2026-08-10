@@ -49,6 +49,10 @@
     "sent": "Crash report sent. Thank you.",
     "reload": "Reload"
   },
+  "offline": {
+    "usingLocal": "You're offline. Showing your last synced data; new changes will sync once you're back online.",
+    "refreshed": "Back online. Your data was updated from the cloud."
+  },
   "storeError": {
     "title": "Couldn't load your data",
     "body": "We couldn't reach your training data just now, so the app is paused to keep it safe. Check your connection and try again. Nothing has been changed or lost.",

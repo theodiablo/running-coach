@@ -5,6 +5,7 @@ import L, { type LeafletEvent, type LatLngTuple, type Map, type Marker } from "l
 import "leaflet/dist/leaflet.css";
 import { Loader, MapPin, Search, X } from "lucide-react";
 import { INPUT_CLS, MAP_ATTRIBUTION, MAP_KEY, MAP_TILE_URL } from "../constants";
+import { cachedTileLayer } from "./cachedTileLayer";
 import { geoSource } from "../geo/source";
 import { geocodePlace } from "../utils/geocode";
 
@@ -78,7 +79,7 @@ export function LocationPicker({ initial, geocodeQuery, onConfirm, onCancel }: L
       initial ? [initial.lat, initial.lng] : WORLD_CENTER,
       initial ? PICKED_ZOOM : WORLD_ZOOM,
     );
-    L.tileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
+    cachedTileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
     map.on("click", (e: LeafletEvent) => placeMarker(e.latlng.lat, e.latlng.lng));
     mapRef.current = map;
     if (initial) placeMarker(initial.lat, initial.lng);
