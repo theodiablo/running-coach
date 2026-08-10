@@ -51,38 +51,6 @@ describe("SettingsModal hub", () => {
     fireEvent.click(screen.getByText("Training profile"));
     expect(screen.getByText("Heart rate")).toBeInTheDocument();
     expect(screen.getByText("Coach memory")).toBeInTheDocument();
-    expect(screen.getByText("Coach identity")).toBeInTheDocument();
-  });
-
-  it("saves a coach mark on tap and marks it selected", () => {
-    const saveSettings = vi.fn();
-    render(<SettingsModal {...baseProps} saveSettings={saveSettings} />);
-    fireEvent.click(screen.getByText("Training profile"));
-    // Default mark is selected without any stored setting.
-    expect(screen.getByRole("radio", { name: "Pulse" })).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByRole("radio", { name: "Stopwatch" }));
-    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ coachAvatar: "stopwatch" }));
-  });
-
-  it("commits a trimmed coach name on blur", () => {
-    const saveSettings = vi.fn();
-    render(<SettingsModal {...baseProps} saveSettings={saveSettings} />);
-    fireEvent.click(screen.getByText("Training profile"));
-    const input = screen.getByLabelText("Coach name");
-    fireEvent.change(input, { target: { value: "  Ava  " } });
-    fireEvent.blur(input);
-    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ coachName: "Ava" }));
-  });
-
-  it("drops the coach name from settings when cleared", () => {
-    const saveSettings = vi.fn();
-    render(<SettingsModal {...baseProps} settings={{ coachName: "Ava" } as SettingsState} saveSettings={saveSettings} />);
-    fireEvent.click(screen.getByText("Training profile"));
-    const input = screen.getByLabelText("Coach name");
-    expect(input).toHaveValue("Ava");
-    fireEvent.change(input, { target: { value: "   " } });
-    fireEvent.blur(input);
-    expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ coachName: undefined }));
   });
 
   it("opens Integrations with the connections card and the vendor guides", () => {

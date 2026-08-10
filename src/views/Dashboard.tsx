@@ -248,7 +248,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       {plan && (
         <button onClick={() => openCoach(null, "dashboard")}
           className="w-full bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
-          <CoachAvatar id={settings.coachAvatar} chip size={18}/>
+          <CoachAvatar chip size={18}/>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">{t("dashboard.coach.title")}</p>
             <p className="text-xs text-slate-400">{t("dashboard.coach.subtitle")}</p>

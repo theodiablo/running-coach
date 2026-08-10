@@ -97,14 +97,9 @@ type CoachChatProps = {
   // session, starter chips steer at it, and its details ride (invisibly) with the
   // user's first message so the model knows exactly which session is meant.
   sessionContext?: CoachSessionContext | null;
-  // Coach identity (Settings → Training profile). UI chrome only — the model's
-  // voice stays generic. Name is pre-normalized (coachDisplayName); null = the
-  // localized generic "Coach".
-  coachName?: string | null;
-  coachAvatarId?: string;
 };
 
-export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onClose, sessionContext, coachName, coachAvatarId }: CoachChatProps) {
+export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onClose, sessionContext }: CoachChatProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
 
@@ -313,7 +308,7 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onC
       onApplyPlan(accepted);
       track("coach_plan_applied", {});
       setMsgs(m => [...m, { role: "coach", text: t("coach.fallback.applied") }]);
-      showToast(coachName ? t("coach.toast.planAdjustedNamed", { name: coachName }) : t("coach.toast.planAdjusted"));
+      showToast(t("coach.toast.planAdjusted"));
     } catch (err) {
       absorbServerError(err);
       setMsgs(m => [...m, { role: "coach", text: err instanceof Error ? err.message : String(err) }]);
@@ -377,8 +372,8 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onC
           </div>
         ) : (
           <div className="flex items-center gap-1.5 pl-1.5">
-            <CoachAvatar id={coachAvatarId} size={15} className="text-orange-400"/>
-            <span className="text-sm font-semibold">{coachName || t("coach.title")}</span>
+            <CoachAvatar size={15} className="text-orange-400"/>
+            <span className="text-sm font-semibold">{t("coach.title")}</span>
           </div>
         )}
         <div className="flex items-center gap-0.5">
@@ -402,7 +397,7 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onC
                 follow-up bubbles aligned under it. */}
             {m.role !== "user" && (
               i === 0 || msgs[i - 1].role === "user"
-                ? <CoachAvatar id={coachAvatarId} chip className="w-7 h-7 mt-0.5" size={14}/>
+                ? <CoachAvatar chip className="w-7 h-7 mt-0.5" size={14}/>
                 : <div className="w-7 flex-shrink-0" aria-hidden/>
             )}
             <div className={"rounded-2xl px-3.5 py-2.5 text-sm max-w-[85%] " +
@@ -512,9 +507,9 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onC
           </div>
         )}
         {busy && <div className="flex items-center gap-2 text-slate-400 text-xs">
-          <CoachAvatar id={coachAvatarId} chip className="w-7 h-7" size={14}/>
+          <CoachAvatar chip className="w-7 h-7" size={14}/>
           <Loader size={14} className="animate-spin"/>
-          {coachName ? t("coach.thinkingNamed", { name: coachName }) : t("coach.thinking")}
+          {t("coach.thinking")}
         </div>}
         <div ref={endRef}/>
       </div>

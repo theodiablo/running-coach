@@ -29,20 +29,6 @@
     "placeholder": "e.g. 2026-07-06: Prefers Sunday long runs.",
     "footer": "We only save the AI suggestions you choose to store in your <link>AI Coach conversations</link>."
   },
-  "coachIdentity": {
-    "title": "Coach identity",
-    "desc": "Pick a mark and a name for your coach. This changes how the coach appears, not its advice.",
-    "avatarLabel": "Coach mark",
-    "nameLabel": "Coach name",
-    "marks": {
-      "pulse": "Pulse",
-      "ridge": "Ridge",
-      "track": "Track",
-      "chevrons": "Pace arrows",
-      "stopwatch": "Stopwatch",
-      "flag": "Finish flag"
-    }
-  },
   "privacy": {
     "title": "Privacy",
     "shareLabel": "Share usage & crash reports",

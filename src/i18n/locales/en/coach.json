@@ -52,7 +52,6 @@
   },
   "toast": {
     "planAdjusted": "Plan adjusted by your coach ✓",
-    "planAdjustedNamed": "Plan adjusted by {{name}} ✓",
     "feedbackFailed": "Couldn't send feedback — try again in a moment",
     "feedbackSent": "Thanks — your feedback was sent.",
     "memoryDuplicate": "Already in coach memory.",
@@ -103,7 +102,6 @@
   },
   "send": "Send",
   "thinking": "Coach is thinking…",
-  "thinkingNamed": "{{name}} is thinking…",
   "footer": "Your coach uses your message, plan, recent runs, and saved memory to answer. See our <1>privacy policy</1> and <3>safety note</3>.",
   "input": {
     "aria": "Message to coach",
