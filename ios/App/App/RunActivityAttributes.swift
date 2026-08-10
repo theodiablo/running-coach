@@ -23,5 +23,9 @@ struct RunActivityAttributes: ActivityAttributes {
         /// elapsed = now - startedAtMs, i.e. the run's MOVING time. Nil while
         /// paused → the widget shows a pause glyph instead of a ticking timer.
         var startedAtMs: Double?
+        /// Guided-workout current step ("Rep 3/6 · 800 m · 4:35/km"),
+        /// pre-localized by the JS seam. Nil on unguided runs (and from older
+        /// app builds — optional keeps the contract backward-compatible).
+        var step: String?
     }
 }

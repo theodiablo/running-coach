@@ -83,6 +83,55 @@
     "addProfile": "Añade tu perfil de FC en Ajustes para ver una zona objetivo",
     "range": "❤️ {{lo}}–{{hi}} ppm"
   },
+  "guided": {
+    "title": "Sesión guiada",
+    "notifTitle": "Sesión guiada",
+    "left": "restante",
+    "next": "Siguiente: {{step}}",
+    "mins": "{{mins}} min",
+    "done": "Sesión completada, ¡buen trabajo!",
+    "doneShort": "Sesión completada",
+    "cuesToggle": "Avisos de voz y pitidos",
+    "label": {
+      "warmup": "Calentamiento",
+      "tempo": "Tempo",
+      "rep": "Serie {{rep}}/{{reps}}",
+      "recover": "Recup.",
+      "cooldown": "Vuelta a la calma",
+      "run": "Corre",
+      "walk": "Camina"
+    },
+    "pace": {
+      "on": "A ritmo",
+      "slow": "Acelera",
+      "fast": "Frena un poco"
+    },
+    "speak": {
+      "warmup_one": "Calentamiento: {{count}} minuto suave.",
+      "warmup_other": "Calentamiento: {{count}} minutos suaves.",
+      "cooldown_one": "Vuelta a la calma: {{count}} minuto muy suave.",
+      "cooldown_other": "Vuelta a la calma: {{count}} minutos muy suaves.",
+      "run_one": "Corre durante {{count}} minuto.",
+      "run_other": "Corre durante {{count}} minutos.",
+      "walk_one": "Camina durante {{count}} minuto.",
+      "walk_other": "Camina durante {{count}} minutos.",
+      "recoverSec_one": "Recuperación: {{count}} segundo suave.",
+      "recoverSec_other": "Recuperación: {{count}} segundos suaves.",
+      "recoverDist": "Recuperación: {{dist}} al trote suave.",
+      "rep": "Serie {{rep}} de {{reps}}: {{dist}} a {{pace}}.",
+      "repNoPace": "Serie {{rep}} de {{reps}}: {{dist}}.",
+      "tempo": "Bloque tempo: {{count}} kilómetros a {{pace}}.",
+      "tempoNoPace": "Bloque tempo: {{count}} kilómetros, ritmo exigente pero controlado.",
+      "km_one": "{{count}} kilómetro",
+      "km_other": "{{count}} kilómetros",
+      "metres_one": "{{count}} metro",
+      "metres_other": "{{count}} metros",
+      "pace": "{{min}} {{sec}} por kilómetro",
+      "done": "Sesión completada. ¡Buen trabajo!",
+      "fast": "Demasiado rápido. Frena un poco.",
+      "slow": "Vas un poco lento. Acelera un poco."
+    }
+  },
   "batteryNudge": {
     "title": "Evita que Android detenga la grabación",
     "body": "Este teléfono limita el uso de batería de Running Coach, lo que puede interrumpir un entrenamiento en curso. Permite el uso sin restricciones para un registro fiable con la pantalla apagada.",

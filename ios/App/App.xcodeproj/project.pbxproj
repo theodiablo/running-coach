@@ -15,6 +15,7 @@
 		A1E5F0130000000000000013 /* HealthKitBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0030000000000000003 /* HealthKitBridgePlugin.swift */; };
 		A1E5F0140000000000000014 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0040000000000000004 /* LiveActivityPlugin.swift */; };
 		A1E5F0150000000000000015 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0050000000000000005 /* RunActivityAttributes.swift */; };
+		A1E5F0160000000000000016 /* AudioCuePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0060000000000000006 /* AudioCuePlugin.swift */; };
 		A1E5F2110000000000000211 /* LiveActivityWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F2010000000000000201 /* LiveActivityWidgetBundle.swift */; };
 		A1E5F2120000000000000212 /* RunLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F2020000000000000202 /* RunLiveActivityWidget.swift */; };
 		A1E5F2130000000000000213 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0050000000000000005 /* RunActivityAttributes.swift */; };
@@ -39,6 +40,7 @@
 		A1E5F0030000000000000003 /* HealthKitBridgePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitBridgePlugin.swift; sourceTree = "<group>"; };
 		A1E5F0040000000000000004 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
 		A1E5F0050000000000000005 /* RunActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunActivityAttributes.swift; sourceTree = "<group>"; };
+		A1E5F0060000000000000006 /* AudioCuePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCuePlugin.swift; sourceTree = "<group>"; };
 		A1E5F2010000000000000201 /* LiveActivityWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityWidgetBundle.swift; sourceTree = "<group>"; };
 		A1E5F2020000000000000202 /* RunLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLiveActivityWidget.swift; sourceTree = "<group>"; };
 		A1E5F2030000000000000203 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@
 				A1E5F0030000000000000003 /* HealthKitBridgePlugin.swift */,
 				A1E5F0040000000000000004 /* LiveActivityPlugin.swift */,
 				A1E5F0050000000000000005 /* RunActivityAttributes.swift */,
+				A1E5F0060000000000000006 /* AudioCuePlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -242,6 +245,7 @@
 				A1E5F0130000000000000013 /* HealthKitBridgePlugin.swift in Sources */,
 				A1E5F0140000000000000014 /* LiveActivityPlugin.swift in Sources */,
 				A1E5F0150000000000000015 /* RunActivityAttributes.swift in Sources */,
+				A1E5F0160000000000000016 /* AudioCuePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

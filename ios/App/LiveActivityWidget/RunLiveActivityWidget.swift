@@ -28,6 +28,11 @@ struct RunLiveActivityWidget: Widget {
                 Text(context.state.message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if let step = context.state.step, !step.isEmpty {
+                    Text(step)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
             }
             .padding()
             .activityBackgroundTint(Color(red: 0.06, green: 0.09, blue: 0.16))
@@ -46,7 +51,12 @@ struct RunLiveActivityWidget: Widget {
                         .monospacedDigit()
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.message).font(.caption)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(context.state.message).font(.caption)
+                        if let step = context.state.step, !step.isEmpty {
+                            Text(step).font(.caption.weight(.semibold)).foregroundStyle(.orange)
+                        }
+                    }
                 }
             } compactLeading: {
                 Image(systemName: "figure.run").foregroundStyle(.orange)

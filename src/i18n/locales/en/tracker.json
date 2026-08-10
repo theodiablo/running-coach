@@ -83,6 +83,55 @@
     "addProfile": "Add your HR profile in Settings to see a target zone",
     "range": "❤️ {{lo}}–{{hi}} bpm"
   },
+  "guided": {
+    "title": "Guided session",
+    "notifTitle": "Guided session",
+    "left": "left",
+    "next": "Next: {{step}}",
+    "mins": "{{mins}} min",
+    "done": "Workout complete — nice work.",
+    "doneShort": "Workout complete",
+    "cuesToggle": "Voice and beep cues",
+    "label": {
+      "warmup": "Warm-up",
+      "tempo": "Tempo",
+      "rep": "Rep {{rep}}/{{reps}}",
+      "recover": "Recover",
+      "cooldown": "Cool-down",
+      "run": "Run",
+      "walk": "Walk"
+    },
+    "pace": {
+      "on": "On pace",
+      "slow": "Speed up",
+      "fast": "Ease off"
+    },
+    "speak": {
+      "warmup_one": "Warm-up: {{count}} minute easy.",
+      "warmup_other": "Warm-up: {{count}} minutes easy.",
+      "cooldown_one": "Cool-down: {{count}} minute very easy.",
+      "cooldown_other": "Cool-down: {{count}} minutes very easy.",
+      "run_one": "Run {{count}} minute.",
+      "run_other": "Run {{count}} minutes.",
+      "walk_one": "Walk {{count}} minute.",
+      "walk_other": "Walk {{count}} minutes.",
+      "recoverSec_one": "Recover: {{count}} second easy.",
+      "recoverSec_other": "Recover: {{count}} seconds easy.",
+      "recoverDist": "Recover: {{dist}} easy jog.",
+      "rep": "Rep {{rep}} of {{reps}}: {{dist}} at {{pace}}.",
+      "repNoPace": "Rep {{rep}} of {{reps}}: {{dist}}.",
+      "tempo": "Tempo block: {{count}} kilometres at {{pace}}.",
+      "tempoNoPace": "Tempo block: {{count}} kilometres, comfortably hard.",
+      "km_one": "{{count}} kilometre",
+      "km_other": "{{count}} kilometres",
+      "metres_one": "{{count}} metre",
+      "metres_other": "{{count}} metres",
+      "pace": "{{min}} {{sec}} per kilometre",
+      "done": "Workout complete. Nice work.",
+      "fast": "Too fast. Ease off a touch.",
+      "slow": "Behind pace. Pick it up a touch."
+    }
+  },
   "batteryNudge": {
     "title": "Keep Android from stopping your recording",
     "body": "This phone limits battery use for Running Coach, which can end a recording mid-run. Allow unrestricted battery use for reliable tracking with the screen off.",
