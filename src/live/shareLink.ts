@@ -11,7 +11,8 @@
 // the only thing that can resolve a token anyway.
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
-import { LIVE_SHARE_TOKEN_KEY } from "../constants";
+import { LIVE_SHARE_TOKEN_KEY, WEB_APP_ORIGIN } from "../constants";
+import { isNative } from "../native";
 import type { LiveRunRow } from "./publisher";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedLiveShare from "../../supabase/functions/_shared/liveShare.mjs";
@@ -42,7 +43,17 @@ export function mintShareToken(): string {
   return toBase64Url(bytes);
 }
 
-export const watchUrl = (token: string, origin: string = window.location.origin): string =>
+// The origin a shared link has to name. The shells serve the bundle from a local
+// origin (https://localhost on Android, capacitor://localhost on iOS), so
+// window.location.origin inside them is an address only that phone can open —
+// it minted links like https://localhost/watch/<token>. The public page exists
+// on the web deployment alone, and native builds don't even ship its chunk
+// (main.tsx), so native names the web origin explicitly — the same rule as the
+// Polar redirect_uri in src/imports/cloudOauth.ts.
+export const shareOrigin = (): string =>
+  isNative || typeof window === "undefined" ? WEB_APP_ORIGIN : window.location.origin;
+
+export const watchUrl = (token: string, origin: string = shareOrigin()): string =>
   `${origin}${WATCH_PATH_PREFIX}${token}`;
 
 // The router, such as it is. Returns the token for a /watch/:token path and

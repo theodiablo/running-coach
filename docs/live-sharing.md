@@ -366,6 +366,18 @@ The mechanics that keep that true:
   saying nothing is live — indistinguishable, again, from a token that never
   existed.
 
+### The link names the web origin, not the shell's
+
+`watchUrl` builds `<origin>/watch/<token>`, and on native the origin can't come
+from `window.location`: the shells serve the bundle locally
+(`https://localhost` on Android, `capacitor://localhost` on iOS), so a link
+minted from it is an address only that phone can open — Android shipped
+`https://localhost/watch/<token>` for exactly this reason. `shareOrigin()`
+returns `WEB_APP_ORIGIN` under `isNative` (the same rule as the Polar
+`redirect_uri`), which is also the only place the page exists: `VITE_NATIVE_BUILD`
+drops the watch chunk from the shells entirely. Web keeps its current origin, so
+a dev build still links to the dev server.
+
 ### The token rides the normal writes
 
 `share_token` is on every insert and every update, and **a change to it bypasses

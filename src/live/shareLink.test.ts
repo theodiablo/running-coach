@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { LIVE_SHARE_TOKEN_KEY } from "../constants";
+import { LIVE_SHARE_TOKEN_KEY, WEB_APP_ORIGIN } from "../constants";
+
+const native = vi.hoisted(() => ({ isNative: false }));
+vi.mock("../native", () => native);
+
 import {
   SHARE_TOKEN_BYTES, fetchLiveWatch, isValidShareToken, mintShareToken,
   parseWatchToken, readShareToken, storeShareToken, watchUrl,
@@ -78,6 +82,24 @@ describe("parseWatchToken", () => {
 
   it("builds the URL it parses back", () => {
     expect(parseWatchToken(new URL(watchUrl(token, "https://example.test")).pathname)).toBe(token);
+  });
+});
+
+describe("watchUrl origin", () => {
+  const token = "a".repeat(22);
+  afterEach(() => { native.isNative = false; });
+
+  it("uses the current origin on the web", () => {
+    expect(watchUrl(token)).toBe(`${window.location.origin}/watch/${token}`);
+  });
+
+  it("names the web app on native, never the shell's local origin", () => {
+    // The shells serve the bundle from https://localhost (Android) /
+    // capacitor://localhost (iOS), so window.location.origin there is an address
+    // only that phone can open — a link nobody the runner sent it to can follow.
+    native.isNative = true;
+    expect(watchUrl(token)).toBe(`${WEB_APP_ORIGIN}/watch/${token}`);
+    expect(watchUrl(token)).not.toContain("localhost");
   });
 });
 
