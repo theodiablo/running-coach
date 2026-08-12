@@ -225,6 +225,31 @@ describe("hrMeasuredSec / hrCoverage", () => {
     expect(hrCoverage(stream(0, 600), 0)).toBe(0);
   });
 
+  it("adapts the cap to a coarse imported series", () => {
+    // A watch / Health Connect / smart-recorded GPX import can legitimately be
+    // one sample a minute. A fixed 10s cap scored that continuous series at 17%
+    // and the detail view called it a dropout.
+    const oncePerMinute = Array.from({ length: 61 }, (_, i) => ({ bpm: 150, t: i * 60000 }));
+    expect(hrCoverage(oncePerMinute, 3600)).toBeCloseTo(1, 2);
+    const every11s = Array.from({ length: 100 }, (_, i) => ({ bpm: 150, t: i * 11000 }));
+    expect(hrCoverage(every11s, 99 * 11)).toBeCloseTo(1, 2);
+  });
+
+  it("still catches a dropout inside a coarse series", () => {
+    // Same 1/min cadence, but an hour missing in the middle: the adaptive cap is
+    // 3 minutes, so the hole counts for 3 of its 60 minutes, not all of it.
+    const samples = [
+      ...Array.from({ length: 10 }, (_, i) => ({ bpm: 150, t: i * 60000 })),
+      ...Array.from({ length: 10 }, (_, i) => ({ bpm: 150, t: 3600000 + i * 60000 })),
+    ];
+    expect(hrCoverage(samples, 4200)).toBeLessThan(0.35);
+  });
+
+  it("honours an explicit cap over the derived one", () => {
+    const oncePerMinute = Array.from({ length: 61 }, (_, i) => ({ bpm: 150, t: i * 60000 }));
+    expect(hrMeasuredSec(oncePerMinute, 10)).toBeCloseTo(600, 1);
+  });
+
   it("scores the real-world fragment low", () => {
     // The Aug 10 shape: ~15 minutes of stream on a 72-minute run.
     expect(hrCoverage(stream(0, 900), 4313)).toBeLessThan(0.25);

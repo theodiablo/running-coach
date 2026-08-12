@@ -318,8 +318,11 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     setMovingSec(0);
     startHrWatch();
     // Journal natively only when a live sensor is actually streaming — the
-    // journal exists to cover the stretches where this JS isn't running.
-    if (hrWatchRef.current) resetHrJournal();
+    // journal exists to cover the stretches where this JS isn't running. With no
+    // live watch there is still a file to clear: a previous BLE run killed before
+    // it saved leaves its beats on disk, and they must never surface as this
+    // run's heart rate.
+    if (hrWatchRef.current) resetHrJournal(); else clearHrJournal();
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist]);
@@ -332,6 +335,11 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     setState("paused");
     logTrack("pause");
     setMovingSec(computeMoving());
+    // The journal has to observe the same pause onHrSample does. It keeps
+    // recording natively otherwise, and the merge at save would fold a rest
+    // back into the run — dragging the average down and crediting zone 1 with
+    // time the runner spent standing still.
+    disarmHrJournal();
     releaseWake();
     persist();
   }, [releaseWake, persist, computeMoving]);
@@ -427,6 +435,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   const discardPrevious = useCallback(() => {
     clearBuffer();
     clearNativeFixJournal();
+    clearHrJournal(); // same reason as the fix journal: the run is being thrown away
     setPending(null);
   }, []);
 

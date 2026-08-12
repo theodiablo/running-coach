@@ -54,12 +54,19 @@ const hr = vi.hoisted(() => {
     }),
     clearWatch: vi.fn((handle: HrWatch | null | undefined) => { if (handle) handle.stopped = true; }),
   };
-  return { watches, source, enabled: false, device: null as { id: string; name?: string } | null, setPairedDevice: vi.fn() };
+  // The native HR journal seam. Real calls no-op off Android; here they're spies
+  // so the arm/disarm/clear lifecycle around the run controls is assertable.
+  const journal = {
+    resetHrJournal: vi.fn(), armHrJournal: vi.fn(),
+    disarmHrJournal: vi.fn(), clearHrJournal: vi.fn(),
+  };
+  return { watches, source, journal, enabled: false, device: null as { id: string; name?: string } | null, setPairedDevice: vi.fn() };
 });
 
 vi.mock("../geo/source", () => ({ geoSource: h.geoSource }));
 vi.mock("../hr/source", () => ({ getHrSource: () => (hr.enabled ? hr.source : null) }));
 vi.mock("../hr/device", () => ({ getPairedDevice: () => hr.device, setPairedDevice: hr.setPairedDevice }));
+vi.mock("../hr/hrJournal", () => hr.journal);
 vi.mock("../native", () => ({ isNative: false, isAndroid: false, isIos: false, platform: "web" }));
 
 import { useRunTracker } from "./useRunTracker";
@@ -80,6 +87,7 @@ beforeEach(() => {
   hr.watches.length = 0;
   hr.enabled = false;
   hr.device = null;
+  for (const fn of Object.values(hr.journal)) fn.mockClear();
   h.geoSource.isAvailable.mockReturnValue(true);
   h.geoSource.requestPermissions.mockResolvedValue(true);
   vi.useFakeTimers();
@@ -408,6 +416,41 @@ describe("useRunTracker — live heart rate", () => {
     act(() => result.current.start());
     act(() => result.current.stop());
     expect(result.current.hrStatus).toBeNull();
+  });
+
+  it("pauses the native journal with the run, so a breather isn't recorded", () => {
+    // onHrSample drops beats while paused; the journal has to observe the same
+    // pause or the merge at save folds the rest back in, dragging the average
+    // down and crediting zone 1 with time spent standing still.
+    const { result } = renderWithStrap();
+    act(() => result.current.start());
+    expect(hr.journal.resetHrJournal).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.pause());
+    expect(hr.journal.disarmHrJournal).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.resume());
+    // Re-armed, never re-cleared: the beats already on disk are this run's.
+    expect(hr.journal.armHrJournal).toHaveBeenCalledTimes(1);
+    expect(hr.journal.resetHrJournal).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a leftover journal when the run has no live sensor", () => {
+    // A previous BLE run killed before it saved leaves beats on disk. Without a
+    // live watch nothing arms the journal, so nothing would clear it either —
+    // and they would surface as this run's heart rate.
+    hr.enabled = false;
+    hr.device = null;
+    const { result } = renderHook(() => useRunTracker({ hrMethod: "healthconnect" }));
+    act(() => result.current.start());
+    expect(hr.journal.clearHrJournal).toHaveBeenCalled();
+    expect(hr.journal.resetHrJournal).not.toHaveBeenCalled();
+  });
+
+  it("drops a discarded recovery's journal with its buffer", () => {
+    const { result } = renderWithStrap();
+    act(() => result.current.discardPrevious());
+    expect(hr.journal.clearHrJournal).toHaveBeenCalled();
   });
 
   it("passes the paired identity and persists an address rotation", () => {

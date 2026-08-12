@@ -23,6 +23,12 @@ const SCAN_MIN_INTERVAL_MS = 30000;
 // The sensor notifies at ~1-2Hz, so this much silence is a dead link, not a
 // gap — drop it and reconnect instead of recording nothing for the rest of a run.
 const STALL_MS = 20000;
+// How late the watchdog may fire and still be believed. A backgrounded Android
+// WebView freezes its timers and its notification callbacks alike, so on resume
+// an overdue timer means "we were frozen", not "the sensor stopped" — and acting
+// on it would tear down a healthy link (and with it the native journal that was
+// covering us). Past this much lateness the watchdog re-arms instead.
+const STALL_GRACE_MS = 5000;
 
 export type BleDevice = { id: string; name: string };
 export type BleHrSample = { bpm: number; t: number };
@@ -115,6 +121,7 @@ const bleSourceImpl = {
     let attempting = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    let stallArmedAt = 0;  // when the watchdog was set, to tell lateness from silence
     const status = (s: BleWatchStatus) => { if (!handle.stopped) onStatus?.(s); };
 
     // Direct connect only reaches a peripheral Android has recently seen
@@ -154,7 +161,19 @@ const bleSourceImpl = {
       if (stallTimer) clearTimeout(stallTimer);
       stallTimer = undefined;
       if (handle.stopped) return;
-      stallTimer = setTimeout(forceReconnect, STALL_MS);
+      stallArmedAt = Date.now();
+      stallTimer = setTimeout(onStall, STALL_MS);
+    };
+
+    const onStall = () => {
+      stallTimer = undefined;
+      if (handle.stopped) return;
+      // Fired far later than it was set for → the WebView was frozen, which
+      // silences the notification callback too, so this proves nothing about the
+      // link. Give it one clean window instead: a healthy sensor lands a sample
+      // within ~1s of the WebView waking and disarms this before it fires again.
+      if (Date.now() - stallArmedAt > STALL_MS + STALL_GRACE_MS) { armStall(); return; }
+      forceReconnect();
     };
 
     // Tear the link down and reconnect. The sensor is still notifying into a

@@ -28,6 +28,7 @@ let bleSource: Source;
 const hrView = (bpm: number) => new DataView(new Uint8Array([0, bpm]).buffer);
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
+const STALL_MS = 20000;
 
 beforeEach(async () => {
   vi.useFakeTimers();
@@ -173,6 +174,24 @@ describe("bleSource.watch", () => {
     await flush();
     for (let i = 0; i < 30; i++) { notify!(hrView(0)); await vi.advanceTimersByTimeAsync(1000); }
     expect(onSample).not.toHaveBeenCalled();
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("re-arms instead of reconnecting when the watchdog fires late (frozen WebView)", async () => {
+    // A backgrounded Android WebView freezes timers AND notification callbacks,
+    // so an overdue watchdog says nothing about the link. Acting on it would
+    // tear down a healthy sensor on resume.
+    let notify: ((v: DataView) => void) | undefined;
+    ble.client.startNotifications.mockImplementation(async (_id, _s, _c, cb) => { notify = cb; });
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await flush();
+    notify!(hrView(150));
+    // Freeze: no timers run, then everything fires at once far past its deadline.
+    vi.setSystemTime(Date.now() + 300000);
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(ble.client.disconnect).not.toHaveBeenCalled(); // grace, not a teardown
+    notify!(hrView(151));                                 // link was fine all along
+    await vi.advanceTimersByTimeAsync(15000);
     expect(ble.client.disconnect).not.toHaveBeenCalled();
   });
 

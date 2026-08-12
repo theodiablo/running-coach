@@ -584,7 +584,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     // frozen whenever the app is backgrounded, so hrSamples only ever holds the
     // beats JS was awake for. The journal is empty off Android and on an
     // unpatched shell, leaving the live stream as the whole story.
-    const hrSamples = mergeHrSamples(rt.hrSamples, await readHrJournal());
+    //
+    // Read it ONLY for a live source — the same condition that armed it. A
+    // post-run source (Health Connect) never journals, so anything on disk would
+    // belong to some earlier BLE run; merging it would both invent this run's HR
+    // and, by producing an average, skip the store fetch below entirely.
+    const hrSamples = mergeHrSamples(rt.hrSamples, hrSrc?.live ? await readHrJournal() : []);
     const hrStats = hrSummary(hrSamples);
     const coverage = hrCoverage(hrSamples, stats.movingSec);
     // Persist the raw ~1Hz HR stream as a sidecar on the route stats (BLE runs

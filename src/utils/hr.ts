@@ -115,15 +115,28 @@ export function hrSummary(samples?: HrSample[] | null) {
 }
 
 // Seconds of a run a { bpm, t } stream actually measured. Each sample covers the
-// gap to the next one, capped (default 10s, matching timeInZones) so a dropped
-// link never counts as measured time. A single sample measures nothing.
-export function hrMeasuredSec(samples?: HrSample[] | null, capSec = 10): number {
+// gap to the next one, capped so a dropped link never counts as measured time.
+// A single sample measures nothing.
+//
+// The cap ADAPTS to the stream's own cadence (median gap × 3, floored at 10s)
+// unless one is passed explicitly. A BLE strap notifies at ~1-2Hz and lands on
+// the 10s floor, but `stats.hrSamples` is also written by the watch / HealthKit /
+// GPX importers, whose series can legitimately be one sample a minute — a fixed
+// cap would score a perfectly continuous import at 17% and call it a dropout.
+// Three times the stream's own spacing is still sampling; beyond that is a hole.
+export function hrMeasuredSec(samples?: HrSample[] | null, capSec?: number): number {
   if (!samples || samples.length < 2) return 0;
-  const capMs = capSec * 1000;
-  let ms = 0;
-  for (let i = 1; i < samples.length; i++) {
-    ms += Math.min(Math.max(0, samples[i].t - samples[i - 1].t), capMs);
+  const gaps: number[] = [];
+  for (let i = 1; i < samples.length; i++) gaps.push(Math.max(0, samples[i].t - samples[i - 1].t));
+  let capMs: number;
+  if (capSec != null) capMs = capSec * 1000;
+  else {
+    const sorted = gaps.slice().sort((a, b) => a - b);
+    const median = sorted[sorted.length >> 1];
+    capMs = Math.max(10000, median * 3);
   }
+  let ms = 0;
+  for (const g of gaps) ms += Math.min(g, capMs);
   return ms / 1000;
 }
 
