@@ -8,6 +8,20 @@
     "live": "Sortie en cours",
     "complete": "Sortie terminée"
   },
+  "indoor": {
+    "title": "Séance en salle",
+    "complete": "Séance terminée",
+    "machine": "Machine",
+    "start": "Démarrer la séance",
+    "save": "Enregistrer la séance",
+    "noSensor": "Aucun capteur de fréquence cardiaque configuré",
+    "zoneUnknown": "pas de mesure",
+    "zoneFloorBpm": "{{bpm}} bpm (Z1)",
+    "maxBpm": "{{bpm}} bpm (max)",
+    "resumeTitle": "Reprendre ta séance précédente ?",
+    "resumeElapsed": "{{time}} enregistrées.",
+    "keepScreenOn": "Garde cet écran allumé. Sans GPS, la séance ne peut pas continuer en arrière-plan : si l'écran se verrouille, le chrono continue mais la fréquence cardiaque n'est plus enregistrée."
+  },
   "countdown": {
     "go": "Partez !"
   },

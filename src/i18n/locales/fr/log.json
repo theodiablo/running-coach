@@ -2,8 +2,10 @@
   "title": "Enregistrer une sortie",
   "importFileBtn": "Importer un fichier",
   "trackLive": "Enregistrer une sortie avec le GPS",
+  "indoorSession": "Enregistrer une séance en salle (fréquence cardiaque)",
   "orManual": "ou saisis-la manuellement",
   "gpsBanner": "Sortie enregistrée par GPS. La distance, la durée et le dénivelé positif sont déjà renseignés. Ajoute un type et des notes, puis enregistre.",
+  "indoorBanner": "Séance en salle enregistrée. La durée et la fréquence cardiaque sont déjà renseignées, il n'y a pas de distance à enregistrer. Ajoute des notes, puis enregistre.",
   "watchBanner": "Sortie importée depuis ta montre. Vérifie les données (aucun tracé ni aucune carte ne sont inclus), choisis un type, puis enregistre.",
   "import": {
     "title": "Importer un fichier d’activité",
@@ -25,7 +27,10 @@
   "fields": {
     "date": "Date",
     "type": "Type",
+    "activity": "Machine",
+    "activityNone": "Non précisée",
     "distanceKm": "Distance (km)",
+    "distanceKmOptional": "Distance (km, facultative)",
     "duration": "Durée",
     "avgHr": "FC moy.",
     "maxHr": "FC max.",

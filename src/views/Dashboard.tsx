@@ -8,6 +8,7 @@ import { fmt, ymd, estMin, weekStart } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { overdueSessions, nextSession } from "../utils/overdue";
+import { planSessionPrefill } from "../utils/plan";
 import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
@@ -285,7 +286,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             )}
             <div className="flex gap-2 mt-3">
               <button
-                onClick={() => goLog({date: nextSess.date, type: nextSess.type, km: Number(nextSess.km), pace: nextSess.pace, wNum: nextSess.wNum, sId: nextSess.id})}
+                onClick={() => goLog(planSessionPrefill(nextSess, nextSess.wNum))}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
                 <Plus size={15}/>{t("dashboard.session.record")}
               </button>

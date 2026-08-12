@@ -24,6 +24,12 @@
     "WALK": "MARCHE",
     "OTHER": "AUTRE"
   },
+  "activities": {
+    "bike": "Vélo",
+    "elliptical": "Elliptique",
+    "rower": "Rameur",
+    "other": "Autre"
+  },
   "phases": {
     "BASE": "BASE",
     "BUILD": "DÉVELOPPEMENT",
@@ -38,6 +44,7 @@
     "TEMPO": "Z3-4 · Seuil lactique",
     "INTERVALS": "Z4-5 · Effort max (répétitions)",
     "RACE": "Z3-4 · Effort de course",
-    "WALK": "Z1 · Récupération"
+    "WALK": "Z1 · Récupération",
+    "OTHER": "Z2 · Base aérobie"
   }
 }

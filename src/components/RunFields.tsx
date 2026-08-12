@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
+import { RUN_ACTIVITIES } from "../types";
 import type { RunFormValues } from "../utils/runForm";
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
@@ -21,6 +22,7 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr }: RunField
   const ph = phScope === "log.edit"
     ? { km: t("log.edit.kmPh"), avgHr: t("log.edit.avgHrPh"), maxHr: t("log.edit.maxHrPh"), elev: t("log.edit.elevPh") }
     : { km: t("log.fields.kmPh"), avgHr: t("log.fields.avgHrPh"), maxHr: t("log.fields.maxHrPh"), elev: t("log.fields.elevPh") };
+  const isCross = f.type === "OTHER";
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -33,7 +35,18 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr }: RunField
           </select>
         </div>
       </div>
-      <div><label className={LABEL_CLS}>{t("log.fields.distanceKm")}</label>
+      {/* Cross-training only: which machine, and a distance that may not exist
+          (an old stationary bike measures nothing comparable to running km). */}
+      {isCross && (
+        <div><label className={LABEL_CLS}>{t("log.fields.activity")}</label>
+          <select value={f.activity} onChange={e => set("activity", e.target.value)} className={INPUT_CLS}>
+            <option value="">{t("log.fields.activityNone")}</option>
+            {RUN_ACTIVITIES.map(a =>
+              <option key={a} value={a}>{t("common.activities." + a)}</option>)}
+          </select>
+        </div>
+      )}
+      <div><label className={LABEL_CLS}>{isCross ? t("log.fields.distanceKmOptional") : t("log.fields.distanceKm")}</label>
         <input type="number" step="0.01" min="0" placeholder={ph.km} value={f.km}
           onChange={e => set("km", e.target.value)} className={INPUT_CLS}/></div>
       <div><label className={LABEL_CLS}>{t("log.fields.duration")}</label>

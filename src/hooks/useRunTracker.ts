@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LIVE_RUN_KEY } from "../constants";
+import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
 import { accuracyOK, distanceKm, elevGainM, haversineM } from "../utils/geo";
 import { hrSummary } from "../utils/hr";
 import { geoSource } from "../geo/source";
@@ -79,18 +79,31 @@ const trackerGeoSource = geoSource as TrackerGeoSource;
 // have live:false and are never watched here).
 type LiveHrSource = Extract<NonNullable<ReturnType<typeof getHrSource>>, { live: true }>;
 
-const clearBuffer = () => { try { localStorage.removeItem(LIVE_RUN_KEY); } catch { /* ignore */ } };
-
 type UseRunTrackerOptions = {
   hrMethod?: string;
   // Guided-workout step line for the lock-screen surfaces (null = unguided).
   stepText?: string | null;
+  // Indoor/static cardio session (stationary bike, elliptical): record time and
+  // heart rate with NO geolocation at all — see docs/indoor-sessions.md. Turns
+  // off the position watch, the idle position preview, the Android fix journal
+  // and the lock-screen notification (there is no foreground service without a
+  // geo watch), and moves the recovery buffer to its own key. The clock, the
+  // wake lock and the live HR watch are untouched.
+  indoor?: boolean;
 };
 
 // `hrMethod` (settings.hrMethod) selects an optional live heart-rate source. A
 // LIVE source (Bluetooth) streams here alongside GPS; a post-run source (Health
 // Connect) is handled at save time in LiveRunTracker, not here. Absent/web → no HR.
-export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {}) {
+export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrackerOptions = {}) {
+  // One buffer per mode: an indoor session has no points, so it must never
+  // surface in the GPS resume offer or the Dashboard's interrupted-run banner —
+  // and an indoor reset must never wipe a real run's recovery data.
+  const bufferKey = indoor ? INDOOR_RUN_KEY : LIVE_RUN_KEY;
+  const clearBuffer = useCallback(() => {
+    try { localStorage.removeItem(bufferKey); } catch { /* ignore */ }
+  }, [bufferKey]);
+
   const [state, setState] = useState<TrackerState>("idle");
   const [points, setPoints] = useState<TrackPointOrGap[]>([]);
   const [hrSamples, setHrSamples] = useState<BleHrSample[]>([]); // { bpm, t } from a live HR sensor
@@ -109,7 +122,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   // is resolved by an explicit resume/discard, never expired away silently.
   // (RESUME_MAX_AGE_MS only bounds the live-sharing sweep, not this offer.)
   const [pending, setPending] = useState<RecoveredRun | null>(() => {
-    const buf = readRecoveryBuffer();
+    const buf = readRecoveryBuffer(bufferKey, { requirePoints: !indoor });
     return buf ? normalizeRecovery(buf) : null;
   });
 
@@ -138,13 +151,13 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
 
   const persist = useCallback(() => {
     try {
-      localStorage.setItem(LIVE_RUN_KEY, JSON.stringify({
+      localStorage.setItem(bufferKey, JSON.stringify({
         points: pointsRef.current, accSec: accRef.current, hrSamples: hrSamplesRef.current,
         startAt: startRef.current, startedAt: runStartRef.current, stoppedAt: runEndRef.current,
         state: stateRef.current, savedAt: Date.now(),
       }));
     } catch { /* quota — non-fatal */ }
-  }, []);
+  }, [bufferKey]);
 
   // Moving seconds = completed segments + the current live one. Read only from
   // effects/handlers, never during render.
@@ -263,6 +276,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   }, []);
 
   const startWatch = useCallback(() => {
+    if (indoor) return true; // no geolocation at all — the whole point of the mode
     if (!trackerGeoSource.isAvailable()) {
       setError(t("tracker.errors.unsupported"));
       return false;
@@ -271,7 +285,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     // continues with the screen off; on web the flag is ignored (no-op).
     watchRef.current = trackerGeoSource.watchPosition(onPos, onErr, { background: true });
     return true;
-  }, [onPos, onErr]);
+  }, [onPos, onErr, indoor]);
 
   const stopWatch = useCallback(() => {
     if (watchRef.current != null) trackerGeoSource.clearWatch(watchRef.current);
@@ -300,7 +314,10 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   // ── controls ─────────────────────────────────────────────────────────────
   const start = useCallback(() => {
     setError(null);
-    clearNativeFixJournal(); // a fresh run must not inherit a previous run's journal
+    // A fresh run must not inherit a previous run's journal — but an indoor
+    // session writes no journal, so clearing it would only destroy a real run's
+    // unrecovered background points.
+    if (!indoor) clearNativeFixJournal();
     pointsRef.current = [];
     setPoints([]);
     hrSamplesRef.current = [];
@@ -325,7 +342,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     if (hrWatchRef.current) resetHrJournal(); else clearHrJournal();
     acquireWake();
     persist();
-  }, [startWatch, startHrWatch, acquireWake, persist]);
+  }, [startWatch, startHrWatch, acquireWake, persist, indoor]);
 
   const pause = useCallback(() => {
     if (stateRef.current !== "tracking") return;
@@ -399,8 +416,8 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     stateRef.current = "idle";
     setState("idle");
     clearBuffer();
-    clearNativeFixJournal();
-  }, [stopWatch, stopHrWatch, releaseWake]);
+    if (!indoor) clearNativeFixJournal();
+  }, [stopWatch, stopHrWatch, releaseWake, clearBuffer, indoor]);
 
   // Load a recoverable buffer into an active (paused) session.
   const resumePrevious = useCallback(() => {
@@ -434,18 +451,21 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
 
   const discardPrevious = useCallback(() => {
     clearBuffer();
-    clearNativeFixJournal();
+    if (!indoor) clearNativeFixJournal();
+    // The HR journal is NOT indoor-guarded like the fix journal above: an
+    // indoor session streams the same strap and writes the same file, so it
+    // owns clearing it too.
     clearHrJournal(); // same reason as the fix journal: the run is being thrown away
     setPending(null);
-  }, []);
+  }, [clearBuffer, indoor]);
 
   // Call after a successful save. The journals go with the buffer: all three
   // describe a run that is now safely stored as a real Run + route.
   const finalize = useCallback(() => {
     clearBuffer();
-    clearNativeFixJournal();
+    if (!indoor) clearNativeFixJournal();
     clearHrJournal();
-  }, []);
+  }, [clearBuffer, indoor]);
 
   // ── effects ──────────────────────────────────────────────────────────────
   // UI clock while actively tracking.
@@ -481,7 +501,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   // mount; a resolved offer (pending already null) is never resurrected by the
   // async read landing late.
   useEffect(() => {
-    if (!isAndroid) return;
+    if (!isAndroid || indoor) return; // an indoor session records no fixes
     const buf = readRecoveryBuffer();
     if (!buf) return;
     let cancelled = false;
@@ -490,19 +510,19 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
       setPending(prev => (prev ? normalizeRecovery(buf, journal) : prev));
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [indoor]);
 
   // Native, returning user: location may already be granted from a prior session.
   // Check WITHOUT prompting so the idle preview can show straight away (the lazy
   // initial state covers the web, which is always true).
   useEffect(() => {
-    if (!isNative) return;
+    if (!isNative || indoor) return;
     let cancelled = false;
     trackerGeoSource.checkPermissions()
       .then(ok => { if (!cancelled && ok) setPermGranted(true); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [indoor]);
 
   // Live preview fix while idle so the user can see their position AND its
   // accuracy (the map draws a circle around it) and calibrate before hitting
@@ -510,7 +530,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   // and the last value persists so the map stays pinned through the transition.
   // Silent on error — recording's own watch surfaces permission issues.
   useEffect(() => {
-    if (state !== "idle") return;
+    if (state !== "idle" || indoor) return;
     if (!trackerGeoSource.isAvailable()) return;
     // On native, only after permission is granted — never auto-prompt out of
     // context before the disclosure. Once granted (returning user, or via the
@@ -529,7 +549,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
       { background: false },
     );
     return () => trackerGeoSource.clearWatch(handle);
-  }, [state, permGranted]);
+  }, [state, permGranted, indoor]);
 
   // Connect a LIVE heart-rate source (Bluetooth strap) as soon as the tracker is
   // idle — the same "see it before you commit" contract as the position preview
@@ -603,7 +623,10 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   // into no-ops. Do not move this onto the setInterval above: that interval is
   // exactly what stops in the background.
   useEffect(() => {
-    if (!isNative) return;
+    // Indoor: the notification is rendered BY the location foreground service,
+    // which isn't running without a geo watch — and distance/pace would be
+    // meaningless on it anyway. The session lives on the wake lock instead.
+    if (!isNative || indoor) return;
     if (state !== "tracking" && state !== "paused") { resetRunNotification(); return; }
     pushRunNotification(buildRunNotificationContent({
       state,
@@ -617,7 +640,7 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
       movingMs: computeMoving() * 1000,
       nowMs: Date.now(),
     }));
-  }, [state, stats, computeMoving, stepText]);
+  }, [state, stats, computeMoving, stepText, indoor]);
 
   return {
     state, points, stats, error, pending, location, hrSamples, hrStatus,

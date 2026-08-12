@@ -45,4 +45,32 @@ describe("runFormComplete", () => {
     expect(runFormComplete({ ...base, dH: "", dM: "", dS: "30" })).toBe(false);
     expect(runFormComplete({ ...base, dH: "1", dM: "" })).toBe(true);
   });
+
+  // An indoor bike/elliptical has no distance comparable to running, so
+  // demanding one is what made those sessions unloggable (docs/indoor-sessions.md).
+  it("lets cross-training save on duration alone", () => {
+    const cross = { ...runToForm(run), type: "OTHER", km: "" };
+    expect(runFormComplete(cross)).toBe(true);
+    expect(runFormComplete({ ...cross, dH: "", dM: "", dS: "" })).toBe(false);
+  });
+});
+
+describe("cross-training activity", () => {
+  it("round-trips the machine on an OTHER run", () => {
+    const cross = { ...run, type: "OTHER", km: 0, activity: "bike" } as Run;
+    const f = runToForm(cross);
+    expect(f.activity).toBe("bike");
+    expect(runFormToPatch(f)).toMatchObject({ type: "OTHER", km: 0, activity: "bike" });
+  });
+
+  it("drops the machine when the type moves off OTHER", () => {
+    const f = { ...runToForm(run), type: "EASY", activity: "bike" };
+    expect(runFormToPatch(f).activity).toBeUndefined();
+  });
+
+  // parseFloat("") is NaN, which would reach the store as a broken distance.
+  it("coerces a blank distance to 0 rather than NaN", () => {
+    const f = { ...runToForm(run), type: "OTHER", km: "" };
+    expect(runFormToPatch(f).km).toBe(0);
+  });
 });

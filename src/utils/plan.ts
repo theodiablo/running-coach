@@ -5,6 +5,7 @@ import {
   DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
 } from "./planStyles";
+import { isCrossTraining } from "../types";
 import type { Plan, PlanProgress, SessionSd } from "../types";
 
 export type PlanSessionInput = { dayOffset: number; minutes: number };
@@ -540,14 +541,45 @@ type OpenSessionPlan = {
   weeks?: { weekNumber: number; sessions?: { id: string; date: string; type?: string; done?: boolean; skipped?: boolean }[] }[];
 };
 
+// Prefill for logging a plan session by hand (the plan row's and the
+// dashboard's "Record" buttons, which open the manual form rather than a
+// recorder).
+//
+// A cross-training session's `km` is SYNTHETIC — buildPlan gives it an
+// easy-run-equivalent distance only because the coach validator rejects
+// km <= 0 — so passing it through would save a number nobody covered as real
+// running distance, contaminating volume, pace and PBs. Its *duration* is the
+// real prescription, so prefill that instead. See docs/indoor-sessions.md.
+export function planSessionPrefill(
+  s: { id: string; date: string; type: string; km?: number | string; pace?: number; sd?: SessionSd },
+  wNum: number,
+) {
+  const base = { date: s.date, type: s.type, wNum, sId: s.id };
+  if (!isCrossTraining(s))
+    return { ...base, km: Number(s.km), pace: s.pace };
+  return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}) };
+}
+
 // First not-done, not-skipped, non-RACE session on a given date, so a run logged
 // for that day (watch import, GPS save) can auto-tick the matching plan session
 // via LogView's onSaved. Returns {wNum, sId} or null. Pure.
-export function findOpenPlanSession(plan: OpenSessionPlan | null | undefined, date: string): { wNum: number; sId: string } | null {
+//
+// `opts.crossTraining` keeps a save from ticking off the wrong kind of session
+// on a day that has both: an indoor bike session passes true so it can only
+// reach the cross-training day, a run passes false so it can only reach the
+// running one. Omitted = either (the import-review toast, which doesn't know
+// which it has). See docs/indoor-sessions.md.
+export function findOpenPlanSession(
+  plan: OpenSessionPlan | null | undefined,
+  date: string,
+  opts: { crossTraining?: boolean } = {},
+): { wNum: number; sId: string } | null {
   if (!plan?.weeks || !date) return null;
   for (const w of plan.weeks) {
     for (const s of w.sessions || []) {
-      if (s.date === date && s.type !== "RACE" && !s.done && !s.skipped) return { wNum: w.weekNumber, sId: s.id };
+      if (s.date !== date || s.type === "RACE" || s.done || s.skipped) continue;
+      if (opts.crossTraining != null && isCrossTraining(s) !== opts.crossTraining) continue;
+      return { wNum: w.weekNumber, sId: s.id };
     }
   }
   return null;

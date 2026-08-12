@@ -4,7 +4,8 @@ Native HR capture (BLE / Health Connect / HealthKit), phone-free watch run
 import, and the import-provider registry (file + cloud imports). Moved out of
 CLAUDE.md; keep this current when touching `src/hr/`, `src/watch/`,
 `src/imports/`, or the health-store plugins. Polar specifics live in
-`docs/integrations-polar.md`.
+`docs/integrations-polar.md`; the GPS-free indoor recorder that consumes the
+live HR seam is in `docs/indoor-sessions.md`.
 
 ## HR sources (`src/hr/`)
 

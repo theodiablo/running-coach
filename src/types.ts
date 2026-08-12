@@ -6,6 +6,17 @@ export type Intent = "race" | "fitness" | null;
 // (getHrSource returns null for it) rather than assume it's usable locally.
 export type HrMethod = "off" | "bluetooth" | "healthconnect" | "healthkit";
 export type RunType = "EASY" | "TEMPO" | "INTERVALS" | "LONG" | "RACE" | "WALK" | "OTHER";
+// Which machine a cross-training session was done on (docs/indoor-sessions.md).
+// Only ever set on type "OTHER"; old clients ignore the unknown field.
+export type RunActivity = "bike" | "elliptical" | "rower" | "other";
+export const RUN_ACTIVITIES: RunActivity[] = ["bike", "elliptical", "rower", "other"];
+
+// Cross-training: a logged session that isn't running. "OTHER" is the plan's
+// own cross-training type (buildPlan's optional bike/swim/elliptical day), and
+// the type an indoor session saves as. The one definition, so every
+// running-only aggregate draws the line in the same place.
+export const isCrossTraining = (run: { type?: string } | null | undefined) =>
+  String(run?.type ?? "").toUpperCase() === "OTHER";
 
 export type HealthAck = { v?: string | number; at?: string } | null;
 
@@ -102,6 +113,9 @@ export type Run = Record<string, unknown> & {
   effort?: number | null;
   notes?: string;
   source?: string;
+  // Indoor/static cardio only (source:"indoor", or a hand-logged OTHER run):
+  // which machine. Absent on runs — `type` already says what those were.
+  activity?: RunActivity;
   routeId?: string;
   routeTmp?: string;
   routePending?: boolean;

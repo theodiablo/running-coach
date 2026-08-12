@@ -24,6 +24,12 @@
     "WALK": "WALK",
     "OTHER": "OTHER"
   },
+  "activities": {
+    "bike": "Bike",
+    "elliptical": "Elliptical",
+    "rower": "Rower",
+    "other": "Other"
+  },
   "phases": {
     "BASE": "BASE",
     "BUILD": "BUILD",
@@ -38,6 +44,7 @@
     "TEMPO": "Z3-4 · Lactate Threshold",
     "INTERVALS": "Z4-5 · Max effort (reps)",
     "RACE": "Z3-4 · Race effort",
-    "WALK": "Z1 · Recovery"
+    "WALK": "Z1 · Recovery",
+    "OTHER": "Z2 · Aerobic Base"
   }
 }

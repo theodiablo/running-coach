@@ -8,6 +8,7 @@ import { effectiveMaxHR } from "../utils/hr";
 import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable } from "../utils/predictions";
 import { PredictionsInfo } from "../components/PredictionsInfo";
 import { HRZonesCard } from "../components/HRZonesCard";
+import { isCrossTraining } from "../types";
 import type { Run, SettingsState } from "../types";
 
 type StatsViewProps = { runs: Run[]; settings: SettingsState };
@@ -42,9 +43,18 @@ function Overview({runs, settings}: StatsViewProps) {
     return runs.filter(r => new Date(r.date + "T00:00:00") >= cut);
   })();
 
+  // Everything on this screen except total TIME is a running measure: distance,
+  // pace, elevation, the trends, the run count and the average HR. A
+  // cross-training session has no comparable distance or pace, and its heart
+  // rate — real, but achieved without impact and at a different economy — would
+  // read as a change in running fitness that never happened. Time is the one
+  // honest common denominator, so it alone still counts every session.
+  // See docs/indoor-sessions.md.
+  const runOnly = fRuns.filter(r => !isCrossTraining(r));
+
   const wkBars = (() => {
     const m: Record<string, number> = {};
-    fRuns.forEach(r => {
+    runOnly.forEach(r => {
       const k = weekKey(r.date);
       m[k] = (m[k] || 0) + (r.km || 0);
     });
@@ -57,7 +67,7 @@ function Overview({runs, settings}: StatsViewProps) {
   // charts share a timeline. Weeks with runs but no elevation contribute 0.
   const wkElevBars = (() => {
     const m: Record<string, number> = {};
-    fRuns.forEach(r => {
+    runOnly.forEach(r => {
       const k = weekKey(r.date);
       m[k] = (m[k] || 0) + (r.elevation || 0);
     });
@@ -66,25 +76,27 @@ function Overview({runs, settings}: StatsViewProps) {
       .map(e => ({d: fmt.sht(e[0]), elev: Math.round(e[1])}));
   })();
 
-  const pLine = fRuns.slice()
+  const pLine = runOnly.slice()
     .filter(r => r.km && r.durationSec)
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(r => ({d: fmt.sht(r.date), p: Math.round((r.durationSec || 0) / r.km)}));
 
-  const totKm   = fRuns.reduce((s, r) => s + (r.km || 0), 0);
-  const pRuns   = fRuns.filter(r => r.km && r.durationSec);
+  const totKm   = runOnly.reduce((s, r) => s + (r.km || 0), 0);
+  const pRuns   = runOnly.filter(r => r.km && r.durationSec);
   const avgPace = pRuns.length ? pRuns.reduce((s, r) => s + (r.durationSec || 0) / r.km, 0) / pRuns.length : 0;
   const bestPace = pRuns.filter(r => r.km >= 3).reduce<number | null>((b, r) => {
     const p = (r.durationSec || 0) / r.km;
     return (!b || p < b) ? p : b;
   }, null);
-  const hrRuns = fRuns.filter(r => r.hr);
+  const hrRuns = runOnly.filter(r => r.hr);
   const avgHR  = hrRuns.length ? hrRuns.reduce((s, r) => s + (r.hr || 0), 0) / hrRuns.length : 0;
-  const totElev = fRuns.reduce((s, r) => s + (r.elevation || 0), 0);
+  const totElev = runOnly.reduce((s, r) => s + (r.elevation || 0), 0);
+  // The one measure that counts every session: an hour on the bike is an hour
+  // of training, whatever the legs were doing.
   const totTime = fRuns.reduce((s, r) => s + (r.durationSec || 0), 0);
 
   const stats = [
-    {l:t("progress.stats.cards.totalDistance"), v:totKm.toFixed(1) + " km",    s:t("progress.stats.cards.runsCount", {n: fRuns.length}), c:"text-orange-400"},
+    {l:t("progress.stats.cards.totalDistance"), v:totKm.toFixed(1) + " km",    s:t("progress.stats.cards.runsCount", {n: runOnly.length}), c:"text-orange-400"},
     {l:t("progress.stats.cards.totalTime"),     v:(totTime/3600).toFixed(1) + " h", s:t("progress.stats.cards.movingTime"),     c:"text-violet-400"},
     {l:t("progress.stats.cards.averagePace"),   v:fmt.pace(avgPace),             s:t("progress.stats.cards.minPerKm"),               c:"text-sky-400"},
     totElev > 0 && {l:t("progress.stats.cards.totalElevation"), v:Math.round(totElev).toLocaleString() + " m", s:t("progress.stats.cards.climbed"), c:"text-emerald-400"},

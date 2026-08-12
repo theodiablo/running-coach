@@ -172,6 +172,15 @@ Always re-verify a finding before acting on it; agents report false positives.
   `reminderSchedule` (`src/utils/sessionReminders.ts`) and one effect in
   `RunningCoach.tsx` — never per plan-mutation site, and never with exact
   alarms. Detail: `docs/reminders.md`.
+- **Indoor/static cardio is a cross-training run, not a new type**: `type:"OTHER"`
+  (already the plan's cross-training type and already out of the best-effort
+  pool) + `activity` + **`km:0`, with no field to type one into** — a bike's
+  distance is not a running distance, so letting it in would distort volume,
+  pace, PBs and the predictor. `isCrossTraining` (`src/types.ts`) is the one
+  running/not-running line for aggregates; anything showing distance or pace must
+  degrade when `km` is 0. The recorder is its own screen over
+  `useRunTracker({indoor:true})` (no geo watch, own recovery key) — never a
+  branch inside `LiveRunTracker`. Detail: `docs/indoor-sessions.md`.
 - `raceDate`, `distanceKm`, `goalSec` start **empty** (`""`) — no seeded race
   defaults; guard before reading them.
 - **Derived-state resets happen during render, not in effects** — see the
@@ -396,6 +405,8 @@ changes.
   gotchas, R8, npm patches.
 - `docs/health-integrations.md` — HR sources, watch/file/cloud imports,
   dedupe rules, Health Connect/HealthKit.
+- `docs/indoor-sessions.md` — indoor/static cardio (bike, elliptical): the
+  cross-training run shape, the GPS-free recorder, live HR zones.
 - `docs/background-location.md` — Android background-location policy.
 - `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup, public `/watch/:token` links.
 - `docs/guided-workouts.md` — guided tempo/interval/run-walk sessions (premium): workout compiler+engine, cue seams, native step engines.

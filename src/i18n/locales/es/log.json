@@ -2,8 +2,10 @@
   "title": "Registrar un entrenamiento",
   "importFileBtn": "Importar archivo",
   "trackLive": "Registrar un entrenamiento con GPS",
+  "indoorSession": "Registrar una sesión indoor (frecuencia cardiaca)",
   "orManual": "o introdúcelo manualmente",
   "gpsBanner": "Registro realizado con GPS. La distancia, la duración y el desnivel ya están completados. Añade un tipo y notas, y guarda.",
+  "indoorBanner": "Sesión indoor registrada. La duración y la frecuencia cardiaca ya están completadas; no hay distancia que registrar. Añade notas y guarda.",
   "watchBanner": "Entrenamiento importado desde tu reloj. Revisa los datos (no incluye ruta ni mapa), elige un tipo y guarda.",
   "import": {
     "title": "Importar un archivo de actividad",
@@ -25,7 +27,10 @@
   "fields": {
     "date": "Fecha",
     "type": "Tipo",
+    "activity": "Máquina",
+    "activityNone": "Sin especificar",
     "distanceKm": "Distancia (km)",
+    "distanceKmOptional": "Distancia (km, opcional)",
     "duration": "Duración",
     "avgHr": "FC media",
     "maxHr": "FC máx.",

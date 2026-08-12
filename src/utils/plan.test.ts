@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildPlan } from "./plan";
+import { buildPlan, findOpenPlanSession, planSessionPrefill } from "./plan";
 import { ymd } from "./format";
 
 type TestSession = {
@@ -238,5 +238,66 @@ describe("buildPlan balanced output freeze", () => {
   it("marathon, default 2 days, from scratch — stable output", () => {
     const plan = buildPlan("2026-12-06", 14400, undefined, 42.2, 0);
     expect(plan).toMatchSnapshot();
+  });
+});
+
+// A day can hold both a run and a cross-training session. Auto-tick must never
+// cross the two: a bike session ticking off the easy run (or vice versa) marks
+// work as done that wasn't. See docs/indoor-sessions.md.
+describe("findOpenPlanSession", () => {
+  const plan = {
+    weeks: [{
+      weekNumber: 3,
+      sessions: [
+        { id: "s-easy",  date: "2026-08-12", type: "EASY" },
+        { id: "s-cross", date: "2026-08-12", type: "OTHER" },
+        { id: "s-done",  date: "2026-08-13", type: "EASY", done: true },
+        { id: "s-race",  date: "2026-08-14", type: "RACE" },
+      ],
+    }],
+  };
+
+  it("matches either kind when unfiltered", () => {
+    expect(findOpenPlanSession(plan, "2026-08-12")).toEqual({ wNum: 3, sId: "s-easy" });
+  });
+
+  it("keeps a run off the cross-training session and vice versa", () => {
+    expect(findOpenPlanSession(plan, "2026-08-12", { crossTraining: false })).toEqual({ wNum: 3, sId: "s-easy" });
+    expect(findOpenPlanSession(plan, "2026-08-12", { crossTraining: true })).toEqual({ wNum: 3, sId: "s-cross" });
+  });
+
+  it("returns null rather than the wrong session when the day has only the other kind", () => {
+    const runOnlyDay = { weeks: [{ weekNumber: 1, sessions: [{ id: "s1", date: "2026-08-12", type: "EASY" }] }] };
+    expect(findOpenPlanSession(runOnlyDay, "2026-08-12", { crossTraining: true })).toBeNull();
+  });
+
+  it("still skips done, skipped and RACE sessions", () => {
+    expect(findOpenPlanSession(plan, "2026-08-13")).toBeNull();
+    expect(findOpenPlanSession(plan, "2026-08-14")).toBeNull();
+    expect(findOpenPlanSession(plan, "2026-08-20")).toBeNull();
+    expect(findOpenPlanSession(null, "2026-08-12")).toBeNull();
+  });
+});
+
+describe("planSessionPrefill", () => {
+  it("carries distance and pace for a run", () => {
+    expect(planSessionPrefill({ id: "s1", date: "2026-08-12", type: "EASY", km: 8, pace: 330 }, 3))
+      .toEqual({ date: "2026-08-12", type: "EASY", km: 8, pace: 330, wNum: 3, sId: "s1" });
+  });
+
+  // buildPlan gives cross-training a synthetic km purely to satisfy the coach
+  // validator's km > 0 rule. Prefilling it would save a distance nobody covered
+  // as real running km — the exact contamination km:0 exists to prevent.
+  it("drops the synthetic distance for cross-training and prefills the duration", () => {
+    const prefill = planSessionPrefill(
+      { id: "s2", date: "2026-08-12", type: "OTHER", km: 6, pace: 400, sd: { kind: "cross", minutes: 40 } }, 3);
+    expect(prefill).toEqual({ date: "2026-08-12", type: "OTHER", durationSec: 2400, wNum: 3, sId: "s2" });
+    expect(prefill).not.toHaveProperty("km");
+    expect(prefill).not.toHaveProperty("pace");
+  });
+
+  it("omits the duration when the session doesn't prescribe one", () => {
+    expect(planSessionPrefill({ id: "s3", date: "2026-08-12", type: "OTHER", km: 6 }, 3))
+      .toEqual({ date: "2026-08-12", type: "OTHER", wNum: 3, sId: "s3" });
   });
 });

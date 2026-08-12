@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { LIVE_RUN_KEY } from "../constants";
+import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveryBuffer } from "./runRecovery";
 import type { StoredTrackPoint } from "./geo";
 
@@ -36,6 +36,23 @@ describe("readRecoveryBuffer", () => {
     expect(readRecoveryBuffer()).toBeNull();
     expect(localStorage.getItem(LIVE_RUN_KEY)).toBeNull();
   });
+
+  // An indoor session never has points, so it lives under its own key with the
+  // points requirement lifted — and must stay invisible to the GPS callers.
+  it("offers a point-less indoor buffer when requirePoints is off", () => {
+    const indoor = buffer({ points: [], hrSamples: [{ bpm: 132, t: START }], accSec: 0, startAt: START });
+    localStorage.setItem(INDOOR_RUN_KEY, JSON.stringify(indoor));
+    expect(readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })?.hrSamples?.length).toBe(1);
+    expect(readRecoveryBuffer()).toBeNull();            // the GPS buffer is untouched
+    expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeTruthy();
+  });
+
+  it("still drops an indoor buffer with nothing recorded at all", () => {
+    localStorage.setItem(INDOOR_RUN_KEY, JSON.stringify(
+      buffer({ points: [], hrSamples: [], accSec: 0, startAt: null })));
+    expect(readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })).toBeNull();
+    expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeNull();
+  });
 });
 
 describe("normalizeRecovery", () => {
@@ -49,6 +66,16 @@ describe("normalizeRecovery", () => {
   it("leaves accSec alone for a paused buffer (no open segment)", () => {
     const norm = normalizeRecovery(buffer({ state: "paused", startAt: null }));
     expect(norm.accSec).toBe(42);
+  });
+
+  // With no points there is nothing to date the end by except the last persist —
+  // the whole clock of an interrupted indoor session rides on that fallback.
+  it("closes a point-less indoor session's clock off savedAt", () => {
+    const norm = normalizeRecovery(buffer({
+      points: [], accSec: 0, startAt: START, savedAt: START + 90_000,
+    }));
+    expect(norm.accSec).toBe(90);
+    expect(norm.points).toEqual([]);
   });
 
   it("merges journal points newer than the last persisted point", () => {

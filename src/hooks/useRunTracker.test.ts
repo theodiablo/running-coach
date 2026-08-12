@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { LIVE_RUN_KEY } from "../constants";
+import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
 
 // useRunTracker is the single GPS funnel: the start/pause/resume/stop/reset state
 // machine, moving-time accounting, the onPos jitter/interval/gap/warm-up filter,
@@ -462,5 +462,71 @@ describe("useRunTracker — live heart rate", () => {
     expect(opts.deviceName).toBe("Polar H10");
     act(() => opts.onDeviceChange!({ id: "strap-2", name: "Polar H10" }));
     expect(hr.setPairedDevice).toHaveBeenCalledWith({ id: "strap-2", name: "Polar H10" });
+  });
+});
+
+// Indoor / static cardio (docs/indoor-sessions.md): the same engine with the
+// whole geolocation half switched off. What matters is that it records
+// (clock + HR) without a geo watch, and that it can never touch the GPS run's
+// recovery buffer — an indoor session appearing in the resume offer, or wiping a
+// real run's unrecovered points, would be a data-loss bug.
+describe("useRunTracker — indoor mode", () => {
+  const renderIndoor = () => {
+    hr.enabled = true;
+    hr.device = { id: "strap-1" };
+    return renderHook(() => useRunTracker({ hrMethod: "bluetooth", indoor: true }));
+  };
+
+  it("records without ever opening a position watch", () => {
+    const { result } = renderIndoor();
+    act(() => result.current.start());
+    expect(result.current.state).toBe("tracking");
+    expect(h.geoSource.watchPosition).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("starts even where geolocation is unavailable (the web-in-a-gym case)", () => {
+    h.geoSource.isAvailable.mockReturnValue(false);
+    const { result } = renderIndoor();
+    act(() => result.current.start());
+    expect(result.current.state).toBe("tracking");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("still streams and records heart rate, and counts moving time", () => {
+    const { result } = renderIndoor();
+    act(() => result.current.start());
+    act(() => hr.watches[0].onSample({ bpm: 142, t: START + 1000 }));
+    vi.setSystemTime(START + 60_000);
+    act(() => result.current.stop());
+
+    expect(result.current.stats.hr).toBe(142);
+    expect(result.current.stats.hrAvg).toBe(142);
+    expect(result.current.stats.movingSec).toBe(60);
+    // No distance axis at all, so nothing downstream can quote a pace.
+    expect(result.current.stats.km).toBe(0);
+    expect(result.current.stats.avgPace).toBe(0);
+  });
+
+  it("keeps its buffer under its own key, leaving the GPS one alone", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify({ points: [[48.85, 2.29, START, 30]] }));
+    const { result } = renderIndoor();
+    act(() => result.current.start());
+    act(() => hr.watches[0].onSample({ bpm: 142, t: START + 1000 }));
+
+    expect(JSON.parse(localStorage.getItem(INDOOR_RUN_KEY)!).hrSamples).toHaveLength(1);
+    // The interrupted GPS run is still there, untouched, and a reset/finalize
+    // must not be what deletes it.
+    act(() => result.current.reset());
+    expect(localStorage.getItem(LIVE_RUN_KEY)).toBeTruthy();
+    expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeNull();
+  });
+
+  it("never offers a GPS run as an indoor session to resume", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify({
+      points: [[48.85, 2.29, START, 30]], accSec: 120, state: "tracking", savedAt: START,
+    }));
+    const { result } = renderIndoor();
+    expect(result.current.pending).toBeNull();
   });
 });

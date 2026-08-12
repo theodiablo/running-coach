@@ -2,8 +2,10 @@
   "title": "Record a Run",
   "importFileBtn": "Import file",
   "trackLive": "Track a run live (GPS)",
+  "indoorSession": "Record an indoor session (heart rate)",
   "orManual": "or enter manually",
   "gpsBanner": "Tracked by GPS — distance, time and elevation are filled in. Add a type and notes, then save.",
+  "indoorBanner": "Indoor session recorded. Duration and heart rate are filled in; there is no distance to record. Add notes, then save.",
   "watchBanner": "Imported from your watch — check the details (there's no route/map), pick a type, then save.",
   "import": {
     "title": "Import an activity file",
@@ -25,7 +27,10 @@
   "fields": {
     "date": "Date",
     "type": "Type",
+    "activity": "Machine",
+    "activityNone": "Not specified",
     "distanceKm": "Distance (km)",
+    "distanceKmOptional": "Distance (km, optional)",
     "duration": "Duration",
     "avgHr": "Avg HR",
     "maxHr": "Max HR",

@@ -8,6 +8,20 @@
     "live": "Entrenamiento en curso",
     "complete": "Entrenamiento completado"
   },
+  "indoor": {
+    "title": "Sesión indoor",
+    "complete": "Sesión completada",
+    "machine": "Máquina",
+    "start": "Empezar sesión",
+    "save": "Guardar sesión",
+    "noSensor": "No hay ningún sensor de frecuencia cardiaca configurado",
+    "zoneUnknown": "sin lectura",
+    "zoneFloorBpm": "{{bpm}} ppm (Z1)",
+    "maxBpm": "{{bpm}} ppm (máx.)",
+    "resumeTitle": "¿Retomar tu sesión anterior?",
+    "resumeElapsed": "{{time}} registrados.",
+    "keepScreenOn": "Mantén esta pantalla encendida. Sin GPS la sesión no puede seguir en segundo plano: si la pantalla se bloquea, el cronómetro sigue contando pero la frecuencia cardiaca deja de registrarse."
+  },
   "countdown": {
     "go": "¡Ya!"
   },

@@ -22,6 +22,17 @@ export const USER_CONTEXT_NOTICE_CHARS = 1800;
 // it's high-frequency local scratch space, flushed only on a real save.
 export const LIVE_RUN_KEY = "rc_live_run";
 
+// The same buffer for an INDOOR session (no GPS — see docs/indoor-sessions.md),
+// deliberately under its own key: an indoor session has no points, so it must
+// never reach the GPS resume offer or the Dashboard's interrupted-run banner,
+// and an indoor reset must never wipe a real run's recovery buffer.
+export const INDOOR_RUN_KEY = "rc_indoor_run";
+
+// Per-device memory of the last machine picked on the indoor screen, so the
+// picker opens where the runner left it. Not a synced preference — it describes
+// the gym they're standing in, not their account.
+export const INDOOR_ACTIVITY_KEY = "rc_indoor_activity";
+
 // How fresh the buffer must be to count as possibly still ON THE AIR (live
 // sharing): past this window the publisher sweeps a leftover broadcast and the
 // watcher stops treating the run as live (useLiveRun). The recovery OFFER is
@@ -253,5 +264,6 @@ export const runBarColor = (type: string) => {
   if (type === "INTERVALS") return "bg-orange-400";
   if (type === "RACE")      return "bg-red-400";
   if (type === "WALK")      return "bg-cyan-400";
+  if (type === "OTHER")     return "bg-violet-400"; // matches TCLR.OTHER
   return "bg-emerald-400";
 };
