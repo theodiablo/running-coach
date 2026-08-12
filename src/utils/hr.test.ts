@@ -97,6 +97,13 @@ describe("sessionHR", () => {
   it("falls back to EASY for unknown types", () => {
     expect(sessionHR("MYSTERY", settings)).toEqual(sessionHR("EASY", settings));
   });
+  // Cross-training (the plan's optional bike/elliptical day, and what an indoor
+  // session saves as) targets the aerobic base band — stated in SESSION_ZONES,
+  // not inherited from the unknown-type fallback above.
+  it("gives cross-training an explicit Z2 target", () => {
+    expect(SESSION_ZONES.OTHER.zones).toEqual([2]);
+    expect(sessionHR("OTHER", settings)).toMatchObject({lo: 144, hi: 158});
+  });
   it("returns null without a max HR", () => {
     expect(sessionHR("EASY", {maxHR: 0, restHR: 60})).toBeNull();
   });

@@ -15,7 +15,7 @@ import { PlanSessionRow } from "../components/PlanSessionRow";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
-import { carryProgress, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
+import { carryProgress, planSessionPrefill, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 
 // ── Week windows ────────────────────────────────────────────────────────────
@@ -63,6 +63,7 @@ type PlanViewProps = {
   openSettings: () => void;
   openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
+  openIndoor: (link?: { wNum: number; sId: string }) => void;
   goLog: (prefill: Partial<Run>) => void;
   showToast: (msg: string, type?: string) => void;
   planPrefill?: PlanPrefill | null;
@@ -75,7 +76,7 @@ type PlanViewProps = {
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 
-export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, goLog, showToast, planPrefill, clearPlanPrefill, isPremium = false}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, isPremium = false}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -367,11 +368,13 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
         {isExp && (
           <div className="px-3 pb-3 pt-1 space-y-2 animate-expand">
             {wk.sessions.slice().sort((a, b) => a.date.localeCompare(b.date)).map(s => (
+              // A cross-training day is done on a machine, not a route, so its
+              // Record opens the indoor screen (docs/indoor-sessions.md).
               <PlanSessionRow key={s.id} session={s} settings={settings}
                 notesOpen={openSess === s.id}
                 onToggleNotes={() => setOpenSess(openSess === s.id ? null : s.id)}
-                onRecord={() => openTracker({wNum: wk.weekNumber, sId: s.id})}
-                onDone={() => goLog({date: s.date, type: s.type, km: Number(s.km), pace: s.pace, wNum: wk.weekNumber, sId: s.id})}
+                onRecord={() => (s.type === "OTHER" ? openIndoor : openTracker)({wNum: wk.weekNumber, sId: s.id})}
+                onDone={() => goLog(planSessionPrefill(s, wk.weekNumber))}
                 onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                 onSkip={() => skipSess(wk.weekNumber, s.id)}
                 onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}

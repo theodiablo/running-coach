@@ -24,6 +24,12 @@
     "WALK": "CAMINATA",
     "OTHER": "OTRA ACTIVIDAD"
   },
+  "activities": {
+    "bike": "Bici estática",
+    "elliptical": "Elíptica",
+    "rower": "Remo",
+    "other": "Otra"
+  },
   "phases": {
     "BASE": "BASE",
     "BUILD": "DESARROLLO",
@@ -38,6 +44,7 @@
     "TEMPO": "Z3-4 · Umbral de lactato",
     "INTERVALS": "Z4-5 · Esfuerzo máx (series)",
     "RACE": "Z3-4 · Esfuerzo de carrera",
-    "WALK": "Z1 · Recuperación"
+    "WALK": "Z1 · Recuperación",
+    "OTHER": "Z2 · Base aeróbica"
   }
 }

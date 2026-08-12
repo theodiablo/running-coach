@@ -19,6 +19,10 @@ export const SESSION_ZONES = {
   INTERVALS: {zones:[4,5], label:"Z4-5 · Max effort (reps)", clr:"#f87171"},
   RACE:      {zones:[3,4], label:"Z3-4 · Race effort",       clr:"#fb923c"},
   WALK:      {zones:[1],   label:"Z1 · Recovery",            clr:"#60a5fa"},
+  // Cross-training (indoor bike/elliptical, docs/indoor-sessions.md). Same
+  // aerobic-base target as an easy run — stated explicitly rather than left to
+  // sessionHR's EASY fallback, since base building is the point of these.
+  OTHER:     {zones:[2],   label:"Z2 · Aerobic Base",        clr:"#34d399"},
 };
 type SessionZoneType = keyof typeof SESSION_ZONES;
 type HrSample = { bpm: number; t: number };

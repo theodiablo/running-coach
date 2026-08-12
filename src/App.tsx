@@ -14,6 +14,7 @@ import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMir
 import { readOfflineSession } from "./utils/offlineSession";
 import { parkAuthNotice } from "./utils/authNotice";
 import { readRecoveryBuffer } from "./utils/runRecovery";
+import { INDOOR_RUN_KEY } from "./constants";
 import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
 import { ConsentBanner } from "./components/ConsentBanner";
@@ -409,7 +410,10 @@ export default function App() {
     // Never tear down a live recording (or an unresumed interrupted-run
     // offer): the adopted data is already in the cache, so skipping the
     // remount only leaves the current views stale until the next boot.
-    if (readRecoveryBuffer()) return;
+    // BOTH recorders count — an indoor session keeps its buffer under its own
+    // key (docs/indoor-sessions.md) and is if anything more fragile, since it
+    // has no fix journal and no Dashboard banner to recover it from.
+    if (readRecoveryBuffer() || readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })) return;
     parkAuthNotice("app.offline.refreshed");
     setStoreNonce(n => n + 1);
   }), []);

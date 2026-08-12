@@ -38,17 +38,30 @@ export type RecoveredRun = {
   savedAt: number;
 };
 
-// Read the raw buffer. Returns null — and removes a corrupt or point-less
-// leftover — when there is nothing worth offering.
-export function readRecoveryBuffer(): RecoveryBuffer | null {
+// Read the raw buffer. Returns null — and removes a corrupt or empty leftover —
+// when there is nothing worth offering.
+//
+// `key` selects the mode's buffer (LIVE_RUN_KEY for a GPS run, INDOOR_RUN_KEY
+// for an indoor session), and `requirePoints` says what "worth offering" means:
+// a GPS run without points has nothing to resume, but an indoor session never
+// has any, so it qualifies on recorded HR or elapsed time instead. Defaults
+// keep every existing caller reading exactly the GPS buffer it always did.
+export function readRecoveryBuffer(
+  key: string = LIVE_RUN_KEY,
+  { requirePoints = true }: { requirePoints?: boolean } = {},
+): RecoveryBuffer | null {
   let raw: string | null = null;
-  try { raw = localStorage.getItem(LIVE_RUN_KEY); } catch { return null; }
+  try { raw = localStorage.getItem(key); } catch { return null; }
   if (!raw) return null;
   try {
     const buf = JSON.parse(raw) as RecoveryBuffer;
-    if (Array.isArray(buf?.points) && buf.points.some(Boolean)) return buf;
+    const hasPoints = Array.isArray(buf?.points) && buf.points.some(Boolean);
+    // Anything recorded at all: samples, completed moving time, or a segment
+    // that was still open when the app died (a strapless session's only trace).
+    const hasSomething = hasPoints || !!buf?.hrSamples?.length || !!buf?.accSec || !!buf?.startAt;
+    if (requirePoints ? hasPoints : hasSomething) return buf;
   } catch { /* corrupt — fall through to cleanup */ }
-  try { localStorage.removeItem(LIVE_RUN_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
   return null;
 }
 

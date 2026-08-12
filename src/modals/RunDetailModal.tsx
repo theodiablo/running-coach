@@ -107,7 +107,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
       style={{ height: "calc(44px + var(--safe-top))", paddingTop: "var(--safe-top)" }}>
       <div className="min-w-0">
         <p className="text-white text-sm font-semibold truncate">{fmt.date(run.date)}</p>
-        <p className="text-slate-400 text-xs">{run.km + " km · " + fmt.dur(run.durationSec)}</p>
+        <p className="text-slate-400 text-xs">{run.km ? run.km + " km · " + fmt.dur(run.durationSec) : fmt.dur(run.durationSec)}</p>
       </div>
       <button onClick={onClose} aria-label={t("common.close")}
         className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
@@ -118,9 +118,11 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
 
   const tiles = (
     <div className="grid grid-cols-2 gap-3">
-      <Tile label={t("progress.detail.tiles.distance")} value={run.km + " km"} />
+      {/* A cross-training session has no distance axis, so distance and pace
+          tiles would only quote zeroes — the duration and HR are the session. */}
+      {!!run.km && <Tile label={t("progress.detail.tiles.distance")} value={run.km + " km"} />}
       <Tile label={t("progress.detail.tiles.duration")} value={fmt.dur(run.durationSec)} />
-      <Tile label={t("progress.detail.tiles.avgPace")} value={fmt.pace(pace) + "/km"} />
+      {!!run.km && <Tile label={t("progress.detail.tiles.avgPace")} value={fmt.pace(pace) + "/km"} />}
       {!!run.elevation && <Tile label={t("progress.detail.tiles.elevation")} value={run.elevation + " m"} />}
       {!!run.hr && <Tile label={t("progress.detail.tiles.avgHr")} value={t("progress.detail.tooltip.hr", { bpm: run.hr })} />}
       {!!run.hrMax && <Tile label={t("progress.detail.tiles.maxHr")} value={t("progress.detail.tooltip.hr", { bpm: run.hrMax })} />}

@@ -8,6 +8,20 @@
     "live": "Live run",
     "complete": "Run complete"
   },
+  "indoor": {
+    "title": "Indoor session",
+    "complete": "Session complete",
+    "machine": "Machine",
+    "start": "Start session",
+    "save": "Save session",
+    "noSensor": "No heart-rate sensor set up",
+    "zoneUnknown": "no reading",
+    "zoneFloorBpm": "{{bpm}} bpm (Z1)",
+    "maxBpm": "{{bpm}} bpm (max)",
+    "resumeTitle": "Resume your previous session?",
+    "resumeElapsed": "{{time}} recorded.",
+    "keepScreenOn": "Keep this screen on. Without GPS the session can't keep running in the background: if the screen locks, the timer keeps counting but heart rate stops being recorded."
+  },
   "countdown": {
     "go": "Go!"
   },

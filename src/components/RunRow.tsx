@@ -44,13 +44,17 @@ export function RunRow({run, dateFmt = fmt.sht, showNotes = false, actions = nul
       <div className={"w-1.5 h-10 rounded-full flex-shrink-0 " + runBarColor(run.type || "OTHER")}/>
       <div className={"flex-1 min-w-0" + (contentClick ? " cursor-pointer" : "")} {...(contentClick ? clickProps : {})}>
         <p className="text-white text-sm font-medium flex items-center gap-1.5">
-          <span className="truncate">{run.km + " km · " + fmt.dur(run.durationSec)}</span>
+          <span className="truncate">{run.km ? run.km + " km · " + fmt.dur(run.durationSec) : fmt.dur(run.durationSec)}</span>
           {highlight && badgeLabel && (
             <span className="text-[10px] font-bold uppercase tracking-wide text-orange-300 bg-orange-500/20 px-1.5 py-0.5 rounded-full flex-shrink-0">{badgeLabel}</span>
           )}
         </p>
         <p className="text-slate-400 text-xs">
-          {dateFmt(run.date) + " · " + fmt.pace(pace) + "/km"
+          {dateFmt(run.date)
+            // No distance = no pace to quote (a cross-training session); a
+            // "--:--/km" there claims a measurement that was never taken.
+            + (run.km ? " · " + fmt.pace(pace) + "/km" : "")
+            + (run.activity ? " · " + t("common.activities." + run.activity, {defaultValue: run.activity}) : "")
             + (run.hr ? " · ❤️ " + run.hr : "")
             + (run.elevation ? " · ⛰️ " + run.elevation + "m" : "")}
         </p>

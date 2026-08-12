@@ -43,6 +43,7 @@ import { SettingsModal } from "./modals/SettingsModal";
 import { DeleteAccountModal } from "./modals/DeleteAccountModal";
 import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
+import { IndoorTracker } from "./modals/IndoorTracker";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
@@ -145,6 +146,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [showDeleteAccount,setShowDeleteAccount]= useState(false);
   const [onboarding,  setOnboarding]  = useState(false);
   const [showTracker, setShowTracker] = useState(false);
+  // Indoor / static cardio recorder (docs/indoor-sessions.md). Separate state
+  // from showTracker: the two screens share nothing but the tracker hook, and
+  // an indoor session must never appear in the GPS recovery flow below.
+  const [showIndoor, setShowIndoor] = useState(false);
+  const [indoorLink, setIndoorLink] = useState<{ wNum: number; sId: string } | null>(null);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
   // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
   // a Dashboard banner so the runner doesn't have to know to reopen the recorder
@@ -924,7 +930,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       // The deferred cloud ack for this run rides LogView's onSaved (the
       // prefill carries extId) — a dismissed review re-serves it next scan.
       showToast(t("app.toasts.foundRun", { km: r.km, date: fmt.sht(r.date || "") }), "ok",
-        { label: t("app.toasts.review"), onClick: () => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "") || {}) }) });
+        // Imports only ever map to running types (watch/mapping.ts), so this
+        // must not reach that day's cross-training session either.
+        { label: t("app.toasts.review"), onClick: () => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "", { crossTraining: false }) || {}) }) });
     } else {
       showToast(t("app.toasts.foundRuns", { n: found.length }), "ok",
         { label: t("app.toasts.importAll"), onClick: () => {
@@ -973,6 +981,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       setTrackerLink(l ? { wNum: l.wNum, sId: l.sId } : null);
       setTrackerFindKm(l && typeof l.findRouteKm === "number" && l.findRouteKm > 0 ? l.findRouteKm : undefined);
       setShowTracker(true);
+    },
+    // Same {wNum, sId} link contract as openTracker, for the indoor recorder —
+    // a plan's cross-training day records here rather than through GPS.
+    openIndoor: (link?: unknown) => {
+      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string } : null;
+      setIndoorLink(l ? { wNum: l.wNum, sId: l.sId } : null);
+      setShowIndoor(true);
     },
     // Open the full-screen per-run analytics view. Guard on shape so a click
     // event (onClick={openRunDetail}) never counts as a run. Keys on `durationSec`
@@ -1032,8 +1047,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={() => { setShowTracker(false); openSettings(); }}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
-        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "") || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
+        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "", { crossTraining: false }) || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
+        onConfigureHr={() => { setShowIndoor(false); openSettings(); }}
+        onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
+        // An indoor save can only tick a cross-training day, never that day's
+        // easy run — and the GPS tracker above is filtered the other way.
+        onFinish={prefill => { setShowIndoor(false); goLog({ ...prefill, ...(indoorLink || findOpenPlanSession(plan, prefill.date || "", { crossTraining: true }) || {}) }); setIndoorLink(null); }}
+        onClose={() => { setShowIndoor(false); setIndoorLink(null); }}/>}
       {showLiveWatch && <LiveWatchModal row={liveRun.row} onClose={() => setShowLiveWatch(false)}/>}
       {showBackup && <BackupModal
         data={{runs, plan, settings, races, userContext, ...(backupRoutes.length ? {routes: backupRoutes} : {})}}

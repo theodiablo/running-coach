@@ -1,6 +1,6 @@
 import { useState, useRef, type ChangeEvent } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { Loader, Plus, Upload, MapPin, HeartPulse } from "lucide-react";
+import { Loader, Plus, Upload, MapPin, HeartPulse, Bike } from "lucide-react";
 import { ymd } from "../utils/format";
 import { RunFields } from "../components/RunFields";
 import { runFormComplete, runFormToPatch, type RunFormValues } from "../utils/runForm";
@@ -25,6 +25,9 @@ type LogViewProps = {
   onSaved?: () => void;
   prefill?: LogPrefill | null;
   openTracker?: () => void;
+  // Indoor / static cardio recorder (bike, elliptical) — time + heart rate, no
+  // GPS. See docs/indoor-sessions.md.
+  openIndoor?: () => void;
   // Existing log, used to dedupe file imports (comes in via the shared bag).
   runs?: Run[];
   // Land with the file-import panel already open (Settings -> Integrations
@@ -33,7 +36,7 @@ type LogViewProps = {
   openImport?: boolean;
 };
 
-export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs, openImport}: LogViewProps) {
+export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openIndoor, runs, openImport}: LogViewProps) {
   const { t } = useTranslation();
   // A GPS-tracked run prefills its real measured duration; a plan session
   // prefills an estimate from km × prescribed pace.
@@ -43,7 +46,10 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs, o
   const INIT: RunFormValues = {
     date:   prefill?.date || ymd(new Date()),
     type:   prefill?.type || "EASY",
-    km:     prefill?.km != null ? String(prefill.km) : "",
+    activity: prefill?.activity || "",
+    // An indoor session has no distance to prefill; a literal 0 in the field
+    // would read as a measurement rather than "not applicable".
+    km:     prefill?.source === "indoor" ? "" : prefill?.km != null ? String(prefill.km) : "",
     dH:     estSec >= 3600 ? String(Math.floor(estSec / 3600)) : "",
     dM:     estSec >= 60   ? String(Math.floor((estSec % 3600) / 60)) : "",
     dS:     Math.round(estSec % 60) ? String(Math.round(estSec % 60)) : "",
@@ -153,12 +159,20 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs, o
 
       {csvMsg && <div className={msgCls}>{csvMsg}</div>}
 
-      {openTracker && !prefill?.source && (
+      {(openTracker || openIndoor) && !prefill?.source && (
         <>
-          <button onClick={openTracker}
-            className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl text-sm font-semibold transition-colors mb-4">
-            <MapPin size={16}/>{t("log.trackLive")}
-          </button>
+          {openTracker && (
+            <button onClick={openTracker}
+              className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl text-sm font-semibold transition-colors mb-2.5">
+              <MapPin size={16}/>{t("log.trackLive")}
+            </button>
+          )}
+          {openIndoor && (
+            <button onClick={openIndoor}
+              className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl text-sm font-semibold transition-colors mb-4">
+              <Bike size={16} className="text-violet-400"/>{t("log.indoorSession")}
+            </button>
+          )}
           <div className="flex items-center gap-3 mb-5 text-xs uppercase tracking-widest text-slate-500">
             <div className="h-px flex-1 bg-slate-700"/>{t("log.orManual")}<div className="h-px flex-1 bg-slate-700"/>
           </div>
@@ -168,6 +182,12 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, runs, o
       {prefill?.source === "gps" && (
         <div className="bg-emerald-500/15 text-emerald-300 text-sm rounded-xl px-4 py-2.5 mb-5">
           {t("log.gpsBanner")}
+        </div>
+      )}
+
+      {prefill?.source === "indoor" && (
+        <div className="bg-violet-500/15 text-violet-200 text-sm rounded-xl px-4 py-2.5 mb-5">
+          {t("log.indoorBanner")}
         </div>
       )}
 
