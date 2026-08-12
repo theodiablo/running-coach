@@ -54,6 +54,21 @@ carries a `live` flag:
   `hrStatus` (`onStatus`: connecting / scanning / connected / unreachable);
   the record screen swaps "connecting…" for "can't reach sensor" once two full
   connect+scan cycles fail, while the watch keeps retrying with capped backoff.
+  Three rules keep that retry loop from becoming the outage it is meant to fix
+  (it was: runs came back with 5-15 minutes of HR out of 70, in bursts):
+  **one attempt at a time** — the disconnect callback and a failed attempt each
+  used to drive their own timer chain, which shared the backoff (so it hit the
+  cap at once) and doubled the scan rate; **re-discovery has its own floor**
+  (`SCAN_MIN_INTERVAL_MS`) because Android rate-limits an app to ~5 LE scan
+  starts per 30s and silently returns nothing past that, so a per-attempt scan
+  destroys exactly the mechanism it is running; and a **silence watchdog**
+  (`STALL_MS`) tears the link down and reconnects, since a GATT link can sit
+  nominally connected while notifications stop. The watchdog trusts itself only
+  when it fires roughly on time (`STALL_GRACE_MS`): a frozen WebView stops its
+  timers and its notification callbacks alike, so an overdue fire means "we were
+  backgrounded", not "the sensor died" — acting on it would tear down a healthy
+  link on resume, taking the native journal covering that stretch with it.
+
 - **Post-run** (`src/hr/healthconnect.ts`, `healthConnectSource`): reads HR
   from Android Health Connect after the run via
   **@pianissimoproject/capacitor-health-connect**, dynamic-`import()`ed lazily
@@ -121,6 +136,39 @@ synced `settings.hrOptOut`. It never blocks Start.
 HR lands in the **existing** run `hr`/`hrMax` fields (no shape change) via the
 `LogView` prefill — still user-editable — so all HR display (`HRZonesCard`,
 `runZoneIndex`, Stats) works unchanged.
+
+**Coverage is the guard on every run-level HR claim.** A partial stream's mean
+is the mean of the fragment that survived, not the run's heart rate — one run
+was logged at 85bpm avg from its cooldown after the strap dropped at minute 15.
+`hrCoverage` (`src/utils/hr.ts`) scores measured seconds against the run's
+duration, capping each per-sample gap so a hole can't count as measured. The cap
+**adapts to the stream's own cadence** (median gap × 3, floored at 10s): a BLE
+strap notifies at ~1-2Hz and sits on the floor, but `stats.hrSamples` is also
+written by the watch / HealthKit / GPX importers, whose series can legitimately
+be one sample a minute — a fixed 10s cap scored a perfectly continuous import at
+17% and called it a dropout. Below `HR_MIN_COVERAGE` `handleSave` stores the samples and the coverage but **no `hr`/`hrMax`**, and
+toasts why. `RunDetailModal` re-derives coverage from the raw samples rather
+than the stored field, so runs recorded before it existed are labelled too.
+
+**The native HR journal** (`src/hr/hrJournal.ts` + the `bluetooth-le` patch) is
+the HR twin of the GPS fix journal. A GATT notification callback runs in the app
+process and keeps firing while the WebView is frozen, but `notifyListeners` only
+reaches a running WebView — so those beats were lost. When armed, the patched
+plugin appends `"<epochMs> <hex>"` per measurement to `run_hr_journal.jsonl`
+(HR-measurement characteristic only); `handleSave` folds it into the live stream
+with `mergeHrSamples` (±250ms dedupe — the same notification is stamped natively
+and again on JS delivery). Its lifecycle mirrors `onHrSample`'s, not the
+connection's: armed by `start`, **disarmed by `pause`** (the journal must observe the same breather the
+live stream drops, or the merge folds a rest into the run), re-armed without
+clearing by `resume` (arming is process state, so a crash loses it while the file
+survives), disarmed by `stop`. Cleared by `reset`/`finalize`/`discardPrevious`
+and by `start` — including when `start` finds no live watch to arm, since a
+previous BLE run killed before it saved leaves beats on disk that must never
+surface as someone else's heart rate. `handleSave` reads it only for a live
+source, the same condition that armed it: a post-run source that inherited a
+stale journal would both invent HR and, by producing an average, skip its own
+store fetch. Android-only and best-effort: off Android, and on a shell built before the patch, it resolves
+nothing and the JS stream stays the whole story.
 
 ## Connections UI (Settings)
 

@@ -353,7 +353,19 @@ surface, not wired through i18n), mirroring `WatchSyncLog`.
 
 Applied by `postinstall` → `patch-package`; native plugin modules compile
 straight out of `node_modules` (`android/capacitor.settings.gradle`), so a
-committed patch reaches every local and CI build. Two packages are patched.
+committed patch reaches every local and CI build. Three packages are patched.
+
+### `@capacitor-community/bluetooth-le` (HR journal)
+
+Adds `setHrJournal` / `getHrJournal` / `clearHrJournal` and, in
+`startNotifications`' notify callback, one line that appends a Heart Rate
+Measurement to `run_hr_journal.jsonl` before it reaches the bridge. The reason
+is the same one behind the fix journal above: the GATT callback keeps firing
+while the WebView is frozen, but `notifyListeners` reaches nothing, so a
+backgrounded run recorded no heart rate at all. Guarded on an armed flag and on
+the `0x2A37` characteristic, so nothing else in the app is ever journalled, and
+wrapped so a write failure can never cost the sample itself. Consumed by
+`src/hr/hrJournal.ts` — `docs/health-integrations.md`.
 
 ### `mdast-util-gfm-autolink-literal` (iOS 15 regex lookbehind)
 

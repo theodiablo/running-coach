@@ -15,6 +15,8 @@ import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
 import { getHrSource } from "../hr/source";
+import { readHrJournal } from "../hr/hrJournal";
+import { HR_MIN_COVERAGE, hrCoverage, hrSummary, mergeHrSamples } from "../utils/hr";
 import { requestRunNotificationsOnce } from "../geo/notifications";
 import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudgeBatteryOptimization } from "../geo/battery";
 import { getPairedDevice } from "../hr/device";
@@ -578,13 +580,25 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     endShare();
     const simplified = simplify(points, 5);
     const km = +stats.km.toFixed(2);
+    // Fold the native HR journal into the live stream: on Android the WebView is
+    // frozen whenever the app is backgrounded, so hrSamples only ever holds the
+    // beats JS was awake for. The journal is empty off Android and on an
+    // unpatched shell, leaving the live stream as the whole story.
+    //
+    // Read it ONLY for a live source — the same condition that armed it. A
+    // post-run source (Health Connect) never journals, so anything on disk would
+    // belong to some earlier BLE run; merging it would both invent this run's HR
+    // and, by producing an average, skip the store fetch below entirely.
+    const hrSamples = mergeHrSamples(rt.hrSamples, hrSrc?.live ? await readHrJournal() : []);
+    const hrStats = hrSummary(hrSamples);
+    const coverage = hrCoverage(hrSamples, stats.movingSec);
     // Persist the raw ~1Hz HR stream as a sidecar on the route stats (BLE runs
     // only — post-run HR sources and web runs leave hrSamples empty). Kept raw,
     // not projected onto GPS points, so HR fidelity doesn't depend on how
     // aggressively simplify() thinned the track; RunDetailModal aligns it to
     // points by timestamp at render. Unknown JSONB key → ignored by old clients.
     const statObj = { km, durationSec: stats.movingSec, elevation: stats.elevation, avgPace: Math.round(stats.avgPace),
-      ...(rt.hrSamples?.length ? { hrSamples: rt.hrSamples } : {}) };
+      ...(hrSamples.length ? { hrSamples } : {}) };
     const date = ymd(new Date(points.find(Boolean)?.[2] || Date.now()));
     let routeId = null, routeTmp = null;
     try {
@@ -605,7 +619,16 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     // here — and hrSrc is already null on web or when the synced method is not
     // ready on this device, so this can't fire without local authorization/pairing.
     let hr = null, hrMax = null, hrPending = null;
-    if (stats.hrAvg != null) { hr = stats.hrAvg; hrMax = stats.hrMax; }
+    if (hrStats.hrAvg != null) {
+      // Only claim a run-level average when the stream covers enough of the run.
+      // A dropped link leaves the mean of whatever fragment survived — a cooldown
+      // walk's 85bpm stamped on a 70-minute session — and that number goes on to
+      // feed the coach, the HR zones and race predictions. Below the threshold
+      // the samples are still stored (the detail chart draws them) and
+      // hrCoverage records how much of the run was measured.
+      if (coverage >= HR_MIN_COVERAGE) { hr = hrStats.hrAvg; hrMax = hrStats.hrMax; }
+      else showToast?.(t("tracker.hr.partial", { pct: Math.round(coverage * 100) }), "err");
+    }
     else if (hrSrc && !hrSrc.live) {
       // Explicit run window from the tracker (robust even with no GPS points),
       // falling back to point timestamps for a recovered run missing startedAt.
@@ -640,6 +663,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       ...(routeId ? { routeId } : {}),
       ...(routeTmp ? { routeTmp, routePending: true } : {}),
       ...(hr != null ? { hr, hrMax } : {}),
+      // How much of the run the sensor actually measured, so no surface has to
+      // guess whether a stored HR series is the whole run or a fragment.
+      ...(hrSamples.length ? { hrCoverage: +coverage.toFixed(2) } : {}),
       // HealthKit markers ride their own field: shipped Android clients clear
       // any hrPending whose source isn't "healthconnect" from the synced blob,
       // which would destroy an iPhone's deferred HR before it could resolve.

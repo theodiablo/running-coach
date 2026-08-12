@@ -57,29 +57,27 @@ export function elevGainM(rows, minM = 5) {
 }
 
 // Nearest sample bpm to time `t` within ±windowMs (samples time-sorted).
-// Port of runSeries.ts nearestBpm.
-function nearestBpm(samples, t, windowMs) {
-  let lo = 0, hi = samples.length - 1, best = null, bestD = Infinity;
+// Port of runSeries.ts avgBpmIn.
+function avgBpmIn(samples, from, to) {
+  let lo = 0, hi = samples.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    if (samples[mid].t < t) lo = mid + 1;
+    if (samples[mid].t < from) lo = mid + 1;
     else hi = mid - 1;
   }
-  for (const i of [lo - 1, lo]) {
-    if (i < 0 || i >= samples.length) continue;
-    const d = Math.abs(samples[i].t - t);
-    if (d < bestD) { bestD = d; best = samples[i]; }
-  }
-  return best && bestD <= windowMs ? best.bpm : null;
+  let sum = 0, n = 0;
+  for (let i = lo; i < samples.length && samples[i].t <= to; i++) { sum += samples[i].bpm; n++; }
+  return n ? Math.round(sum / n) : null;
 }
 
 // Port of runSeries.ts buildRunSeries: one row per real point with cumulative
-// distance, rolling ~200m distance-window pace, altitude, and timestamp-aligned
-// HR. Rows are { distKm, tSec, elevM, paceSecPerKm, hr }.
+// distance, rolling ~200m distance-window pace, altitude, and HR averaged over
+// the point's own time slice. Rows are { distKm, tSec, elevM, paceSecPerKm, hr }.
 export function buildSeriesRows(points, hrSamples, opts) {
   const paceWindowM = opts?.paceWindowM ?? 200;
   const jitterM = opts?.jitterM ?? 3;
   const hrWindowMs = opts?.hrWindowMs ?? 4000;
+  const hrSliceMaxMs = opts?.hrSliceMaxMs ?? 30000;
   const hr = hrSamples && hrSamples.length ? hrSamples : null;
 
   const flat = flattenTrack(points, jitterM);
@@ -101,12 +99,24 @@ export function buildSeriesRows(points, hrSamples, opts) {
       const dkm = f.cumKm - flat[w].cumKm;
       if (dt > 0 && dkm > 0) pace = dt / dkm;
     }
+    // The point's own slice: halfway to each neighbour, never across a gap,
+    // floored so dense points still catch a sample and capped so a sparse
+    // stretch stays local.
+    let hrBpm = null;
+    if (hr) {
+      const prev = i > segStartIdx ? flat[i - 1] : null;
+      const next = i + 1 < flat.length && !flat[i + 1].segStart ? flat[i + 1] : null;
+      const back = Math.max(hrWindowMs, Math.min(prev ? (f.t - prev.t) / 2 : 0, hrSliceMaxMs));
+      const fwd = Math.max(hrWindowMs, Math.min(next ? (next.t - f.t) / 2 : 0, hrSliceMaxMs));
+      hrBpm = avgBpmIn(hr, f.t - back, f.t + fwd);
+    }
+
     rows.push({
       distKm: f.cumKm,
       tSec: (f.t - t0) / 1000,
       elevM: f.alt,
       paceSecPerKm: pace,
-      hr: hr ? nearestBpm(hr, f.t, hrWindowMs) : null,
+      hr: hrBpm,
     });
   }
   return rows;

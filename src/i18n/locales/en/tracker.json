@@ -33,7 +33,8 @@
     "connecting": "connecting…",
     "connected": "sensor connected",
     "cantReach": "can't reach sensor",
-    "postRun": "Heart rate is added from {{store}} after you finish."
+    "postRun": "Heart rate is added from {{store}} after you finish.",
+    "partial": "Heart rate only covered {{pct}}% of this run, so it wasn't saved as the run's average."
   },
   "gps": {
     "accuracyGood": "GPS accuracy ±{{acc}} m — good to go",

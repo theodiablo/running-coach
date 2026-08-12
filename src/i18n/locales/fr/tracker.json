@@ -33,7 +33,8 @@
     "connecting": "connexion…",
     "connected": "capteur connecté",
     "cantReach": "capteur introuvable",
-    "postRun": "La fréquence cardiaque est ajoutée depuis {{store}} à la fin de ta sortie."
+    "postRun": "La fréquence cardiaque est ajoutée depuis {{store}} à la fin de ta sortie.",
+    "partial": "La fréquence cardiaque ne couvre que {{pct}} % de cette sortie, elle n'a donc pas été enregistrée comme moyenne."
   },
   "gps": {
     "accuracyGood": "Précision GPS de ±{{acc}} m. C'est parti",
