@@ -114,6 +114,61 @@ export function hrSummary(samples?: HrSample[] | null) {
   return { hr: samples[samples.length - 1].bpm, hrAvg: Math.round(sum / samples.length), hrMax: max };
 }
 
+// Seconds of a run a { bpm, t } stream actually measured. Each sample covers the
+// gap to the next one, capped (default 10s, matching timeInZones) so a dropped
+// link never counts as measured time. A single sample measures nothing.
+export function hrMeasuredSec(samples?: HrSample[] | null, capSec = 10): number {
+  if (!samples || samples.length < 2) return 0;
+  const capMs = capSec * 1000;
+  let ms = 0;
+  for (let i = 1; i < samples.length; i++) {
+    ms += Math.min(Math.max(0, samples[i].t - samples[i - 1].t), capMs);
+  }
+  return ms / 1000;
+}
+
+// Fraction (0..1) of a run's duration the HR stream covers. This is the guard on
+// every run-level HR claim: a Bluetooth link that drops mid-run leaves a stream
+// whose mean is the mean of whatever fragment survived, not the run's heart rate
+// — and that number feeds the coach, HR zones and race predictions.
+export function hrCoverage(samples: HrSample[] | null | undefined, durationSec: number): number {
+  if (!durationSec || durationSec <= 0) return 0;
+  return Math.min(1, hrMeasuredSec(samples) / durationSec);
+}
+
+// Below this, a run keeps its raw samples (the detail chart still draws them)
+// but claims no hr/hrMax of its own — see LiveRunTracker.handleSave.
+export const HR_MIN_COVERAGE = 0.5;
+
+// Union of two { bpm, t } streams, sorted ascending, dropping entries from `b`
+// that duplicate one already in `a`. Used to fold the native HR journal into
+// what JS saw live: the two record the same notification a few ms apart, so the
+// match is a tolerance, not an equality. Sensors notify at ~1-2Hz, well outside
+// the default window.
+export function mergeHrSamples(
+  a?: HrSample[] | null,
+  b?: HrSample[] | null,
+  toleranceMs = 250,
+): HrSample[] {
+  const base = (a || []).slice().sort((x, y) => x.t - y.t);
+  const extra = (b || []).filter(s => s && Number.isFinite(s.t) && s.bpm > 0);
+  if (!extra.length) return base;
+  if (!base.length) return extra.slice().sort((x, y) => x.t - y.t);
+  const out = base.slice();
+  for (const s of extra) {
+    // base is sorted, so binary-search the insertion point and check neighbours.
+    let lo = 0, hi = base.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (base[mid].t < s.t) lo = mid + 1; else hi = mid - 1;
+    }
+    const near = [lo - 1, lo].some(i =>
+      i >= 0 && i < base.length && Math.abs(base[i].t - s.t) <= toleranceMs);
+    if (!near) out.push(s);
+  }
+  return out.sort((x, y) => x.t - y.t);
+}
+
 // Time spent in each HR zone (seconds), from a raw { bpm, t } stream — the
 // time-in-zone card in RunDetailModal (BLE runs only). Accumulates the gap
 // between consecutive samples into the earlier sample's zone; each gap is CAPPED

@@ -14,10 +14,21 @@ const HR_MEASUREMENT = numberToUUID(0x2a37);
 
 const RETRY_MAX_MS = 15000;      // reconnect backoff cap
 const REDISCOVER_SCAN_MS = 6000; // how long a re-discovery scan listens before giving up
+// Android rate-limits an app to ~5 LE scan starts per 30s window, after which
+// every scan silently returns nothing. A reconnect loop that scans on each
+// attempt burns that allowance in seconds and then cannot find the sensor at
+// all, so re-discovery gets its own floor and cheap direct connects run between.
+const SCAN_MIN_INTERVAL_MS = 30000;
+// A GATT link can sit nominally "connected" while notifications stop arriving.
+// The sensor notifies at ~1-2Hz, so this much silence is a dead link, not a
+// gap — drop it and reconnect instead of recording nothing for the rest of a run.
+const STALL_MS = 20000;
 
 export type BleDevice = { id: string; name: string };
 export type BleHrSample = { bpm: number; t: number };
-export type BleWatchHandle = { deviceId?: string; stopped: boolean };
+// `dispose` cancels the watch's own timers (retry, stall watchdog); clearWatch
+// calls it. Internal to watch() — callers only ever pass the handle back.
+export type BleWatchHandle = { deviceId?: string; stopped: boolean; dispose?: () => void };
 // "unreachable" = a full connect + re-discovery cycle failed (the watch keeps
 // retrying); everything before that is some flavour of still-trying.
 export type BleWatchStatus = "connecting" | "scanning" | "connected" | "unreachable";
@@ -95,6 +106,15 @@ const bleSourceImpl = {
     let backoff = 1000;
     let failures = 0;      // consecutive failed attempts since the last clean connect
     let scanFirst = false; // a direct connect failed → re-discover before the next attempt
+    let lastScanAt = 0;    // epoch ms of the last re-discovery scan (SCAN_MIN_INTERVAL_MS floor)
+    // Exactly one attempt in flight. A disconnect callback and a failed attempt
+    // both want to reconnect, and each used to spawn its own timer chain: the
+    // chains shared one backoff (so it hit the cap immediately), each ran its own
+    // re-discovery scan, and together they tripped Android's scan throttle — the
+    // sensor then stayed unreachable for minutes at a time mid-run.
+    let attempting = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
     const status = (s: BleWatchStatus) => { if (!handle.stopped) onStatus?.(s); };
 
     // Direct connect only reaches a peripheral Android has recently seen
@@ -128,11 +148,54 @@ const bleSourceImpl = {
         .catch(finish);
     });
 
+    // Cancel and re-arm the silence watchdog. Called on every sample, so a live
+    // link never fires it; a subscribed link that goes quiet does.
+    const armStall = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = undefined;
+      if (handle.stopped) return;
+      stallTimer = setTimeout(forceReconnect, STALL_MS);
+    };
+
+    // Tear the link down and reconnect. The sensor is still notifying into a
+    // socket nothing is listening on, so a plain retry would be refused as
+    // "already connected" — the disconnect has to happen first.
+    const forceReconnect = () => {
+      if (handle.stopped || attempting) return;
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = undefined;
+      status("connecting");
+      const id = handle.deviceId;
+      // Our own disconnect may fire onDisconnected, which schedules a retry too;
+      // scheduleRetry is single-flight, so whichever lands first wins.
+      const done = () => scheduleRetry();
+      if (!id) { done(); return; }
+      (async () => {
+        try { await BleClient.stopNotifications(id, HR_SERVICE, HR_MEASUREMENT); } catch { /* ignore */ }
+        try { await BleClient.disconnect(id); } catch { /* ignore */ }
+      })().then(done, done);
+    };
+
+    const onDisconnected = () => {
+      if (handle.stopped) return;
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = undefined;
+      status("connecting");
+      scheduleRetry();
+    };
+
     const start = async () => {
       // Re-run init every attempt: a failed first initialize (adapter off,
       // permission mid-prompt) must not wedge the watch for its whole lifetime.
       await ensureInit();
-      if (scanFirst) { await rediscover(); scanFirst = false; }
+      // Only re-discover when the scan allowance has recovered; otherwise fall
+      // through to a direct connect, which costs nothing and often works once
+      // the sensor has advertised again.
+      if (scanFirst && Date.now() - lastScanAt >= SCAN_MIN_INTERVAL_MS) {
+        lastScanAt = Date.now();
+        await rediscover();
+        scanFirst = false;
+      }
       if (handle.stopped) return;
       status("connecting");
       const id = handle.deviceId!;
@@ -142,7 +205,7 @@ const bleSourceImpl = {
       // rejects with "device not found". No-op when the device is already
       // known (post-scan, or Android); real failures still surface in connect.
       try { await BleClient.getDevices([id]); } catch { /* connect() reports the actionable error */ }
-      await BleClient.connect(id, () => { if (!handle.stopped) { status("connecting"); retry(); } });
+      await BleClient.connect(id, onDisconnected);
       // clearWatch may have run while connect() was in flight (e.g. the run was
       // discarded/finished before a slow/out-of-range sensor finished connecting).
       // Don't subscribe to a device we were told to stop watching — disconnect
@@ -155,33 +218,50 @@ const bleSourceImpl = {
         return;
       }
       await BleClient.startNotifications(id, HR_SERVICE, HR_MEASUREMENT, (value) => {
+        // Re-arm on ANY notification, before the parse: a strap off the body
+        // keeps notifying 0bpm, which parses to null, and treating that as
+        // silence would churn a reconnect every STALL_MS while the record
+        // screen sits idle. The watchdog watches the link, not the reading.
+        armStall();
         const parsed = parseHrMeasurement(value);
         if (parsed) onSample({ bpm: parsed.bpm, t: Date.now() });
       });
       backoff = 1000; failures = 0; // reset after a clean (re)connect
       status("connected");
+      armStall(); // subscribed but not yet notifying — the watchdog owns it from here
     };
     const onFail = () => {
+      attempting = false;
       if (handle.stopped) return;
       scanFirst = true;
       failures += 1;
       if (failures >= 2) status("unreachable"); // one slow strap isn't a verdict; two full cycles are
       backoff = Math.min(backoff * 2, RETRY_MAX_MS);
-      retry();
+      scheduleRetry();
     };
-    const retry = () => {
-      if (handle.stopped) return;
-      setTimeout(() => {
-        if (handle.stopped) return;
-        start().catch(onFail);
+    // Single-flight: a second caller while an attempt is scheduled or running is
+    // a no-op, so the reconnect path can never fan out into competing chains.
+    const scheduleRetry = () => {
+      if (handle.stopped || attempting) return;
+      attempting = true;
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        if (handle.stopped) { attempting = false; return; }
+        start().then(() => { attempting = false; }, onFail);
       }, backoff);
     };
+    handle.dispose = () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      if (stallTimer) clearTimeout(stallTimer);
+      retryTimer = stallTimer = undefined;
+    };
+    attempting = true;
     (async () => {
       // Wait out any previous watch's teardown so its disconnect can't land on
       // (and kill) the connection this watch is about to open.
       await teardownChain.catch(() => { /* previous teardown failed — proceed */ });
-      if (handle.stopped) return;
-      try { await start(); }
+      if (handle.stopped) { attempting = false; return; }
+      try { await start(); attempting = false; }
       catch (e) { onErr?.(e); onFail(); }
     })();
     return handle;
@@ -190,6 +270,7 @@ const bleSourceImpl = {
   async clearWatch(handle?: BleWatchHandle | null) {
     if (!handle) return;
     handle.stopped = true;
+    handle.dispose?.();
     if (currentWatch === handle) currentWatch = null;
     const { deviceId } = handle;
     if (!deviceId) return;

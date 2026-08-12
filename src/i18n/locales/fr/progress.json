@@ -96,7 +96,8 @@
       "elevation": "Dénivelé",
       "avgHr": "FC moy.",
       "maxHr": "FC max"
-    }
+    },
+    "hrPartial": "Le capteur a décroché : la fréquence cardiaque ne couvre que {{pct}} % de cette sortie."
   },
   "predictions": {
     "title": "Prévisions de course",

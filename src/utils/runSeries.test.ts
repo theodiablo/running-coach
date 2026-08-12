@@ -74,7 +74,47 @@ describe("buildRunSeries", () => {
     expect(rows.every(r => r.hr === null)).toBe(true);
   });
 
-  it("aligns HR to the nearest sample within the window", () => {
+  it("keeps a continuous HR line across sparsely stored points", () => {
+    // The regression this guards: simplify() leaves points ~30s apart, so a
+    // fixed ±4s match nulled almost every row and a real HR stream rendered as
+    // a few isolated dots. Each point averages its own slice instead.
+    const pts = [p(0, 0, 0), p(0, 0.01, 30), p(0, 0.02, 60), p(0, 0.03, 90)];
+    const samples = Array.from({ length: 180 }, (_, i) => ({ bpm: 150, t: T0 + i * 500 }));
+    const rows = buildRunSeries(pts, samples);
+    expect(rows.every(r => r.hr === 150)).toBe(true);
+  });
+
+  it("averages the samples inside a point's slice", () => {
+    const pts = [p(0, 0, 0), p(0, 0.01, 20), p(0, 0.02, 40)];
+    // Slice around the middle point is [10s, 30s]: 140 and 160 average to 150.
+    const samples = [
+      { bpm: 100, t: T0 + 0 },
+      { bpm: 140, t: T0 + 15000 },
+      { bpm: 160, t: T0 + 25000 },
+      { bpm: 200, t: T0 + 40000 },
+    ];
+    expect(buildRunSeries(pts, samples)[1].hr).toBe(150);
+  });
+
+  it("still nulls HR where the stream actually has a hole", () => {
+    // Dense points, HR only over the first 10s: the later rows must stay null
+    // rather than borrowing a reading from minutes earlier.
+    const pts = Array.from({ length: 20 }, (_, i) => p(0, i * 0.001, i * 10));
+    const samples = Array.from({ length: 20 }, (_, i) => ({ bpm: 150, t: T0 + i * 500 }));
+    const rows = buildRunSeries(pts, samples);
+    expect(rows[0].hr).toBe(150);
+    expect(rows[rows.length - 1].hr).toBeNull();
+  });
+
+  it("does not pull HR across a gap into the next segment", () => {
+    const pts = [p(0, 0, 0), p(0, 0.01, 10), null, p(0, 5, 20), p(0, 5.01, 30)];
+    const samples = [{ bpm: 150, t: T0 + 10000 }];
+    const rows = buildRunSeries(pts, samples, { hrWindowMs: 1000 });
+    expect(rows[1].hr).toBe(150);  // last point of the first segment
+    expect(rows[2].hr).toBeNull(); // first point after the gap must not reach back
+  });
+
+  it("aligns HR to the sample nearest a point when slices hold one each", () => {
     const samples = [
       { bpm: 120, t: T0 + 1000 },
       { bpm: 140, t: T0 + 19000 },

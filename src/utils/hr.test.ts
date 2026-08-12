@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
   tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
+  hrMeasuredSec, hrCoverage, mergeHrSamples,
 } from "./hr";
 
 type HrSample = { bpm: number; t: number };
@@ -190,5 +191,76 @@ describe("timeInZones", () => {
     const samples = [{ bpm: 130, t: 0 }, { bpm: 150, t: 1000 }];
     expect(timeInZones(samples, 0, REST)).toEqual([]);
     expect(timeInZones(samples, 100, 100)).toEqual([]); // reserve 0
+  });
+});
+
+describe("hrMeasuredSec / hrCoverage", () => {
+  // A 2Hz strap, the cadence a real chest strap notifies at.
+  const stream = (fromSec: number, toSec: number) => {
+    const out: HrSample[] = [];
+    for (let t = fromSec; t <= toSec; t += 0.5) out.push({ bpm: 150, t: t * 1000 });
+    return out;
+  };
+
+  it("measures nothing from fewer than two samples", () => {
+    expect(hrMeasuredSec([])).toBe(0);
+    expect(hrMeasuredSec([{ bpm: 150, t: 0 }])).toBe(0);
+  });
+
+  it("counts a continuous stream as its own span", () => {
+    expect(hrMeasuredSec(stream(0, 600))).toBeCloseTo(600, 1);
+  });
+
+  it("caps a dropped link rather than counting the hole as measured", () => {
+    // Two 60s bursts an hour apart: the hole contributes the 10s cap, not an hour.
+    const samples = [...stream(0, 60), ...stream(3600, 3660)];
+    expect(hrMeasuredSec(samples)).toBeCloseTo(130, 1);
+  });
+
+  it("reports coverage as a fraction of the run, clamped to 1", () => {
+    expect(hrCoverage(stream(0, 600), 600)).toBeCloseTo(1, 2);
+    expect(hrCoverage(stream(0, 300), 600)).toBeCloseTo(0.5, 2);
+    expect(hrCoverage(stream(0, 900), 600)).toBe(1);
+    expect(hrCoverage([], 600)).toBe(0);
+    expect(hrCoverage(stream(0, 600), 0)).toBe(0);
+  });
+
+  it("scores the real-world fragment low", () => {
+    // The Aug 10 shape: ~15 minutes of stream on a 72-minute run.
+    expect(hrCoverage(stream(0, 900), 4313)).toBeLessThan(0.25);
+  });
+});
+
+describe("mergeHrSamples", () => {
+  it("returns the sorted base when there is nothing to merge", () => {
+    const base = [{ bpm: 150, t: 2000 }, { bpm: 140, t: 1000 }];
+    expect(mergeHrSamples(base, [])).toEqual([{ bpm: 140, t: 1000 }, { bpm: 150, t: 2000 }]);
+    expect(mergeHrSamples(null, null)).toEqual([]);
+  });
+
+  it("takes the journal wholesale when JS saw nothing", () => {
+    const journal = [{ bpm: 150, t: 1000 }, { bpm: 152, t: 1500 }];
+    expect(mergeHrSamples([], journal)).toEqual(journal);
+  });
+
+  it("drops journal entries that duplicate a live sample within tolerance", () => {
+    // The same notification, timestamped natively and again on JS delivery.
+    const live = [{ bpm: 150, t: 1000 }, { bpm: 152, t: 1500 }];
+    const journal = [{ bpm: 150, t: 990 }, { bpm: 152, t: 1512 }];
+    expect(mergeHrSamples(live, journal)).toEqual(live);
+  });
+
+  it("keeps journal beats from the stretch JS was frozen for", () => {
+    const live = [{ bpm: 150, t: 1000 }, { bpm: 158, t: 60000 }];
+    const journal = Array.from({ length: 10 }, (_, i) => ({ bpm: 155, t: 5000 + i * 500 }));
+    const merged = mergeHrSamples(live, journal);
+    expect(merged).toHaveLength(12);
+    expect(merged.map(s => s.t)).toEqual([...merged.map(s => s.t)].sort((a, b) => a - b));
+  });
+
+  it("ignores malformed journal entries", () => {
+    const live = [{ bpm: 150, t: 1000 }];
+    const bad = [{ bpm: 0, t: 2000 }, { bpm: 150, t: NaN }] as HrSample[];
+    expect(mergeHrSamples(live, bad)).toEqual(live);
   });
 });

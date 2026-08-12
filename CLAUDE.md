@@ -222,7 +222,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   notification's distance/pace) has to be computed natively, with JS pushing a
   seed. Numbers read on the Java side need a `Number`-tolerant reader:
   `PluginCall.getDouble` returns its default for a `Long`, which every epoch-ms
-  value becomes. Detail: `docs/live-tracking.md`.
+  value becomes. Detail: `docs/live-tracking.md`. **A sample stream is data, not
+  presentation, so it gets journalled instead**: GPS fixes (patched
+  background-geolocation) and BLE heart-rate notifications (patched
+  `bluetooth-le`) are appended to a file by the native callback and folded back
+  in at save/recovery — never left to whatever JS happened to be awake for.
 - **iOS 15.4 is the deployment floor, and a regex lookbehind (`(?<=`/`(?<!`)
   anywhere in the bundle breaks it** — JavaScriptCore before 16.4 fails to
   *parse* the module, so the whole chunk dies (a lazily-imported one as an
@@ -269,7 +273,11 @@ changes.
   per-platform fields `hrPending` / `hrPendingHk` (see
   `docs/health-integrations.md`). `id` is generated in `addRuns` if absent;
   runs are kept sorted newest-first. Measured best efforts ride `bestEfforts`
-  (`{}` = measured, covers no standard distance; absent = never measured).
+  (`{}` = measured, covers no standard distance; absent = never measured). A
+  live-HR run also carries `hrCoverage` (0..1 of its duration the stream
+  actually measured) — **below `HR_MIN_COVERAGE` it carries no `hr`/`hrMax` at
+  all**, because a dropped sensor's fragment mean is not the run's heart rate
+  and it would feed the coach, the zones and race predictions.
 - **Route:** `run_routes` row `{id, user_id, points, stats, created_at}`;
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form

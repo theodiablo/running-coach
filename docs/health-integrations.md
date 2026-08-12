@@ -54,6 +54,38 @@ carries a `live` flag:
   `hrStatus` (`onStatus`: connecting / scanning / connected / unreachable);
   the record screen swaps "connecting…" for "can't reach sensor" once two full
   connect+scan cycles fail, while the watch keeps retrying with capped backoff.
+  Three rules keep that retry loop from becoming the outage it is meant to fix
+  (it was: runs came back with 5-15 minutes of HR out of 70, in bursts):
+  **one attempt at a time** — the disconnect callback and a failed attempt each
+  used to drive their own timer chain, which shared the backoff (so it hit the
+  cap at once) and doubled the scan rate; **re-discovery has its own floor**
+  (`SCAN_MIN_INTERVAL_MS`) because Android rate-limits an app to ~5 LE scan
+  starts per 30s and silently returns nothing past that, so a per-attempt scan
+  destroys exactly the mechanism it is running; and a **silence watchdog**
+  (`STALL_MS`) tears the link down and reconnects, since a GATT link can sit
+  nominally connected while notifications stop.
+
+**Coverage is the guard on every run-level HR claim.** A partial stream's mean
+is the mean of the fragment that survived, not the run's heart rate — one run
+was logged at 85bpm avg from its cooldown after the strap dropped at minute 15.
+`hrCoverage` (`src/utils/hr.ts`) scores measured seconds (per-sample gaps capped
+at 10s, as in `timeInZones`) against the run's duration; below `HR_MIN_COVERAGE`
+`handleSave` stores the samples and the coverage but **no `hr`/`hrMax`**, and
+toasts why. `RunDetailModal` re-derives coverage from the raw samples rather
+than the stored field, so runs recorded before it existed are labelled too.
+
+**The native HR journal** (`src/hr/hrJournal.ts` + the `bluetooth-le` patch) is
+the HR twin of the GPS fix journal. A GATT notification callback runs in the app
+process and keeps firing while the WebView is frozen, but `notifyListeners` only
+reaches a running WebView — so those beats were lost. When armed, the patched
+plugin appends `"<epochMs> <hex>"` per measurement to `run_hr_journal.jsonl`
+(HR-measurement characteristic only); `handleSave` folds it into the live stream
+with `mergeHrSamples` (±250ms dedupe — the same notification is stamped natively
+and again on JS delivery). Armed by `start`, re-armed without clearing by
+`resume` (arming is process state, so a crash loses it while the file survives),
+disarmed by `stop`, cleared by `start`/`reset`/`finalize`. Android-only and
+best-effort: off Android, and on a shell built before the patch, it resolves
+nothing and the JS stream stays the whole story.
 - **Post-run** (`src/hr/healthconnect.ts`, `healthConnectSource`): reads HR
   from Android Health Connect after the run via
   **@pianissimoproject/capacitor-health-connect**, dynamic-`import()`ed lazily

@@ -117,6 +117,74 @@ describe("bleSource.watch", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(ble.client.startNotifications).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps one retry chain when a disconnect and a failure race", async () => {
+    // The disconnect callback and the rejected connect both want to reconnect.
+    // Before single-flighting they each drove their own timer chain, which
+    // doubled the shared backoff and doubled the scan rate.
+    let onDisconnect: (() => void) | undefined;
+    ble.client.connect.mockImplementation(async (_id, cb) => {
+      onDisconnect = cb;
+      cb();                                   // plugin reports the drop...
+      throw new Error("connection timeout");  // ...and the call itself fails
+    });
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await vi.advanceTimersByTimeAsync(120000);
+    const attempts = ble.client.connect.mock.calls.length;
+    expect(onDisconnect).toBeTypeOf("function");
+    // One chain at the 15s cap over 2min is ~10 attempts; two chains would
+    // roughly double it. Generous bound — this guards the order of magnitude.
+    expect(attempts).toBeLessThan(16);
+  });
+
+  it("re-discovers at most once per scan-throttle window", async () => {
+    ble.client.connect.mockRejectedValue(new Error("connection timeout"));
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1", deviceName: "Polar H10" });
+    await vi.advanceTimersByTimeAsync(90000);
+    // Android allows ~5 scan starts per 30s; over 90s a per-attempt scan would
+    // fire ~10 times and be throttled into uselessness.
+    expect(ble.client.requestLEScan.mock.calls.length).toBeLessThanOrEqual(4);
+    expect(ble.client.connect.mock.calls.length).toBeGreaterThan(4); // still retrying
+  });
+
+  it("forces a reconnect when a subscribed link goes silent", async () => {
+    let notify: ((v: DataView) => void) | undefined;
+    ble.client.startNotifications.mockImplementation(async (_id, _s, _c, cb) => { notify = cb; });
+    const onSample = vi.fn();
+    bleSource.watch(onSample, undefined, { deviceId: "d1" });
+    await flush();
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+    notify!(hrView(140));
+    await vi.advanceTimersByTimeAsync(15000); // still inside the stall window
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(15000); // 20s of silence since the sample
+    expect(ble.client.disconnect).toHaveBeenCalledWith("d1");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(ble.client.startNotifications.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("treats a 0bpm no-contact notification as a live link, not silence", async () => {
+    // A strap off the body still notifies; parseHrMeasurement rejects 0bpm.
+    // Counting that as silence would churn a reconnect every 20s at idle.
+    let notify: ((v: DataView) => void) | undefined;
+    ble.client.startNotifications.mockImplementation(async (_id, _s, _c, cb) => { notify = cb; });
+    const onSample = vi.fn();
+    bleSource.watch(onSample, undefined, { deviceId: "d1" });
+    await flush();
+    for (let i = 0; i < 30; i++) { notify!(hrView(0)); await vi.advanceTimersByTimeAsync(1000); }
+    expect(onSample).not.toHaveBeenCalled();
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("a live stream is never interrupted by the watchdog", async () => {
+    let notify: ((v: DataView) => void) | undefined;
+    ble.client.startNotifications.mockImplementation(async (_id, _s, _c, cb) => { notify = cb; });
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await flush();
+    for (let i = 0; i < 60; i++) { notify!(hrView(150)); await vi.advanceTimersByTimeAsync(1000); }
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+    expect(ble.client.connect).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("bleSource.clearWatch", () => {
@@ -154,6 +222,16 @@ describe("bleSource.clearWatch", () => {
     resolveConnectA(); // A's connect finally lands, but B owns the sensor now
     await flush();
     expect(ble.client.disconnect.mock.calls.length).toBe(disconnects);
+  });
+
+  it("cancels a pending retry so a cleared watch never reconnects", async () => {
+    ble.client.connect.mockRejectedValue(new Error("connection timeout"));
+    const handle = bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await flush();
+    await bleSource.clearWatch(handle);
+    const attempts = ble.client.connect.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(ble.client.connect.mock.calls.length).toBe(attempts);
   });
 
   it("a successor's connect waits out the previous teardown", async () => {

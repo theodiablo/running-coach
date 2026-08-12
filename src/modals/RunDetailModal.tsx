@@ -9,7 +9,7 @@ import { useRouteTrace } from "../hooks/useRouteTrace";
 import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
 import { rankRunEfforts } from "../utils/bestEfforts";
-import { timeInZones, effectiveMaxHR, HR_ZONES } from "../utils/hr";
+import { timeInZones, effectiveMaxHR, hrCoverage, HR_ZONES } from "../utils/hr";
 import { flattenTrack, haversineM } from "../utils/geo";
 import { fmt } from "../utils/format";
 import type { HrSample } from "../utils/runSeries";
@@ -67,10 +67,13 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
       // series and the time-in-zone card agree (a sparse GPS trace could otherwise
       // hide the chart line while the zone card still rendered).
       hasHr: !!(hrSamples && hrSamples.length),
+      // Derived from the samples rather than read off run.hrCoverage so runs
+      // saved before the field existed get the same honesty.
+      coverage: hrCoverage(hrSamples, run.durationSec || 0),
       hasElev: series.some(r => r.elevM != null),
     };
-  }, [route, maxHR, restHR]);
-  const { hasPoints, series, flat, splits, zones, hasHr, hasElev } = derived;
+  }, [route, run.durationSec, maxHR, restHR]);
+  const { hasPoints, series, flat, splits, zones, hasHr, hasElev, coverage } = derived;
   const zoneTotal = zones.reduce((s, z) => s + z.sec, 0);
 
   // Shared chart↔map cursor: the active series/flat index (a single nullable
@@ -230,6 +233,14 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
         )}
 
         {tiles}
+
+        {/* A dropped sensor leaves a stream that measured part of the run. Say so
+            here, so a short HR line reads as a dropout rather than as the run. */}
+        {hasHr && coverage < 0.9 && (
+          <p className="text-xs text-amber-400/90 bg-amber-400/10 rounded-xl px-3 py-2">
+            {t("progress.detail.hrPartial", { pct: Math.round(coverage * 100) })}
+          </p>
+        )}
 
         {/* Best efforts + where they sit in the log. Not gated on a trace: a
             manually logged 5K still ranks, off its own time. */}

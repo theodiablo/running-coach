@@ -33,7 +33,8 @@
     "connecting": "conectando…",
     "connected": "sensor conectado",
     "cantReach": "no se encuentra el sensor",
-    "postRun": "La frecuencia cardíaca se añade desde {{store}} cuando terminas."
+    "postRun": "La frecuencia cardíaca se añade desde {{store}} cuando terminas.",
+    "partial": "La frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento, así que no se guardó como media."
   },
   "gps": {
     "accuracyGood": "Precisión GPS de ±{{acc}} m. Todo listo",

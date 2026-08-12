@@ -96,7 +96,8 @@
       "elevation": "Elevation",
       "avgHr": "Avg HR",
       "maxHr": "Max HR"
-    }
+    },
+    "hrPartial": "Sensor dropped out: heart rate covers only {{pct}}% of this run."
   },
   "predictions": {
     "title": "Race predictions",

@@ -96,7 +96,8 @@
       "elevation": "Desnivel",
       "avgHr": "FC media",
       "maxHr": "FC máx"
-    }
+    },
+    "hrPartial": "El sensor se desconectó: la frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento."
   },
   "predictions": {
     "title": "Predicciones de carrera",

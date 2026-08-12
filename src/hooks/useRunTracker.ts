@@ -9,6 +9,7 @@ import { logTrack } from "../geo/trackLog";
 import { clearNativeFixJournal, readNativeFixJournal } from "../geo/fixJournal";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveredRun } from "../utils/runRecovery";
 import { getHrSource } from "../hr/source";
+import { armHrJournal, clearHrJournal, disarmHrJournal, resetHrJournal } from "../hr/hrJournal";
 import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
 import { t } from "../i18n";
@@ -316,6 +317,9 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     logTrack("start", { msg: isNative ? "native" : "web" });
     setMovingSec(0);
     startHrWatch();
+    // Journal natively only when a live sensor is actually streaming — the
+    // journal exists to cover the stretches where this JS isn't running.
+    if (hrWatchRef.current) resetHrJournal();
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist]);
@@ -340,6 +344,10 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     setState("tracking");
     logTrack("resume");
     startHrWatch();
+    // Re-arm without clearing: arming is process state, so a run resumed after
+    // the app was killed would otherwise journal nothing from here on, and the
+    // beats already on disk are the ones the crash would have cost us.
+    if (hrWatchRef.current) armHrJournal();
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist]);
@@ -351,6 +359,8 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     runEndRef.current = Date.now();
     stopWatch();
     stopHrWatch();
+    // Stop journalling but keep the contents — handleSave still has to read them.
+    disarmHrJournal();
     releaseWake();
     stateRef.current = "stopped";
     setState("stopped");
@@ -362,6 +372,8 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
   const reset = useCallback(() => {
     stopWatch();
     stopHrWatch();
+    disarmHrJournal();
+    clearHrJournal();
     releaseWake();
     pointsRef.current = [];
     setPoints([]);
@@ -418,9 +430,13 @@ export function useRunTracker({ hrMethod, stepText }: UseRunTrackerOptions = {})
     setPending(null);
   }, []);
 
-  // Call after a successful save. The journal goes with the buffer: both
+  // Call after a successful save. The journals go with the buffer: all three
   // describe a run that is now safely stored as a real Run + route.
-  const finalize = useCallback(() => { clearBuffer(); clearNativeFixJournal(); }, []);
+  const finalize = useCallback(() => {
+    clearBuffer();
+    clearNativeFixJournal();
+    clearHrJournal();
+  }, []);
 
   // ── effects ──────────────────────────────────────────────────────────────
   // UI clock while actively tracking.
