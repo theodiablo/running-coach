@@ -159,24 +159,57 @@ interruption survivable rather than fatal; the clock tick refreshes it every
 `BUFFER_TICK_MS`, so a strapless session — which otherwise writes nothing at all
 between Start and page-hide — can't lose its whole clock to a kill.
 
-### No foreground service is the load-bearing risk
+### The foreground service that holds the session
 
-`AndroidManifest.xml` says BLE is "used only while a run is recording — the GPS
-foreground service already holds the app then, so no extra HR foreground service
-is declared." **An indoor session breaks that assumption**: it runs no geo watch,
-so no service holds the process, and a few minutes in the background is enough
-for Android to reclaim the **WebView renderer**. The WebView then keeps painting
-its last frame — the recorder still on screen, clock and heart rate frozen at
-their final values — while no JS runs at all, so Pause and Finish do nothing.
-Read as "heart rate is stuck" before the frozen clock gave it away.
+`AndroidManifest.xml` used to say BLE is "used only while a run is recording — the
+GPS foreground service already holds the app then, so no extra HR foreground
+service is declared." **An indoor session broke that assumption**: it runs no geo
+watch, so nothing held the process, and a few minutes in the background was
+enough for Android to reclaim the WebView renderer (below).
 
-`MainActivity` registers a `WebViewListener.onRenderProcessGone` that returns
-true (returning false kills the process), destroys the dead WebView and restarts
-the activity, so the app cold-boots and the recovery buffer offers the session
-back. That is a **safety net, not a fix**: recording still stops the moment the
-renderer dies. Giving an indoor session its own foreground service (Android 14+
-`health` type, plus the Play Console declaration) is the real fix and is not
-done yet.
+`IndoorSessionService` (+ `IndoorSessionPlugin`, seam at `src/indoor/session.ts`)
+now holds it, started from `useRunTracker`'s `start`/`resume` and stopped on
+`pause`/`stop`/`reset`/unmount — the same lifecycle as the HR journal, and armed
+on the same condition:
+
+- **Only with a live BLE strap streaming.** The service is declared
+  `connectedDevice`, and that type is honest precisely because what has to
+  survive backgrounding is the GATT link to the sensor; its prerequisite
+  permissions (`BLUETOOTH_CONNECT`/`BLUETOOTH_SCAN`) were already held. `health`
+  would have meant adding `ACTIVITY_RECOGNITION` or `BODY_SENSORS` — a new
+  runtime prompt and a new Data Safety entry — to describe the same thing less
+  accurately. **A strapless session therefore still has no service** and relies
+  on the recovery buffer plus the renderer restart below.
+- The notification's elapsed time is an **OS-rendered chronometer** anchored at
+  the session start (`when` stays in the `System.currentTimeMillis` timebase, the
+  same contract as the run notification's `chronometerStartMs`), so it ticks
+  natively while JS is frozen. Copy is passed in from JS so it follows the app's
+  language.
+- Every native call is best-effort: a refused foreground start (no notification
+  permission, or an Android 12+ background-start restriction) is logged and
+  swallowed — recording continues exactly as it did before the service existed.
+
+**Play Console:** the `connectedDevice` foreground-service type needs a
+declaration in the console before a release with this can be rolled out.
+
+### Surviving a killed renderer anyway
+
+Android reclaims the WebView renderer of a backgrounded app under memory
+pressure. The WebView then keeps painting its last frame — the recorder still on
+screen, clock and heart rate frozen at their final values — while no JS runs at
+all, so Pause and Finish do nothing. Read as "heart rate is stuck" before the
+frozen clock gave it away.
+
+The service above is the fix for a strapped session, but it can't cover
+everything: a strapless session runs no service, and a foreground start can be
+refused. So `MainActivity` also registers a `WebViewListener.onRenderProcessGone`
+that returns true (returning false kills the process), destroys the dead WebView
+and relaunches the activity — the app cold-boots and the recovery buffer offers
+the session back. It **restarts at most once per
+`RENDERER_RESTART_MIN_INTERVAL_MS` for a genuine crash** (`didCrash()`), so a
+renderer that dies on every page load leaves a recoverable dead screen instead of
+an inescapable boot loop; a reclaim, which is the case this is here for, never
+repeats that fast.
 
 `App.tsx`'s `subscribeStoreRefresh` guard ("never tear down a live recording")
 checks **both** buffers. An indoor session is the more fragile of the two — no

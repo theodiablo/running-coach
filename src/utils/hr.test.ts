@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
   tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
-  hrMeasuredSec, hrCoverage, mergeHrSamples,
+  hrMeasuredSec, hrCoverage, mergeHrSamples, isHrStale, HR_STALE_MS,
 } from "./hr";
 
 type HrSample = { bpm: number; t: number };
@@ -294,5 +294,35 @@ describe("mergeHrSamples", () => {
     const live = [{ bpm: 150, t: 1000 }];
     const bad = [{ bpm: 0, t: 2000 }, { bpm: 150, t: NaN }] as HrSample[];
     expect(mergeHrSamples(live, bad)).toEqual(live);
+  });
+});
+
+// A dead BLE link leaves its last bpm on screen indefinitely, and once one
+// sample is recorded hrAvg stays non-null, so the trackers' status line reads
+// "avg · max" for the rest of the run and never surfaces hrStatus again.
+describe("isHrStale", () => {
+  const NOW = 1_700_000_000_000;
+
+  it("trusts a reading inside the window", () => {
+    expect(isHrStale(NOW - 1000, NOW)).toBe(false);
+    expect(isHrStale(NOW - HR_STALE_MS, NOW)).toBe(false); // boundary is still live
+  });
+
+  it("stops trusting one past it", () => {
+    expect(isHrStale(NOW - HR_STALE_MS - 1, NOW)).toBe(true);
+    expect(isHrStale(NOW - 300_000, NOW)).toBe(true);
+  });
+
+  // No reading at all is "--" on screen, not a stale number.
+  it("is never stale without a reading", () => {
+    expect(isHrStale(null, NOW)).toBe(false);
+    expect(isHrStale(undefined, NOW)).toBe(false);
+  });
+
+  // A strap notifies at ~1-2Hz and ble.ts calls a link dead after 20s of
+  // silence, so the window has to sit between the two.
+  it("sits between a sensor's cadence and the stall watchdog", () => {
+    expect(HR_STALE_MS).toBeGreaterThan(2000);
+    expect(HR_STALE_MS).toBeLessThan(20000);
   });
 });

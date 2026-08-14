@@ -21,7 +21,10 @@
     "resumeTitle": "Reprendre ta séance précédente ?",
     "resumeElapsed": "{{time}} enregistrées.",
     "discardConfirm": "Abandonner cette séance ? Sa durée et sa fréquence cardiaque seront perdues.",
-    "keepScreenOn": "Garde cet écran allumé. Sans GPS, la séance ne peut pas continuer en arrière-plan : si l'écran se verrouille, le chrono continue mais la fréquence cardiaque n'est plus enregistrée."
+    "keepScreenOn": "Garde cet écran allumé. Sans GPS, la séance ne peut pas continuer en arrière-plan : si l'écran se verrouille, le chrono continue mais la fréquence cardiaque n'est plus enregistrée.",
+    "keepScreenOnStrap": "L'enregistrement continue si tu changes d'application, tant que ton capteur cardiaque reste connecté. Laisser cet écran allumé reste le plus fiable.",
+    "serviceTitle": "Séance en salle",
+    "serviceText": "Fréquence cardiaque en cours d'enregistrement. Touche pour revenir."
   },
   "countdown": {
     "go": "Partez !"
@@ -48,6 +51,7 @@
     "connecting": "connexion…",
     "connected": "capteur connecté",
     "cantReach": "capteur introuvable",
+    "reconnecting": "signal perdu, reconnexion…",
     "postRun": "La fréquence cardiaque est ajoutée depuis {{store}} à la fin de ta sortie.",
     "partial": "La fréquence cardiaque ne couvre que {{pct}} % de cette sortie, elle n'a donc pas été enregistrée comme moyenne."
   },

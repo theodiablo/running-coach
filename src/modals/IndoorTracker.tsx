@@ -9,7 +9,7 @@ import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
 import { getHrSource } from "../hr/source";
 import { readHrJournal } from "../hr/hrJournal";
-import { HR_MIN_COVERAGE, effectiveMaxHR, hrCoverage, hrSummary, mergeHrSamples } from "../utils/hr";
+import { HR_MIN_COVERAGE, effectiveMaxHR, hrCoverage, hrSummary, isHrStale, mergeHrSamples } from "../utils/hr";
 import { getPairedDevice } from "../hr/device";
 import { hasHealthConnectAuthorization } from "../hr/healthconnect";
 import { hasHealthKitAuthorization } from "../healthkit/import";
@@ -76,6 +76,12 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const effMax = effectiveMaxHR(settings);
   const restHR = settings.restHR || 60;
   const live = state === "tracking" || state === "paused";
+  // A strap that dies leaves its last bpm on screen forever, and once one sample
+  // is recorded hrAvg is non-null for the rest of the session, so the status
+  // line below would read "avg · max" and never surface hrStatus again. Read at
+  // render time: the 1s clock tick re-renders while tracking, and an hrStatus
+  // change re-renders while idle, so this refreshes without a timer of its own.
+  const hrStale = liveHr && isHrStale(stats.hrAt);
 
   // Same nudge rules as the run tracker — an indoor session with no HR source is
   // the one case where the whole point of the screen is missing, but it still
@@ -241,15 +247,19 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
             the handlebars, with the zone it lands in. */}
         <div className="text-center">
           <p className="flex items-center justify-center gap-2 text-slate-400 text-xs uppercase tracking-wide">
-            <HeartPulse size={14} className={stats.hr != null ? "text-red-400" : "text-slate-600"} />
+            <HeartPulse size={14} className={stats.hr != null && !hrStale ? "text-red-400" : "text-slate-600"} />
             {t("tracker.hr.bpm")}
             <BetaBadge />
           </p>
-          <p className="text-7xl font-extrabold text-white tabular-nums leading-none mt-1">{stats.hr ?? "--"}</p>
+          <p className={"text-7xl font-extrabold tabular-nums leading-none mt-1 "
+            + (hrStale ? "text-slate-600" : "text-white")}>{stats.hr ?? "--"}</p>
           <p className="text-xs text-slate-500 mt-2">
             {!liveHr ? (hrSrc
               ? t("tracker.hr.postRun", { store: hrSrc.id === "healthkit" ? "Apple Health" : "Health Connect" })
               : t("tracker.indoor.noSensor"))
+              // Staleness outranks avg/max, which is otherwise pinned on for the
+              // rest of the session and leaves nothing to say the strap stopped.
+              : hrStale ? (rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach") : t("tracker.hr.reconnecting"))
               : stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
               : stats.hr != null ? t("tracker.hr.connected")
               : rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach")
@@ -257,7 +267,8 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
           </p>
         </div>
 
-        <LiveHrZone bpm={stats.hr} effMax={effMax} restHR={restHR} />
+        {/* No zone claim off a reading we no longer trust. */}
+        <LiveHrZone bpm={hrStale ? null : stats.hr} effMax={effMax} restHR={restHR} />
 
         <div className="text-center">
           <p className="text-5xl font-bold text-white tabular-nums leading-none">{clock}</p>
@@ -335,7 +346,12 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
             foreground service and no iOS background execution, so the session
             only survives while this screen is up. */}
         {live && (
-          <p className="text-[11px] text-slate-500 text-center leading-snug">{t("tracker.indoor.keepScreenOn")}</p>
+          <p className="text-[11px] text-slate-500 text-center leading-snug">
+            {/* A strapped session gets the foreground service and really does
+                survive backgrounding; a strapless one has nothing holding it, so
+                it keeps the original promise. Never claim the stronger one. */}
+            {liveHr && isAndroid ? t("tracker.indoor.keepScreenOnStrap") : t("tracker.indoor.keepScreenOn")}
+          </p>
         )}
       </div>
 
