@@ -185,9 +185,9 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
     const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel});
     const hadPlan = !!plan;
-    // A rebuild keeps done/skipped progress by session id — the on-screen note
-    // promises it. A promote is deliberately fresh ("Builds a fresh plan for
-    // this race"): carrying week-positional ids across races would mis-tick.
+    // A rebuild keeps done/skipped progress by calendar date — the on-screen
+    // note promises it. A promote is deliberately fresh ("Builds a fresh plan
+    // for this race"), so it carries nothing at all.
     savePlan(promoting ? built : carryProgress(plan, built));
     setEditing(false);
     clearPlanPrefill?.();

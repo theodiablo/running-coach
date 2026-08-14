@@ -585,24 +585,74 @@ export function findOpenPlanSession(
   return null;
 }
 
-// Re-apply done/skipped/runId from an old plan onto a freshly built one by
-// session id (ids are stable: w{n}d{dOff} for training, race-{editionId} for
-// races). Lets a rebuild (availability edit, race add/remove, coach apply)
-// keep weeks of progress. Pure.
-export function carryProgress(oldPlan: Plan | null, np: Plan): Plan {
+// A training session's id (w{n}d{dOff}) names a SLOT in the plan grid, not a
+// day — buildPlan mints the same "w2d4" for week 2 / offset 4 whatever date
+// that lands on. Race ids (race, race-{editionId}) are real identity.
+const isSlotId = (id: string) => /^w\d+d\d+$/.test(id);
+
+// The stored session shape (types.ts), not the builder-local one above — only
+// the former carries `skipped`.
+type StoredSession = Plan["weeks"][number]["sessions"][number];
+type Carried = { flag: PlanProgress; type: string };
+
+// Re-apply done/skipped/runId from an old plan onto a new one. Pure.
+//
+// Two modes, because "the same session" means different things:
+//
+// - "coach" — the proposal is DERIVED from the current plan, so ids are
+//   identity and a shifted session must keep its flags across the move.
+// - "rebuild" (default) — buildPlan minted fresh slot ids, so matching on
+//   them smears progress onto whoever now occupies the slot. Changing the
+//   race date once transplanted four weeks of done/skipped a month into the
+//   future, cancelling sessions the runner had never seen. Anchor on the
+//   calendar date instead: a day you trained is a day you trained.
+export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | "coach" = "rebuild"): Plan {
   if (!oldPlan) return np;
-  const flags: Record<string, PlanProgress> = {};
-  oldPlan.weeks.forEach(w => w.sessions.forEach(s => {
-    flags[s.id] = { done: s.done, skipped: s.skipped, runId: s.runId };
-  }));
-  return { ...np, weeks: np.weeks.map(w => ({ ...w,
-    sessions: w.sessions.map(s => {
-      const f = flags[s.id];
+  const oldSessions = oldPlan.weeks.flatMap(w => w.sessions);
+  const mapWeeks = (fn: (s: StoredSession) => StoredSession): Plan =>
+    ({ ...np, weeks: np.weeks.map(w => ({ ...w, sessions: w.sessions.map(fn) })) });
+
+  if (mode === "coach") {
+    const flags = new Map<string, PlanProgress>();
+    oldSessions.forEach(s => flags.set(s.id, { done: s.done, skipped: s.skipped, runId: s.runId }));
+    return mapWeeks(s => {
+      const f = flags.get(s.id);
       if (!f) return s;
-      // skipped is a union, not an overwrite: the coach's cancel_session
-      // marks skipped on the PROPOSAL, which must survive this re-stamp
-      // (and a session the user skipped while the chat was open survives
-      // the coach plan). done/runId stay client-owned overwrites.
+      // skipped is a union, not an overwrite: cancel_session marks skipped on
+      // the PROPOSAL, which must survive this re-stamp (and a session the user
+      // skipped while the chat was open survives the coach plan). done/runId
+      // stay client-owned overwrites.
       return { ...s, ...f, skipped: f.skipped || s.skipped };
-    }) })) };
+    });
+  }
+
+  const byId = new Map<string, PlanProgress>();
+  const byDate = new Map<string, Carried[]>();
+  oldSessions.forEach(s => {
+    const flag: PlanProgress = { done: s.done, skipped: s.skipped, runId: s.runId };
+    if (!isSlotId(s.id)) { byId.set(s.id, flag); return; }
+    const day = byDate.get(s.date) ?? [];
+    day.push({ flag, type: s.type });
+    byDate.set(s.date, day);
+  });
+
+  // A done session is one that happened. Anything claiming a future date is
+  // corrupt — from the slot-id smear above — so drop it rather than carry it.
+  const today = ymd(new Date());
+
+  return mapWeeks(s => {
+    let flag = isSlotId(s.id) ? undefined : byId.get(s.id);
+    if (!flag) {
+      // Same-day candidates, preferring the same session type and then the
+      // same running/cross-training kind, so a day holding both a run and a
+      // bike can't hand a flag to the wrong one. Consumed once claimed.
+      const cands = byDate.get(s.date);
+      if (!cands?.length) return s;
+      let i = cands.findIndex(c => c.type === s.type);
+      if (i < 0) i = cands.findIndex(c => isCrossTraining({ type: c.type }) === isCrossTraining(s));
+      if (i < 0) i = 0;
+      flag = cands.splice(i, 1)[0].flag;
+    }
+    return { ...s, ...flag, done: !!flag.done && s.date <= today };
+  });
 }

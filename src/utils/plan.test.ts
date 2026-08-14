@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildPlan, findOpenPlanSession, planSessionPrefill } from "./plan";
+import { buildPlan, carryProgress, findOpenPlanSession, planSessionPrefill } from "./plan";
+import type { Plan } from "../types";
 import { ymd } from "./format";
 
 type TestSession = {
@@ -299,5 +300,129 @@ describe("planSessionPrefill", () => {
   it("omits the duration when the session doesn't prescribe one", () => {
     expect(planSessionPrefill({ id: "s3", date: "2026-08-12", type: "OTHER", km: 6 }, 3))
       .toEqual({ date: "2026-08-12", type: "OTHER", wNum: 3, sId: "s3" });
+  });
+});
+
+// ── carryProgress ───────────────────────────────────────────────────────────
+// Session ids (w{n}d{dOff}) name a slot in the plan grid, not a day. Matching
+// on them across a rebuild transplanted four weeks of done/skipped a month
+// into the future when a race date moved — cancelling sessions the runner had
+// never seen. Rebuilds anchor on the calendar date instead; only the coach,
+// whose proposal is derived from the live plan, still matches by id.
+describe("carryProgress", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-14T10:00:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  type Sess = { id: string; date: string; type?: string; done?: boolean; skipped?: boolean; runId?: string | null };
+  const mk = (sessions: Sess[]): Plan => ({
+    weeks: [{
+      weekNumber: 1, startDate: sessions[0]?.date, phase: "BASE",
+      sessions: sessions.map(s => ({ type: "EASY", desc: "", km: 5, pace: 330, done: false, runId: null, ...s })),
+    }],
+  });
+  const flags = (p: Plan) => p.weeks.flatMap(w => w.sessions)
+    .map(s => ({ id: s.id, date: s.date, done: !!s.done, skipped: !!s.skipped }));
+
+  it("keeps progress when a rebuild leaves the dates alone", () => {
+    const old = mk([
+      { id: "w1d2", date: "2026-08-04", done: true, runId: "r1" },
+      { id: "w1d4", date: "2026-08-06", skipped: true },
+    ]);
+    const built = mk([{ id: "w1d2", date: "2026-08-04" }, { id: "w1d4", date: "2026-08-06" }]);
+    expect(flags(carryProgress(old, built))).toEqual([
+      { id: "w1d2", date: "2026-08-04", done: true, skipped: false },
+      { id: "w1d4", date: "2026-08-06", done: false, skipped: true },
+    ]);
+    expect(carryProgress(old, built).weeks[0].sessions[0].runId).toBe("r1");
+  });
+
+  // The reported bug: same slot ids, dates shifted four weeks by a new race
+  // date. Nothing may carry — those future days were never trained.
+  it("does not smear progress onto new dates when the plan start shifts", () => {
+    const old = mk([
+      { id: "w2d2", date: "2026-07-29", done: true },
+      { id: "w2d4", date: "2026-07-31", skipped: true },
+      { id: "w2d6", date: "2026-08-01", skipped: true },
+    ]);
+    const built = mk([
+      { id: "w2d2", date: "2026-08-26" },
+      { id: "w2d4", date: "2026-08-28" },
+      { id: "w2d6", date: "2026-08-30" },
+    ]);
+    expect(flags(carryProgress(old, built))).toEqual([
+      { id: "w2d2", date: "2026-08-26", done: false, skipped: false },
+      { id: "w2d4", date: "2026-08-28", done: false, skipped: false },
+      { id: "w2d6", date: "2026-08-30", done: false, skipped: false },
+    ]);
+  });
+
+  // Self-heal: a plan already corrupted by the old slot-id carry holds `done`
+  // on future dates. Re-stamping it must not launder that forward.
+  it("drops a done flag landing on a future date", () => {
+    const old = mk([{ id: "w2d2", date: "2026-09-02", done: true }]);
+    const built = mk([{ id: "w2d2", date: "2026-09-02" }]);
+    expect(flags(carryProgress(old, built))).toEqual([
+      { id: "w2d2", date: "2026-09-02", done: false, skipped: false },
+    ]);
+  });
+
+  it("hands a same-day flag to the matching kind, not the other one", () => {
+    const old = mk([
+      { id: "w1d2", date: "2026-08-04", type: "OTHER", skipped: true },
+      { id: "w1d3", date: "2026-08-04", type: "EASY", done: true },
+    ]);
+    const built = mk([
+      { id: "w1d2", date: "2026-08-04", type: "EASY" },
+      { id: "w1d3", date: "2026-08-04", type: "OTHER" },
+    ]);
+    expect(flags(carryProgress(old, built))).toEqual([
+      { id: "w1d2", date: "2026-08-04", done: true, skipped: false },
+      { id: "w1d3", date: "2026-08-04", done: false, skipped: true },
+    ]);
+  });
+
+  // Race ids are real identity, so they follow the race even if its date moved.
+  it("matches races by id across a date change", () => {
+    const old = mk([{ id: "race-abc", date: "2026-10-11", type: "RACE", done: true }]);
+    const built = mk([{ id: "race-abc", date: "2026-10-18", type: "RACE" }]);
+    const out = carryProgress(old, built).weeks[0].sessions[0];
+    expect(out.date).toBe("2026-10-18");
+    expect(out.done).toBe(false); // future race, not yet run
+  });
+
+  it("carries a skipped race by id", () => {
+    const old = mk([{ id: "race-abc", date: "2026-10-11", type: "RACE", skipped: true }]);
+    const built = mk([{ id: "race-abc", date: "2026-10-18", type: "RACE" }]);
+    expect(carryProgress(old, built).weeks[0].sessions[0].skipped).toBe(true);
+  });
+
+  describe("coach mode", () => {
+    it("keeps flags on a session the coach shifted to another date", () => {
+      const old = mk([{ id: "w1d2", date: "2026-08-04", skipped: true }]);
+      const proposal = mk([{ id: "w1d2", date: "2026-08-05" }]);
+      expect(carryProgress(old, proposal, "coach").weeks[0].sessions[0].skipped).toBe(true);
+    });
+
+    // cancel_session marks skipped on the PROPOSAL; the re-stamp must not
+    // overwrite it with the live plan's un-skipped state.
+    it("unions skipped so cancel_session survives the re-stamp", () => {
+      const old = mk([{ id: "w1d2", date: "2026-08-04", skipped: false }]);
+      const proposal = mk([{ id: "w1d2", date: "2026-08-04", skipped: true }]);
+      expect(carryProgress(old, proposal, "coach").weeks[0].sessions[0].skipped).toBe(true);
+    });
+
+    it("keeps a session the user skipped while the chat was open", () => {
+      const old = mk([{ id: "w1d2", date: "2026-08-04", skipped: true }]);
+      const proposal = mk([{ id: "w1d2", date: "2026-08-04", skipped: false }]);
+      expect(carryProgress(old, proposal, "coach").weeks[0].sessions[0].skipped).toBe(true);
+    });
+  });
+
+  it("returns the new plan untouched when there is no old plan", () => {
+    const built = mk([{ id: "w1d2", date: "2026-08-04" }]);
+    expect(carryProgress(null, built)).toBe(built);
   });
 });
