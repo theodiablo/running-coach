@@ -20,6 +20,7 @@
     "maxBpm": "{{bpm}} ppm (máx.)",
     "resumeTitle": "¿Retomar tu sesión anterior?",
     "resumeElapsed": "{{time}} registrados.",
+    "discardConfirm": "¿Descartar esta sesión? Se perderán su duración y su frecuencia cardiaca.",
     "keepScreenOn": "Mantén esta pantalla encendida. Sin GPS la sesión no puede seguir en segundo plano: si la pantalla se bloquea, el cronómetro sigue contando pero la frecuencia cardiaca deja de registrarse."
   },
   "countdown": {

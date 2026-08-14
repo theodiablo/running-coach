@@ -117,11 +117,20 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
     rt.stop();
   };
 
-  const handleClose = () => {
-    if ((live || state === "stopped") && stats.movingSec > 0 &&
-      !window.confirm(t("tracker.discardConfirm"))) return;
+  // Discarding asks first, through an IN-DOM sheet rather than window.confirm:
+  // that call blocks the WebView's JS thread until the native dialog answers,
+  // and a dialog raised as the activity backgrounds (the Android back gesture
+  // routes here) can never answer — freezing the recorder mid-session with the
+  // clock and heart rate stopped and every button dead.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const discardSession = () => {
+    setConfirmDiscard(false);
     if (live || state === "stopped") rt.reset();
     onClose();
+  };
+  const handleClose = () => {
+    if ((live || state === "stopped") && stats.movingSec > 0) { setConfirmDiscard(true); return; }
+    discardSession();
   };
 
   const handleSave = async () => {
@@ -196,9 +205,11 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
     onFinish(prefill);
   };
 
-  // Back/Escape, innermost first: countdown → HR nudge → the screen itself
-  // (through handleClose, so an in-progress session gets the discard confirm).
+  // Back/Escape, innermost first: countdown → HR nudge → discard confirm → the
+  // screen itself (through handleClose, so an in-progress session raises the
+  // discard confirm rather than closing).
   useDismissable(true, handleClose);
+  useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(showHrNudge, () => dismissHrNudge(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
@@ -329,6 +340,16 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
           <p className="text-[11px] text-slate-500 text-center leading-snug">{t("tracker.indoor.keepScreenOn")}</p>
         )}
       </div>
+
+      {confirmDiscard && (
+        <ModalOverlay>
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
+            <p className="text-sm text-slate-200">{t("tracker.indoor.discardConfirm")}</p>
+            <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={t("tracker.controls.discard")}
+              onCancel={() => setConfirmDiscard(false)} onAccept={discardSession} />
+          </div>
+        </ModalOverlay>
+      )}
 
       {showHrNudge && (
         <ModalOverlay>

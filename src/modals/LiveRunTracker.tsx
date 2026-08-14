@@ -559,9 +559,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     void sweepOwnLiveRun();
   }, [sharing, state]);
 
-  const handleClose = () => {
-    if ((live || state === "stopped") && hasTrack &&
-      !window.confirm(t("tracker.discardConfirm"))) return;
+  // In-DOM confirm, never window.confirm: that call blocks the WebView's JS
+  // thread until the native dialog answers, and one raised as the activity
+  // backgrounds (the Android back gesture routes here) can never answer —
+  // freezing the recorder with its clock stopped and every button dead.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const discardRun = () => {
+    setConfirmDiscard(false);
     // Discarding takes the run off the air too — the trace is being thrown away,
     // so leaving a row behind would show a watcher a run that no longer exists.
     if (live || state === "stopped") endShare();
@@ -570,6 +574,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     // recovery buffer — it should still be offered next time the tracker opens.
     if (live || state === "stopped") rt.reset();
     onClose();
+  };
+  const handleClose = () => {
+    if ((live || state === "stopped") && hasTrack) { setConfirmDiscard(true); return; }
+    discardRun();
   };
 
   const handleSave = async () => {
@@ -679,6 +687,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // stack order matches what's visually on top. The bg-location disclosure
   // self-registers inside BgLocationDisclosure, so it isn't listed here.
   useDismissable(true, handleClose);
+  useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(showHrNudge, () => dismissHrNudge(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
@@ -949,6 +958,16 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           Resume/pause cycles) while the location disclosure isn't up — see
           guardedStart/maybeShowHrNudge. Reappears each run until the user sets HR
           up or taps "Don't record heart rate" (persistent opt-out). */}
+      {confirmDiscard && (
+        <ModalOverlay>
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
+            <p className="text-sm text-slate-200">{t("tracker.discardConfirm")}</p>
+            <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={t("tracker.controls.discard")}
+              onCancel={() => setConfirmDiscard(false)} onAccept={discardRun} />
+          </div>
+        </ModalOverlay>
+      )}
+
       {showHrNudge && (
         <ModalOverlay>
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">

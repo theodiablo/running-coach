@@ -39,6 +39,7 @@ const GAP_MS = 60000;         // silence longer than this starts a new segment (
                              // fixes tens of seconds apart — those are real positions,
                              // not lost signal, so we don't break the track over them.
 const TICK_MS = 1000;         // UI clock refresh while tracking
+const BUFFER_TICK_MS = 10000; // foreground floor for refreshing the recovery buffer
 const CUR_PACE_WINDOW_MS = 30000; // current-pace look-back
 
 // Permission-denied copy, shared by onErr and requestPermissions so the native
@@ -130,6 +131,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   const pointsRef = useRef(points);
   const hrSamplesRef = useRef(hrSamples); // mirror so the async HR callback sees latest
   const lastHrPersistRef = useRef(0); // epoch ms of the last HR-triggered persist (throttle)
+  const lastBufferPersistRef = useRef(0); // epoch ms of the last clock-tick persist (throttle)
   // Live HR watch: the handle AND the source it came from, so teardown always
   // reaches the source that opened the connection even if hrMethod has since
   // changed (a re-resolved source could be null → leaked BLE connection).
@@ -468,12 +470,25 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   }, [clearBuffer, indoor]);
 
   // ── effects ──────────────────────────────────────────────────────────────
-  // UI clock while actively tracking.
+  // UI clock while actively tracking, which also keeps the recovery buffer from
+  // going stale. A GPS run persists on every accepted fix and a strapped session
+  // every MIN_HR_PERSIST_MS of samples, but a strapless indoor session writes
+  // NOTHING between Start and the next control change or page-hide — so losing
+  // the process in the foreground (a killed WebView renderer fires no
+  // visibilitychange) took the whole clock with it. Foreground-only by nature:
+  // this interval is frozen in the background, where page-hide has already run.
   useEffect(() => {
     if (state !== "tracking") return;
-    const id = setInterval(() => setMovingSec(computeMoving()), TICK_MS);
+    const id = setInterval(() => {
+      setMovingSec(computeMoving());
+      const now = Date.now();
+      if (now - lastBufferPersistRef.current >= BUFFER_TICK_MS) {
+        lastBufferPersistRef.current = now;
+        persist();
+      }
+    }, TICK_MS);
     return () => clearInterval(id);
-  }, [state, computeMoving]);
+  }, [state, computeMoving, persist]);
 
   // Re-acquire the wake lock when returning to the foreground (it auto-releases
   // when the page hides) and flush the buffer on hide.

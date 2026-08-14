@@ -155,9 +155,28 @@ differently and the copy has to match:
 WebView and on iOS 16.4+, a no-op on the iOS 15.4 floor), and
 `tracker.indoor.keepScreenOn` says exactly the above rather than claiming a
 pause that never happens. The separate recovery buffer is what makes an
-interruption survivable rather than fatal; without a strap the buffer is only
-refreshed on control changes and on page hide, so a strapless session can lose
-the tail of its clock to a hard kill.
+interruption survivable rather than fatal; the clock tick refreshes it every
+`BUFFER_TICK_MS`, so a strapless session — which otherwise writes nothing at all
+between Start and page-hide — can't lose its whole clock to a kill.
+
+### No foreground service is the load-bearing risk
+
+`AndroidManifest.xml` says BLE is "used only while a run is recording — the GPS
+foreground service already holds the app then, so no extra HR foreground service
+is declared." **An indoor session breaks that assumption**: it runs no geo watch,
+so no service holds the process, and a few minutes in the background is enough
+for Android to reclaim the **WebView renderer**. The WebView then keeps painting
+its last frame — the recorder still on screen, clock and heart rate frozen at
+their final values — while no JS runs at all, so Pause and Finish do nothing.
+Read as "heart rate is stuck" before the frozen clock gave it away.
+
+`MainActivity` registers a `WebViewListener.onRenderProcessGone` that returns
+true (returning false kills the process), destroys the dead WebView and restarts
+the activity, so the app cold-boots and the recovery buffer offers the session
+back. That is a **safety net, not a fix**: recording still stops the moment the
+renderer dies. Giving an indoor session its own foreground service (Android 14+
+`health` type, plus the Play Console declaration) is the real fix and is not
+done yet.
 
 `App.tsx`'s `subscribeStoreRefresh` guard ("never tear down a live recording")
 checks **both** buffers. An indoor session is the more fragile of the two — no
