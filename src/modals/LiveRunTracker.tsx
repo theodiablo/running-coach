@@ -559,10 +559,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     void sweepOwnLiveRun();
   }, [sharing, state]);
 
-  // In-DOM confirm, never window.confirm: that call blocks the WebView's JS
-  // thread until the native dialog answers, and one raised as the activity
-  // backgrounds (the Android back gesture routes here) can never answer —
-  // freezing the recorder with its clock stopped and every button dead.
+  // In-DOM confirm, never window.confirm (see CLAUDE.md): the Android back
+  // gesture routes here, and a native dialog raised as the activity backgrounds
+  // never answers, freezing the recorder with it.
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const discardRun = () => {
     setConfirmDiscard(false);
@@ -681,11 +680,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
   };
 
-  // Back/Escape dismissal, innermost first: countdown → HR nudge → the tracker
-  // itself (routed through handleClose so an in-progress run gets the discard
-  // confirm, never a silent teardown). Each registers only while shown, so the
-  // stack order matches what's visually on top. The bg-location disclosure
-  // self-registers inside BgLocationDisclosure, so it isn't listed here.
+  // Back/Escape dismissal, innermost first: countdown → HR nudge → discard
+  // confirm → the tracker itself (routed through handleClose so an in-progress
+  // run raises the discard confirm, never a silent teardown). Each registers
+  // only while shown, so the stack order matches what's visually on top. The
+  // bg-location disclosure self-registers inside BgLocationDisclosure, so it
+  // isn't listed here.
   useDismissable(true, handleClose);
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(showHrNudge, () => dismissHrNudge(false));
@@ -954,10 +954,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         <BgLocationDisclosure onAccept={acceptDisclosure} onCancel={cancelDisclosure} />
       )}
 
-      {/* Nudge to set up a heart-rate source, offered once per Start tap (never on
-          Resume/pause cycles) while the location disclosure isn't up — see
-          guardedStart/maybeShowHrNudge. Reappears each run until the user sets HR
-          up or taps "Don't record heart rate" (persistent opt-out). */}
       {confirmDiscard && (
         <ModalOverlay>
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
@@ -968,6 +964,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         </ModalOverlay>
       )}
 
+      {/* Nudge to set up a heart-rate source, offered once per Start tap (never on
+          Resume/pause cycles) while the location disclosure isn't up — see
+          guardedStart/maybeShowHrNudge. Reappears each run until the user sets HR
+          up or taps "Don't record heart rate" (persistent opt-out). */}
       {showHrNudge && (
         <ModalOverlay>
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">

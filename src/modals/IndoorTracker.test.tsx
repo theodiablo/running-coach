@@ -224,10 +224,9 @@ describe("IndoorTracker", () => {
     });
   });
 
-  // window.confirm blocks the WebView's JS thread until the native dialog
-  // answers, and one raised as the activity backgrounds never answers — which
-  // froze the recorder mid-session with the clock stopped and every control
-  // dead. The confirm has to live in the DOM.
+  // A window.confirm raised as the activity backgrounds never answers, and it
+  // holds the JS thread — which froze the recorder mid-session with the clock
+  // stopped and every control dead. The confirm has to live in the DOM.
   describe("discarding an in-progress session", () => {
     it("asks in the DOM, never through window.confirm", () => {
       const confirmSpy = vi.spyOn(window, "confirm");

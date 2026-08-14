@@ -117,11 +117,9 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
     rt.stop();
   };
 
-  // Discarding asks first, through an IN-DOM sheet rather than window.confirm:
-  // that call blocks the WebView's JS thread until the native dialog answers,
-  // and a dialog raised as the activity backgrounds (the Android back gesture
-  // routes here) can never answer — freezing the recorder mid-session with the
-  // clock and heart rate stopped and every button dead.
+  // In-DOM confirm, never window.confirm (see CLAUDE.md): the Android back
+  // gesture routes here, and a native dialog raised as the activity backgrounds
+  // never answers, freezing the recorder with it.
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const discardSession = () => {
     setConfirmDiscard(false);

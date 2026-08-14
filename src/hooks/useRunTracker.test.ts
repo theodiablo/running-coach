@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
+import { normalizeRecovery } from "../utils/runRecovery";
 
 // useRunTracker is the single GPS funnel: the start/pause/resume/stop/reset state
 // machine, moving-time accounting, the onPos jitter/interval/gap/warm-up filter,
@@ -520,6 +521,22 @@ describe("useRunTracker — indoor mode", () => {
     act(() => result.current.reset());
     expect(localStorage.getItem(LIVE_RUN_KEY)).toBeTruthy();
     expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeNull();
+  });
+
+  // Nothing else writes the buffer in a strapless session — no fixes, no HR
+  // samples — so before the clock tick refreshed it, a session killed in the
+  // foreground recovered a 0:00 clock however long it had been running.
+  it("keeps the recovery buffer's clock fresh with no sensor writing to it", () => {
+    const { result } = renderHook(() => useRunTracker({ indoor: true }));
+    act(() => result.current.start());
+    act(() => { vi.advanceTimersByTime(60_000); });
+
+    const buf = JSON.parse(localStorage.getItem(INDOOR_RUN_KEY)!);
+    expect(buf.state).toBe("tracking");
+    expect(buf.startAt).toBe(START);
+    expect(Date.now() - buf.savedAt).toBeLessThanOrEqual(10_000);
+    // What the resume offer actually reads back: accSec + the open segment.
+    expect(normalizeRecovery(buf).accSec).toBeGreaterThanOrEqual(50);
   });
 
   it("never offers a GPS run as an indoor session to resume", () => {
