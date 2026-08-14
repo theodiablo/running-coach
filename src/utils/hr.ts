@@ -157,6 +157,22 @@ export function hrCoverage(samples: HrSample[] | null | undefined, durationSec: 
 // but claims no hr/hrMax of its own — see LiveRunTracker.handleSave.
 export const HR_MIN_COVERAGE = 0.5;
 
+// How old the latest reading may be before the ON-SCREEN readout stops
+// presenting it as live. A strap that dies leaves its last bpm on screen
+// forever otherwise, and once one sample is recorded the status line reads
+// "avg · max" for the rest of the run, so nothing else says the link is gone.
+// Sized between a sensor's ~1-2Hz cadence and ble.ts's 20s stall watchdog, so a
+// healthy strap never trips it but a dead link shows before the reconnect does.
+// NOT the native notification's 90s rule (LIVE_HR_STALE_MS in the
+// background-geolocation patch): that seed ages while JS is frozen by design.
+export const HR_STALE_MS = 12000;
+
+// Whether a reading is too old to still be shown as the current heart rate.
+// `now` is injectable for tests.
+export function isHrStale(hrAt: number | null | undefined, now: number = Date.now()): boolean {
+  return hrAt != null && now - hrAt > HR_STALE_MS;
+}
+
 // Union of two { bpm, t } streams, sorted ascending, dropping entries from `b`
 // that duplicate one already in `a`. Used to fold the native HR journal into
 // what JS saw live: the two record the same notification a few ms apart, so the

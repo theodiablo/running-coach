@@ -54,6 +54,7 @@ vi.mock("../routes", () => routes);
 vi.mock("../hooks/usePrefersReducedMotion", () => ({ usePrefersReducedMotion: () => true }));
 
 import { IndoorTracker } from "./IndoorTracker";
+import { INDOOR_RUN_KEY } from "../constants";
 import type { Run, SettingsState } from "../types";
 
 const START = 1_700_000_000_000;
@@ -220,6 +221,110 @@ describe("IndoorTracker", () => {
 
       expect(saved).toMatchObject({ type: "OTHER", durationSec: 1800 });
       expect(saved.hrPending).toMatchObject({ source: "healthconnect" });
+    });
+  });
+
+  // Heart rate IS the session here, so a strap that dies must not leave its last
+  // reading sitting on screen looking live. Before this, the status line locked
+  // onto "avg · max" the moment one sample was recorded and never said otherwise.
+  describe("a strap that stops mid-session", () => {
+    it("stops presenting the last reading as live", () => {
+      show();
+      start();
+      act(() => hr.watches[0].onSample({ bpm: 148, t: START }));
+      expect(screen.getByText("148")).toBeInTheDocument();
+      expect(screen.getByText(/avg 148/i)).toBeInTheDocument();
+
+      // Silence. The clock tick re-renders, so the readout ages on its own.
+      act(() => { vi.advanceTimersByTime(15_000); });
+
+      expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
+      expect(screen.queryByText(/avg 148/i)).not.toBeInTheDocument();
+      // The number stays (it was real), but dimmed rather than presented as now.
+      expect(screen.getByText("148")).toHaveClass("text-slate-600");
+      // And it no longer claims a current zone.
+      expect(screen.getByText(/no reading/i)).toBeInTheDocument();
+    });
+
+    it("goes back to live the moment the strap comes back", () => {
+      show();
+      start();
+      act(() => hr.watches[0].onSample({ bpm: 148, t: START }));
+      act(() => { vi.advanceTimersByTime(15_000); });
+      expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
+
+      act(() => hr.watches[0].onSample({ bpm: 152, t: Date.now() }));
+      expect(screen.queryByText(/reconnecting/i)).not.toBeInTheDocument();
+      expect(screen.getByText("152")).toHaveClass("text-white");
+    });
+
+    // A healthy strap notifies at ~1-2Hz — it must never flicker into "lost".
+    it("never trips on a normally-notifying strap", () => {
+      show();
+      start();
+      for (let i = 0; i < 30; i++) {
+        act(() => { vi.advanceTimersByTime(1000); });
+        act(() => hr.watches[0].onSample({ bpm: 150, t: Date.now() }));
+      }
+      expect(screen.queryByText(/reconnecting/i)).not.toBeInTheDocument();
+      expect(screen.getByText("150")).toHaveClass("text-white");
+    });
+  });
+
+  // A window.confirm raised as the activity backgrounds never answers, and it
+  // holds the JS thread — which froze the recorder mid-session with the clock
+  // stopped and every control dead. The confirm has to live in the DOM.
+  describe("discarding an in-progress session", () => {
+    it("asks in the DOM, never through window.confirm", () => {
+      const confirmSpy = vi.spyOn(window, "confirm");
+      const onClose = vi.fn();
+      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+        onFinish={() => {}} onClose={onClose} />);
+      start();
+      act(() => { vi.advanceTimersByTime(60_000); }); // real ticks, so the clock advances
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /close/i })); });
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(screen.getByText(/discard this session/i)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
+    });
+
+    it("keeps recording when the discard is cancelled", () => {
+      const onClose = vi.fn();
+      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+        onFinish={() => {}} onClose={onClose} />);
+      start();
+      act(() => { vi.advanceTimersByTime(60_000); }); // real ticks, so the clock advances
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /close/i })); });
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /^cancel$/i })); });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.queryByText(/discard this session/i)).not.toBeInTheDocument();
+      // Still live: the clock kept its elapsed time and Finish is still offered.
+      expect(screen.getByRole("button", { name: /finish/i })).toBeInTheDocument();
+      expect(screen.getByText("1:00")).toBeInTheDocument();
+    });
+
+    it("closes and clears the buffer once the discard is confirmed", () => {
+      const onClose = vi.fn();
+      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+        onFinish={() => {}} onClose={onClose} />);
+      start();
+      act(() => { vi.advanceTimersByTime(60_000); }); // real ticks, so the clock advances
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /close/i })); });
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /^discard$/i })); });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeNull();
+    });
+
+    it("closes straight away when there is nothing to lose", () => {
+      const onClose = vi.fn();
+      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+        onFinish={() => {}} onClose={onClose} />);
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /close/i })); });
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 

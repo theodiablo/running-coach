@@ -20,7 +20,11 @@
     "maxBpm": "{{bpm}} ppm (máx.)",
     "resumeTitle": "¿Retomar tu sesión anterior?",
     "resumeElapsed": "{{time}} registrados.",
-    "keepScreenOn": "Mantén esta pantalla encendida. Sin GPS la sesión no puede seguir en segundo plano: si la pantalla se bloquea, el cronómetro sigue contando pero la frecuencia cardiaca deja de registrarse."
+    "discardConfirm": "¿Descartar esta sesión? Se perderán la duración y la frecuencia cardiaca registradas.",
+    "keepScreenOn": "Mantén esta pantalla encendida. Sin GPS la sesión no puede seguir en segundo plano: si la pantalla se bloquea, el cronómetro sigue contando pero la frecuencia cardiaca deja de registrarse.",
+    "keepScreenOnStrap": "La grabación continúa si cambias de aplicación, mientras tu sensor de frecuencia cardiaca siga conectado. Dejar esta pantalla encendida sigue siendo lo más fiable.",
+    "serviceTitle": "Sesión en interior",
+    "serviceText": "Registrando la frecuencia cardiaca. Toca para volver."
   },
   "countdown": {
     "go": "¡Ya!"
@@ -47,6 +51,7 @@
     "connecting": "conectando…",
     "connected": "sensor conectado",
     "cantReach": "no se encuentra el sensor",
+    "reconnecting": "señal perdida, reconectando…",
     "postRun": "La frecuencia cardíaca se añade desde {{store}} cuando terminas.",
     "partial": "La frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento, así que no se guardó como media."
   },

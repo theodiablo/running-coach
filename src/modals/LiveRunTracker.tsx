@@ -16,7 +16,7 @@ import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
 import { getHrSource } from "../hr/source";
 import { readHrJournal } from "../hr/hrJournal";
-import { HR_MIN_COVERAGE, hrCoverage, hrSummary, mergeHrSamples } from "../utils/hr";
+import { HR_MIN_COVERAGE, hrCoverage, hrSummary, isHrStale, mergeHrSamples } from "../utils/hr";
 import { requestRunNotificationsOnce } from "../geo/notifications";
 import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudgeBatteryOptimization } from "../geo/battery";
 import { getPairedDevice } from "../hr/device";
@@ -353,6 +353,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // Live HR streams only from a `live` (Bluetooth) source; a post-run source
   // (Health Connect) is fetched in handleSave instead, so no live tile for it.
   const liveHr = !!hrSrc?.live;
+  // A strap that dies leaves its last bpm on screen, and hrAvg stays non-null
+  // for the rest of the run, so the status line would read "avg · max" forever
+  // and never surface hrStatus again. Read at render time: accepted fixes and
+  // the 1s clock tick both re-render, so it refreshes without its own timer.
+  const hrStale = liveHr && isHrStale(stats.hrAt);
   // Nudge to set up / re-authorize a heart-rate source, offered when the user taps
   // Start while HR is off or the synced method is not ready on this device. "Not
   // now" dismisses just this run; "Don't record" sets the opt-out only for the
@@ -559,9 +564,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     void sweepOwnLiveRun();
   }, [sharing, state]);
 
-  const handleClose = () => {
-    if ((live || state === "stopped") && hasTrack &&
-      !window.confirm(t("tracker.discardConfirm"))) return;
+  // In-DOM confirm, never window.confirm (see CLAUDE.md): the Android back
+  // gesture routes here, and a native dialog raised as the activity backgrounds
+  // never answers, freezing the recorder with it.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const discardRun = () => {
+    setConfirmDiscard(false);
     // Discarding takes the run off the air too — the trace is being thrown away,
     // so leaving a row behind would show a watcher a run that no longer exists.
     if (live || state === "stopped") endShare();
@@ -570,6 +578,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     // recovery buffer — it should still be offered next time the tracker opens.
     if (live || state === "stopped") rt.reset();
     onClose();
+  };
+  const handleClose = () => {
+    if ((live || state === "stopped") && hasTrack) { setConfirmDiscard(true); return; }
+    discardRun();
   };
 
   const handleSave = async () => {
@@ -673,12 +685,14 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
   };
 
-  // Back/Escape dismissal, innermost first: countdown → HR nudge → the tracker
-  // itself (routed through handleClose so an in-progress run gets the discard
-  // confirm, never a silent teardown). Each registers only while shown, so the
-  // stack order matches what's visually on top. The bg-location disclosure
-  // self-registers inside BgLocationDisclosure, so it isn't listed here.
+  // Back/Escape dismissal, innermost first: countdown → HR nudge → discard
+  // confirm → the tracker itself (routed through handleClose so an in-progress
+  // run raises the discard confirm, never a silent teardown). Each registers
+  // only while shown, so the stack order matches what's visually on top. The
+  // bg-location disclosure self-registers inside BgLocationDisclosure, so it
+  // isn't listed here.
   useDismissable(true, handleClose);
+  useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(showHrNudge, () => dismissHrNudge(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
@@ -791,15 +805,19 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
         {liveHr && (
           <div className="bg-slate-800 rounded-xl px-3 py-2 flex items-center justify-center gap-2">
-            <HeartPulse size={18} className={stats.hr != null ? "text-red-400" : "text-slate-500"} />
-            <span className="text-2xl font-bold text-white tabular-nums leading-none">{stats.hr ?? "--"}</span>
+            <HeartPulse size={18} className={stats.hr != null && !hrStale ? "text-red-400" : "text-slate-500"} />
+            <span className={"text-2xl font-bold tabular-nums leading-none "
+              + (hrStale ? "text-slate-500" : "text-white")}>{stats.hr ?? "--"}</span>
             <span className="text-[11px] text-slate-400 uppercase tracking-wide">{t("tracker.hr.bpm")}</span>
             <BetaBadge />
             {/* avg/max only once the run has recorded samples; before that the
                 strap is either already reading (idle preview), still connecting,
-                or reported unreachable by the source (kept retrying). */}
+                or reported unreachable by the source (kept retrying). A stale
+                reading outranks all of it — avg/max is pinned on for the rest of
+                the run otherwise, leaving nothing to say the strap stopped. */}
             <span className="text-[11px] text-slate-500 ml-2">
-              {stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
+              {hrStale ? (rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach") : t("tracker.hr.reconnecting"))
+                : stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
                 : stats.hr != null ? t("tracker.hr.connected")
                 : rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach")
                 : t("tracker.hr.connecting")}
@@ -943,6 +961,16 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
       {showDisclosure && (
         <BgLocationDisclosure onAccept={acceptDisclosure} onCancel={cancelDisclosure} />
+      )}
+
+      {confirmDiscard && (
+        <ModalOverlay>
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
+            <p className="text-sm text-slate-200">{t("tracker.discardConfirm")}</p>
+            <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={t("tracker.controls.discard")}
+              onCancel={() => setConfirmDiscard(false)} onAccept={discardRun} />
+          </div>
+        </ModalOverlay>
       )}
 
       {/* Nudge to set up a heart-rate source, offered once per Start tap (never on

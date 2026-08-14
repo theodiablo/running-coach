@@ -10,6 +10,7 @@ import { clearNativeFixJournal, readNativeFixJournal } from "../geo/fixJournal";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveredRun } from "../utils/runRecovery";
 import { getHrSource } from "../hr/source";
 import { armHrJournal, clearHrJournal, disarmHrJournal, resetHrJournal } from "../hr/hrJournal";
+import { startIndoorSessionService, stopIndoorSessionService } from "../indoor/session";
 import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
 import { t } from "../i18n";
@@ -39,6 +40,7 @@ const GAP_MS = 60000;         // silence longer than this starts a new segment (
                              // fixes tens of seconds apart — those are real positions,
                              // not lost signal, so we don't break the track over them.
 const TICK_MS = 1000;         // UI clock refresh while tracking
+const BUFFER_TICK_MS = 10000; // foreground floor for refreshing the recovery buffer
 const CUR_PACE_WINDOW_MS = 30000; // current-pace look-back
 
 // Permission-denied copy, shared by onErr and requestPermissions so the native
@@ -86,9 +88,10 @@ type UseRunTrackerOptions = {
   // Indoor/static cardio session (stationary bike, elliptical): record time and
   // heart rate with NO geolocation at all — see docs/indoor-sessions.md. Turns
   // off the position watch, the idle position preview, the Android fix journal
-  // and the lock-screen notification (there is no foreground service without a
-  // geo watch), and moves the recovery buffer to its own key. The clock, the
-  // wake lock and the live HR watch are untouched.
+  // and the lock-screen notification (which the location foreground service
+  // renders), and moves the recovery buffer to its own key. The clock, the wake
+  // lock and the live HR watch are untouched, and with a live strap the session
+  // runs its own foreground service instead (src/indoor/session.ts).
   indoor?: boolean;
 };
 
@@ -130,6 +133,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   const pointsRef = useRef(points);
   const hrSamplesRef = useRef(hrSamples); // mirror so the async HR callback sees latest
   const lastHrPersistRef = useRef(0); // epoch ms of the last HR-triggered persist (throttle)
+  const lastBufferPersistRef = useRef(0); // epoch ms of the last clock-tick persist (throttle)
   // Live HR watch: the handle AND the source it came from, so teardown always
   // reaches the source that opened the connection even if hrMethod has since
   // changed (a re-resolved source could be null → leaked BLE connection).
@@ -340,6 +344,10 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // it saved leaves its beats on disk, and they must never surface as this
     // run's heart rate.
     if (hrWatchRef.current) resetHrJournal(); else clearHrJournal();
+    // An indoor session has no location service to hold the process, so it runs
+    // its own — but only with a live strap streaming, which is what makes its
+    // connectedDevice type honest (src/indoor/session.ts).
+    if (indoor && hrWatchRef.current) startIndoorSessionService(runStartRef.current);
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist, indoor]);
@@ -357,9 +365,10 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // back into the run — dragging the average down and crediting zone 1 with
     // time the runner spent standing still.
     disarmHrJournal();
+    if (indoor) stopIndoorSessionService();
     releaseWake();
     persist();
-  }, [releaseWake, persist, computeMoving]);
+  }, [releaseWake, persist, computeMoving, indoor]);
 
   const resume = useCallback(() => {
     if (stateRef.current !== "paused") return;
@@ -373,9 +382,10 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // the app was killed would otherwise journal nothing from here on, and the
     // beats already on disk are the ones the crash would have cost us.
     if (hrWatchRef.current) armHrJournal();
+    if (indoor && hrWatchRef.current) startIndoorSessionService(runStartRef.current);
     acquireWake();
     persist();
-  }, [startWatch, startHrWatch, acquireWake, persist]);
+  }, [startWatch, startHrWatch, acquireWake, persist, indoor]);
 
   const stop = useCallback(() => {
     if (stateRef.current === "tracking" && startRef.current)
@@ -386,19 +396,21 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     stopHrWatch();
     // Stop journalling but keep the contents — handleSave still has to read them.
     disarmHrJournal();
+    if (indoor) stopIndoorSessionService();
     releaseWake();
     stateRef.current = "stopped";
     setState("stopped");
     logTrack("stop", { msg: `pts=${pointsRef.current.filter(Boolean).length}` });
     setMovingSec(computeMoving());
     persist();
-  }, [stopWatch, stopHrWatch, releaseWake, persist, computeMoving]);
+  }, [stopWatch, stopHrWatch, releaseWake, persist, computeMoving, indoor]);
 
   const reset = useCallback(() => {
     stopWatch();
     stopHrWatch();
     disarmHrJournal();
     clearHrJournal();
+    if (indoor) stopIndoorSessionService();
     releaseWake();
     pointsRef.current = [];
     setPoints([]);
@@ -468,12 +480,25 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   }, [clearBuffer, indoor]);
 
   // ── effects ──────────────────────────────────────────────────────────────
-  // UI clock while actively tracking.
+  // UI clock while actively tracking, which also keeps the recovery buffer from
+  // going stale. A GPS run persists on every accepted fix and a strapped session
+  // every MIN_HR_PERSIST_MS of samples, but a strapless indoor session writes
+  // NOTHING between Start and the next control change or page-hide — so losing
+  // the process in the foreground (a killed WebView renderer fires no
+  // visibilitychange) took the whole clock with it. Foreground-only by nature:
+  // this interval is frozen in the background, where page-hide has already run.
   useEffect(() => {
     if (state !== "tracking") return;
-    const id = setInterval(() => setMovingSec(computeMoving()), TICK_MS);
+    const id = setInterval(() => {
+      setMovingSec(computeMoving());
+      const now = Date.now();
+      if (now - lastBufferPersistRef.current >= BUFFER_TICK_MS) {
+        lastBufferPersistRef.current = now;
+        persist();
+      }
+    }, TICK_MS);
     return () => clearInterval(id);
-  }, [state, computeMoving]);
+  }, [state, computeMoving, persist]);
 
   // Re-acquire the wake lock when returning to the foreground (it auto-releases
   // when the page hides) and flush the buffer on hide.
@@ -492,8 +517,12 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [acquireWake, persist]);
 
-  // Tear down on unmount.
-  useEffect(() => () => { stopWatch(); stopHrWatch(); releaseWake(); }, [stopWatch, stopHrWatch, releaseWake]);
+  // Tear down on unmount. The indoor service goes too — it holds the process,
+  // so leaking it would pin a notification to a session that no longer exists.
+  useEffect(() => () => {
+    stopWatch(); stopHrWatch(); releaseWake();
+    if (indoor) stopIndoorSessionService();
+  }, [stopWatch, stopHrWatch, releaseWake, indoor]);
 
   // Android: extend a recovered buffer with the native fix journal — the points
   // the foreground service kept writing to disk after the WebView froze, which

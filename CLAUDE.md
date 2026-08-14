@@ -316,6 +316,11 @@ changes.
   `usePrefersReducedMotion`. Enter animations re-fire by remounting via a
   changing `key`; modals animate enter-only; only the Toast animates exit (via
   `usePresence`).
+- **Never `window.confirm`/`alert`/`prompt`** — they block the WebView's JS
+  thread until the native dialog answers, and one raised as the activity
+  backgrounds never answers, freezing the whole app until a force-quit (it froze
+  a recording session with its clock stopped and every control dead). Confirm in
+  the DOM with `ModalOverlay` + `ConfirmButtons`.
 - **Any new modal/sheet must call `useDismissable`** (`src/hooks/`) so Android
   back / web Escape close it via the LIFO registry
   (`src/utils/backDismiss.ts`) — and so the header's go-Home reset

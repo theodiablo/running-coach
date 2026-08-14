@@ -75,6 +75,16 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Holds the app process while an INDOOR session records
+             (docs/indoor-sessions.md). Typed connectedDevice because what must
+             survive backgrounding is the BLE heart-rate link; JS only starts it
+             while a live strap is streaming. A GPS run is held by the
+             background-geolocation plugin's own location service instead. -->
+        <service
+            android:name=".IndoorSessionService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -105,6 +115,10 @@
     <!-- Foreground service that holds the location while recording. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Indoor sessions run no location watch, so the service that holds them is
+         typed connectedDevice — the BLE strap. Its prerequisite permissions
+         (BLUETOOTH_CONNECT/BLUETOOTH_SCAN) are already declared below. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <!-- Persistent "recording run" notification (runtime-requested on Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -121,9 +135,10 @@
 
     <!-- Live heart-rate sensor over Bluetooth LE (chest strap / armband / watch
          broadcasting HR). Scanning is flagged neverForLocation so it never implies
-         location access; connect is needed to read the sensor. Used only while a
-         run is recording — the GPS foreground service already holds the app then,
-         so no extra HR foreground service is declared. -->
+         location access; connect is needed to read the sensor. Also the
+         prerequisite for the connectedDevice service above, which holds an indoor
+         session's BLE link while the app is backgrounded (a GPS run is held by
+         the location service instead). -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />

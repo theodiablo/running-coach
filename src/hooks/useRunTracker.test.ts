@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
+import { normalizeRecovery } from "../utils/runRecovery";
 
 // useRunTracker is the single GPS funnel: the start/pause/resume/stop/reset state
 // machine, moving-time accounting, the onPos jitter/interval/gap/warm-up filter,
@@ -60,13 +61,17 @@ const hr = vi.hoisted(() => {
     resetHrJournal: vi.fn(), armHrJournal: vi.fn(),
     disarmHrJournal: vi.fn(), clearHrJournal: vi.fn(),
   };
-  return { watches, source, journal, enabled: false, device: null as { id: string; name?: string } | null, setPairedDevice: vi.fn() };
+  // The indoor foreground-service seam (Android-only in real life), spied so the
+  // start/stop lifecycle is assertable.
+  const service = { startIndoorSessionService: vi.fn(), stopIndoorSessionService: vi.fn() };
+  return { watches, source, journal, service, enabled: false, device: null as { id: string; name?: string } | null, setPairedDevice: vi.fn() };
 });
 
 vi.mock("../geo/source", () => ({ geoSource: h.geoSource }));
 vi.mock("../hr/source", () => ({ getHrSource: () => (hr.enabled ? hr.source : null) }));
 vi.mock("../hr/device", () => ({ getPairedDevice: () => hr.device, setPairedDevice: hr.setPairedDevice }));
 vi.mock("../hr/hrJournal", () => hr.journal);
+vi.mock("../indoor/session", () => hr.service);
 vi.mock("../native", () => ({ isNative: false, isAndroid: false, isIos: false, platform: "web" }));
 
 import { useRunTracker } from "./useRunTracker";
@@ -520,6 +525,79 @@ describe("useRunTracker — indoor mode", () => {
     act(() => result.current.reset());
     expect(localStorage.getItem(LIVE_RUN_KEY)).toBeTruthy();
     expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeNull();
+  });
+
+  // Nothing else writes the buffer in a strapless session — no fixes, no HR
+  // samples — so before the clock tick refreshed it, a session killed in the
+  // foreground recovered a 0:00 clock however long it had been running.
+  it("keeps the recovery buffer's clock fresh with no sensor writing to it", () => {
+    const { result } = renderHook(() => useRunTracker({ indoor: true }));
+    act(() => result.current.start());
+    act(() => { vi.advanceTimersByTime(60_000); });
+
+    const buf = JSON.parse(localStorage.getItem(INDOOR_RUN_KEY)!);
+    expect(buf.state).toBe("tracking");
+    expect(buf.startAt).toBe(START);
+    expect(Date.now() - buf.savedAt).toBeLessThanOrEqual(10_000);
+    // What the resume offer actually reads back: accSec + the open segment.
+    expect(normalizeRecovery(buf).accSec).toBeGreaterThanOrEqual(50);
+  });
+
+  // Nothing else holds the process for an indoor session — no geo watch means no
+  // location foreground service — so Android reclaimed the WebView renderer of a
+  // backgrounded one and froze the recorder. See docs/indoor-sessions.md.
+  describe("the foreground service that holds the session", () => {
+    it("runs for the length of a session recorded with a strap", () => {
+      hr.enabled = true;
+      hr.device = { id: "strap-1" };
+      const { result } = renderHook(() => useRunTracker({ hrMethod: "bluetooth", indoor: true }));
+
+      act(() => result.current.start());
+      expect(hr.service.startIndoorSessionService).toHaveBeenCalledWith(START);
+
+      // A pause records nothing, so it hands the process back.
+      act(() => result.current.pause());
+      expect(hr.service.stopIndoorSessionService).toHaveBeenCalled();
+      hr.service.startIndoorSessionService.mockClear();
+      act(() => result.current.resume());
+      expect(hr.service.startIndoorSessionService).toHaveBeenCalled();
+
+      hr.service.stopIndoorSessionService.mockClear();
+      act(() => result.current.stop());
+      expect(hr.service.stopIndoorSessionService).toHaveBeenCalled();
+    });
+
+    // The service is declared connectedDevice, so it must not run when there is
+    // no connected device to justify it.
+    it("never runs without a live strap streaming", () => {
+      hr.enabled = false;
+      hr.device = null;
+      const { result } = renderHook(() => useRunTracker({ indoor: true }));
+      act(() => result.current.start());
+      expect(hr.service.startIndoorSessionService).not.toHaveBeenCalled();
+    });
+
+    // It holds the whole app process, so an orphaned one would pin a
+    // notification to a session that no longer exists.
+    it("is handed back when the recorder unmounts", () => {
+      hr.enabled = true;
+      hr.device = { id: "strap-1" };
+      const { result, unmount } = renderHook(() => useRunTracker({ hrMethod: "bluetooth", indoor: true }));
+      act(() => result.current.start());
+      hr.service.stopIndoorSessionService.mockClear();
+      unmount();
+      expect(hr.service.stopIndoorSessionService).toHaveBeenCalled();
+    });
+
+    // A GPS run is held by the location service instead — starting a second one
+    // would put two "recording" notifications on the lock screen.
+    it("stays out of a GPS run entirely", () => {
+      hr.enabled = true;
+      hr.device = { id: "strap-1" };
+      const { result } = renderHook(() => useRunTracker({ hrMethod: "bluetooth" }));
+      act(() => result.current.start());
+      expect(hr.service.startIndoorSessionService).not.toHaveBeenCalled();
+    });
   });
 
   it("never offers a GPS run as an indoor session to resume", () => {

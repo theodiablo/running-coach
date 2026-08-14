@@ -20,7 +20,11 @@
     "maxBpm": "{{bpm}} bpm (max)",
     "resumeTitle": "Resume your previous session?",
     "resumeElapsed": "{{time}} recorded.",
-    "keepScreenOn": "Keep this screen on. Without GPS the session can't keep running in the background: if the screen locks, the timer keeps counting but heart rate stops being recorded."
+    "discardConfirm": "Discard this session? Its time and heart rate will be lost.",
+    "keepScreenOn": "Keep this screen on. Without GPS the session can't keep running in the background: if the screen locks, the timer keeps counting but heart rate stops being recorded.",
+    "keepScreenOnStrap": "Recording keeps going if you switch apps, as long as your heart-rate sensor stays connected. Leaving this screen on is still the most reliable.",
+    "serviceTitle": "Indoor session",
+    "serviceText": "Recording heart rate. Tap to return."
   },
   "countdown": {
     "go": "Go!"
@@ -47,6 +51,7 @@
     "connecting": "connecting…",
     "connected": "sensor connected",
     "cantReach": "can't reach sensor",
+    "reconnecting": "signal lost, reconnecting…",
     "postRun": "Heart rate is added from {{store}} after you finish.",
     "partial": "Heart rate only covered {{pct}}% of this run, so it wasn't saved as the run's average."
   },

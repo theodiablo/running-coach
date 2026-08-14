@@ -26,5 +26,12 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // alert/confirm/prompt block the WebView's JS thread until the native
+      // dialog answers, and one raised as the activity backgrounds never
+      // answers — it froze a recording session with its clock stopped and every
+      // control dead. Confirm in the DOM (ModalOverlay + ConfirmButtons).
+      'no-alert': 'error',
+    },
   },
 ])
