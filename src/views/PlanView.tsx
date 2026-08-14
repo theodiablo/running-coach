@@ -185,10 +185,12 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
     const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel});
     const hadPlan = !!plan;
-    // A rebuild keeps done/skipped progress by calendar date — the on-screen
-    // note promises it. A promote is deliberately fresh ("Builds a fresh plan
-    // for this race"), so it carries nothing at all.
-    savePlan(promoting ? built : carryProgress(plan, built));
+    // A rebuild re-anchors progress on the calendar date. buildPlan starts the
+    // new plan at next Monday, so already-elapsed weeks aren't in it and their
+    // ticks have nowhere to land — rebuildNote says so rather than implying the
+    // old plan's completed count survives. A promote is deliberately fresh
+    // ("Builds a fresh plan for this race"), so it carries nothing at all.
+    savePlan(promoting ? built : carryProgress(plan, built, "rebuild"));
     setEditing(false);
     clearPlanPrefill?.();
     if (hadPlan) showToast(t("plan.toast.rebuilt", { n: built.weeks.flatMap(w => w.sessions).length }), "ok");

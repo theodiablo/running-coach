@@ -705,7 +705,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         settings.distanceKm, settings.raceElevation,
         { recentRuns: runs, races: secRaces, mainEditionId: settings.targetEditionId ?? null,
           style: settings.planStyle, level: settings.trainingLevel });
-      savePlan(carryProgress(plan, np));
+      savePlan(carryProgress(plan, np, "rebuild"));
     }
   };
 

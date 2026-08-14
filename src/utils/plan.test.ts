@@ -332,11 +332,11 @@ describe("carryProgress", () => {
       { id: "w1d4", date: "2026-08-06", skipped: true },
     ]);
     const built = mk([{ id: "w1d2", date: "2026-08-04" }, { id: "w1d4", date: "2026-08-06" }]);
-    expect(flags(carryProgress(old, built))).toEqual([
+    expect(flags(carryProgress(old, built, "rebuild"))).toEqual([
       { id: "w1d2", date: "2026-08-04", done: true, skipped: false },
       { id: "w1d4", date: "2026-08-06", done: false, skipped: true },
     ]);
-    expect(carryProgress(old, built).weeks[0].sessions[0].runId).toBe("r1");
+    expect(carryProgress(old, built, "rebuild").weeks[0].sessions[0].runId).toBe("r1");
   });
 
   // The reported bug: same slot ids, dates shifted four weeks by a new race
@@ -352,7 +352,7 @@ describe("carryProgress", () => {
       { id: "w2d4", date: "2026-08-28" },
       { id: "w2d6", date: "2026-08-30" },
     ]);
-    expect(flags(carryProgress(old, built))).toEqual([
+    expect(flags(carryProgress(old, built, "rebuild"))).toEqual([
       { id: "w2d2", date: "2026-08-26", done: false, skipped: false },
       { id: "w2d4", date: "2026-08-28", done: false, skipped: false },
       { id: "w2d6", date: "2026-08-30", done: false, skipped: false },
@@ -364,7 +364,7 @@ describe("carryProgress", () => {
   it("drops a done flag landing on a future date", () => {
     const old = mk([{ id: "w2d2", date: "2026-09-02", done: true }]);
     const built = mk([{ id: "w2d2", date: "2026-09-02" }]);
-    expect(flags(carryProgress(old, built))).toEqual([
+    expect(flags(carryProgress(old, built, "rebuild"))).toEqual([
       { id: "w2d2", date: "2026-09-02", done: false, skipped: false },
     ]);
   });
@@ -378,7 +378,7 @@ describe("carryProgress", () => {
       { id: "w1d2", date: "2026-08-04", type: "EASY" },
       { id: "w1d3", date: "2026-08-04", type: "OTHER" },
     ]);
-    expect(flags(carryProgress(old, built))).toEqual([
+    expect(flags(carryProgress(old, built, "rebuild"))).toEqual([
       { id: "w1d2", date: "2026-08-04", done: true, skipped: false },
       { id: "w1d3", date: "2026-08-04", done: false, skipped: true },
     ]);
@@ -388,7 +388,7 @@ describe("carryProgress", () => {
   it("matches races by id across a date change", () => {
     const old = mk([{ id: "race-abc", date: "2026-10-11", type: "RACE", done: true }]);
     const built = mk([{ id: "race-abc", date: "2026-10-18", type: "RACE" }]);
-    const out = carryProgress(old, built).weeks[0].sessions[0];
+    const out = carryProgress(old, built, "rebuild").weeks[0].sessions[0];
     expect(out.date).toBe("2026-10-18");
     expect(out.done).toBe(false); // future race, not yet run
   });
@@ -396,7 +396,7 @@ describe("carryProgress", () => {
   it("carries a skipped race by id", () => {
     const old = mk([{ id: "race-abc", date: "2026-10-11", type: "RACE", skipped: true }]);
     const built = mk([{ id: "race-abc", date: "2026-10-18", type: "RACE" }]);
-    expect(carryProgress(old, built).weeks[0].sessions[0].skipped).toBe(true);
+    expect(carryProgress(old, built, "rebuild").weeks[0].sessions[0].skipped).toBe(true);
   });
 
   describe("coach mode", () => {
@@ -419,10 +419,93 @@ describe("carryProgress", () => {
       const proposal = mk([{ id: "w1d2", date: "2026-08-04", skipped: false }]);
       expect(carryProgress(old, proposal, "coach").weeks[0].sessions[0].skipped).toBe(true);
     });
+
+    // The coach can't edit a done session, so a far-future done only exists in
+    // an already-corrupt plan. Heal it here too, or a runner who edits through
+    // the coach but never rebuilds keeps it forever.
+    it("drops a far-future done flag as a rebuild does", () => {
+      const old = mk([{ id: "w1d2", date: "2026-12-25", done: true }]);
+      const proposal = mk([{ id: "w1d2", date: "2026-12-25" }]);
+      expect(carryProgress(old, proposal, "coach").weeks[0].sessions[0].done).toBe(false);
+    });
+  });
+
+  // A race buildPlan's overlay drops onto a day REPLACES that day's training
+  // session, and pre-skipping the session you're racing instead is normal. The
+  // race must not inherit its flags and render as cancelled the moment it's
+  // added.
+  it("does not let a newly added race claim the displaced session's flags", () => {
+    const old = mk([{ id: "w5d3", date: "2026-09-06", type: "EASY", skipped: true }]);
+    const built = mk([{ id: "race-ed1", date: "2026-09-06", type: "RACE" }]);
+    expect(flags(carryProgress(old, built, "rebuild"))).toEqual([
+      { id: "race-ed1", date: "2026-09-06", done: false, skipped: false },
+    ]);
+  });
+
+  // Guards the splice: a `find`/`filter` refactor would hand one old flag to
+  // every same-day session instead of exactly one.
+  it("lets only one session claim a given old flag", () => {
+    const old = mk([{ id: "w1d2", date: "2026-08-04", type: "EASY", skipped: true }]);
+    const built = mk([
+      { id: "w1d2", date: "2026-08-04", type: "EASY" },
+      { id: "w1d3", date: "2026-08-04", type: "EASY" },
+    ]);
+    const out = flags(carryProgress(old, built, "rebuild"));
+    expect(out.filter(s => s.skipped)).toHaveLength(1);
+  });
+
+  it("does not leak claimed candidates between calls", () => {
+    const old = mk([{ id: "w1d2", date: "2026-08-04", skipped: true }]);
+    const built = mk([{ id: "w1d2", date: "2026-08-04" }]);
+    expect(carryProgress(old, built, "rebuild").weeks[0].sessions[0].skipped).toBe(true);
+    expect(carryProgress(old, built, "rebuild").weeks[0].sessions[0].skipped).toBe(true);
+  });
+
+  // Ticking Saturday's long run off on Thursday is a supported gesture — the
+  // guard is aimed at the weeks-out smear, not at a few days' grace.
+  it("keeps a done flag ticked a few days early", () => {
+    const old = mk([{ id: "w1d2", date: "2026-08-17", done: true }]);
+    const built = mk([{ id: "w1d2", date: "2026-08-17" }]);
+    expect(carryProgress(old, built, "rebuild").weeks[0].sessions[0].done).toBe(true);
   });
 
   it("returns the new plan untouched when there is no old plan", () => {
     const built = mk([{ id: "w1d2", date: "2026-08-04" }]);
-    expect(carryProgress(null, built)).toBe(built);
+    expect(carryProgress(null, built, "rebuild")).toBe(built);
+  });
+
+  // Hand-built fixtures can pair an old and a new plan on the same dates, which
+  // a real rebuild cannot: buildPlan anchors week 1 on the NEXT MONDAY, so the
+  // new plan holds no date that has already passed. Feeding it two genuine
+  // buildPlan outputs is the only way to see what a rebuild actually does.
+  describe("against real buildPlan output", () => {
+    const S = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
+
+    it("never revives an elapsed session onto a future date", () => {
+      vi.setSystemTime(new Date("2026-06-03T10:00:00"));
+      const before = buildPlan("2026-10-11", 14400, S, 20, 0) as unknown as Plan;
+      let n = 0;
+      before.weeks.forEach(w => w.sessions.forEach(s => { if (n < 6) { s.done = true; n++; } }));
+      const doneDates = before.weeks.flatMap(w => w.sessions).filter(s => s.done).map(s => s.date);
+
+      vi.setSystemTime(new Date("2026-06-26T10:00:00"));
+      const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
+      const merged = carryProgress(before, rebuilt, "rebuild");
+      const carried = merged.weeks.flatMap(w => w.sessions).filter(s => s.done);
+
+      // The elapsed weeks are simply not in the rebuilt plan, so nothing may
+      // claim their ticks. Under the old id matching all six landed on July
+      // sessions the runner had never seen.
+      expect(doneDates.every(d => d < merged.weeks[0].sessions[0].date)).toBe(true);
+      expect(carried).toHaveLength(0);
+    });
+
+    it("carries nothing spurious when the plan is rebuilt the same day", () => {
+      vi.setSystemTime(new Date("2026-06-03T10:00:00"));
+      const before = buildPlan("2026-10-11", 14400, S, 20, 0) as unknown as Plan;
+      const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
+      const merged = carryProgress(before, rebuilt, "rebuild");
+      expect(merged.weeks.flatMap(w => w.sessions).filter(s => s.done || s.skipped)).toHaveLength(0);
+    });
   });
 });
