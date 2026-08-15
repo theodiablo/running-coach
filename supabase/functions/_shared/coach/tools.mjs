@@ -12,12 +12,26 @@
 
 import { HARD_TYPES } from "./validation.mjs";
 import { stylePacing } from "./styles.mjs";
+import { isElapsedWeek, todayYmd } from "./weeks.mjs";
 
 const SWAP_TYPES = ["EASY", "TEMPO", "INTERVALS", "LONG", "WALK"];
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const dayMs = 86400000;
 const toDate = (s) => new Date(s + "T00:00:00");
 const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / dayMs);
+
+// A rebuild keeps the elapsed weeks in the plan, so the model can now SEE days
+// that have already been lived. They are the training record — "never edit a
+// session to make past training look different from what actually happened" —
+// so every mutating tool refuses them.
+//
+// One day of slack, because `today` is UTC while a session's date is the
+// runner's local day: without it an evening message from the Americas would
+// read the runner's own today as yesterday and refuse "I can't run today".
+// The slack also leaves yesterday's missed session cancellable, which is
+// honest record-keeping rather than a rewrite.
+const PAST_EDIT_GRACE_DAYS = 1;
+const isPastDate = (date, today) => daysBetween(date, today) > PAST_EDIT_GRACE_DAYS;
 
 export class CoachToolError extends Error {
   constructor(code, message) {
@@ -33,7 +47,7 @@ export const TOOL_DEFS = [
   {
     name: "shift_workout",
     description:
-      "Move one training session to a different date. Use when a day no longer works (travel, soreness needing one more rest day, spacing two hard sessions apart). Cannot move RACE sessions or completed sessions; the new date must be inside the plan and before race day.",
+      "Move one training session to a different date. Use when a day no longer works (travel, soreness needing one more rest day, spacing two hard sessions apart). Cannot move RACE sessions, completed sessions or sessions in weeks that have already passed; the new date must be inside the plan, still ahead, and before race day.",
     input_schema: {
       type: "object",
       properties: {
@@ -59,7 +73,7 @@ export const TOOL_DEFS = [
   {
     name: "reduce_week_volume",
     description:
-      "Scale down every remaining training session in one week by a factor between 0.3 and 0.95. Use for accumulated fatigue, illness recovery, or an unexpectedly heavy life week. Never increases volume.",
+      "Scale down every remaining training session in one week by a factor between 0.3 and 0.95. Use for accumulated fatigue, illness recovery, or an unexpectedly heavy life week. Never increases volume, and only for a week that has not already passed.",
     input_schema: {
       type: "object",
       properties: {
@@ -72,7 +86,7 @@ export const TOOL_DEFS = [
   {
     name: "insert_recovery_week",
     description:
-      "Turn one week into a recovery week: every remaining training session becomes a short EASY run (≤6 km). Use after a missed week (resume gently — never make up volume), illness, or a niggle that needs unloading.",
+      "Turn one week into a recovery week: every remaining training session becomes a short EASY run (≤6 km). Use after a missed week (resume gently — never make up volume), illness, or a niggle that needs unloading. Only for a week that has not already passed.",
     input_schema: {
       type: "object",
       properties: { week_number: { type: "integer" } },
@@ -105,7 +119,7 @@ export const TOOL_DEFS = [
   {
     name: "cancel_session",
     description:
-      "Cancel one upcoming session — it is marked skipped and will not be run. LAST RESORT: prefer shortening (reduce_session_distance), shifting, swapping easier, or converting to cross-training; cancel only when full rest is the right call. Cannot cancel RACE or completed sessions, and you have no tool to un-cancel.",
+      "Cancel one upcoming session — it is marked skipped and will not be run. LAST RESORT: prefer shortening (reduce_session_distance), shifting, swapping easier, or converting to cross-training; cancel only when full rest is the right call. Cannot cancel RACE or completed sessions, nor sessions in weeks that have already passed, and you have no tool to un-cancel.",
     input_schema: {
       type: "object",
       properties: { session_id: { type: "string" } },
@@ -119,7 +133,7 @@ export const TOOL_DEFS = [
     input_schema: {
       type: "object",
       properties: {
-        date: { type: "string", description: "YYYY-MM-DD, inside the plan and before race day." },
+        date: { type: "string", description: "YYYY-MM-DD, inside the plan, still ahead, and before race day." },
         type: { type: "string", enum: SWAP_TYPES },
         km: { type: "number", description: "Distance in km; keep it modest." },
       },
@@ -172,11 +186,13 @@ function findSession(plan, id) {
 // can't drift between the two call shapes.
 const isFixed = (session) => session.type === "RACE" || session.done;
 
-function guardEditable(session, verb) {
+function guardEditable(session, verb, today) {
   if (session.done)
     throw new CoachToolError("DONE", `Session ${session.id} is already completed — refusing to ${verb} it.`);
   if (session.type === "RACE")
     throw new CoachToolError("IS_RACE", `Session ${session.id} is a race — races are fixed events and cannot be ${verb}ed.`);
+  if (isPastDate(session.date, today))
+    throw new CoachToolError("IN_PAST", `Session ${session.id} is dated ${session.date}, which has already passed — the elapsed weeks are the training record and cannot be ${verb}ed. Adjust what is still ahead.`);
 }
 
 // Pace/description derivation mirrors buildPlan's ratios off plan.targetPace.
@@ -252,15 +268,28 @@ const sdFor = (type, pace, style) => {
 // the caller reports it back to the model as an is_error tool_result.
 // reassess_goal_feasibility is handled by the caller (it reads context, not
 // the plan) and is not accepted here.
-export function applyToolCall(plan, name, input = {}) {
+//
+// opts.today (YYYY-MM-DD) is what "already passed" is measured against — the
+// engine passes the same `today` the model is shown, so a refusal can never
+// disagree with the context the model reasoned from.
+export function applyToolCall(plan, name, input = {}, opts = {}) {
   const p = structuredClone(plan);
+  const today = opts.today || todayYmd();
+  // Whole-week tools take a week number, so they need their own past check —
+  // guardEditable only sees one session at a time.
+  const guardWeekEditable = (week, verb) => {
+    if (isElapsedWeek(week, today))
+      throw new CoachToolError("IN_PAST", `Week ${week.weekNumber} ended on ${week.startDate} + 7 days and has already passed — it is the training record and cannot be ${verb}. Adjust a week that is still ahead.`);
+  };
   switch (name) {
     case "shift_workout": {
       const { session_id, new_date } = input;
       if (!YMD.test(new_date || ""))
         throw new CoachToolError("BAD_INPUT", "new_date must be YYYY-MM-DD.");
       const { week, session } = findSession(p, session_id);
-      guardEditable(session, "move");
+      guardEditable(session, "move", today);
+      if (isPastDate(new_date, today))
+        throw new CoachToolError("IN_PAST", `${new_date} has already passed — a session can only be moved to a day still ahead.`);
       if (new_date >= p.raceDate)
         throw new CoachToolError("AFTER_RACE", "Cannot move a training session onto/after race day.");
       const target = p.weeks.find(w => {
@@ -280,7 +309,7 @@ export function applyToolCall(plan, name, input = {}) {
       if (!SWAP_TYPES.includes(new_type))
         throw new CoachToolError("BAD_INPUT", `new_type must be one of ${SWAP_TYPES.join(", ")}.`);
       const { session } = findSession(p, session_id);
-      guardEditable(session, "swap");
+      guardEditable(session, "swap", today);
       session.type = new_type;
       session.pace = paceFor(p, new_type);
       session.desc = descFor(new_type, session.pace, p.style);
@@ -293,6 +322,7 @@ export function applyToolCall(plan, name, input = {}) {
         throw new CoachToolError("BAD_INPUT", "factor must be a number in [0.3, 0.95].");
       const week = p.weeks.find(w => w.weekNumber === week_number);
       if (!week) throw new CoachToolError("NOT_FOUND", `No week ${week_number} in the plan.`);
+      guardWeekEditable(week, "scaled down");
       for (const s of week.sessions) {
         if (isFixed(s)) continue;
         s.km = Math.max(1.5, Math.round(s.km * factor * 10) / 10);
@@ -303,6 +333,7 @@ export function applyToolCall(plan, name, input = {}) {
       const { week_number } = input;
       const week = p.weeks.find(w => w.weekNumber === week_number);
       if (!week) throw new CoachToolError("NOT_FOUND", `No week ${week_number} in the plan.`);
+      guardWeekEditable(week, "turned into a recovery week");
       for (const s of week.sessions) {
         if (isFixed(s)) continue;
         s.type = "EASY";
@@ -318,14 +349,14 @@ export function applyToolCall(plan, name, input = {}) {
       if (typeof factor !== "number" || factor < 0.3 || factor > 0.95)
         throw new CoachToolError("BAD_INPUT", "factor must be a number in [0.3, 0.95].");
       const { session } = findSession(p, session_id);
-      guardEditable(session, "shorten");
+      guardEditable(session, "shorten", today);
       session.km = Math.max(1.5, Math.round(session.km * factor * 10) / 10);
       return p;
     }
     case "cancel_session": {
       const { session_id } = input;
       const { session } = findSession(p, session_id);
-      guardEditable(session, "cancel");
+      guardEditable(session, "cancel", today);
       session.skipped = true;
       return p;
     }
@@ -337,6 +368,8 @@ export function applyToolCall(plan, name, input = {}) {
         throw new CoachToolError("BAD_INPUT", `type must be one of ${SWAP_TYPES.join(", ")}.`);
       if (typeof km !== "number" || !(km > 0))
         throw new CoachToolError("BAD_INPUT", "km must be a positive number.");
+      if (isPastDate(date, today))
+        throw new CoachToolError("IN_PAST", `${date} has already passed — a session cannot be added to a day that has been lived. Never backfill missed training.`);
       if (date >= p.raceDate)
         throw new CoachToolError("AFTER_RACE", "Cannot add a training session on/after race day.");
       if (daysBetween(date, p.raceDate) <= 14)
@@ -348,8 +381,11 @@ export function applyToolCall(plan, name, input = {}) {
       if (!target)
         throw new CoachToolError("OUT_OF_PLAN", `${date} is outside the plan window.`);
       // Cap at the plan's established range: an "extra run" can never smuggle
-      // in a new peak session.
-      const cap = Math.max(0, ...p.weeks.flatMap(w => w.sessions)
+      // in a new peak session. Live weeks only — the retained history can hold
+      // the peak long run of a previous block, and a bigger goal ago is not
+      // licence to add a session that size to the block being run now.
+      const cap = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today))
+        .flatMap(w => w.sessions)
         .filter(s => s.type !== "RACE" && !s.skipped).map(s => s.km));
       if (cap > 0 && km > cap)
         throw new CoachToolError("TOO_LONG", `km must not exceed the plan's current longest training session (${cap} km).`);
@@ -364,7 +400,7 @@ export function applyToolCall(plan, name, input = {}) {
     case "convert_to_cross_training": {
       const { session_id } = input;
       const { session } = findSession(p, session_id);
-      guardEditable(session, "convert");
+      guardEditable(session, "convert", today);
       // Deliberately unpaced regardless of style: a conversion is the coach's
       // pain/illness relief valve, and "no impact" must stay true even on a
       // runwalk plan whose ordinary WALK sessions are paced run/walk work.

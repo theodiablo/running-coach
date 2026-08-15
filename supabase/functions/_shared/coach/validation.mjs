@@ -5,6 +5,8 @@
 // errors that already exist identically in the baseline, so a pre-existing
 // issue never bricks the agent. Rules and severities: docs/coach-agent.md.
 
+import { isElapsedWeek, todayYmd } from "./weeks.mjs";
+
 export const SESSION_TYPES = ["EASY", "TEMPO", "INTERVALS", "LONG", "RACE", "WALK", "OTHER"];
 export const PHASES = ["BASE", "BUILD", "PEAK", "TAPER", "RACE"];
 // Sessions that count as "hard" for spacing/taper rules.
@@ -28,7 +30,7 @@ const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / dayMs);
 
 // Collect raw issues (no baseline waiver). Each issue:
 // { code, severity: "error"|"warn", message, weekNumber?, sessionId? }
-function collectIssues(plan) {
+function collectIssues(plan, today) {
   const issues = [];
   const err = (code, message, extra) => issues.push({ code, severity: "error", message, ...extra });
   const warn = (code, message, extra) => issues.push({ code, severity: "warn", message, ...extra });
@@ -80,7 +82,20 @@ function collectIssues(plan) {
   // A skipped session (user-skipped, or cancelled by the coach's
   // cancel_session) will not be run: it contributes no training load, so the
   // volume/spacing/taper rules ignore it. Structural checks above still apply.
+  //
+  // Elapsed weeks (a rebuild keeps them — carryProgress) split the load rules
+  // in two, and the line is what each rule is ABOUT rather than what it reads:
+  //
+  // - The SUBJECT of an error must be a week still ahead. The coach has no tool
+  //   that touches a past date, so an error on history is unfixable, and one
+  //   unfixable error invalidates every proposal that runner ever asks for.
+  // - The REFERENCE a rule measures against still spans the whole plan. What
+  //   was already run is a fact about this training block: dropping it would
+  //   make the ramp forget the volume a runner is coming back from and let the
+  //   taper's peak collapse to whatever is left, which is exactly backwards —
+  //   both weaken the guard in the late weeks, when most of the plan is past.
   const weeks = plan.weeks;
+  const isLive = (w) => !isElapsedWeek(w, today);
   const isRaceWeek = (w) => w.sessions.some(s => s.type === "RACE");
   const total = (w) => w.sessions.reduce((t, s) => t + (s.type === "RACE" || s.skipped ? 0 : s.km), 0);
   const totals = weeks.map(total);
@@ -101,6 +116,7 @@ function collectIssues(plan) {
   };
   for (let i = 1; i < weeks.length; i++) {
     const w = weeks[i];
+    if (!isLive(w)) continue;
     if (w.phase === "TAPER" || w.phase === "RACE" || isRaceWeek(weeks[i - 1])) continue;
     const ref = refKm(i);
     if (ref > 0 && totals[i] > ref * RAMP_FACTOR + RAMP_SLACK_KM) {
@@ -110,11 +126,14 @@ function collectIssues(plan) {
   }
 
   // ── safety: hard sessions on consecutive days ──────────────────────────────
-  const all = weeks.flatMap(w => w.sessions.map(s => ({ ...s, weekNumber: w.weekNumber })))
+  // `live` rides along so a rule can read a past session as context (the
+  // session before a live one) without ever reporting against it.
+  const all = weeks.flatMap(w => w.sessions.map(s => ({ ...s, weekNumber: w.weekNumber, live: isLive(w) })))
     .filter(s => !s.skipped)
     .sort((a, b) => a.date.localeCompare(b.date));
   for (let i = 1; i < all.length; i++) {
     const a = all[i - 1], b = all[i];
+    if (!b.live) continue;
     if (!HARD_TYPES.includes(a.type) || !HARD_TYPES.includes(b.type)) continue;
     if (daysBetween(a.date, b.date) !== 1) continue;
     if (a.type === "RACE" || b.type === "RACE") {
@@ -128,13 +147,13 @@ function collectIssues(plan) {
     }
   }
   for (let i = 1; i < all.length; i++) {
-    if (all[i].date === all[i - 1].date && all[i].type !== "RACE" && all[i - 1].type !== "RACE")
+    if (all[i].live && all[i].date === all[i - 1].date && all[i].type !== "RACE" && all[i - 1].type !== "RACE")
       warn("SAME_DAY", `Two training sessions share ${all[i].date}.`, { sessionId: all[i].id });
   }
 
   // ── safety: taper integrity ────────────────────────────────────────────────
   for (const s of all) {
-    if (s.type === "RACE" || s.date >= plan.raceDate) continue;
+    if (!s.live || s.type === "RACE" || s.date >= plan.raceDate) continue;
     const gap = daysBetween(s.date, plan.raceDate);
     if (s.type === "INTERVALS" && gap <= NO_INTERVALS_DAYS)
       issues.push({ code: "TAPER_INTERVALS", severity: "error", sessionId: s.id, weekNumber: s.weekNumber,
@@ -147,7 +166,7 @@ function collectIssues(plan) {
   if (weeks.length >= 6) {
     const pre = weeks.filter(w => w.phase !== "TAPER" && w.phase !== "RACE");
     const peak = Math.max(...pre.map(total), 0);
-    const lastTwo = weeks.filter(w =>
+    const lastTwo = weeks.filter(w => isLive(w) &&
       w.phase !== "RACE" && daysBetween(w.startDate, plan.raceDate) <= 14 && !isRaceWeek(w));
     for (const w of lastTwo) {
       if (peak > 0 && total(w) > peak * 0.85)
@@ -174,10 +193,15 @@ const issueKey = (i) => {
 // identically in the baseline are waived (reported as warnings tagged
 // preexisting) — the agent must not make things worse, but may operate on a
 // plan that already violates a rule.
+//
+// opts.today (YYYY-MM-DD): which weeks count as already lived. The edge
+// function passes the same `today` the model is shown, so a round is scored
+// against one clock; it defaults to the real date for app-side callers.
 export function validatePlan(plan, opts = {}) {
-  let issues = collectIssues(plan);
+  const today = opts.today || todayYmd();
+  let issues = collectIssues(plan, today);
   if (opts.baseline) {
-    const baselineKeys = new Set(collectIssues(opts.baseline).map(issueKey));
+    const baselineKeys = new Set(collectIssues(opts.baseline, today).map(issueKey));
     // Weekly totals per weekNumber, for the RAMP not-worse waiver below.
     const weekTotal = (p, n) => p.weeks?.find(w => w.weekNumber === n)
       ?.sessions.reduce((t, s) => t + (s.type === "RACE" || s.skipped ? 0 : s.km), 0);

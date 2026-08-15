@@ -585,11 +585,38 @@ export function findOpenPlanSession(
   return null;
 }
 
+// ── Week windows ────────────────────────────────────────────────────────────
+// A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
+// `weekEnd <= today` splits a plan cleanly into elapsed / current-and-ahead.
+// This is the ONE definition of elapsed — PlanView's ordering, the overdue
+// lookback and the rebuild carry below all read it. The coach's server half
+// keeps a date-string twin (_shared/coach/weeks.mjs); keep both ends in sync.
+type WeekWindow = { startDate?: string };
+
+export const startOfDay = (d: Date) => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; };
+export const startOfToday = () => startOfDay(new Date());
+export const weekStart = (w: WeekWindow) => new Date((w.startDate || "") + "T00:00:00");
+export const weekEnd = (w: WeekWindow) => { const e = weekStart(w); e.setDate(e.getDate() + 7); return e; };
+export const isElapsedWeek = (w: WeekWindow, today: Date = startOfToday()) => weekEnd(w) <= today;
+
 // A training session's id (w{n}d{dOff}) names a SLOT in the plan grid, not a
 // day — buildPlan mints the same "w2d4" for week 2 / offset 4 whatever date
 // that lands on. The race ids (race, race-{editionId}) name a race rather than
 // a grid position, so they survive their own date moving.
 const isSlotId = (id: string) => /^w\d+d\d+$/.test(id);
+
+// How much already-lived history a rebuild keeps. Without a cap a plan rebuilt
+// every few weeks for a year accumulates every week it ever had, in the synced
+// blob and in the coach's context; eight weeks is about a training block.
+const KEEP_HISTORY_WEEKS = 8;
+
+// Retained history keeps its ids out of the rebuilt plan's way: buildPlan
+// numbers weeks from 1 every time, so an old "w1d2" and a fresh "w1d2" would
+// collide — a DUPLICATE_ID error from the coach validator, and two rows
+// sharing a React key. Applied once; a later rebuild re-carries the same
+// already-prefixed ids rather than stacking another prefix.
+const HISTORY_ID_PREFIX = "past-";
+const historyId = (id: string) => id.startsWith(HISTORY_ID_PREFIX) ? id : HISTORY_ID_PREFIX + id;
 
 // A done flag may legitimately sit a little ahead of today — ticking Saturday's
 // long run off on Thursday is a supported gesture (PlanSessionRow's toggle has
@@ -613,6 +640,10 @@ type Carried = { flag: PlanProgress; type: string };
 //   race date once transplanted four weeks of done/skipped a month into the
 //   future, cancelling sessions the runner had never seen. Anchor on the
 //   calendar date instead: a day you trained is a day you trained.
+//
+// Rebuilds also PREPEND the weeks the new plan doesn't reach back to, so the
+// training that already happened stays in the plan instead of being dropped on
+// the floor — see the history block below.
 //
 // `mode` is required on purpose: a future caller handing this a plan derived
 // from the live one wants "coach", and defaulting would silently give it date
@@ -653,7 +684,7 @@ export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | 
     byDate.set(s.date, day);
   });
 
-  return mapWeeks(s => {
+  const stamp = (s: StoredSession): StoredSession => {
     // A race id is identity: it matches its old self or nothing. Falling
     // through to the date pool here would hand a newly added race the flags of
     // the training session buildPlan's overlay just displaced — rendering the
@@ -672,5 +703,30 @@ export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | 
     if (i < 0) i = cands.findIndex(c => isCrossTraining({ type: c.type }) === isCrossTraining(s));
     if (i < 0) i = 0;
     return carry(s, cands.splice(i, 1)[0].flag);
-  });
+  };
+
+  // The weeks the rebuilt plan doesn't reach. buildPlan anchors week 1 on the
+  // NEXT MONDAY, so a rebuilt plan holds no already-elapsed date: without this
+  // every completed session before that Monday simply disappears, which is why
+  // "completed runs stay" had quietly stopped being true. Carried verbatim —
+  // this is training that already happened, not a slot to re-stamp flags onto.
+  //
+  // Two bounds, and both earn their place. *Before np's start* is what makes
+  // the join contiguous, and it keeps the part-run current week (which the new
+  // plan begins after, so it can never cover it) instead of leaving the runner
+  // with no sessions between today and Monday. *Already begun* is what makes a
+  // week history: an old plan whose weeks all sit in the future (a race pushed
+  // back, then rebuilt) must not have them retained as though they were lived.
+  const npStart = np.weeks[0]?.startDate || "";
+  const todayStr = ymd(startOfToday());
+  const history = (npStart
+    ? oldPlan.weeks.filter(w => (w.startDate || "") < npStart && (w.startDate || "") <= todayStr)
+    : [])
+    .slice(-KEEP_HISTORY_WEEKS)
+    .map(w => ({ ...w, sessions: w.sessions.map(s => ({ ...s, id: historyId(s.id) })) }));
+
+  // Renumber across the join so "week n of m", overdueByWeek's keys and the
+  // coach's week_number tools all address the merged plan coherently.
+  return { ...np, weeks: [...history, ...np.weeks.map(w => ({ ...w, sessions: w.sessions.map(stamp) }))]
+    .map((w, i) => ({ ...w, weekNumber: i + 1 })) };
 }

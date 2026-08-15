@@ -22,6 +22,42 @@ marathon, ≤36 km ceiling for ultras), NOT capped by the long-session minutes �
 so it can exceed the configured long-day duration; PlanView shows an honest
 nudge when it does. `plan.longRunPeakKm` exposes the peak for that nudge.
 
+## Rebuilds and retained history
+
+`buildPlan` always anchors week 1 on the **next Monday**, so a rebuilt plan
+contains no already-elapsed date. That makes `carryProgress(old, new, "rebuild")`
+(the one merge point for every rebuild — availability edit, goal change, race
+add/remove) do two jobs:
+
+- **Prepend what the rebuild cannot reach.** Every old week that has already
+  begun and starts before the new plan's first Monday is carried **verbatim**
+  and kept in `plan.weeks`, capped at the trailing `KEEP_HISTORY_WEEKS` (8).
+  Without it every completed session before that Monday simply disappeared —
+  "completed runs stay" had quietly stopped being true. The cut is the new
+  plan's start rather than today on purpose: it also keeps the **part-run
+  current week**, so a Wednesday rebuild doesn't leave the runner with no
+  sessions until Monday. Contiguous by construction — no gap, no day claimed
+  twice. Retained session ids are prefixed `past-` (buildPlan mints `w1d2`
+  every time; a collision is a `DUPLICATE_ID` validator error and a duplicate
+  React key), and weeks are renumbered 1..n across the join so "week n of m",
+  `overdueByWeek` keys and the coach's `week_number` tools stay coherent.
+- **Re-stamp flags by calendar date** onto the newly built weeks — never by
+  session id, which names a *slot* (`w{n}d{dOff}`), not a day. See the comment
+  block in `carryProgress`; matching on ids once transplanted a month of
+  done/skipped onto sessions the runner had never seen.
+
+`"coach"` mode is the exception that still matches by id: a coach proposal is
+derived from the live plan, so ids *are* identity there.
+
+A **promote** (switching the plan to a different race) deliberately carries
+nothing at all — it is a fresh plan for a new goal.
+
+Elapsed weeks are a real distinction downstream: `isElapsedWeek`
+(`src/utils/plan.ts`, with a date-string twin in
+`supabase/functions/_shared/coach/weeks.mjs`) is the single definition, read by
+PlanView's ordering, the overdue lookback (`docs/reminders.md`) and the coach's
+validator/tools/context (`docs/coach-agent.md`).
+
 ## Methodology styles
 
 `opts.style` / `settings.planStyle` / `plan.style`: buildPlan composes weeks

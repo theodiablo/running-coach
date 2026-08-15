@@ -25,7 +25,13 @@ type TestPlan = {
 type ValidationIssue = { code: string; weekNumber?: number; sessionId?: string; preexisting?: boolean };
 type ValidationResult = { ok: boolean; errors: ValidationIssue[]; warnings: ValidationIssue[] };
 
-const validate = (plan: unknown, opts?: unknown) => validatePlan(plan, opts) as ValidationResult;
+// The hand-crafted fixtures below live on a fixed calendar, so the validator
+// gets a fixed `today` to match: the load rules skip weeks that have already
+// elapsed, and without pinning it the whole fixture would silently age out of
+// them once the real date passed 2026-02. Tests about elapsed weeks override it.
+const TODAY = "2026-01-05";
+const validate = (plan: unknown, opts: Record<string, unknown> = {}) =>
+  validatePlan(plan, { today: TODAY, ...opts }) as ValidationResult;
 
 // ── hand-crafted fixture ──────────────────────────────────────────────────────
 // 6 weeks, Mondays from 2026-01-05, race Sat 2026-02-14. Volumes ramp gently,
@@ -123,6 +129,68 @@ describe("validatePlan rules", () => {
     const p = cleanPlan();
     p.weeks[4]!.sessions[1]!.km = 15; // taper week back at 18 km vs 16 km peak
     expect(validate(p).errors.some(e => e.code === "TAPER_VOLUME")).toBe(true);
+  });
+
+  // ── elapsed weeks ────────────────────────────────────────────────────────
+  // A rebuild keeps the weeks that have already been lived. They are the
+  // training record, and the coach has no tool that can touch a past date — so
+  // a load error raised on one is unfixable, and one unfixable error would
+  // block every proposal that runner ever asks for.
+  describe("weeks that have already elapsed", () => {
+    // Week 3 (starting 2026-01-19) has ended by this date; weeks 4-6 have not.
+    const AFTER_WEEK_3 = "2026-01-27";
+
+    it("never raises a ramp error on a week that has already elapsed", () => {
+      const p = cleanPlan();
+      p.weeks[2]!.sessions[1]!.km = 25; // the same jump the live-week test flags
+      expect(validate(p).errors.some(e => e.code === "RAMP_EXCEEDED" && e.weekNumber === 3)).toBe(true);
+      expect(validate(p, { today: AFTER_WEEK_3 }).errors.some(e => e.code === "RAMP_EXCEEDED")).toBe(false);
+    });
+
+    it("does not let an elapsed week's hard days raise a spacing error", () => {
+      const p = cleanPlan();
+      p.weeks[2]!.sessions[0]!.date = "2026-01-24";
+      expect(validate(p).errors.some(e => e.code === "HARD_BACK_TO_BACK")).toBe(true);
+      expect(validate(p, { today: AFTER_WEEK_3 }).errors.some(e => e.code === "HARD_BACK_TO_BACK")).toBe(false);
+    });
+
+    // The other half of the split: an elapsed week is never the SUBJECT of an
+    // error, but it is still the REFERENCE the live weeks are measured against.
+    it("measures the taper against the peak the runner actually ran", () => {
+      const p = cleanPlan();
+      p.weeks[2]!.sessions[1]!.km = 40; // elapsed week 3 is the real peak, 45 km
+      p.weeks[4]!.sessions[1]!.km = 15; // taper week at 18 km — a genuine taper off 45
+      // Scored over the live weeks alone the peak collapses to 16 km and this
+      // reads as "not tapering", which is the false positive to avoid: late in
+      // a plan almost every week that set the peak has already been run.
+      expect(validate(p, { today: AFTER_WEEK_3 }).errors.some(e => e.code === "TAPER_VOLUME")).toBe(false);
+    });
+
+    it("still fires the taper guard on a live week that has not shed volume", () => {
+      const p = cleanPlan();
+      p.weeks[4]!.sessions[1]!.km = 15; // 18 km against a 16 km peak
+      expect(validate(p, { today: AFTER_WEEK_3 }).errors.some(e => e.code === "TAPER_VOLUME")).toBe(true);
+    });
+
+    it("keeps the ramp reference on pre-layoff volume, so a live week can still be flagged", () => {
+      const p = cleanPlan();
+      p.weeks[3]!.sessions[1]!.km = 40; // live week 4 jumps to 45 km off 15 km
+      const r = validate(p, { today: AFTER_WEEK_3 });
+      expect(r.errors.some(e => e.code === "RAMP_EXCEEDED" && e.weekNumber === 4)).toBe(true);
+    });
+
+    it("still applies every load rule to the weeks that are still ahead", () => {
+      const p = cleanPlan();
+      p.weeks[4]!.sessions[0]!.type = "INTERVALS"; // taper week, 10 days out
+      const r = validate(p, { today: AFTER_WEEK_3 });
+      expect(r.errors.some(e => e.code === "TAPER_INTERVALS")).toBe(true);
+    });
+
+    it("still checks the structure of an elapsed week", () => {
+      const p = cleanPlan();
+      p.weeks[0]!.sessions[0]!.type = "JOG";
+      expect(validate(p, { today: AFTER_WEEK_3 }).errors.some(e => e.code === "MALFORMED")).toBe(true);
+    });
   });
 
   it("rejects training sessions on/after race day, allows the race itself", () => {

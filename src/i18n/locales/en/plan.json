@@ -107,7 +107,7 @@
     "generate": "Generate My Training Plan",
     "buildMyPlan": "Build my plan",
     "rebuildMyPlan": "Rebuild my plan",
-    "rebuildNote": "Rebuilds your upcoming sessions — your logged runs stay untouched.",
+    "rebuildNote": "Rebuilds your upcoming sessions. Completed weeks stay in your plan.",
     "promoteNote": "Builds a fresh plan for this race."
   },
   "long": {

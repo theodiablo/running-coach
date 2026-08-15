@@ -45,6 +45,24 @@ describe("overdueSessions", () => {
     expect(overdueSessions(null, today)).toEqual([]);
     expect(overdueSessions({weeks: []} as unknown as Plan, today)).toEqual([]);
   });
+
+  // A rebuild keeps up to 8 elapsed weeks, so without a floor a plan carries
+  // months of untouched sessions that would all read as "still open" forever.
+  it("stops looking back at the lookback floor", () => {
+    const plan = planOf([{weekNumber: 1, sessions: [
+      sess("edge", "2026-02-24"),   // exactly 14 days back — still open
+      sess("stale", "2026-02-23"),  // 15 days back — the plan has moved on
+    ]}]);
+    expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["edge"]);
+  });
+
+  it("keeps a stale session out of the per-week counts too", () => {
+    const plan = planOf([
+      {weekNumber: 1, sessions: [sess("old", "2026-02-10")]},
+      {weekNumber: 2, sessions: [sess("recent", "2026-03-06")]},
+    ]);
+    expect(overdueByWeek(plan, today)).toEqual({2: 1});
+  });
 });
 
 describe("nextSession", () => {

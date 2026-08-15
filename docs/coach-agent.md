@@ -66,16 +66,43 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    targets (`TEMPO`/`INTERVALS`/`LONG`) are blocked under the same risk.
    `validatePlan` remains the final structural authority, but these gates cover
    intent the validator cannot know.
-5. **Tamper-proof audit log** — `agent_trajectories` / `agent_rounds` /
+5. **The past is read-only, and bounded in context** — a rebuild keeps up to 8
+   already-elapsed weeks in `plan.weeks` (`docs/training-plan.md`), so the
+   model can see days that have already been lived. They are the training
+   record, and there is no tool that can reach them: `guardEditable` and the
+   whole-week tools refuse a past-dated session or week with `IN_PAST`, and
+   `shift_workout` / `add_session` refuse a past target date. The refusal
+   carries `PAST_EDIT_GRACE_DAYS` (1) of slack, because `today` is UTC while
+   a session's date is the runner's local day — without it an evening message
+   from the Americas would get "I can't run today" refused; the slack also
+   leaves yesterday's missed session cancellable, which is record-keeping
+   rather than a rewrite. `add_session`'s distance cap reads the **live**
+   weeks only, so a previous block's peak long run can't license an oversized
+   addition to the block being run now.
+
+   In context the model is shown the live weeks in full plus the trailing
+   `CONTEXT_PAST_WEEKS` (2) elapsed ones, compacted to
+   `{id, date, type, km, done?, skipped?}` under `RECENT PLAN WEEKS`
+   (`planContext` in `engine.mjs`). Two weeks because that is the
+   `OVERDUE_LOOKBACK_DAYS` window (`docs/reminders.md`): the coach must be able
+   to see a session the app is still showing the runner as open, and a
+   "current-and-future weeks only" cut would vary from 0 elapsed days on a
+   Monday to 6 on a Sunday. Not more, because what the runner actually *did*
+   already reaches the model through RECENT RUNS — what these weeks add is the
+   other half, what was prescribed and never done — and a fixed window keeps
+   the token cost flat as history accumulates. A plan with no history omits
+   the block entirely, so those contexts stay byte-identical.
+
+6. **Tamper-proof audit log** — `agent_trajectories` / `agent_rounds` /
    `agent_usage` are written by the **service role only**; users can read
    their own rows, never write. Every round is logged, including failures.
-6. **Plan writes stay RLS-guarded** — `confirm` does **no model call**: it
+7. **Plan writes stay RLS-guarded** — `confirm` does **no model call**: it
    re-validates the stored proposal and returns it; the **client** persists it
    through the normal `carryProgress` + `db.set` path under the user's own
    JWT. (A server-side write to `app_state` would be clobbered by the
    client's debounced whole-blob upsert — this is a deliberate deviation from
    the original plan, which assumed typed `plans`/`workouts` tables.)
-7. **Coach memory is user-owned** — `app_state.data.rc_user_context.notes` is a
+8. **Coach memory is user-owned** — `app_state.data.rc_user_context.notes` is a
    single visible textarea in Settings. The edge function may suggest dated
    memory lines through `remember_runner_context`, but it never writes
    `app_state`; the client persists only after the runner taps **Save to
@@ -128,6 +155,19 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
 | `HARD_BACK_TO_BACK` | error | no two hard sessions (TEMPO/INTERVALS/LONG) on consecutive days |
 | `TAPER_INTERVALS` / `TAPER_TEMPO` / `TAPER_VOLUME` | error | no intervals in the final 14 days, no tempo in the final 7, final two weeks well below peak volume |
 | `RACE_ADJACENT` / `SAME_DAY` | warn | surfaced to the model, never blocking |
+
+Elapsed weeks split these in two, and the line is what each rule is *about*
+rather than what it reads. The **subject** of an error is always a week still
+ahead — the coach has no tool that touches a past date, so an error on history
+is unfixable, and one unfixable error would invalidate every proposal that
+runner ever asks for. The **reference** a rule measures against still spans the
+whole plan: the ramp's look-back and the taper's peak are facts about the block
+the runner is actually in, and dropping them would make the ramp forget the
+volume being resumed from and let the taper's peak collapse to whatever weeks
+are left — both weakest exactly in the late weeks, when most of the plan is
+past. Structural checks (`MALFORMED` and friends) still cover every week.
+`opts.today` decides the split; the edge function passes the round's own
+`today` so a proposal is scored by the clock it was built under.
 
 ## Deploy & configuration
 

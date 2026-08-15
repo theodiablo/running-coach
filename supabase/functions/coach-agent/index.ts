@@ -204,8 +204,14 @@ async function handle(req: Request): Promise<any> {
       .eq("outcome", "proposed").order("round_index", { ascending: false })
       .limit(1).maybeSingle();
     if (!round) return { error: "no open proposal to confirm", code: "NO_OPEN_PROPOSAL" };
-    // Belt and braces: never commit a plan that no longer validates.
-    const check = validatePlan(round.proposed_plan, { baseline: round.input_context?.plan });
+    // Belt and braces: never commit a plan that no longer validates. Scored
+    // against the round's own `today`, not now: a proposal confirmed after
+    // midnight must be judged by the clock it was built under, or a week that
+    // elapsed in between changes which rules apply to it.
+    const check = validatePlan(round.proposed_plan, {
+      baseline: round.input_context?.plan,
+      today: round.input_context?.today,
+    });
     if (!check.ok) return { error: "proposal failed validation", detail: formatValidation(check), code: "PROPOSAL_INVALID" };
     await admin.from("agent_rounds").update({ outcome: "accepted" }).eq("id", round.id);
     await admin.from("agent_trajectories")

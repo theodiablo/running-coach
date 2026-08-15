@@ -119,7 +119,7 @@
     "generate": "Générer mon plan d'entraînement",
     "buildMyPlan": "Créer mon plan",
     "rebuildMyPlan": "Reconstruire mon plan",
-    "rebuildNote": "Reconstruit tes séances à venir ; tes sorties enregistrées ne changent pas.",
+    "rebuildNote": "Reconstruit tes séances à venir. Les semaines déjà faites restent dans ton plan.",
     "promoteNote": "Crée un nouveau plan pour cette course."
   },
   "long": {

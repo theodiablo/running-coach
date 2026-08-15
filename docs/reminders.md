@@ -30,9 +30,16 @@ and give it a way to call you back (native).
 and nothing else, so a plan rebuild or a coach edit can never leave a stale
 `missed` flag behind. `src/utils/overdue.ts` is the only definition:
 
-- `overdueSessions(plan, today)` — untouched sessions dated before today, **most
-  recent first** (the freshest miss is the one worth acting on). Returns
-  everything; capping is the caller's job.
+- `overdueSessions(plan, today)` — untouched sessions dated before today and
+  no older than `OVERDUE_LOOKBACK_DAYS` (14), **most recent first** (the
+  freshest miss is the one worth acting on). Returns everything in the window;
+  capping the count is the caller's job. The floor exists because a rebuild
+  now keeps up to 8 elapsed weeks in the plan
+  (`docs/training-plan.md`) — without it every session from every retained
+  week would read as "still open" forever. Two weeks is the window where
+  "still open" is still true; past that the plan has moved on. The coach's
+  context window is sized to match (`docs/coach-agent.md`), so the coach can
+  always see a session the app is still showing the runner as open.
 - `nextSession(plan, today)` — the soonest untouched session from today onward.
   Extracted from Dashboard so the two selectors are tested against each other:
   a session must never appear in both.
