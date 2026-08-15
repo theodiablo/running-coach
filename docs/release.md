@@ -98,9 +98,18 @@ re-sent versionCode 45 and Play rejected it outright.
 
 The two platform jobs are independent, so one store's failure never blocks the
 other; each job STAGES its OWN `app_config` pending column (`pending_version`
-for Android, `pending_version_ios` for iOS, via `supabase db query --linked`
-using `SUPABASE_ACCESS_TOKEN`) only after its upload succeeds, so a partial
-release never stages a version a store didn't get.
+for Android, `pending_version_ios` for iOS) only after its upload succeeds, so a
+partial release never stages a version a store didn't get.
+
+Both those steps and `publish-version.yml` reach the database through
+`scripts/supabase-query.sh` (Management API `POST
+/v1/projects/{ref}/database/query` with `SUPABASE_ACCESS_TOKEN`), **not** the
+Supabase CLI. `supabase link` / `db query --linked` fetch the project's API keys
+first and abort on a key whose `inserted_at` isn't RFC3339-with-`Z` (`failed to
+get api keys: SchemaError(...)`) — that killed staging in release run 45 after
+both stores already had the build. Keep new `app_config` writes on the script.
+A release whose staging step failed is repaired by running "Publish app version"
+with the explicit `version` input once the store publishes.
 
 **Upload ≠ publish:** staging never shows the in-app update banner (Play
 promotion/rollout and App Store review come after upload). The maintainer runs

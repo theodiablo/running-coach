@@ -346,17 +346,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN repo secret is not set — add a Supabase personal/service access token with database query rights on run-app."
-            exit 1
-          fi
-          if [ -z "$SUPABASE_PROJECT_REF" ]; then
-            echo "::error::SUPABASE_PROJECT_REF repo variable is not set."
-            exit 1
-          fi
-
-          npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          npx supabase db query --linked \
+          ./scripts/supabase-query.sh \
             "update public.app_config set pending_version = '$VERSION_NAME', updated_at = now() where id = 1;"
           echo "Staged pending_version=$VERSION_NAME — run the 'Publish app version' workflow once the Play rollout is live to show the update prompt."
 
@@ -617,17 +607,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN repo secret is not set — add a Supabase personal/service access token with database query rights on run-app."
-            exit 1
-          fi
-          if [ -z "$SUPABASE_PROJECT_REF" ]; then
-            echo "::error::SUPABASE_PROJECT_REF repo variable is not set."
-            exit 1
-          fi
-
-          npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          npx supabase db query --linked \
+          ./scripts/supabase-query.sh \
             "update public.app_config set pending_version_ios = '$VERSION_NAME', updated_at = now() where id = 1;"
           echo "Staged pending_version_ios=$VERSION_NAME — run the 'Publish app version' workflow once the App Store release is live to show the update prompt."
 
