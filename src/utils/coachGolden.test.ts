@@ -190,6 +190,69 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(without[0].content).not.toContain("RUNNER AGE");
   });
 
+  // ── the plan context window ───────────────────────────────────────────────
+  // A rebuild keeps up to 8 elapsed weeks. The model gets the live weeks in
+  // full (they are what it edits) plus a bounded, compacted tail of history —
+  // enough to see a session it was asked about but never ran, without the token
+  // cost growing every time the runner rebuilds.
+  describe("plan context", () => {
+    // A plan with `n` elapsed weeks in front of the live ones, as carryProgress
+    // leaves it after a rebuild.
+    const withHistory = (n: number) => {
+      const context = makeContext("I missed a few runs, what now?");
+      const past: TestWeek[] = [];
+      for (let i = n; i >= 1; i--) {
+        const start = new Date();
+        start.setDate(start.getDate() - i * 7 - 7);
+        const day = new Date(start); day.setDate(day.getDate() + 2);
+        past.push({
+          weekNumber: 0, startDate: ymd(start),
+          sessions: [{ id: `past-w${i}d2`, date: ymd(day), type: "LONG", km: 12, done: i % 2 === 0 }],
+        });
+      }
+      const weeks = [...past, ...context.plan.weeks].map((w, idx) => ({ ...w, weekNumber: idx + 1 }));
+      return { ...context, plan: { ...context.plan, weeks } };
+    };
+
+    it("shows the live weeks in full and only the trailing two elapsed ones", () => {
+      const context = withHistory(5);
+      const content = buildMessages(context, [], null)[0].content;
+      const elapsed = context.plan.weeks.filter(w => w.startDate < context.today).map(w => w.sessions[0].id);
+      expect(elapsed).toHaveLength(5);
+      // The two most recent elapsed weeks are there; the three older ones are not.
+      for (const id of elapsed.slice(-2)) expect(content).toContain(id);
+      for (const id of elapsed.slice(0, 3)) expect(content).not.toContain(id);
+      expect(content).toContain("RECENT PLAN WEEKS");
+    });
+
+    it("keeps the retained history out of the editable CURRENT PLAN block", () => {
+      const context = withHistory(2);
+      const content = buildMessages(context, [], null)[0].content;
+      const currentPlan = content.slice(0, content.indexOf("RECENT PLAN WEEKS"));
+      for (const w of context.plan.weeks.filter(w => w.startDate < context.today))
+        expect(currentPlan).not.toContain(w.sessions[0].id);
+    });
+
+    it("compacts history to what happened, dropping the prescription text", () => {
+      const content = buildMessages(withHistory(1), [], null)[0].content;
+      const past = content.slice(content.indexOf("RECENT PLAN WEEKS"));
+      expect(past).toContain('"km":12');
+      expect(past).not.toContain('"desc"');
+      expect(past).not.toContain('"pace"');
+    });
+
+    it("says nothing about past weeks when there are none", () => {
+      // A plan that has never been rebuilt must reach the model exactly as before.
+      expect(buildMessages(makeContext("my knee hurts"), [], null)[0].content)
+        .not.toContain("RECENT PLAN WEEKS");
+    });
+
+    it("system prompt tells the model the retained weeks are read-only", () => {
+      expect(SYSTEM_PROMPT).toContain("RECENT PLAN WEEKS");
+      expect(SYSTEM_PROMPT).toContain("never try to edit them");
+    });
+  });
+
   it("system prompt asks about resolved memory pain before increasing load", () => {
     expect(SYSTEM_PROMPT).toContain("ask whether the pain has gone away");
     expect(SYSTEM_PROMPT).toContain("before increasing load");

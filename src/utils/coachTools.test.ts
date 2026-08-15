@@ -28,7 +28,13 @@ type ToolName =
 type ToolDef = { name: string };
 
 const toolDefs = TOOL_DEFS as ToolDef[];
-const applyTool = applyToolCall as (plan: TestPlan, name: string, input: ToolInput) => TestPlan;
+// The fixture below lives on a fixed calendar and the tools refuse dates that
+// have already passed, so every call carries a pinned `today` sitting at the
+// start of the plan. Past-date tests pass their own.
+const TODAY = "2026-01-05";
+const applyToolRaw = applyToolCall as (plan: TestPlan, name: string, input: ToolInput, opts?: { today?: string }) => TestPlan;
+const applyTool = (plan: TestPlan, name: string, input: ToolInput, today: string = TODAY) =>
+  applyToolRaw(plan, name, input, { today });
 const assessGoal = assessGoalFeasibility as (input: {
   goal: { goalSec: number; distanceKm: number; raceDate: string };
   targetPace: number;
@@ -73,7 +79,7 @@ describe("applyToolCall", () => {
     expect(() => applyTool(plan(), "shift_workout", { session_id: "race", new_date: "2026-01-20" })).toThrow(CoachToolError);
     expect(() => applyTool(plan(), "shift_workout", { session_id: "w2d2", new_date: "2026-01-15" })).toThrow(/completed/);
     expect(() => applyTool(plan(), "shift_workout", { session_id: "w1d2", new_date: "2026-02-20" })).toThrow(/race day/);
-    expect(() => applyTool(plan(), "shift_workout", { session_id: "w1d2", new_date: "2025-12-01" })).toThrow(/outside/);
+    expect(() => applyTool(plan(), "shift_workout", { session_id: "w1d2", new_date: "2026-02-01" })).toThrow(/outside/);
     expect(() => applyTool(plan(), "shift_workout", { session_id: "nope", new_date: "2026-01-13" })).toThrow(/No session/);
   });
 
@@ -174,9 +180,67 @@ describe("applyToolCall", () => {
     expect(() => applyTool(plan(), "add_session", { date: "2026-02-05", type: "EASY", km: 5 })).toThrow(/final 14 days/);
     // Longest training session in the fixture is 11 km.
     expect(() => applyTool(plan(), "add_session", { date: "2026-01-08", type: "LONG", km: 15 })).toThrow(/longest/);
-    expect(() => applyTool(plan(), "add_session", { date: "2025-12-01", type: "EASY", km: 5 })).toThrow(/outside/);
+    expect(() => applyTool(plan(), "add_session", { date: "2026-01-30", type: "EASY", km: 5 })).toThrow(/outside/);
     expect(() => applyTool(plan(), "add_session", { date: "2026-01-08", type: "RACE", km: 5 })).toThrow(/type/);
     expect(() => applyTool(plan(), "add_session", { date: "2026-01-08", type: "EASY", km: 0 })).toThrow(/km/);
+  });
+
+  // ── the past is read-only ──────────────────────────────────────────────────
+  // A rebuild keeps the elapsed weeks in the plan, so the model can now see and
+  // address days that have already been lived. The plan doubles as the training
+  // record: every mutating tool refuses them.
+  describe("refuses to rewrite the past", () => {
+    // Week 1 (2026-01-05) has ended by here; weeks 2-3 have not.
+    const LATER = "2026-01-13";
+
+    it("refuses every session-level tool on a past-dated session", () => {
+      const cases: [ToolName, ToolInput][] = [
+        ["shift_workout", { session_id: "w1d2", new_date: "2026-01-15" }],
+        ["swap_session", { session_id: "w1d2", new_type: "EASY" }],
+        ["reduce_session_distance", { session_id: "w1d2", factor: 0.5 }],
+        ["cancel_session", { session_id: "w1d2" }],
+        ["convert_to_cross_training", { session_id: "w1d2" }],
+      ];
+      for (const [name, input] of cases) {
+        expect(() => applyTool(plan(), name, input, LATER)).toThrow(/already passed/);
+      }
+    });
+
+    it("refuses the whole-week tools on a week that has ended", () => {
+      expect(() => applyTool(plan(), "reduce_week_volume", { week_number: 1, factor: 0.7 }, LATER))
+        .toThrow(/already passed/);
+      expect(() => applyTool(plan(), "insert_recovery_week", { week_number: 1 }, LATER))
+        .toThrow(/already passed/);
+    });
+
+    it("refuses moving a session onto, or adding one to, a day that has passed", () => {
+      expect(() => applyTool(plan(), "shift_workout", { session_id: "w2d6", new_date: "2026-01-06" }, LATER))
+        .toThrow(/already passed/);
+      expect(() => applyTool(plan(), "add_session", { date: "2026-01-06", type: "EASY", km: 5 }, LATER))
+        .toThrow(/already passed/);
+    });
+
+    it("still allows today and yesterday, so a missed session stays actionable", () => {
+      // `today` is UTC while a session's date is the runner's local day, so the
+      // guard carries a day of slack rather than refusing the runner's own
+      // "I can't run today" in a western evening.
+      expect(applyTool(plan(), "cancel_session", { session_id: "w1d6" }, "2026-01-11")
+        .weeks[0].sessions.find(s => s.id === "w1d6")!.skipped).toBe(true);
+      expect(applyTool(plan(), "cancel_session", { session_id: "w1d6" }, "2026-01-12")
+        .weeks[0].sessions.find(s => s.id === "w1d6")!.skipped).toBe(true);
+      expect(() => applyTool(plan(), "cancel_session", { session_id: "w1d6" }, "2026-01-13"))
+        .toThrow(/already passed/);
+    });
+
+    it("caps an added session against the live weeks, not a past block's peak", () => {
+      // The fixture's 11 km long run is in week 2; the retained week 1 holds a
+      // 10 km one. Once week 2 is also past, the cap must fall to what is left.
+      const p = plan();
+      p.weeks[2]!.sessions = [sess("w3d2", "2026-01-21", "EASY", 4)];
+      p.weeks[2]!.phase = "BUILD";
+      expect(() => applyTool(p, "add_session", { date: "2026-01-22", type: "EASY", km: 8 }, "2026-01-20"))
+        .toThrow(/longest/);
+    });
   });
 
   it("rejects unknown tools", () => {
@@ -208,7 +272,7 @@ describe("applyToolCall", () => {
       // Read-only tools are dispatched by the engine, not applyToolCall.
       if (["reassess_goal_feasibility", "remember_runner_context", "get_run_detail"].includes(def.name)) continue;
       const out = applyTool(plan(), def.name, toolInputs[def.name as ToolName]);
-      const r = validatePlan(out, { baseline: plan() });
+      const r = validatePlan(out, { baseline: plan(), today: TODAY });
       expect(Array.isArray(r.errors)).toBe(true);
       expect(Array.isArray(r.warnings)).toBe(true);
       expect(typeof r.ok).toBe("boolean");

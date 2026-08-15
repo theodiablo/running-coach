@@ -4,6 +4,7 @@
 
 import { validatePlan, formatValidation } from "./validation.mjs";
 import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, CoachToolError } from "./tools.mjs";
+import { isElapsedWeek, todayYmd } from "./weeks.mjs";
 
 export const MAX_VALIDATOR_RETRIES = 3;
 // Hard ceiling on model calls per round, so a pathological tool-call loop
@@ -33,6 +34,7 @@ Rules:
 - The plan may follow a methodology style (PLAN STYLE below): balanced (classic mix), polarized (ONE hard session a week — keep every other day genuinely easy), runwalk (run/walk structure — never introduce tempo or interval work), lowfreq (exactly three key runs, other days optional cross-training), hansons (capped moderate long run, frequent moderate days). Preserve the style's pattern when adjusting; do not add quality the style wouldn't schedule.
 - Completed sessions and RACE sessions are immutable.
 - The plan doubles as the training record: never edit or relabel a session to make past training look better or different from what actually happened — decline and explain.
+- The plan keeps the weeks that have already been lived, shown under RECENT PLAN WEEKS. They are that record: read them for what was prescribed and whether it happened, and never try to edit them — every tool refuses a past date. Adjust only what is still ahead.
 - If no change is warranted, or the request needs information you don't have, say so in plain text and make no tool calls.
 - Ask a clarifying question (plain text, no tools) only when a fact you genuinely need is missing AND the runner's message doesn't answer it. If their latest message already gives the answer (e.g. they say the pain is gone, or they are recovered), take them at their word and act in this response.
 - You are not a doctor; keep medical caveats brief but present.
@@ -163,14 +165,57 @@ const replyLanguageLine = (lang) =>
     ? `\n\nREPLY LANGUAGE: Write your natural-language reply to the runner in ${REPLY_LANG_NAME[lang]}. Keep tool inputs, session types and any plan JSON in English.`
     : "";
 
+// How much elapsed plan history the model is shown. A rebuild keeps up to 8
+// elapsed weeks, but the coach doesn't need all of them: what the runner
+// actually DID already reaches the model through RECENT RUNS, which is the
+// real record. What those weeks add is the other half — what was prescribed
+// and never done — and that only stays actionable inside the overdue window
+// (OVERDUE_LOOKBACK_DAYS, 14 days). Two weeks always covers it whatever
+// weekday it is, where "current and future only" would show 0 elapsed days on
+// a Monday and 6 on a Sunday, and leave the coach blind to a session the app
+// is still showing the runner as open.
+//
+// Fixed window, so the token cost stays flat as history accumulates; the
+// serialization drops to date/type/km/flags because the prescription text of a
+// week already gone changes no advice.
+const CONTEXT_PAST_WEEKS = 2;
+
+const compactPastWeek = (w) => ({
+  weekNumber: w.weekNumber,
+  startDate: w.startDate,
+  sessions: (w.sessions || []).map(s => ({
+    // The id stays: the runner can ask about one of these by name, and an edit
+    // attempt then earns the accurate "already passed" refusal rather than a
+    // confusing "no session with that id".
+    id: s.id, date: s.date, type: s.type, km: s.km,
+    ...(s.done ? { done: true } : {}),
+    ...(s.skipped ? { skipped: true } : {}),
+  })),
+});
+
+// Split a plan into what the model is shown: the live weeks in full (they are
+// what it edits), and a bounded, compacted tail of elapsed ones as context.
+export function planContext(plan, today) {
+  const weeks = plan?.weeks || [];
+  const live = weeks.filter(w => !isElapsedWeek(w, today));
+  const past = weeks.filter(w => isElapsedWeek(w, today)).slice(-CONTEXT_PAST_WEEKS);
+  return { plan: { ...plan, weeks: live }, past: past.map(compactPastWeek) };
+}
+
 // Build the initial message list for a round.
 // history: prior rounds [{ user_feedback, rationale, tool_calls }] (round 0's
 // report lives in context.report). Rebuilt as plain-text turns — good enough
 // for steering, and avoids persisting raw content blocks.
 export function buildMessages(context, history, message) {
   const memory = String(context.userContext?.notes || "").trim();
+  const { plan: livePlan, past } = planContext(context.plan, context.today || todayYmd());
   const ctxBlock =
-    `CURRENT PLAN (JSON):\n${JSON.stringify(context.plan)}\n\n` +
+    `CURRENT PLAN (JSON):\n${JSON.stringify(livePlan)}\n\n` +
+    // Omitted entirely when there is none, so a plan with no history stays
+    // byte-identical to what the model saw before (golden tests, eval fixtures).
+    (past.length
+      ? `RECENT PLAN WEEKS — already lived, read-only (JSON):\n${JSON.stringify(past)}\n\n`
+      : "") +
     `GOAL: ${context.goal.distanceKm} km on ${context.goal.raceDate}` +
     (context.goal.goalSec ? `, goal ${Math.round(context.goal.goalSec / 60)} min` : "") + `\n` +
     `PLAN STYLE: ${context.plan?.style || "balanced"}\n` +
@@ -205,6 +250,10 @@ const textOf = (content) =>
 // callModel(messages, tools) → an Anthropic Message ({ content, stop_reason, usage }).
 export async function generateProposal({ baseline, context, history = [], message = null, callModel, fetchRunDetail = null }) {
   let working = structuredClone(context.plan ?? baseline);
+  // One clock for the whole round: the same `today` the model is shown decides
+  // which weeks the validator scores and which dates the tools refuse, so a
+  // refusal can never contradict the context it reasoned from.
+  const today = context.today || todayYmd();
   const messages = buildMessages(context, history, message);
   const usage = { input_tokens: 0, output_tokens: 0 };
   const toolCalls = [];
@@ -233,7 +282,7 @@ export async function generateProposal({ baseline, context, history = [], messag
 
     if (!uses.length) {
       // Model is done (or answered without edits) — final gate before surfacing.
-      const validation = validatePlan(working, { baseline });
+      const validation = validatePlan(working, { baseline, today });
       lastValidation = validation;
       if (validation.ok) {
         return {
@@ -267,7 +316,7 @@ export async function generateProposal({ baseline, context, history = [], messag
           readOnlyActivity = true;
         } else {
           guardToolForContext(tu.name, tu.input, context, history, message);
-          working = applyToolCall(working, tu.name, tu.input);
+          working = applyToolCall(working, tu.name, tu.input, { today });
           resultText = "Applied.";
           toolCalls.push({ name: tu.name, input: tu.input });
         }
@@ -279,7 +328,7 @@ export async function generateProposal({ baseline, context, history = [], messag
       }
     }
 
-    const validation = validatePlan(working, { baseline });
+    const validation = validatePlan(working, { baseline, today });
     lastValidation = validation;
     messages.push({ role: "assistant", content: resp.content });
     const feedback = [...results];

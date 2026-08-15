@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { buildPlan, carryProgress, findOpenPlanSession, planSessionPrefill } from "./plan";
+import { overdueByWeek } from "./overdue";
 import type { Plan } from "../types";
 import { ymd } from "./format";
 
@@ -352,7 +353,9 @@ describe("carryProgress", () => {
       { id: "w2d4", date: "2026-08-28" },
       { id: "w2d6", date: "2026-08-30" },
     ]);
-    expect(flags(carryProgress(old, built, "rebuild"))).toEqual([
+    // The rebuilt weeks carry nothing. (The old week itself is kept below them
+    // as history — see "keeps the weeks the rebuild cannot reach".)
+    expect(flags(carryProgress(old, built, "rebuild")).filter(s => s.date >= "2026-08-26")).toEqual([
       { id: "w2d2", date: "2026-08-26", done: false, skipped: false },
       { id: "w2d4", date: "2026-08-28", done: false, skipped: false },
       { id: "w2d6", date: "2026-08-30", done: false, skipped: false },
@@ -493,11 +496,12 @@ describe("carryProgress", () => {
       const merged = carryProgress(before, rebuilt, "rebuild");
       const carried = merged.weeks.flatMap(w => w.sessions).filter(s => s.done);
 
-      // The elapsed weeks are simply not in the rebuilt plan, so nothing may
-      // claim their ticks. Under the old id matching all six landed on July
-      // sessions the runner had never seen.
-      expect(doneDates.every(d => d < merged.weeks[0].sessions[0].date)).toBe(true);
-      expect(carried).toHaveLength(0);
+      // Under the old id matching all six ticks landed on July sessions the
+      // runner had never seen. Every done flag must still sit on a day that
+      // actually happened — none may appear in the newly built weeks.
+      const newStart = rebuilt.weeks[0]!.startDate!;
+      expect(doneDates.every(d => d < newStart)).toBe(true);
+      expect(carried.every(s => s.date < newStart)).toBe(true);
     });
 
     it("carries nothing spurious when the plan is rebuilt the same day", () => {
@@ -506,6 +510,111 @@ describe("carryProgress", () => {
       const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
       const merged = carryProgress(before, rebuilt, "rebuild");
       expect(merged.weeks.flatMap(w => w.sessions).filter(s => s.done || s.skipped)).toHaveLength(0);
+    });
+  });
+
+  // ── retained history ──────────────────────────────────────────────────────
+  // buildPlan anchors week 1 on the next Monday, so a rebuilt plan contains no
+  // already-elapsed date and every completed session before that Monday used to
+  // vanish — six ticks in, zero out. Stopping the smear (above) did not put the
+  // training back; prepending the weeks the rebuild cannot reach does.
+  describe("keeps the weeks the rebuild cannot reach", () => {
+    const S = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
+    const sessionsOf = (p: Plan) => p.weeks.flatMap(w => w.sessions);
+    const doneCount = (p: Plan) => sessionsOf(p).filter(s => s.done).length;
+
+    // A plan started 3 weeks ago with every elapsed session ticked, then
+    // rebuilt today — the availability/goal edit that used to wipe the record.
+    const threeWeeksIn = () => {
+      vi.setSystemTime(new Date("2026-06-03T10:00:00")); // Wed; plan starts Mon Jun 8
+      const before = buildPlan("2026-10-11", 14400, S, 20, 0) as unknown as Plan;
+      vi.setSystemTime(new Date("2026-06-24T10:00:00")); // Wed, 3 weeks later
+      const today = "2026-06-24";
+      before.weeks.forEach(w => w.sessions.forEach(s => { if (s.date < today) s.done = true; }));
+      return before;
+    };
+
+    it("keeps the elapsed weeks and their done ticks, so the completed count survives", () => {
+      const before = threeWeeksIn();
+      const wasDone = doneCount(before);
+      expect(wasDone).toBeGreaterThan(0);
+
+      const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
+      const merged = carryProgress(before, rebuilt, "rebuild");
+
+      // The promise the rebuild note makes: completed runs stay.
+      expect(doneCount(merged)).toBe(wasDone);
+      expect(merged.weeks.length).toBe(rebuilt.weeks.length + 3);
+    });
+
+    it("keeps the part-run current week, so no day is left uncovered", () => {
+      const before = threeWeeksIn();
+      const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
+      const merged = carryProgress(before, rebuilt, "rebuild");
+
+      // Rebuilding on a Wednesday, the new plan starts the following Monday.
+      // Without the current week the runner would have no sessions at all
+      // between today and then.
+      expect(rebuilt.weeks[0].startDate).toBe("2026-06-29");
+      const thisWeek = merged.weeks.find(w => w.startDate === "2026-06-22");
+      expect(thisWeek).toBeDefined();
+      expect(sessionsOf(merged).some(s => s.date >= "2026-06-24" && s.date < "2026-06-29")).toBe(true);
+    });
+
+    it("joins the two halves into one contiguous, uniquely-keyed plan", () => {
+      const before = threeWeeksIn();
+      const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
+      const merged = carryProgress(before, rebuilt, "rebuild");
+
+      // Week numbers run 1..n with no repeats or gaps, so "week n of m",
+      // overdueByWeek's keys and the coach's week_number tools all line up.
+      expect(merged.weeks.map(w => w.weekNumber)).toEqual(merged.weeks.map((_, i) => i + 1));
+      // Weeks stay one Monday apart across the join.
+      const starts = merged.weeks.map(w => w.startDate);
+      expect(starts).toEqual([...starts].sort());
+      for (let i = 1; i < starts.length; i++) {
+        const gap = (new Date(starts[i] + "T00:00:00").getTime()
+          - new Date(starts[i - 1] + "T00:00:00").getTime()) / 86400000;
+        expect(gap).toBe(7);
+      }
+      // Retained history is re-keyed: buildPlan mints "w1d2" every time, and a
+      // duplicate id is a validator error and a duplicate React key.
+      const ids = sessionsOf(merged).map(s => s.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("overdue lookups still resolve against the merged week numbers", () => {
+      const before = threeWeeksIn();
+      // Leave the most recent week untouched so it reads as overdue.
+      before.weeks.forEach(w => w.sessions.forEach(s => {
+        if (s.date >= "2026-06-15") s.done = false;
+      }));
+      const rebuilt = buildPlan("2026-10-11", 14100, S, 20, 0) as unknown as Plan;
+      const merged = carryProgress(before, rebuilt, "rebuild");
+
+      const counts = overdueByWeek(merged, new Date("2026-06-24T10:00:00"));
+      const numbers = merged.weeks.map(w => w.weekNumber);
+      expect(Object.keys(counts).length).toBeGreaterThan(0);
+      for (const key of Object.keys(counts)) expect(numbers).toContain(Number(key));
+    });
+
+    it("caps retained history over repeated rebuilds", () => {
+      vi.setSystemTime(new Date("2026-01-07T10:00:00"));
+      let plan = buildPlan("2026-12-13", 14400, S, 20, 0) as unknown as Plan;
+      // Rebuild every three weeks for most of a year — the growth case a naive
+      // "keep everything" would turn into an ever-fatter synced blob.
+      for (let week = 3; week <= 39; week += 3) {
+        const at = new Date("2026-01-07T10:00:00");
+        at.setDate(at.getDate() + week * 7);
+        vi.setSystemTime(at);
+        const rebuilt = buildPlan("2026-12-13", 14400, S, 20, 0) as unknown as Plan;
+        plan = carryProgress(plan, rebuilt, "rebuild");
+        const newStart = rebuilt.weeks[0]!.startDate!;
+        const history = plan.weeks.filter(w => (w.startDate || "") < newStart);
+        expect(history.length).toBeLessThanOrEqual(8);
+      }
+      // And the ids never stack a second "past-" prefix on a re-carried week.
+      expect(sessionsOf(plan).every(s => !s.id.startsWith("past-past-"))).toBe(true);
     });
   });
 });

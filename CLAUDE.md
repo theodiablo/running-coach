@@ -153,8 +153,18 @@ Always re-verify a finding before acting on it; agents report false positives.
   site silently rebuilds as `balanced`, whose output is frozen by snapshot
   tests). New styles must stay validator-clean by construction
   (`coachValidation.test.ts` matrix). Rebuilds that replace an existing plan go
-  through `carryProgress` so done/skipped aren't wiped. Detail (opts, long-run
-  scaling, fitness level, suggested days): `docs/training-plan.md`.
+  through `carryProgress` so done/skipped aren't wiped. **buildPlan always
+  starts week 1 on the next Monday**, so a rebuild holds no elapsed date:
+  `carryProgress` prepends the old weeks the new plan can't reach (capped at 8,
+  ids prefixed `past-`, renumbered across the join) and re-stamps the rest **by
+  calendar date, never by session id** — ids name a grid slot, not a day.
+  A week that has elapsed is therefore a real thing in `plan.weeks`;
+  `isElapsedWeek` (`src/utils/plan.ts`, server twin
+  `_shared/coach/weeks.mjs`) is the one definition, and the past is read-only
+  everywhere downstream: the coach's tools refuse it, its load rules never
+  report against it, and only the trailing 2 weeks of it reach the model.
+  Detail (opts, long-run scaling, fitness level, suggested days, rebuild
+  semantics): `docs/training-plan.md`.
 - **Best efforts** (fastest 1K/5K/10K/half/marathon in a run) are extracted
   **once at save time** from the trace and stored on the run as `bestEfforts`,
   so every PB comparison is an in-memory scan of `runs` — never refetch traces

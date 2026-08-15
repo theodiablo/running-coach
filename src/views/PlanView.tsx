@@ -15,24 +15,18 @@ import { PlanSessionRow } from "../components/PlanSessionRow";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
-import { carryProgress, planSessionPrefill, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
+import { carryProgress, isElapsedWeek, planSessionPrefill, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 
-// ── Week windows ────────────────────────────────────────────────────────────
-// A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
-// `weekEnd <= today` partitions the plan cleanly into behind / current+ahead.
-const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-const weekStart = (w: PlanWeek) => new Date((w.startDate || "") + "T00:00:00");
-const weekEnd   = (w: PlanWeek) => { const e = weekStart(w); e.setDate(e.getDate() + 7); return e; };
-
 // The plan list shows weeks still ahead first and pushes finished ones to the
-// bottom, so "now" is always at the top without having to scroll to it.
+// bottom, so "now" is always at the top without having to scroll to it. A
+// rebuild keeps up to 8 elapsed weeks, so `past` is a real list, not a stub.
 const splitWeeks = (plan: Plan | null) => {
   const today = startOfToday();
   const weeks = plan?.weeks || [];
   return {
-    upcoming: weeks.filter(w => weekEnd(w) > today),
-    past:     weeks.filter(w => weekEnd(w) <= today),
+    upcoming: weeks.filter(w => !isElapsedWeek(w, today)),
+    past:     weeks.filter(w => isElapsedWeek(w, today)),
   };
 };
 
@@ -185,11 +179,11 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
     const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel});
     const hadPlan = !!plan;
-    // A rebuild re-anchors progress on the calendar date. buildPlan starts the
-    // new plan at next Monday, so already-elapsed weeks aren't in it and their
-    // ticks have nowhere to land — rebuildNote says so rather than implying the
-    // old plan's completed count survives. A promote is deliberately fresh
-    // ("Builds a fresh plan for this race"), so it carries nothing at all.
+    // A rebuild re-anchors progress on the calendar date and keeps the weeks
+    // buildPlan's next-Monday start can't reach, so the completed count really
+    // does survive — which is what rebuildNote promises. A promote is
+    // deliberately fresh ("Builds a fresh plan for this race"): a new goal
+    // starts a new block, so it carries nothing at all.
     savePlan(promoting ? built : carryProgress(plan, built, "rebuild"));
     setEditing(false);
     clearPlanPrefill?.();
@@ -339,7 +333,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   // One collapsible week card. Rendered twice — once for the weeks still ahead,
   // once for the past ones below them — so it takes the week, not a list index.
   const weekCard = (wk: PlanWeek) => {
-    const isPast = weekEnd(wk) <= today;
+    const isPast = isElapsedWeek(wk, today);
     const isCurr = !isPast && weekStart(wk) <= today;
     const isExp  = exp === wk.weekNumber;
     const wDone  = wk.sessions.filter(s => s.done).length;
