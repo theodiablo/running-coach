@@ -41,6 +41,17 @@ public class MainActivity extends BridgeActivity {
         // Null when the device has no usable WebView: BridgeActivity.onCreate
         // bails to the no_webview layout before it builds the bridge.
         if (bridge != null) {
+            // Keep the renderer off the low-memory killer's doorstep. A foreground
+            // service raises the importance of the APP process, but the WebView
+            // renderer is a separate sandboxed process, and the default policy
+            // WAIVES its priority as soon as the WebView stops being visible —
+            // exactly when a session is recording with the screen off, which is why
+            // IndoorSessionService alone did not stop the freeze
+            // (docs/indoor-sessions.md).
+            WebView webView = bridge.getWebView();
+            if (webView != null)
+                webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+
             bridge.addWebViewListener(
                 new WebViewListener() {
                     @Override

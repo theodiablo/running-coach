@@ -200,9 +200,33 @@ screen, clock and heart rate frozen at their final values — while no JS runs a
 all, so Pause and Finish do nothing. Read as "heart rate is stuck" before the
 frozen clock gave it away.
 
-The service above is the fix for a strapped session, but it can't cover
-everything: a strapless session runs no service, and a foreground start can be
-refused. So `MainActivity` also registers a `WebViewListener.onRenderProcessGone`
+**A foreground service does not save the renderer, and this was learned the hard
+way.** The service above raises the importance of the *app* process; the WebView
+renderer is a **separate sandboxed process** with its own priority, and the
+default policy (`RENDERER_PRIORITY_IMPORTANT`, `waivedWhenNotVisible = true`)
+**waives** that priority the moment the WebView stops being visible — which is
+precisely when a session records with the screen off. So the renderer stayed
+first in line for the low-memory killer no matter what the service did: v1.13.2's
+fix shipped, and v1.13.3 still froze five minutes into a session with a strap
+streaming and the service running.
+
+`MainActivity` therefore pins the renderer as well, right after the bridge is
+built:
+
+```java
+webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+```
+
+`false` is the whole point — it stops the priority being waived while the WebView
+is off-screen. The API is API 26, matching `minSdkVersion`, so it needs no
+version guard. The two halves are complementary and both are needed: the service
+holds the **app** process, the policy holds the **renderer** process. It raises
+the renderer's standing rather than making it unkillable — under real memory
+pressure Android can still take it, which is why the restart below stays.
+
+The service and the policy cannot cover everything: a strapless session runs no
+service, and a foreground start can be refused. So `MainActivity` also registers
+a `WebViewListener.onRenderProcessGone`
 that returns true (returning false kills the process), destroys the dead WebView
 and relaunches the activity — the app cold-boots and the recovery buffer offers
 the session back. It **restarts at most once per
