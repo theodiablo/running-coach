@@ -389,6 +389,15 @@ changes.
   A plan session offers the same two verbs everywhere (Dashboard card and
   `PlanSessionRow`): **Start run** opens a recorder, **Log it** opens the form —
   a new surface must not invent a third word for either.
+- **Duration is one masked field, not h/m/s boxes.** `RunFormValues.dur` is the
+  raw digit string, filling right to left (`4300` → 43:00, `15207` → 1:52:07) —
+  the order a watch face is already written in, and one keyboard on a phone
+  instead of three. Read it with `durToSec`, render with `formatDur`, seed with
+  `secToDur` (`src/utils/runForm.ts`); the field only ever appends or pops a
+  digit, with the caret pinned to the end, so there is no caret arithmetic to
+  get wrong. Every digit string is a valid duration, which is why there is no
+  "hours or minutes at least" rule any more. (`hmsToSec` survives for
+  `RacesView`'s separate race-time entry.)
 - **The form (`RunFields`, shared by Log and Edit) is two tiers**: what a run
   needs (when/what/how far/how long) is always visible, the optional metrics sit
   behind one row that opens filled when the form arrives carrying any of them

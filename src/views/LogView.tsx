@@ -4,7 +4,7 @@ import { Check, Loader, Plus, Upload, HeartPulse } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { track } from "../telemetry";
 import { RunFields } from "../components/RunFields";
-import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, type RunFormValues } from "../utils/runForm";
+import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, secToDur, type RunFormValues } from "../utils/runForm";
 import { MAX_GPX_BYTES } from "../utils/gpx";
 import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
@@ -53,9 +53,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
     // An indoor session has no distance to prefill; a literal 0 in the field
     // would read as a measurement rather than "not applicable".
     km:     prefill?.source === "indoor" ? "" : prefill?.km != null ? String(prefill.km) : "",
-    dH:     estSec >= 3600 ? String(Math.floor(estSec / 3600)) : "",
-    dM:     estSec >= 60   ? String(Math.floor((estSec % 3600) / 60)) : "",
-    dS:     Math.round(estSec % 60) ? String(Math.round(estSec % 60)) : "",
+    dur:    secToDur(estSec),
     hr:    prefill?.hr    != null ? String(prefill.hr)    : "",
     hrMax: prefill?.hrMax != null ? String(prefill.hrMax) : "",
     elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:0,notes:"",

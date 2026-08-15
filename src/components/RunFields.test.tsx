@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { RunFields } from "./RunFields";
 import { emptyRunForm, type RunFormValues } from "../utils/runForm";
@@ -30,8 +30,28 @@ describe("RunFields", () => {
   });
 
   it("confirms the entry with a pace once distance and duration are both in", () => {
-    setup({ km: "8", dM: "43" });
+    setup({ km: "8", dur: "4300" });
     expect(screen.getByText("5:23/km")).toBeInTheDocument();
+  });
+
+  // One masked field replaced three number boxes. It only ever appends or pops
+  // a digit — the caret is pinned to the end — so these are the only two paths.
+  it("shows the duration grouped as it will be read back", () => {
+    setup({ dur: "15207" });
+    expect(screen.getByDisplayValue("1:52:07")).toBeInTheDocument();
+  });
+
+  it("appends a typed digit and pops one on backspace", () => {
+    const onChange = vi.fn();
+    render(<RunFields form={{ ...emptyRunForm("2026-08-15"), dur: "430" }} onChange={onChange} phScope="log.fields"/>);
+    const field = screen.getByDisplayValue("4:30");
+
+    fireEvent.change(field, { target: { value: "4:300" } });
+    expect(onChange).toHaveBeenCalledWith("dur", "4300");
+
+    onChange.mockClear();
+    fireEvent.keyDown(field, { key: "Backspace" });
+    expect(onChange).toHaveBeenCalledWith("dur", "43");
   });
 
   it("shows no pace until it means something", () => {

@@ -54,9 +54,6 @@
     "notes": "Notas",
     "effort": "Esfuerzo percibido:",
     "effortValue": "{{value}}/10",
-    "hoursPh": "h",
-    "minutesPh": "min",
-    "secondsPh": "s",
     "kmPh": "p. ej., 8,5",
     "avgHrPh": "p. ej. 145",
     "maxHrPh": "p. ej. 170",
@@ -70,11 +67,13 @@
     "effortMax": "a tope",
     "crossNoDistance": "Aquí no hay distancia: los kilómetros de una bici no son kilómetros de carrera a pie, y contarlos distorsionaría tu volumen, tus ritmos y tus récords. Lo que cuenta es el tiempo y el esfuerzo.",
     "addDetails": "Añadir frecuencia cardiaca, desnivel, esfuerzo, notas",
-    "addDetailsCross": "Añadir frecuencia cardiaca, esfuerzo, notas"
+    "addDetailsCross": "Añadir frecuencia cardiaca, esfuerzo, notas",
+    "durationPh": "0:00",
+    "durationHint": "Los dígitos se rellenan desde la derecha: 4300 es 43:00, 15207 es 1:52:07."
   },
   "validation": {
     "km": "¿Qué distancia hiciste?",
-    "duration": "¿Cuánto tiempo tardaste? Horas o minutos, como mínimo.",
+    "duration": "¿Cuánto tiempo tardaste?",
     "fixAbove": "Completa los campos señalados arriba."
   },
   "hrPendingNote": "La frecuencia cardíaca se añadirá automáticamente desde {{store}} cuando tu reloj se sincronice; suele tardar unos minutos. Deja estos campos en blanco o introdúcelos a mano.",

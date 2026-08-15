@@ -54,9 +54,6 @@
     "notes": "Notes",
     "effort": "Perceived effort:",
     "effortValue": "{{value}}/10",
-    "hoursPh": "h",
-    "minutesPh": "min",
-    "secondsPh": "sec",
     "kmPh": "e.g. 8.5",
     "avgHrPh": "e.g. 145",
     "maxHrPh": "e.g. 170",
@@ -70,11 +67,13 @@
     "effortMax": "all out",
     "crossNoDistance": "No distance here: a bike's kilometres aren't running kilometres, so counting them would distort your volume, paces and records. Time and effort are what matter.",
     "addDetails": "Add heart rate, elevation, effort, notes",
-    "addDetailsCross": "Add heart rate, effort, notes"
+    "addDetailsCross": "Add heart rate, effort, notes",
+    "durationPh": "0:00",
+    "durationHint": "Digits fill from the right: 4300 is 43:00, 15207 is 1:52:07."
   },
   "validation": {
     "km": "How far did you go?",
-    "duration": "How long did it take? Hours or minutes, at least.",
+    "duration": "How long did it take?",
     "fixAbove": "Fill in the highlighted fields above."
   },
   "hrPendingNote": "Heart rate will be added automatically from {{store}} once your watch syncs (usually a few minutes) — leave these blank, or enter them yourself.",

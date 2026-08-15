@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Plus } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { RUN_ACTIVITIES } from "../types";
 import { fmt } from "../utils/format";
-import { EFFORT_UNSET, hmsToSec, type RunFormErrors, type RunFormValues } from "../utils/runForm";
+import { EFFORT_UNSET, durToSec, formatDur, normalizeDur, type RunFormErrors, type RunFormValues } from "../utils/runForm";
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
 
@@ -43,11 +43,20 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
 
   // The one number that confirms the entry at a glance — and exposes 80 km or
   // 4 minutes as the typo it is. Meaningless without a running distance.
-  const sec = hmsToSec(f);
+  const sec = durToSec(f.dur);
   const km = parseFloat(f.km);
   const pace = !isCross && km > 0 && sec > 0 ? sec / km : 0;
 
   const effort = Number(f.effort);
+
+  const durRef = useRef<HTMLInputElement | null>(null);
+  const durId = phScope === "log.edit" ? "run-dur-edit" : "run-dur";
+  // React restores the caret by index, which lands it before a colon the format
+  // just inserted; put it back at the end after the value settles.
+  const pinEnd = () => requestAnimationFrame(() => {
+    const el = durRef.current;
+    if (el) el.setSelectionRange(el.value.length, el.value.length);
+  });
 
   return (
     <>
@@ -80,13 +89,29 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
           {errors?.km && <p className="text-xs text-red-300 mt-1.5">{t("log.validation.km")}</p>}
         </div>
       )}
-      <div data-field="duration"><label className={LABEL_CLS}>{t("log.fields.duration")}</label>
-        <div className="grid grid-cols-3 gap-2">
-          <input type="number" min="0" max="23" placeholder={t("log.fields.hoursPh")}   value={f.dH} onChange={e => set("dH", e.target.value)} className={errCls(errors?.duration)}/>
-          <input type="number" min="0" max="59" placeholder={t("log.fields.minutesPh")} value={f.dM} onChange={e => set("dM", e.target.value)} className={errCls(errors?.duration)}/>
-          <input type="number" min="0" max="59" placeholder={t("log.fields.secondsPh")} value={f.dS} onChange={e => set("dS", e.target.value)} className={errCls(errors?.duration)}/>
-        </div>
-        {errors?.duration && <p className="text-xs text-red-300 mt-1.5">{t("log.validation.duration")}</p>}
+      <div data-field="duration"><label className={LABEL_CLS} htmlFor={durId}>{t("log.fields.duration")}</label>
+        {/* One masked field, not three boxes: digits fill from the right, so a
+            time is typed in the order a watch face shows it. Editing is
+            append/backspace only — the caret is pinned to the end, which is
+            what keeps this free of caret arithmetic. */}
+        <input id={durId} type="text" inputMode="numeric" autoComplete="off"
+          placeholder={t("log.fields.durationPh")} value={formatDur(f.dur)}
+          onChange={e => { set("dur", normalizeDur(e.target.value)); pinEnd(); }}
+          onKeyDown={e => {
+            if (e.key !== "Backspace") return;
+            e.preventDefault();
+            set("dur", f.dur.slice(0, -1));
+          }}
+          onFocus={pinEnd} onClick={pinEnd}
+          onSelect={() => {
+            const el = durRef.current;
+            if (el && (el.selectionStart !== el.value.length || el.selectionEnd !== el.value.length)) pinEnd();
+          }}
+          ref={durRef}
+          className={errCls(errors?.duration) + " text-lg font-semibold tabular-nums text-center"}/>
+        {errors?.duration
+          ? <p className="text-xs text-red-300 mt-1.5">{t("log.validation.duration")}</p>
+          : !f.dur && <p className="text-xs text-slate-500 mt-1.5">{t("log.fields.durationHint")}</p>}
       </div>
 
       {pace > 0 && (

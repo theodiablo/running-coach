@@ -54,9 +54,6 @@
     "notes": "Notes",
     "effort": "Effort perçu :",
     "effortValue": "{{value}}/10",
-    "hoursPh": "h",
-    "minutesPh": "min",
-    "secondsPh": "s",
     "kmPh": "p. ex. 8,5",
     "avgHrPh": "ex. 145",
     "maxHrPh": "ex. 170",
@@ -70,11 +67,13 @@
     "effortMax": "à fond",
     "crossNoDistance": "Pas de distance ici : les kilomètres d'un vélo ne sont pas des kilomètres de course, les compter fausserait ton volume, tes allures et tes records. Ce qui compte, c'est la durée et l'effort.",
     "addDetails": "Ajouter fréquence cardiaque, dénivelé, effort, notes",
-    "addDetailsCross": "Ajouter fréquence cardiaque, effort, notes"
+    "addDetailsCross": "Ajouter fréquence cardiaque, effort, notes",
+    "durationPh": "0:00",
+    "durationHint": "Les chiffres se remplissent depuis la droite : 4300 donne 43:00, 15207 donne 1:52:07."
   },
   "validation": {
     "km": "Quelle distance as-tu parcourue ?",
-    "duration": "Combien de temps as-tu mis ? Des heures ou des minutes, au minimum.",
+    "duration": "Combien de temps as-tu mis ?",
     "fixAbove": "Complète les champs signalés ci-dessus."
   },
   "hrPendingNote": "La fréquence cardiaque sera ajoutée automatiquement depuis {{store}} une fois ta montre synchronisée ; cela prend généralement quelques minutes. Laisse ces champs vides ou saisis-les toi-même.",

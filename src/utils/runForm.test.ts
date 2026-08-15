@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hmsToSec, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm } from "./runForm";
+import { durToSec, formatDur, hmsToSec, normalizeDur, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur } from "./runForm";
 import type { Run } from "../types";
 
 const run = {
@@ -15,9 +15,9 @@ describe("runToForm / runFormToPatch", () => {
     });
   });
 
-  it("splits duration into h/m/s, leaving zero components blank", () => {
-    expect(runToForm({ ...run, durationSec: 3725 })).toMatchObject({ dH: "1", dM: "2", dS: "5" });
-    expect(runToForm({ ...run, durationSec: 1800 })).toMatchObject({ dH: "", dM: "30", dS: "" });
+  it("loads the duration as the digits you would have typed", () => {
+    expect(runToForm({ ...run, durationSec: 3725 })).toMatchObject({ dur: "10205" });
+    expect(runToForm({ ...run, durationSec: 1800 })).toMatchObject({ dur: "3000" });
   });
 
   // Absent optional metrics must not come back as 0 — that would invent data.
@@ -36,14 +36,52 @@ describe("hmsToSec", () => {
   });
 });
 
+// The masked duration field: digits fill from the right, so a time is typed in
+// the order a watch face or a race result is already written in.
+describe("duration digits", () => {
+  it("groups digits the way they will be read back", () => {
+    expect(formatDur("")).toBe("");
+    expect(formatDur("4")).toBe("0:04");
+    expect(formatDur("43")).toBe("0:43");
+    expect(formatDur("430")).toBe("4:30");
+    expect(formatDur("4300")).toBe("43:00");
+    expect(formatDur("15207")).toBe("1:52:07");
+  });
+
+  it("parses every prefix, so nothing typed is ever invalid", () => {
+    expect(durToSec("")).toBe(0);
+    expect(durToSec("43")).toBe(43);
+    expect(durToSec("4300")).toBe(43 * 60);
+    expect(durToSec("15207")).toBe(3600 + 52 * 60 + 7);
+  });
+
+  it("round-trips seconds through the digit string", () => {
+    for (const sec of [0, 7, 59, 60, 630, 2580, 3725, 6727, 35999]) {
+      expect(durToSec(secToDur(sec))).toBe(sec);
+    }
+  });
+
+  it("keeps only the last six digits, so a stuck key can't overflow the field", () => {
+    expect(normalizeDur("123456789")).toBe("456789");
+    expect(durToSec("123456789")).toBe(45 * 3600 + 67 * 60 + 89);
+  });
+
+  it("strips leading zeros and anything that isn't a digit", () => {
+    expect(normalizeDur("00430")).toBe("430");
+    expect(normalizeDur("4:30")).toBe("430");
+    expect(normalizeDur("abc")).toBe("");
+  });
+});
+
 describe("runFormComplete", () => {
   it("needs a distance and some duration", () => {
     const base = runToForm(run);
     expect(runFormComplete(base)).toBe(true);
     expect(runFormComplete({ ...base, km: "" })).toBe(false);
-    // Seconds alone is not a duration — matches what both forms rejected before.
-    expect(runFormComplete({ ...base, dH: "", dM: "", dS: "30" })).toBe(false);
-    expect(runFormComplete({ ...base, dH: "1", dM: "" })).toBe(true);
+    expect(runFormComplete({ ...base, dur: "" })).toBe(false);
+    // Any duration counts now. Thirty seconds used to be rejected because the
+    // rule demanded hours or minutes, which the three boxes made easy to miss.
+    expect(runFormComplete({ ...base, dur: "30" })).toBe(true);
   });
 
   // An indoor bike/elliptical has no distance comparable to running, so
@@ -51,7 +89,7 @@ describe("runFormComplete", () => {
   it("lets cross-training save on duration alone", () => {
     const cross = { ...runToForm(run), type: "OTHER", km: "" };
     expect(runFormComplete(cross)).toBe(true);
-    expect(runFormComplete({ ...cross, dH: "", dM: "", dS: "" })).toBe(false);
+    expect(runFormComplete({ ...cross, dur: "" })).toBe(false);
   });
 });
 
@@ -88,9 +126,7 @@ describe("runFormErrors", () => {
     const base = runToForm(run);
     expect(runFormErrors(base)).toEqual({ km: false, duration: false });
     expect(runFormErrors({ ...base, km: "" })).toEqual({ km: true, duration: false });
-    // Every box visibly filled, yet incomplete — the old single banner ("distance
-    // and duration are required") gave no clue which rule this broke.
-    expect(runFormErrors({ ...base, dH: "", dM: "", dS: "30" })).toEqual({ km: false, duration: true });
+    expect(runFormErrors({ ...base, dur: "" })).toEqual({ km: false, duration: true });
   });
 
   it("never asks cross-training for a distance", () => {
