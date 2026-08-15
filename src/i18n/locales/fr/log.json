@@ -1,14 +1,29 @@
 {
-  "title": "Enregistrer une sortie",
-  "importFileBtn": "Importer un fichier",
-  "trackLive": "Enregistrer une sortie avec le GPS",
-  "indoorSession": "Enregistrer une séance en salle (fréquence cardiaque)",
-  "orManual": "ou saisis-la manuellement",
+  "titleManual": "Saisir une sortie",
+  "titleSession": "Enregistrer cette séance",
+  "titleReview": "Enregistrer ta sortie",
+  "titleImport": "Importer un fichier",
+  "saveAndTick": "Enregistrer et valider",
+  "haveAFile": "Tu as un fichier de ta montre ? Importe-le",
+  "sheet": {
+    "title": "Ajouter une sortie",
+    "track": "Suivre une sortie en direct",
+    "trackSub": "GPS, allure en direct et carte",
+    "indoor": "Séance en salle",
+    "indoorSub": "Vélo ou elliptique, fréquence cardiaque seule",
+    "manual": "Saisir manuellement",
+    "manualSub": "Une sortie que tu as déjà faite"
+  },
+  "session": {
+    "heading": "Semaine {{week}} · {{date}}",
+    "targetRun": "{{type}} · {{km}} km à {{pace}}/km",
+    "targetOther": "Renforcement · {{mins}}",
+    "ticksOff": "En enregistrant, la séance sera validée."
+  },
   "gpsBanner": "Sortie enregistrée par GPS. La distance, la durée et le dénivelé positif sont déjà renseignés. Ajoute un type et des notes, puis enregistre.",
   "indoorBanner": "Séance en salle enregistrée. La durée et la fréquence cardiaque sont déjà renseignées, il n'y a pas de distance à enregistrer. Ajoute des notes, puis enregistre.",
   "watchBanner": "Sortie importée depuis ta montre. Vérifie les données (aucun tracé ni aucune carte ne sont inclus), choisis un type, puis enregistre.",
   "import": {
-    "title": "Importer un fichier d’activité",
     "gpx": "<0>FIT / GPX / TCX :</0> une activité avec son tracé, son dénivelé et sa fréquence cardiaque",
     "perActivity": "<0>Récupérer une sortie depuis Strava :</0> sur strava.com, ouvre l’activité, puis ••• → Exporter l’original (le fichier .fit) ou Exporter en GPX, et importe le fichier ici",
     "zepp": "<0>CSV Zepp :</0> Profil → Centre de confidentialité → Exporter les données personnelles",
@@ -22,7 +37,9 @@
     "imported_one": "{{count}} sortie importée.",
     "imported_other": "{{count}} sorties importées.",
     "importedSkipped_one": "{{count}} sortie importée ; entrées déjà présentes : {{skipped}}.",
-    "importedSkipped_other": "{{count}} sorties importées ; entrées déjà présentes : {{skipped}}."
+    "importedSkipped_other": "{{count}} sorties importées ; entrées déjà présentes : {{skipped}}.",
+    "dedupeNote": "Les sorties déjà présentes dans ton journal sont ignorées automatiquement.",
+    "enterInstead": "Saisir une sortie à la main"
   },
   "fields": {
     "date": "Date",

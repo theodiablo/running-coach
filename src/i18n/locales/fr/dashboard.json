@@ -30,8 +30,10 @@
     "upNext": "À venir",
     "viewInPlan": "Voir dans ton plan",
     "howItUnfolds": "Comment ça se déroule",
-    "record": "Enregistrer",
-    "skipTitle": "Passer cette séance"
+    "skipTitle": "Passer cette séance",
+    "startRun": "Démarrer",
+    "logIt": "Saisir",
+    "markDone": "Marquer terminée"
   },
   "noPlan": "Pas encore de plan d'entraînement. On s'y met ?",
   "setUpPlan": "Configurer mon plan",

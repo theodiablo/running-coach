@@ -30,8 +30,10 @@
     "upNext": "Próxima sesión",
     "viewInPlan": "Ver en tu plan",
     "howItUnfolds": "Cómo se desarrolla",
-    "record": "Registrar",
-    "skipTitle": "Omitir esta sesión"
+    "skipTitle": "Omitir esta sesión",
+    "startRun": "Empezar",
+    "logIt": "Registrar",
+    "markDone": "Marcar hecha"
   },
   "noPlan": "Aún no tienes plan de entrenamiento. ¿Empezamos?",
   "setUpPlan": "Configurar mi plan",

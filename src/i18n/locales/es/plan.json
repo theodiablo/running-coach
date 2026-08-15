@@ -82,13 +82,13 @@
   },
   "session": {
     "skipped": "omitida",
-    "record": "Registrar",
-    "doneIt": "Ya hecha",
     "coachNotes": "Notas del entrenador",
     "askCoach": "Preguntar al entrenador",
     "moreActions": "Más acciones",
     "skippedReassure": "Sin estrés, el plan se adapta.",
-    "skip": "Omitir esta sesión"
+    "skip": "Omitir esta sesión",
+    "startRun": "Empezar",
+    "logIt": "Registrar"
   },
   "promote": {
     "newTarget": "Nuevo objetivo de entrenamiento",

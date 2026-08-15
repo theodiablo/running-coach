@@ -30,8 +30,10 @@
     "upNext": "Up next",
     "viewInPlan": "View in your plan",
     "howItUnfolds": "How it unfolds",
-    "record": "Record",
-    "skipTitle": "Skip this session"
+    "skipTitle": "Skip this session",
+    "startRun": "Start run",
+    "logIt": "Log it",
+    "markDone": "Mark as done"
   },
   "noPlan": "No training plan yet. Ready to get started?",
   "setUpPlan": "Set Up My Plan",

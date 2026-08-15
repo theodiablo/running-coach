@@ -1,14 +1,29 @@
 {
-  "title": "Record a Run",
-  "importFileBtn": "Import file",
-  "trackLive": "Track a run live (GPS)",
-  "indoorSession": "Record an indoor session (heart rate)",
-  "orManual": "or enter manually",
+  "titleManual": "Enter a run",
+  "titleSession": "Log this session",
+  "titleReview": "Save your run",
+  "titleImport": "Import a file",
+  "saveAndTick": "Save and tick off",
+  "haveAFile": "Got a file from your watch? Import it",
+  "sheet": {
+    "title": "Add a run",
+    "track": "Track a run live",
+    "trackSub": "GPS, live pace and map",
+    "indoor": "Indoor session",
+    "indoorSub": "Bike or elliptical, heart rate only",
+    "manual": "Enter it manually",
+    "manualSub": "A run you've already done"
+  },
+  "session": {
+    "heading": "Week {{week}} · {{date}}",
+    "targetRun": "{{type}} · {{km}} km at {{pace}}/km",
+    "targetOther": "Cross-training · {{mins}}",
+    "ticksOff": "Saving this marks the session done."
+  },
   "gpsBanner": "Tracked by GPS — distance, time and elevation are filled in. Add a type and notes, then save.",
   "indoorBanner": "Indoor session recorded. Duration and heart rate are filled in; there is no distance to record. Add notes, then save.",
   "watchBanner": "Imported from your watch — check the details (there's no route/map), pick a type, then save.",
   "import": {
-    "title": "Import an activity file",
     "gpx": "<0>FIT / GPX / TCX:</0> one activity with its route map, elevation and heart rate",
     "perActivity": "<0>Get one run from Strava:</0> on strava.com open the activity, then ••• → Export Original (the .fit file) or Export GPX, and import the file here",
     "zepp": "<0>Zepp CSV:</0> Profile → Privacy Center → Export Personal Data",
@@ -22,7 +37,9 @@
     "imported_one": "Imported {{count}} run.",
     "imported_other": "Imported {{count}} runs.",
     "importedSkipped_one": "Imported {{count}} run ({{skipped}} already logged).",
-    "importedSkipped_other": "Imported {{count}} runs ({{skipped}} already logged)."
+    "importedSkipped_other": "Imported {{count}} runs ({{skipped}} already logged).",
+    "dedupeNote": "Runs already in your log are skipped automatically.",
+    "enterInstead": "Enter a run by hand instead"
   },
   "fields": {
     "date": "Date",
@@ -51,7 +68,7 @@
     "required": "Distance and duration are required."
   },
   "hrPendingNote": "Heart rate will be added automatically from {{store}} once your watch syncs (usually a few minutes) — leave these blank, or enter them yourself.",
-  "saveRun": "Save Run",
+  "saveRun": "Save run",
   "edit": {
     "title": "Edit Run",
     "kmPh": "8.5",

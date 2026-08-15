@@ -44,6 +44,7 @@ import { DeleteAccountModal } from "./modals/DeleteAccountModal";
 import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
 import { IndoorTracker } from "./modals/IndoorTracker";
+import { RecordSheet } from "./modals/RecordSheet";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
@@ -151,6 +152,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // an indoor session must never appear in the GPS recovery flow below.
   const [showIndoor, setShowIndoor] = useState(false);
   const [indoorLink, setIndoorLink] = useState<{ wNum: number; sId: string } | null>(null);
+  // The center FAB's chooser (GPS / indoor / by hand). The FAB used to navigate
+  // straight to the Log tab, which then had to offer every way of recording at
+  // once; the sheet asks first so each destination does one thing.
+  const [showRecordSheet, setShowRecordSheet] = useState(false);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
   // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
   // a Dashboard banner so the runner doesn't have to know to reopen the recorder
@@ -1045,6 +1050,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           setOnboarding(false);
           track("onboarding_completed", {});
         }}/>}
+      {/* Unlinked opens: a run recorded from here auto-ticks whatever plan
+          session matches its date on save (findOpenPlanSession), rather than
+          claiming one up front the way a plan row's Start run does. */}
+      {showRecordSheet && <RecordSheet
+        onTrack={() => shared.openTracker()}
+        onIndoor={() => shared.openIndoor()}
+        onManual={() => goLog()}
+        onClose={() => setShowRecordSheet(false)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={() => { setShowTracker(false); openSettings(); }}
@@ -1147,7 +1160,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         active={tab}
         className="fixed bottom-0 inset-x-0 z-20"
         onTab={setTab}
-        onRecord={() => goLog()}
+        onRecord={() => setShowRecordSheet(true)}
         onProgress={() => goProgress("stats")}
       />
     </div>
