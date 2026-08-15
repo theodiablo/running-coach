@@ -585,24 +585,92 @@ export function findOpenPlanSession(
   return null;
 }
 
-// Re-apply done/skipped/runId from an old plan onto a freshly built one by
-// session id (ids are stable: w{n}d{dOff} for training, race-{editionId} for
-// races). Lets a rebuild (availability edit, race add/remove, coach apply)
-// keep weeks of progress. Pure.
-export function carryProgress(oldPlan: Plan | null, np: Plan): Plan {
+// A training session's id (w{n}d{dOff}) names a SLOT in the plan grid, not a
+// day — buildPlan mints the same "w2d4" for week 2 / offset 4 whatever date
+// that lands on. The race ids (race, race-{editionId}) name a race rather than
+// a grid position, so they survive their own date moving.
+const isSlotId = (id: string) => /^w\d+d\d+$/.test(id);
+
+// A done flag may legitimately sit a little ahead of today — ticking Saturday's
+// long run off on Thursday is a supported gesture (PlanSessionRow's toggle has
+// no date guard). Weeks ahead is not an early tick: that's the slot-id smear
+// this function used to cause, so heal it instead of carrying it forward.
+const DONE_LOOKAHEAD_DAYS = 7;
+
+// The stored session shape from types.ts, not this file's builder-local
+// `PlanSession` (declared near the top) — only the stored one carries `skipped`.
+type StoredSession = Plan["weeks"][number]["sessions"][number];
+type Carried = { flag: PlanProgress; type: string };
+
+// Re-apply done/skipped/runId from an old plan onto a new one. Pure.
+//
+// Two modes, because "the same session" means different things:
+//
+// - "coach" — the proposal is DERIVED from the current plan, so ids are
+//   identity and a shifted session must keep its flags across the move.
+// - "rebuild" (default) — buildPlan minted fresh slot ids, so matching on
+//   them smears progress onto whoever now occupies the slot. Changing the
+//   race date once transplanted four weeks of done/skipped a month into the
+//   future, cancelling sessions the runner had never seen. Anchor on the
+//   calendar date instead: a day you trained is a day you trained.
+//
+// `mode` is required on purpose: a future caller handing this a plan derived
+// from the live one wants "coach", and defaulting would silently give it date
+// matching plus the skipped overwrite below with no compiler signal.
+export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | "coach"): Plan {
   if (!oldPlan) return np;
-  const flags: Record<string, PlanProgress> = {};
-  oldPlan.weeks.forEach(w => w.sessions.forEach(s => {
-    flags[s.id] = { done: s.done, skipped: s.skipped, runId: s.runId };
-  }));
-  return { ...np, weeks: np.weeks.map(w => ({ ...w,
-    sessions: w.sessions.map(s => {
-      const f = flags[s.id];
+  const oldSessions = oldPlan.weeks.flatMap(w => w.sessions);
+  const mapWeeks = (fn: (s: StoredSession) => StoredSession): Plan =>
+    ({ ...np, weeks: np.weeks.map(w => ({ ...w, sessions: w.sessions.map(fn) })) });
+
+  const cut = new Date(); cut.setHours(0, 0, 0, 0);
+  cut.setDate(cut.getDate() + DONE_LOOKAHEAD_DAYS);
+  const doneCutoff = ymd(cut);
+  const carry = (s: StoredSession, f: PlanProgress) =>
+    ({ ...s, ...f, done: !!f.done && s.date <= doneCutoff });
+
+  if (mode === "coach") {
+    const flags = new Map<string, PlanProgress>();
+    oldSessions.forEach(s => flags.set(s.id, { done: s.done, skipped: s.skipped, runId: s.runId }));
+    return mapWeeks(s => {
+      const f = flags.get(s.id);
       if (!f) return s;
-      // skipped is a union, not an overwrite: the coach's cancel_session
-      // marks skipped on the PROPOSAL, which must survive this re-stamp
-      // (and a session the user skipped while the chat was open survives
-      // the coach plan). done/runId stay client-owned overwrites.
-      return { ...s, ...f, skipped: f.skipped || s.skipped };
-    }) })) };
+      // skipped is a union, not an overwrite: cancel_session marks skipped on
+      // the PROPOSAL, which must survive this re-stamp (and a session the user
+      // skipped while the chat was open survives the coach plan). done/runId
+      // stay client-owned overwrites.
+      return { ...carry(s, f), skipped: f.skipped || s.skipped };
+    });
+  }
+
+  const byId = new Map<string, PlanProgress>();
+  const byDate = new Map<string, Carried[]>();
+  oldSessions.forEach(s => {
+    const flag: PlanProgress = { done: s.done, skipped: s.skipped, runId: s.runId };
+    if (!isSlotId(s.id)) { byId.set(s.id, flag); return; }
+    const day = byDate.get(s.date) ?? [];
+    day.push({ flag, type: s.type });
+    byDate.set(s.date, day);
+  });
+
+  return mapWeeks(s => {
+    // A race id is identity: it matches its old self or nothing. Falling
+    // through to the date pool here would hand a newly added race the flags of
+    // the training session buildPlan's overlay just displaced — rendering the
+    // race the runner only just added as cancelled.
+    if (!isSlotId(s.id)) {
+      const f = byId.get(s.id);
+      return f ? carry(s, f) : s;
+    }
+    const cands = byDate.get(s.date);
+    if (!cands?.length) return s;
+    // buildPlan emits one session per date, so this is normally a single
+    // candidate. Prefer the same type, then the same running/cross-training
+    // kind, so a day that ever holds both can't cross the two. Consumed once
+    // claimed, so two new sessions can't both take one old flag.
+    let i = cands.findIndex(c => c.type === s.type);
+    if (i < 0) i = cands.findIndex(c => isCrossTraining({ type: c.type }) === isCrossTraining(s));
+    if (i < 0) i = 0;
+    return carry(s, cands.splice(i, 1)[0].flag);
+  });
 }

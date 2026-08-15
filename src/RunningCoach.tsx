@@ -680,12 +680,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Passed to children: persist a races change and reconcile badges off it.
   const saveRaces  = (next: RacesState) => commitRaces(reconcileBadges(runs, next));
 
-  // Apply a coach-accepted plan. carryProgress re-stamps done/skipped/runId by
-  // session id, so a session ticked while the chat was open isn't lost (the
-  // coach tools never edit done sessions, so this can't undo an adjustment).
+  // Apply a coach-accepted plan. "coach" mode re-stamps done/skipped/runId by
+  // session id — right here because the proposal is derived from the current
+  // plan, so a session ticked while the chat was open isn't lost and a shifted
+  // one keeps its flags across the move (the coach tools never edit done
+  // sessions, so this can't undo an adjustment).
   // Deliberately NOT savePlan: that tracks "plan_generated" — this is an edit.
   const applyCoachPlan = (p: Plan) => {
-    const merged = carryProgress(plan, p);
+    const merged = carryProgress(plan, p, "coach");
     setPlan(merged);
     db.set(STORAGE_KEYS.PLAN, merged);
   };
@@ -703,7 +705,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         settings.distanceKm, settings.raceElevation,
         { recentRuns: runs, races: secRaces, mainEditionId: settings.targetEditionId ?? null,
           style: settings.planStyle, level: settings.trainingLevel });
-      savePlan(carryProgress(plan, np));
+      savePlan(carryProgress(plan, np, "rebuild"));
     }
   };
 
