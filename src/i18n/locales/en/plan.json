@@ -70,13 +70,13 @@
   },
   "session": {
     "skipped": "skipped",
-    "record": "Record run",
-    "doneIt": "Done it",
     "coachNotes": "Coach notes",
     "askCoach": "Ask coach about this run",
     "moreActions": "More actions",
     "skippedReassure": "No stress — the plan adapts.",
-    "skip": "Skip this session"
+    "skip": "Skip this session",
+    "startRun": "Start run",
+    "logIt": "Log it"
   },
   "promote": {
     "newTarget": "New training target",

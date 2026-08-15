@@ -161,6 +161,11 @@ an explicit var.
   `{}` the first time the "Near me" toggle is enabled in Races → Find a race
   (`src/views/RacesView.tsx`). Both limited — enum/no-args only, **never** race
   names, free text, or the user's location/coordinates.
+- Imports: `run_imported` `{count}` when a picked activity file lands runs in the
+  log (`src/views/LogView.tsx`). A count only — never the file name, the runs, or
+  where they came from. It exists to answer one question: whether file import is
+  a once-per-account migration (in which case Settings is the right home for it)
+  or a weekly habit for people whose watch can't reach a health store.
 - Route finder: `route_suggested` `{}` when a generation starts
   (`src/modals/RouteFinderSheet.tsx`). No coordinates, no distance — the point
   is only how often the feature is used.

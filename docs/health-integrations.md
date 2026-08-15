@@ -186,10 +186,16 @@ one synced from another device).
 
 It lives on the **Integrations** sub-page (`src/modals/settings/`), below which
 `VendorGuides.tsx` explains the vendors we cannot connect to (Strava, Zepp — see
-below). Each guide teaches the two paths we DO support, so "no integration"
+below). **Integrations is also the home of file import**: recording (the FAB's
+`RecordSheet`) never mentions it, because a file is account admin rather than a
+way to record today's run. `IntegrationsPage` carries a top-level "Import a
+file" card so it doesn't hide behind a collapsed vendor guide; the manual form
+keeps one quiet link (`log.haveAFile`) as the sole entry point outside Settings.
+
+Each guide teaches the two paths we DO support, so "no integration"
 never reads as "unsupported": export a file → the existing file importer (its
-button calls `onImportFile`, which lands on the Log tab with the import panel
-open), and vendor app → platform health store → the connection above. The sync
+button calls `onImportFile`, which opens the importer screen), and vendor app →
+platform health store → the connection above. The sync
 copy is platform-branched (Health Connect / Apple Health / "use the mobile app"
 on web). Adding a vendor is a `VENDORS` entry plus its i18n keys under
 `settings.guides.<id>` in all three locales.

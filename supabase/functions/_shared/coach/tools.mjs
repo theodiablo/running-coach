@@ -422,7 +422,10 @@ export function assessGoalFeasibility(ctx) {
   const { goal, targetPace, recentRuns = [] } = ctx;
   const { goalSec, distanceKm, raceDate } = goal || {};
   if (!goalSec || !distanceKm) return "No race goal is configured — nothing to assess.";
-  const runs = recentRuns.filter(r => r && r.km > 0 && r.durationSec > 0 && r.type !== "WALK");
+  // OTHER is cross-training: its distance is not a running distance, so it must
+  // never reach weeklyKm / longest / bestPace — a logged bike ride would read as
+  // a fast long run and talk the runner into a more ambitious goal.
+  const runs = recentRuns.filter(r => r && r.km > 0 && r.durationSec > 0 && r.type !== "WALK" && r.type !== "OTHER");
   if (!runs.length)
     return "No recent runs with distance+time logged — cannot assess fitness; advise the runner to log a few runs first.";
   const weeks = 4;

@@ -8,6 +8,7 @@ import { RouteMap } from "../components/RouteMap";
 import { useRouteTrace } from "../hooks/useRouteTrace";
 import { EditRunModal } from "../modals/EditRunModal";
 import type { ReactNode } from "react";
+import { isCrossTraining } from "../types";
 import type { Run, RunPatch, RunHighlight } from "../types";
 
 type RouteMapLoaderProps = { run: Run };
@@ -72,7 +73,8 @@ export function HistoryView({runs, deleteRun, updateRun, goTab, openRunDetail, h
   );
 
   // Runs arrive newest-first; bucket them into month sections in that order.
-  const totKm  = runs.reduce((s, r) => s + (r.km || 0), 0);
+  // Running kilometres only — a cross-training session's distance is not one.
+  const totKm  = runs.reduce((s, r) => s + (isCrossTraining(r) ? 0 : r.km || 0), 0);
   const groups: RunGroup[] = [];
   runs.forEach(r => {
     const key = new Date(r.date + "T12:00:00").toLocaleDateString(currentLocaleTag(), {month:"long", year:"numeric"});

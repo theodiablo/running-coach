@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, MessageCircle, MoreHorizontal, Play, RotateCcw, Route, SkipForward } from "lucide-react";
+import { Check, ChevronDown, MessageCircle, MoreHorizontal, PenLine, Play, RotateCcw, Route, SkipForward } from "lucide-react";
 import { TCLR } from "../constants";
 import { fmt, estMin } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
@@ -26,8 +26,10 @@ type PlanSessionRowProps = {
 };
 
 // One plan session, with labeled actions. Replaces the old cramped icon row:
-// "Record run" (start GPS) and "Done it" (log after the fact) are spelled out,
-// and Skip is demoted into an overflow (⋯) menu so it no longer reads as delete.
+// "Start run" (open the recorder) and "Log it" (fill in a run already done) are
+// spelled out, and Skip is demoted into an overflow (⋯) menu so it no longer
+// reads as delete. The Dashboard's next-session card offers the same two verbs,
+// wired to the same handlers — they used to disagree on what "Record" meant.
 export function PlanSessionRow({
   session: s, settings, notesOpen, onToggleNotes,
   onRecord, onDone, onToggleDone, onSkip, onAskCoach, onFindRoute, openSettings,
@@ -117,11 +119,11 @@ export function PlanSessionRow({
       <div className="relative flex items-center gap-2 px-4 py-2.5 border-t border-slate-700/50">
         <button onClick={onRecord}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-500 text-slate-900 hover:bg-orange-400 transition-[background-color,transform] active:scale-95">
-          <Play size={13}/>{t("plan.session.record")}
+          <Play size={13}/>{t("plan.session.startRun")}
         </button>
         <button onClick={onDone}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700 transition-colors">
-          <Check size={13}/>{t("plan.session.doneIt")}
+          <PenLine size={13}/>{t("plan.session.logIt")}
         </button>
         <span className="flex-1"/>
         <button onClick={() => setMenuOpen(v => !v)}

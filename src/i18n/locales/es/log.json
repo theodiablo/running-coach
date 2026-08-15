@@ -1,14 +1,29 @@
 {
-  "title": "Registrar un entrenamiento",
-  "importFileBtn": "Importar archivo",
-  "trackLive": "Registrar un entrenamiento con GPS",
-  "indoorSession": "Registrar una sesión indoor (frecuencia cardiaca)",
-  "orManual": "o introdúcelo manualmente",
+  "titleManual": "Introducir un entrenamiento",
+  "titleSession": "Registrar esta sesión",
+  "titleReview": "Guardar tu entrenamiento",
+  "titleImport": "Importar un archivo",
+  "saveAndTick": "Guardar y marcar como hecha",
+  "haveAFile": "¿Tienes un archivo de tu reloj? Impórtalo",
+  "sheet": {
+    "title": "Añadir un entrenamiento",
+    "track": "Registrar en directo",
+    "trackSub": "GPS, ritmo en directo y mapa",
+    "indoor": "Sesión indoor",
+    "indoorSub": "Bici o elíptica, solo frecuencia cardiaca",
+    "manual": "Introducirlo a mano",
+    "manualSub": "Un entrenamiento que ya has hecho"
+  },
+  "session": {
+    "heading": "Semana {{week}} · {{date}}",
+    "targetRun": "{{type}} · {{km}} km a {{pace}}/km",
+    "targetOther": "Entrenamiento cruzado · {{mins}}",
+    "ticksOff": "Al guardar, la sesión queda marcada como hecha."
+  },
   "gpsBanner": "Registro realizado con GPS. La distancia, la duración y el desnivel ya están completados. Añade un tipo y notas, y guarda.",
   "indoorBanner": "Sesión indoor registrada. La duración y la frecuencia cardiaca ya están completadas; no hay distancia que registrar. Añade notas y guarda.",
   "watchBanner": "Entrenamiento importado desde tu reloj. Revisa los datos (no incluye ruta ni mapa), elige un tipo y guarda.",
   "import": {
-    "title": "Importar un archivo de actividad",
     "gpx": "<0>FIT / GPX / TCX:</0> una actividad con el mapa de su ruta, el desnivel y la frecuencia cardíaca",
     "perActivity": "<0>Obtener una actividad desde Strava:</0> en strava.com abre la actividad, luego ••• → Exportar original (el archivo .fit) o Exportar GPX, e importa el archivo aquí",
     "zepp": "<0>CSV de Zepp:</0> Perfil → Centro de privacidad → Exportar datos personales",
@@ -22,7 +37,9 @@
     "imported_one": "{{count}} entrenamiento importado.",
     "imported_other": "{{count}} entrenamientos importados.",
     "importedSkipped_one": "{{count}} entrenamiento importado; registros ya existentes: {{skipped}}.",
-    "importedSkipped_other": "{{count}} entrenamientos importados; registros ya existentes: {{skipped}}."
+    "importedSkipped_other": "{{count}} entrenamientos importados; registros ya existentes: {{skipped}}.",
+    "dedupeNote": "Los entrenamientos que ya están en tu registro se omiten automáticamente.",
+    "enterInstead": "Introducir un entrenamiento a mano"
   },
   "fields": {
     "date": "Fecha",
@@ -30,7 +47,6 @@
     "activity": "Máquina",
     "activityNone": "Sin especificar",
     "distanceKm": "Distancia (km)",
-    "distanceKmOptional": "Distancia (km, opcional)",
     "duration": "Duración",
     "avgHr": "FC media",
     "maxHr": "FC máx.",
@@ -38,17 +54,27 @@
     "notes": "Notas",
     "effort": "Esfuerzo percibido:",
     "effortValue": "{{value}}/10",
-    "hoursPh": "h",
-    "minutesPh": "min",
-    "secondsPh": "s",
     "kmPh": "p. ej., 8,5",
     "avgHrPh": "p. ej. 145",
     "maxHrPh": "p. ej. 170",
     "elevPh": "p. ej. 80",
-    "notesPh": "¿Qué tal ha ido? ¿Alguna molestia?"
+    "notesPh": "¿Qué tal ha ido? ¿Alguna molestia?",
+    "optional": "opcional",
+    "paceLabel": "Eso es un ritmo de",
+    "effortUnset": "sin indicar",
+    "effortEasy": "suave",
+    "effortSteady": "sostenido",
+    "effortMax": "a tope",
+    "crossNoDistance": "Aquí no hay distancia: los kilómetros de una bici no son kilómetros de carrera a pie, y contarlos distorsionaría tu volumen, tus ritmos y tus récords. Lo que cuenta es el tiempo y el esfuerzo.",
+    "addDetails": "Añadir frecuencia cardiaca, desnivel, esfuerzo, notas",
+    "addDetailsCross": "Añadir frecuencia cardiaca, esfuerzo, notas",
+    "durationPh": "0:00",
+    "durationHint": "Los dígitos se rellenan desde la derecha: 4300 es 43:00, 15207 es 1:52:07."
   },
   "validation": {
-    "required": "La distancia y la duración son obligatorias."
+    "km": "¿Qué distancia hiciste?",
+    "duration": "¿Cuánto tiempo tardaste?",
+    "fixAbove": "Completa los campos señalados arriba."
   },
   "hrPendingNote": "La frecuencia cardíaca se añadirá automáticamente desde {{store}} cuando tu reloj se sincronice; suele tardar unos minutos. Deja estos campos en blanco o introdúcelos a mano.",
   "saveRun": "Guardar entrenamiento",

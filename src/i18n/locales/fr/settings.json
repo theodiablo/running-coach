@@ -217,5 +217,10 @@
         "help": "Connecte ton compte Suunto pour importer tes sorties terminées, avec tracé, allure, dénivelé et fréquence cardiaque, depuis ta montre Suunto, même quand tu laisses ton téléphone à la maison. Tout ton historique est importé à la première connexion."
       }
     }
+  },
+  "importFile": {
+    "title": "Importer un fichier",
+    "subtitle": "Récupère tes sorties depuis un export FIT, GPX, TCX ou CSV. C'est aussi ici qu'arrive une sortie exportée depuis Strava.",
+    "cta": "Importer un fichier"
   }
 }

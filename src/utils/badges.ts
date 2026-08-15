@@ -11,6 +11,7 @@
 
 import { t } from "../i18n";
 import { weekKey } from "./format";
+import { isCrossTraining } from "../types";
 import type { Participation, Run } from "../types";
 
 export type Badge = {
@@ -47,9 +48,12 @@ function milestone(id: string, Icon: Badge["Icon"], value: number, threshold: nu
 }
 
 export function computeBadges(runs: Run[] = [], participations: Participation[] = []): Badge[] {
-  const maxKm = runs.reduce((m, r) => Math.max(m, r.km || 0), 0);
-  const totalKm = runs.reduce((s, r) => s + (r.km || 0), 0);
-  const totalElev = runs.reduce((s, r) => s + (r.elevation || 0), 0);
+  // Distance badges are about running: "longest run" and the km totals must not
+  // count a cross-training session's distance (docs/indoor-sessions.md).
+  const runOnly = runs.filter(r => !isCrossTraining(r));
+  const maxKm = runOnly.reduce((m, r) => Math.max(m, r.km || 0), 0);
+  const totalKm = runOnly.reduce((s, r) => s + (r.km || 0), 0);
+  const totalElev = runOnly.reduce((s, r) => s + (r.elevation || 0), 0);
   const activeWeeks = new Set(runs.filter(r => r.date).map(r => weekKey(r.date))).size;
   const hasGps = runs.some(r => r.source === "gps");
   const wishlisted = participations.length;

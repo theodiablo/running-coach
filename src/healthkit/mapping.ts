@@ -49,7 +49,7 @@ export function workoutToRun(w: HkWorkoutRaw): Partial<Run> {
     durationSec: w.activeSec != null && w.activeSec > 0 ? Math.round(w.activeSec) : elapsedSec,
     hr: w.hrAvg != null ? Math.round(w.hrAvg) : null,
     hrMax: w.hrMax != null ? Math.round(w.hrMax) : null,
-    effort: 5,
+    effort: null,
     // Which app wrote the workout ("Imported from Garmin" / "… Apple Watch") —
     // several brands share the one Apple Health integration, so the run says which.
     notes: hkImportedNote(w.sourceBundleId, w.sourceName),

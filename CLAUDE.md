@@ -60,7 +60,9 @@ Always re-verify a finding before acting on it; agents report false positives.
   routeless: `src/RunningCoach.tsx` is the single state hub: it owns
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
-  a center FAB (an action, not a destination); the four row tabs are Home ·
+  a center FAB (an action, not a destination) opening `RecordSheet`, which asks
+  the one question that separates the recorders — how did this run happen? — and
+  each answer leads somewhere single-purpose; the four row tabs are Home ·
   Plan · Races · Progress. The header brand mark is `goHome`: a full reset
   (`dismissAll` + drop pending prefills/highlights + remount the view via
   `homeNonce`), not just `setTab("dash")` — new navigation intent state added to
@@ -387,9 +389,32 @@ changes.
   answer is GDPR health data — never persisted. Progress persists per-step via
   `onSaveProgress`, capped at the health step; clear `onboardStep`/`intent` on
   complete/skip, and set `onboarded: true` on any first-run completion/dismissal.
-- `LogView` accepts a `prefill` prop and an `onSaved` callback (fires only on a
-  real manual save) — used to log a run straight from a plan session and
-  auto-tick it.
+- **One screen, one job.** `LogView` is the manual form (and, alone on its own
+  screen, the file importer) — never a chooser: it is only reached once
+  `RecordSheet` has settled *how*, so it offers no recorder. It accepts a
+  `prefill` prop and an `onSaved` callback (fires only on a real manual save),
+  used to log a run straight from a plan session and auto-tick it; a prefilled
+  arrival says which session it will tick off rather than doing it silently.
+  A plan session offers the same two verbs everywhere (Dashboard card and
+  `PlanSessionRow`): **Start run** opens a recorder, **Log it** opens the form —
+  a new surface must not invent a third word for either.
+- **Duration is one masked field, not h/m/s boxes.** `RunFormValues.dur` is the
+  raw digit string, filling right to left (`4300` → 43:00, `15207` → 1:52:07) —
+  the order a watch face is already written in, and one keyboard on a phone
+  instead of three. Read it with `durToSec`, render with `formatDur`, seed with
+  `secToDur` (`src/utils/runForm.ts`); the field only ever appends or pops a
+  digit, with the caret pinned to the end, so there is no caret arithmetic to
+  get wrong. Every digit string is a valid duration, which is why there is no
+  "hours or minutes at least" rule any more. (`hmsToSec` survives for
+  `RacesView`'s separate race-time entry.)
+- **The form (`RunFields`, shared by Log and Edit) is two tiers**: what a run
+  needs (when/what/how far/how long) is always visible, the optional metrics sit
+  behind one row that opens filled when the form arrives carrying any of them
+  (`runFormHasDetail`). A required-field message renders **on the field**
+  (`runFormErrors`, per field) — never as a banner at the top, which on a long
+  form appears off-screen above the button that triggered it. Effort 0 means
+  "didn't say" (`EFFORT_UNSET`) and saves as `null`; it must never default to a
+  middle value, which the coach would read as a real answer.
 - **Settings = configure, not analyse.** `SettingsModal.tsx` is a hub whose root
   is only a menu; every control lives on a sub-page in `src/modals/settings/`:
   **Account** (identity, language, email/password, privacy, backup & restore,

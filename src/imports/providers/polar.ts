@@ -83,7 +83,7 @@ export function polarExerciseToRun(ex: PolarExercise): ImportedRun | null {
     durationSec,
     hr: hrObj["average"] != null ? Math.round(Number(hrObj["average"])) : null,
     hrMax: hrObj["maximum"] != null ? Math.round(Number(hrObj["maximum"])) : null,
-    effort: 5,
+    effort: null,
     source: "watch",
     notes: "Imported from Polar",
     extId,

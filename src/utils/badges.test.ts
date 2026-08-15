@@ -24,6 +24,22 @@ describe("computeBadges", () => {
     expect(get(badges, "dist-first-half").unlocked).toBe(false);
   });
 
+  // A walk is still on your feet; a bike is not. Its distance must not become a
+  // "longest run" or count toward volume (docs/indoor-sessions.md).
+  it("leaves cross-training distance out of the running totals", () => {
+    const runs = [
+      { date: "2026-01-05", km: 120, type: "OTHER", activity: "bike" },
+      { date: "2026-01-12", km: 6, type: "EASY" },
+    ];
+    expect(get(compute(runs), "dist-first-10k").unlocked).toBe(false);
+    expect(get(compute(runs), "vol-100").unlocked).toBe(false);
+  });
+
+  it("leaves cross-training elevation out of the climbing totals", () => {
+    const runs = [{ date: "2026-01-05", km: 0, type: "OTHER", activity: "bike", elevation: 5000 }];
+    expect(compute(runs).find(b => b.id.startsWith("elev-"))?.unlocked).toBe(false);
+  });
+
   it("counts WALK runs toward volume (inclusive)", () => {
     const runs = [
       { date: "2026-01-05", km: 60, type: "WALK" },

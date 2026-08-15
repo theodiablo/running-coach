@@ -217,5 +217,10 @@
         "help": "Connect your Suunto account to import finished runs — route, pace, elevation and heart rate — from your Suunto watch, even when you leave your phone at home. Your full history imports when you first connect."
       }
     }
+  },
+  "importFile": {
+    "title": "Import a file",
+    "subtitle": "Bring runs in from a FIT, GPX, TCX or CSV export. This is also where a single run exported from Strava lands.",
+    "cta": "Import a file"
   }
 }

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { Check } from "lucide-react";
 import { RunFields } from "../components/RunFields";
-import { runFormComplete, runFormToPatch, runToForm, type RunFormValues } from "../utils/runForm";
+import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, setRunField, type RunFormValues } from "../utils/runForm";
 import type { Run, RunPatch } from "../types";
 
 type EditRunModalProps = {
@@ -17,11 +17,11 @@ export function EditRunModal({run, onSave, onClose}: EditRunModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [f, setF] = useState<RunFormValues>(() => runToForm(run));
-  const [err, setErr] = useState("");
-  const set = (k: keyof RunFormValues, v: string | number) => setF(prev => ({...prev, [k]: v}));
+  const [attempted, setAttempted] = useState(false);
+  const set = (k: keyof RunFormValues, v: string | number) => setF(prev => setRunField(prev, k, v));
 
   const save = () => {
-    if (!runFormComplete(f)) { setErr(t("log.validation.required")); return; }
+    if (!runFormComplete(f)) { setAttempted(true); return; }
     onSave(runFormToPatch(f));
     onClose();
   };
@@ -35,8 +35,11 @@ export function EditRunModal({run, onSave, onClose}: EditRunModalProps) {
           <button onClick={onClose} aria-label={t("common.close")} className="text-slate-400 hover:text-white text-lg leading-none px-1">x</button>
         </div>
         <div className="p-4 space-y-4 overflow-y-auto">
-          <RunFields form={f} onChange={set} phScope="log.edit"/>
-          {err && <p className="text-xs text-red-400">{err}</p>}
+          {/* An edit usually targets one field, which may be a detail one —
+              so open the section whenever this run has any detail to edit. */}
+          <RunFields form={f} onChange={set} phScope="log.edit"
+            errors={attempted ? runFormErrors(f) : null}
+            detailsOpen={runFormHasDetail(runToForm(run))}/>
           <button onClick={save}
             className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
             <Check size={18}/>{t("log.edit.saveChanges")}

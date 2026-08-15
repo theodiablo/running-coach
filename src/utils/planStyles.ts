@@ -10,6 +10,7 @@
 import * as sharedStyles from "../../supabase/functions/_shared/coach/styles.mjs";
 import { t } from "../i18n";
 import { ymd } from "./format";
+import { isCrossTraining } from "../types";
 import type { PlanSessionInput } from "./plan";
 
 export type StyleId = "balanced" | "polarized" | "runwalk" | "lowfreq" | "hansons";
@@ -187,7 +188,7 @@ export function suggestPlanSessions(distanceKm: number | string, level?: unknown
 // Pure: derives a suggested style from what the app already knows. Mirrors
 // buildPlan's 35-day recent window. First match wins; `balanced` is the
 // fallback, so brand-new users (no data at all) get the current behaviour.
-type RecentRunLike = { date?: string; km?: number };
+type RecentRunLike = { date?: string; km?: number; type?: string };
 
 // Masters threshold: from ~this age the recommendation favours recovery-rich
 // shapes (lowfreq) and avoids cumulative-fatigue ones (hansons). Age never
@@ -205,8 +206,10 @@ export function recommendStyle(input: {
 }): StyleId {
   const today = input.today ?? new Date();
   const cutoff = ymd(new Date(today.getTime() - 35 * 86400000));
+  // Cross-training is excluded outright: its distance isn't running volume, and
+  // this average is what steers the recommended style's paces.
   const recent = (input.recentRuns || []).filter(
-    (r) => r && r.date && r.date >= cutoff && (r.km ?? 0) > 0,
+    (r) => r && r.date && r.date >= cutoff && (r.km ?? 0) > 0 && !isCrossTraining(r),
   );
   let runCount = recent.length;
   // Weekly volume over the weeks that actually have data — a fixed /5 would

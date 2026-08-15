@@ -82,13 +82,13 @@
   },
   "session": {
     "skipped": "ignorée",
-    "record": "Enregistrer",
-    "doneIt": "Déjà faite",
     "coachNotes": "Notes du coach",
     "askCoach": "Demander au coach",
     "moreActions": "Plus d'actions",
     "skippedReassure": "Pas de stress, le plan s'adapte.",
-    "skip": "Ignorer cette séance"
+    "skip": "Ignorer cette séance",
+    "startRun": "Démarrer",
+    "logIt": "Saisir"
   },
   "promote": {
     "newTarget": "Nouvel objectif d'entraînement",

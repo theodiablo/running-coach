@@ -135,7 +135,7 @@ export function suuntoWorkoutToRun(w: SyncWorkout, fitB64: string | null): Impor
     durationSec: Math.round(Number(s.totalTime) || 0),
     hr: sHr,
     hrMax: sHrMax,
-    effort: 5,
+    effort: null,
     source: "watch",
     notes: "Imported from Suunto",
     extId,

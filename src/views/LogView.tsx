@@ -1,9 +1,10 @@
 import { useState, useRef, type ChangeEvent } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { Loader, Plus, Upload, MapPin, HeartPulse, Bike } from "lucide-react";
-import { ymd } from "../utils/format";
+import { Check, Loader, Plus, Upload, HeartPulse } from "lucide-react";
+import { fmt, ymd } from "../utils/format";
+import { track } from "../telemetry";
 import { RunFields } from "../components/RunFields";
-import { runFormComplete, runFormToPatch, type RunFormValues } from "../utils/runForm";
+import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, secToDur, setRunField, type RunFormValues } from "../utils/runForm";
 import { MAX_GPX_BYTES } from "../utils/gpx";
 import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
@@ -19,24 +20,26 @@ type LogPrefill = Partial<Run> & {
   hrPending?: HrPending | null;
 };
 
+// The manual run form, and — as its own screen, never alongside it — the file
+// importer. Choosing *how* to record is the RecordSheet's job (the center FAB);
+// this view is only ever reached with that choice already made, so it never
+// offers a recorder. Four arrivals, one title each: entering a run by hand,
+// logging a plan session, reviewing something a recorder just captured
+// (`prefill.source`), and importing a file.
 type LogViewProps = {
   addRuns: (runs: Partial<Run>[]) => void;
   onDone: () => void;
   onSaved?: () => void;
   prefill?: LogPrefill | null;
-  openTracker?: () => void;
-  // Indoor / static cardio recorder (bike, elliptical) — time + heart rate, no
-  // GPS. See docs/indoor-sessions.md.
-  openIndoor?: () => void;
   // Existing log, used to dedupe file imports (comes in via the shared bag).
   runs?: Run[];
-  // Land with the file-import panel already open (Settings -> Integrations
-  // vendor guides jump here). Read once as initial state — RunningCoach
-  // remounts LogView (key) on every goLog/goImport navigation.
+  // Land on the file importer instead of the form (Settings -> Integrations).
+  // Read once as initial state — RunningCoach remounts LogView (key) on every
+  // goLog/goImport navigation.
   openImport?: boolean;
 };
 
-export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openIndoor, runs, openImport}: LogViewProps) {
+export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: LogViewProps) {
   const { t } = useTranslation();
   // A GPS-tracked run prefills its real measured duration; a plan session
   // prefills an estimate from km × prescribed pace.
@@ -50,25 +53,36 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openInd
     // An indoor session has no distance to prefill; a literal 0 in the field
     // would read as a measurement rather than "not applicable".
     km:     prefill?.source === "indoor" ? "" : prefill?.km != null ? String(prefill.km) : "",
-    dH:     estSec >= 3600 ? String(Math.floor(estSec / 3600)) : "",
-    dM:     estSec >= 60   ? String(Math.floor((estSec % 3600) / 60)) : "",
-    dS:     Math.round(estSec % 60) ? String(Math.round(estSec % 60)) : "",
+    dur:    secToDur(estSec),
     hr:    prefill?.hr    != null ? String(prefill.hr)    : "",
     hrMax: prefill?.hrMax != null ? String(prefill.hrMax) : "",
-    elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:5,notes:"",
+    elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:0,notes:"",
   };
   const [f,      setF]    = useState<RunFormValues>(INIT);
   const [busy,   setBusy] = useState(false);
-  const [showImp,setImp]  = useState(!!openImport);
+  // Required-field errors show only once a save has been attempted — an empty
+  // form isn't a mistake yet.
+  const [attempted, setAttempted] = useState(false);
+  const [importing, setImporting] = useState(!!openImport);
   const [csvMsg, setCsvMsg] = useState("");
   const [csvOk,  setCsvOk]  = useState(false);
   const fRef = useRef<HTMLInputElement | null>(null);
-  const set  = (k: keyof RunFormValues, v: string | number) => setF(prev => ({...prev, [k]: v}));
+  const formRef = useRef<HTMLDivElement | null>(null);
+  const set  = (k: keyof RunFormValues, v: string | number) => setF(prev => setRunField(prev, k, v));
 
   const showMsg = (msg: string, ok = false) => { setCsvOk(ok); setCsvMsg(msg); setTimeout(() => setCsvMsg(""), 3000); };
 
   const submit = async () => {
-    if (!runFormComplete(f)) { showMsg(t("log.validation.required")); return; }
+    if (!runFormComplete(f)) {
+      // Say it on the field, and take the runner to it: the old banner rendered
+      // under the page title, several hundred pixels above the button they had
+      // just pressed, then deleted itself after three seconds.
+      setAttempted(true);
+      const bad = runFormErrors(f).km ? "km" : "duration";
+      formRef.current?.querySelector<HTMLElement>(`[data-field="${bad}"]`)
+        ?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      return;
+    }
     setBusy(true);
     addRuns([{
       ...runFormToPatch(f),
@@ -133,6 +147,9 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openInd
         return;
       }
       addRuns(await persistImportedRoutes(fresh));
+      // How often file import is actually used decides whether it stays a
+      // Settings-only chore. Count only; no file names or run data.
+      track("run_imported", { count: fresh.length });
       const skipped = parsed.length - fresh.length;
       showMsg(skipped
         ? t("log.import.importedSkipped", { count: fresh.length, skipped })
@@ -143,41 +160,48 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openInd
     else reader.readAsText(file);
   };
 
-  const impBtnCls = "flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors " +
-    (showImp ? "bg-orange-500 border-orange-500 text-white" : "border-orange-400/50 text-orange-400 hover:bg-orange-400/10");
   const msgCls = "mb-4 py-2.5 px-4 rounded-xl text-sm text-center " +
     (csvOk ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300");
 
+  // Logging a plan session: saving it also ticks the session off (RunningCoach's
+  // onSaved), so the screen says so rather than letting it happen silently.
+  const session = prefill?.wNum != null && prefill?.sId ? prefill : null;
+  const title = importing
+    ? t("log.titleImport")
+    : prefill?.source ? t("log.titleReview")
+    : session ? t("log.titleSession")
+    : t("log.titleManual");
+
+  if (importing) return (
+    <div className="p-4 max-w-lg mx-auto">
+      <h2 className="text-xl font-bold mt-4 mb-5">{title}</h2>
+      {csvMsg && <div className={msgCls}>{csvMsg}</div>}
+      <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-2.5">
+        <p className="text-xs text-slate-500">
+          <Trans i18nKey="log.import.gpx"><span className="text-slate-300">FIT / GPX / TCX:</span> one activity with its route map, elevation and heart rate</Trans><br/>
+          <Trans i18nKey="log.import.perActivity"><span className="text-slate-300">Get one run from Strava:</span> on strava.com open the activity, then ••• → Export Original (the .fit file) or Export GPX, and import the file here</Trans><br/>
+          <Trans i18nKey="log.import.zepp"><span className="text-slate-300">Zepp CSV:</span> Profile → Privacy Center → Export Personal Data</Trans><br/>
+          <Trans i18nKey="log.import.strava"><span className="text-slate-300">Strava CSV:</span> Settings → My Account → Download or Delete → Request Archive</Trans>
+        </p>
+        <input ref={fRef} type="file" accept={fileProvider.fileAccept} onChange={handleFile} className="hidden"/>
+        <button onClick={() => fRef.current?.click()}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+          {t("log.import.chooseFile")}
+        </button>
+        <p className="text-xs text-slate-500">{t("log.import.dedupeNote")}</p>
+      </div>
+      <button onClick={() => setImporting(false)}
+        className="w-full mt-4 py-2.5 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+        {t("log.import.enterInstead")}
+      </button>
+    </div>
+  );
+
   return (
     <div className="p-4 max-w-lg mx-auto">
-      <div className="flex justify-between items-center mt-4 mb-5">
-        <h2 className="text-xl font-bold">{t("log.title")}</h2>
-        <button onClick={() => setImp(v => !v)} className={impBtnCls}>
-          <Upload size={14}/>{t("log.importFileBtn")}
-        </button>
-      </div>
+      <h2 className="text-xl font-bold mt-4 mb-5">{title}</h2>
 
       {csvMsg && <div className={msgCls}>{csvMsg}</div>}
-
-      {(openTracker || openIndoor) && !prefill?.source && (
-        <>
-          {openTracker && (
-            <button onClick={openTracker}
-              className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl text-sm font-semibold transition-colors mb-2.5">
-              <MapPin size={16}/>{t("log.trackLive")}
-            </button>
-          )}
-          {openIndoor && (
-            <button onClick={openIndoor}
-              className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-3 rounded-xl text-sm font-semibold transition-colors mb-4">
-              <Bike size={16} className="text-violet-400"/>{t("log.indoorSession")}
-            </button>
-          )}
-          <div className="flex items-center gap-3 mb-5 text-xs uppercase tracking-widest text-slate-500">
-            <div className="h-px flex-1 bg-slate-700"/>{t("log.orManual")}<div className="h-px flex-1 bg-slate-700"/>
-          </div>
-        </>
-      )}
 
       {prefill?.source === "gps" && (
         <div className="bg-emerald-500/15 text-emerald-300 text-sm rounded-xl px-4 py-2.5 mb-5">
@@ -197,25 +221,39 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openInd
         </div>
       )}
 
-      {showImp && (
-        <div className="bg-slate-800 rounded-2xl p-4 mb-5 border border-slate-700 space-y-2.5">
-          <p className="text-sm font-semibold text-slate-200">{t("log.import.title")}</p>
-          <p className="text-xs text-slate-500">
-            <Trans i18nKey="log.import.gpx"><span className="text-slate-300">FIT / GPX / TCX:</span> one activity with its route map, elevation and heart rate</Trans><br/>
-            <Trans i18nKey="log.import.perActivity"><span className="text-slate-300">Get one run from Strava:</span> on strava.com open the activity, then ••• → Export Original (the .fit file) or Export GPX, and import the file here</Trans><br/>
-            <Trans i18nKey="log.import.zepp"><span className="text-slate-300">Zepp CSV:</span> Profile → Privacy Center → Export Personal Data</Trans><br/>
-            <Trans i18nKey="log.import.strava"><span className="text-slate-300">Strava CSV:</span> Settings → My Account → Download or Delete → Request Archive</Trans>
+      {/* Which session you're logging, and what saving will do to it. Skipped
+          when a source banner already explains the arrival (a tracked run that
+          happens to be linked says it on the Save button instead). */}
+      {session && !prefill?.source && (
+        <div className="bg-orange-500/10 border border-orange-500/25 rounded-xl px-4 py-3 mb-5 space-y-0.5">
+          <p className="text-sm font-semibold text-white">
+            {t("log.session.heading", { week: session.wNum, date: fmt.sht(session.date || "") })}
           </p>
-          <input ref={fRef} type="file" accept={fileProvider.fileAccept} onChange={handleFile} className="hidden"/>
-          <button onClick={() => fRef.current?.click()}
-            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-            {t("log.import.chooseFile")}
-          </button>
+          {/* A cross-training session's prescription is its duration, which
+              planSessionPrefill only carries when the session declares one —
+              claiming "0min" would be worse than saying nothing. */}
+          {(session.km || session.durationSec) && (
+            <p className="text-sm text-orange-200">
+              {session.km
+                ? t("log.session.targetRun", {
+                    km: session.km,
+                    type: t("common.types." + session.type, { defaultValue: session.type }),
+                    pace: fmt.pace(session.pace),
+                  })
+                : t("log.session.targetOther", { mins: fmt.mins(Math.round((session.durationSec || 0) / 60)) })}
+            </p>
+          )}
+          <p className="text-xs text-slate-400">{t("log.session.ticksOff")}</p>
         </div>
       )}
 
-      <div className="space-y-4">
-        <RunFields form={f} onChange={set} phScope="log.fields" afterHr={
+      <div className="space-y-4" ref={formRef}>
+        <RunFields form={f} onChange={set} phScope="log.fields"
+          errors={attempted ? runFormErrors(f) : null}
+          // A recorder or import already filled some of the detail — never hide
+          // what the runner arrived with.
+          detailsOpen={runFormHasDetail(INIT) || !!prefill?.hrPending || !!prefill?.hrPendingHk}
+          afterHr={
           (prefill?.hrPending || prefill?.hrPendingHk) && !f.hr ? (
             <p className="text-xs text-slate-400 flex items-start gap-1.5">
               <HeartPulse size={14} className="text-red-400 mt-0.5 shrink-0" />
@@ -225,9 +263,20 @@ export function LogView({addRuns, onDone, onSaved, prefill, openTracker, openInd
         }/>
         <button onClick={submit} disabled={busy}
           className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
-          {busy ? <Loader size={18} className="animate-spin"/> : <Plus size={18}/>}
-          {t("log.saveRun")}
+          {busy ? <Loader size={18} className="animate-spin"/> : session ? <Check size={18}/> : <Plus size={18}/>}
+          {session ? t("log.saveAndTick") : t("log.saveRun")}
         </button>
+        {attempted && !runFormComplete(f) && (
+          <p className="text-xs text-red-300 text-center -mt-2">{t("log.validation.fixAbove")}</p>
+        )}
+        {/* The one place outside Settings that mentions file import: you have
+            just said a run happened and didn't arrive on its own. */}
+        {!prefill && (
+          <button onClick={() => setImporting(true)}
+            className="w-full flex items-center justify-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+            <Upload size={13}/>{t("log.haveAFile")}
+          </button>
+        )}
       </div>
     </div>
   );

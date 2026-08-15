@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, CalendarClock, Check, ChevronRight, Play, Plus, Radio, Route, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, PenLine, Play, Radio, Route, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
@@ -13,6 +13,7 @@ import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
+import { isCrossTraining } from "../types";
 import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
@@ -36,7 +37,10 @@ type DashboardProps = {
   // An interrupted recording waiting to be resumed/saved (the app was killed
   // mid-run). Opening the tracker surfaces its resume/discard card.
   recovery?: { km: number; startedAt: number | null } | null;
-  openTracker?: () => void;
+  // Both recorders take an optional {wNum, sId} link so a run saved from a plan
+  // session ticks that session off (the shared bag's openTracker/openIndoor).
+  openTracker?: (link?: { wNum: number; sId: string }) => void;
+  openIndoor?: (link?: { wNum: number; sId: string }) => void;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
@@ -48,7 +52,7 @@ const OVERDUE_SHOWN = 3;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -65,8 +69,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const nextRace = (races?.participations || [])
     .filter(p => p.status === "wishlist" && p.inPlan && p.raceDate && p.raceDate >= todayStr && p.raceDate < settings.raceDate)
       .sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)))[0];
-  // Both selectors carry the week number so the cards' Record / Done / Skip
-  // actions can target the right session via goLog / toggleSess.
+  // Both selectors carry the week number so the cards' actions can target the
+  // right session via openTracker / goLog / toggleSess.
   const nextSess = nextSession(plan, today) as DashboardSession | null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
   // Sessions the runner never got to. Only the freshest few are rendered — a
@@ -85,8 +89,11 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     track("overdue_shown", {count: overdueCount});
   }, [overdueCount]);
   const wkMon = weekStart(today);
-  const wkKm  = runs.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
-  const totKm = runs.reduce((s, r) => s + (r.km||0), 0);
+  // Running kilometres only: a cross-training session's distance is not one
+  // (docs/indoor-sessions.md), and these tiles are read as training volume.
+  const runOnly = runs.filter(r => !isCrossTraining(r));
+  const wkKm  = runOnly.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
+  const totKm = runOnly.reduce((s, r) => s + (r.km||0), 0);
 
   const statCards = [
     {l:t("dashboard.stats.thisWeek"),  v:wkKm.toFixed(1)+" km",  c:"text-orange-400",  I:Zap},
@@ -284,22 +291,32 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                 ))}
               </div>
             )}
+            {/* Same two verbs, same wiring as the plan row (PlanSessionRow):
+                Start run opens the recorder, Log it fills in a run already done.
+                Ticking off without logging anything stays available, quieter. */}
             <div className="flex gap-2 mt-3">
               <button
-                onClick={() => goLog(planSessionPrefill(nextSess, nextSess.wNum))}
+                onClick={() => (nextSess.type === "OTHER" ? openIndoor : openTracker)?.({ wNum: nextSess.wNum, sId: nextSess.id })}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                <Plus size={15}/>{t("dashboard.session.record")}
+                <Play size={15}/>{t("dashboard.session.startRun")}
               </button>
               <button
-                onClick={() => toggleSess(nextSess.wNum, nextSess.id)}
+                onClick={() => goLog(planSessionPrefill(nextSess, nextSess.wNum))}
                 className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                <Check size={15}/>{t("common.done")}
+                <PenLine size={15}/>{t("dashboard.session.logIt")}
+              </button>
+            </div>
+            <div className="flex gap-4 mt-2.5 justify-center">
+              <button
+                onClick={() => toggleSess(nextSess.wNum, nextSess.id)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+                <Check size={13}/>{t("dashboard.session.markDone")}
               </button>
               <button
                 onClick={() => skipSess(nextSess.wNum, nextSess.id)}
-                className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
                 title={t("dashboard.session.skipTitle")}>
-                <X size={15}/>{t("common.skip")}
+                <X size={13}/>{t("common.skip")}
               </button>
             </div>
           </div>

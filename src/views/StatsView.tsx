@@ -207,8 +207,11 @@ function RacePredictions({runs, settings}: StatsViewProps) {
     || fRuns.reduce((m, r) => Math.max(m, r.hrMax || r.hr || 0), 0);
   const restHR = settings.restHR || 60;
 
-  const best = bestEffortAnchor(fRuns);
-  const hr   = hrModelAnchor(fRuns, effMax, restHR, best);
+  // Predictions are about running fitness: a cross-training session's distance
+  // and its HR at a different economy must not anchor either model.
+  const pRuns = fRuns.filter(r => !isCrossTraining(r));
+  const best = bestEffortAnchor(pRuns);
+  const hr   = hrModelAnchor(pRuns, effMax, restHR, best);
   const hrOk = hrModelUsable(hr);
 
   // 5 / 10 / 20 km, plus the race-day distance when it isn't already one of them.

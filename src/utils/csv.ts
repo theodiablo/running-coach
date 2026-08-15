@@ -80,7 +80,7 @@ export function parseRunsCsv(text: string): { runs: CsvRun[]; error: string | nu
           type: "EASY", km: Math.round(dM / 100) / 10, durationSec: Math.round(dur),
           hr:    num(row["average heart rate (bpm)"]),
           hrMax: num(row["max heart rate (bpm)"]),
-          elevation: null, effort: 5, notes: "Zepp import",
+          elevation: null, effort: null, notes: "Zepp import",
           ...(startedAt ? { startedAt } : {}),
         });
       }
@@ -96,7 +96,7 @@ export function parseRunsCsv(text: string): { runs: CsvRun[]; error: string | nu
           hr:    num(row["average heart rate"]),
           hrMax: num(row["max heart rate"]),
           elevation: num(row["elevation gain"]) ?? undefined,
-          effort: 5, notes: "Strava import",
+          effort: null, notes: "Strava import",
           ...(startedAt ? { startedAt } : {}),
         });
       }

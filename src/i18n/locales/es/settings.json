@@ -217,5 +217,10 @@
         "help": "Conecta tu cuenta de Suunto para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj Suunto, incluso si dejas el teléfono en casa. Todo tu historial se importa en la primera conexión."
       }
     }
+  },
+  "importFile": {
+    "title": "Importar un archivo",
+    "subtitle": "Trae tus entrenamientos desde un archivo FIT, GPX, TCX o CSV. Aquí también llega un entrenamiento exportado desde Strava.",
+    "cta": "Importar un archivo"
   }
 }
