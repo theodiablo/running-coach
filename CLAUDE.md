@@ -384,8 +384,9 @@ changes.
 - **Open a PR automatically when a task is finished** — committed, pushed, and
   lint/typecheck/tests green locally. This standing maintainer instruction IS
   the explicit opt-in. Exceptions: trivial/no-op changes, a PR already open for
-  the branch (push to it instead), or the maintainer said to hold off. Mirror
-  any `.github/pull_request_template.md` structure.
+  the branch (push to it instead), or the maintainer said to hold off. Fill in
+  `.github/pull_request_template.md` — keep its headings, drop the guidance
+  comments and any section that doesn't apply.
 - **Never merge a PR unless explicitly asked.**
 - **After opening a PR, track its CI and auto-fix failures:** call
   `subscribe_pr_activity`, then end the turn. On CI failure, investigate and
