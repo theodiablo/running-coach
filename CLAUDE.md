@@ -246,6 +246,15 @@ Always re-verify a finding before acting on it; agents report false positives.
   background-geolocation) and BLE heart-rate notifications (patched
   `bluetooth-le`) are appended to a file by the native callback and folded back
   in at save/recovery — never left to whatever JS happened to be awake for.
+- **A foreground service holds the app process, NOT the WebView renderer.** The
+  renderer is a separate sandboxed process, and its default priority policy is
+  *waived* as soon as the WebView stops being visible — so a backgrounded
+  recording screen is the low-memory killer's first pick however many foreground
+  services are running. `MainActivity` pins it with
+  `setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)`; keep both
+  halves when adding anything that must survive backgrounding, and keep
+  `onRenderProcessGone` as the net, since the policy raises the renderer's
+  standing rather than making it unkillable. Detail: `docs/indoor-sessions.md`.
 - **iOS 15.4 is the deployment floor, and a regex lookbehind (`(?<=`/`(?<!`)
   anywhere in the bundle breaks it** — JavaScriptCore before 16.4 fails to
   *parse* the module, so the whole chunk dies (a lazily-imported one as an
