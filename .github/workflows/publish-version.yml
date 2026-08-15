@@ -54,10 +54,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      # Needed for the local validate-app-version action, not for npm — the
-      # Supabase CLI runs via a pinned npx package below, so there is no
-      # npm ci: installing the whole dev toolchain for two SQL statements
-      # made every publish a multi-minute job.
+      # Needed for the local validate-app-version action and
+      # scripts/supabase-query.sh, not for npm — there is no npm ci here:
+      # installing the whole dev toolchain for two SQL statements made every
+      # publish a multi-minute job.
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -80,24 +80,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN repo secret is not set — add a Supabase personal/service access token with database query rights on run-app."
-            exit 1
-          fi
-          if [ -z "$SUPABASE_PROJECT_REF" ]; then
-            echo "::error::SUPABASE_PROJECT_REF repo variable is not set."
-            exit 1
-          fi
+          q() { ./scripts/supabase-query.sh "$1"; }
 
-          # Pinned to the CLI major the repo's devDependency tracks; -y skips
-          # the npx install prompt. No npm ci needed.
-          CLI="supabase@2"
-          q() { npx -y "$CLI" db query --linked "$1"; }
-
-          npx -y "$CLI" link --project-ref "$SUPABASE_PROJECT_REF"
-
-          # Deliberately does NOT trust `db query` exit codes or plpgsql RAISE
-          # to fail the run (CLI error->exit-code behavior is not guaranteed):
+          # Deliberately does NOT trust query exit codes or plpgsql RAISE
+          # to fail the run (error->exit-code behavior is not guaranteed):
           # every outcome is confirmed by reading a sentinel-tagged SELECT back
           # out of stdout. Sentinels are split ('RC_' || 'PICK=') so the marker
           # can only appear in RESULT rows, never in an echo of the query text.
