@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { durToSec, formatDur, hmsToSec, normalizeDur, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur } from "./runForm";
+import { canonicalDur, durToSec, formatDur, hmsToSec, normalizeDur, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur, setRunField } from "./runForm";
 import type { Run } from "../types";
 
 const run = {
@@ -71,6 +71,28 @@ describe("duration digits", () => {
     expect(normalizeDur("4:30")).toBe("430");
     expect(normalizeDur("abc")).toBe("");
   });
+
+  // The field must never show a value it won't save. Raw digits can express
+  // 0:75 or 23:45:67; seconds cannot, so input is settled through them.
+  it("never displays a duration different from the one it saves", () => {
+    for (const raw of ["75", "0075", "1234567", "9999", "234567", "4300", "15207", ""]) {
+      const canon = canonicalDur(raw);
+      expect(durToSec(formatDur(canon))).toBe(durToSec(canon));
+      // …and the canonical digits round-trip through the display unchanged.
+      expect(canonicalDur(canon)).toBe(canon);
+    }
+  });
+
+  it("carries an out-of-range group instead of showing it", () => {
+    expect(formatDur(canonicalDur("75"))).toBe("1:15");
+    expect(durToSec(canonicalDur("75"))).toBe(75);
+    // 7 digits: the leading one falls off, and what's left is re-grouped.
+    expect(formatDur(canonicalDur("1234567"))).toBe("23:46:07");
+  });
+
+  it("leaves ordinary typing alone", () => {
+    for (const raw of ["4", "43", "430", "4300", "15207"]) expect(canonicalDur(raw)).toBe(raw);
+  });
 });
 
 describe("runFormComplete", () => {
@@ -112,12 +134,24 @@ describe("cross-training activity", () => {
     expect(runFormToPatch(f).km).toBe(0);
   });
 
-  // The form offers no distance field for cross-training, but a distance typed
-  // before the type was switched is still in state. Letting it out would put a
-  // bike's kilometres into weekly volume, badges and the plan's fitness signal.
-  it("drops a leftover distance when the type is OTHER", () => {
-    const f = { ...runToForm(run), type: "OTHER", km: "25" };
-    expect(runFormToPatch(f).km).toBe(0);
+  // The form offers no distance or elevation field for cross-training, so
+  // switching into it has to empty them — otherwise a value the runner can no
+  // longer see is saved as running volume and climb.
+  it("clears distance and elevation on the switch to cross-training", () => {
+    const f = setRunField({ ...runToForm(run), km: "25", elev: "300" }, "type", "OTHER");
+    expect(f).toMatchObject({ km: "", elev: "" });
+    expect(runFormToPatch(f)).toMatchObject({ km: 0, elevation: undefined });
+  });
+
+  // The mirror image, and the reason this lives in the change handler rather
+  // than in runFormToPatch: a bike ride logged before those fields disappeared
+  // must survive an unrelated edit. The aggregates neutralise it; nothing
+  // silently deletes it.
+  it("keeps a distance a cross-training run already had", () => {
+    const legacy = runToForm({ ...run, type: "OTHER", km: 32 } as Run);
+    expect(runFormToPatch(legacy).km).toBe(32);
+    // Editing only the notes leaves the distance alone.
+    expect(runFormToPatch(setRunField(legacy, "notes", "flat tyre")).km).toBe(32);
   });
 });
 

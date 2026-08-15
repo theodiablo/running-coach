@@ -56,7 +56,7 @@ export function sessionToRun(s: WatchSessionRaw): Partial<Run> {
     durationSec: s.activeSec != null && s.activeSec > 0 ? Math.round(s.activeSec) : elapsedSec,
     hr: s.hrAvg != null ? Math.round(s.hrAvg) : null,
     hrMax: s.hrMax != null ? Math.round(s.hrMax) : null,
-    effort: 5,
+    effort: null,
     // Which app wrote the session ("Imported from Garmin" / "… Zepp") — several
     // brands share the one Health Connect integration, so the run says which.
     notes: importedNote(s.dataOrigin),

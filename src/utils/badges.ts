@@ -53,7 +53,7 @@ export function computeBadges(runs: Run[] = [], participations: Participation[] 
   const runOnly = runs.filter(r => !isCrossTraining(r));
   const maxKm = runOnly.reduce((m, r) => Math.max(m, r.km || 0), 0);
   const totalKm = runOnly.reduce((s, r) => s + (r.km || 0), 0);
-  const totalElev = runs.reduce((s, r) => s + (r.elevation || 0), 0);
+  const totalElev = runOnly.reduce((s, r) => s + (r.elevation || 0), 0);
   const activeWeeks = new Set(runs.filter(r => r.date).map(r => weekKey(r.date))).size;
   const hasGps = runs.some(r => r.source === "gps");
   const wishlisted = participations.length;

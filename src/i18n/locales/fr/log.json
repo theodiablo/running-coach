@@ -17,7 +17,7 @@
   "session": {
     "heading": "Semaine {{week}} · {{date}}",
     "targetRun": "{{type}} · {{km}} km à {{pace}}/km",
-    "targetOther": "Renforcement · {{mins}}",
+    "targetOther": "Entraînement croisé · {{mins}}",
     "ticksOff": "En enregistrant, la séance sera validée."
   },
   "gpsBanner": "Sortie enregistrée par GPS. La distance, la durée et le dénivelé positif sont déjà renseignés. Ajoute un type et des notes, puis enregistre.",

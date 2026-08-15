@@ -4,7 +4,7 @@ import { Check, Loader, Plus, Upload, HeartPulse } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { track } from "../telemetry";
 import { RunFields } from "../components/RunFields";
-import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, secToDur, type RunFormValues } from "../utils/runForm";
+import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, secToDur, setRunField, type RunFormValues } from "../utils/runForm";
 import { MAX_GPX_BYTES } from "../utils/gpx";
 import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
@@ -68,7 +68,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
   const [csvOk,  setCsvOk]  = useState(false);
   const fRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
-  const set  = (k: keyof RunFormValues, v: string | number) => setF(prev => ({...prev, [k]: v}));
+  const set  = (k: keyof RunFormValues, v: string | number) => setF(prev => setRunField(prev, k, v));
 
   const showMsg = (msg: string, ok = false) => { setCsvOk(ok); setCsvMsg(msg); setTimeout(() => setCsvMsg(""), 3000); };
 
@@ -229,15 +229,20 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
           <p className="text-sm font-semibold text-white">
             {t("log.session.heading", { week: session.wNum, date: fmt.sht(session.date || "") })}
           </p>
-          <p className="text-sm text-orange-200">
-            {session.km
-              ? t("log.session.targetRun", {
-                  km: session.km,
-                  type: t("common.types." + session.type, { defaultValue: session.type }),
-                  pace: fmt.pace(session.pace),
-                })
-              : t("log.session.targetOther", { mins: fmt.mins(Math.round((session.durationSec || 0) / 60)) })}
-          </p>
+          {/* A cross-training session's prescription is its duration, which
+              planSessionPrefill only carries when the session declares one —
+              claiming "0min" would be worse than saying nothing. */}
+          {(session.km || session.durationSec) && (
+            <p className="text-sm text-orange-200">
+              {session.km
+                ? t("log.session.targetRun", {
+                    km: session.km,
+                    type: t("common.types." + session.type, { defaultValue: session.type }),
+                    pace: fmt.pace(session.pace),
+                  })
+                : t("log.session.targetOther", { mins: fmt.mins(Math.round((session.durationSec || 0) / 60)) })}
+            </p>
+          )}
           <p className="text-xs text-slate-400">{t("log.session.ticksOff")}</p>
         </div>
       )}

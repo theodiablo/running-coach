@@ -308,6 +308,20 @@ describe("assessGoalFeasibility", () => {
     expect(assessGoal({ ...goal, recentRuns: runs })).toMatch(/CONSERVATIVE/);
   });
 
+  // A bike ride's distance and pace are not running fitness. Only rows logged
+  // before the form stopped offering cross-training a distance still carry one,
+  // and reading them here talked the coach into endorsing a harder goal.
+  it("ignores cross-training when judging fitness", () => {
+    const runs = [
+      { date: today(4), type: "OTHER", km: 30, durationSec: 3600 }, // 2:00/km on a bike
+      { date: today(6), type: "EASY", km: 8, durationSec: 8 * 360 },
+    ];
+    const out = assessGoal({ ...goal, recentRuns: runs });
+    expect(out).not.toMatch(/CONSERVATIVE/);
+    expect(out).not.toMatch(/longest recent run 30\.0 km/);
+    expect(out).not.toMatch(/2:00\/km/);
+  });
+
   it("bases longest/pace stats on the last 4 weeks, not stale older history", () => {
     // A big long run and fast pace from 3 months ago must not make a currently
     // inactive runner's goal look supported by "recent" fitness.

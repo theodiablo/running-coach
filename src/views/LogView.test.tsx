@@ -49,7 +49,9 @@ describe("LogView", () => {
     setup({ openImport: true });
     expect(screen.getByText("Import a file")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Choose file" })).toBeInTheDocument();
+    // Labelled fields, so this can't pass just because the query can't see them.
     expect(screen.queryByLabelText("Distance (km)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Duration")).not.toBeInTheDocument();
   });
 
   // Import is otherwise a Settings task; this is its one entry point in the

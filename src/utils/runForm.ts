@@ -60,6 +60,13 @@ export const secToDur = (sec: number): string => {
   return normalizeDur(digits);
 };
 
+// Re-express raw input as the digits of the duration it actually means, so the
+// field can never show a value it won't save: typing "75" reads as 0:75, which
+// is 1:15 once parsed, and 7 digits push one off the left and re-group. Running
+// it through seconds and back settles both. Canonical input is untouched by it
+// ("4300" stays "4300"), so ordinary typing never sees it move.
+export const canonicalDur = (raw: string): string => secToDur(durToSec(raw));
+
 // What the field shows: the digits grouped as the runner reads them back.
 export const formatDur = (digits: string): string => {
   const d = normalizeDur(digits);
@@ -91,6 +98,25 @@ export function runToForm(run: Run): RunFormValues {
 export const runFormHasDetail = (f: RunFormValues) =>
   !!(f.hr || f.hrMax || f.elev || f.notes || Number(f.effort) > EFFORT_UNSET);
 
+// One field change, with the fields that stop applying reconciled in the same
+// handler (the `react-hooks` rule: reconcile in event handlers, never an
+// effect). Switching a run TO cross-training drops distance and elevation,
+// because the form stops rendering them and a stale value would be saved
+// invisibly.
+//
+// Deliberately only on the switch, never at patch time: a run that *arrived* as
+// cross-training keeps whatever it already had, so opening a bike ride logged
+// before those fields disappeared — to fix a typo in its notes — can't silently
+// delete its distance. Legacy rows are neutralised by the `isCrossTraining`
+// filters on the aggregates, not by erasing them. See docs/indoor-sessions.md.
+export function setRunField(
+  f: RunFormValues, key: keyof RunFormValues, value: string | number,
+): RunFormValues {
+  const next = { ...f, [key]: value } as RunFormValues;
+  if (key === "type" && value === "OTHER" && f.type !== "OTHER") return { ...next, km: "", elev: "" };
+  return next;
+}
+
 // Separate h/m/s boxes, kept for the race-time entry in RacesView. The run form
 // no longer has them — see `dur`.
 export const hmsToSec = (f: { dH: string; dM: string; dS: string }) =>
@@ -120,10 +146,10 @@ export const runFormComplete = (f: RunFormValues) => {
 
 export const runFormToPatch = (f: RunFormValues): RunPatch => ({
   date: f.date, type: f.type,
-  // A cross-training session carries no running distance — the form offers no
-  // field for one, and a distance left over from a type switch must not survive
-  // as running volume. See docs/indoor-sessions.md.
-  km: f.type === "OTHER" ? 0 : parseFloat(f.km) || 0,
+  // Whatever the form holds. A cross-training run gets no distance field, and
+  // `setRunField` empties it on the switch — but a value already stored on an
+  // older row is preserved rather than zeroed behind the runner's back.
+  km: parseFloat(f.km) || 0,
   durationSec: durToSec(f.dur),
   // Only ever meaningful on a cross-training row; cleared if the type moves off
   // OTHER, so an edited run can't keep claiming it was done on a bike.

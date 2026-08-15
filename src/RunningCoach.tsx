@@ -892,7 +892,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     </div>
   );
 
-  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); if (prefill) setPrefillVer(v => v + 1); };
+  // Always remounts LogView (prefillVer is its key): the importer/form choice is
+  // initial state inside it, so a bare goLog() from the record sheet has to be
+  // able to pull it back to the form when the importer is already showing.
+  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
   // Land on the Log tab with the file-import panel open (Settings ->
   // Integrations vendor guides). Bumps prefillVer so LogView remounts and reads
   // openImport as initial state even when already on the Log tab.

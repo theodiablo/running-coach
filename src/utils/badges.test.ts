@@ -35,6 +35,11 @@ describe("computeBadges", () => {
     expect(get(compute(runs), "vol-100").unlocked).toBe(false);
   });
 
+  it("leaves cross-training elevation out of the climbing totals", () => {
+    const runs = [{ date: "2026-01-05", km: 0, type: "OTHER", activity: "bike", elevation: 5000 }];
+    expect(compute(runs).find(b => b.id.startsWith("elev-"))?.unlocked).toBe(false);
+  });
+
   it("counts WALK runs toward volume (inclusive)", () => {
     const runs = [
       { date: "2026-01-05", km: 60, type: "WALK" },

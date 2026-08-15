@@ -4,7 +4,7 @@ import { ChevronDown, Plus } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { RUN_ACTIVITIES } from "../types";
 import { fmt } from "../utils/format";
-import { EFFORT_UNSET, durToSec, formatDur, normalizeDur, type RunFormErrors, type RunFormValues } from "../utils/runForm";
+import { EFFORT_UNSET, canonicalDur, durToSec, formatDur, type RunFormErrors, type RunFormValues } from "../utils/runForm";
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
 
@@ -50,21 +50,30 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
   const effort = Number(f.effort);
 
   const durRef = useRef<HTMLInputElement | null>(null);
-  const durId = phScope === "log.edit" ? "run-dur-edit" : "run-dur";
+  // Ids are scoped per form instance so the Log view and an open Edit modal
+  // can't collide on them, which would point a label at the wrong input.
+  const fid = (name: string) => (phScope === "log.edit" ? "edit-" : "log-") + name;
+  const durId = fid("dur");
   // React restores the caret by index, which lands it before a colon the format
-  // just inserted; put it back at the end after the value settles.
+  // just inserted; put it back at the end once the value settles.
+  //
+  // The frame's delay is long enough for the runner to have selected the field's
+  // contents in the meantime (select-all then retype, the usual way to replace a
+  // prefilled duration on a phone). Collapsing that selection would turn their
+  // replacement into an append, so a range that appeared since is left alone.
   const pinEnd = () => requestAnimationFrame(() => {
     const el = durRef.current;
-    if (el) el.setSelectionRange(el.value.length, el.value.length);
+    if (!el || el.selectionStart !== el.selectionEnd) return;
+    el.setSelectionRange(el.value.length, el.value.length);
   });
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={LABEL_CLS}>{t("log.fields.date")}</label>
-          <input type="date" value={f.date} onChange={e => set("date", e.target.value)} className={INPUT_CLS}/></div>
-        <div><label className={LABEL_CLS}>{t("log.fields.type")}</label>
-          <select value={f.type} onChange={e => set("type", e.target.value)} className={INPUT_CLS}>
+        <div><label className={LABEL_CLS} htmlFor={fid("date")}>{t("log.fields.date")}</label>
+          <input id={fid("date")} type="date" value={f.date} onChange={e => set("date", e.target.value)} className={INPUT_CLS}/></div>
+        <div><label className={LABEL_CLS} htmlFor={fid("type")}>{t("log.fields.type")}</label>
+          <select id={fid("type")} value={f.type} onChange={e => set("type", e.target.value)} className={INPUT_CLS}>
             {RUN_TYPES.map(ty =>
               <option key={ty} value={ty}>{t("common.types." + ty, { defaultValue: ty })}</option>)}
           </select>
@@ -74,8 +83,8 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
           bike's kilometres are not running kilometres, and letting them in
           distorts volume, pace, PBs and the plan's fitness signal. */}
       {isCross && (
-        <div><label className={LABEL_CLS}>{t("log.fields.activity")}</label>
-          <select value={f.activity} onChange={e => set("activity", e.target.value)} className={INPUT_CLS}>
+        <div><label className={LABEL_CLS} htmlFor={fid("activity")}>{t("log.fields.activity")}</label>
+          <select id={fid("activity")} value={f.activity} onChange={e => set("activity", e.target.value)} className={INPUT_CLS}>
             <option value="">{t("log.fields.activityNone")}</option>
             {RUN_ACTIVITIES.map(a =>
               <option key={a} value={a}>{t("common.activities." + a)}</option>)}
@@ -83,10 +92,11 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
         </div>
       )}
       {!isCross && (
-        <div data-field="km"><label className={LABEL_CLS}>{t("log.fields.distanceKm")}</label>
-          <input type="number" step="0.01" min="0" placeholder={ph.km} value={f.km}
+        <div data-field="km"><label className={LABEL_CLS} htmlFor={fid("km")}>{t("log.fields.distanceKm")}</label>
+          <input id={fid("km")} type="number" step="0.01" min="0" placeholder={ph.km} value={f.km}
+            aria-invalid={errors?.km || undefined} aria-describedby={errors?.km ? fid("km") + "-err" : undefined}
             onChange={e => set("km", e.target.value)} className={errCls(errors?.km)}/>
-          {errors?.km && <p className="text-xs text-red-300 mt-1.5">{t("log.validation.km")}</p>}
+          {errors?.km && <p id={fid("km") + "-err"} className="text-xs text-red-300 mt-1.5">{t("log.validation.km")}</p>}
         </div>
       )}
       <div data-field="duration"><label className={LABEL_CLS} htmlFor={durId}>{t("log.fields.duration")}</label>
@@ -96,22 +106,24 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
             what keeps this free of caret arithmetic. */}
         <input id={durId} type="text" inputMode="numeric" autoComplete="off"
           placeholder={t("log.fields.durationPh")} value={formatDur(f.dur)}
-          onChange={e => { set("dur", normalizeDur(e.target.value)); pinEnd(); }}
+          aria-invalid={errors?.duration || undefined}
+          aria-describedby={errors?.duration ? durId + "-err" : durId + "-hint"}
+          onChange={e => { set("dur", canonicalDur(e.target.value)); pinEnd(); }}
           onKeyDown={e => {
-            if (e.key !== "Backspace") return;
+            // Only intercept when the caret is a point. Over a selection the
+            // browser's own delete is what makes select-all-then-retype work,
+            // and popping one digit instead would be actively wrong.
+            const el = e.currentTarget;
+            if (e.key !== "Backspace" || el.selectionStart !== el.selectionEnd) return;
             e.preventDefault();
             set("dur", f.dur.slice(0, -1));
           }}
           onFocus={pinEnd} onClick={pinEnd}
-          onSelect={() => {
-            const el = durRef.current;
-            if (el && (el.selectionStart !== el.value.length || el.selectionEnd !== el.value.length)) pinEnd();
-          }}
           ref={durRef}
           className={errCls(errors?.duration) + " text-lg font-semibold tabular-nums text-center"}/>
         {errors?.duration
-          ? <p className="text-xs text-red-300 mt-1.5">{t("log.validation.duration")}</p>
-          : !f.dur && <p className="text-xs text-slate-500 mt-1.5">{t("log.fields.durationHint")}</p>}
+          ? <p id={durId + "-err"} className="text-xs text-red-300 mt-1.5">{t("log.validation.duration")}</p>
+          : !f.dur && <p id={durId + "-hint"} className="text-xs text-slate-500 mt-1.5">{t("log.fields.durationHint")}</p>}
       </div>
 
       {pace > 0 && (
@@ -123,7 +135,7 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
       {isCross && <p className="text-xs text-slate-500">{t("log.fields.crossNoDistance")}</p>}
 
       {!open && (
-        <button type="button" onClick={() => setOpen(true)}
+        <button type="button" onClick={() => setOpen(true)} aria-expanded={false} aria-controls={fid("details")}
           className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500 text-sm font-medium transition-colors">
           <Plus size={14}/>{isCross ? t("log.fields.addDetailsCross") : t("log.fields.addDetails")}
           <ChevronDown size={14}/>
@@ -131,17 +143,17 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
       )}
 
       {open && (
-        <div className="space-y-4 animate-expand">
+        <div id={fid("details")} className="space-y-4 animate-expand">
           <div className="grid grid-cols-2 gap-2">
-            <div><label className={LABEL_CLS}>{t("log.fields.avgHr")} {optional}</label>
-              <input type="number" min="0" max="250" placeholder={ph.avgHr} value={f.hr} onChange={e => set("hr", e.target.value)} className={INPUT_CLS}/></div>
-            <div><label className={LABEL_CLS}>{t("log.fields.maxHr")} {optional}</label>
-              <input type="number" min="0" max="250" placeholder={ph.maxHr} value={f.hrMax} onChange={e => set("hrMax", e.target.value)} className={INPUT_CLS}/></div>
+            <div><label className={LABEL_CLS} htmlFor={fid("hr")}>{t("log.fields.avgHr")} {optional}</label>
+              <input id={fid("hr")} type="number" min="0" max="250" placeholder={ph.avgHr} value={f.hr} onChange={e => set("hr", e.target.value)} className={INPUT_CLS}/></div>
+            <div><label className={LABEL_CLS} htmlFor={fid("hrMax")}>{t("log.fields.maxHr")} {optional}</label>
+              <input id={fid("hrMax")} type="number" min="0" max="250" placeholder={ph.maxHr} value={f.hrMax} onChange={e => set("hrMax", e.target.value)} className={INPUT_CLS}/></div>
           </div>
           {afterHr}
           {!isCross && (
-            <div><label className={LABEL_CLS}>{t("log.fields.elevM")} {optional}</label>
-              <input type="number" placeholder={ph.elev} value={f.elev} onChange={e => set("elev", e.target.value)} className={INPUT_CLS}/></div>
+            <div><label className={LABEL_CLS} htmlFor={fid("elev")}>{t("log.fields.elevM")} {optional}</label>
+              <input id={fid("elev")} type="number" placeholder={ph.elev} value={f.elev} onChange={e => set("elev", e.target.value)} className={INPUT_CLS}/></div>
           )}
           <div>
             <label className={LABEL_CLS}>
@@ -151,15 +163,17 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
             </label>
             {/* 0 is "didn't say", not an intensity — see EFFORT_UNSET. */}
             <input type="range" min="0" max="10" value={effort} onChange={e => set("effort", e.target.value)}
-              aria-label={t("log.fields.effort")} className="w-full accent-orange-500"/>
+              aria-label={t("log.fields.effort")}
+              aria-valuetext={effort > EFFORT_UNSET ? t("log.fields.effortValue", { value: effort }) : t("log.fields.effortUnset")}
+              className="w-full accent-orange-500"/>
             <div className="flex justify-between text-[10px] text-slate-500 -mt-0.5">
               <span>{t("log.fields.effortEasy")}</span>
               <span>{t("log.fields.effortSteady")}</span>
               <span>{t("log.fields.effortMax")}</span>
             </div>
           </div>
-          <div><label className={LABEL_CLS}>{t("log.fields.notes")} {optional}</label>
-            <textarea rows={2} placeholder={t("log.fields.notesPh")} value={f.notes}
+          <div><label className={LABEL_CLS} htmlFor={fid("notes")}>{t("log.fields.notes")} {optional}</label>
+            <textarea id={fid("notes")} rows={2} placeholder={t("log.fields.notesPh")} value={f.notes}
               onChange={e => set("notes", e.target.value)} className={INPUT_CLS + " resize-none"}/></div>
         </div>
       )}

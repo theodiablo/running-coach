@@ -82,7 +82,7 @@ export function activityToRun(
     durationSec: Math.max(1, Math.round((endMs - startMs) / 1000)),
     hr: s.hrAvg,
     hrMax: s.hrMax,
-    effort: 5,
+    effort: null,
     notes: label,
     source: "file",
     startedAt: new Date(startMs).toISOString(),

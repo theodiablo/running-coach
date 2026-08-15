@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { RunFields } from "./RunFields";
@@ -44,14 +45,60 @@ describe("RunFields", () => {
   it("appends a typed digit and pops one on backspace", () => {
     const onChange = vi.fn();
     render(<RunFields form={{ ...emptyRunForm("2026-08-15"), dur: "430" }} onChange={onChange} phScope="log.fields"/>);
-    const field = screen.getByDisplayValue("4:30");
+    const field = screen.getByDisplayValue("4:30") as HTMLInputElement;
 
     fireEvent.change(field, { target: { value: "4:300" } });
     expect(onChange).toHaveBeenCalledWith("dur", "4300");
 
     onChange.mockClear();
+    field.setSelectionRange(4, 4);
     fireEvent.keyDown(field, { key: "Backspace" });
     expect(onChange).toHaveBeenCalledWith("dur", "43");
+  });
+
+  // Select-all then retype is the standard way to replace a prefilled value on
+  // a phone. Popping a single digit there — or collapsing the selection before
+  // the keystroke lands — turns a replacement into an append.
+  it("lets a selection be replaced rather than appended to", () => {
+    const onChange = vi.fn();
+    render(<RunFields form={{ ...emptyRunForm("2026-08-15"), dur: "4213" }} onChange={onChange} phScope="log.fields"/>);
+    const field = screen.getByDisplayValue("42:13") as HTMLInputElement;
+
+    // Backspace over a selection must fall through to the browser's own delete.
+    field.setSelectionRange(0, field.value.length);
+    const handled = fireEvent.keyDown(field, { key: "Backspace" });
+    expect(handled).toBe(true);           // not preventDefault()ed
+    expect(onChange).not.toHaveBeenCalled();
+
+    // …and the replacement that follows is read as a replacement.
+    fireEvent.change(field, { target: { value: "4500" } });
+    expect(onChange).toHaveBeenCalledWith("dur", "4500");
+  });
+
+  // The caret is pinned on an animation frame, which lands after the runner may
+  // already have selected the field. Collapsing that selection is what turned a
+  // replacement into an append; the browser showed it, jsdom pins it here.
+  it("does not collapse a selection made while the caret is being pinned", async () => {
+    function Harness() {
+      const [f, setF] = useState({ ...emptyRunForm("2026-08-15"), dur: "4213" });
+      return <RunFields form={f} onChange={(k, v) => setF(p => ({ ...p, [k]: v }))} phScope="log.fields"/>;
+    }
+    render(<Harness/>);
+    const field = screen.getByLabelText("Duration") as HTMLInputElement;
+
+    fireEvent.change(field, { target: { value: "42130" } });   // schedules the pin
+    field.setSelectionRange(0, field.value.length);            // runner selects all
+    await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length]);
+  });
+
+  it("never shows a duration it would not save", () => {
+    const onChange = vi.fn();
+    render(<RunFields form={emptyRunForm("2026-08-15")} onChange={onChange} phScope="log.fields"/>);
+    // "75" reads as 0:75, which is not a time — it settles to 1:15.
+    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "75" } });
+    expect(onChange).toHaveBeenCalledWith("dur", "115");
   });
 
   it("shows no pace until it means something", () => {
@@ -63,9 +110,18 @@ describe("RunFields", () => {
   // badges and the plan's fitness signal.
   it("offers cross-training a machine but no distance, and says why", () => {
     setup({ type: "OTHER" });
-    expect(screen.queryByPlaceholderText("e.g. 8.5")).not.toBeInTheDocument();
-    expect(screen.getByText("Machine")).toBeInTheDocument();
+    // By label, not placeholder: every field is associated with its label, so
+    // this fails if the input comes back rather than passing vacuously.
+    expect(screen.queryByLabelText("Distance (km)")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Machine")).toBeInTheDocument();
     expect(screen.getByText(/No distance here/)).toBeInTheDocument();
+  });
+
+  it("labels every field it renders", () => {
+    setup({}, { detailsOpen: true });
+    for (const label of ["Date", "Type", "Distance (km)", "Duration",
+                         "Avg HR optional", "Max HR optional", "Elev (m) optional", "Notes optional"])
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
   });
 
   it("puts a required-field message on the field it is about", () => {

@@ -44,7 +44,9 @@ describe("sessionToRun", () => {
     const r = sessionToRun(session({ distanceM: 8230, activeSec: 2600, hrAvg: 148.4, hrMax: 171, elevationGainM: 82.6, startZoneOffsetSec: 0 }));
     expect(r).toMatchObject({
       date: "2026-07-10", type: "EASY", km: 8.23, durationSec: 2600,
-      hr: 148, hrMax: 171, elevation: 83, effort: 5, source: "watch",
+      // Nobody was asked how it felt, so nothing is claimed — an imported run
+      // used to assert a middle effort the coach then read as a real answer.
+      hr: 148, hrMax: 171, elevation: 83, effort: null, source: "watch",
       hcId: "s1", startedAt: "2026-07-10T08:00:00Z",
     });
   });

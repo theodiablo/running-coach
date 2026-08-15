@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { Check } from "lucide-react";
 import { RunFields } from "../components/RunFields";
-import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, type RunFormValues } from "../utils/runForm";
+import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, setRunField, type RunFormValues } from "../utils/runForm";
 import type { Run, RunPatch } from "../types";
 
 type EditRunModalProps = {
@@ -18,7 +18,7 @@ export function EditRunModal({run, onSave, onClose}: EditRunModalProps) {
   useDismissable(true, onClose);
   const [f, setF] = useState<RunFormValues>(() => runToForm(run));
   const [attempted, setAttempted] = useState(false);
-  const set = (k: keyof RunFormValues, v: string | number) => setF(prev => ({...prev, [k]: v}));
+  const set = (k: keyof RunFormValues, v: string | number) => setF(prev => setRunField(prev, k, v));
 
   const save = () => {
     if (!runFormComplete(f)) { setAttempted(true); return; }
