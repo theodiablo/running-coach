@@ -4,7 +4,7 @@ import { Check, Loader, Plus, Upload, HeartPulse } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { track } from "../telemetry";
 import { RunFields } from "../components/RunFields";
-import { runFormComplete, runFormToPatch, type RunFormValues } from "../utils/runForm";
+import { runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, type RunFormValues } from "../utils/runForm";
 import { MAX_GPX_BYTES } from "../utils/gpx";
 import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
@@ -58,20 +58,33 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
     dS:     Math.round(estSec % 60) ? String(Math.round(estSec % 60)) : "",
     hr:    prefill?.hr    != null ? String(prefill.hr)    : "",
     hrMax: prefill?.hrMax != null ? String(prefill.hrMax) : "",
-    elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:5,notes:"",
+    elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:0,notes:"",
   };
   const [f,      setF]    = useState<RunFormValues>(INIT);
   const [busy,   setBusy] = useState(false);
+  // Required-field errors show only once a save has been attempted — an empty
+  // form isn't a mistake yet.
+  const [attempted, setAttempted] = useState(false);
   const [importing, setImporting] = useState(!!openImport);
   const [csvMsg, setCsvMsg] = useState("");
   const [csvOk,  setCsvOk]  = useState(false);
   const fRef = useRef<HTMLInputElement | null>(null);
+  const formRef = useRef<HTMLDivElement | null>(null);
   const set  = (k: keyof RunFormValues, v: string | number) => setF(prev => ({...prev, [k]: v}));
 
   const showMsg = (msg: string, ok = false) => { setCsvOk(ok); setCsvMsg(msg); setTimeout(() => setCsvMsg(""), 3000); };
 
   const submit = async () => {
-    if (!runFormComplete(f)) { showMsg(t("log.validation.required")); return; }
+    if (!runFormComplete(f)) {
+      // Say it on the field, and take the runner to it: the old banner rendered
+      // under the page title, several hundred pixels above the button they had
+      // just pressed, then deleted itself after three seconds.
+      setAttempted(true);
+      const bad = runFormErrors(f).km ? "km" : "duration";
+      formRef.current?.querySelector<HTMLElement>(`[data-field="${bad}"]`)
+        ?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      return;
+    }
     setBusy(true);
     addRuns([{
       ...runFormToPatch(f),
@@ -231,8 +244,13 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
         </div>
       )}
 
-      <div className="space-y-4">
-        <RunFields form={f} onChange={set} phScope="log.fields" afterHr={
+      <div className="space-y-4" ref={formRef}>
+        <RunFields form={f} onChange={set} phScope="log.fields"
+          errors={attempted ? runFormErrors(f) : null}
+          // A recorder or import already filled some of the detail — never hide
+          // what the runner arrived with.
+          detailsOpen={runFormHasDetail(INIT) || !!prefill?.hrPending || !!prefill?.hrPendingHk}
+          afterHr={
           (prefill?.hrPending || prefill?.hrPendingHk) && !f.hr ? (
             <p className="text-xs text-slate-400 flex items-start gap-1.5">
               <HeartPulse size={14} className="text-red-400 mt-0.5 shrink-0" />
@@ -245,6 +263,9 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
           {busy ? <Loader size={18} className="animate-spin"/> : session ? <Check size={18}/> : <Plus size={18}/>}
           {session ? t("log.saveAndTick") : t("log.saveRun")}
         </button>
+        {attempted && !runFormComplete(f) && (
+          <p className="text-xs text-red-300 text-center -mt-2">{t("log.validation.fixAbove")}</p>
+        )}
         {/* The one place outside Settings that mentions file import: you have
             just said a run happened and didn't arrive on its own. */}
         {!prefill && (

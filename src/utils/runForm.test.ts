@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hmsToSec, runFormComplete, runFormToPatch, runToForm } from "./runForm";
+import { hmsToSec, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm } from "./runForm";
 import type { Run } from "../types";
 
 const run = {
@@ -72,5 +72,52 @@ describe("cross-training activity", () => {
   it("coerces a blank distance to 0 rather than NaN", () => {
     const f = { ...runToForm(run), type: "OTHER", km: "" };
     expect(runFormToPatch(f).km).toBe(0);
+  });
+
+  // The form offers no distance field for cross-training, but a distance typed
+  // before the type was switched is still in state. Letting it out would put a
+  // bike's kilometres into weekly volume, badges and the plan's fitness signal.
+  it("drops a leftover distance when the type is OTHER", () => {
+    const f = { ...runToForm(run), type: "OTHER", km: "25" };
+    expect(runFormToPatch(f).km).toBe(0);
+  });
+});
+
+describe("runFormErrors", () => {
+  it("blames the field that is actually missing", () => {
+    const base = runToForm(run);
+    expect(runFormErrors(base)).toEqual({ km: false, duration: false });
+    expect(runFormErrors({ ...base, km: "" })).toEqual({ km: true, duration: false });
+    // Every box visibly filled, yet incomplete — the old single banner ("distance
+    // and duration are required") gave no clue which rule this broke.
+    expect(runFormErrors({ ...base, dH: "", dM: "", dS: "30" })).toEqual({ km: false, duration: true });
+  });
+
+  it("never asks cross-training for a distance", () => {
+    expect(runFormErrors({ ...runToForm(run), type: "OTHER", km: "" }).km).toBe(false);
+  });
+});
+
+describe("perceived effort", () => {
+  // It used to default to 5 and always save, so a run logged without touching
+  // the slider was indistinguishable from one deliberately rated 5 — including
+  // to the coach, which reads the field.
+  it("saves nothing when the runner did not say", () => {
+    expect(runFormToPatch({ ...runToForm(run), effort: 0 }).effort).toBeNull();
+    expect(runFormToPatch({ ...runToForm(run), effort: 7 }).effort).toBe(7);
+  });
+
+  it("reads an unset effort back as unset", () => {
+    expect(runToForm({ ...run, effort: null } as Run).effort).toBe(0);
+  });
+});
+
+describe("runFormHasDetail", () => {
+  it("is true only when there is optional detail worth showing", () => {
+    const bare = { ...runToForm(run), hr: "", hrMax: "", elev: "", notes: "", effort: 0 };
+    expect(runFormHasDetail(bare)).toBe(false);
+    expect(runFormHasDetail({ ...bare, hr: "150" })).toBe(true);
+    expect(runFormHasDetail({ ...bare, notes: "windy" })).toBe(true);
+    expect(runFormHasDetail({ ...bare, effort: 6 })).toBe(true);
   });
 });

@@ -115,6 +115,14 @@ describe("buildPlan", () => {
     expect(firstLong(plan)).toBeLessThanOrEqual(plan.longRunPeakKm);
   });
 
+  // A 40 km bike ride is not a 40 km long run; letting it set the floor would
+  // open the plan on a long run the runner has never done on foot.
+  it("ignores cross-training distance for the fitness floor", () => {
+    const recentRuns = [{date: raceDateInDays(-7), km: 40, type: "OTHER"}];
+    const plan = buildPlan(raceDateInDays(140), 6340, SESSIONS, 20, 200, {recentRuns});
+    expect(firstLong(plan)).toBeLessThanOrEqual(6);
+  });
+
   it("ignores runs older than the recent window for the fitness floor", () => {
     const recentRuns = [{date: raceDateInDays(-90), km: 18, type: "LONG"}];
     const plan = buildPlan(raceDateInDays(140), 6340, SESSIONS, 20, 200, {recentRuns});

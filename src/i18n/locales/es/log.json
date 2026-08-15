@@ -47,7 +47,6 @@
     "activity": "Máquina",
     "activityNone": "Sin especificar",
     "distanceKm": "Distancia (km)",
-    "distanceKmOptional": "Distancia (km, opcional)",
     "duration": "Duración",
     "avgHr": "FC media",
     "maxHr": "FC máx.",
@@ -62,10 +61,21 @@
     "avgHrPh": "p. ej. 145",
     "maxHrPh": "p. ej. 170",
     "elevPh": "p. ej. 80",
-    "notesPh": "¿Qué tal ha ido? ¿Alguna molestia?"
+    "notesPh": "¿Qué tal ha ido? ¿Alguna molestia?",
+    "optional": "opcional",
+    "paceLabel": "Eso es un ritmo de",
+    "effortUnset": "sin indicar",
+    "effortEasy": "suave",
+    "effortSteady": "sostenido",
+    "effortMax": "a tope",
+    "crossNoDistance": "Aquí no hay distancia: los kilómetros de una bici no son kilómetros de carrera a pie, y contarlos distorsionaría tu volumen, tus ritmos y tus récords. Lo que cuenta es el tiempo y el esfuerzo.",
+    "addDetails": "Añadir frecuencia cardiaca, desnivel, esfuerzo, notas",
+    "addDetailsCross": "Añadir frecuencia cardiaca, esfuerzo, notas"
   },
   "validation": {
-    "required": "La distancia y la duración son obligatorias."
+    "km": "¿Qué distancia hiciste?",
+    "duration": "¿Cuánto tiempo tardaste? Horas o minutos, como mínimo.",
+    "fixAbove": "Completa los campos señalados arriba."
   },
   "hrPendingNote": "La frecuencia cardíaca se añadirá automáticamente desde {{store}} cuando tu reloj se sincronice; suele tardar unos minutos. Deja estos campos en blanco o introdúcelos a mano.",
   "saveRun": "Guardar entrenamiento",

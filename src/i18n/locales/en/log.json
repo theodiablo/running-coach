@@ -47,7 +47,6 @@
     "activity": "Machine",
     "activityNone": "Not specified",
     "distanceKm": "Distance (km)",
-    "distanceKmOptional": "Distance (km, optional)",
     "duration": "Duration",
     "avgHr": "Avg HR",
     "maxHr": "Max HR",
@@ -62,10 +61,21 @@
     "avgHrPh": "e.g. 145",
     "maxHrPh": "e.g. 170",
     "elevPh": "e.g. 80",
-    "notesPh": "How did it feel? Any aches?"
+    "notesPh": "How did it feel? Any aches?",
+    "optional": "optional",
+    "paceLabel": "That's a pace of",
+    "effortUnset": "not set",
+    "effortEasy": "easy",
+    "effortSteady": "steady",
+    "effortMax": "all out",
+    "crossNoDistance": "No distance here: a bike's kilometres aren't running kilometres, so counting them would distort your volume, paces and records. Time and effort are what matter.",
+    "addDetails": "Add heart rate, elevation, effort, notes",
+    "addDetailsCross": "Add heart rate, effort, notes"
   },
   "validation": {
-    "required": "Distance and duration are required."
+    "km": "How far did you go?",
+    "duration": "How long did it take? Hours or minutes, at least.",
+    "fixAbove": "Fill in the highlighted fields above."
   },
   "hrPendingNote": "Heart rate will be added automatically from {{store}} once your watch syncs (usually a few minutes) — leave these blank, or enter them yourself.",
   "saveRun": "Save run",

@@ -47,7 +47,6 @@
     "activity": "Machine",
     "activityNone": "Non précisée",
     "distanceKm": "Distance (km)",
-    "distanceKmOptional": "Distance (km, facultative)",
     "duration": "Durée",
     "avgHr": "FC moy.",
     "maxHr": "FC max.",
@@ -62,10 +61,21 @@
     "avgHrPh": "ex. 145",
     "maxHrPh": "ex. 170",
     "elevPh": "ex. 80",
-    "notesPh": "C’était comment ? Des douleurs ?"
+    "notesPh": "C’était comment ? Des douleurs ?",
+    "optional": "facultatif",
+    "paceLabel": "Soit une allure de",
+    "effortUnset": "non renseigné",
+    "effortEasy": "facile",
+    "effortSteady": "soutenu",
+    "effortMax": "à fond",
+    "crossNoDistance": "Pas de distance ici : les kilomètres d'un vélo ne sont pas des kilomètres de course, les compter fausserait ton volume, tes allures et tes records. Ce qui compte, c'est la durée et l'effort.",
+    "addDetails": "Ajouter fréquence cardiaque, dénivelé, effort, notes",
+    "addDetailsCross": "Ajouter fréquence cardiaque, effort, notes"
   },
   "validation": {
-    "required": "La distance et la durée sont obligatoires."
+    "km": "Quelle distance as-tu parcourue ?",
+    "duration": "Combien de temps as-tu mis ? Des heures ou des minutes, au minimum.",
+    "fixAbove": "Complète les champs signalés ci-dessus."
   },
   "hrPendingNote": "La fréquence cardiaque sera ajoutée automatiquement depuis {{store}} une fois ta montre synchronisée ; cela prend généralement quelques minutes. Laisse ces champs vides ou saisis-les toi-même.",
   "saveRun": "Enregistrer la sortie",

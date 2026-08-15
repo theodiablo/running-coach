@@ -389,6 +389,14 @@ changes.
   A plan session offers the same two verbs everywhere (Dashboard card and
   `PlanSessionRow`): **Start run** opens a recorder, **Log it** opens the form —
   a new surface must not invent a third word for either.
+- **The form (`RunFields`, shared by Log and Edit) is two tiers**: what a run
+  needs (when/what/how far/how long) is always visible, the optional metrics sit
+  behind one row that opens filled when the form arrives carrying any of them
+  (`runFormHasDetail`). A required-field message renders **on the field**
+  (`runFormErrors`, per field) — never as a banner at the top, which on a long
+  form appears off-screen above the button that triggered it. Effort 0 means
+  "didn't say" (`EFFORT_UNSET`) and saves as `null`; it must never default to a
+  middle value, which the coach would read as a real answer.
 - **Settings = configure, not analyse.** `SettingsModal.tsx` is a hub whose root
   is only a menu; every control lives on a sub-page in `src/modals/settings/`:
   **Account** (identity, language, email/password, privacy, backup & restore,

@@ -28,6 +28,16 @@ pace, the pace trend, PBs and the race predictor. The session's value is its
 duration and its heart rate. This is the one rule not to relax — everything
 below depends on it.
 
+The manual form used to be the exception, and it cost us: it offered
+"Distance (km, optional)" on an `OTHER` run, and a distance typed there reached
+the dashboard's weekly/total km, History's total, `computeBadges` (including
+*longest run*), `recommendStyle`'s weekly-volume signal and `buildPlan`'s
+fitness floor — five places that summed `r.km` without asking what kind of run
+it was. `RunFields` now renders no distance input for `OTHER`,
+`runFormToPatch` zeroes any value left over from a type switch, and those five
+aggregates filter on `isCrossTraining`. Both halves matter: the form stops new
+contamination, the filters neutralise rows already saved.
+
 `bestEfforts:{}` is stamped **deliberately**, not as a by-product of an empty
 track: an absent field means "never measured" and invites the one-time backfill,
 `{}` means "measured, covers no standard distance" and closes it (`src/types.ts`).

@@ -24,7 +24,7 @@ type PlanSession = {
   editionId?: string | null;
 };
 type PlanWeek = { weekNumber: number; startDate: string; phase: string; sessions: PlanSession[] };
-type RecentRun = { date?: string; km?: number };
+type RecentRun = { date?: string; km?: number; type?: string };
 type OverlayRace = { editionId: string; date: string; distanceKm: number; elevation?: number };
 export type BuildPlanOptions = {
   recentRuns?: RecentRun[];
@@ -133,8 +133,10 @@ export function buildPlan(
   // big long runs). Empty recentRuns → 0 floor → today's gentle default start.
   const RECENT_MS = 35 * 86400000;
   const cutoff = ymd(new Date(today.getTime() - RECENT_MS));
+  // Running only: a cross-training session's distance is not a long run, and
+  // a logged bike ride would otherwise set the plan's starting long run.
   const longestRecent = recentRuns.reduce(
-    (m, r) => (r && r.date && r.date >= cutoff && (r.km ?? 0) > 0 ? Math.max(m, r.km ?? 0) : m), 0);
+    (m, r) => (r && r.date && r.date >= cutoff && (r.km ?? 0) > 0 && !isCrossTraining(r) ? Math.max(m, r.km ?? 0) : m), 0);
   const fitFloor = Math.min(longestRecent * 0.8, peakLong);
   // Self-reported level (onboarding) plays the same role as a recent long run
   // when there's no history yet; real logged runs dominate via fitFloor.

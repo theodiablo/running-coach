@@ -13,6 +13,7 @@ import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
+import { isCrossTraining } from "../types";
 import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
@@ -88,8 +89,11 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     track("overdue_shown", {count: overdueCount});
   }, [overdueCount]);
   const wkMon = weekStart(today);
-  const wkKm  = runs.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
-  const totKm = runs.reduce((s, r) => s + (r.km||0), 0);
+  // Running kilometres only: a cross-training session's distance is not one
+  // (docs/indoor-sessions.md), and these tiles are read as training volume.
+  const runOnly = runs.filter(r => !isCrossTraining(r));
+  const wkKm  = runOnly.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
+  const totKm = runOnly.reduce((s, r) => s + (r.km||0), 0);
 
   const statCards = [
     {l:t("dashboard.stats.thisWeek"),  v:wkKm.toFixed(1)+" km",  c:"text-orange-400",  I:Zap},
