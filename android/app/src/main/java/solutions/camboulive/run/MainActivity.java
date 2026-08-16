@@ -3,6 +3,7 @@ package solutions.camboulive.run;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
@@ -166,38 +167,65 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        // onResume can run before the window is actually showing, so the poke is
+        // repeated here, where focus proves it is.
+        if (hasFocus) wakeWebView("focus");
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
-        // **Wake the WebView's compositor, not its JavaScript.**
-        //
-        // The recorder "freezing" was never a freeze. A device capture shows JS
-        // running unbroken through the whole backgrounded stretch — GPS fixes
-        // accepted every ~2s, 142 points banked — while the screen kept showing a
-        // frame from six minutes earlier. Taps worked too: Pause registered in the
-        // tracker at the exact second the runner pressed a button they had been
-        // told was dead. Nothing had died; the WebView had simply stopped
-        // PAINTING, and did not start again on its own for ~52 seconds after the
-        // activity resumed (native `foreground` at 09:15:08 against the page's own
-        // `visibilitychange` at 09:16:00).
-        //
-        // A page Chromium still believes is hidden throttles rendering, so every
-        // number the runner reads is stale while the state behind it is perfectly
-        // correct. Capacitor never calls these itself (its Cordova path is the
-        // only caller, and there are no Cordova plugins here), so nothing told the
-        // WebView it was on screen again. onResume/resumeTimers are idempotent and
-        // safe when nothing was ever paused.
-        //
-        // Deliberately NOT paired with onPause/pauseTimers: recording depends on
-        // this JS continuing to run in the background, which — contrary to what
-        // docs/live-tracking.md assumed — it demonstrably does while the location
-        // foreground service holds the process.
-        if (bridge != null) {
-            WebView webView = bridge.getWebView();
-            if (webView != null) {
-                webView.onResume();
-                webView.resumeTimers();
-                webView.invalidate(); // force a frame rather than wait for the next damage
-            }
+        wakeWebView("resume");
+    }
+
+    // **Wake the WebView's compositor, not its JavaScript.**
+    //
+    // The recorder "freezing" was never a freeze. Device captures show JS running
+    // unbroken through the whole backgrounded stretch — GPS fixes accepted every
+    // ~2s — while the screen kept a frame minutes old. Taps worked too: Pause
+    // registered in the tracker the second the runner pressed a button they had
+    // been told was dead. Nothing died; the WebView stopped PAINTING.
+    //
+    // Measured across two runs: painting continues for ~60s after the app is
+    // backgrounded (+60s, +61s) and then stops, so the frame the runner returns to
+    // is always their state from about a minute after they pocketed the phone.
+    // That is exactly the "stuck after sixty seconds" this started as. It does not
+    // restart on its own for a long time — the page's own visibilitychange fired
+    // 52s after the activity had already resumed.
+    //
+    // onResume()/resumeTimers() ALONE CANNOT FIX THAT, which is why the first
+    // attempt changed nothing: both are documented as undoing an explicit
+    // onPause()/pauseTimers(), and nothing here ever called either. Chromium
+    // derives page visibility from the WebView's view AND window flags, and the
+    // window flag is the one arriving late, so it is pushed directly. All of this
+    // is idempotent.
+    //
+    // Deliberately NOT paired with onPause/pauseTimers: recording depends on this
+    // JS continuing to run in the background, which — contrary to what
+    // docs/live-tracking.md long assumed — it demonstrably does while the location
+    // foreground service holds the process.
+    private void wakeWebView(String from) {
+        WebView webView = bridge == null ? null : bridge.getWebView();
+        if (webView == null) return;
+        try {
+            // Recorded so a failure is still informative: if the next report shows
+            // this running and the screen was STILL stale, the stale state is not
+            // the window-visibility flag and the next lever is a reload.
+            ShellDiagLog.record(this, "wake-webview",
+                from + " visibility=" + webView.getVisibility()
+                    + " windowVisibility=" + webView.getWindowVisibility()
+                    + " attached=" + webView.isAttachedToWindow());
+            webView.onResume();
+            webView.resumeTimers();
+            // The one that actually recomputes page visibility rather than
+            // clearing a paused flag nobody ever set.
+            webView.dispatchWindowVisibilityChanged(View.VISIBLE);
+            webView.setVisibility(View.VISIBLE);
+            webView.invalidate();
+        } catch (Exception exception) {
+            Logger.error("Could not wake the WebView", exception);
         }
     }
 
