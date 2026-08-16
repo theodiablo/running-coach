@@ -600,6 +600,32 @@ describe("useRunTracker — indoor mode", () => {
     });
   });
 
+  // The clock is driven by a 1s setInterval, and Chromium throttles timers in a
+  // hidden page — to one wake-up per MINUTE once it has been hidden five. So on
+  // returning to the foreground the displayed time could sit unchanged for up to
+  // a minute waiting for the next tick, with distance frozen beside it (a runner
+  // standing still produces no accepted fix, so nothing else re-renders). Two
+  // frozen numbers and a still map read as a dead app — which is exactly what a
+  // 15-minute backgrounded run reported, on a charger, with the page provably
+  // rendering and taps registering.
+  it("corrects the clock the moment the page becomes visible, not on the next tick", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.start());
+
+    // Six minutes pass with the page hidden and its timer throttled: no interval
+    // callback runs at all, so movingSec is still whatever it was at Start.
+    vi.setSystemTime(START + 360_000);
+    expect(result.current.stats.movingSec).toBe(0);
+
+    act(() => {
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    // Corrected from the wall clock immediately — no tick required.
+    expect(result.current.stats.movingSec).toBe(360);
+  });
+
   it("never offers a GPS run as an indoor session to resume", () => {
     localStorage.setItem(LIVE_RUN_KEY, JSON.stringify({
       points: [[48.85, 2.29, START, 30]], accSec: 120, state: "tracking", savedAt: START,
