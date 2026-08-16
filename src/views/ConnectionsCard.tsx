@@ -10,6 +10,7 @@ import { getPairedDevice, setPairedDevice, forgetPairedDevice } from "../hr/devi
 import { HrSensorDisclosure } from "../modals/HrSensorDisclosure";
 import { importProviders, healthStoreProviderIds, providerEnabledInSettings } from "../imports/registry";
 import { isWatchDebugEnabled, setWatchDebug } from "../watch/scanLog";
+import { fileShellReport } from "../diag/shellLog";
 import { setGeoDebug } from "../geo/trackLog";
 import { WatchSyncLog } from "./WatchSyncLog";
 import { TrackDiagLog } from "./TrackDiagLog";
@@ -578,6 +579,13 @@ export function ConnectionsCard(props: ConnectionsProps) {
     setWatchDebug(next);
     setGeoDebug(next); // same gesture arms GPS tracking logging (off = no cost on normal runs)
     setDebug(next);
+    // File immediately on enabling. The native shell log is always recording, so
+    // at the moment someone turns this on there is usually already a report worth
+    // having — and the automatic filers can't produce one: they only send when a
+    // NEW native lifecycle event has landed since the last report, and flipping a
+    // setting isn't one. Turning it on after something went wrong and having
+    // nothing arrive is exactly the trap this closes.
+    if (next) void fileShellReport("manual: developer logs enabled").catch(() => {});
     showToast?.(next ? "Developer logs enabled" : "Developer logs hidden");
   };
 
