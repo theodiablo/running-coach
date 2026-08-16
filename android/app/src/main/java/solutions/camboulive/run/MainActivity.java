@@ -219,11 +219,20 @@ public class MainActivity extends BridgeActivity {
                     + " attached=" + webView.isAttachedToWindow());
             webView.onResume();
             webView.resumeTimers();
-            // The one that actually recomputes page visibility rather than
-            // clearing a paused flag nobody ever set.
             webView.dispatchWindowVisibilityChanged(View.VISIBLE);
-            webView.setVisibility(View.VISIBLE);
-            webView.invalidate();
+            // Every flag above already reads correct at focus time — measured:
+            // `visibility=0 windowVisibility=0 attached=true` while the runner
+            // was looking at a frame minutes old. Re-asserting a value that is
+            // already set fires no change, so nothing downstream recomputes.
+            // A real INVISIBLE→VISIBLE transition does, and it is the cheapest
+            // lever left that forces the view hierarchy to rebuild the layer
+            // rather than re-present the last one. Split across two frames or
+            // the two calls coalesce into no change at all.
+            webView.setVisibility(View.INVISIBLE);
+            webView.post(() -> {
+                webView.setVisibility(View.VISIBLE);
+                webView.invalidate();
+            });
         } catch (Exception exception) {
             Logger.error("Could not wake the WebView", exception);
         }

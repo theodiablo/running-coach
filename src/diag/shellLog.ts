@@ -3,6 +3,7 @@ import { isAndroid, nativeBuildLabel, platform } from "../native";
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { getTrackLog, isGeoDebugEnabled } from "../geo/trackLog";
+import { frameAgeMs, startFrameHeartbeat } from "./frameHeartbeat";
 
 // Reads the shell diagnostics the Android side records (ShellDiagLog.kt) — the
 // half of the story the JS GPS log cannot tell.
@@ -95,6 +96,12 @@ function findLast(events: ShellDiagEvent[], match: (e: ShellDiagEvent) => boolea
 
 // ── filing a report ────────────────────────────────────────────────────────
 
+function clientState(): string {
+  const age = frameAgeMs();
+  const vis = typeof document !== "undefined" ? document.visibilityState : "?";
+  return `frameAge=${age == null ? "never" : age + "ms"} visibilityState=${vis}`;
+}
+
 /**
  * File the current diagnostics to `shell_diagnostics`, so a session that went
  * wrong can be read afterwards instead of reconstructed from memory.
@@ -126,7 +133,12 @@ export async function fileShellReport(note?: string): Promise<boolean> {
       verdict: report.verdict || null,
       events: report.events,
       track,
-      ...(note ? { note } : {}),
+      // The client-side half of the picture, carried on `note` so it needs no
+      // schema change mid-incident: whether the page was actually RENDERING
+      // when the report was filed. A stale frameAge with correct native
+      // visibility flags is the difference between "not producing frames" and
+      // "producing frames nobody sees" — opposite fixes.
+      note: [note, clientState()].filter(Boolean).join(" | "),
     });
     return !error;
   } catch {
@@ -174,6 +186,7 @@ export function armShellReporting(): () => void {
   // log mid-session did nothing until the next restart, which is exactly the
   // moment someone reaches for it: the app has just misbehaved and the evidence
   // is sitting on the device unsent.
+  const stopHeartbeat = startFrameHeartbeat();
   void fileIfNew("auto: app boot").catch(() => { /* best-effort */ });
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
@@ -193,6 +206,7 @@ export function armShellReporting(): () => void {
   return () => {
     document.removeEventListener("visibilitychange", onVisible);
     clearInterval(poll);
+    stopHeartbeat();
   };
 }
 
