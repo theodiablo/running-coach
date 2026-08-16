@@ -1,7 +1,9 @@
 package solutions.camboulive.run
 
 import android.app.ActivityManager
+import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.os.PowerManager
 import android.os.Build
 import com.getcapacitor.Logger
 import org.json.JSONArray
@@ -81,6 +83,38 @@ object ShellDiagLog {
                 "threshold=${mb(info.threshold)}MB low=${info.lowMemory}"
         } catch (exception: Exception) {
             "mem=?"
+        }
+    }
+
+    // Power-management state at the moment something interesting happened.
+    //
+    // The WebView renderer is a SEPARATE process from the app, so the location
+    // foreground service that protects the app protects nothing here — and
+    // battery saver, Doze and a restricted standby bucket all make Android
+    // freeze background processes harder. A frozen (SIGSTOP'd) renderer that is
+    // not thawed promptly on resume looks exactly like what is being chased: a
+    // stale frame, no requestAnimationFrame, and dead input, because hit-testing
+    // happens in that process too.
+    //
+    // Recorded rather than argued about. Every read here is cheap and needs no
+    // permission.
+    @JvmStatic
+    fun powerSnapshot(context: Context?): String {
+        if (context == null) return "power=?"
+        return try {
+            val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val parts = mutableListOf(
+                "saver=${power.isPowerSaveMode}",
+                "doze=${power.isDeviceIdleMode}",
+                "unrestricted=${power.isIgnoringBatteryOptimizations(context.packageName)}",
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val usage = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+                if (usage != null) parts.add("bucket=${usage.appStandbyBucket}")
+            }
+            parts.joinToString(" ")
+        } catch (exception: Exception) {
+            "power=?"
         }
     }
 

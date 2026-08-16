@@ -158,7 +158,7 @@ public class MainActivity extends BridgeActivity {
         // goes down, and the cold boot picks the run back up from the recovery
         // buffer plus the fix journal — which by now holds every point the service
         // recorded while the WebView was dead.
-        ShellDiagLog.record(this, "foreground");
+        ShellDiagLog.record(this, "foreground", ShellDiagLog.powerSnapshot(this));
         if (rendererRebuildPending) {
             rendererRebuildPending = false;
             ShellDiagLog.record(this, "rebuild", "relaunching after background reclaim");
@@ -216,7 +216,8 @@ public class MainActivity extends BridgeActivity {
             ShellDiagLog.record(this, "wake-webview",
                 from + " visibility=" + webView.getVisibility()
                     + " windowVisibility=" + webView.getWindowVisibility()
-                    + " attached=" + webView.isAttachedToWindow());
+                    + " attached=" + webView.isAttachedToWindow()
+                    + " " + ShellDiagLog.powerSnapshot(this));
             webView.onResume();
             webView.resumeTimers();
             webView.dispatchWindowVisibilityChanged(View.VISIBLE);
@@ -244,7 +245,7 @@ public class MainActivity extends BridgeActivity {
         started = false;
         // The anchor every later event is read against: a renderer-gone or a
         // cold create AFTER this one says what died while the app was away.
-        ShellDiagLog.record(this, "background");
+        ShellDiagLog.record(this, "background", ShellDiagLog.powerSnapshot(this));
     }
 
     private void relaunch() {
