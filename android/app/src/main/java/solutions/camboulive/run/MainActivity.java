@@ -16,6 +16,19 @@ public class MainActivity extends BridgeActivity {
     private static final long RENDERER_RESTART_MIN_INTERVAL_MS = 10_000;
     private static long lastRendererRestartMs = 0;
 
+    // A renderer died while we were in the background and the rebuild is owed to
+    // the next foreground. Static for the same reason as above: onRenderProcessGone
+    // can be followed by an activity recreation before onStart runs.
+    private static boolean rendererRebuildPending = false;
+
+    // Whether this activity is between onStart and onStop, i.e. has a visible
+    // window. Tracked by hand rather than read off getLifecycle(): the AndroidX
+    // lifecycle classes are not otherwise used by the app or by Capacitor, and
+    // nothing in PR CI compiles this file (the APK build is opt-in via the `apk`
+    // label), so a transitive-dependency gamble here would only surface at
+    // release. A boolean flipped in the two callbacks says the same thing.
+    private boolean started = false;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Local plugins. Must be registered before super.onCreate so the bridge
@@ -31,12 +44,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(IndoorSessionPlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Restart instead of showing a frozen app when Android reclaims the
-        // WebView renderer — the indoor session's failure mode, which runs no
-        // foreground service to hold the process (docs/indoor-sessions.md).
-        // Returning true tells the OS we handled it; returning false kills the
-        // app process. A dead WebView can't be revived, so it is detached and
-        // destroyed and the activity relaunched.
+        // Recover instead of showing a frozen app when Android reclaims the
+        // WebView renderer of a backgrounded recording session
+        // (docs/indoor-sessions.md). Returning true tells the OS we handled it;
+        // returning false kills the app process — which would take the recording
+        // down with it, so this must always return true.
         //
         // Null when the device has no usable WebView: BridgeActivity.onCreate
         // bails to the no_webview layout before it builds the bridge.
@@ -58,6 +70,9 @@ public class MainActivity extends BridgeActivity {
                     public boolean onRenderProcessGone(WebView webView, RenderProcessGoneDetail detail) {
                         boolean crashed = detail.didCrash();
                         Logger.error("WebView renderer gone (didCrash=" + crashed + ")");
+                        // A dead renderer can never be revived and the platform
+                        // forbids reusing its WebView, so detaching and destroying
+                        // it is not optional — only the timing of the rebuild is.
                         ViewGroup parent = (ViewGroup) webView.getParent();
                         if (parent != null) parent.removeView(webView);
                         webView.destroy();
@@ -77,13 +92,65 @@ public class MainActivity extends BridgeActivity {
                             return true;
                         }
 
-                        Intent restart = new Intent(getApplicationContext(), MainActivity.class);
-                        restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                        startActivity(restart);
+                        // A reclaim happens in the BACKGROUND, which is the one
+                        // place this must NOT relaunch. Two reasons, and both cost
+                        // the runner their run:
+                        //
+                        //  • Since Android 10 a background app cannot start an
+                        //    activity (a foreground service is not an exemption),
+                        //    so the launch below is silently blocked and the user
+                        //    returns to an activity with no WebView in it — dead
+                        //    until a force-quit.
+                        //  • Tearing this activity down destroys the plugins with
+                        //    it, and BackgroundGeolocation.handleOnDestroy stops
+                        //    the location service. Recording would END, in the
+                        //    background, without anyone being told.
+                        //
+                        // Leaving it alone costs nothing: the process, the
+                        // foreground service and the native fold all keep running,
+                        // so fixes keep landing in the notification and the fix
+                        // journal exactly as they do while JS is merely frozen. The
+                        // UI is dead, but nobody is looking at it. Rebuild on the
+                        // next foreground instead, where starting an activity is
+                        // allowed and the runner is present to see the recovery.
+                        if (!started) {
+                            rendererRebuildPending = true;
+                            Logger.error("Renderer gone in the background — rebuilding on next foreground");
+                            return true;
+                        }
+
+                        relaunch();
                         return true;
                     }
                 }
             );
         }
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        started = true;
+        // The rebuild owed by a background reclaim. Here we have a visible window,
+        // so the activity start is permitted; recording stops as the old activity
+        // goes down, and the cold boot picks the run back up from the recovery
+        // buffer plus the fix journal — which by now holds every point the service
+        // recorded while the WebView was dead.
+        if (rendererRebuildPending) {
+            rendererRebuildPending = false;
+            relaunch();
+        }
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        started = false;
+    }
+
+    private void relaunch() {
+        Intent restart = new Intent(getApplicationContext(), MainActivity.class);
+        restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(restart);
     }
 }

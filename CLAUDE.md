@@ -248,6 +248,16 @@ Always re-verify a finding before acting on it; agents report false positives.
   background-geolocation) and BLE heart-rate notifications (patched
   `bluetooth-le`) are appended to a file by the native callback and folded back
   in at save/recovery — never left to whatever JS happened to be awake for.
+- **A background app cannot start an activity** (Android 10+; a foreground service
+  is not an exemption), and tearing the activity down stops the plugins' services
+  with it — including the one recording the run. So a background recovery path
+  must never relaunch or `finish()`: destroy what the platform forces you to,
+  leave the process alone (it is what is still recording), and defer the rebuild
+  to the next foreground. Detail: `docs/indoor-sessions.md`.
+- **`navigator.wakeLock` does not exist in either WebView** (browser-only), so it
+  holds the screen on the web and nowhere else. Don't "fix" that by pinning the
+  display on native — a run is recorded screen-off in a pocket and the battery is
+  the constraint. Native recording must survive backgrounding instead.
 - **A foreground service holds the app process, NOT the WebView renderer.** The
   renderer is a separate sandboxed process, and its default priority policy is
   *waived* as soon as the WebView stops being visible — so a backgrounded

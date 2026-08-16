@@ -161,10 +161,15 @@ differently and the copy has to match:
   is simply missing from `hrSamples` — and therefore from the average, the max
   and the time-in-zone card.
 
-`useRunTracker` still requests `navigator.wakeLock` (honoured in the Android
-WebView and on iOS 16.4+, a no-op on the iOS 15.4 floor), and
-`tracker.indoor.keepScreenOn` says exactly the above rather than claiming a
-pause that never happens. The separate recovery buffer is what makes an
+`useRunTracker` still requests `navigator.wakeLock`, but **do not count on it in
+a shell**: the Screen Wake Lock API is implemented by neither Android WebView nor
+WKWebView (it is a browser feature; Safari only shipped it in 18.4, past the 15.4
+floor), so on native the request throws and the catch swallows it. It holds the
+screen on the **web** and nowhere else. That is not a bug to fix by forcing the
+display on — a run is recorded with the screen off and the phone in a pocket, and
+pinning the display would cost the battery the run needs. It is a reason the copy
+must not promise it: `tracker.indoor.keepScreenOn` says exactly the above rather
+than claiming a pause that never happens. The separate recovery buffer is what makes an
 interruption survivable rather than fatal; the clock tick refreshes it every
 `BUFFER_TICK_MS`, so a strapless session — which otherwise writes nothing at all
 between Start and page-hide — can't lose its whole clock to a kill.
@@ -244,6 +249,31 @@ the session back. It **restarts at most once per
 renderer that dies on every page load leaves a recoverable dead screen instead of
 an inescapable boot loop; a reclaim, which is the case this is here for, never
 repeats that fast.
+
+**The relaunch is deferred to the next foreground, and that is load-bearing.**
+A reclaim happens in the background, and relaunching from there is wrong twice
+over — each way costing the runner their run:
+
+- Since Android 10 a **background app cannot start an activity**, and a
+  foreground service is *not* one of the exemptions. The `startActivity` was
+  silently blocked in precisely the case the listener exists for, after the dead
+  WebView had already been detached and destroyed: the user came back to an
+  activity with no WebView in it, dead until a force-quit. That is what "it
+  crashed the WebView" looked like from the outside.
+- Tearing the activity down destroys the plugins with it, and
+  `BackgroundGeolocation.handleOnDestroy` **stops the location service**. So a
+  relaunch that *did* work would have ended recording, in the background, with
+  nobody told.
+
+Leaving it alone costs nothing. The app process, the foreground service and the
+patched plugin's native fold all keep running, so fixes keep updating the
+notification and landing in the fix journal exactly as they do while JS is merely
+frozen — the WebView was never what was recording. `onRenderProcessGone`
+therefore destroys the dead WebView (the platform forbids reusing it), sets
+`rendererRebuildPending` and returns true; `onStart` does the relaunch, where an
+activity start is allowed and the runner is present. The cold boot then offers
+the run back from the recovery buffer **plus** the journal, which by then holds
+every point recorded while the WebView was dead.
 
 `App.tsx`'s `subscribeStoreRefresh` guard ("never tear down a live recording")
 checks **both** buffers. An indoor session is the more fragile of the two — no
