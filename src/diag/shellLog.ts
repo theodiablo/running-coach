@@ -169,7 +169,11 @@ async function fileIfNew(reason: string): Promise<void> {
  * best-effort throughout. Returns its own teardown.
  */
 export function armShellReporting(): () => void {
-  if (!isGeoDebugEnabled()) return () => {};
+  // Deliberately NOT gated here — `fileShellReport` re-reads the flag on every
+  // attempt instead. Arming on the boot-time value meant enabling the developer
+  // log mid-session did nothing until the next restart, which is exactly the
+  // moment someone reaches for it: the app has just misbehaved and the evidence
+  // is sitting on the device unsent.
   void fileIfNew("auto: app boot").catch(() => { /* best-effort */ });
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
