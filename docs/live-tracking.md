@@ -73,10 +73,27 @@ frozen time in the text). Stop: Android tears down with the watcher; iOS ends
 its Live Activity via `resetRunNotification` (idempotent `cleared` flag; the
 first reset after mount also sweeps a stale card left by a crashed session).
 
-**On Android a JS push is a seed, not the update mechanism.** Android freezes
-the WebView's task queues once the app is backgrounded, so *no* JS runs with the
-screen off — not a throttled trickle, nothing: the bridge callback that delivers
-a fix does not wake it. Recording is unaffected (the fixes queue natively and
+**On Android a JS push is a seed, not the update mechanism.** Treat backgrounded
+JS as unavailable and compute natively — but for the right reason, because the
+obvious one is **wrong** and cost three misdirected fixes:
+
+> ~~*no* JS runs with the screen off — not a throttled trickle, nothing: the
+> bridge callback that delivers a fix does not wake it.~~
+
+A capture from a real run disproves that flatly. With the location foreground
+service holding the process, the JS tracker accepted fixes every ~2s for the
+entire backgrounded stretch without a single gap. **The WebView keeps executing;
+it stops painting.** The page is `hidden` to Chromium, so rendering is throttled
+and the screen holds a stale frame — while state, timers and input handling
+behind it stay perfectly correct. A tap lands on the live state, not the picture:
+Pause registered in the tracker the second it was pressed on a screen the runner
+had already written off as dead. See *When the recorder looks frozen* below.
+
+The native fold still earns its place, because the guarantee is weaker than the
+service: a session with **no** foreground service (a strapless indoor one) can be
+cached and genuinely frozen, and even a held process can be throttled. So push a
+seed and let native re-render — just don't reason from "JS is dead", because for
+a GPS run it isn't. Recording is unaffected (the fixes queue natively and
 land when the app comes back), but every JS-driven push stops, which is why the
 notification used to sit unchanged for a whole run and only refresh on unlock.
 So each push also carries `content.live` — `{km, paceSecPerKm, hr, hrAtMs,
@@ -105,6 +122,46 @@ deployment target 16.2); `RunActivityAttributes.swift` is compiled into BOTH
 the app and the extension (shared content-state contract — never fork it).
 The widget's bundle id `solutions.camboulive.run.widgets` signs with its own
 App Store profile — see `docs/release.md` → iOS signing.
+
+## When the recorder looks frozen
+
+**It is a stale frame, not a dead app — and the two are indistinguishable by
+eye.** This cost four attempted fixes across three releases, three of them aimed
+at keeping alive something that was never dying (a foreground service, a renderer
+priority policy, a deferred rebuild).
+
+The measured timeline, from `shell_diagnostics` on a Fairphone FP4 / API 35:
+
+| | |
+|---|---|
+| 09:07:25–09:14:26 | JS accepts a GPS fix every ~2s, **unbroken**, backgrounded throughout. 142 points, ~1 km |
+| — | screen shows `0.22 km · 1:45` the whole time, a frame from ~09:09 |
+| 09:15:08 | shell records `foreground` |
+| 09:15:12 | **`pause` — the runner's tap on the "dead" screen registers in the tracker** |
+| 09:16:00 | the page's own `visibilitychange` → visible, **52s after the activity resumed** |
+| 09:16:27 | `stop pts=142` — Finish works too |
+
+So: execution fine, input fine, state fine, **paint stale**. Chromium throttles
+rendering for a page it believes is hidden, and that belief outlived the activity
+resuming by nearly a minute.
+
+`MainActivity.onResume` therefore calls `webView.onResume()`, `resumeTimers()`
+and `invalidate()`. Capacitor calls none of these — its only caller is the
+Cordova path (`cordovaWebView`), which is null with no Cordova plugins installed
+— so nothing was telling the WebView it was back on screen. All three are
+idempotent and safe when nothing was ever paused. They are deliberately **not**
+paired with `onPause`/`pauseTimers`: recording depends on that JS continuing to
+run in the background.
+
+Two rules fall out of this, and both are cheap:
+
+- **Never read the screen as evidence.** Read `shell_diagnostics` (the shell's
+  own lifecycle, written natively) against the GPS log (written by JS). If the
+  JS log keeps advancing while the screen doesn't, the app is alive and the
+  picture is stale — the opposite conclusion from the obvious one.
+- **A renderer reclaim is not memory pressure.** The one `renderer-gone` in that
+  capture carried `avail=3329MB total=7503MB low=false`. Sizing fixes around the
+  low-memory killer was reasoning from an assumption the data does not support.
 
 ## Route storage (`run_routes`)
 

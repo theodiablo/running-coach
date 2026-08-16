@@ -237,7 +237,17 @@ Always re-verify a finding before acting on it; agents report false positives.
   pairings are per-install. A synced setting (`hrMethod`, `watchImport`) is a
   *preference*; check the local per-device marker before touching any native
   bridge.
-- **Backgrounded Android runs NO JS.** Once the app leaves the foreground the
+- **A backgrounded WebView keeps EXECUTING but stops PAINTING** (measured on a
+  real run, `docs/live-tracking.md`). With the location foreground service
+  holding the process, JS runs unbroken with the screen off — fixes accepted
+  every ~2s — but the page is "hidden" to Chromium, so rendering is throttled and
+  the screen keeps a stale frame; visibility can take ~52s to propagate back on
+  resume. `MainActivity.onResume` calls `webView.onResume()`/`resumeTimers()`/
+  `invalidate()` to force it. **Never diagnose "frozen UI" as "dead app"** — a
+  stale frame and a dead app look identical, and taps land on the live state
+  behind the picture. Check the diagnostics, never the screen.
+- **Backgrounded Android may run no JS** when nothing holds the process (a
+  strapless indoor session). Once the app leaves the foreground the
   WebView's task queues are frozen — a native bridge callback does not wake it,
   so anything that must keep changing with the screen off (the live-run
   notification's distance/pace) has to be computed natively, with JS pushing a
