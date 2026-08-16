@@ -166,6 +166,42 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        // **Wake the WebView's compositor, not its JavaScript.**
+        //
+        // The recorder "freezing" was never a freeze. A device capture shows JS
+        // running unbroken through the whole backgrounded stretch — GPS fixes
+        // accepted every ~2s, 142 points banked — while the screen kept showing a
+        // frame from six minutes earlier. Taps worked too: Pause registered in the
+        // tracker at the exact second the runner pressed a button they had been
+        // told was dead. Nothing had died; the WebView had simply stopped
+        // PAINTING, and did not start again on its own for ~52 seconds after the
+        // activity resumed (native `foreground` at 09:15:08 against the page's own
+        // `visibilitychange` at 09:16:00).
+        //
+        // A page Chromium still believes is hidden throttles rendering, so every
+        // number the runner reads is stale while the state behind it is perfectly
+        // correct. Capacitor never calls these itself (its Cordova path is the
+        // only caller, and there are no Cordova plugins here), so nothing told the
+        // WebView it was on screen again. onResume/resumeTimers are idempotent and
+        // safe when nothing was ever paused.
+        //
+        // Deliberately NOT paired with onPause/pauseTimers: recording depends on
+        // this JS continuing to run in the background, which — contrary to what
+        // docs/live-tracking.md assumed — it demonstrably does while the location
+        // foreground service holds the process.
+        if (bridge != null) {
+            WebView webView = bridge.getWebView();
+            if (webView != null) {
+                webView.onResume();
+                webView.resumeTimers();
+                webView.invalidate(); // force a frame rather than wait for the next damage
+            }
+        }
+    }
+
+    @Override
     public void onStop() {
         super.onStop();
         started = false;
