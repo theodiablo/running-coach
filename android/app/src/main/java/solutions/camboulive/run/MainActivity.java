@@ -42,7 +42,16 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(LivePublishPlugin.class);
         registerPlugin(WorkoutGuidePlugin.class);
         registerPlugin(IndoorSessionPlugin.class);
+        registerPlugin(ShellDiagPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Shell diagnostics (ShellDiagLog). Always on, unlike the GPS log: these
+        // events are rare, and they are the ones nobody thinks to enable logging
+        // for before the failure they explain. `savedInstanceState == null` marks
+        // a genuine cold boot — a create with no preceding renderer-gone is how a
+        // killed PROCESS is told apart from a reclaimed renderer.
+        ShellDiagLog.record(this, "create",
+            savedInstanceState == null ? "cold" : "restored");
 
         // Recover instead of showing a frozen app when Android reclaims the
         // WebView renderer of a backgrounded recording session
@@ -70,6 +79,14 @@ public class MainActivity extends BridgeActivity {
                     public boolean onRenderProcessGone(WebView webView, RenderProcessGoneDetail detail) {
                         boolean crashed = detail.didCrash();
                         Logger.error("WebView renderer gone (didCrash=" + crashed + ")");
+                        // Recorded BEFORE anything else, with the memory state at
+                        // the moment of death: whether this was a low-memory
+                        // reclaim is exactly the question three attempted fixes
+                        // have assumed the answer to.
+                        ShellDiagLog.record(getApplicationContext(),
+                            ShellDiagLog.KIND_RENDERER_GONE,
+                            "didCrash=" + crashed + " foreground=" + started + " "
+                                + ShellDiagLog.memorySnapshot(getApplicationContext()));
                         // A dead renderer can never be revived and the platform
                         // forbids reusing its WebView, so detaching and destroying
                         // it is not optional — only the timing of the rebuild is.
@@ -89,6 +106,8 @@ public class MainActivity extends BridgeActivity {
                         if (crashed && looping) {
                             Logger.error("Renderer crashed again within "
                                 + RENDERER_RESTART_MIN_INTERVAL_MS + "ms — not restarting again");
+                            ShellDiagLog.record(getApplicationContext(),
+                                "renderer-loop-guard", "not restarting again");
                             return true;
                         }
 
@@ -116,6 +135,8 @@ public class MainActivity extends BridgeActivity {
                         if (!started) {
                             rendererRebuildPending = true;
                             Logger.error("Renderer gone in the background — rebuilding on next foreground");
+                            ShellDiagLog.record(getApplicationContext(),
+                                "rebuild-deferred", "waiting for foreground");
                             return true;
                         }
 
@@ -136,8 +157,10 @@ public class MainActivity extends BridgeActivity {
         // goes down, and the cold boot picks the run back up from the recovery
         // buffer plus the fix journal — which by now holds every point the service
         // recorded while the WebView was dead.
+        ShellDiagLog.record(this, "foreground");
         if (rendererRebuildPending) {
             rendererRebuildPending = false;
+            ShellDiagLog.record(this, "rebuild", "relaunching after background reclaim");
             relaunch();
         }
     }
@@ -146,6 +169,9 @@ public class MainActivity extends BridgeActivity {
     public void onStop() {
         super.onStop();
         started = false;
+        // The anchor every later event is read against: a renderer-gone or a
+        // cold create AFTER this one says what died while the app was away.
+        ShellDiagLog.record(this, "background");
     }
 
     private void relaunch() {

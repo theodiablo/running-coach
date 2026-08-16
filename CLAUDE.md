@@ -248,6 +248,16 @@ Always re-verify a finding before acting on it; agents report false positives.
   background-geolocation) and BLE heart-rate notifications (patched
   `bluetooth-le`) are appended to a file by the native callback and folded back
   in at save/recovery — never left to whatever JS happened to be awake for.
+- **The per-fix native path runs on the MAIN thread** (`LocalBroadcastManager`
+  delivers on the main looper), so nothing on it may block — no disk, no network,
+  no lock held across either. A stalled UI thread looks exactly like a dead
+  WebView (content is composited on it, so the last frame stays up while input
+  dispatch stops), which is how ~0.5 Hz journal writes were read as the renderer
+  being reclaimed. Detail: `docs/live-tracking.md`.
+- **Shell diagnostics** (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) record what
+  died — renderer, process, or nothing — because the JS logs stop identically in
+  all three. Always on natively; filed to `shell_diagnostics` only with the
+  hidden developer log enabled.
 - **A background app cannot start an activity** (Android 10+; a foreground service
   is not an exemption), and tearing the activity down stops the plugins' services
   with it — including the one recording the run. So a background recovery path

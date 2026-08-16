@@ -448,6 +448,19 @@ lock-screen section above for why that has to be native.
 `getFixJournal`/`clearFixJournal` plugin methods — the crash-recovery layer
 that survives process death (see *Crash recovery* above). Lines parse
 individually so a torn last write costs one point, not the file.
+**The append runs on its own single thread, and that is not a detail.**
+`ServiceReceiver.onReceive` is delivered on the **main** thread
+(`LocalBroadcastManager` posts to the main looper), so journalling inline — as
+it did from v1.12.0 — put a synchronous file open/append/close on the **UI
+thread for every accepted fix**: ~0.5 Hz, for the whole of a run, against a
+file that grows all run. A stalled UI thread does not present as a stalled UI
+thread. WebView content is composited on it, so the last painted frame stays on
+screen while input dispatch stops — which reads exactly as "the recorder is
+frozen, the clock is stuck and every control is dead", the symptom three
+separate fixes attributed to the WebView renderer being reclaimed. Nothing may
+be added to this path that blocks. The trade is deliberate and small: a process
+killed with appends still queued loses the newest point or two (2s apart, and
+also in the localStorage buffer), where an ANR loses the entire run.
 (4) `LIVE_FIX` relay: every accepted fix is ALSO re-broadcast on the app-owned
 LocalBroadcast action `solutions.camboulive.run.LIVE_FIX` with the fold's own
 derived numbers (km, durationSec, curPace, gap flag), consumed by the

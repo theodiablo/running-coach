@@ -26,6 +26,7 @@ import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
 import { clearStaleLiveRun } from "./live/publisher";
+import { armShellReporting } from "./diag/shellLog";
 import { useLiveRun } from "./hooks/useLiveRun";
 import { flushPendingHr, hasHealthConnectAuthorization } from "./hr/healthconnect";
 import { flushPendingHkHr } from "./hr/healthkit";
@@ -324,6 +325,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   };
 
   useEffect(() => {
+    let disarmShellReporting: (() => void) | undefined;
     (async () => {
       const r = await db.get(STORAGE_KEYS.RUNS) as Run[] | null;
       const p = await db.get(STORAGE_KEYS.PLAN) as Plan | null;
@@ -388,6 +390,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       // No-op too when a recoverable run buffer is still present: that run can
       // still be resumed, and a watcher may be looking at it right now.
       void clearStaleLiveRun();
+      // Arm automatic shell-diagnostics filing, if the hidden developer log is
+      // enabled on this device. Files what the last session did on boot and on
+      // each foreground return — nothing to press, because the failure it
+      // exists for is one nobody saw coming. No-op for everyone else.
+      disarmShellReporting = armShellReporting();
       // Same deferred cleanup for Health Connect HR: a run saved before the watch
       // had synced its HR is stamped hrPending.
       // On boot, only open Health Connect if this *device* has previously granted
@@ -436,6 +443,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         });
       });
     })();
+    return () => { disarmShellReporting?.(); };
     // Boot-once load: `t` is stable and must not re-trigger the whole boot on a
     // language switch, so it is intentionally omitted from the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps

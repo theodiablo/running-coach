@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..e9030fd 100644
+index a92fcf9..e77533d 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 @@ -32,8 +32,18 @@ import com.getcapacitor.annotation.PermissionCallback;
@@ -30,7 +30,7 @@ index a92fcf9..e9030fd 100644
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +102,468 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +102,490 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -136,7 +136,7 @@ index a92fcf9..e9030fd 100644
 +
 +        return builder.build();
 +    }
- 
++
 +    // Replaces the foreground-service notification's content in place (same id,
 +    // same channel, ongoing flags re-asserted by the builder above) so a caller
 +    // can surface live run stats on it. Resolves { updated: boolean } — false
@@ -249,12 +249,38 @@ index a92fcf9..e9030fd 100644
 +    private static final String FIX_JOURNAL_FILE = "run_fix_journal.jsonl";
 +    private static final long FIX_JOURNAL_MAX_BYTES = 2_000_000; // safety cap, ~a multi-day run
 +    private final Object journalLock = new Object();
++    // The append runs HERE, not on the caller's thread. ServiceReceiver.onReceive
++    // is delivered on the MAIN thread (LocalBroadcastManager posts to the main
++    // looper), so journalling inline put a synchronous open/append/close on the
++    // UI thread for every accepted fix — roughly every two seconds, for the whole
++    // of a run, against a file that grows all run. A stalled UI thread does not
++    // look like a stalled UI thread: WebView content is composited on it, so the
++    // last painted frame stays on screen while input dispatch stops, which reads
++    // exactly as "the recorder is frozen and every control is dead". Single
++    // threaded so appends keep their order.
++    private final java.util.concurrent.ExecutorService journalExecutor =
++            java.util.concurrent.Executors.newSingleThreadExecutor(
++                    r -> new Thread(r, "run-fix-journal"));
 +
 +    private File journalFile() {
 +        return new File(getContext().getFilesDir(), FIX_JOURNAL_FILE);
 +    }
-+
+ 
 +    private void journalFix(double lat, double lng, long t, Location location) {
++        // Formatted on the calling thread (Location is not safe to hold across
++        // threads), written on the journal thread.
++        final String alt = location.hasAltitude()
++                ? String.valueOf(Math.round(location.getAltitude()))
++                : "null";
++        final String line = String.format(Locale.US, "[%.6f,%.6f,%d,%s]%n", lat, lng, t, alt);
++        try {
++            journalExecutor.execute(() -> appendJournalLine(line));
++        } catch (RuntimeException rejected) {
++            // Executor shut down (plugin destroyed) — the run is over anyway.
++        }
++    }
++
++    private void appendJournalLine(String line) {
 +        synchronized (journalLock) {
              try {
 -                String name = getAppString(
@@ -274,10 +300,6 @@ index a92fcf9..e9030fd 100644
 +                if (file.length() > FIX_JOURNAL_MAX_BYTES) {
 +                    return;
 +                }
-+                String alt = location.hasAltitude()
-+                        ? String.valueOf(Math.round(location.getAltitude()))
-+                        : "null";
-+                String line = String.format(Locale.US, "[%.6f,%.6f,%d,%s]%n", lat, lng, t, alt);
 +                FileWriter writer = new FileWriter(file, true);
 +                try {
 +                    writer.write(line);
@@ -359,17 +381,14 @@ index a92fcf9..e9030fd 100644
 +        }
 +        call.resolve();
 +    }
- 
--            // Set the Channel ID for Android O.
--            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
--                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
++
 +    private void seedLiveStats(PluginCall call, String message, boolean updated) {
 +        synchronized (liveLock) {
 +            Number km = optNumber(call, "km");
 +            if (km == null) {
 +                liveStats = null; // caller isn't driving live stats
 +                return;
-             }
++            }
 +            if (liveStats == null) {
 +                liveStats = new LiveStats();
 +            }
@@ -393,7 +412,9 @@ index a92fcf9..e9030fd 100644
 +        }
 +    }
  
--            backgroundNotification = builder.build();
+-            // Set the Channel ID for Android O.
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
 +    // Folds one broadcast fix into the live stats and refreshes the notification.
 +    // Called for every location the service reports, foreground or not.
 +    private void onLiveLocation(Location location) {
@@ -401,20 +422,21 @@ index a92fcf9..e9030fd 100644
 +            LiveStats live = liveStats;
 +            if (live != null && live.tracking) {
 +                foldLiveLocation(live, location);
-+            }
+             }
 +            // no live stats, or paused — onPos ignores fixes then too
++        }
++    }
+ 
+-            backgroundNotification = builder.build();
++    private void foldLiveLocation(LiveStats live, Location location) {
++        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
++        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
++            return;
          }
 -        service.addWatcher(
 -                call.getCallbackId(),
 -                backgroundNotification,
 -                call.getFloat("distanceFilter", 0f)
-+    }
-+
-+    private void foldLiveLocation(LiveStats live, Location location) {
-+        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
-+        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
-+            return;
-+        }
 +        long t = location.getTime() > 0 ? location.getTime() : System.currentTimeMillis();
 +        double lat = location.getLatitude(), lng = location.getLongitude();
 +        if (live.lastFixMs == 0) {
@@ -551,7 +573,7 @@ index a92fcf9..e9030fd 100644
      }
  
      @PermissionCallback
-@@ -188,6 +591,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +613,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -559,7 +581,7 @@ index a92fcf9..e9030fd 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -248,17 +652,29 @@ public class BackgroundGeolocation extends Plugin {
+@@ -248,17 +674,29 @@ public class BackgroundGeolocation extends Plugin {
      private class ServiceReceiver extends BroadcastReceiver {
          @Override
          public void onReceive(Context context, Intent intent) {
@@ -595,7 +617,7 @@ index a92fcf9..e9030fd 100644
          }
      }
  
-@@ -315,8 +731,9 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,8 +753,9 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -606,7 +628,7 @@ index a92fcf9..e9030fd 100644
                  new IntentFilter(BackgroundGeolocationService.ACTION_BROADCAST)
          );
      }
-@@ -324,7 +741,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -324,7 +763,7 @@ public class BackgroundGeolocation extends Plugin {
      @Override
      protected void handleOnResume() {
          if (service != null) {
@@ -615,7 +637,7 @@ index a92fcf9..e9030fd 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,12 +750,45 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,12 +772,46 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {
@@ -648,6 +670,7 @@ index a92fcf9..e9030fd 100644
 +
      @Override
      protected void handleOnDestroy() {
++        journalExecutor.shutdown();
 +        // Unregister, or a destroyed instance's receiver outlives it (the
 +        // manager is application-scoped) and an activity recreation leaves two
 +        // instances folding — and relaying — every fix twice.
