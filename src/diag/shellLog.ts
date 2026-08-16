@@ -180,5 +180,20 @@ export function armShellReporting(): () => void {
     void fileIfNew("auto: returned to foreground").catch(() => { /* best-effort */ });
   };
   document.addEventListener("visibilitychange", onVisible);
-  return () => document.removeEventListener("visibilitychange", onVisible);
+  // A timer as well, and it is not belt-and-braces — it is the only trigger that
+  // survives the bug being investigated. `visibilitychange` is exactly the event
+  // a WebView that has not noticed it is on screen fails to deliver, so a report
+  // about that failure would never be sent: the instrument was blind to its own
+  // subject. Safe to lean on because a backgrounded WebView keeps executing
+  // while a foreground service holds the process (docs/live-tracking.md), and
+  // cheap because fileIfNew sends nothing when the native log hasn't moved.
+  const poll = setInterval(() => {
+    void fileIfNew("auto: periodic").catch(() => { /* best-effort */ });
+  }, SHELL_REPORT_POLL_MS);
+  return () => {
+    document.removeEventListener("visibilitychange", onVisible);
+    clearInterval(poll);
+  };
 }
+
+const SHELL_REPORT_POLL_MS = 60_000;
