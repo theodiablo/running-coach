@@ -40,3 +40,34 @@ export function startFrameHeartbeat(): () => void {
 export function frameAgeMs(): number | null {
   return lastFrameAt ? Date.now() - lastFrameAt : null;
 }
+
+// ── the two layers ABOVE painting ───────────────────────────────────────────
+//
+// A later observation splits the problem again: while the numbers are frozen,
+// the MAP still pans and redraws. Leaflet writes to the DOM imperatively,
+// outside React — so a moving map proves the compositor is drawing and that
+// touch is being delivered. Painting was never the stalled layer.
+//
+// That leaves two candidates above it, and they need different fixes:
+//
+//   renderAge stale  → React is not committing. The DOM still holds the old
+//                      numbers, so a correct paint of stale content is exactly
+//                      what the runner sees, and a tap that changes state
+//                      changes nothing on screen.
+//   tickAge stale    → the tracker's 1s interval is not firing, so `movingSec`
+//                      is never recomputed. React is fine; it has nothing new
+//                      to render, and distance is frozen beside it only because
+//                      a stationary runner produces no accepted fix.
+//
+// Both look identical from the outside. Measured, they are one line apart.
+
+let lastRenderAt = 0;
+let lastTickAt = 0;
+
+/** Called from the tracker's render. */
+export const markRender = () => { lastRenderAt = Date.now(); };
+/** Called from the tracker's 1s interval. */
+export const markTick = () => { lastTickAt = Date.now(); };
+
+export const renderAgeMs = (): number | null => (lastRenderAt ? Date.now() - lastRenderAt : null);
+export const tickAgeMs = (): number | null => (lastTickAt ? Date.now() - lastTickAt : null);

@@ -3,7 +3,7 @@ import { isAndroid, nativeBuildLabel, platform } from "../native";
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { getTrackLog, isGeoDebugEnabled } from "../geo/trackLog";
-import { frameAgeMs, startFrameHeartbeat } from "./frameHeartbeat";
+import { frameAgeMs, renderAgeMs, startFrameHeartbeat, tickAgeMs } from "./frameHeartbeat";
 
 // Reads the shell diagnostics the Android side records (ShellDiagLog.kt) — the
 // half of the story the JS GPS log cannot tell.
@@ -99,7 +99,9 @@ function findLast(events: ShellDiagEvent[], match: (e: ShellDiagEvent) => boolea
 function clientState(): string {
   const age = frameAgeMs();
   const vis = typeof document !== "undefined" ? document.visibilityState : "?";
-  return `frameAge=${age == null ? "never" : age + "ms"} visibilityState=${vis}`;
+  const ms = (v: number | null) => (v == null ? "never" : v + "ms");
+  return `frameAge=${ms(age)} renderAge=${ms(renderAgeMs())} tickAge=${ms(tickAgeMs())}`
+    + ` visibilityState=${vis}`;
 }
 
 /**

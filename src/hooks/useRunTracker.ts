@@ -13,6 +13,7 @@ import { armHrJournal, clearHrJournal, disarmHrJournal, resetHrJournal } from ".
 import { startIndoorSessionService, stopIndoorSessionService } from "../indoor/session";
 import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
+import { markTick } from "../diag/frameHeartbeat";
 import { t } from "../i18n";
 import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
@@ -490,6 +491,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   useEffect(() => {
     if (state !== "tracking") return;
     const id = setInterval(() => {
+      markTick(); // diagnostics: proves this timer is still firing (see frameHeartbeat)
       setMovingSec(computeMoving());
       const now = Date.now();
       if (now - lastBufferPersistRef.current >= BUFFER_TICK_MS) {
