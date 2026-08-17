@@ -13,7 +13,7 @@ import { armHrJournal, clearHrJournal, disarmHrJournal, resetHrJournal } from ".
 import { startIndoorSessionService, stopIndoorSessionService } from "../indoor/session";
 import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
-import { markTick } from "../diag/frameHeartbeat";
+import { clearRecorderMarks, markTick } from "../diag/frameHeartbeat";
 import { t } from "../i18n";
 import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
@@ -534,6 +534,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   // so leaking it would pin a notification to a session that no longer exists.
   useEffect(() => () => {
     stopWatch(); stopHrWatch(); releaseWake();
+    clearRecorderMarks(); // nothing is rendering a recorder any more — see frameHeartbeat
     if (indoor) stopIndoorSessionService();
   }, [stopWatch, stopHrWatch, releaseWake, indoor]);
 

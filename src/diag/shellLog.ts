@@ -83,8 +83,20 @@ export function verdictFor(events: ShellDiagEvent[]): string {
       + (gone.detail ? `(${gone.detail})` : "");
   }
   if (created) {
-    return `The whole app PROCESS was killed — it cold-booted ${away(created.at)} with no renderer-gone before it. `
-      + "Recording stopped there; the run is only as complete as the recovery buffer and journal.";
+    // `cold` vs `restored` is recorded natively (savedInstanceState == null) for
+    // this decision alone, and reading past it turned every activity recreation
+    // — a theme change, a locale change, a rotation — into "the process was
+    // killed", the most alarming verdict this can give.
+    if (/cold/.test(created.detail || "")) {
+      return `The whole app PROCESS was killed — it cold-booted ${away(created.at)} with no renderer-gone before it. `
+        + "Recording stopped there; the run is only as complete as the recovery buffer and journal.";
+    }
+    // Ambiguous by construction: Android restores saved instance state both
+    // after a configuration change (process alive) and after a background
+    // process death. Say so rather than pick one — the GPS log settles it.
+    return `The ACTIVITY was recreated ${away(created.at)} with saved state and no renderer-gone before it. `
+      + "That is usually a configuration change with the process alive, but Android also restores saved state "
+      + "after a background process death — check whether the GPS log kept advancing across it.";
   }
   return "Nothing died while backgrounded: JS was frozen and resumed. A freeze reported here is something else.";
 }
@@ -156,9 +168,24 @@ const writeLastFiled = (at: number) => {
 };
 
 async function fileIfNew(reason: string): Promise<void> {
+  // Gated HERE, before the bridge call. `readShellLog` is a real IPC round-trip
+  // into the shell (SharedPreferences read + JSON of up to 80 events), and
+  // ungated it ran on every Android install, on every foreground and once a
+  // minute — including mid-run — for people who have never opened the developer
+  // log. Still re-read per attempt rather than captured at arm time, so
+  // enabling the log mid-session takes effect immediately (see below).
+  if (!isGeoDebugEnabled()) return;
   const report = await readShellLog();
   const newest = report.events.reduce((max, e) => (e.at > max ? e.at : max), 0);
-  if (newest && newest <= readLastFiled()) return; // nothing happened since the last report
+  // `<=` and not `newest && <=`: an EMPTY native log must stop here too. Off
+  // Android (and after the panel's Clear) `newest` is 0 forever, so the old
+  // guard never fired, `writeLastFiled(0)` never moved the watermark, and
+  // `fileShellReport` still filed on a non-empty GPS track — an iOS or web user
+  // with the developer log on inserted a row every 60 seconds, indefinitely.
+  // These automatic filers trigger on native lifecycle events, so no native
+  // event means nothing to file; the manual path from ConnectionsCard still
+  // files a GPS-only report on every platform.
+  if (newest <= readLastFiled()) return;
   if (await fileShellReport(reason)) writeLastFiled(newest);
 }
 
@@ -182,11 +209,12 @@ async function fileIfNew(reason: string): Promise<void> {
  * best-effort throughout. Returns its own teardown.
  */
 export function armShellReporting(): () => void {
-  // Deliberately NOT gated here — `fileShellReport` re-reads the flag on every
-  // attempt instead. Arming on the boot-time value meant enabling the developer
-  // log mid-session did nothing until the next restart, which is exactly the
-  // moment someone reaches for it: the app has just misbehaved and the evidence
-  // is sitting on the device unsent.
+  // Deliberately NOT gated here — `fileIfNew` re-reads the flag on every attempt
+  // instead. Arming on the boot-time value meant enabling the developer log
+  // mid-session did nothing until the next restart, which is exactly the moment
+  // someone reaches for it: the app has just misbehaved and the evidence is
+  // sitting on the device unsent. The listener and the timer themselves cost
+  // nothing while the flag is off, because every attempt returns at line one.
   void fileIfNew("auto: app boot").catch(() => { /* best-effort */ });
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;

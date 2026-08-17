@@ -4,6 +4,7 @@ import { Play, Pause, Square, X, Loader, HeartPulse, Bike } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { persistImportedRoute } from "../imports/persistRoutes";
 import { useRunTracker } from "../hooks/useRunTracker";
+import { markRender } from "../diag/frameHeartbeat";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
@@ -56,6 +57,10 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const effectiveHrMethod = hrReady ? hrMethod : "off";
   const rt = useRunTracker({ hrMethod: effectiveHrMethod, indoor: true });
   const { state, stats, pending } = rt;
+  // Diagnostics, same as LiveRunTracker: without this an indoor session reports
+  // a stale renderAge beside a fresh tickAge, which reads as "React stopped
+  // committing" when the truth is that only the GPS recorder was instrumented.
+  markRender();
   const [busy, setBusy] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
 

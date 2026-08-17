@@ -28,13 +28,22 @@
 // Both look identical from the outside. Measured, they are one line apart, and
 // each mark is one assignment on a code path that was going to run anyway.
 
+// Both marks are only meaningful WHILE A RECORDER IS MOUNTED, and are cleared
+// when one unmounts. Left to run on, they would say the opposite of the truth:
+// a report filed an hour after a run would carry `renderAge=3600000ms`, which
+// this file's own guide defines as "React is not committing" — an alarming
+// reading of an app that is simply sitting on the dashboard with no recorder to
+// render. Cleared, the same report reads `never`, which is what it means.
+
 let lastRenderAt = 0;
 let lastTickAt = 0;
 
-/** Called from the tracker's render. */
+/** Called from a recorder's render (both LiveRunTracker and IndoorTracker). */
 export const markRender = () => { lastRenderAt = Date.now(); };
-/** Called from the tracker's 1s interval. */
+/** Called from useRunTracker's 1s interval. */
 export const markTick = () => { lastTickAt = Date.now(); };
+/** Called from useRunTracker's unmount teardown: nothing is recording any more. */
+export const clearRecorderMarks = () => { lastRenderAt = 0; lastTickAt = 0; };
 
 export const renderAgeMs = (): number | null => (lastRenderAt ? Date.now() - lastRenderAt : null);
 export const tickAgeMs = (): number | null => (lastTickAt ? Date.now() - lastTickAt : null);

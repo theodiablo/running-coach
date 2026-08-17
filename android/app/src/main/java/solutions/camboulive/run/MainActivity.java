@@ -157,7 +157,9 @@ public class MainActivity extends BridgeActivity {
         // goes down, and the cold boot picks the run back up from the recovery
         // buffer plus the fix journal — which by now holds every point the service
         // recorded while the WebView was dead.
-        ShellDiagLog.record(this, "foreground", ShellDiagLog.powerSnapshot(this));
+        // Timestamp only: this is the resume path, and the power state here is
+        // never in question (the device is awake). The snapshot rides `background`.
+        ShellDiagLog.record(this, "foreground");
         if (rendererRebuildPending) {
             rendererRebuildPending = false;
             ShellDiagLog.record(this, "rebuild", "relaunching after background reclaim");

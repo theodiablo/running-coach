@@ -48,6 +48,23 @@ object ShellDiagLog {
     const val KIND_RENDERER_GONE = "renderer-gone"
 
     // @JvmOverloads so the Java caller in MainActivity can omit `detail`.
+    //
+    // **Durability is chosen per kind, because the write happens on the UI
+    // thread.** `commit()` is a synchronous disk write, and the lifecycle
+    // callers (onCreate/onStart/onStop) sit on the activity's resume and pause
+    // paths — the very latency this log was built to investigate. Using it for
+    // every event would repeat, in the diagnostics, the main-thread blocking
+    // this same change removes from the fix journal.
+    //
+    //  • `renderer-gone` keeps `commit()`. It fires at an arbitrary moment with
+    //    no framework flush to rely on, and it is the one event whose loss to
+    //    the kill it describes would defeat the whole log.
+    //  • Everything else uses `apply()`, which updates the in-memory map at once
+    //    and queues the write. That is not a durability trade on this path:
+    //    ActivityThread runs `QueuedWork.waitToFinish()` at activity stop and
+    //    service transitions, so the anchor is on disk before the app is
+    //    considered stopped — the wait just happens at the framework's point
+    //    rather than inside our callback.
     @JvmStatic
     @JvmOverloads
     @Synchronized
@@ -61,7 +78,8 @@ object ShellDiagLog {
             event.put("kind", kind)
             if (detail != null) event.put("detail", detail)
             events.add(event)
-            prefs.edit().putString(KEY, trim(events).toString()).commit()
+            val edit = prefs.edit().putString(KEY, trim(events).toString())
+            if (kind == KIND_RENDERER_GONE) edit.commit() else edit.apply()
         } catch (exception: Exception) {
             // Diagnostics must never be the thing that breaks the app.
             Logger.error("ShellDiagLog: could not record $kind", exception)
@@ -97,8 +115,10 @@ object ShellDiagLog {
     // stale frame, no requestAnimationFrame, and dead input, because hit-testing
     // happens in that process too.
     //
-    // Recorded rather than argued about. Every read here is cheap and needs no
-    // permission.
+    // Recorded rather than argued about, but only where it answers something:
+    // this is four binder calls, so it rides the `background` anchor (which
+    // power regime is the app entering?) and not `foreground`, where the device
+    // is by definition awake and interactive and the answer is never in doubt.
     @JvmStatic
     fun powerSnapshot(context: Context?): String {
         if (context == null) return "power=?"
