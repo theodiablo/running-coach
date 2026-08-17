@@ -56,7 +56,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   `docs/marketing.md`.
 - **One route, no router.** `main.tsx` branches on `/watch/:token` (the public
   live-run page) *before* `<App/>` mounts, so none of App's auth/store effects
-  run for a visitor with no account — `docs/live-sharing.md`. Everything else is
+  run for a visitor with no account — `docs/live-sharing.md`. **The web build's
+  `base` must stay root-absolute** (`/`, relative only under
+  `VITE_NATIVE_BUILD`): index.html is one static artifact served by the SPA
+  fallback at *every* path, so a relative `./assets/…` resolves under
+  `/watch/…`, comes back as index.html, and is refused as `text/html` — a white
+  page with no telemetry, since the reporting code is in the script that never
+  loaded. `src/assetBase.test.ts` pins it; any new nested route inherits this.
+  Everything else is
   routeless: `src/RunningCoach.tsx` is the single state hub: it owns
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
