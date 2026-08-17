@@ -32,12 +32,16 @@ const hasSuuntoCreds = Boolean(SUUNTO_CLIENT_ID && SUUNTO_CLIENT_SECRET && SUUNT
 
 const TOKEN_URL = "https://cloudapi-oauth.suunto.com/oauth/token";
 const API = "https://cloudapi.suunto.com";
-// CALIBRATE: the list endpoint path and the `since` filter field (start time
-// assumed; if the partner docs expose a modification-time filter, switch the
-// watermark to it — it also subsumes late watch syncs, making the overlap
-// re-list below redundant). The FIT export endpoint is no longer a guess: it
-// calibrates itself against the candidates in _shared/suunto/fitExport.mjs.
-const LIST_PATH = (since: number, limit: number) => `${API}/v2/workouts?since=${since}&limit=${limit}`;
+// Documented v3 listing. `since`/`until` filter on START time unless
+// `filter-by-modification-time` is set — deliberately left off: `sync_cursor`
+// holds start times, and switching an existing row's watermark to a different
+// clock mid-flight would skip or replay history. Moving to it (and dropping the
+// overlap re-list it subsumes) is a migration of its own; docs/integrations-suunto.md.
+const LIST_PATH = (since: number, limit: number) => `${API}/v3/workouts/?since=${since}&limit=${limit}`;
+// Pre-v3 shape, tried only if the v3 listing rejects the request. The two
+// versions coexist, and a listing that silently stops working reads as
+// "the sync button found nothing" — the failure this whole file is careful about.
+const LIST_PATH_LEGACY = (since: number, limit: number) => `${API}/v2/workouts?since=${since}&limit=${limit}`;
 
 const LIST_LIMIT = 100;             // workouts listed per sync
 const PAGE_MAX = 50;                // summaries returned per sync (clamp on pageSize)
@@ -207,6 +211,11 @@ async function apiFetch(
   return res;
 }
 
+// `gone` = every attempt was a hard "no FIT here" on a calibrated endpoint.
+// `notFit` = something answered 2xx with a body that isn't a FIT, which is a
+// different problem from a rejection and deserves its own line in the logs.
+type FitMiss = { gone: boolean; status: number; notFit: boolean };
+
 const fitVariantMemo = (row: ConnectionRow): string => {
   const v = row.sync_state?.fitVariant;
   return typeof v === "string" ? v : "";
@@ -220,7 +229,7 @@ const fitVariantMemo = (row: ConnectionRow): string => {
 // calibrated, since before that it equally means no path was right.
 async function fetchWorkoutFit(
   admin: SupabaseClient, userId: string, row: ConnectionRow, key: string,
-): Promise<{ bytes: Uint8Array; variantId: string } | { gone: boolean; status: number } | "reauth"> {
+): Promise<{ bytes: Uint8Array; variantId: string } | FitMiss | "reauth"> {
   const first = await getFreshToken(admin, userId, row);
   if (first === "reauth") return "reauth";
   let token = first.token;
@@ -230,6 +239,7 @@ async function fetchWorkoutFit(
   const variants = fitVariantsToTry(memo);
   let lastStatus = 0;
   let allGone = true;
+  let notFit = false;
 
   for (const variant of variants) {
     const get = () => fetch(`${API}${fitVariantPath(variant, key)}`, {
@@ -251,16 +261,20 @@ async function fetchWorkoutFit(
     if (res.ok) {
       const bytes = new Uint8Array(await res.arrayBuffer());
       if (looksLikeFit(bytes)) return { bytes, variantId: variant.id };
-      allGone = false; // a 200 that isn't a FIT — this path answers something else
+      // A 2xx that isn't a FIT — this path answers something else (an APIM
+      // notice, or an envelope pointing at a download URL).
+      notFit = true;
+      allGone = false;
+      lastStatus = res.status;
       continue;
     }
     lastStatus = res.status;
     if (res.status !== 404 && res.status !== 410) { allGone = false; continue; }
     // A hard miss on the CALIBRATED endpoint is the real answer; don't spend
-    // three more requests re-asking paths that can't know better.
+    // the other requests re-asking paths that can't know better.
     if (memo === variant.id) break;
   }
-  return { gone: allGone && !!memo, status: lastStatus };
+  return { gone: allGone && !!memo, status: lastStatus, notFit };
 }
 
 const workoutKeyOf = (w: WorkoutSummary): string =>
@@ -409,8 +423,16 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id).eq("provider", "suunto");
       }
 
-      const listRes = await apiFetch(admin, user.id, row, LIST_PATH(since, LIST_LIMIT), "application/json");
+      let listRes = await apiFetch(admin, user.id, row, LIST_PATH(since, LIST_LIMIT), "application/json");
       if (listRes === "reauth") return json({ connected: false, reauth: true, workouts: [] });
+      if (!listRes.ok) {
+        // The v2 listing is what shipped and what is known to work on live
+        // accounts; keep it as the net rather than turning a version mismatch
+        // into "no new runs" for everyone.
+        console.warn("suunto-import v3 list failed, falling back to v2", listRes.status);
+        listRes = await apiFetch(admin, user.id, row, LIST_PATH_LEGACY(since, LIST_LIMIT), "application/json");
+        if (listRes === "reauth") return json({ connected: false, reauth: true, workouts: [] });
+      }
       if (!listRes.ok) throw new Error(`suunto workout list failed: ${listRes.status}`);
       const listBody = await listRes.json().catch(() => ({})) as Record<string, unknown>;
       // CALIBRATE: Suunto responses wrap arrays in `payload`.
@@ -525,6 +547,10 @@ Deno.serve(async (req) => {
         console.warn("suunto-import fit missing", res.status);
         return json({ connected: true, gone: true });
       }
+      // Called out separately: "answered, but not with a FIT" points at the
+      // response SHAPE (an envelope, a redirect page), not at the endpoint
+      // being wrong — a different fix from a 401 or a 404.
+      if (res.notFit) console.error("suunto-import fit body was not a FIT", res.status);
       console.error("suunto-import fit failed", res.status);
       return json({ connected: true, transient: true, status: res.status });
     }

@@ -16,18 +16,20 @@ const fitBytes = (sig = ".FIT") => {
 };
 
 describe("suunto FIT export variants", () => {
-  it("varies both the path and the auth style", () => {
+  it("leads with the documented v3 route, keeping the older shapes as the net", () => {
+    // The FIT export lives on a different API VERSION and path shape from the
+    // workout listing (`/v2/workouts`) this function pages — extrapolating one
+    // from the other is what produced the 401 that degraded every import.
     const urls = FIT_VARIANTS.map((v: Variant) => `${fitVariantPath(v, "abc")} | ${fitVariantAuth(v, "tok")}`);
     expect(urls).toEqual([
+      "/v3/workouts/abc/fit | Bearer tok",
+      "/v3/workouts/abc/fit | tok",
       "/v2/workout/exportFit/abc | Bearer tok",
-      "/v2/workouts/exportFit/abc | Bearer tok",
-      "/v2/workout/exportFit/abc | tok",
-      "/v2/workouts/exportFit/abc | tok",
     ]);
   });
 
   it("escapes the workout key", () => {
-    expect(fitVariantPath(FIT_VARIANTS[0], "a/b?c")).toBe("/v2/workout/exportFit/a%2Fb%3Fc");
+    expect(fitVariantPath(FIT_VARIANTS[0], "a/b?c")).toBe("/v3/workouts/a%2Fb%3Fc/fit");
   });
 
   it("tries every candidate before calibration, in most-likely-first order", () => {
@@ -36,8 +38,8 @@ describe("suunto FIT export variants", () => {
   });
 
   it("puts a calibrated variant first, keeping the rest as the net", () => {
-    const order = fitVariantsToTry("workouts-raw").map((v: Variant) => v.id);
-    expect(order[0]).toBe("workouts-raw");
+    const order = fitVariantsToTry("v2-exportfit").map((v: Variant) => v.id);
+    expect(order[0]).toBe("v2-exportfit");
     expect([...order].sort()).toEqual(FIT_VARIANTS.map((v: Variant) => v.id).sort());
   });
 

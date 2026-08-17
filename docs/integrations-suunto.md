@@ -100,31 +100,65 @@ webhook to map a free user's workouts into.
   account-existence oracle, nothing feeds the retry/circuit-breaker). Unset
   secret → immediate 200 before any DB access. Never logs bodies or signatures.
 
-## The FIT export endpoint calibrates itself
+## API surface
 
-The first live pass proved why this one couldn't stay a guess:
-`/v2/workouts` listed workouts fine while `/v2/workouts/exportFit/<key>`
-answered **401** with the same token and subscription key. Every import
-therefore took the summary fallback, which on screen is "No route was recorded
-for this run" and a distance rounded to 100 m — it never looks like an endpoint
-error, and the client's retry budget turned it into a *permanent* summary-only
-run after three scans.
+Per the partner docs, all three calls are **v3**:
 
-So `suunto-import` walks the candidates in `_shared/suunto/fitExport.mjs`
-(singular `workout` first — Suunto names the operation
-`export-user-workout-in-fit`, and only the listing is plural — and both the
-`Bearer` and bare-JWT auth styles, since Suunto's own getting-started curl
-passes the token bare) and remembers the one that returned real FIT bytes in
-`sync_state.fitVariant`. Afterwards every download is one request, with the
-other candidates left behind it as the net for the day the endpoint moves.
+| Purpose | Endpoint | Used by |
+| --- | --- | --- |
+| List workouts | `GET /v3/workouts/?since=&until=&limit=&offset=&filter-by-modification-time=` | `sync` (`LIST_PATH`) |
+| One workout | `GET /v3/workouts/{workoutKey}?extensions=` | not called — see below |
+| Workout FIT | `GET /v3/workouts/{workoutIdOrKey}/fit` | `fit` (first candidate) |
 
-Two rules keep the memo honest, both pinned by
+The v2 listing that shipped first is kept as a fallback (`LIST_PATH_LEGACY`),
+tried only when the v3 one rejects the request and logged as
+`suunto-import v3 list failed, falling back to v2`. The two versions coexist on
+live accounts and a listing that quietly stops working reads as "the sync button
+found nothing" — the failure mode this whole file is careful about.
+
+**Get-workout is deliberately not called.** Its `extensions` parameter can
+attach stream and summary data (`LocationStreamExtension`,
+`HeartrateStreamExtension`, `SummaryExtension`, `WeatherExtension`, …), but the
+FIT already carries the route, the HR series and the altitude the app stores,
+in one request instead of two against an app-wide quota. Reach for it only for
+something the FIT genuinely lacks *and* the `Run` shape has a home for — today
+that is nothing: cadence, steps, calories, temperature and weather have no
+field, and inventing one is a product decision, not an import detail.
+
+## The FIT export endpoint
+
+**The documented route is `GET /v3/workouts/{workoutIdOrKey}/fit`** — a
+different API version *and* path shape from the `/v2/workouts` listing this
+function still pages.
+
+That mismatch is the whole lesson. The original code extrapolated the export
+path from the listing's (`/v2/workouts/exportFit/<key>`) and it answers **401**
+with the same token and subscription key. Every import therefore took the
+summary fallback, which on screen is "No route was recorded for this run" and a
+distance rounded to 100 m — it never looks like an endpoint error, and the
+client's retry budget turned it into a *permanent* summary-only run after three
+scans. **Never infer one Suunto endpoint from another.**
+
+So the export path isn't a constant: `suunto-import` walks the candidates in
+`_shared/suunto/fitExport.mjs` — documented v3 route first, then the same route
+with the bare-JWT auth style (Suunto's own getting-started curl omits `Bearer`,
+and the v2 listing accepting both doesn't mean v3 does), then the pre-v3 shape
+as the net — and remembers the one that returned real FIT bytes in
+`sync_state.fitVariant`. Afterwards every download is one request, and the day
+the endpoint moves again it re-calibrates instead of silently degrading every
+run.
+
+Three rules keep the memo honest, pinned by
 `src/imports/suuntoFitExport.test.ts`:
 
 - **A 2xx never calibrates on its own** — the body must start with `.FIT` at
-  bytes 8-11, or an APIM notice would be remembered as the export path.
+  bytes 8-11, or an APIM notice (or a JSON envelope pointing at a download URL)
+  would be remembered as the export path.
 - **404/410 is terminal only on the calibrated endpoint.** Before calibration
   it equally means no candidate was right, so it stays `transient`.
+- **"Answered, but not with a FIT" gets its own log line**
+  (`fit body was not a FIT`) — that points at the response shape, a different
+  fix from a 401 or a 404.
 
 Watch for `suunto-import fit endpoint calibrated <variant>` in the function
 logs on the first successful download.
@@ -134,12 +168,17 @@ logs on the first successful download.
 The partner docs sit behind the API agreement; these are isolated in one helper
 each and marked `CALIBRATE` in the code:
 
-1. The list endpoint path (`LIST_PATH`) and the list response wrapper
-   (`payload`). *(Confirmed live: `/v2/workouts?since=&limit=` under
-   `payload`.)*
-2. `since` semantics + sort order. **If a modification-time filter exists,
-   switch the watermark to it** — that subsumes late uploads and the overlap
-   re-list becomes redundant.
+1. ~~The list endpoint path~~ — documented, see the API surface above. The
+   list response wrapper (`payload`) is still inferred; the parser accepts
+   `payload`, `workouts` or a bare array.
+2. ~~`since` semantics~~ — start time, unless `filter-by-modification-time` is
+   passed. **Switching the watermark to modification time is still worth
+   doing** (it subsumes late watch syncs and makes the overlap re-list
+   redundant), but it is a migration, not a flag flip: `sync_cursor` holds
+   start times on live rows, and reinterpreting them against a different clock
+   would skip or replay history. Needs a one-off cursor conversion, and the
+   modification-time field name from a live response to feed the new
+   watermark.
 3. The access-token JWT's username claim (`usernameFromJwt`). *(Confirmed
    live: the `user` claim.)*
 4. Webhook signature encoding — hex and base64 are both accepted
@@ -156,7 +195,7 @@ per page, and `suunto-import fit failed <status>` / `fit missing <status>` per
 download. Read those first; a FIT endpoint that answers nothing usable
 degrades every import to summary-only (no route, no HR series, round summary
 distances), and the client's retry budget hides it for three scans before it
-does — that is exactly how the 401 above went unnoticed.
+does — that is exactly how the v2-versus-v3 mix-up above went unnoticed.
 
 **A summary-only import does not heal itself.** Once the run is saved its key
 is in `knownKeys` and the cursor has passed it, so a later fix imports nothing
