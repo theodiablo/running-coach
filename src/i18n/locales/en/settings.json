@@ -190,6 +190,7 @@
   },
   "integrations": {
     "scan30": "Scan last 30 days",
+    "syncNow": "Sync now",
     "turnOff": "Turn off",
     "connectSuccess": "Connected — your watch runs will appear here after they sync.",
     "noNewRuns": "No new runs to import yet.",

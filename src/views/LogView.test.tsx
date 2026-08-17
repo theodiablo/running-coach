@@ -65,4 +65,29 @@ describe("LogView", () => {
     setup({ prefill: { date: "2026-08-18", type: "TEMPO", km: 8, wNum: 3, sId: "w3-tue" } });
     expect(screen.queryByText(/Got a file from your watch/)).not.toBeInTheDocument();
   });
+
+  // A single imported run is reviewed through this form, and the saved run is
+  // the provider's only record that the workout landed. Dropping extId left
+  // knownKeys permanently empty: every later sync re-listed the workout,
+  // re-downloaded its FIT against the daily quota, then discarded the candidate
+  // as a duplicate — so a working sync reported "no new runs".
+  it("carries a cloud import's identity through the review", () => {
+    const addRuns = vi.fn();
+    setup({
+      addRuns,
+      prefill: {
+        date: "2026-08-15", type: "EASY", km: 8.2, durationSec: 3000,
+        source: "watch", extId: "suunto:abc123", routeId: "r9",
+        notes: "Imported from Suunto",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
+    expect(addRuns).toHaveBeenCalledTimes(1);
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({
+      extId: "suunto:abc123",
+      routeId: "r9",
+      source: "watch",
+      notes: "Imported from Suunto",
+    });
+  });
 });

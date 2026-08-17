@@ -945,6 +945,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       return 0;
     }
     if (!manual) watchAutoShownRef.current = true;
+    // Both toast actions navigate to a tab, and a manual scan is started from
+    // Settings — which stays open over the destination, so tapping the action
+    // looked like the sync button had done nothing. Close what's open through
+    // its own handler first, the same way the header's go-Home reset does.
+    const goVia = (nav: () => void) => { dismissAll(); nav(); };
     if (found.length === 1) {
       const r = found[0];
       // The deferred cloud ack for this run rides LogView's onSaved (the
@@ -952,7 +957,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       showToast(t("app.toasts.foundRun", { km: r.km, date: fmt.sht(r.date || "") }), "ok",
         // Imports only ever map to running types (watch/mapping.ts), so this
         // must not reach that day's cross-training session either.
-        { label: t("app.toasts.review"), onClick: () => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "", { crossTraining: false }) || {}) }) });
+        { label: t("app.toasts.review"), onClick: () => goVia(() => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "", { crossTraining: false }) || {}) })) });
     } else {
       showToast(t("app.toasts.foundRuns", { n: found.length }), "ok",
         { label: t("app.toasts.importAll"), onClick: () => {
@@ -961,7 +966,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           // (a missed toast would instead re-serve them next scan).
           commitCloudScans();
           // Jump to History and flag the freshly imported runs as "New".
-          goToRuns(added.map(a => a.id).filter((id): id is string => !!id), t("progress.history.newBadge"));
+          goVia(() => goToRuns(added.map(a => a.id).filter((id): id is string => !!id), t("progress.history.newBadge")));
         } });
     }
     return found.length;
