@@ -237,7 +237,20 @@ Always re-verify a finding before acting on it; agents report false positives.
   pairings are per-install. A synced setting (`hrMethod`, `watchImport`) is a
   *preference*; check the local per-device marker before touching any native
   bridge.
-- **Backgrounded Android runs NO JS.** Once the app leaves the foreground the
+- **A backgrounded WebView keeps EXECUTING while a foreground service holds the
+  process** (measured on a real run, `docs/live-tracking.md`): JS runs unbroken
+  with the screen off — fixes accepted every ~2s — and taps land on the live
+  state behind a stale picture. **Never diagnose "frozen UI" as "dead app"**;
+  the two are indistinguishable by eye, so check the diagnostics, never the
+  screen. And **never diagnose it from the screen's own layer either** — the
+  frozen-recorder bug that cost four rounds turned out to be an Android System
+  WebView regression, a Play-updated system app that changes underneath a build
+  that hasn't, and every fix aimed at the shell missed because the app was never
+  what broke. `src/diag/frameHeartbeat.ts` measures the two layers that can
+  actually stall (React committing, the tracker's 1s tick) before anything is
+  attempted.
+- **Backgrounded Android may run no JS** when nothing holds the process (a
+  strapless indoor session). Once the app leaves the foreground the
   WebView's task queues are frozen — a native bridge callback does not wake it,
   so anything that must keep changing with the screen off (the live-run
   notification's distance/pace) has to be computed natively, with JS pushing a
@@ -248,6 +261,26 @@ Always re-verify a finding before acting on it; agents report false positives.
   background-geolocation) and BLE heart-rate notifications (patched
   `bluetooth-le`) are appended to a file by the native callback and folded back
   in at save/recovery — never left to whatever JS happened to be awake for.
+- **The per-fix native path runs on the MAIN thread** (`LocalBroadcastManager`
+  delivers on the main looper), so nothing on it may block — no disk, no network,
+  no lock held across either. A stalled UI thread looks exactly like a dead
+  WebView (content is composited on it, so the last frame stays up while input
+  dispatch stops), which is how ~0.5 Hz journal writes were read as the renderer
+  being reclaimed. Detail: `docs/live-tracking.md`.
+- **Shell diagnostics** (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) record what
+  died — renderer, process, or nothing — because the JS logs stop identically in
+  all three. Always on natively; filed to `shell_diagnostics` only with the
+  hidden developer log enabled.
+- **A background app cannot start an activity** (Android 10+; a foreground service
+  is not an exemption), and tearing the activity down stops the plugins' services
+  with it — including the one recording the run. So a background recovery path
+  must never relaunch or `finish()`: destroy what the platform forces you to,
+  leave the process alone (it is what is still recording), and defer the rebuild
+  to the next foreground. Detail: `docs/indoor-sessions.md`.
+- **`navigator.wakeLock` does not exist in either WebView** (browser-only), so it
+  holds the screen on the web and nowhere else. Don't "fix" that by pinning the
+  display on native — a run is recorded screen-off in a pocket and the battery is
+  the constraint. Native recording must survive backgrounding instead.
 - **A foreground service holds the app process, NOT the WebView renderer.** The
   renderer is a separate sandboxed process, and its default priority policy is
   *waived* as soon as the WebView stops being visible — so a backgrounded

@@ -73,10 +73,26 @@ frozen time in the text). Stop: Android tears down with the watcher; iOS ends
 its Live Activity via `resetRunNotification` (idempotent `cleared` flag; the
 first reset after mount also sweeps a stale card left by a crashed session).
 
-**On Android a JS push is a seed, not the update mechanism.** Android freezes
-the WebView's task queues once the app is backgrounded, so *no* JS runs with the
-screen off — not a throttled trickle, nothing: the bridge callback that delivers
-a fix does not wake it. Recording is unaffected (the fixes queue natively and
+**On Android a JS push is a seed, not the update mechanism.** Treat backgrounded
+JS as unavailable and compute natively — but for the right reason, because the
+obvious one is **wrong** and cost three misdirected fixes:
+
+> ~~*no* JS runs with the screen off — not a throttled trickle, nothing: the
+> bridge callback that delivers a fix does not wake it.~~
+
+A capture from a real run disproves that flatly. With the location foreground
+service holding the process, the JS tracker accepted fixes every ~2s for the
+entire backgrounded stretch without a single gap. **The WebView keeps
+executing** — state, timers and input handling behind the stale picture stay
+perfectly correct. A tap lands on the live state, not the picture: Pause
+registered in the tracker the second it was pressed on a screen the runner had
+already written off as dead. See *When the recorder looks frozen* below.
+
+The native fold still earns its place, because the guarantee is weaker than the
+service: a session with **no** foreground service (a strapless indoor one) can be
+cached and genuinely frozen, and even a held process can be throttled. So push a
+seed and let native re-render — just don't reason from "JS is dead", because for
+a GPS run it isn't. Recording is unaffected (the fixes queue natively and
 land when the app comes back), but every JS-driven push stops, which is why the
 notification used to sit unchanged for a whole run and only refresh on unlock.
 So each push also carries `content.live` — `{km, paceSecPerKm, hr, hrAtMs,
@@ -105,6 +121,60 @@ deployment target 16.2); `RunActivityAttributes.swift` is compiled into BOTH
 the app and the extension (shared content-state contract — never fork it).
 The widget's bundle id `solutions.camboulive.run.widgets` signs with its own
 App Store profile — see `docs/release.md` → iOS signing.
+
+## When the recorder looks frozen
+
+**It is a stale picture, not a dead app — and the two are indistinguishable by
+eye.** This cost four attempted fixes across three releases, every one of them
+aimed at keeping alive something that was never dying (a foreground service, a
+renderer priority policy, a deferred rebuild, a compositor poke).
+
+The measured timeline, from `shell_diagnostics` on a Fairphone FP4 / API 35:
+
+| | |
+|---|---|
+| 09:07:25–09:14:26 | JS accepts a GPS fix every ~2s, **unbroken**, backgrounded throughout. 142 points, ~1 km |
+| — | screen shows `0.22 km · 1:45` the whole time, a frame from ~09:09 |
+| 09:15:08 | shell records `foreground` |
+| 09:15:12 | **`pause` — the runner's tap on the "dead" screen registers in the tracker** |
+| 09:16:00 | the page's own `visibilitychange` → visible, **52s after the activity resumed** |
+| 09:16:27 | `stop pts=142` — Finish works too |
+
+So: execution fine, input fine, state fine. And **painting fine too** — the last
+observation, which arrived after the fixes above had been attempted, is that the
+*map keeps panning and redrawing* through the whole stale stretch. Leaflet writes
+to the DOM imperatively, outside React, so a moving map is direct proof that the
+compositor is drawing and touch is being delivered. Whatever stalls sits *above*
+painting: React not committing, or the tracker's 1s tick not firing.
+`src/diag/frameHeartbeat.ts` measures exactly those two.
+
+### The trigger was not in this app
+
+Three releases spanning three weeks (v1.14.0, v1.12.0, v1.11.3) fail
+**identically**, and v1.11.3 predates every mechanism that had been suspected.
+Reverting **Android System WebView** to its factory version fixed the *oldest* of
+them. Android System WebView is a Play-updated system app: it changes underneath
+a build that has not changed at all, which is why bisecting the app found nothing
+and why every shell-side fix missed. Reinstalling the WebView updates and the
+latest build then stopped the reproduction entirely — two variables at once, so
+that is unattributed, and the broken WebView version was never captured.
+
+`ShellDiagLog.webViewLabel()` now records the WebView package and version on
+every report, so the next occurrence identifies its own runtime.
+
+Three rules fall out of this, and all are cheap:
+
+- **Never read the screen as evidence.** Read `shell_diagnostics` (the shell's
+  own lifecycle, written natively) against the GPS log (written by JS). If the
+  JS log keeps advancing while the screen doesn't, the app is alive and the
+  picture is stale — the opposite conclusion from the obvious one.
+- **Measure the layer before fixing it.** Painting, React committing and the
+  tracker tick all present as one frozen screen and need different fixes. Four
+  rounds went to fixes for a layer that was never measured; `renderAge`/`tickAge`
+  in the report's `note` settle it in one line.
+- **A renderer reclaim is not memory pressure.** The one `renderer-gone` in that
+  capture carried `avail=3329MB total=7503MB low=false`. Sizing fixes around the
+  low-memory killer was reasoning from an assumption the data does not support.
 
 ## Route storage (`run_routes`)
 
@@ -448,6 +518,19 @@ lock-screen section above for why that has to be native.
 `getFixJournal`/`clearFixJournal` plugin methods — the crash-recovery layer
 that survives process death (see *Crash recovery* above). Lines parse
 individually so a torn last write costs one point, not the file.
+**The append runs on its own single thread, and that is not a detail.**
+`ServiceReceiver.onReceive` is delivered on the **main** thread
+(`LocalBroadcastManager` posts to the main looper), so journalling inline — as
+it did from v1.12.0 — put a synchronous file open/append/close on the **UI
+thread for every accepted fix**: ~0.5 Hz, for the whole of a run, against a
+file that grows all run. A stalled UI thread does not present as a stalled UI
+thread. WebView content is composited on it, so the last painted frame stays on
+screen while input dispatch stops — which reads exactly as "the recorder is
+frozen, the clock is stuck and every control is dead", the symptom three
+separate fixes attributed to the WebView renderer being reclaimed. Nothing may
+be added to this path that blocks. The trade is deliberate and small: a process
+killed with appends still queued loses the newest point or two (2s apart, and
+also in the localStorage buffer), where an ANR loses the entire run.
 (4) `LIVE_FIX` relay: every accepted fix is ALSO re-broadcast on the app-owned
 LocalBroadcast action `solutions.camboulive.run.LIVE_FIX` with the fold's own
 derived numbers (km, durationSec, curPace, gap flag), consumed by the

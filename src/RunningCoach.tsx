@@ -26,6 +26,7 @@ import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
 import { clearStaleLiveRun } from "./live/publisher";
+import { armShellReporting } from "./diag/shellLog";
 import { useLiveRun } from "./hooks/useLiveRun";
 import { flushPendingHr, hasHealthConnectAuthorization } from "./hr/healthconnect";
 import { flushPendingHkHr } from "./hr/healthkit";
@@ -324,6 +325,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   };
 
   useEffect(() => {
+    // Armed SYNCHRONOUSLY, not inside the async boot below: this component is
+    // keyed on `storeNonce` (App.tsx), so adopting a server row remounts it. A
+    // teardown that ran before an awaited assignment landed would leave the 60s
+    // interval and the visibilitychange listener behind, and the fresh mount
+    // would arm a second pair — one more every refresh. It needs nothing the
+    // boot loads: App gates rendering on initStore, so the user id is already
+    // set, and it re-reads the developer-log flag per attempt anyway.
+    const disarmShellReporting = armShellReporting();
     (async () => {
       const r = await db.get(STORAGE_KEYS.RUNS) as Run[] | null;
       const p = await db.get(STORAGE_KEYS.PLAN) as Plan | null;
@@ -436,6 +445,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         });
       });
     })();
+    return () => { disarmShellReporting(); };
     // Boot-once load: `t` is stable and must not re-trigger the whole boot on a
     // language switch, so it is intentionally omitted from the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps

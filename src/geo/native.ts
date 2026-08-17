@@ -117,6 +117,20 @@ export async function ensureForegroundPermission(highAccuracy = true) {
   }
 }
 
+// Tearing a watch down is fire-and-forget, and it MUST NOT be left uncaught.
+//
+// `Geolocation.clearWatch` rejects with "WatchId not found." whenever the id is
+// no longer live — a preview watch cleared twice, or one the OS had already
+// ended. Unhandled, that rejection reaches ErrorBoundary's `unhandledrejection`
+// listener, which paints the full-screen crash overlay over a perfectly working
+// app: the same trap CLAUDE.md documents for a bare `import()`. PostHog caught
+// three of these in one day, every one of them moments after a live run started
+// — which is exactly when the idle preview watch is torn down.
+//
+// There is nothing to do about a watch that is already gone, which is the whole
+// point: the teardown succeeded, by a different route.
+const swallowTeardown = () => { /* already gone — that is the desired state */ };
+
 export const nativeSource = {
   isAvailable: () => true,
 
@@ -179,7 +193,7 @@ export const nativeSource = {
               if (location) onPos(adaptBgLocation(location));
             },
           );
-          if (handle.removed) BackgroundGeolocation.removeWatcher({ id });
+          if (handle.removed) void Promise.resolve(BackgroundGeolocation.removeWatcher({ id })).catch(swallowTeardown);
           else { handle.id = id; logTrack("watch-start", { msg: "background" }); }
         } catch (e) {
           logTrack("error", { msg: "addWatcher-fail" });
@@ -191,7 +205,7 @@ export const nativeSource = {
         if (err) { onErr?.(adaptBgError(err)); return; }
         if (pos) onPos(pos); // already a GeolocationPosition-shaped object
       }).then((id) => {
-        if (handle.removed) Geolocation.clearWatch({ id });
+        if (handle.removed) void Geolocation.clearWatch({ id }).catch(swallowTeardown);
         else handle.id = id;
       }).catch((e) => onErr?.(adaptBgError(e)));
     }
@@ -203,8 +217,12 @@ export const nativeSource = {
     if (!handle) return;
     handle.removed = true;
     if (handle.id == null) return; // not yet started; the resolver above will remove it
-    if (handle.background) { logTrack("watch-stop", { msg: "background" }); BackgroundGeolocation.removeWatcher({ id: handle.id }); }
-    else Geolocation.clearWatch({ id: handle.id });
+    if (handle.background) {
+      logTrack("watch-stop", { msg: "background" });
+      void Promise.resolve(BackgroundGeolocation.removeWatcher({ id: handle.id })).catch(swallowTeardown);
+    } else {
+      void Geolocation.clearWatch({ id: handle.id }).catch(swallowTeardown);
+    }
   },
 
   // One-off coarse fix for "races near me" (Discover). Ensures foreground

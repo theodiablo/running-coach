@@ -13,6 +13,7 @@ import { armHrJournal, clearHrJournal, disarmHrJournal, resetHrJournal } from ".
 import { startIndoorSessionService, stopIndoorSessionService } from "../indoor/session";
 import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
+import { clearRecorderMarks, markTick } from "../diag/frameHeartbeat";
 import { t } from "../i18n";
 import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
@@ -490,6 +491,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   useEffect(() => {
     if (state !== "tracking") return;
     const id = setInterval(() => {
+      markTick(); // diagnostics: proves this timer is still firing (see frameHeartbeat)
       setMovingSec(computeMoving());
       const now = Date.now();
       if (now - lastBufferPersistRef.current >= BUFFER_TICK_MS) {
@@ -507,6 +509,17 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
       const tracking = stateRef.current === "tracking" || stateRef.current === "paused";
       if (document.visibilityState === "visible") {
         if (tracking) logTrack("visible");
+        // Correct the clock NOW rather than waiting for the next tick. The 1s
+        // interval below is a timer, and Chromium throttles timers in a hidden
+        // page — to one wake-up per MINUTE once it has been hidden five minutes.
+        // So on picking the phone up the displayed time could sit unchanged for
+        // up to a minute before the interval next fired, with distance frozen
+        // beside it (a runner standing still produces no accepted fix, so
+        // nothing else re-renders either). Two frozen numbers and a map that
+        // isn't moving read as a dead app — which is precisely what was
+        // reported, right after a 15-minute backgrounded stretch.
+        // computeMoving is wall-clock, so one call is a full correction.
+        if (tracking) setMovingSec(computeMoving());
         if (stateRef.current === "tracking") acquireWake();
       } else {
         if (tracking) logTrack("hidden");
@@ -515,12 +528,13 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [acquireWake, persist]);
+  }, [acquireWake, persist, computeMoving]);
 
   // Tear down on unmount. The indoor service goes too — it holds the process,
   // so leaking it would pin a notification to a session that no longer exists.
   useEffect(() => () => {
     stopWatch(); stopHrWatch(); releaseWake();
+    clearRecorderMarks(); // nothing is rendering a recorder any more — see frameHeartbeat
     if (indoor) stopIndoorSessionService();
   }, [stopWatch, stopHrWatch, releaseWake, indoor]);
 

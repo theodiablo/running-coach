@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Geolocation } from "@capacitor/geolocation";
-import { adaptBgLocation, adaptBgError, ensureForegroundPermission } from "./native";
+import { adaptBgLocation, adaptBgError, ensureForegroundPermission, nativeSource } from "./native";
 
 vi.mock("@capacitor/geolocation", () => ({
-  Geolocation: { checkPermissions: vi.fn(), getCurrentPosition: vi.fn() },
+  Geolocation: { checkPermissions: vi.fn(), getCurrentPosition: vi.fn(), clearWatch: vi.fn(), watchPosition: vi.fn() },
 }));
 vi.mock("@capacitor/core", () => ({
   registerPlugin: () => ({}),
@@ -132,5 +132,30 @@ describe("ensureForegroundPermission", () => {
     checkPermissions.mockRejectedValue(new Error("Location services are not enabled."));
     getCurrentPosition.mockRejectedValue(new Error("Request to enable location was denied."));
     await expect(ensureForegroundPermission()).resolves.toBe(false);
+  });
+});
+
+
+// Tearing down a watch is fire-and-forget, and an uncaught rejection here is not
+// cosmetic: ErrorBoundary listens for `unhandledrejection` and paints the
+// full-screen crash overlay over a working app. `Geolocation.clearWatch` rejects
+// with "WatchId not found." for any id that is no longer live — which PostHog
+// recorded three times in one day, each moments after a live run started, i.e.
+// exactly when the idle preview watch is cleared.
+//
+// Asserted as "a rejection handler is attached" rather than "no unhandled
+// rejection fired": the runner's process reports the latter too late and too
+// unreliably for a test, so it passes with the fix reverted. This assertion
+// fails the moment the `.catch` goes.
+describe("clearWatch teardown", () => {
+  it("attaches a rejection handler for a watch that is already gone", () => {
+    const onRejected = vi.fn().mockReturnThis();
+    vi.mocked(Geolocation.clearWatch).mockReturnValue(
+      { catch: onRejected } as unknown as Promise<void>);
+
+    nativeSource.clearWatch({ id: "w1", removed: false, background: false });
+
+    expect(Geolocation.clearWatch).toHaveBeenCalledWith({ id: "w1" });
+    expect(onRejected).toHaveBeenCalledWith(expect.any(Function));
   });
 });
