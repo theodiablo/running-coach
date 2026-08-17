@@ -1092,7 +1092,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showRestore && <RestoreModal onRestore={handleRestore}     onClose={() => setShowRestore(false)}/>}
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
-        scanImportsNow={shared.scanImportsNow} user={user} plan={plan} isPremium={isPremium}
+        scanImportsNow={shared.scanImportsNow} user={user} plan={plan}
         onBackup={()  => { setShowSettings(false); exportData(); }}
         onRestore={() => { setShowSettings(false); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}

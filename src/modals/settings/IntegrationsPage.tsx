@@ -19,7 +19,6 @@ type IntegrationsPageProps = {
   showToast?: (msg: string, type?: string) => void;
   scanImportsNow?: () => Promise<number>;
   onImportFile?: () => void;
-  isPremium?: boolean;
 };
 
 export function IntegrationsPage({ onImportFile, ...connectionProps }: IntegrationsPageProps) {

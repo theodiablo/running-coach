@@ -20,7 +20,6 @@
 // Architecture, protocol, deploy/secrets: docs/integrations-suunto.md.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isPremiumActive } from "../_shared/premium.mjs";
 
 const SUUNTO_CLIENT_ID = Deno.env.get("SUUNTO_CLIENT_ID");
 const SUUNTO_CLIENT_SECRET = Deno.env.get("SUUNTO_CLIENT_SECRET");
@@ -56,23 +55,6 @@ const CORS = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
-
-// Suunto is landing premium-first (docs/monetization.md) — same pattern as
-// route-suggest's isPremiumUser. Reads profiles.premium_until through the
-// admin (service-role) client, since the column is service-role-writable only.
-// THROWS on a genuine read failure (never tell a paying user they aren't
-// premium); 42703 (migration not yet applied) answers "not premium" so the
-// gated feature stays shut rather than erroring for everyone.
-async function isPremiumUser(admin: SupabaseClient, userId: string): Promise<boolean> {
-  const { data, error } = await admin.from("profiles")
-    .select("premium_until").eq("id", userId).maybeSingle();
-  if (error?.code === "42703") {
-    console.error("suunto-import: profiles.premium_until missing — apply the premium migration");
-    return false;
-  }
-  if (error) throw error;
-  return isPremiumActive(data?.premium_until);
-}
 
 type ConnectionRow = {
   external_user_id: string;
@@ -249,14 +231,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-
-    // Premium gate: Suunto is landing premium-first, so every action that
-    // touches the connection needs an active grant. `status` (harmless read,
-    // used by the client to decide what to render) and `disconnect` (must
-    // always be reachable, e.g. after a lapsed grant) stay ungated.
-    if (action !== "status" && action !== "disconnect" && !(await isPremiumUser(admin, user.id))) {
-      return json({ error: "premium feature", code: "PREMIUM_REQUIRED" });
-    }
 
     const loadRow = async (): Promise<ConnectionRow | null> => {
       const { data } = await admin.from("integration_connections")
