@@ -58,6 +58,15 @@ export const providerEnabledInSettings = (
 
 export const getProvider = (id: string) => importProviders.find(p => p.id === id) || null;
 
+// Which source a scan's candidates came from, for the import toast: the shared
+// provider id, or null when a scan merged several (Health Connect and Suunto in
+// the same pass) or the runs carry no stamp. Null means "say it generically" —
+// naming one of two sources would be worse than naming neither.
+export function scanSourceId(runs: ImportedRun[]): string | null {
+  const ids = new Set((runs || []).map(r => r.providerId).filter(Boolean));
+  return ids.size === 1 ? [...ids][0] as string : null;
+}
+
 type ScanAllOptions = {
   days?: number;
   now?: number;
@@ -85,7 +94,11 @@ export async function scanAllProviders(runs: Run[], opts: ScanAllOptions = {}): 
       const candidates = await p.scan((runs || []).concat(found as Run[]), { days: opts.days, now: opts.now, trigger: opts.trigger });
       for (const cand of candidates || []) {
         // Recompute per candidate so a batch also dedupes against itself.
-        if (!isDuplicateRun(cand, (runs || []).concat(found as Run[]), seenIds)) found.push(cand);
+        // Stamped with the provider that produced it so the import toast can
+        // name the source; transient, stripped by persistImportedRoute.
+        if (!isDuplicateRun(cand, (runs || []).concat(found as Run[]), seenIds)) {
+          found.push({ ...cand, providerId: p.id });
+        }
       }
     } catch { /* provider failed — skip it, others still run */ }
   }

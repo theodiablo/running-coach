@@ -23,8 +23,15 @@
     "runDeleted": "Run deleted.",
     "runUpdated": "Run updated.",
     "restored": "Restored — {{n}} run(s) imported.",
-    "foundRun": "Found a run from your watch — {{km}} km on {{date}}",
-    "foundRuns": "Found {{n}} runs from your watch",
+    "foundRun": "New run from {{source}} — {{km}} km on {{date}}",
+    "foundRuns": "{{n}} new runs from {{source}}",
+    "sources": {
+      "healthconnect": "your watch",
+      "healthkit": "your watch",
+      "polar": "Polar",
+      "suunto": "Suunto",
+      "generic": "your watch"
+    },
     "review": "Review",
     "importAll": "Import all",
     "emailChangeDone": "Email address updated to {{email}}.",

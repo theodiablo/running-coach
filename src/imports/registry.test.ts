@@ -28,7 +28,7 @@ vi.mock("./providers/cloud", async (importOriginal) => ({
   },
 }));
 
-import { scanAllProviders } from "./registry";
+import { scanAllProviders, scanSourceId } from "./registry";
 
 beforeEach(() => {
   localStorage.clear();
@@ -96,6 +96,26 @@ describe("scanAllProviders", () => {
     hcScan.mockResolvedValue([runA]);
     cloudScan.mockRejectedValue(new Error("boom"));
     expect(await scanAllProviders([])).toHaveLength(0);
+  });
+
+  // The import toast names the integration that delivered the runs, and only
+  // the registry knows which scan produced each one — deriving it downstream
+  // would mean re-reading id prefixes off the run.
+  it("stamps each candidate with the provider that produced it", async () => {
+    hcScan.mockResolvedValue([runA]);
+    cloudScan.mockResolvedValue([{ date: "2026-07-08", km: 12, durationSec: 3600, startedAt: "2026-07-08T07:00:00Z", extId: "g2" }]);
+    const out = await scanAllProviders([]);
+    expect(out.map(r => r.providerId)).toEqual(["healthconnect", "garmin"]);
+  });
+});
+
+describe("scanSourceId", () => {
+  it("names a single source and stays silent about a merged scan", () => {
+    expect(scanSourceId([{ providerId: "suunto" }, { providerId: "suunto" }])).toBe("suunto");
+    // Two sources in one pass: naming either one would be wrong.
+    expect(scanSourceId([{ providerId: "suunto" }, { providerId: "healthconnect" }])).toBeNull();
+    expect(scanSourceId([{ km: 5 }])).toBeNull();
+    expect(scanSourceId([])).toBeNull();
   });
 });
 

@@ -9,7 +9,16 @@ import type { HrSample } from "./series";
 // strips the fields before addRuns — providers never import routes.ts, so they
 // stay pure and unit-testable. A run with points → routeId; HR series with no
 // points → hrRouteId (see persistImportedRoute).
-export type ImportedRun = Partial<Run> & { points?: TrackPointOrGap[]; hrSamples?: HrSample[] };
+// `providerId` is transient too, and stamped by the registry rather than by the
+// provider — scanAllProviders already knows which scan produced each candidate,
+// so the save path never has to re-derive a source from id prefixes. It exists
+// to name the source in the import toast; persistImportedRoute strips it with
+// the rest, so it never reaches addRuns.
+export type ImportedRun = Partial<Run> & {
+  points?: TrackPointOrGap[];
+  hrSamples?: HrSample[];
+  providerId?: string;
+};
 
 export type ImportParseResult = { runs: ImportedRun[]; error?: string | null };
 

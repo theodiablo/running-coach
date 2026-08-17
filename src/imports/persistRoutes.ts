@@ -18,7 +18,12 @@ import type { Run } from "../types";
 // card without History offering a blank map. The raw HR stream sits in the same
 // `stats.hrSamples` sidecar a BLE-strap run uses.
 export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>> {
-  const { points, hrSamples, ...run } = r;
+  // providerId rides along for the import toast only — destructured out here
+  // with the other transients so no provenance marker the Run shape doesn't
+  // define can reach addRuns and the synced blob. Discarding it IS the point,
+  // so the binding is deliberately unused.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { points, hrSamples, providerId, ...run } = r;
   const hasRoute = !!points?.length;
   const hasHr = !!hrSamples?.length;
   if (!hasRoute && !hasHr) return run;

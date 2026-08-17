@@ -411,6 +411,15 @@ add it here.
 `dismissAll`): a manual scan is started from inside Settings, which otherwise
 stays open over the destination and makes the sync button look inert.
 
+**The toast names the source it came from** ("New run from Suunto"), because
+with several sources connected a generic "from your watch" doesn't say which
+one actually delivered. `scanAllProviders` stamps each candidate with
+`providerId` — it's the only layer that knows, so never re-derive a source from
+`extId` prefixes downstream — and `scanSourceId` collapses a scan to one id, or
+`null` when a pass merged two (naming either would be wrong; falls back to
+`app.toasts.sources.generic`). The stamp is transient: read it off the scan
+result, not off `found`, which `persistImportedRoutes` has already stripped.
+
 **Cloud rows are not windowed.** `days` reaches only the health-store
 providers; a cloud provider syncs from its own server-side cursor, so its row
 says "Sync now" and never names a window (`settings.integrations.syncNow`).
