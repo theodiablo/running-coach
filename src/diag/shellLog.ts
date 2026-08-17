@@ -3,7 +3,7 @@ import { isAndroid, nativeBuildLabel, platform } from "../native";
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { getTrackLog, isGeoDebugEnabled } from "../geo/trackLog";
-import { frameAgeMs, renderAgeMs, startFrameHeartbeat, tickAgeMs } from "./frameHeartbeat";
+import { renderAgeMs, tickAgeMs } from "./frameHeartbeat";
 
 // Reads the shell diagnostics the Android side records (ShellDiagLog.kt) — the
 // half of the story the JS GPS log cannot tell.
@@ -97,11 +97,9 @@ function findLast(events: ShellDiagEvent[], match: (e: ShellDiagEvent) => boolea
 // ── filing a report ────────────────────────────────────────────────────────
 
 function clientState(): string {
-  const age = frameAgeMs();
   const vis = typeof document !== "undefined" ? document.visibilityState : "?";
   const ms = (v: number | null) => (v == null ? "never" : v + "ms");
-  return `frameAge=${ms(age)} renderAge=${ms(renderAgeMs())} tickAge=${ms(tickAgeMs())}`
-    + ` visibilityState=${vis}`;
+  return `renderAge=${ms(renderAgeMs())} tickAge=${ms(tickAgeMs())} visibilityState=${vis}`;
 }
 
 /**
@@ -136,10 +134,9 @@ export async function fileShellReport(note?: string): Promise<boolean> {
       events: report.events,
       track,
       // The client-side half of the picture, carried on `note` so it needs no
-      // schema change mid-incident: whether the page was actually RENDERING
-      // when the report was filed. A stale frameAge with correct native
-      // visibility flags is the difference between "not producing frames" and
-      // "producing frames nobody sees" — opposite fixes.
+      // schema change mid-incident: which layer above painting had stopped.
+      // A stale renderAge and a stale tickAge mean different things and need
+      // different fixes — see src/diag/frameHeartbeat.ts.
       note: [note, clientState()].filter(Boolean).join(" | "),
     });
     return !error;
@@ -169,7 +166,7 @@ async function fileIfNew(reason: string): Promise<void> {
  * Arm automatic filing. Nothing to press, and nothing to remember to press —
  * the whole point is that the report exists for a failure nobody was expecting.
  *
- * Two triggers, covering the two ways a session ends badly:
+ * Three triggers, covering the ways a session ends badly:
  *
  *  • **Boot.** Whatever killed the last session is by definition no longer
  *    running, and the native log is sitting there describing it. This is the
@@ -178,6 +175,8 @@ async function fileIfNew(reason: string): Promise<void> {
  *  • **Return to the foreground.** Catches the case where nothing was killed
  *    at all — the app came back by itself — which is a different bug and needs
  *    to be told apart from the other two rather than going unreported.
+ *  • **A 60s timer**, which is the only one that survives a page that never
+ *    learns it is visible again — see the comment on it below.
  *
  * Gated on the hidden developer log, deduped on the newest native event, and
  * best-effort throughout. Returns its own teardown.
@@ -188,7 +187,6 @@ export function armShellReporting(): () => void {
   // log mid-session did nothing until the next restart, which is exactly the
   // moment someone reaches for it: the app has just misbehaved and the evidence
   // is sitting on the device unsent.
-  const stopHeartbeat = startFrameHeartbeat();
   void fileIfNew("auto: app boot").catch(() => { /* best-effort */ });
   const onVisible = () => {
     if (document.visibilityState !== "visible") return;
@@ -208,7 +206,6 @@ export function armShellReporting(): () => void {
   return () => {
     document.removeEventListener("visibilitychange", onVisible);
     clearInterval(poll);
-    stopHeartbeat();
   };
 }
 

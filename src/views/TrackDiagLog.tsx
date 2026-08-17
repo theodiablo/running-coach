@@ -98,7 +98,7 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
         </p>
       )}
       {report.device && <p className="text-[11px] text-slate-500">{report.device}</p>}
-      <p className="text-[11px] text-slate-500">Filed automatically — on every app start, and on each return to the foreground with something new.</p>
+      <p className="text-[11px] text-slate-500">Filed automatically — on app start, on each return to the foreground, and once a minute while anything new has landed.</p>
       {rows.length === 0
         ? <p className="text-xs text-slate-500 py-2">Nothing recorded yet.</p>
         : (

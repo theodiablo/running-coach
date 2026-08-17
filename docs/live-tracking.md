@@ -82,12 +82,11 @@ obvious one is **wrong** and cost three misdirected fixes:
 
 A capture from a real run disproves that flatly. With the location foreground
 service holding the process, the JS tracker accepted fixes every ~2s for the
-entire backgrounded stretch without a single gap. **The WebView keeps executing;
-it stops painting.** The page is `hidden` to Chromium, so rendering is throttled
-and the screen holds a stale frame — while state, timers and input handling
-behind it stay perfectly correct. A tap lands on the live state, not the picture:
-Pause registered in the tracker the second it was pressed on a screen the runner
-had already written off as dead. See *When the recorder looks frozen* below.
+entire backgrounded stretch without a single gap. **The WebView keeps
+executing** — state, timers and input handling behind the stale picture stay
+perfectly correct. A tap lands on the live state, not the picture: Pause
+registered in the tracker the second it was pressed on a screen the runner had
+already written off as dead. See *When the recorder looks frozen* below.
 
 The native fold still earns its place, because the guarantee is weaker than the
 service: a session with **no** foreground service (a strapless indoor one) can be
@@ -125,10 +124,10 @@ App Store profile — see `docs/release.md` → iOS signing.
 
 ## When the recorder looks frozen
 
-**It is a stale frame, not a dead app — and the two are indistinguishable by
-eye.** This cost four attempted fixes across three releases, three of them aimed
-at keeping alive something that was never dying (a foreground service, a renderer
-priority policy, a deferred rebuild).
+**It is a stale picture, not a dead app — and the two are indistinguishable by
+eye.** This cost four attempted fixes across three releases, every one of them
+aimed at keeping alive something that was never dying (a foreground service, a
+renderer priority policy, a deferred rebuild, a compositor poke).
 
 The measured timeline, from `shell_diagnostics` on a Fairphone FP4 / API 35:
 
@@ -141,24 +140,38 @@ The measured timeline, from `shell_diagnostics` on a Fairphone FP4 / API 35:
 | 09:16:00 | the page's own `visibilitychange` → visible, **52s after the activity resumed** |
 | 09:16:27 | `stop pts=142` — Finish works too |
 
-So: execution fine, input fine, state fine, **paint stale**. Chromium throttles
-rendering for a page it believes is hidden, and that belief outlived the activity
-resuming by nearly a minute.
+So: execution fine, input fine, state fine. And **painting fine too** — the last
+observation, which arrived after the fixes above had been attempted, is that the
+*map keeps panning and redrawing* through the whole stale stretch. Leaflet writes
+to the DOM imperatively, outside React, so a moving map is direct proof that the
+compositor is drawing and touch is being delivered. Whatever stalls sits *above*
+painting: React not committing, or the tracker's 1s tick not firing.
+`src/diag/frameHeartbeat.ts` measures exactly those two.
 
-`MainActivity.onResume` therefore calls `webView.onResume()`, `resumeTimers()`
-and `invalidate()`. Capacitor calls none of these — its only caller is the
-Cordova path (`cordovaWebView`), which is null with no Cordova plugins installed
-— so nothing was telling the WebView it was back on screen. All three are
-idempotent and safe when nothing was ever paused. They are deliberately **not**
-paired with `onPause`/`pauseTimers`: recording depends on that JS continuing to
-run in the background.
+### The trigger was not in this app
 
-Two rules fall out of this, and both are cheap:
+Three releases spanning three weeks (v1.14.0, v1.12.0, v1.11.3) fail
+**identically**, and v1.11.3 predates every mechanism that had been suspected.
+Reverting **Android System WebView** to its factory version fixed the *oldest* of
+them. Android System WebView is a Play-updated system app: it changes underneath
+a build that has not changed at all, which is why bisecting the app found nothing
+and why every shell-side fix missed. Reinstalling the WebView updates and the
+latest build then stopped the reproduction entirely — two variables at once, so
+that is unattributed, and the broken WebView version was never captured.
+
+`ShellDiagLog.webViewLabel()` now records the WebView package and version on
+every report, so the next occurrence identifies its own runtime.
+
+Three rules fall out of this, and all are cheap:
 
 - **Never read the screen as evidence.** Read `shell_diagnostics` (the shell's
   own lifecycle, written natively) against the GPS log (written by JS). If the
   JS log keeps advancing while the screen doesn't, the app is alive and the
   picture is stale — the opposite conclusion from the obvious one.
+- **Measure the layer before fixing it.** Painting, React committing and the
+  tracker tick all present as one frozen screen and need different fixes. Four
+  rounds went to fixes for a layer that was never measured; `renderAge`/`tickAge`
+  in the report's `note` settle it in one line.
 - **A renderer reclaim is not memory pressure.** The one `renderer-gone` in that
   capture carried `avail=3329MB total=7503MB low=false`. Sizing fixes around the
   low-memory killer was reasoning from an assumption the data does not support.

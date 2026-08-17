@@ -2,10 +2,7 @@ package solutions.camboulive.run;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.SystemClock;
-import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
@@ -169,153 +166,12 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        // onResume can run before the window is actually showing, so the poke is
-        // repeated here, where focus proves it is.
-        if (hasFocus) wakeWebView("focus");
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        wakeWebView("resume");
-    }
-
-    // **Wake the WebView's compositor, not its JavaScript.**
-    //
-    // The recorder "freezing" was never a freeze. Device captures show JS running
-    // unbroken through the whole backgrounded stretch — GPS fixes accepted every
-    // ~2s — while the screen kept a frame minutes old. Taps worked too: Pause
-    // registered in the tracker the second the runner pressed a button they had
-    // been told was dead. Nothing died; the WebView stopped PAINTING.
-    //
-    // Measured across two runs: painting continues for ~60s after the app is
-    // backgrounded (+60s, +61s) and then stops, so the frame the runner returns to
-    // is always their state from about a minute after they pocketed the phone.
-    // That is exactly the "stuck after sixty seconds" this started as. It does not
-    // restart on its own for a long time — the page's own visibilitychange fired
-    // 52s after the activity had already resumed.
-    //
-    // onResume()/resumeTimers() ALONE CANNOT FIX THAT, which is why the first
-    // attempt changed nothing: both are documented as undoing an explicit
-    // onPause()/pauseTimers(), and nothing here ever called either. Chromium
-    // derives page visibility from the WebView's view AND window flags, and the
-    // window flag is the one arriving late, so it is pushed directly. All of this
-    // is idempotent.
-    //
-    // Deliberately NOT paired with onPause/pauseTimers: recording depends on this
-    // JS continuing to run in the background, which — contrary to what
-    // docs/live-tracking.md long assumed — it demonstrably does while the location
-    // foreground service holds the process.
-    private void wakeWebView(String from) {
-        WebView webView = bridge == null ? null : bridge.getWebView();
-        if (webView == null) return;
-        try {
-            // Recorded so a failure is still informative: if the next report shows
-            // this running and the screen was STILL stale, the stale state is not
-            // the window-visibility flag and the next lever is a reload.
-            ShellDiagLog.record(this, "wake-webview",
-                from + " visibility=" + webView.getVisibility()
-                    + " windowVisibility=" + webView.getWindowVisibility()
-                    + " attached=" + webView.isAttachedToWindow()
-                    + " " + ShellDiagLog.powerSnapshot(this));
-            webView.onResume();
-            webView.resumeTimers();
-            webView.dispatchWindowVisibilityChanged(View.VISIBLE);
-            probeDrawing(webView);
-            // Every flag above already reads correct at focus time — measured:
-            // `visibility=0 windowVisibility=0 attached=true` while the runner
-            // was looking at a frame minutes old. Re-asserting a value that is
-            // already set fires no change, so nothing downstream recomputes.
-            // A real INVISIBLE→VISIBLE transition does, and it is the cheapest
-            // lever left that forces the view hierarchy to rebuild the layer
-            // rather than re-present the last one. Split across two frames or
-            // the two calls coalesce into no change at all.
-            webView.setVisibility(View.INVISIBLE);
-            webView.post(() -> {
-                webView.setVisibility(View.VISIBLE);
-                webView.invalidate();
-            });
-        } catch (Exception exception) {
-            Logger.error("Could not wake the WebView", exception);
-        }
-    }
-
-    @Override
     public void onStop() {
         super.onStop();
         started = false;
         // The anchor every later event is read against: a renderer-gone or a
         // cold create AFTER this one says what died while the app was away.
         ShellDiagLog.record(this, "background", ShellDiagLog.powerSnapshot(this));
-    }
-
-
-    // ── "is this WebView actually drawing?" ──────────────────────────────────
-    //
-    // The cause was never in this app. Three releases spanning three weeks fail
-    // identically, and reverting Android System WebView to its factory version
-    // fixes the OLDEST of them — so the regression is in the WebView, which is a
-    // Play-updated system app that changes underneath a build that hasn't. We
-    // cannot ship a fix for it and cannot ask a runner to downgrade a system
-    // component, so the app has to notice and recover.
-    //
-    // postVisualStateCallback is the exact question, asked of the right layer:
-    // it fires when the WebView's current state is ready to be drawn. If it does
-    // not fire shortly after the window has focus, the WebView is not drawing —
-    // which is the failure, stated directly, rather than inferred from a stale
-    // clock or a flag that reads correct.
-    private static final long DRAW_PROBE_TIMEOUT_MS = 2500;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private long drawProbeSeq = 0;
-
-    private void probeDrawing(WebView webView) {
-        final long seq = ++drawProbeSeq;
-        final Runnable onTimeout = () -> {
-            if (seq != drawProbeSeq) return; // superseded, or the callback landed
-            drawProbeSeq++;
-            recoverStuckWebView(webView);
-        };
-        mainHandler.postDelayed(onTimeout, DRAW_PROBE_TIMEOUT_MS);
-        try {
-            webView.postVisualStateCallback(seq, new WebView.VisualStateCallback() {
-                @Override
-                public void onComplete(long requestId) {
-                    if (requestId != drawProbeSeq) return;
-                    drawProbeSeq++; // it drew — stand the timeout down
-                    mainHandler.removeCallbacks(onTimeout);
-                }
-            });
-        } catch (Exception exception) {
-            mainHandler.removeCallbacks(onTimeout);
-            Logger.error("Could not probe WebView drawing", exception);
-        }
-    }
-
-    // Re-attach rather than reload. Detaching and re-adding the view runs the
-    // whole attach path again — window visibility, surface, compositor — which is
-    // what is stale, WITHOUT touching the page: JS state, the in-memory run and
-    // its GPS points all survive. A reload would cost the runner their tracker
-    // state and bounce them into a resume prompt mid-run, so it is not done here
-    // even as a fallback; the recording itself is never at risk either way,
-    // because it lives natively.
-    private void recoverStuckWebView(WebView webView) {
-        try {
-            ShellDiagLog.record(this, "webview-stuck",
-                "no frame in " + DRAW_PROBE_TIMEOUT_MS + "ms — re-attaching · "
-                    + ShellDiagLog.webViewLabel());
-            ViewGroup parent = (ViewGroup) webView.getParent();
-            if (parent == null) return;
-            int index = parent.indexOfChild(webView);
-            ViewGroup.LayoutParams params = webView.getLayoutParams();
-            parent.removeView(webView);
-            parent.addView(webView, index, params);
-            webView.requestLayout();
-            webView.invalidate();
-        } catch (Exception exception) {
-            Logger.error("Could not recover a stuck WebView", exception);
-        }
     }
 
     private void relaunch() {

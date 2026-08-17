@@ -1,54 +1,20 @@
-// Is the page actually being RENDERED, or only executing?
+// Is the recorder still UPDATING, or only alive?
 //
-// Three device captures agree that the recorder is alive while its screen is
-// stale: JS accepts GPS fixes throughout, taps register, and — as of the last
-// build — every Android visibility flag reads correct (`visibility=0`,
-// `windowVisibility=0`, `attached=true`) at the moment the runner is looking at
-// a frame minutes old. So "the WebView thinks it is hidden" is ruled out, and
-// two very different explanations remain:
+// A recorder that comes back from a backgrounded stretch showing a frame minutes
+// old looks identical whether nothing is running or everything is. Three device
+// captures agree it is the latter: JS accepts GPS fixes every ~2s throughout,
+// taps register (Pause landed the instant it was pressed on a screen already
+// written off as dead), and every Android visibility flag reads correct
+// (`visibility=0`, `windowVisibility=0`, `attached=true`).
 //
-//   1. the page is not producing frames at all (throttled despite the flags), or
-//   2. it is producing frames that never reach the display (surface/compositor).
+// Painting is not the stalled layer either — while the numbers are frozen the
+// MAP still pans and redraws, and Leaflet writes to the DOM imperatively,
+// outside React. A moving map proves the compositor is drawing and that touch is
+// being delivered. (Which is why there is no rAF probe here: `requestAnimationFrame`
+// is not serviced at all for a hidden page, so it reads "stale" in the healthy
+// and broken cases alike — it cannot answer the question it looks like it answers.)
 //
-// `requestAnimationFrame` separates them cleanly, because it fires only when the
-// page is actually being rendered. A stale `frameAge` means (1); a fresh one
-// alongside a stale screen means (2) — and they need opposite fixes, so guessing
-// between them is exactly what has cost four rounds already.
-//
-// Cost is nil: rAF does not fire at all while the page is hidden, and the
-// callback is one assignment when it is.
-
-let lastFrameAt = 0;
-let running = false;
-
-export function startFrameHeartbeat(): () => void {
-  if (running || typeof requestAnimationFrame !== "function") return () => {};
-  running = true;
-  let raf = 0;
-  const tick = () => {
-    lastFrameAt = Date.now();
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
-  return () => {
-    running = false;
-    if (raf) cancelAnimationFrame(raf);
-  };
-}
-
-/** ms since the last rendered frame, or null if none has been observed yet. */
-export function frameAgeMs(): number | null {
-  return lastFrameAt ? Date.now() - lastFrameAt : null;
-}
-
-// ── the two layers ABOVE painting ───────────────────────────────────────────
-//
-// A later observation splits the problem again: while the numbers are frozen,
-// the MAP still pans and redraws. Leaflet writes to the DOM imperatively,
-// outside React — so a moving map proves the compositor is drawing and that
-// touch is being delivered. Painting was never the stalled layer.
-//
-// That leaves two candidates above it, and they need different fixes:
+// That leaves the two layers above painting, and they need different fixes:
 //
 //   renderAge stale  → React is not committing. The DOM still holds the old
 //                      numbers, so a correct paint of stale content is exactly
@@ -59,7 +25,8 @@ export function frameAgeMs(): number | null {
 //                      to render, and distance is frozen beside it only because
 //                      a stationary runner produces no accepted fix.
 //
-// Both look identical from the outside. Measured, they are one line apart.
+// Both look identical from the outside. Measured, they are one line apart, and
+// each mark is one assignment on a code path that was going to run anyway.
 
 let lastRenderAt = 0;
 let lastTickAt = 0;
