@@ -5,6 +5,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.PowerManager
 import android.os.Build
+import android.webkit.WebView
 import com.getcapacitor.Logger
 import org.json.JSONArray
 import org.json.JSONObject
@@ -118,8 +119,28 @@ object ShellDiagLog {
         }
     }
 
+    // Which WebView is actually rendering the app — the single most important
+    // fact about a rendering bug, and the one nothing else records.
+    //
+    // Android System WebView is a separate, Play-updated system app: it changes
+    // under a build that has not changed at all. That is why bisecting the app
+    // found nothing — three releases spanning three weeks all failed, and
+    // reverting the WebView to its factory version fixed the OLDEST of them.
+    // Without this line a report cannot distinguish "our regression" from "the
+    // runtime moved", which cost a day.
     @JvmStatic
-    fun deviceLabel(): String = "${Build.MANUFACTURER} ${Build.MODEL} / API ${Build.VERSION.SDK_INT}"
+    fun webViewLabel(): String {
+        return try {
+            val pkg = WebView.getCurrentWebViewPackage()
+            if (pkg == null) "webview=?" else "webview=${pkg.packageName} ${pkg.versionName}"
+        } catch (exception: Exception) {
+            "webview=?"
+        }
+    }
+
+    @JvmStatic
+    fun deviceLabel(): String =
+        "${Build.MANUFACTURER} ${Build.MODEL} / API ${Build.VERSION.SDK_INT} / ${webViewLabel()}"
 
     @JvmStatic
     @Synchronized
