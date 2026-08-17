@@ -44,9 +44,11 @@ webhook to map a free user's workouts into.
     bytes — the client's global 15s Supabase fetch timeout would abort batched
     binaries): staged rows flagged `staged`, listed workouts walked ascending
     from the cursor. **Never advances the cursor.**
-  - `fit {key}` → one base64 FIT. `gone` (404/410) is the only terminal miss;
-    401/403/429/5xx/network are `transient` so quota exhaustion can't
-    permanently degrade runs to summary-only.
+  - `fit {key}` → one base64 FIT, from the **self-calibrating** export endpoint
+    below. `gone` (404/410 on the *calibrated* endpoint) is the only terminal
+    miss; 401/403/429/5xx/network — and every miss before calibration — are
+    `transient` so quota exhaustion can't permanently degrade runs to
+    summary-only.
   - `ack {cursor, stagedKeys}` → `ack_integration_cursor` RPC (atomic
     `greatest()`, rewind-proof) + staged-row deletion. The client acks only
     AFTER runs are saved — an unacked page re-serves next scan.
@@ -66,6 +68,13 @@ webhook to map a free user's workouts into.
   - *No-progress break*: while runs are pending a save the server cursor is
     frozen, so the page loop stops as soon as a sync makes no progress —
     real throughput is one listing (~100 workouts) per user-confirmed scan.
+  - *Summary fallback* (`suuntoWorkoutToRun`, for indoor/FIT-less workouts and
+    anything the retry budget gave up on): reads each field by every name it is
+    known to arrive under — the listing and the webhook's trimmed body disagree
+    — and carries `totalAscent` into `elevation`. Heart rate normalises out of
+    Suunto's **Hz** form (2.7 Hz = 162 bpm): anything under 15 is beats per
+    second, because no workout average is 3 bpm and importing it as one would
+    poison the zones, the coach and every average downstream.
   - `disconnect` resets all of this (cache, retry budget, backfill flag).
 - **Cursor rules** (the load-bearing part, in `sync`):
   - The watermark is computed from **since-listed workouts only, never staged
@@ -91,17 +100,48 @@ webhook to map a free user's workouts into.
   account-existence oracle, nothing feeds the retry/circuit-breaker). Unset
   secret → immediate 200 before any DB access. Never logs bodies or signatures.
 
+## The FIT export endpoint calibrates itself
+
+The first live pass proved why this one couldn't stay a guess:
+`/v2/workouts` listed workouts fine while `/v2/workouts/exportFit/<key>`
+answered **401** with the same token and subscription key. Every import
+therefore took the summary fallback, which on screen is "No route was recorded
+for this run" and a distance rounded to 100 m — it never looks like an endpoint
+error, and the client's retry budget turned it into a *permanent* summary-only
+run after three scans.
+
+So `suunto-import` walks the candidates in `_shared/suunto/fitExport.mjs`
+(singular `workout` first — Suunto names the operation
+`export-user-workout-in-fit`, and only the listing is plural — and both the
+`Bearer` and bare-JWT auth styles, since Suunto's own getting-started curl
+passes the token bare) and remembers the one that returned real FIT bytes in
+`sync_state.fitVariant`. Afterwards every download is one request, with the
+other candidates left behind it as the net for the day the endpoint moves.
+
+Two rules keep the memo honest, both pinned by
+`src/imports/suuntoFitExport.test.ts`:
+
+- **A 2xx never calibrates on its own** — the body must start with `.FIT` at
+  bytes 8-11, or an APIM notice would be remembered as the export path.
+- **404/410 is terminal only on the calibrated endpoint.** Before calibration
+  it equally means no candidate was right, so it stays `transient`.
+
+Watch for `suunto-import fit endpoint calibrated <variant>` in the function
+logs on the first successful download.
+
 ## CALIBRATE on first live pass
 
 The partner docs sit behind the API agreement; these are isolated in one helper
 each and marked `CALIBRATE` in the code:
 
-1. List/FIT endpoint paths (`LIST_PATH`, `FIT_PATH`) and the list response
-   wrapper (`payload`).
+1. The list endpoint path (`LIST_PATH`) and the list response wrapper
+   (`payload`). *(Confirmed live: `/v2/workouts?since=&limit=` under
+   `payload`.)*
 2. `since` semantics + sort order. **If a modification-time filter exists,
    switch the watermark to it** — that subsumes late uploads and the overlap
    re-list becomes redundant.
-3. The access-token JWT's username claim (`usernameFromJwt`).
+3. The access-token JWT's username claim (`usernameFromJwt`). *(Confirmed
+   live: the `user` claim.)*
 4. Webhook signature encoding — hex and base64 are both accepted
    (`decodeSignature`); confirm against the docs' example.
 5. The activity-id sets (`RUN_ACTIVITY_IDS`/`WALK_ACTIVITY_IDS`) — skipped ids
@@ -113,9 +153,17 @@ Each calibration miss is **logged as counts/status only** — never a key, body
 or header — because from the client every one of them looks identical to "the
 sync button found nothing": `suunto-import sync since=… listed=… offered=…`
 per page, and `suunto-import fit failed <status>` / `fit missing <status>` per
-download. Read those first; a wrong `FIT_PATH` degrades every import to
-summary-only (no route, no HR series, round summary distances), and the
-client's retry budget hides it for three scans before it does.
+download. Read those first; a FIT endpoint that answers nothing usable
+degrades every import to summary-only (no route, no HR series, round summary
+distances), and the client's retry budget hides it for three scans before it
+does — that is exactly how the 401 above went unnoticed.
+
+**A summary-only import does not heal itself.** Once the run is saved its key
+is in `knownKeys` and the cursor has passed it, so a later fix imports nothing
+for it. To recover such runs: delete them in the app, then wait for (or reset
+`sync_state.lastOverlapCheck` to force) the daily 30-day overlap re-list, which
+re-offers them with the working endpoint. A full re-backfill is
+disconnect + reconnect.
 
 ## Activation (maintainer)
 

@@ -151,6 +151,24 @@ describe("suuntoWorkoutToRun", () => {
     expect(run!.hrMax).toBe(171);
   });
 
+  it("reads Suunto's own summary field names, and its Hz heart rate", () => {
+    // The webhook body and the listing don't spell these the same way, and
+    // Suunto reports HR in beats per SECOND in places — 2.7 Hz is 162 bpm, and
+    // importing it as 3 would poison the zones, the coach and every average.
+    const run = suuntoWorkoutToRun({
+      key: "alias", startTime: START, staged: false,
+      summary: { activityId: 3, startTime: START, distance: 10000, totalTime: 3000, hravg: 2.7, hrmax: 3.1 },
+    }, null);
+    expect(run).toMatchObject({ km: 10, durationSec: 3000, hr: 162, hrMax: 186 });
+  });
+
+  it("carries the summary's ascent as elevation, with or without a FIT", () => {
+    const summary = { activityId: 3, startTime: START, totalDistance: 10000, totalTime: 3000, totalAscent: 148.6 };
+    expect(suuntoWorkoutToRun({ key: "asc", startTime: START, staged: false, summary }, null)!.elevation).toBe(149);
+    // The FIT's own barometric climb wins when the trace has one.
+    expect(suuntoWorkoutToRun({ key: "asc2", startTime: START, staged: false, summary }, FIT_B64)!.elevation).toBe(10);
+  });
+
   it("falls back to the summary when the FIT is undecodable", () => {
     const run = suuntoWorkoutToRun({
       key: "wk4", startTime: START, staged: false,

@@ -21,6 +21,9 @@
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isPremiumActive } from "../_shared/premium.mjs";
+import {
+  fitVariantAuth, fitVariantPath, fitVariantsToTry, looksLikeFit,
+} from "../_shared/suunto/fitExport.mjs";
 
 const SUUNTO_CLIENT_ID = Deno.env.get("SUUNTO_CLIENT_ID");
 const SUUNTO_CLIENT_SECRET = Deno.env.get("SUUNTO_CLIENT_SECRET");
@@ -29,12 +32,12 @@ const hasSuuntoCreds = Boolean(SUUNTO_CLIENT_ID && SUUNTO_CLIENT_SECRET && SUUNT
 
 const TOKEN_URL = "https://cloudapi-oauth.suunto.com/oauth/token";
 const API = "https://cloudapi.suunto.com";
-// CALIBRATE: list/FIT endpoint paths and the `since` filter field (start time
+// CALIBRATE: the list endpoint path and the `since` filter field (start time
 // assumed; if the partner docs expose a modification-time filter, switch the
 // watermark to it — it also subsumes late watch syncs, making the overlap
-// re-list below redundant).
+// re-list below redundant). The FIT export endpoint is no longer a guess: it
+// calibrates itself against the candidates in _shared/suunto/fitExport.mjs.
 const LIST_PATH = (since: number, limit: number) => `${API}/v2/workouts?since=${since}&limit=${limit}`;
-const FIT_PATH = (key: string) => `${API}/v2/workouts/exportFit/${encodeURIComponent(key)}`;
 
 const LIST_LIMIT = 100;             // workouts listed per sync
 const PAGE_MAX = 50;                // summaries returned per sync (clamp on pageSize)
@@ -202,6 +205,62 @@ async function apiFetch(
     res = await doFetch(fresh.token);
   }
   return res;
+}
+
+const fitVariantMemo = (row: ConnectionRow): string => {
+  const v = row.sync_state?.fitVariant;
+  return typeof v === "string" ? v : "";
+};
+
+// Download one workout's FIT, calibrating the export endpoint as it goes:
+// candidates are tried in order and the one that returns real FIT bytes is
+// remembered on the row (_shared/suunto/fitExport.mjs explains why this is a
+// ladder and not a constant). A miss reports whether every attempt was a hard
+// "no FIT here" — which only means the workout has none once the endpoint is
+// calibrated, since before that it equally means no path was right.
+async function fetchWorkoutFit(
+  admin: SupabaseClient, userId: string, row: ConnectionRow, key: string,
+): Promise<{ bytes: Uint8Array; variantId: string } | { gone: boolean; status: number } | "reauth"> {
+  const first = await getFreshToken(admin, userId, row);
+  if (first === "reauth") return "reauth";
+  let token = first.token;
+  let refreshed = false;
+
+  const memo = fitVariantMemo(row);
+  const variants = fitVariantsToTry(memo);
+  let lastStatus = 0;
+  let allGone = true;
+
+  for (const variant of variants) {
+    const get = () => fetch(`${API}${fitVariantPath(variant, key)}`, {
+      headers: {
+        "Authorization": fitVariantAuth(variant, token),
+        "Ocp-Apim-Subscription-Key": SUUNTO_SUBSCRIPTION_KEY!,
+        "Accept": "application/octet-stream",
+      },
+    });
+    let res = await get();
+    if (res.status === 401 && !refreshed) {
+      // Expiry raced the clock check — one forced refresh for the whole ladder.
+      refreshed = true;
+      const forced = await getFreshToken(admin, userId, row, true);
+      if (forced === "reauth") return "reauth";
+      token = forced.token;
+      res = await get();
+    }
+    if (res.ok) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (looksLikeFit(bytes)) return { bytes, variantId: variant.id };
+      allGone = false; // a 200 that isn't a FIT — this path answers something else
+      continue;
+    }
+    lastStatus = res.status;
+    if (res.status !== 404 && res.status !== 410) { allGone = false; continue; }
+    // A hard miss on the CALIBRATED endpoint is the real answer; don't spend
+    // three more requests re-asking paths that can't know better.
+    if (memo === variant.id) break;
+  }
+  return { gone: allGone && !!memo, status: lastStatus };
 }
 
 const workoutKeyOf = (w: WorkoutSummary): string =>
@@ -435,31 +494,39 @@ Deno.serve(async (req) => {
       if (typeof count === "number" && count > FIT_DAILY_LIMIT) {
         return json({ connected: true, transient: true, quota: true });
       }
-      let res: Response | "reauth";
+      let res: Awaited<ReturnType<typeof fetchWorkoutFit>>;
       try {
-        res = await apiFetch(admin, user.id, row, FIT_PATH(key), "application/octet-stream");
+        res = await fetchWorkoutFit(admin, user.id, row, key);
       } catch {
         return json({ connected: true, transient: true }); // network — retry next scan
       }
       if (res === "reauth") return json({ connected: false, reauth: true, transient: true });
-      // Only a hard "this workout has no FIT" is terminal (client falls back to
-      // the summary). 401/403/429/5xx can be quota or token trouble — marking
-      // them terminal would permanently import summary-only runs.
+      if ("bytes" in res) {
+        if (res.variantId !== fitVariantMemo(row)) {
+          // Remember the endpoint that worked, so every later download is one
+          // request. Logged because it is the answer to the question the code
+          // couldn't: which export path Suunto actually serves.
+          await admin.from("integration_connections")
+            .update({ sync_state: { ...(row.sync_state || {}), fitVariant: res.variantId } })
+            .eq("user_id", user.id).eq("provider", "suunto");
+          console.log("suunto-import fit endpoint calibrated", res.variantId);
+        }
+        return json({ connected: true, fit: b64(res.bytes) });
+      }
+      // Only a hard "this workout has no FIT" on the calibrated endpoint is
+      // terminal (client falls back to the summary). Everything else —
+      // including every miss before the endpoint is calibrated — is transient:
+      // marking it terminal would permanently import summary-only runs, the
+      // exact failure that shipped (a 401 on every download, which on the
+      // client looks like "no route", never like an endpoint error).
       //
-      // Both misses are LOGGED (status only — never the key, the body or a
-      // header): FIT_PATH is a CALIBRATE guess, and a wrong path degrades every
-      // import to summary-only, which on the client looks like "no route" and
-      // "the sync button finds nothing" rather than like an endpoint error.
-      if (res.status === 404 || res.status === 410) {
+      // Both misses are LOGGED, status only — never the key, the body or a header.
+      if (res.gone) {
         console.warn("suunto-import fit missing", res.status);
         return json({ connected: true, gone: true });
       }
-      if (!res.ok) {
-        console.error("suunto-import fit failed", res.status);
-        return json({ connected: true, transient: true, status: res.status });
-      }
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      return json({ connected: true, fit: b64(bytes) });
+      console.error("suunto-import fit failed", res.status);
+      return json({ connected: true, transient: true, status: res.status });
     }
 
     if (action === "ack") {

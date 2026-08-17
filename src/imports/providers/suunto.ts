@@ -77,19 +77,41 @@ function b64ToBytes(b64: string): Uint8Array | null {
   } catch { return null; }
 }
 
+// First summary field that carries a finite number, or null. Suunto's payloads
+// reach us from two places with different shapes — the workout listing and the
+// webhook's trimmed body — so a field the app needs is read by every name it is
+// known to arrive under rather than by one guess.
+function summaryNum(s: Record<string, unknown>, ...names: string[]): number | null {
+  for (const n of names) {
+    if (s[n] == null) continue;
+    const v = Number(s[n]);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+// Suunto reports heart rate in Hz in parts of its API (beats per SECOND, so
+// 2.7 means 162 bpm). No workout average is under 15 bpm, so a small value is
+// always the Hz form — and importing "3 bpm" would poison the zones, the coach
+// and every average that touches it.
+function summaryBpm(v: number | null): number | null {
+  if (v == null || v <= 0) return null;
+  return Math.round(v < 15 ? v * 60 : v);
+}
+
 // One Suunto workout (summary + optional FIT bytes) → an ImportedRun, or null
 // when unusable. FIT wins (full route + HR series via the shared parser, which
 // derives distance/elevation/startedAt from the trace exactly like a live
 // run); the summary covers indoor/FIT-less workouts.
 export function suuntoWorkoutToRun(w: SyncWorkout, fitB64: string | null): ImportedRun | null {
   const s = w.summary || {};
-  const activityId = s.activityId != null && !Number.isNaN(Number(s.activityId)) ? Number(s.activityId) : null;
+  const activityId = summaryNum(s, "activityId");
   const type = activityId != null && WALK_ACTIVITY_IDS.has(activityId) ? "WALK" : "EASY";
   const extId = EXT_PREFIX + w.key;
-  const offsetRaw = Number(s.timeOffsetInMinutes);
-  const offsetMin = Number.isFinite(offsetRaw) ? offsetRaw : null;
-  const sHr = s.avgHeartRate != null && Number.isFinite(Number(s.avgHeartRate)) ? Math.round(Number(s.avgHeartRate)) : null;
-  const sHrMax = s.maxHeartRate != null && Number.isFinite(Number(s.maxHeartRate)) ? Math.round(Number(s.maxHeartRate)) : null;
+  const offsetMin = summaryNum(s, "timeOffsetInMinutes");
+  const sHr = summaryBpm(summaryNum(s, "avgHeartRate", "hravg"));
+  const sHrMax = summaryBpm(summaryNum(s, "maxHeartRate", "hrmax"));
+  const sAscent = summaryNum(s, "totalAscent", "ascent");
   // Calendar date in the WATCH-local clock, consistent across both branches —
   // the parser's date is phone-local, which disagrees near midnight when the
   // run happened in another timezone (and would miss plan auto-tick).
@@ -108,9 +130,11 @@ export function suuntoWorkoutToRun(w: SyncWorkout, fitB64: string | null): Impor
         return {
           ...res.run,
           ...(offsetMin != null && Number.isFinite(startedMs) ? { date: localDate(startedMs) } : {}),
-          // A FIT without record-level HR still keeps the summary's values.
+          // A FIT without record-level HR (or barometric altitude) still keeps
+          // the summary's values.
           hr: res.run.hr ?? sHr,
           hrMax: res.run.hrMax ?? sHrMax,
+          ...(res.run.elevation == null && sAscent != null ? { elevation: Math.round(sAscent) } : {}),
           type,
           source: "watch",
           notes: "Imported from Suunto",
@@ -121,9 +145,9 @@ export function suuntoWorkoutToRun(w: SyncWorkout, fitB64: string | null): Impor
     // Undecodable/unparseable FIT — fall through to the summary.
   }
 
-  const km = Math.round((Number(s.totalDistance) || 0) / 1000 * 100) / 100;
+  const km = Math.round((summaryNum(s, "totalDistance", "distance") || 0) / 1000 * 100) / 100;
   if (km < 0.05) return null; // no usable distance and no route
-  const startMs = Number(s.startTime) || w.startTime || 0;
+  const startMs = summaryNum(s, "startTime") || w.startTime || 0;
   if (!startMs) return null;
   // Unlike Polar's timezone-naive summary timestamps, Suunto's startTime is a
   // UTC epoch — set startedAt so time-overlap dedupe works even without a FIT
@@ -132,9 +156,10 @@ export function suuntoWorkoutToRun(w: SyncWorkout, fitB64: string | null): Impor
     date: localDate(startMs),
     type,
     km,
-    durationSec: Math.round(Number(s.totalTime) || 0),
+    durationSec: Math.round(summaryNum(s, "totalTime") || 0),
     hr: sHr,
     hrMax: sHrMax,
+    ...(sAscent != null ? { elevation: Math.round(sAscent) } : {}),
     effort: null,
     source: "watch",
     notes: "Imported from Suunto",
