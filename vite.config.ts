@@ -3,16 +3,27 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// The shells load the bundle off a local origin, where a relative base is the
-// safe default; the web deployment must NOT use one. `base: './'` emits
-// `<script src="./assets/index-<hash>.js">`, which the browser resolves against
-// the *current path* — fine at `/`, fatal at `/watch/<token>`, where it asks for
-// `/watch/assets/…`, CloudFront's SPA fallback answers with index.html, and the
-// module is refused as `text/html`. No JS runs at all, so the page is white AND
-// invisible to telemetry (the PostHog SDK is inside the script that never ran).
-// A root-relative base resolves the same from every path depth, which is what
-// the app's one nested route needs.
-const base = process.env.VITE_NATIVE_BUILD ? './' : '/'
+// Where this build will actually be served from — a property of the DEPLOY, not
+// a constant, which is why it is wired to env rather than hardcoded:
+//
+//   production web  '/'          bucket root            (deploy.yml, default)
+//   PR preview      '/pr/<n>/'   subfolder              (deploy-pr.yml, VITE_BASE)
+//   native shells   './'         local origin root      (release.yml)
+//
+// It must be an ABSOLUTE prefix anywhere a nested route is served. index.html is
+// one static artifact and CloudFront's SPA fallback hands it to every unknown
+// path, so a relative `./assets/…` silently means something different depending
+// on the URL it was loaded from: correct at `/`, but at `/watch/<token>` it asks
+// for `/watch/assets/…`, gets index.html back from the fallback, and the module
+// is refused as `text/html`. Nothing runs then — not React, not the error
+// boundaries, not the PostHog SDK — so it fails as a white page that reports
+// nothing. `./` survives only where no nested route is ever served: the shells,
+// which have no such URL at all.
+//
+// Note the fallback always returns the bucket ROOT index.html, ignoring the
+// prefix, so a preview cannot serve `/watch/:token` at all — deep-link routing
+// is a production-only property. Previews are entered at their index.html.
+const base = process.env.VITE_BASE || (process.env.VITE_NATIVE_BUILD ? './' : '/')
 
 // https://vite.dev/config/
 export default defineConfig({

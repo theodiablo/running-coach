@@ -56,14 +56,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   `docs/marketing.md`.
 - **One route, no router.** `main.tsx` branches on `/watch/:token` (the public
   live-run page) *before* `<App/>` mounts, so none of App's auth/store effects
-  run for a visitor with no account — `docs/live-sharing.md`. **The web build's
-  `base` must stay root-absolute** (`/`, relative only under
-  `VITE_NATIVE_BUILD`): index.html is one static artifact served by the SPA
-  fallback at *every* path, so a relative `./assets/…` resolves under
-  `/watch/…`, comes back as index.html, and is refused as `text/html` — a white
-  page with no telemetry, since the reporting code is in the script that never
-  loaded. `src/assetBase.test.ts` pins it; any new nested route inherits this.
-  Everything else is
+  run for a visitor with no account — `docs/live-sharing.md`. **Vite's `base` is
+  a property of the deploy, and every target must declare its own**
+  (`vite.config.ts`, pinned by `src/assetBase.test.ts`): web `/`, PR preview
+  `/pr/<n>/` (`VITE_BASE`), shells `./`. index.html is one static artifact the
+  SPA fallback hands to *every* path, so a base that doesn't match where the
+  build is served resolves assets to the fallback itself — refused as
+  `text/html`, and nothing runs at all, including the telemetry that would have
+  reported it. Both directions have shipped a white page. Everything else is
   routeless: `src/RunningCoach.tsx` is the single state hub: it owns
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
