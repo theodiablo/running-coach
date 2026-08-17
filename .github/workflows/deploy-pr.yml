@@ -83,6 +83,13 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          # This preview is served from a subfolder, so it must build with that
+          # prefix as its base — the default '/' would point index.html at the
+          # PRODUCTION bundle at the bucket root, where this build's hashed
+          # filenames don't exist, and the SPA fallback would answer with
+          # index.html as text/html (a white page). Must stay in step with the
+          # sync prefix below. See the base comment in vite.config.ts.
+          VITE_BASE: /${{ env.PR_PREFIX }}/${{ github.event.pull_request.number || inputs.pr_number }}/
           VITE_SUPABASE_URL: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
           # Inlined into the client bundle by Vite at build time. Domain-restricted
           # publishable key — see src/constants.ts. Set in repo Actions secrets.
@@ -113,8 +120,9 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
-          # vite.config.ts sets `base: './'`, so the built index.html and assets
-          # use relative paths and work unchanged when served from a subfolder.
+          # The build above was given this exact prefix as its base (VITE_BASE),
+          # so index.html points at /<PR_PREFIX>/<number>/assets/…. Keep the two
+          # in step — a mismatch serves a white page, not a 404.
           # `--delete` keeps the prefix in sync with the latest build only.
           aws s3 sync dist/ "s3://${S3_BUCKET_NAME}/${PR_PREFIX}/${PR_NUMBER}/" --delete
 

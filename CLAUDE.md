@@ -56,7 +56,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   `docs/marketing.md`.
 - **One route, no router.** `main.tsx` branches on `/watch/:token` (the public
   live-run page) *before* `<App/>` mounts, so none of App's auth/store effects
-  run for a visitor with no account — `docs/live-sharing.md`. Everything else is
+  run for a visitor with no account — `docs/live-sharing.md`. **Vite's `base` is
+  a property of the deploy, and every target must declare its own**
+  (`vite.config.ts`, pinned by `src/assetBase.test.ts`): web `/`, PR preview
+  `/pr/<n>/` (`VITE_BASE`), shells `./`. index.html is one static artifact the
+  SPA fallback hands to *every* path, so a base that doesn't match where the
+  build is served resolves assets to the fallback itself — refused as
+  `text/html`, and nothing runs at all, including the telemetry that would have
+  reported it. Both directions have shipped a white page. Everything else is
   routeless: `src/RunningCoach.tsx` is the single state hub: it owns
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is

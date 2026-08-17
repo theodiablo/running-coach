@@ -405,6 +405,32 @@ stranger following a link. It's a lazy chunk behind `ChunkLoadBoundary`, and
 (the `MarketingGate` pattern). CloudFront already rewrites unknown paths to
 `index.html`, so no infra change was needed.
 
+**Being the one nested path, it is also the only route where `base` matters, and
+a relative one breaks it completely.** `vite.config.ts` shipped `base: './'`, so
+index.html referenced `./assets/index-<hash>.js`. The browser resolves that
+against the *current path*: correct at `/`, but at `/watch/<token>` it requests
+`/watch/assets/index-<hash>.js`, which the SPA fallback answers with index.html,
+and a `type="module"` script served as `text/html` is refused outright. **Nothing
+ran** — not React, not `ErrorBoundary`, not `ChunkLoadBoundary`'s fallback to
+`<App/>`, not the PostHog SDK — so every shared link was a blank white page that
+also reported no error, because the code that would have reported it was inside
+the script that never loaded. (The `text/html` MIME errors PostHog *does* carry
+are the unrelated stale-chunk kind, all logged from `/`.)
+
+The base is therefore a property of the **deploy**, not a constant, and each
+target declares its own (`vite.config.ts`, pinned by `src/assetBase.test.ts`):
+production web `/` (bucket root), PR previews `/pr/<n>/` (`VITE_BASE`, set in
+`deploy-pr.yml` — the default `/` would aim a preview's index.html at
+production's bundle, whose hashed filenames it does not share, reproducing the
+same white page under the prefix), and the shells `./`, which is safe only
+because they load off a local origin root and serve no nested route at all.
+
+One consequence worth knowing before reaching for a preview to test this page:
+CloudFront's fallback returns the **bucket root** index.html, ignoring the
+prefix, so `/pr/<n>/watch/<token>` serves *production's* build. Deep-link
+routing is a production-only property; previews are entered at their
+`index.html`. Any future nested route inherits both halves of this.
+
 The display is `LiveWatchView`, shared with the in-app modal. That sharing is
 about the **staleness model**, not the layout: silence is ambiguous by
 construction, and a second copy of this screen would eventually start guessing.
