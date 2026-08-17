@@ -26,6 +26,7 @@ type SettingsModalProps = {
   showToast?: (msg: string, type?: string) => void;
   scanImportsNow?: () => Promise<number>;
   plan?: Plan | null;
+  isPremium?: boolean;
 };
 
 // Settings is a hub, not a page: the root is a three-row menu and every control
@@ -36,7 +37,7 @@ type SettingsModalProps = {
 // The flows that replace the whole screen (backup, restore, delete account, the
 // coach) still close settings first, as they always did: their handlers come in
 // from RunningCoach already wired that way.
-export function SettingsModal({settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, showToast, scanImportsNow, plan}: SettingsModalProps) {
+export function SettingsModal({settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, showToast, scanImportsNow, plan, isPremium}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(null);
@@ -70,7 +71,7 @@ export function SettingsModal({settings, saveSettings, userContext, saveUserCont
           )}
           {page === "integrations" && (
             <IntegrationsPage settings={settings} saveSettings={saveSettings}
-              showToast={showToast} scanImportsNow={scanImportsNow} onImportFile={onImportFile}/>
+              showToast={showToast} scanImportsNow={scanImportsNow} onImportFile={onImportFile} isPremium={isPremium}/>
           )}
           {page === "training" && (
             <TrainingProfilePage settings={settings} saveSettings={saveSettings}
