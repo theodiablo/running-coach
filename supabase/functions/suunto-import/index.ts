@@ -406,6 +406,12 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Counts only, no workout data. "Nothing imported" has several very
+      // different causes — the list came back empty (cursor past everything, or
+      // a wrong `since` unit), everything was filtered as non-run, or the client
+      // already knew it all — and they are indistinguishable from the client.
+      console.log(`suunto-import sync since=${since} listed=${listed.length} offered=${workouts.length} staged=${staged.length} known=${knownKeys.size}`);
+
       return json({
         connected: true,
         workouts,
@@ -439,8 +445,19 @@ Deno.serve(async (req) => {
       // Only a hard "this workout has no FIT" is terminal (client falls back to
       // the summary). 401/403/429/5xx can be quota or token trouble — marking
       // them terminal would permanently import summary-only runs.
-      if (res.status === 404 || res.status === 410) return json({ connected: true, gone: true });
-      if (!res.ok) return json({ connected: true, transient: true, status: res.status });
+      //
+      // Both misses are LOGGED (status only — never the key, the body or a
+      // header): FIT_PATH is a CALIBRATE guess, and a wrong path degrades every
+      // import to summary-only, which on the client looks like "no route" and
+      // "the sync button finds nothing" rather than like an endpoint error.
+      if (res.status === 404 || res.status === 410) {
+        console.warn("suunto-import fit missing", res.status);
+        return json({ connected: true, gone: true });
+      }
+      if (!res.ok) {
+        console.error("suunto-import fit failed", res.status);
+        return json({ connected: true, transient: true, status: res.status });
+      }
       const bytes = new Uint8Array(await res.arrayBuffer());
       return json({ connected: true, fit: b64(bytes) });
     }

@@ -109,6 +109,14 @@ each and marked `CALIBRATE` in the code:
    surfaces in the function logs, and the client mirror lives in
    `providers/suunto.ts`.
 
+Each calibration miss is **logged as counts/status only** — never a key, body
+or header — because from the client every one of them looks identical to "the
+sync button found nothing": `suunto-import sync since=… listed=… offered=…`
+per page, and `suunto-import fit failed <status>` / `fit missing <status>` per
+download. Read those first; a wrong `FIT_PATH` degrades every import to
+summary-only (no route, no HR series, round summary distances), and the
+client's retry budget hides it for three scans before it does.
+
 ## Activation (maintainer)
 
 Dormant until configured, like every cloud provider. To turn it on:

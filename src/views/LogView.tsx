@@ -56,7 +56,12 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
     dur:    secToDur(estSec),
     hr:    prefill?.hr    != null ? String(prefill.hr)    : "",
     hrMax: prefill?.hrMax != null ? String(prefill.hrMax) : "",
-    elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:0,notes:"",
+    elev: prefill?.elevation != null ? String(prefill.elevation) : "",effort:0,
+    // A cloud import arrives with its provenance note ("Imported from Suunto").
+    // Show it rather than dropping it: the batch path saves it verbatim, so a
+    // blank field here made the same run look different depending on whether it
+    // arrived alone or with others.
+    notes: prefill?.notes || "",
   };
   const [f,      setF]    = useState<RunFormValues>(INIT);
   const [busy,   setBusy] = useState(false);
@@ -102,6 +107,11 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       ...(prefill?.hrPendingHk ? { hrPendingHk: prefill.hrPendingHk } : {}),
       // Carry the watch-import provenance through so repeated scans dedupe on it.
       ...(prefill?.hcId ? { hcId: prefill.hcId } : {}),
+      // Same for a cloud provider's workout key. Without it the run is invisible
+      // to the provider's knownKeys, so every later sync re-lists the workout,
+      // re-downloads its FIT against the daily quota, and then discards the
+      // candidate as a duplicate — reporting "no new runs" on a sync that worked.
+      ...(prefill?.extId ? { extId: prefill.extId } : {}),
       ...(prefill?.startedAt ? { startedAt: prefill.startedAt } : {}),
     }]);
     setBusy(false); onSaved?.(); onDone();

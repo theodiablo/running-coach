@@ -31,7 +31,7 @@ import { useLiveRun } from "./hooks/useLiveRun";
 import { flushPendingHr, hasHealthConnectAuthorization } from "./hr/healthconnect";
 import { flushPendingHkHr } from "./hr/healthkit";
 import { markSeen, WATCH_MANUAL_SCAN_DAYS, WATCH_AUTO_SCAN_COOLDOWN_MS } from "./watch/import";
-import { scanAllProviders, providerEnabledInSettings, cloudAuthCompleters, commitCloudScans, cloudBackfillPending } from "./imports/registry";
+import { scanAllProviders, providerEnabledInSettings, cloudAuthCompleters, commitCloudScans, cloudBackfillPending, scanSourceId } from "./imports/registry";
 import { persistImportedRoutes } from "./imports/persistRoutes";
 import { Toast } from "./components/Toast";
 import { Confetti } from "./components/Confetti";
@@ -945,23 +945,35 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       return 0;
     }
     if (!manual) watchAutoShownRef.current = true;
+    // Both toast actions navigate to a tab, and a manual scan is started from
+    // Settings — which stays open over the destination, so tapping the action
+    // looked like the sync button had done nothing. Close what's open through
+    // its own handler first, the same way the header's go-Home reset does.
+    const goVia = (nav: () => void) => { dismissAll(); nav(); };
+    // Name the integration that delivered these runs — "from Suunto" rather
+    // than a generic "from your watch", which said nothing about which of
+    // several connected sources actually worked. Read off `scanned`: the stamp
+    // is transient and persistImportedRoutes has already stripped it from
+    // `found`. A merged scan falls back to the generic name.
+    const source = t(`app.toasts.sources.${scanSourceId(scanned) ?? "generic"}`,
+      { defaultValue: t("app.toasts.sources.generic") });
     if (found.length === 1) {
       const r = found[0];
       // The deferred cloud ack for this run rides LogView's onSaved (the
       // prefill carries extId) — a dismissed review re-serves it next scan.
-      showToast(t("app.toasts.foundRun", { km: r.km, date: fmt.sht(r.date || "") }), "ok",
+      showToast(t("app.toasts.foundRun", { source, km: r.km, date: fmt.sht(r.date || "") }), "ok",
         // Imports only ever map to running types (watch/mapping.ts), so this
         // must not reach that day's cross-training session either.
-        { label: t("app.toasts.review"), onClick: () => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "", { crossTraining: false }) || {}) }) });
+        { label: t("app.toasts.review"), onClick: () => goVia(() => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "", { crossTraining: false }) || {}) })) });
     } else {
-      showToast(t("app.toasts.foundRuns", { n: found.length }), "ok",
+      showToast(t("app.toasts.foundRuns", { source, n: found.length }), "ok",
         { label: t("app.toasts.importAll"), onClick: () => {
           const added = addRuns(found);
           // The runs are saved — cloud providers may now ack their pages
           // (a missed toast would instead re-serve them next scan).
           commitCloudScans();
           // Jump to History and flag the freshly imported runs as "New".
-          goToRuns(added.map(a => a.id).filter((id): id is string => !!id), t("progress.history.newBadge"));
+          goVia(() => goToRuns(added.map(a => a.id).filter((id): id is string => !!id), t("progress.history.newBadge")));
         } });
     }
     return found.length;
