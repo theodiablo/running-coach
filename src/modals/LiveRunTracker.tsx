@@ -171,22 +171,16 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (routeSuggestEnabled && isPremiumActive(until)) setShowFinder(true);
     else setPremiumTeaser("routeFinder");
   };
-  // ── Live sharing (premium) ───────────────────────────────────────────────
-  // Broadcasts the run to the user's OWN other signed-in sessions. The choice is
-  // per-device (see LIVE_SHARE_KEY): whether this phone goes on the air is not
-  // something another device should decide for it.
+  // ── Live sharing ──────────────────────────────────────────────────────────
+  // Broadcasts the run to the user's OWN other signed-in sessions. Free — no
+  // premium gate (see docs/live-sharing.md). The choice is per-device (see
+  // LIVE_SHARE_KEY): whether this phone goes on the air is not something
+  // another device should decide for it.
   const [shareLive, setShareLive] = useState(() => {
     try { return localStorage.getItem(LIVE_SHARE_KEY) === "1"; } catch { return false; }
   });
-  const [checkingSharePremium, setCheckingSharePremium] = useState(false);
-  // Entry point present? Same gate as every other premium affordance, never
-  // `isPremium` alone (see src/premium.ts).
-  const shareAvailable = isPremium || canShowPremiumTeaser;
-  // What actually governs publishing and the on-air indicator. The stored choice
-  // only counts while the toggle that sets it is on screen: an entitlement that
-  // lapsed since the last run would otherwise leave a permanent "Share live · On"
-  // badge, with no control to clear it and nothing being shared behind it.
-  const sharing = shareLive && shareAvailable;
+  // What actually governs publishing and the on-air indicator.
+  const sharing = shareLive;
   // Set the moment the broadcast is torn down, so a re-render after the row has
   // been deleted can't resurrect it with one last "ended" write.
   const shareEndedRef = useRef(false);
@@ -196,19 +190,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     try { localStorage.setItem(LIVE_SHARE_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
     if (on) track("live_share_enabled", {});
   };
-  // Same re-read-and-decide as the route finder: the sign-in entitlement fetch
-  // may have failed offline or predated a grant, so don't let a stale read send
-  // a genuine premium user to the "not available" sheet.
-  const toggleShareLive = async () => {
-    if (shareLive) { armShare(false); return; }
-    if (isPremium) { armShare(true); return; }
-    if (checkingSharePremium) return;
-    setCheckingSharePremium(true);
-    const until = await onRefreshPremium?.();
-    setCheckingSharePremium(false);
-    if (isPremiumActive(until)) armShare(true);
-    else setPremiumTeaser("liveShare");
-  };
+  const toggleShareLive = () => armShare(!shareLive);
   const endShare = () => {
     if (shareEndedRef.current) return;
     shareEndedRef.current = true;
@@ -253,8 +235,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   };
   // Mints on first use, then re-shares the same token — a run has ONE link, so
   // tapping "Send link" twice doesn't strand whoever got the first one. Only
-  // reachable while the broadcast is already on (see shareLinkRow), which is
-  // what keeps the premium re-read in toggleShareLive alone.
+  // reachable while the broadcast is already on (see shareLinkRow).
   const shareTheLink = async () => {
     let token = shareToken;
     if (!token) {
@@ -705,8 +686,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // The public-link control, rendered both before a run and during one (a
   // runner who forgot to send the link shouldn't have to stop to fix that).
   // Only offered once the broadcast itself is on: minting a link over a run
-  // that publishes nothing would hand someone a page that never fills in, and
-  // it keeps the premium re-read in exactly one place (toggleShareLive).
+  // that publishes nothing would hand someone a page that never fills in.
   const shareLinkRow = !sharing ? null : shareToken ? (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
@@ -867,36 +847,23 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 <Play size={20} />{t("tracker.controls.start")}
               </Ctrl>
             </div>
-            {/* Live sharing. Gated on `isPremium || canShowPremiumTeaser` (never
-                isPremium alone) so the whole tier still reveals by flipping that
-                one flag — while it is false a free user sees no entry point. */}
-            {shareAvailable && (
-              <div className="space-y-1.5">
-                <button onClick={toggleShareLive} disabled={checkingSharePremium} aria-pressed={shareLive}
-                  className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-[background-color,transform] active:scale-95 disabled:opacity-60 "
-                    + (shareLive
-                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                      : "bg-slate-800 border-slate-700 text-slate-200")}>
-                  {checkingSharePremium
-                    ? <Loader size={16} className="animate-spin shrink-0" />
-                    : isPremium ? <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
-                    : <Lock size={16} className="text-slate-300 shrink-0" />}
-                  <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
-                  {!isPremium && (
-                    <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
-                      {t("premium.badge")}
-                    </span>
-                  )}
-                  <span className={"text-[11px] uppercase tracking-wide " + (shareLive ? "text-emerald-300" : "text-slate-500")}>
-                    {t(shareLive ? "liveShare.toggle.on" : "liveShare.toggle.off")}
-                  </span>
-                </button>
-                {shareLive && (
-                  <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
-                )}
-                {shareLinkRow}
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <button onClick={toggleShareLive} aria-pressed={shareLive}
+                className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-[background-color,transform] active:scale-95 "
+                  + (shareLive
+                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+                    : "bg-slate-800 border-slate-700 text-slate-200")}>
+                <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
+                <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
+                <span className={"text-[11px] uppercase tracking-wide " + (shareLive ? "text-emerald-300" : "text-slate-500")}>
+                  {t(shareLive ? "liveShare.toggle.on" : "liveShare.toggle.off")}
+                </span>
+              </button>
+              {shareLive && (
+                <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
+              )}
+              {shareLinkRow}
+            </div>
             {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
               plannedRoute ? (
                 <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">

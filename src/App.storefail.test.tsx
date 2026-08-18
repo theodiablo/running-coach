@@ -21,6 +21,8 @@ vi.mock("./supabase", () => ({
       exchangeCodeForSession: vi.fn(),
     },
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }),
+    channel: () => ({ on: () => ({ subscribe: (cb?: (s: string) => void) => { cb?.("SUBSCRIBED"); return {}; } }) }),
+    removeChannel: vi.fn(),
   },
   AUTH_DEEP_LINK: "x://auth",
   authRedirectTo: () => "x://auth",
