@@ -1,9 +1,13 @@
 # Live run sharing
 
-Opt-in, per run, premium: while a run is recording, the phone broadcasts the
+Opt-in, per run, free: while a run is recording, the phone broadcasts the
 route so far so the runner's **own other signed-in sessions** can watch it
 happen — and, if they mint a share link, so can anyone they send it to. Off by
 default; nothing is sent mid-run unless the toggle is on.
+
+Shipped premium-gated, then unveiled free for every signed-in account
+(2026-08) — see `docs/monetization.md`. Nothing about the transport, cadence,
+staleness model or cleanup below changed; only who may `insert` a row did.
 
 Two layers, and they are authorized completely differently. The same-account
 broadcast is `auth.uid() = user_id` and nothing else. The public link is a
@@ -15,7 +19,7 @@ staleness model. Public links are **"Sharing with someone else"** below.
 
 | Piece | File |
 |---|---|
-| Table, RLS, premium gate | `supabase/migrations/20260727135028_live_runs.sql` |
+| Table, RLS | `supabase/migrations/20260727135028_live_runs.sql`, premium gate dropped in `20260818184235_live_runs_drop_premium_gate.sql` |
 | Share-token column | `supabase/migrations/20260804190422_live_runs_share_token.sql` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` |
@@ -91,8 +95,9 @@ authority* — with an upload leg:
 - **`live-publish` (verify_jwt = false) can only continue a broadcast.** All
   row work is in the `live_publish_append`/`live_publish_end` RPCs — a single
   authoritative UPDATE (never SELECT-then-UPDATE, which would race the JS
-  full-trace writer; never an INSERT, so the premium model is preserved by
-  construction). The append dedupes on the stored tail's timestamp (a
+  full-trace writer; never an INSERT, so an unauthenticated endpoint can never
+  originate a broadcast, only extend one the JS side already opened). The
+  append dedupes on the stored tail's timestamp (a
   timed-out-but-committed POST retries idempotently), clamps skewed clocks
   rather than rejecting, refuses `ended` rows, keys freshness on `updated_at`
   (6h, so a >6h ultra keeps working) with a 24h `started_at` backstop, and at
@@ -122,62 +127,45 @@ authority* — with an upload leg:
   deploy-ordering gap must not read as "run ended"); signed out at save →
   `endLiveRun` tears down via `{token, end:true}`.
 
-## Premium gate
+## No premium gate
 
-The gate is the **insert** policy — `auth.uid() = user_id and public.is_premium()`
-— not client code. `is_premium()` takes no argument on purpose: a parameterised
-version would let any signed-in user probe someone else's tier.
+Live sharing shipped premium-gated, then had the gate removed (2026-08) —
+`docs/monetization.md`. Insert, update and delete are all own-row-only:
+`auth.uid() = user_id`, nothing else. Any signed-in account may broadcast a run.
 
-Update and delete are own-row-only **without** the premium check. That asymmetry
-is deliberate: an entitlement lapsing mid-run must not strand a row the runner
-can no longer update or clean up. Starting a broadcast is the privileged act;
-ending one never is.
+That was not always true. Insert alone used to additionally require
+`public.is_premium()` in its `WITH CHECK`, while update and delete stayed
+premium-free on purpose (an entitlement lapsing mid-run must not strand a row
+the runner can no longer update or clean up — starting a broadcast was the
+privileged act, ending one never was). The asymmetry is gone along with the
+gate: `20260818184235_live_runs_drop_premium_gate.sql` dropped the check from
+the insert policy, leaving all three policies the same shape. `is_premium()`
+itself is untouched — it still backs the premium gates on guided workouts and
+the route finder, both unaffected by this change.
 
-**That asymmetry only exists if the client writes the two paths separately, so
-the publisher opens a broadcast with an `insert` and continues it with an
-`update` — never an upsert.** PostgREST's `upsert` is `INSERT ... ON CONFLICT DO
-UPDATE`, and Postgres checks an INSERT policy's `WITH CHECK` *"for all rows
-proposed for insertion, regardless of whether or not they end up being
-inserted"* — so an upsert is premium-gated on the **update** path too. Written
-that way, a grant lapsing mid-run 42501s, latches `blocked`, and takes the run
-off the air: precisely the outcome the premium-free UPDATE policy was written to
-prevent. Do not "simplify" the two calls back into one.
+**The publisher still opens a broadcast with an `insert` and continues it with
+an `update`, never an upsert** — that predates the premium gate and doesn't
+depend on it. An `insert` that hits the primary key (`23505`) means a leftover
+row from a killed run is in the way; the publisher deletes it and re-inserts,
+so a new broadcast always stamps its own `started_at` rather than inheriting
+one. An `update` that matches no rows means the row was swept from under it
+(or claimed by another device), and clears the flag so the next fix re-opens
+the broadcast instead of publishing into a void. See `src/live/publisher.ts`.
 
-An `insert` that hits the primary key (`23505`) means a leftover row from a
-killed run is in the way; the publisher deletes it and re-inserts, so a new
-broadcast always stamps its own `started_at` rather than inheriting one. An
-`update` that matches no rows means the row was swept from under it, and clears
-the flag so the next fix re-opens the broadcast instead of publishing into a void.
-
-A policy rejection (`42501`) latches the publisher off for the rest of the run,
-so a tampered client or a lapsed grant doesn't retry every 30s forever.
-
-**`is_premium()` is callable by `authenticated`, at `/rest/v1/rpc/is_premium`,
-and must stay that way** — the insert policy is evaluated as the querying role,
-so revoking `EXECUTE` silently breaks starting a broadcast. It leaks nothing:
-argument-free, it only ever reports the caller's own tier, which they can
-already read from their own `profiles` row. Supabase's advisor used to flag it
-under lint 0029 (`SECURITY DEFINER` reachable by signed-in users); migration
-`20260805084721` switched it to **`SECURITY INVOKER`**, which clears the finding
-and is sound precisely because it reads nothing beyond the caller's own
-RLS-visible row. Keep it INVOKER — DEFINER buys nothing here.
+A policy rejection (`42501`) still latches the publisher off for the rest of
+the run — now reachable only by a tampered client, since every signed-in
+account passes the policy honestly, but still worth latching rather than
+retrying every 30s against a refusal that will never clear.
 
 `live_runs_touch` pins `search_path` (migration `20260727183713`) — not just
 lint hygiene: with a mutable one, `now()` is resolvable to something other than
 `pg_catalog.now()`, handing back control of the very column the trigger exists
 to make server truth.
 
-Client-side, the toggle is gated on `isPremium || canShowPremiumTeaser` (never
-`isPremium` alone), so the whole tier still reveals by flipping that one flag.
-Tapping it while apparently free re-reads the entitlement and decides on that
-read — the sign-in fetch may have failed offline or predated a grant.
-
-**Publishing and the on-air indicator are gated on that same expression, not on
-the stored choice alone.** `LIVE_SHARE_KEY` persists per device, so an
-entitlement that lapsed between runs would otherwise leave a permanent
-"Share live · On" badge with no toggle on screen to clear it, over a broadcast
-RLS is refusing anyway. The stored choice only counts while the control that sets
-it is visible; it re-arms by itself if premium comes back.
+Client-side, the toggle (`src/modals/LiveRunTracker.tsx`) is always shown and
+always actionable — `toggleShareLive` just flips `LIVE_SHARE_KEY`, no
+entitlement check, no teaser sheet. `useLiveRun` (the watcher half, mounted
+once in `RunningCoach`) subscribes for any signed-in user, not conditionally.
 
 ## Staleness, and why the copy is careful
 
@@ -259,9 +247,9 @@ the gap. It runs on a failed status too, so a blocked websocket still gets its
 initial read before falling through to polling.
 
 The hook is mounted **once**, in `RunningCoach`, and threaded through the
-`shared` bag — two consumers (banner + modal) must not open two channels. It is
-enabled only for premium accounts: a row cannot exist for anyone else, so
-subscribing would be a read per app load that can never return anything.
+`shared` bag — two consumers (banner + modal) must not open two channels. It
+subscribes for any signed-in `uid`, whether or not that account has ever used
+live sharing; most reads simply come back empty.
 
 ## Known limits
 
@@ -275,9 +263,6 @@ subscribing would be a read per app load that can never return anything.
   matters — it needs `pg_cron`, which this project doesn't currently use. The
   **public** side is not exposed by this: `live-watch` applies the same 6h cutoff
   server-side, so a link goes dark on its own even when nothing sweeps the row.
-- **A lapsed account that keeps a row alive** can go on updating it: that is the
-  direct cost of the premium-free UPDATE policy, and it is bounded — the row is
-  deleted when the run ends, and re-opening one is an `insert`, which is gated.
 - Freshness is computed against the watcher's local clock, so a badly skewed
   watching device mislabels "x ago". Server-stamping `updated_at` bounds this to
   the watcher's own skew.

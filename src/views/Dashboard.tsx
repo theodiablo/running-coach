@@ -30,7 +30,7 @@ type DashboardProps = {
   openSettings: () => void;
   openCoach: (session?: null, source?: CoachSource) => void;
   openRunDetail?: (run: Run) => void;
-  // A run this account is recording on another device right now (premium live
+  // A run this account is recording on another device right now (live
   // sharing). Null whenever there is nothing to follow.
   liveRun?: LiveRunRow | null;
   openLiveWatch?: () => void;

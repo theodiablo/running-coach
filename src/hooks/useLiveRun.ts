@@ -36,11 +36,11 @@ export type LiveRun = {
   refresh: () => void;
 };
 
-export function useLiveRun(uid: string | null | undefined, enabled: boolean): LiveRun {
+export function useLiveRun(uid: string | null | undefined): LiveRun {
   const [fetched, setFetched] = useState<LiveRunRow | null>(null);
-  // Derived, not cleared in an effect: a sign-out or a lapsed entitlement must
-  // hide the row on the very next render, without a cascading setState.
-  const row = enabled && uid ? fetched : null;
+  // Derived, not cleared in an effect: a sign-out must hide the row on the very
+  // next render, without a cascading setState.
+  const row = uid ? fetched : null;
   // Realtime is the happy path; polling only fills in when the channel can't be
   // established (blocked websocket, project without Realtime).
   const [realtimeOk, setRealtimeOk] = useState(true);
@@ -74,7 +74,7 @@ export function useLiveRun(uid: string | null | undefined, enabled: boolean): Li
   // FAILED status too, so a blocked websocket still gets its initial read and
   // then falls through to polling.
   useEffect(() => {
-    if (!enabled || !uid) return;
+    if (!uid) return;
     const channel = supabase
       .channel(`live_runs:${uid}`)
       .on(
@@ -94,7 +94,7 @@ export function useLiveRun(uid: string | null | undefined, enabled: boolean): Li
         void fetchRow();
       });
     return () => { void supabase.removeChannel(channel); };
-  }, [enabled, uid, fetchRow]);
+  }, [uid, fetchRow]);
 
   const active = isActive(row);
 
@@ -102,7 +102,7 @@ export function useLiveRun(uid: string | null | undefined, enabled: boolean): Li
   // visibility is also held in state, because it gates the poll below.
   const [visible, setVisible] = useState(() => document.visibilityState === "visible");
   useEffect(() => {
-    if (!enabled || !uid) return;
+    if (!uid) return;
     const onVis = () => {
       const now = document.visibilityState === "visible";
       setVisible(now);
@@ -110,7 +110,7 @@ export function useLiveRun(uid: string | null | undefined, enabled: boolean): Li
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [enabled, uid, fetchRow]);
+  }, [uid, fetchRow]);
 
   // Fallback polling, for when Realtime can't be established (blocked websocket,
   // project without Realtime). Deliberately NOT gated on `active`: with Realtime
@@ -120,10 +120,10 @@ export function useLiveRun(uid: string | null | undefined, enabled: boolean): Li
   // 30s while a run is live, a slow tick while nothing is — and paused entirely
   // while the tab is hidden, since the handler above catches up on return.
   useEffect(() => {
-    if (!enabled || !uid || realtimeOk || !visible) return;
+    if (!uid || realtimeOk || !visible) return;
     const id = setInterval(() => { void fetchRow(); }, active ? POLL_MS : IDLE_POLL_MS);
     return () => clearInterval(id);
-  }, [enabled, uid, realtimeOk, visible, active, fetchRow]);
+  }, [uid, realtimeOk, visible, active, fetchRow]);
 
   return { row, active, refresh: fetchRow };
 }

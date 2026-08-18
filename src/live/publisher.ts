@@ -96,9 +96,9 @@ export function canPublishNow(status: LiveRunStatus, shareToken: string | null =
 }
 
 // PostgREST surfaces an RLS refusal as 42501 (and PostgREST's own 401/403
-// shapes). A user without premium can only reach this by tampering, but a lapsed
-// grant mid-run reaches it honestly — either way, retrying every 30s for the
-// rest of the run is pointless traffic.
+// shapes). Live sharing has no premium gate, so a real user can only reach this
+// by tampering — but retrying every 30s for the rest of the run over a refusal
+// that will never clear is still pointless traffic.
 const isPolicyError = (code?: string | null) => code === "42501" || code === "401" || code === "403";
 
 export function publishLiveRun(args: PublishArgs): Promise<void> {
@@ -126,13 +126,13 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
 }
 
 // INSERT to open a broadcast, UPDATE to continue one — deliberately NOT an
-// upsert. Postgres checks the INSERT policy's WITH CHECK "for all rows proposed
-// for insertion, regardless of whether or not they end up being inserted", so an
-// `ON CONFLICT DO UPDATE` is premium-gated on the update path too: an entitlement
-// lapsing mid-run would 42501, latch `blocked`, and take a run off the air —
-// exactly what the premium-free UPDATE policy exists to prevent. Splitting the
-// two is what makes "starting a broadcast is the privileged act, continuing one
-// isn't" true rather than aspirational. Never reject: recording must not care.
+// upsert. The update is scoped to OUR row via `publish_token` (see below), which
+// `ON CONFLICT DO UPDATE` can't express — an upsert would silently stamp our
+// tokens over another device's live run instead of re-opening our own via
+// insert. Splitting the two also keeps the two paths' error handling distinct:
+// a swept row surfaces as "update matched nothing", not a write that must be
+// interpreted after the fact.
+//
 // The publish-token column may not exist yet: functions and app code deploy on
 // merge, the migration is applied by hand. PostgREST answers PGRST204 for an
 // unknown column in a write; latch and degrade to v2 writes (no native

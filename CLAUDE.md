@@ -498,7 +498,7 @@ changes.
 - `docs/indoor-sessions.md` — indoor/static cardio (bike, elliptical): the
   cross-training run shape, the GPS-free recorder, live HR zones.
 - `docs/background-location.md` — Android background-location policy.
-- `docs/live-sharing.md` — live run sharing (premium): transport, cadence, staleness, cleanup, public `/watch/:token` links.
+- `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, public `/watch/:token` links.
 - `docs/guided-workouts.md` — guided tempo/interval/run-walk sessions (premium): workout compiler+engine, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
