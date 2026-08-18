@@ -23,7 +23,12 @@ export const fileProvider: ImportProvider = {
   kind: "file",
   platform: "both",
   isAvailable: () => true,
-  fileAccept: ".csv,.gpx,.tcx,.fit",
+  // */* keeps every file selectable: mobile pickers (Android's document UI,
+  // iOS Files) resolve accept extensions to a MIME/UTI before deciding what's
+  // tappable, and .fit/.gpx/.tcx aren't in Android's MimeTypeMap — unresolved
+  // extensions render grayed-out rather than "allow anything". parse() below
+  // is the real type gate.
+  fileAccept: ".csv,.gpx,.tcx,.fit,*/*",
   parse: ({ name, text, bytes }): ImportParseResult => {
     const e = ext(name);
     if (e === "gpx" || e === "tcx") {
