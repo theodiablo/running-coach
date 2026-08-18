@@ -101,7 +101,11 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
 // notification, so the caller can skip the native call. Text must match
 // exactly; the chronometer anchor tolerates rounding jitter (above). The `live`
 // seed is deliberately not compared — identical text means identical numbers
-// (km is in the text to 2dp), so a skipped push can't leave the seed stale.
+// (km is in the text to 2dp), so a skipped push can't leave the km/pace seed
+// stale. HR is the one exception: the native renderer ages an unrefreshed HR
+// reading out on a wall-clock timer independent of the text, so identical text
+// does NOT prove the HR seed is still fresh there — the caller (liveNotification.ts)
+// forces a periodic push while HR is live regardless of what this returns.
 export function sameNotificationContent(
   prev: RunNotificationContent | null | undefined,
   next: RunNotificationContent,

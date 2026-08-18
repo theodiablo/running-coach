@@ -75,4 +75,44 @@ describe("pushRunNotification on Android", () => {
     expect(calls[0].tracking).toBe(false);
     expect(calls[0].chronometerStartMs).toBeUndefined();
   });
+
+  it("re-sends text-identical content with a live HR reading before the native 90s staleness window (keep-alive)", async () => {
+    vi.useFakeTimers();
+    try {
+      const withHr = content({
+        message: "5.23 km · 5:42/km · ♥ 152",
+        live: { km: 5.234, paceSecPerKm: 342, hr: 152, hrAtMs: 1_700_000_050_000, tracking: true },
+      });
+      seam.pushRunNotification(withHr);
+      expect(calls).toHaveLength(1);
+
+      // Steady pace/km/HR — a plain content-identity dedupe would drop this
+      // silently, leaving the native seed's hrAtMs unrefreshed until it ages
+      // out on its own 90s clock (BackgroundGeolocation.java LIVE_HR_STALE_MS).
+      await vi.advanceTimersByTimeAsync(30_000);
+      seam.pushRunNotification(withHr);
+      expect(calls).toHaveLength(1); // still well within the keep-alive interval
+
+      await vi.advanceTimersByTimeAsync(31_000); // 61s since the confirmed send
+      seam.pushRunNotification(withHr);
+      expect(calls).toHaveLength(2); // forced through before the native side would drop HR
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not force a keep-alive push once HR is no longer live", async () => {
+    vi.useFakeTimers();
+    try {
+      const noHr = content({ message: "5.23 km · 5:42/km" });
+      seam.pushRunNotification(noHr);
+      expect(calls).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(120_000);
+      seam.pushRunNotification(noHr);
+      expect(calls).toHaveLength(1); // nothing to keep alive — plain dedupe holds
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
