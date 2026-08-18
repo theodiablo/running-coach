@@ -15,18 +15,9 @@ import { setGeoDebug } from "../geo/trackLog";
 import { WatchSyncLog } from "./WatchSyncLog";
 import { TrackDiagLog } from "./TrackDiagLog";
 import { BetaBadge } from "../components/BetaBadge";
-import { canShowPremiumTeaser } from "../premium";
 import { HR_BLE_DISCLOSED_KEY, PLAY_STORE_BETA_URL, APP_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
 import type { ImportProvider } from "../imports/types";
 import type { HrMethod, SettingsState } from "../types";
-
-// Suunto is landing premium-first (docs/monetization.md) — the same
-// never-claw-back logic as the route finder and guided workouts, since Suunto
-// has shipped to zero free users so far (dormant until VITE_SUUNTO_CLIENT_ID is
-// set). Gate here mirrors `isPremium || canShowPremiumTeaser` used elsewhere;
-// the real enforcement is server-side in suunto-import (exchange/sync/fit/ack
-// all return PREMIUM_REQUIRED for a free caller).
-const PREMIUM_GATED_PROVIDER_IDS = new Set(["suunto"]);
 
 // ── Connections & sync ──────────────────────────────────────────────────────
 // The ONE settings card for every external source feeding runs or heart rate:
@@ -41,9 +32,6 @@ type ConnectionsProps = {
   showToast?: (msg: string, type?: string) => void;
   // Manual wider-window scan across all providers — returns how many runs it found.
   scanImportsNow?: () => Promise<number>;
-  // UI hint only (src/premium.ts) — gates whether a premium-only provider row
-  // (Suunto) renders at all. The real gate is server-side.
-  isPremium?: boolean;
 };
 
 // Where is a provider's synced enable-flag? The health-store providers share
@@ -581,7 +569,7 @@ function MobileAppPointer() {
 
 export function ConnectionsCard(props: ConnectionsProps) {
   const { t } = useTranslation();
-  const { showToast, isPremium } = props;
+  const { showToast } = props;
   const [cloudProviders, setCloudProviders] = useState<ImportProvider[]>([]);
   // Hidden developer sync-log: tap the section title 5× to toggle it (moved
   // here from the old Integrations section — same key, same behaviour).
@@ -610,13 +598,12 @@ export function ConnectionsCard(props: ConnectionsProps) {
     (async () => {
       const out: ImportProvider[] = [];
       for (const p of importProviders) {
-        if (PREMIUM_GATED_PROVIDER_IDS.has(p.id) && !(isPremium || canShowPremiumTeaser)) continue;
         if (p.kind === "cloud" && p.connect && (await p.isAvailable())) out.push(p);
       }
       if (!cancelled) setCloudProviders(out);
     })();
     return () => { cancelled = true; };
-  }, [isPremium]);
+  }, []);
 
   return (
     <div className="bg-slate-800 rounded-2xl p-4 space-y-3">

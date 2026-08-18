@@ -224,7 +224,6 @@ convenience last.
 | 6b | **Live run sharing** — follow a run as it happens from your own other signed-in sessions (`docs/live-sharing.md`) | Ongoing write traffic and stored rows for the duration of every shared run; emotionally the strongest "show someone" feature, and new value rather than a claw-back (a run has never been visible mid-run) | **Built** (same-account v1), hidden behind `canShowPremiumTeaser` |
 | 7 | **Higher coach daily budget** (`PREMIUM_RATE_LIMIT_PER_DAY`, 40 vs 5) | Already shipped as a *raise*; never framed as the reason to buy | **Built** |
 | 8 | **Guided workouts** — live step-by-step tempo/interval/run-walk guidance in the tracker with voice/beep cues, screen-off included (`docs/guided-workouts.md`) | The "workout mode" running watches charge for; new value (structured sessions were never guided), landed premium-first | **Built**, hidden behind `canShowPremiumTeaser` |
-| 9 | **Suunto cloud import** — auto-import finished runs from a Suunto watch, second vendor after Polar (`docs/integrations-suunto.md`) | Never shipped to a free user, so it lands premium-first like the rest of this list rather than being added free and clawed back later | **Built**, gated server-side in `suunto-import` and hidden behind `canShowPremiumTeaser` |
 
 ### Best efforts: the moment is free, the history is premium (2026-07)
 

@@ -9,19 +9,6 @@ new versus Polar: Suunto issues **short-lived tokens** (refresh flow), serves
 server-side transaction** (so the sync cursor lives in our row), and pushes
 **webhooks** when a watch syncs.
 
-**Premium-gated (landed premium-first, docs/monetization.md).** Unlike Polar,
-Suunto has never shipped to a free user, so it lands behind the premium seam
-from the start rather than being clawed back later. `suunto-import` gates
-every action except `status`/`disconnect` behind `isPremiumUser` (same
-`profiles.premium_until` check as `route-suggest`) — a free caller's
-`exchange` (and, defensively, `sync`/`fit`/`ack`) answers
-`{code:"PREMIUM_REQUIRED"}`. The client mirrors this in `ConnectionsCard`: the
-Suunto row only renders when `isPremium || canShowPremiumTeaser` (currently
-`false`), so a free user sees no Suunto entry point at all — the same
-"nothing at all" free UX as the route finder. `suunto-webhook` stays ungated:
-with `exchange` shut for free callers there is no connection row for a
-webhook to map a free user's workouts into.
-
 ## How it's wired
 
 - **OAuth**: the shared `makeCloudOauth` seam with `pkce: true` — PKCE is
