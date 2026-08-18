@@ -172,30 +172,14 @@ Deno.serve(async (req) => {
     );
 
     // Credentials live in the generic integration_connections table
-    // (provider = 'polar'). Dual-read fallback: a connect that landed on the
-    // OLD deployed function between the migration's `db push` and this
-    // rewrite's deploy wrote only polar_tokens — read it on a miss and copy the
-    // row forward. Removed (with the polar_tokens drop) once verified live.
+    // (provider = 'polar').
     const loadToken = async () => {
       const { data } = await admin.from("integration_connections")
         .select("external_user_id, access_token")
         .eq("user_id", user.id).eq("provider", "polar").maybeSingle();
-      if (data) {
-        const row = data as { external_user_id: string; access_token: string };
-        return { polar_user_id: row.external_user_id, access_token: row.access_token };
-      }
-      const { data: legacy } = await admin.from("polar_tokens")
-        .select("polar_user_id, access_token").eq("user_id", user.id).maybeSingle();
-      if (!legacy) return null;
-      const old = legacy as { polar_user_id: string; access_token: string };
-      await admin.from("integration_connections").upsert({
-        user_id: user.id,
-        provider: "polar",
-        external_user_id: old.polar_user_id,
-        access_token: old.access_token,
-        updated_at: new Date().toISOString(),
-      });
-      return old;
+      if (!data) return null;
+      const row = data as { external_user_id: string; access_token: string };
+      return { polar_user_id: row.external_user_id, access_token: row.access_token };
     };
 
     if (action === "status") {
@@ -205,8 +189,6 @@ Deno.serve(async (req) => {
     if (action === "disconnect") {
       await admin.from("integration_connections").delete()
         .eq("user_id", user.id).eq("provider", "polar");
-      // Also drop any legacy row so the dual-read can't resurrect it.
-      await admin.from("polar_tokens").delete().eq("user_id", user.id);
       return json({ ok: true });
     }
 

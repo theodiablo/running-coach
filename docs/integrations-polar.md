@@ -21,16 +21,16 @@ polar.ts`) registered in `src/imports/registry.ts`, plus a Supabase edge functio
 user's token — neither ever reaches the SPA bundle, mirroring `coach-agent`.
 
 - **`integration_connections` table** (`supabase/migrations/
-  20260730133032_integration_connections.sql`) stores the token as the
+  20260730204228_integration_connections.sql`) stores the token as the
   `provider = 'polar'` row: `{ user_id, provider, external_user_id (the
   AccessLink user id), access_token }` (`refresh_token`/`expires_at` stay null —
   Polar tokens don't expire). One generic table serves every cloud provider
   (Suunto, COROS…). It is **service-role only**: RLS on, zero `authenticated`
   grants, so a client can never read the token — only the edge function
-  (service_role) touches it. The original `polar_tokens` table
-  (`20260721120000_polar_tokens.sql`) was copied into it by that migration; the
-  function dual-reads (legacy fallback) until `polar_tokens` is dropped in a
-  cleanup migration after live verification.
+  (service_role) touches it. The original per-provider `polar_tokens` table
+  (`20260721120000_polar_tokens.sql`) was copied into it by that migration and
+  dropped once live-verified empty (`20260818194332_drop_polar_tokens.sql`),
+  along with the function's dual-read fallback.
 - **`polar-import` edge function** actions: `status`, `exchange` (code → token,
   register the user with AccessLink, store), `sync` (transaction pull → return
   each exercise's summary + GPX **text**), `disconnect`. It never parses GPX —
