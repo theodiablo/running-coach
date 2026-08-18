@@ -41,9 +41,17 @@ const LiveActivity = registerPlugin<{
 }>("LiveActivity");
 
 const INFLIGHT_STALE_MS = 10000;
+// The patched Android plugin drops a live HR reading it hasn't been re-seeded
+// with in LIVE_HR_STALE_MS (90s, BackgroundGeolocation.java) — a wall-clock
+// timeout with no view into whether the JS-rendered text changed. Force a
+// push at this shorter interval whenever HR is live, so the dedupe below
+// (text-identity, correct for km/pace — see sameNotificationContent) can
+// never let the native seed go stale enough to age HR out from under it.
+const HR_KEEPALIVE_MS = 60000;
 
 let lastSent: RunNotificationContent | null = null;
 let lastApplied = false; // native confirmed the update landed
+let lastAppliedAt = 0; // when that confirmation landed, for the HR keep-alive
 let inflight = false;
 let inflightSince = 0;
 let generation = 0; // invalidates the settle-handler of a written-off (stale) call
@@ -56,6 +64,14 @@ let cleared = false;
 
 const inflightFresh = () => inflight && Date.now() - inflightSince < INFLIGHT_STALE_MS;
 
+// Text-identical to what's already confirmed applied, and (when HR is live)
+// recent enough that the native HR seed can't have gone stale yet.
+function alreadyApplied(content: RunNotificationContent): boolean {
+  if (!lastApplied || !sameNotificationContent(lastSent, content)) return false;
+  if (isAndroid && content.live.hr != null && Date.now() - lastAppliedAt >= HR_KEEPALIVE_MS) return false;
+  return true;
+}
+
 function drain(): void {
   if (endPending) {
     endPending = false;
@@ -65,7 +81,7 @@ function drain(): void {
   if (queuedPush) {
     const content = queuedPush;
     queuedPush = null;
-    if (!(lastApplied && sameNotificationContent(lastSent, content))) sendNow(content);
+    if (!alreadyApplied(content)) sendNow(content);
   }
 }
 
@@ -88,7 +104,11 @@ function sendNow(content: RunNotificationContent): void {
     } : {}),
   };
   (isAndroid ? BackgroundGeolocation.updateNotification(options) : LiveActivity.push(options))
-    .then((res) => { if (gen === generation) lastApplied = res?.updated === true; })
+    .then((res) => {
+      if (gen !== generation) return;
+      lastApplied = res?.updated === true;
+      if (lastApplied) lastAppliedAt = Date.now();
+    })
     .catch(() => { if (gen === generation) lastApplied = false; })
     .finally(() => { if (gen === generation) { inflight = false; drain(); } });
 }
@@ -110,6 +130,10 @@ function runEnd(): void {
  * content the native side CONFIRMED (`updated: true`) — so a push that raced
  * ahead of the watcher/service (Android) or was refused (iOS) is retried on
  * the next call instead of being silently lost. Fire-and-forget; never throws.
+ * On Android, a text-identical push still goes through every HR_KEEPALIVE_MS
+ * while HR is live (`alreadyApplied`) — otherwise a run holding steady km/pace
+ * with a live sensor could dedupe every push away, and the seed the service
+ * extrapolates from would silently age out from under it.
  */
 export function pushRunNotification(content: RunNotificationContent): void {
   if (!isAndroid && !isIos) return;
@@ -117,7 +141,7 @@ export function pushRunNotification(content: RunNotificationContent): void {
     queuedPush = content; // latest wins; delivered when the in-flight call settles
     return;
   }
-  if (lastApplied && sameNotificationContent(lastSent, content)) return;
+  if (alreadyApplied(content)) return;
   sendNow(content);
 }
 
@@ -129,6 +153,7 @@ export function pushRunNotification(content: RunNotificationContent): void {
 export function resetRunNotification(): void {
   lastSent = null;
   lastApplied = false;
+  lastAppliedAt = 0;
   queuedPush = null;
   if (cleared) return;
   cleared = true;
