@@ -190,6 +190,7 @@
   },
   "integrations": {
     "scan30": "Buscar en los últimos 30 días",
+    "syncNow": "Sincronizar ahora",
     "turnOff": "Desactivar",
     "connectSuccess": "Conexión establecida. Los entrenamientos del reloj aparecerán aquí después de sincronizarse.",
     "noNewRuns": "Aún no hay entrenamientos nuevos para importar.",

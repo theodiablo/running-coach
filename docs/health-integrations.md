@@ -394,6 +394,34 @@ effect + the `visibilitychange` listener, throttled to one auto-toast per
 session) drives `scanAllProviders` → **1 run** goes through `goLog` prefill
 (LogView review + `findOpenPlanSession` auto-tick + race auto-detect),
 **several** land as an `addRuns` batch. `markSeen` runs inside `addRuns` for
-any run carrying `hcId`. `shared.scanImportsNow` drives the manual 30-day scan.
+any run carrying `hcId`. `shared.scanImportsNow` drives the manual scan.
+
+**The two paths must save the same run.** The batch path passes the mapped run
+to `addRuns` whole; the 1-run path rebuilds it from the review form, so every
+field the form can't edit needs an explicit carry-through in `LogView.submit`
+(`source`, `routeId`/`routeTmp`, `hrRouteId`, `bestEfforts`, `hrPending*`,
+`startedAt`, and **both id-spaces, `hcId` AND `extId`**). A dropped id is
+silent and compounds: the run exists but is invisible to the provider's
+`knownKeys`, so every later sync re-lists that workout, re-downloads its FIT
+against the daily quota, and then discards the candidate at step 3 above —
+a sync that worked reports "no new runs". Add a field to an `ImportedRun`,
+add it here.
+
+**A scan's toast actions navigate, so they dismiss first** (`goVia` →
+`dismissAll`): a manual scan is started from inside Settings, which otherwise
+stays open over the destination and makes the sync button look inert.
+
+**The toast names the source it came from** ("New run from Suunto"), because
+with several sources connected a generic "from your watch" doesn't say which
+one actually delivered. `scanAllProviders` stamps each candidate with
+`providerId` — it's the only layer that knows, so never re-derive a source from
+`extId` prefixes downstream — and `scanSourceId` collapses a scan to one id, or
+`null` when a pass merged two (naming either would be wrong; falls back to
+`app.toasts.sources.generic`). The stamp is transient: read it off the scan
+result, not off `found`, which `persistImportedRoutes` has already stripped.
+
+**Cloud rows are not windowed.** `days` reaches only the health-store
+providers; a cloud provider syncs from its own server-side cursor, so its row
+says "Sync now" and never names a window (`settings.integrations.syncNow`).
 Run gains `hcId`/`startedAt`/`extId` (`src/types.ts`); new provider
 enable-flags go in `settings.imports` (HC keeps `watchImport`).

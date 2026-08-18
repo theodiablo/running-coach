@@ -190,6 +190,7 @@
   },
   "integrations": {
     "scan30": "Rechercher dans les 30 derniers jours",
+    "syncNow": "Synchroniser maintenant",
     "turnOff": "Désactiver",
     "connectSuccess": "Connexion établie. Les sorties de ta montre apparaîtront ici après leur synchronisation.",
     "noNewRuns": "Aucune nouvelle sortie à importer pour l'instant.",

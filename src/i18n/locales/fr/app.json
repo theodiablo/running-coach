@@ -23,8 +23,15 @@
     "runDeleted": "Sortie supprimée.",
     "runUpdated": "Sortie mise à jour.",
     "restored": "Restauration terminée. Sorties importées : {{n}}.",
-    "foundRun": "Sortie trouvée sur ta montre : {{km}} km le {{date}}",
-    "foundRuns": "Sorties trouvées sur ta montre : {{n}}",
+    "foundRun": "Nouvelle sortie depuis {{source}} : {{km}} km le {{date}}",
+    "foundRuns": "{{n}} nouvelles sorties depuis {{source}}",
+    "sources": {
+      "healthconnect": "ta montre",
+      "healthkit": "ta montre",
+      "polar": "Polar",
+      "suunto": "Suunto",
+      "generic": "ta montre"
+    },
     "review": "Examiner",
     "importAll": "Tout importer",
     "emailChangeDone": "Adresse e-mail mise à jour vers {{email}}.",

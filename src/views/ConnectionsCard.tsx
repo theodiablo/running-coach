@@ -479,12 +479,16 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
     provider.disconnect?.();
   };
 
-  const scanOlder = async () => {
+  // A cloud provider is cursor-based, not windowed: the server decides what's
+  // new from its own watermark and the `days` option is ignored entirely. So
+  // this row must not promise "last 30 days" — during a first-connect backfill
+  // it's reaching years back, and a workout older than the window imports fine.
+  const syncNow = async () => {
     if (!scanImportsNow) return;
     setScanning(true);
     try {
       const n = await scanImportsNow();
-      if (!n) showToast?.(t("settings.integrations.noRuns30"));
+      if (!n) showToast?.(t("settings.integrations.noNewRuns"));
     } catch {
       showToast?.(t("settings.integrations.scanFailed"), "err");
     } finally {
@@ -512,10 +516,10 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
         )}
       />
       {on && (
-        <button type="button" onClick={scanOlder} disabled={scanning}
+        <button type="button" onClick={syncNow} disabled={scanning}
           className="w-full py-2 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center gap-2 disabled:opacity-50">
           {scanning ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-          {t("settings.integrations.scan30")}
+          {t("settings.integrations.syncNow")}
         </button>
       )}
       {/* Named after the provider, and indented under its row: the card closes

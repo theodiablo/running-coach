@@ -23,8 +23,15 @@
     "runDeleted": "Entrenamiento eliminado.",
     "runUpdated": "Entrenamiento actualizado.",
     "restored": "Restauración completada. Entrenamientos importados: {{n}}.",
-    "foundRun": "Hemos encontrado un entrenamiento de tu reloj: {{km}} km el {{date}}",
-    "foundRuns": "Hemos encontrado {{n}} entrenamientos de tu reloj",
+    "foundRun": "Nuevo entrenamiento desde {{source}}: {{km}} km el {{date}}",
+    "foundRuns": "{{n}} entrenamientos nuevos desde {{source}}",
+    "sources": {
+      "healthconnect": "tu reloj",
+      "healthkit": "tu reloj",
+      "polar": "Polar",
+      "suunto": "Suunto",
+      "generic": "tu reloj"
+    },
     "review": "Revisar",
     "importAll": "Importar todas",
     "emailChangeDone": "Dirección de correo actualizada a {{email}}.",
