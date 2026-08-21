@@ -171,6 +171,19 @@
     <uses-permission android:name="android.permission.health.READ_DISTANCE" />
     <uses-permission android:name="android.permission.health.READ_ELEVATION_GAINED" />
 
+    <!-- GPS route of an imported exercise session, so a phone-free run can land
+         with a map instead of distance-only. Unlike every scope above, Health
+         Connect will NOT grant this from our permission sheet: requests for it
+         are ignored, and the user turns it on themselves (Health Connect →
+         app permissions → "Exercise routes", or the per-session route consent
+         dialog). Declaring it is what makes that toggle exist at all.
+         The import treats it as strictly optional — a session whose route is
+         absent or unconsented imports exactly as before, with no map — so this
+         permission never gates the Health Connect connection. It is a new
+         health scope and so needs a Google Play health-data declaration update
+         before release (docs/health-integrations.md). -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES" />
+
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
         <intent>

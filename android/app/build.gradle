@@ -89,11 +89,26 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
 
     // WatchImportPlugin (local, in this module): read finished exercise sessions
-    // from Health Connect. connect-client is pinned to the same version the
-    // health-connect plugin resolves; coroutines back its suspend read APIs.
+    // from Health Connect. coroutines back its suspend read APIs.
     // (No explicit kotlin-stdlib — KGP 2.x adds its own matching stdlib.)
+    //
+    // VERSION PIN — read before bumping. Gradle resolves ONE connect-client for
+    // the APK across this module and the pianissimo health-connect plugin, so
+    // this pin constrains both. The window is narrow at both ends:
+    //   - FLOOR 1.1.0-alpha03: the exercise-route read API
+    //     (`ExerciseRouteResult`, `ExerciseSessionRecord.exerciseRouteResult`)
+    //     does not exist before it. The previous pin, 1.1.0-alpha02, ships the
+    //     `ExerciseRoute` data class but NOT the result wrapper that exposes it
+    //     on a read — routes are unreadable there.
+    //   - CEILING 1.1.0-alpha10: 1.1.0-alpha12 DELETED the internal
+    //     `androidx.health.connect.client.impl.converters.permission` package,
+    //     and the pianissimo plugin imports `toProtoPermission` from it. Any
+    //     pin at alpha12 or later (including 1.1.0 stable) fails that plugin's
+    //     compilation. Moving past it means patching or dropping that plugin.
+    // alpha10 is the top of that window. Verified by inspecting the published
+    // AARs, not by release notes (whose route entries are misleading).
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
-    implementation "androidx.health.connect:connect-client:1.1.0-alpha02"
+    implementation "androidx.health.connect:connect-client:1.1.0-alpha10"
 }
 
 apply from: 'capacitor.build.gradle'
