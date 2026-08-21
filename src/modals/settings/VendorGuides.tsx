@@ -7,13 +7,16 @@ import { HowItWorks } from "../../views/ConnectionsCard";
 //
 // Strava's API agreement bans AI-model use of API data and our coach reads the
 // user's runs, so an OAuth integration is off the table (docs/health-integrations.md);
-// Zepp has no cloud API available to indie developers at all. Both are still
-// perfectly usable through paths we already support, so this card teaches those
-// two paths instead of pretending the vendor is unsupported:
+// Zepp has no cloud API available to indie developers at all; Garmin does have
+// one, but its Connect Developer Program is partner-gated (a legal entity,
+// approved case by case) and new access requests are suspended, so it is shut
+// to us too. All three are still perfectly usable through paths we already
+// support, so this card teaches those two paths instead of pretending the
+// vendor is unsupported:
 //   - past runs: export a file from the vendor, import it here;
 //   - new runs: let the vendor's phone app write to the platform health store,
 //     which the connection above already reads.
-const VENDORS = ["strava", "zepp"] as const;
+const VENDORS = ["strava", "zepp", "garmin"] as const;
 
 export function VendorGuides({ onImportFile }: { onImportFile?: () => void }) {
   const { t } = useTranslation();
