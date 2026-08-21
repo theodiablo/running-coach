@@ -403,7 +403,7 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
   );
 }
 
-// ── Cloud providers (Polar today; Suunto/COROS reuse this seam) ──────────────
+// ── Cloud providers (Polar and Suunto today; COROS on the same seam) ─────────
 function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow }: ConnectionsProps & { provider: ImportProvider }) {
   const { t } = useTranslation();
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -432,8 +432,8 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
     // A native OAuth return completes out-of-band (deep link → RunningCoach
     // exchange) — refresh this row's state when it lands so the user sees
     // "connected" without reopening Settings. The event carries the provider id
-    // in its detail so this only fires the matching row (future-proof for
-    // Suunto/COROS on the same seam — a bare event would flip every cloud row).
+    // in its detail so this only fires the matching row (Polar, Suunto and
+    // COROS share this seam — a bare event would flip every cloud row).
     const onDone = (e: Event) => {
       const id = (e as CustomEvent<{ id?: string }>).detail?.id;
       if (!cancelled && id === provider.id) setConnected(true);

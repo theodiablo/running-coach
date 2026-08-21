@@ -216,6 +216,10 @@
       "suunto": {
         "label": "Suunto",
         "help": "Conecta tu cuenta de Suunto para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj Suunto, incluso si dejas el teléfono en casa. Todo tu historial se importa en la primera conexión."
+      },
+      "coros": {
+        "label": "COROS",
+        "help": "Conecta tu cuenta de COROS para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj COROS, incluso si dejas el teléfono en casa. Todo tu historial se importa en la primera conexión."
       }
     }
   },

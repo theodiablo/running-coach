@@ -216,6 +216,10 @@
       "suunto": {
         "label": "Suunto",
         "help": "Connect your Suunto account to import finished runs — route, pace, elevation and heart rate — from your Suunto watch, even when you leave your phone at home. Your full history imports when you first connect."
+      },
+      "coros": {
+        "label": "COROS",
+        "help": "Connect your COROS account to import finished runs, with route, pace, elevation and heart rate, from your COROS watch, even when you leave your phone at home. Your full history imports when you first connect."
       }
     }
   },

@@ -50,6 +50,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="solutions.camboulive.run" android:host="suunto-callback" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="solutions.camboulive.run" android:host="coros-callback" />
+            </intent-filter>
 
             <!-- Health Connect client declaration (Android 14+, where Health Connect is
                  in the platform). Without this, Health Connect doesn't recognise the app

@@ -171,6 +171,7 @@ jobs:
           # the secret half lives in the suunto-import edge function). See
           # docs/integrations-suunto.md.
           VITE_SUUNTO_CLIENT_ID: ${{ vars.VITE_SUUNTO_CLIENT_ID }}
+          VITE_COROS_CLIENT_ID: ${{ vars.VITE_COROS_CLIENT_ID }}
           # Released native apps — production telemetry (PR builds tag "preview").
           VITE_APP_ENV: production
           # Native build: drop the web-only marketing landing chunk entirely so

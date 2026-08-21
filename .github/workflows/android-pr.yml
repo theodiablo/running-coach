@@ -90,6 +90,7 @@ jobs:
           # the secret half lives in the suunto-import edge function). See
           # docs/integrations-suunto.md.
           VITE_SUUNTO_CLIENT_ID: ${{ vars.VITE_SUUNTO_CLIENT_ID }}
+          VITE_COROS_CLIENT_ID: ${{ vars.VITE_COROS_CLIENT_ID }}
           VITE_APP_ENV: preview
 
       - name: Sync Capacitor
