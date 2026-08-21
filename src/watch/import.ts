@@ -1,10 +1,12 @@
 import { isAndroid } from "../native";
 import { WATCH_HC_AUTH_KEY, WATCH_SEEN_HC_IDS_KEY, WATCH_SEEN_MAX } from "../constants";
-import { getWatchImportPlugin, type WatchImportAvailability } from "./plugin";
+import { getWatchImportPlugin, type WatchImportAvailability, type RouteReadStatus } from "./plugin";
 import { classifyWatchSessions, type ClassifiedSession } from "./mapping";
 import { appendScanLog, toLogSessions } from "./scanLog";
-import { normalizeHrSamples } from "../imports/series";
+import { normalizeHrSamples, normalizeRoutePoints } from "../imports/series";
+import type { HrSample } from "../imports/series";
 import type { ImportedRun } from "../imports/types";
+import type { TrackPointOrGap } from "../utils/geo";
 import type { Run } from "../types";
 
 // Default rolling window scanned on each app open/foreground. No sync cursor:
@@ -125,10 +127,11 @@ export async function scanWatchSessions(
     const raw = res?.sessions || [];
     const classified = classifyWatchSessions(raw, runs || [], getSeenIds(), WATCH_MIN_KM);
     const importedC = classified.filter(c => c.outcome === "imported");
-    // Enrich each NEW run with its raw HR series (for the detail time-in-zone
-    // card) — one lazy per-run read, so an all-skipped scan does no extra I/O.
-    const imported = await enrichWithHrSeries(importedC);
-    appendScanLog({ at: now, trigger, days, availability: avail, permission: true, rawCount: raw.length, importedCount: imported.length, sessions: toLogSessions(classified) });
+    // Enrich each NEW run with its raw HR series (detail time-in-zone card) and
+    // its GPS route (map + pace curve) — lazy per-run reads, so an all-skipped
+    // scan does no extra I/O.
+    const { runs: imported, routeStatuses } = await enrichNewRuns(importedC);
+    appendScanLog({ at: now, trigger, days, availability: avail, permission: true, rawCount: raw.length, importedCount: imported.length, sessions: toLogSessions(classified), ...(routeStatuses.length ? { routeStatuses } : {}) });
     return imported;
   } catch (e) {
     appendScanLog({ at: now, trigger, days, availability: "skipped", permission: false, rawCount: 0, importedCount: 0, error: String((e as { message?: string })?.message || e), sessions: [] });
@@ -138,23 +141,54 @@ export async function scanWatchSessions(
 
 // Fetch the raw HR series for each imported session and attach it as hrSamples.
 // Origin-filtered to the session's writer; a failed/empty read leaves the run
-// with just its avg/max HR aggregates (already on the mapped run). Health Connect
-// has no route for any known writer, so these imports carry HR but no GPS — the
-// run rides hrRouteId (see persistImportedRoute), powering the detail zone card.
-async function enrichWithHrSeries(items: ClassifiedSession[]): Promise<ImportedRun[]> {
-  return Promise.all(items.map(async ({ raw, run }): Promise<ImportedRun> => {
+// with just its avg/max HR aggregates (already on the mapped run).
+async function hrSeriesFor(raw: ClassifiedSession["raw"]): Promise<HrSample[]> {
+  if (!raw?.startTime || !raw?.endTime) return [];
+  try {
+    const res = await getWatchImportPlugin().readHeartRateSeries({
+      startTime: raw.startTime,
+      endTime: raw.endTime,
+      ...(raw.dataOrigin ? { dataOrigin: raw.dataOrigin } : {}),
+    });
+    return normalizeHrSamples(res?.samples);
+  } catch { return []; }
+}
+
+// Fetch one session's GPS route. Exercise routes are a SEPARATE, more sensitive
+// Health Connect grant that the app cannot request from its own permission
+// sheet (the user turns it on in Health Connect), so "no route" is the ordinary
+// outcome, not a failure: every non-"data" status — and any throw — degrades to
+// no points, and the session still imports with its totals and HR exactly as it
+// did before routes existed. The status is returned only for the diagnostics
+// scan log, so "I allowed routes and still get no map" is diagnosable.
+async function routeFor(raw: ClassifiedSession["raw"]): Promise<{ points: TrackPointOrGap[]; status: RouteReadStatus }> {
+  if (!raw?.id) return { points: [], status: "unavailable" };
+  try {
+    const res = await getWatchImportPlugin().readExerciseRoute({ id: raw.id });
+    return { points: normalizeRoutePoints(res?.points), status: res?.status || "none" };
+  } catch { return { points: [], status: "unavailable" }; }
+}
+
+// Attach the HR series and GPS route to each NEW run. A run that came back with
+// a route rides `points` → persistImportedRoute simplifies it into a run_routes
+// row, stamps `routeId` and extracts best efforts from the trace — the same save
+// path, and the same one-shot measurement, a phone-recorded run gets. A run
+// without one keeps the previous behaviour: HR only, on the `hrRouteId` sidecar,
+// and no map.
+async function enrichNewRuns(items: ClassifiedSession[]): Promise<{ runs: ImportedRun[]; routeStatuses: RouteReadStatus[] }> {
+  const enriched = await Promise.all(items.map(async ({ raw, run }): Promise<{ run: ImportedRun; status: RouteReadStatus }> => {
     const base = (run || {}) as ImportedRun;
-    if (!raw?.startTime || !raw?.endTime) return base;
-    try {
-      const res = await getWatchImportPlugin().readHeartRateSeries({
-        startTime: raw.startTime,
-        endTime: raw.endTime,
-        ...(raw.dataOrigin ? { dataOrigin: raw.dataOrigin } : {}),
-      });
-      const hrSamples = normalizeHrSamples(res?.samples);
-      return hrSamples.length ? { ...base, hrSamples } : base;
-    } catch { return base; }
+    const [hrSamples, route] = await Promise.all([hrSeriesFor(raw), routeFor(raw)]);
+    return {
+      run: {
+        ...base,
+        ...(hrSamples.length ? { hrSamples } : {}),
+        ...(route.points.length ? { points: route.points } : {}),
+      },
+      status: route.status,
+    };
   }));
+  return { runs: enriched.map(e => e.run), routeStatuses: enriched.map(e => e.status) };
 }
 
 // Surface for the Settings UI (connect flow + status), mirroring healthConnectSource.

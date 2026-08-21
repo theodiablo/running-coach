@@ -934,7 +934,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Persist any route trace / raw HR series a provider returned and swap them
     // for a routeId (GPS) or hrRouteId (HR-only) — the transient points/hrSamples
     // never belong in the stored run (blob bloat). HealthKit imports Apple Watch
-    // routes + HR; Health Connect imports HR series (no routes exist there yet).
+    // routes + HR; Health Connect imports HR series, plus a route on the rare
+    // session that carries one (docs/health-integrations.md).
     const found = scanned.length ? await persistImportedRoutes(scanned) : [];
     if (!found.length) {
       // Nothing survived dedupe → nothing for the user to confirm, but a cloud

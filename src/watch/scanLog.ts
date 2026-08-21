@@ -1,5 +1,5 @@
 import { WATCH_SCAN_LOG_KEY, WATCH_SCAN_LOG_MAX, WATCH_DEBUG_KEY } from "../constants";
-import type { WatchImportAvailability } from "./plugin";
+import type { WatchImportAvailability, RouteReadStatus } from "./plugin";
 import type { ClassifiedSession, SessionOutcome } from "./mapping";
 
 // Developer diagnostics for watch import. Every Health Connect scan records what
@@ -31,6 +31,11 @@ export type ScanLogEntry = {
   importedCount: number;
   error?: string;
   sessions: ScanLogSession[];
+  // Per-imported-run route outcome, in importedCount order. Absent when the scan
+  // imported nothing. All "consent-required" is the expected default (exercise
+  // routes are granted in Health Connect, not from our sheet); "none" means the
+  // writing app attached no route to that session.
+  routeStatuses?: RouteReadStatus[];
 };
 
 export function getScanLog(): ScanLogEntry[] {
