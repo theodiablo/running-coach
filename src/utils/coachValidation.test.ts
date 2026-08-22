@@ -262,6 +262,7 @@ describe("buildPlan output passes the shared validator", () => {
   // realistic envelope: race distances, day counts (incl. adversarial
   // consecutive-day layouts) and fitness levels.
   const dayLayouts: [string, { dayOffset: number; minutes: number }[]][] = [
+    ["1 day", [{ dayOffset: 6, minutes: 60 }]],
     ["2 days", [{ dayOffset: 2, minutes: 30 }, { dayOffset: 6, minutes: 60 }]],
     ["3 days", [{ dayOffset: 1, minutes: 40 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 6, minutes: 90 }]],
     ["4 days", [{ dayOffset: 0, minutes: 40 }, { dayOffset: 2, minutes: 45 }, { dayOffset: 4, minutes: 40 }, { dayOffset: 6, minutes: 100 }]],

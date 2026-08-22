@@ -66,7 +66,7 @@ export function AvailabilityEditor({
                 <Minus size={16}/>
               </button>
               <span className="text-orange-400 font-bold text-xl tabular-nums">
-                {t("plan.avail.simple.daysCount", { n: clampDays(days) })}
+                {t("plan.avail.simple.daysCount", { count: clampDays(days) })}
               </span>
               <button type="button" onClick={() => onDaysChange(clampDays(days + 1))}
                 disabled={days >= AVAIL_DAY_MAX}
@@ -100,7 +100,7 @@ export function AvailabilityEditor({
           {/* Summary callout */}
           <div className="rounded-xl bg-orange-500/10 border border-orange-500/25 px-3 py-2.5 text-xs text-orange-200 leading-relaxed">
             {t("plan.avail.simple.summary", {
-              n: clampDays(days),
+              count: clampDays(days),
               duration: t("plan.avail.simple.band." + band + ".word"),
             })}
           </div>

@@ -24,7 +24,8 @@
   },
   "availRow": {
     "subtitle": "le temps que tu peux donner",
-    "simpleSummary": "{{days}} jours · {{duration}} chacune · le coach choisit les jours"
+    "simpleSummary_one": "{{count}} jour · {{duration}} · le coach choisit le jour",
+    "simpleSummary_other": "{{count}} jours · {{duration}} chacune · le coach choisit les jours"
   },
   "avail": {
     "framing": "Le maximum de temps que tu pourrais donner, pas une promesse de courir aussi longtemps.",
@@ -34,11 +35,13 @@
     },
     "simple": {
       "daysQuestion": "Combien de jours par semaine peux-tu courir ?",
-      "daysCount": "{{n}} jours",
+      "daysCount_one": "{{count}} jour",
+      "daysCount_other": "{{count}} jours",
       "fewerDays": "Moins de jours",
       "moreDays": "Plus de jours",
       "timeQuestion": "Un jour d'entraînement, combien de temps as-tu ?",
-      "summary": "On choisit les meilleurs jours pour toi : {{n}} sorties de {{duration}} chacune, avec la sortie longue le week-end.",
+      "summary_one": "On choisit le meilleur jour pour toi : une sortie de {{duration}}, le week-end.",
+      "summary_other": "On choisit les meilleurs jours pour toi : {{count}} sorties de {{duration}} chacune, avec la sortie longue le week-end.",
       "dayHint": {
         "few": "3 jours, c'est l'idéal pour une première course : assez pour progresser, avec du repos entre les séances.",
         "solid": "Un bon rythme si tu as déjà couru.",

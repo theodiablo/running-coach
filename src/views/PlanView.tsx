@@ -86,7 +86,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     (!dist || !date) ? t("plan.notConfigured") : goalSummaryOf(dist, goalSec, Number(elev) || 0, String(date));
   const availDraftSummary = (mode: AvailabilityMode, days: number, band: DurationBand, sessions: PlanSessionInput[]): string =>
     mode === "simple"
-      ? t("plan.availRow.simpleSummary", { days: clampDays(days), duration: t("plan.avail.simple.band." + band + ".word") })
+      ? t("plan.availRow.simpleSummary", { count: clampDays(days), duration: t("plan.avail.simple.band." + band + ".word") })
       : sessions.slice().sort((a, b) => a.dayOffset - b.dayOffset).map(s => dayName(s.dayOffset) + " " + fmt.mins(s.minutes)).join(" · ");
   // Expanded week, by weekNumber — not by list position, which past-weeks-last
   // reordering makes meaningless.
@@ -320,7 +320,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
 
   const goalSummary = goalSummaryOf(plan.distanceKm || 20, plan.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
   const availSummary = settings.availabilityMode === "simple" && settings.availDays
-    ? t("plan.availRow.simpleSummary", { days: settings.availDays, duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
+    ? t("plan.availRow.simpleSummary", { count: settings.availDays, duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
     : sessInfo;
 
   const phaseClass = (phase?: string) => {
