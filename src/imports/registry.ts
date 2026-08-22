@@ -4,6 +4,7 @@ import { fileProvider } from "./providers/file";
 import { garminCloudProvider } from "./providers/cloud";
 import { polarProvider, completePolarAuth } from "./providers/polar";
 import { suuntoProvider, completeSuuntoAuth, commitSuuntoScan, suuntoBackfillPending } from "./providers/suunto";
+import { corosProvider, completeCorosAuth, commitCorosScan, corosBackfillPending } from "./providers/coros";
 import { getSeenIds } from "../watch/import";
 import { isDuplicateRun } from "./dedupe";
 import type { CloudAuthResult } from "./cloudOauth";
@@ -19,6 +20,7 @@ export const importProviders: ImportProvider[] = [
   fileProvider,
   polarProvider,       // cloud: isAvailable() is false until VITE_POLAR_CLIENT_ID is set
   suuntoProvider,      // cloud: isAvailable() is false until VITE_SUUNTO_CLIENT_ID is set
+  corosProvider,       // cloud: scaffold — dormant until COROS documents its API (docs/integrations-coros.md)
   garminCloudProvider, // scaffold: isAvailable() is false until actually wired
 ];
 
@@ -29,6 +31,7 @@ export const importProviders: ImportProvider[] = [
 export const cloudAuthCompleters: Record<string, () => Promise<CloudAuthResult>> = {
   polar: completePolarAuth,
   suunto: completeSuuntoAuth,
+  coros: completeCorosAuth,
 };
 
 // Deferred-ack seam: a cloud provider whose sync protocol needs a server-side
@@ -38,12 +41,13 @@ export const cloudAuthCompleters: Record<string, () => Promise<CloudAuthResult>>
 // re-serves it next scan instead of losing it. Never throws.
 export async function commitCloudScans(): Promise<void> {
   await commitSuuntoScan().catch(() => { /* re-served next scan */ });
+  await commitCorosScan().catch(() => { /* re-served next scan */ });
 }
 
 // True while a cloud provider's last scan ended with more history behind the
 // page cap (the first-connect backfill). RunningCoach exempts continuation
 // scans from the once-per-session auto-scan gate while this holds.
-export const cloudBackfillPending = (): boolean => suuntoBackfillPending();
+export const cloudBackfillPending = (): boolean => suuntoBackfillPending() || corosBackfillPending();
 
 // The on-device health-store providers (one per platform) share the synced
 // settings.watchImport enable-flag — it means "import finished runs from my

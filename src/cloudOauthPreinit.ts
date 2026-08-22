@@ -8,7 +8,7 @@
 // Stay dependency-free (no React, no i18n, no supabase) — importing supabase
 // here would create the client early, the exact race this file exists to win.
 
-export type CloudOauthProviderId = "polar" | "suunto";
+export type CloudOauthProviderId = "polar" | "suunto" | "coros";
 
 export type CloudOauthConfig = {
   // OAuth `state` markers. Native-initiated connects mark their state so the
@@ -50,6 +50,20 @@ export const CLOUD_OAUTH: Record<CloudOauthProviderId, CloudOauthConfig> = {
     stateKey: "rc_suunto_oauth_state",
     nonceKey: "rc_suunto_oauth_nonce",
     verifierKey: "rc_suunto_oauth_verifier",
+  },
+  // Dormant: coros.ts has no authorization URL to navigate to yet (COROS
+  // publishes no API documentation before onboarding — docs/integrations-coros.md),
+  // so nothing ever writes these keys or lands on this deep link. Registered
+  // now so the state prefixes and storage keys are reserved and unambiguous
+  // against the shipped providers, which polar.test.ts asserts for all of them.
+  coros: {
+    statePrefix: "coros_import",
+    nativeStatePrefix: "coros_import:native",
+    deepLink: "solutions.camboulive.run://coros-callback",
+    codeKey: "rc_coros_oauth_code",
+    stateKey: "rc_coros_oauth_state",
+    nonceKey: "rc_coros_oauth_nonce",
+    verifierKey: "rc_coros_oauth_verifier",
   },
 };
 
