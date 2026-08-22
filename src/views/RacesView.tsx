@@ -9,18 +9,15 @@ import { fmt, ymd } from "../utils/format";
 import { hmsToSec } from "../utils/runForm";
 import { findEdition, editionLabel, isPersonalBest } from "../utils/races";
 import { AddRaceCard } from "../components/AddRaceCard";
+import { Chip } from "../components/RaceFilterChips";
+import { BANDS, RADII, useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
 import { haversineM } from "../utils/geo";
-import { geoSource } from "../geo/source";
 import { reportRace } from "../races";
 import type { CatalogueEdition, CatalogueRace, JoinedEdition, Participation, RacesState, Run, SettingsState } from "../types";
 
 const SEGMENTS = [["mine", "races.segments.mine"], ["find", "races.segments.find"]];
-// Find-a-race filter chips: event distance bands (km) and "near me" radius (km).
-const BANDS = [5, 10, 21.1, 42.2];
-const RADII = [25, 50, 100, 500];
 
 type Segment = "mine" | "find";
-type LocationFix = { lat: number; lng: number };
 type JoinedRace = Omit<Partial<CatalogueRace>, "editions"> & {
   name: string;
   raceId: string;
@@ -284,23 +281,7 @@ function FindPanel({ catalogue, byId, addWishlist, logFor, setLogFor, saveResult
   const [expanded, setExpanded] = useState<string | null>(null); // raceId expanded
   const [reportFor, setReportFor] = useState<string | null>(null); // raceId being reported
   const [band, setBand] = useState<number | null>(null);          // event distance band (km) or null
-  const [nearMe, setNearMe] = useState(false);
-  const [radius, setRadius] = useState(100);        // km
-  const [loc, setLoc] = useState<LocationFix | null>(null);
-  const [status, setStatus] = useState<"idle" | "locating" | "denied">("idle");
-
-  const toggleNearMe = async () => {
-    if (nearMe) { setNearMe(false); return; }
-    if (loc) { setNearMe(true); return; }           // reuse an earlier fix
-    setStatus("locating");
-    try {
-      const p = await geoSource.getCurrentPosition() as { lat: number; lng: number };
-      setLoc(p); setNearMe(true); setStatus("idle");
-      track("find_near_me", {});
-    } catch {
-      setStatus("denied");
-    }
-  };
+  const { nearMe, radius, setRadius, loc, status, toggleNearMe } = useNearMeFilter("find_near_me");
 
   // Text + band narrow the catalogue; a race passes the band if any of its
   // editions falls in it.
@@ -529,18 +510,6 @@ function RaceCard({ race, distM, open, onToggle, byId, addWishlist, logFor, setL
   );
 }
 
-type ChipProps = { active: boolean; onClick: () => void; children: ReactNode };
-
-function Chip({ active, onClick, children }: ChipProps) {
-  return (
-    <button onClick={onClick}
-      className={"px-3 py-1 rounded-full text-xs font-semibold transition-colors border " +
-        (active ? "bg-orange-500 text-white border-orange-500" : "bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500")}>
-      {children}
-    </button>
-  );
-}
-
 type SectionProps = { title: string; children: ReactNode };
 
 function Section({ title, children }: SectionProps) {
@@ -646,10 +615,4 @@ function filterRaces(list: CatalogueRace[], query: string) {
 function nextEditionDate(race: CatalogueRace, todayStr: string) {
   const dates = (race.editions || []).map(e => e.date).filter(d => d >= todayStr).sort();
   return dates[0] || null;
-}
-function fmtKm(distM: number) {
-  const km = distM / 1000;
-  // Right on top of it (e.g. same city centroid) reads as a broken "0.0 km".
-  if (km < 0.1) return "< 100 m";
-  return km < 10 ? km.toFixed(1) + " km" : Math.round(km) + " km";
 }

@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, MessageCircle, Trophy } from "lucide-react";
+import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, MessageCircle, Trophy, Navigation, Loader } from "lucide-react";
 import { INPUT_CLS, DISCLAIMER_VERSION, DISCLAIMER_URL } from "../constants";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../i18n";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { GoalConfigurator } from "../components/GoalConfigurator";
 import { StylePicker } from "../components/StylePicker";
+import { Chip } from "../components/RaceFilterChips";
+import { BANDS, RADII, useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
+import { haversineM } from "../utils/geo";
 import {
   trainingLevels, isStyleId, isTrainingLevel, recommendStyle, suggestPlanSessions,
   type StyleId, type TrainingLevel,
@@ -120,10 +123,14 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     return e ? editionLabel({ name: String(e.name) }, e.edition) : "";
   });
 
-  // Race-picker UI state.
+  // Race-picker UI state — same filters as the Races tab's Find panel (text
+  // search + event distance band always apply; Near me layers on a one-off
+  // geolocation sort/radius), so the two pickers never drift.
   const [query,   setQuery]   = useState("");
   const [manual,  setManual]  = useState(false);
   const [showAddRace, setShowAddRace] = useState(false);
+  const [band, setBand] = useState<number | null>(null);
+  const { nearMe, radius, setRadius, loc, status: locStatus, toggleNearMe } = useNearMeFilter("onboarding_find_near_me");
 
   // No-race ("get fit") branch picks. `selKey` tracks the chosen tile (so "5K"
   // and "Just run more" both map to 5 km but stay visually distinct).
@@ -251,7 +258,27 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     onComplete({name: trimmedName, plan, hr, healthAck: {v: DISCLAIMER_VERSION, at: new Date().toISOString()}});
   };
 
-  const editionResults = searchEditions(query, today);
+  // Text + band narrow the catalogue, same as the Races tab; a match passes the
+  // band if its distance falls within it. With Near me on, split into
+  // distance-sorted (within radius) + a location-unknown bucket — races beyond
+  // the radius drop out, mirroring FindPanel.
+  const matchesBand = (e: JoinedEdition) => band == null || Math.abs(e.edition.distanceKm - band) <= band * 0.12;
+  const editionBase = searchEditions(query, today).filter(matchesBand);
+  let editionResults: { e: JoinedEdition; distM: number | null }[];
+  const unlocatedEditions: JoinedEdition[] = [];
+  if (nearMe && loc) {
+    const withCoord: { e: JoinedEdition; distM: number }[] = [];
+    for (const e of editionBase) {
+      if (e.lat == null || e.lng == null) { unlocatedEditions.push(e); continue; }
+      const distM = haversineM(loc, { lat: e.lat as number, lng: e.lng as number });
+      if (distM > radius * 1000) continue;
+      withCoord.push({ e, distM });
+    }
+    withCoord.sort((a, b) => a.distM - b.distM);
+    editionResults = withCoord;
+  } else {
+    editionResults = editionBase.map(e => ({ e, distM: null }));
+  }
 
   // Plain-language, highest-risk PAR-Q items (placeholder wording — have a
   // qualified professional review before launch).
@@ -398,20 +425,56 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 </div>
               ) : (
                 <>
-                  <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
-                    <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t("onboarding.race.searchPlaceholder")}
-                      className={INPUT_CLS + " pl-9"}/>
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+                      <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t("onboarding.race.searchPlaceholder")}
+                        className={INPUT_CLS + " pl-9"}/>
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap items-center">
+                      <span className="text-[11px] text-slate-500 mr-1">{t("races.find.distance")}</span>
+                      <Chip active={band == null} onClick={() => setBand(null)}>{t("races.find.all")}</Chip>
+                      {BANDS.map(b => <Chip key={b} active={band === b} onClick={() => setBand(band === b ? null : b)}>{b} km</Chip>)}
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap items-center">
+                      <button onClick={toggleNearMe} disabled={locStatus === "locating"}
+                        className={"inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors border disabled:opacity-60 " +
+                          (nearMe ? "bg-orange-500 text-white border-orange-500" : "bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500")}>
+                        {locStatus === "locating" ? <Loader size={13} className="animate-spin"/> : <Navigation size={13}/>}
+                        {t("races.find.nearMe")}
+                      </button>
+                      {nearMe && <span className="text-[11px] text-slate-500 mx-1">{t("races.find.within")}</span>}
+                      {nearMe && RADII.map(r => <Chip key={r} active={radius === r} onClick={() => setRadius(r)}>{r} km</Chip>)}
+                    </div>
+                    {locStatus === "denied" && (
+                      <p className="text-xs text-red-400">{t("races.find.locationDenied")}</p>
+                    )}
                   </div>
-                  {editionResults.length > 0 && (
+                  {editionResults.length === 0 && unlocatedEditions.length === 0 && (
+                    <p className="text-xs text-slate-500">{nearMe ? t("races.find.noneInRadius", { radius }) : t("races.find.noMatch")}</p>
+                  )}
+                  {(editionResults.length > 0 || unlocatedEditions.length > 0) && (
                     <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {editionResults.slice(0, 25).map(e => (
+                      {editionResults.slice(0, 25).map(({ e, distM }) => (
                         <button key={e.edition.id} onClick={() => pick(e)}
                           className="w-full text-left bg-slate-800 rounded-xl border border-slate-700 px-4 py-3 hover:border-orange-400/50 transition-colors">
                           <p className="font-semibold truncate">{String(e.name)}</p>
-                          <p className="text-xs text-slate-400">{[e.city, e.country].filter(Boolean).join(", ") + " · " + fmt.date(e.edition.date) + " · " + e.edition.distanceKm + " km"}</p>
+                          <p className="text-xs text-slate-400">{[e.city, e.country].filter(Boolean).join(", ") + " · " + fmt.date(e.edition.date) + " · " + e.edition.distanceKm + " km"}
+                            {distM != null && " · " + t("races.card.away", { dist: fmtKm(distM) })}</p>
                         </button>
                       ))}
+                      {nearMe && unlocatedEditions.length > 0 && (
+                        <>
+                          <p className="text-[11px] text-slate-500 uppercase tracking-widest pt-1">{t("races.find.locationUnknown")}</p>
+                          {unlocatedEditions.slice(0, 25).map(e => (
+                            <button key={e.edition.id} onClick={() => pick(e)}
+                              className="w-full text-left bg-slate-800 rounded-xl border border-slate-700 px-4 py-3 hover:border-orange-400/50 transition-colors">
+                              <p className="font-semibold truncate">{String(e.name)}</p>
+                              <p className="text-xs text-slate-400">{[e.city, e.country].filter(Boolean).join(", ") + " · " + fmt.date(e.edition.date) + " · " + e.edition.distanceKm + " km"}</p>
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
 
