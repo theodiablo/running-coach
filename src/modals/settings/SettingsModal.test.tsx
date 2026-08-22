@@ -57,7 +57,8 @@ describe("SettingsModal hub", () => {
     render(<SettingsModal {...baseProps} />);
     fireEvent.click(screen.getByText("Integrations"));
     expect(screen.getByText("Connections & sync")).toBeInTheDocument();
-    expect(screen.getByText("Strava, Zepp & other apps")).toBeInTheDocument();
+    expect(screen.getByText("Strava, Zepp, Garmin & other apps")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Garmin" })).toBeInTheDocument();
   });
 
   it("dismisses the sub-page first, then the hub", () => {

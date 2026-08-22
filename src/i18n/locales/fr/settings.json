@@ -167,7 +167,7 @@
     "accept": "Autoriser et continuer"
   },
   "guides": {
-    "title": "Strava, Zepp et autres applis",
+    "title": "Strava, Zepp, Garmin et autres applis",
     "subtitle": "Tes sorties depuis ces applis arrivent ici aussi : importe-les en quelques gestes, ou laisse-les se synchroniser automatiquement via Health Connect ou Apple Santé.",
     "pastRuns": "Sorties passées, une par une",
     "newRuns": "Nouvelles sorties, automatiquement",
@@ -185,6 +185,13 @@
       "history": "Dans l'appli Zepp : Profil → Centre de confidentialité → Exporter les données personnelles, pour un CSV de tes sorties. Pour une seule sortie avec son itinéraire et sa fréquence cardiaque, un fichier .fit exporté depuis Strava (••• → Exporter l'original) est plus détaillé.",
       "syncAndroid": "Dans l'appli Zepp : Profil → Accès tiers → Health Connect, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Health Connect ci-dessus, en général quelques minutes après la synchro de ta montre. À noter : Zepp ne transmet pas le dénivelé, qui restera donc vide sur les sorties importées.",
       "syncIos": "Dans l'appli Zepp : Profil → Accès tiers → Apple Santé, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Apple Santé ci-dessus, en général quelques minutes après la synchro de ta montre. À noter : Zepp ne transmet pas le dénivelé, qui restera donc vide sur les sorties importées.",
+      "syncWeb": "La synchronisation automatique nécessite l'appli mobile, avec Health Connect sur Android ou Apple Santé sur iPhone. Sur le web, importe plutôt un fichier."
+    },
+    "garmin": {
+      "title": "Garmin",
+      "history": "Pour une sortie : ouvre l'activité sur connect.garmin.com, puis l'icône engrenage en haut à droite → Exporter au format original (le fichier .fit, avec l'itinéraire et la fréquence cardiaque). L'option existe seulement sur le web, pas dans l'appli mobile. Pour tout ton historique d'un coup : les paramètres du compte sur connect.garmin.com, où Exporter tes données t'envoie une archive par e-mail.",
+      "syncAndroid": "Dans l'appli Garmin Connect : Plus (☰) → Paramètres → Health Connect, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Health Connect ci-dessus, en général quelques minutes après la synchro de ta montre. Il faut Android 14 ou plus récent. À noter : Garmin ne transmet pas le tracé GPS, donc les sorties importées ont la distance, la durée et la fréquence cardiaque, mais aucune carte. Exporte le fichier .fit si tu veux aussi l'itinéraire.",
+      "syncIos": "Dans l'appli Garmin Connect : Plus (☰) → Paramètres → Apple Santé, et autorise l'écriture des séances. Tes sorties arrivent ensuite via la connexion Apple Santé ci-dessus, en général quelques minutes après la synchro de ta montre. À noter : Garmin ne transmet pas non plus le tracé GPS par ce chemin, donc les sorties importées n'ont pas de carte. Exporte le fichier .fit si tu veux l'itinéraire.",
       "syncWeb": "La synchronisation automatique nécessite l'appli mobile, avec Health Connect sur Android ou Apple Santé sur iPhone. Sur le web, importe plutôt un fichier."
     }
   },
