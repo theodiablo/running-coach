@@ -24,7 +24,8 @@
   },
   "availRow": {
     "subtitle": "time you can give",
-    "simpleSummary": "{{days}} days · {{duration}} each · coach picks days"
+    "simpleSummary_one": "{{count}} day · {{duration}} · coach picks the day",
+    "simpleSummary_other": "{{count}} days · {{duration}} each · coach picks days"
   },
   "avail": {
     "framing": "The most time you could give — not a promise to run that long.",
@@ -34,11 +35,13 @@
     },
     "simple": {
       "daysQuestion": "How many days a week can you run?",
-      "daysCount": "{{n}} days",
+      "daysCount_one": "{{count}} day",
+      "daysCount_other": "{{count}} days",
       "fewerDays": "Fewer days",
       "moreDays": "More days",
       "timeQuestion": "On a run day, how much time do you have?",
-      "summary": "We'll pick the best days for you — {{n}} runs of {{duration}} each — with the long run on the weekend.",
+      "summary_one": "We'll pick the best day for you — a {{duration}} run on the weekend.",
+      "summary_other": "We'll pick the best days for you — {{count}} runs of {{duration}} each — with the long run on the weekend.",
       "dayHint": {
         "few": "3 days is the sweet spot for a first race — enough to progress, with rest in between.",
         "solid": "A solid rhythm if you've run before.",

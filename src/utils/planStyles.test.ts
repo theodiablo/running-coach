@@ -375,6 +375,13 @@ describe("buildPlan styles", () => {
       expect(types.has("OTHER")).toBe(false);
       expect(types.has("TEMPO") && types.has("INTERVALS")).toBe(true);
     });
+
+    it("degrades to long-run only with a single day", () => {
+      const one = buildPlan(raceDateInDays(120), 6340,
+        [{ dayOffset: 6, minutes: 90 }], 21.1, 0, { style: "lowfreq" });
+      const types = new Set(allSessions(one).map(s => s.type));
+      expect(types).toEqual(new Set(["LONG"]));
+    });
   });
 
   describe("hansons", () => {

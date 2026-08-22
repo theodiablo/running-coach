@@ -7,8 +7,9 @@ import {
 import { suggestPlanSessions } from "./planStyles";
 
 describe("clampDays", () => {
-  it("clamps to the 2–6 range and rounds", () => {
-    expect(clampDays(1)).toBe(AVAIL_DAY_MIN);
+  it("clamps to the 1–6 range and rounds", () => {
+    expect(clampDays(0)).toBe(AVAIL_DAY_MIN);
+    expect(clampDays(1)).toBe(1);
     expect(clampDays(9)).toBe(AVAIL_DAY_MAX);
     expect(clampDays(3.4)).toBe(3);
   });

@@ -24,7 +24,8 @@
   },
   "availRow": {
     "subtitle": "el tiempo que puedes dar",
-    "simpleSummary": "{{days}} días · {{duration}} cada una · el entrenador elige los días"
+    "simpleSummary_one": "{{count}} día · {{duration}} · el entrenador elige el día",
+    "simpleSummary_other": "{{count}} días · {{duration}} cada una · el entrenador elige los días"
   },
   "avail": {
     "framing": "El máximo de tiempo que podrías dar, no una promesa de correr tanto.",
@@ -34,11 +35,13 @@
     },
     "simple": {
       "daysQuestion": "¿Cuántos días a la semana puedes correr?",
-      "daysCount": "{{n}} días",
+      "daysCount_one": "{{count}} día",
+      "daysCount_other": "{{count}} días",
       "fewerDays": "Menos días",
       "moreDays": "Más días",
       "timeQuestion": "En un día de entrenamiento, ¿cuánto tiempo tienes?",
-      "summary": "Elegimos los mejores días para ti: {{n}} salidas de {{duration}} cada una, con la tirada larga el fin de semana.",
+      "summary_one": "Elegimos el mejor día para ti: una salida de {{duration}}, el fin de semana.",
+      "summary_other": "Elegimos los mejores días para ti: {{count}} salidas de {{duration}} cada una, con la tirada larga el fin de semana.",
       "dayHint": {
         "few": "3 días es lo ideal para una primera carrera: suficiente para progresar, con descanso entre sesiones.",
         "solid": "Un buen ritmo si ya has corrido antes.",

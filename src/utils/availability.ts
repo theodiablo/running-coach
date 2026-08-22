@@ -1,7 +1,7 @@
 // Availability helpers for the Plan page's redesigned "Your availability" editor.
 //
 // The editor offers two modes:
-//  - Simple: pick a number of run days (2–6) and a duration band, and let the
+//  - Simple: pick a number of run days (1–6) and a duration band, and let the
 //    coach place the days. This is the beginner default.
 //  - Custom: pick exact days and per-day durations (the classic scheduler).
 //
@@ -19,7 +19,7 @@ export type AvailabilityMode = "simple" | "custom";
 
 export const isBand = (v: unknown): v is DurationBand => v === "short" || v === "med" || v === "long";
 
-export const AVAIL_DAY_MIN = 2;
+export const AVAIL_DAY_MIN = 1;
 export const AVAIL_DAY_MAX = 6;
 
 // Weekly-load meter scale (minutes) for a short race (≤10 km). Matches the
@@ -52,6 +52,7 @@ const BAND_MINUTES: Record<DurationBand, { weekday: number; long: number }> = {
 // Day layouts (dayOffset 0=Mon … 6=Sun) by run-day count. Sunday is always the
 // long day; weekday picks keep quality days clear of the weekend.
 const DAY_LAYOUTS: Record<number, number[]> = {
+  1: [6],
   2: [2, 6],
   3: [1, 3, 6],
   4: [0, 2, 4, 6],
