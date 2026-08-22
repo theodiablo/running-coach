@@ -101,6 +101,13 @@ Always re-verify a finding before acting on it; agents report false positives.
   "recover" from a read failure with an empty default. The auth twin: an
   offline cold start with an expired token gets its session from
   `readOfflineSession` (`src/utils/offlineSession.ts`), not the login screen.
+- **The first requests after a sign-in can 401.** PostgREST refuses a token
+  whose `iat` is ahead of its own clock (`PGRST303`, "JWT issued at future"),
+  and Supabase's auth and PostgREST nodes drift by seconds — so only the burst
+  fired right after a sign-in/sign-up confirmation is ever exposed, and the same
+  token works moments later. `fetchWithTimeout` (`src/supabase.ts`) retries that
+  one code with a backoff; never read a PGRST303 as a real auth failure or as a
+  failed load (it dead-ended new Android sign-ups on `StoreLoadError`).
 - **Supabase config:** URL + anon key in `src/config.ts`.
   `VITE_SUPABASE_URL` is required at build time; workflows construct it from
   repo variable `SUPABASE_PROJECT_REF`. Don't hardcode project refs or
