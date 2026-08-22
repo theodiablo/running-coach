@@ -9,7 +9,12 @@
   "createAccount": "Créer un compte",
   "or": "ou",
   "continueWithGoogle": "Continuer avec Google",
-  "accountCreated": "Compte créé. Vérifie tes e-mails pour confirmer, puis connecte-toi.",
+  "sent": {
+    "title": "Regarde ta boîte de réception",
+    "body": "On a envoyé un lien de confirmation à {{email}}. Ouvre-le, puis reviens ici pour te connecter.",
+    "spam": "Rien après une minute ou deux ? Regarde dans tes spams.",
+    "back": "Utiliser une autre adresse"
+  },
   "genericError": "Une erreur est survenue.",
   "dataSync": "Tes données sont synchronisées en toute sécurité avec ton compte.",
   "privacy": "Confidentialité",
