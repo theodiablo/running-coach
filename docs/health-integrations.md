@@ -226,22 +226,61 @@ matching bluetooth-le) in `android/app/build.gradle` and targets **JVM 21** via
 `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_21 } }`, matching the
 Java 21 the generated `capacitor.build.gradle` sets.
 
-New `READ_EXERCISE`/`READ_DISTANCE`/`READ_ELEVATION_GAINED` manifest scopes
-need a Play health-data declaration update before release. **Garmin → HC is
-one-way, Android-14+, opt-in inside Garmin Connect, and carries NO GPS route**
-— imported runs have no map (`routeId` stays absent, which the app tolerates).
-They DO carry an HR series: `readHeartRateSeries` (`WatchImportPlugin.kt`)
-reads `HeartRateRecord` samples over the session window, origin-filtered to the
-writer, attached as `ImportedRun.hrSamples` by `scanWatchSessions` → the
-HR-only `hrRouteId` sidecar (detail time-in-zone card). It reuses the
-already-granted `HeartRateRecord` read permission, so it needs **no** new
-manifest scope or Play re-declaration. Deliberately no route read on HC (no
-writer provides `ExerciseRoute`; `READ_EXERCISE_ROUTES` would force a Play
-re-declaration for data that doesn't exist — revisit if that changes).
-HealthKit is the opposite: `readWorkoutDetail` (Swift) imports the Apple Watch
-**route** (`HKWorkoutRoute`) AND per-sample HR for one workout (lazy, new
-workouts only), so an Apple Watch run gets a full map + pace + HR chart.
-Third-party watches on HealthKit still import totals only.
+New `READ_EXERCISE`/`READ_DISTANCE`/`READ_ELEVATION_GAINED`/
+`READ_EXERCISE_ROUTES` manifest scopes need a Play health-data declaration
+update before release. **Garmin → HC is one-way, Android-14+, and opt-in inside
+Garmin Connect.** Imported sessions DO carry an HR series:
+`readHeartRateSeries` (`WatchImportPlugin.kt`) reads `HeartRateRecord` samples
+over the session window, origin-filtered to the writer, attached as
+`ImportedRun.hrSamples` by `scanWatchSessions` → the HR-only `hrRouteId`
+sidecar (detail time-in-zone card). It reuses the already-granted
+`HeartRateRecord` read permission, so it needs **no** new manifest scope or Play
+re-declaration. HealthKit is the richer twin: `readWorkoutDetail` (Swift)
+imports the Apple Watch **route** (`HKWorkoutRoute`) AND per-sample HR for one
+workout (lazy, new workouts only), so an Apple Watch run gets a full map + pace
++ HR chart. Third-party watches on HealthKit still import totals only.
+
+### Exercise routes on Health Connect
+
+`readExerciseRoute` (`WatchImportPlugin.kt`) reads a session's `ExerciseRoute`
+and returns `[lat, lng, t, alt]` tuples, which `scanWatchSessions` attaches as
+`ImportedRun.points` → the **ordinary** route path (`persistImportedRoute`:
+`simplify` → `run_routes` row → `routeId`, with best efforts measured off the
+trace at save time). There is no second route shape for Health Connect. Four
+things make this scope unlike every other one the app reads:
+
+- **The read is per-session, not bulk.** A route is not an independent record,
+  so it never comes back on the `readRecords` sweep — only on a single-record
+  `readRecord`. Hence a lazy per-run read, post-dedupe, like the HR series.
+- **The permission cannot be requested.** Health Connect *ignores* app requests
+  for `READ_EXERCISE_ROUTES`; the user grants it in Health Connect itself
+  ("Exercise routes"), or one session at a time via the route-consent dialog.
+  Declaring it in the manifest is what makes that toggle exist. It is therefore
+  **kept out of** `readPermissions`' `containsAll` grant check — folding it in
+  would report every working connection as ungranted. It rides
+  `checkHealthPermissions().routes` for diagnostics only; nothing gates on it.
+- **Every "no route" outcome is normal, not an error.** `readExerciseRoute`
+  *resolves* with `status` `consent-required` / `none` / `unavailable` and no
+  points, and the session imports with totals + HR exactly as before. The
+  statuses are recorded per imported run in the scan log (`routeStatuses`) so
+  "I allowed routes and still get no map" is diagnosable.
+- **The SDK pin is a narrow window.** `connect-client` must be
+  ≥ `1.1.0-alpha03` (`ExerciseRouteResult` doesn't exist before it — the old
+  `1.1.0-alpha02` pin ships the `ExerciseRoute` class but no way to read one)
+  and ≤ `1.1.0-alpha10` (`1.1.0-alpha12` deleted the internal
+  `impl.converters.permission` package the pianissimo plugin imports, so
+  anything later — 1.1.0 stable included — fails that plugin's build). Pinned at
+  `1.1.0-alpha10`. Gradle resolves ONE `connect-client` for the APK across both
+  plugins, so this pin constrains both.
+
+**Whether any writer actually populates routes is unverified.** The API is real
+and shipped, but no major Android writer is *documented* to use it: Samsung
+Health's Health Connect sync lists activity/HR/sleep and not routes (and a
+Samsung developer-forum answer says `EXERCISE_ROUTE` isn't reachable that way),
+Strava documents sending "time, distance and calorie data" only, and Garmin
+Connect carries no route. So the user-facing copy still leads with "most imports
+have no map" — it just no longer claims routes are impossible. If a writer is
+confirmed on-device, that copy is what to update.
 
 **Everything interpretable is pure TS** (`src/watch/`): `plugin.ts` (lazy
 `registerPlugin` bridge, raw `WatchSessionRaw`), `mapping.ts`
