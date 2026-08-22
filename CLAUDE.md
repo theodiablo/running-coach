@@ -149,6 +149,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   `RunningCoach`) instead. `profiles` has no email column — the account email
   lives only in `auth.users`; read it from the auth session (`user.email`),
   and admin SQL joins `auth.users` for address lookups.
+- **Never print a GoTrue error verbatim.** `authErrorMessage`
+  (`src/utils/authErrors.ts`) is the one map from a Supabase auth error to a
+  copy key AND a tone: a mailer cooldown is `info` amber ("we already sent it,
+  ask again in 52s"), never error red, which reads as "it failed" and sends the
+  user back to the button. Unmapped errors keep the server's own message — don't
+  trade a specific one for something vaguer. A successful send must also leave
+  nothing to press again (`LoginScreen` swaps the form for "check your inbox"):
+  a live button under a one-line note produced six 429s in ninety seconds.
 - **Email change is one link + one notification, decided by server truth.**
   `double_confirm_changes` is **off**, so the confirmation goes to the new
   address only and the `email_changed` notification tells the old one — keep

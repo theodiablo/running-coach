@@ -15,6 +15,7 @@ import settings from "./settings.json";
 import onboarding from "./onboarding.json";
 import login from "./login.json";
 import app from "./app.json";
+import authErrors from "./authErrors.json";
 import routeFinder from "./routeFinder.json";
 import premium from "./premium.json";
 import liveShare from "./liveShare.json";
@@ -23,6 +24,6 @@ import reminders from "./reminders.json";
 
 export default {
   common, nav, dashboard, plan, styles, races, coach, tracker,
-  log, progress, badges, settings, onboarding, login, app, routeFinder, premium, liveShare,
+  log, progress, badges, settings, onboarding, login, app, authErrors, routeFinder, premium, liveShare,
   bestEfforts, reminders,
 };

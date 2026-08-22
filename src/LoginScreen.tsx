@@ -1,14 +1,23 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader, Mail, Lock } from "lucide-react";
+import { Loader, Mail, MailCheck, Lock } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { Browser } from "@capacitor/browser";
 import { supabase, authRedirectTo } from "./supabase";
+import { authErrorMessage } from "./utils/authErrors";
 import { isNative, isAndroid } from "./native";
 import { PRIVACY_URL, PASSWORD_MIN_LENGTH } from "./constants";
 
 type LoginMode = "signin" | "signup";
-type LoginMessage = { type: "err" | "ok"; text: string };
+// "info" is amber: nothing failed and nothing succeeded — an email is already
+// on its way, or a limiter wants a moment.
+type LoginMessage = { type: "err" | "ok" | "info"; text: string };
+const MSG_CLS: Record<LoginMessage["type"], string> = {
+  err: "text-red-400",
+  ok: "text-emerald-400",
+  info: "text-amber-400",
+};
+
 type LoginScreenProps = {
   authError?: string | null;
   onClearAuthError?: () => void;
@@ -26,10 +35,22 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<LoginMessage | null>(null); // { type: "err"|"ok", text }
+  // The address a confirmation link was just sent to. While it's set the form
+  // is replaced by "check your inbox": leaving a live Create-account button
+  // under a one-line note is what made one user press it six more times and
+  // collect a 429 each time, ending on "email rate limit exceeded".
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   const note = (type: LoginMessage["type"], text: string) => { onClearAuthError?.(); setMsg({ type, text }); };
+  // Prefer copy the user can act on; keep the server's own message when nothing
+  // maps, rather than trading a specific error for a vaguer one.
+  const noteError = (err: unknown) => {
+    const mapped = authErrorMessage(err);
+    if (mapped) note(mapped.tone === "info" ? "info" : "err", t(mapped.key, mapped.vars));
+    else note("err", err instanceof Error ? err.message : t("login.genericError"));
+  };
   // Local form messages take precedence; otherwise fall back to a deep-link error.
-  const shownMsg = msg || (authError ? { type: "err", text: authError } : null);
+  const shownMsg: LoginMessage | null = msg || (authError ? { type: "err", text: authError } : null);
 
   async function withGoogle() {
     setBusy(true);
@@ -42,7 +63,7 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
       options: { redirectTo: authRedirectTo(), skipBrowserRedirect: isNative },
     });
     if (error) {
-      note("err", error.message);
+      noteError(error);
       setBusy(false);
       return;
     }
@@ -88,14 +109,16 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
           options: { emailRedirectTo: authRedirectTo() },
         });
         if (error) throw error;
-        note("ok", t("login.accountCreated"));
+        onClearAuthError?.();
+        setMsg(null);
+        setSentTo(email.trim());
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         // onAuthStateChange in App handles the transition
       }
     } catch (err) {
-      note("err", err instanceof Error ? err.message : t("login.genericError"));
+      noteError(err);
     } finally {
       setBusy(false);
     }
@@ -104,7 +127,7 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
   const tab = (id: LoginMode, label: string) => (
     <button
       type="button"
-      onClick={() => { onClearAuthError?.(); setMode(id); setMsg(null); }}
+      onClick={() => { onClearAuthError?.(); setMode(id); setMsg(null); setSentTo(null); }}
       className={
         "flex-1 py-2 text-sm font-medium rounded-lg transition " +
         (mode === id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-slate-200")
@@ -128,77 +151,96 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
             {tab("signup", t("login.signUp"))}
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-3">
-            <label className="block">
-              <span className="text-xs text-slate-400">{t("login.email")}</span>
-              <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
-                <Mail size={16} className="text-slate-500" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
-                  placeholder={t("login.emailPlaceholder")}
-                />
+          {/* A confirmation link is out. Show where it went and how to get
+              out of here; the tabs above stay live so signing in after
+              confirming is one tap. */}
+          {sentTo ? (
+            <div className="text-center space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-orange-500/15 flex items-center justify-center">
+                <MailCheck className="text-orange-400" size={24} />
               </div>
-            </label>
+              <h2 className="text-lg font-bold text-white">{t("login.sent.title")}</h2>
+              <p className="text-sm text-slate-300">{t("login.sent.body", { email: sentTo })}</p>
+              <p className="text-xs text-slate-500">{t("login.sent.spam")}</p>
+              <button type="button" onClick={() => { setSentTo(null); setMsg(null); }}
+                className="text-sm text-slate-400 hover:text-slate-200 underline">
+                {t("login.sent.back")}
+              </button>
+            </div>
+          ) : (
+            <>
+            <form onSubmit={onSubmit} className="space-y-3">
+              <label className="block">
+                <span className="text-xs text-slate-400">{t("login.email")}</span>
+                <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
+                  <Mail size={16} className="text-slate-500" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
+                    placeholder={t("login.emailPlaceholder")}
+                  />
+                </div>
+              </label>
 
-            <label className="block">
-              <span className="text-xs text-slate-400">{t("login.password")}</span>
-              <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
-                <Lock size={16} className="text-slate-500" />
-                <input
-                  type="password"
-                  required
-                  // Enforce the stronger policy on sign-up only; sign-in must
-                  // still accept existing accounts created under the old rule.
-                  // Sign-up mirrors the server's minimum_password_length so the
-                  // form rejects a weak password instead of the API doing it.
-                  minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : 6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
-                  placeholder={t("login.passwordPlaceholder")}
-                />
-              </div>
-            </label>
+              <label className="block">
+                <span className="text-xs text-slate-400">{t("login.password")}</span>
+                <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
+                  <Lock size={16} className="text-slate-500" />
+                  <input
+                    type="password"
+                    required
+                    // Enforce the stronger policy on sign-up only; sign-in must
+                    // still accept existing accounts created under the old rule.
+                    // Sign-up mirrors the server's minimum_password_length so the
+                    // form rejects a weak password instead of the API doing it.
+                    minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : 6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
+                    placeholder={t("login.passwordPlaceholder")}
+                  />
+                </div>
+              </label>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition"
+              >
+                {busy && <Loader size={16} className="animate-spin" />}
+                {mode === "signin" ? t("login.signIn") : t("login.createAccount")}
+              </button>
+            </form>
+
+            <div className="flex items-center gap-3 my-4">
+              <div className="h-px flex-1 bg-slate-700" />
+              <span className="text-xs text-slate-500">{t("login.or")}</span>
+              <div className="h-px flex-1 bg-slate-700" />
+            </div>
 
             <button
-              type="submit"
+              type="button"
+              onClick={withGoogle}
               disabled={busy}
-              className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition"
+              className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-800 font-medium py-2.5 rounded-lg transition"
             >
-              {busy && <Loader size={16} className="animate-spin" />}
-              {mode === "signin" ? t("login.signIn") : t("login.createAccount")}
+              <GoogleIcon />
+              {t("login.continueWithGoogle")}
             </button>
-          </form>
 
-          <div className="flex items-center gap-3 my-4">
-            <div className="h-px flex-1 bg-slate-700" />
-            <span className="text-xs text-slate-500">{t("login.or")}</span>
-            <div className="h-px flex-1 bg-slate-700" />
-          </div>
-
-          <button
-            type="button"
-            onClick={withGoogle}
-            disabled={busy}
-            className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-800 font-medium py-2.5 rounded-lg transition"
-          >
-            <GoogleIcon />
-            {t("login.continueWithGoogle")}
-          </button>
-
-          {shownMsg && (
-            <p
-              className={
-                "mt-4 text-sm text-center " +
-                (shownMsg.type === "err" ? "text-red-400" : "text-emerald-400")
-              }
-            >
-              {shownMsg.text}
-            </p>
+            {shownMsg && (
+              <p
+                className={
+                  "mt-4 text-sm text-center " + MSG_CLS[shownMsg.type]
+                }
+              >
+                {shownMsg.text}
+              </p>
+            )}
+            </>
           )}
         </div>
 

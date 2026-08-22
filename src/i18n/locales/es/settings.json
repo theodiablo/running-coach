@@ -75,7 +75,6 @@
     "emailSent": "Mira tu nuevo buzón: acabamos de enviarle un enlace de confirmación.",
     "emailSentToast": "Enlace de confirmación enviado.",
     "emailPending": "Esperando la confirmación. Abre el enlace enviado a {{email}} para terminar.",
-    "emailRateLimited": "Se han enviado demasiados correos hace poco. Inténtalo de nuevo en una hora.",
     "emailError": "No se pudo actualizar tu correo. Inténtalo de nuevo.",
     "passwordLabel": "Contraseña",
     "passwordChange": "Cambiar",

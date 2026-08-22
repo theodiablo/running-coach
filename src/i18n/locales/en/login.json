@@ -9,7 +9,12 @@
   "createAccount": "Create account",
   "or": "or",
   "continueWithGoogle": "Continue with Google",
-  "accountCreated": "Account created. Check your email to confirm, then sign in.",
+  "sent": {
+    "title": "Check your inbox",
+    "body": "We sent a confirmation link to {{email}}. Open it, then come back here and sign in.",
+    "spam": "Nothing after a minute or two? Look in your spam folder.",
+    "back": "Use a different address"
+  },
   "genericError": "Something went wrong.",
   "dataSync": "Your data syncs securely to your account.",
   "privacy": "Privacy",
