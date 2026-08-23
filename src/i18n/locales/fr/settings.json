@@ -75,7 +75,6 @@
     "emailSent": "Regarde ta nouvelle boîte mail : le lien de confirmation vient d'y arriver.",
     "emailSentToast": "Lien de confirmation envoyé.",
     "emailPending": "En attente de confirmation. Ouvre le lien envoyé à {{email}} pour terminer.",
-    "emailRateLimited": "Trop d'e-mails envoyés récemment. Réessaie dans une heure.",
     "emailError": "Impossible de modifier ton e-mail. Réessaie.",
     "passwordLabel": "Mot de passe",
     "passwordChange": "Modifier",

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Mail, Loader } from "lucide-react";
 import { supabase, authRedirectTo } from "../../supabase";
+import { authErrorMessage } from "../../utils/authErrors";
 import { INPUT_CLS } from "../../constants";
 import type { User } from "@supabase/supabase-js";
 
@@ -21,7 +22,9 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Amber, not red, when nothing actually failed: a mailer cooldown means the
+  // link is already on its way.
+  const [error, setError] = useState<{ text: string; tone: "error" | "info" } | null>(null);
   const [sent, setSent] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -50,10 +53,12 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
     setBusy(false);
     if (err) {
       // The default mailer allows a couple of emails an hour; that limit is by
-      // far the likeliest failure here, so name it instead of showing the raw
-      // "email rate limit exceeded".
-      const rateLimited = err.status === 429 || /rate limit/i.test(err.message || "");
-      setError(rateLimited ? t("settings.account.emailRateLimited") : (err.message || t("settings.account.emailError")));
+      // far the likeliest failure here, so name it (and the wait it gives us)
+      // instead of showing the raw "email rate limit exceeded".
+      const mapped = authErrorMessage(err);
+      setError(mapped
+        ? { text: t(mapped.key, mapped.vars), tone: mapped.tone }
+        : { text: err.message || t("settings.account.emailError"), tone: "error" });
       return;
     }
     setSent(true);
@@ -101,7 +106,8 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
           <input type="email" required value={email} autoComplete="email"
             placeholder={t("settings.account.emailNew")} aria-label={t("settings.account.emailNew")}
             onChange={e => setEmail(e.target.value)} className={INPUT_CLS}/>
-          {error && <p className="text-xs text-red-400 bg-red-500/10 rounded-xl px-3 py-2">{error}</p>}
+          {error && <p className={"text-xs rounded-xl px-3 py-2 " + (error.tone === "info"
+            ? "text-amber-300 bg-amber-500/10" : "text-red-400 bg-red-500/10")}>{error.text}</p>}
           <button type="submit" disabled={busy}
             className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center gap-2 disabled:opacity-50">
             {busy && <Loader size={15} className="animate-spin"/>}

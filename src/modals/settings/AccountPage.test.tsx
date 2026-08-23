@@ -100,7 +100,7 @@ describe("AccountPage email form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change email" }));
     fireEvent.change(screen.getByLabelText("New email address"), { target: { value: "new@example.com" } });
     fireEvent.submit(screen.getByLabelText("New email address").closest("form")!);
-    await screen.findByText("Too many emails sent recently. Please try again in an hour.");
+    await screen.findByText(/We've sent all the emails we can for now/);
   });
 
   it("names the inbox holding the link while a change is unconfirmed", () => {

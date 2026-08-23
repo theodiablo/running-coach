@@ -1,0 +1,8 @@
+{
+  "emailCooldown": "We just sent you an email. Check your inbox and your spam folder, or ask for another one in {{seconds}}s.",
+  "emailRateLimit": "We've sent all the emails we can for now. Check your inbox and your spam folder, and try again in an hour if nothing arrived.",
+  "emailSendFailed": "We couldn't send that email just now. Please try again in a few minutes.",
+  "emailInvalid": "That email address doesn't look right. Check it and try again.",
+  "emailTaken": "That address is already linked to an account. Sign in instead, or use another one.",
+  "tooManyRequests": "Too many attempts just now. Wait a moment and try again."
+}

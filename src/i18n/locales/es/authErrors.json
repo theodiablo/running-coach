@@ -1,0 +1,8 @@
+{
+  "emailCooldown": "Acabamos de enviarte un correo. Revisa tu bandeja de entrada y la carpeta de spam, o pide otro en {{seconds}}s.",
+  "emailRateLimit": "Hemos enviado todos los correos que podemos por ahora. Revisa tu bandeja de entrada y la carpeta de spam, y vuelve a intentarlo en una hora si no llegó nada.",
+  "emailSendFailed": "No hemos podido enviar ese correo ahora mismo. Inténtalo de nuevo en unos minutos.",
+  "emailInvalid": "Esa dirección de correo no parece correcta. Revísala e inténtalo de nuevo.",
+  "emailTaken": "Esa dirección ya está vinculada a una cuenta. Inicia sesión o usa otra.",
+  "tooManyRequests": "Demasiados intentos seguidos. Espera un momento e inténtalo de nuevo."
+}

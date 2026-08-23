@@ -75,7 +75,6 @@
     "emailSent": "Check your new inbox — we sent it a confirmation link.",
     "emailSentToast": "Confirmation link sent.",
     "emailPending": "Waiting for confirmation. Open the link we sent to {{email}} to finish.",
-    "emailRateLimited": "Too many emails sent recently. Please try again in an hour.",
     "emailError": "Couldn't update your email. Please try again.",
     "passwordLabel": "Password",
     "passwordChange": "Change",

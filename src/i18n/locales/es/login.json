@@ -9,7 +9,12 @@
   "createAccount": "Crear cuenta",
   "or": "o",
   "continueWithGoogle": "Continuar con Google",
-  "accountCreated": "Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.",
+  "sent": {
+    "title": "Revisa tu bandeja de entrada",
+    "body": "Hemos enviado un enlace de confirmación a {{email}}. Ábrelo y vuelve aquí para iniciar sesión.",
+    "spam": "¿No llega nada tras un par de minutos? Mira en la carpeta de spam.",
+    "back": "Usar otra dirección"
+  },
   "genericError": "Algo salió mal.",
   "dataSync": "Tus datos se sincronizan de forma segura con tu cuenta.",
   "privacy": "Privacidad",
