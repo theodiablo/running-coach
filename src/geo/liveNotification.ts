@@ -41,12 +41,15 @@ const LiveActivity = registerPlugin<{
 }>("LiveActivity");
 
 const INFLIGHT_STALE_MS = 10000;
-// The patched Android plugin drops a live HR reading it hasn't been re-seeded
-// with in LIVE_HR_STALE_MS (90s, BackgroundGeolocation.java) — a wall-clock
-// timeout with no view into whether the JS-rendered text changed. Force a
-// push at this shorter interval whenever HR is live, so the dedupe below
-// (text-identity, correct for km/pace — see sameNotificationContent) can
-// never let the native seed go stale enough to age HR out from under it.
+// The patched Android plugin drops a live HR reading it hasn't seen refreshed
+// in LIVE_HR_STALE_MS (90s, BackgroundGeolocation.java). A BLE strap refreshes
+// it natively now — the patched bluetooth-le plugin relays every beat straight
+// from its GATT callback, which is what actually keeps HR on the lock screen
+// once this JS is frozen. This keep-alive is the fallback for anything the
+// relay doesn't cover: it forces a push at a shorter interval whenever HR is
+// live, so the dedupe below (text-identity, correct for km/pace — see
+// sameNotificationContent) can't let the seed age HR out on its own. A push
+// never overwrites a fresher relayed beat; the native side compares timestamps.
 const HR_KEEPALIVE_MS = 60000;
 
 let lastSent: RunNotificationContent | null = null;

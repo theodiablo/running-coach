@@ -104,8 +104,9 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
 // (km is in the text to 2dp), so a skipped push can't leave the km/pace seed
 // stale. HR is the one exception: the native renderer ages an unrefreshed HR
 // reading out on a wall-clock timer independent of the text, so identical text
-// does NOT prove the HR seed is still fresh there — the caller (liveNotification.ts)
-// forces a periodic push while HR is live regardless of what this returns.
+// does NOT prove the HR seed is still fresh there — hence the periodic push in
+// liveNotification.ts, behind the native beat relay that carries HR while this
+// JS is frozen.
 export function sameNotificationContent(
   prev: RunNotificationContent | null | undefined,
   next: RunNotificationContent,

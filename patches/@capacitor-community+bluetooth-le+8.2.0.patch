@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
-index e3170c1..585246d 100644
+index e3170c1..73db260 100644
 --- a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
 +++ b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
 @@ -38,6 +38,8 @@ import com.getcapacitor.annotation.ActivityCallback
@@ -11,7 +11,7 @@ index e3170c1..585246d 100644
  import java.util.UUID
  
  
-@@ -87,6 +89,20 @@ class BluetoothLe : Plugin() {
+@@ -87,6 +89,29 @@ class BluetoothLe : Plugin() {
          private const val MAX_SCAN_DURATION: Long = 30000
          private const val CONNECTION_TIMEOUT: Float = 10000.0F
          private const val DEFAULT_TIMEOUT: Float = 5000.0F
@@ -29,10 +29,19 @@ index e3170c1..585246d 100644
 +        // Standard GATT Heart Rate Measurement characteristic (0x2A37).
 +        private val HR_MEASUREMENT_UUID: UUID =
 +            UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb")
++
++        // ── Live HR relay (lock-screen notification) ─────────────────────────
++        // Same premise as the journal: this GATT callback is the only thing
++        // still seeing beats once the WebView is frozen. The run notification's
++        // heart rate therefore cannot come from a JS push — it is broadcast
++        // straight from here to the patched background-geolocation plugin,
++        // which renders it. App-owned action, mirrored in
++        // BackgroundGeolocation.java — keep the two in step.
++        private const val HR_RELAY_ACTION = "solutions.camboulive.run.HR_SAMPLE"
      }
  
      private var bluetoothAdapter: BluetoothAdapter? = null
-@@ -94,6 +110,9 @@ class BluetoothLe : Plugin() {
+@@ -94,6 +119,9 @@ class BluetoothLe : Plugin() {
      private var deviceMap = HashMap<String, Device>()
      private var deviceScanner: DeviceScanner? = null
      private var displayStrings: DisplayStrings? = null
@@ -42,16 +51,17 @@ index e3170c1..585246d 100644
      private var aliases: Array<String> = arrayOf()
  
      override fun load() {
-@@ -769,6 +788,8 @@ class BluetoothLe : Plugin() {
+@@ -769,6 +797,9 @@ class BluetoothLe : Plugin() {
                      "notification|${device.getId()}|${(characteristic.first)}|${(characteristic.second)}"
                  val ret = JSObject()
                  ret.put("value", response.value)
 +                // Before the bridge, so a frozen WebView costs presentation, not data.
 +                journalHrMeasurement(characteristic.second, response.value)
++                relayHrMeasurement(characteristic.second, response.value)
                  try {
                      notifyListeners(key, ret)
                  } catch (e: ConcurrentModificationException) {
-@@ -804,6 +825,80 @@ class BluetoothLe : Plugin() {
+@@ -804,6 +835,118 @@ class BluetoothLe : Plugin() {
          }
      }
  
@@ -127,6 +137,44 @@ index e3170c1..585246d 100644
 +            }
 +        }
 +        call.resolve()
++    }
++
++    // ── Live HR relay ────────────────────────────────────────────────────────
++
++    // Broadcast one parsed beat for the foreground service that renders the run
++    // notification. Package-restricted, so it never leaves the app, and parsed
++    // here so the receiver needs no GATT knowledge. Armed with the journal:
++    // both exist only for the duration of a run. Best-effort — a relay failure
++    // must never affect the stream.
++    private fun relayHrMeasurement(characteristic: UUID, value: String) {
++        if (!hrJournalArmed) return
++        if (characteristic != HR_MEASUREMENT_UUID) return
++        try {
++            val bpm = parseHrBpm(stringToBytes(value)) ?: return
++            val intent = Intent(HR_RELAY_ACTION)
++            intent.setPackage(context.packageName)
++            intent.putExtra("bpm", bpm)
++            intent.putExtra("t", System.currentTimeMillis())
++            context.sendBroadcast(intent)
++        } catch (exception: Exception) {
++            // Best-effort.
++        }
++    }
++
++    // Heart Rate Measurement (0x2A37): a flags byte, then the rate as uint8 or
++    // uint16 LE per bit 0. Mirrors parseHrMeasurement (src/utils/hr.ts),
++    // including 0 bpm meaning no skin contact rather than a reading. The rest of
++    // the payload (energy expended, RR intervals) is of no use to a notification.
++    private fun parseHrBpm(bytes: ByteArray): Int? {
++        if (bytes.size < 2) return null
++        val flags = bytes[0].toInt() and 0xFF
++        val bpm = if (flags and 0x01 != 0) {
++            if (bytes.size < 3) return null
++            (bytes[1].toInt() and 0xFF) or ((bytes[2].toInt() and 0xFF) shl 8)
++        } else {
++            bytes[1].toInt() and 0xFF
++        }
++        return if (bpm > 0) bpm else null
 +    }
 +
      private fun assertBluetoothAdapter(call: PluginCall): Boolean? {
