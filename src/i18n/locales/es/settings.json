@@ -169,7 +169,7 @@
     "accept": "Permitir y continuar"
   },
   "guides": {
-    "title": "Strava, Zepp y otras apps",
+    "title": "Strava, Zepp, Garmin y otras apps",
     "subtitle": "Tus entrenamientos de estas apps también llegan aquí: impórtalos en unos toques o deja que se sincronicen automáticamente por Health Connect o Apple Salud.",
     "pastRuns": "Entrenamientos anteriores, uno a uno",
     "newRuns": "Entrenamientos nuevos, automáticamente",
@@ -187,6 +187,13 @@
       "history": "En la app de Zepp: Perfil → Centro de privacidad → Exportar datos personales, para obtener un CSV de tus entrenamientos. Para un solo entrenamiento con su ruta y frecuencia cardíaca, un archivo .fit exportado desde Strava (••• → Exportar original) es más detallado.",
       "syncAndroid": "En la app de Zepp: Perfil → Acceso de terceros → Health Connect, y permite que escriba los entrenamientos. Después llegarán por la conexión de Health Connect de arriba, normalmente unos minutos tras la sincronización del reloj. Ten en cuenta que Zepp no transmite el desnivel, así que quedará vacío en los entrenamientos importados.",
       "syncIos": "En la app de Zepp: Perfil → Acceso de terceros → Apple Salud, y permite que escriba los entrenamientos. Después llegarán por la conexión de Apple Salud de arriba, normalmente unos minutos tras la sincronización del reloj. Ten en cuenta que Zepp no transmite el desnivel, así que quedará vacío en los entrenamientos importados.",
+      "syncWeb": "La sincronización automática necesita la app móvil, con Health Connect en Android o Apple Salud en iPhone. En la web, importa un archivo."
+    },
+    "garmin": {
+      "title": "Garmin",
+      "history": "Para un entrenamiento: abre la actividad en connect.garmin.com y pulsa el icono del engranaje arriba a la derecha → Exportar original (el archivo .fit, con ruta y frecuencia cardíaca). Es una opción solo de la web, no está en la app del móvil. Para todo tu historial a la vez: los ajustes de la cuenta en connect.garmin.com, donde Exportar tus datos te envía un archivo por correo.",
+      "syncAndroid": "En la app de Garmin Connect: Más (☰) → Ajustes → Health Connect, y permite que escriba los entrenamientos. Después llegarán por la conexión de Health Connect de arriba, normalmente unos minutos tras la sincronización del reloj. Hace falta Android 14 o posterior. Ten en cuenta que Garmin no transmite la ruta GPS, así que los entrenamientos importados tienen distancia, duración y frecuencia cardíaca, pero no mapa. Exporta el archivo .fit si también quieres la ruta.",
+      "syncIos": "En la app de Garmin Connect: Más (☰) → Ajustes → Apple Salud, y permite que escriba los entrenamientos. Después llegarán por la conexión de Apple Salud de arriba, normalmente unos minutos tras la sincronización del reloj. Ten en cuenta que Garmin tampoco transmite la ruta GPS por esta vía, así que los entrenamientos importados no tienen mapa. Exporta el archivo .fit si quieres la ruta.",
       "syncWeb": "La sincronización automática necesita la app móvil, con Health Connect en Android o Apple Salud en iPhone. En la web, importa un archivo."
     }
   },

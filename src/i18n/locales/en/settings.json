@@ -169,7 +169,7 @@
     "accept": "Allow & continue"
   },
   "guides": {
-    "title": "Strava, Zepp & other apps",
+    "title": "Strava, Zepp, Garmin & other apps",
     "subtitle": "Runs from these apps land here too: import them in a few taps, or let them flow in automatically through Health Connect or Apple Health.",
     "pastRuns": "Past runs, one by one",
     "newRuns": "New runs, automatically",
@@ -187,6 +187,13 @@
       "history": "In the Zepp app: Profile → Privacy Center → Export Personal Data for a CSV of your runs. For a single run with its route and heart rate, a .fit file exported from Strava (••• → Export Original) is more detailed.",
       "syncAndroid": "In the Zepp app: Profile → 3rd-party access → Health Connect, and allow it to write workouts. Runs then arrive through the Health Connect connection above, usually a few minutes after your watch syncs. Note that Zepp doesn't pass on elevation gain, so climbing stays empty on imported runs.",
       "syncIos": "In the Zepp app: Profile → 3rd-party access → Apple Health, and allow it to write workouts. Runs then arrive through the Apple Health connection above, usually a few minutes after your watch syncs. Note that Zepp doesn't pass on elevation gain, so climbing stays empty on imported runs.",
+      "syncWeb": "Automatic sync needs the mobile app, using Health Connect on Android or Apple Health on iPhone. On the web, import a file instead."
+    },
+    "garmin": {
+      "title": "Garmin",
+      "history": "For one run: open the activity on connect.garmin.com, then the gear icon at the top right → Export Original (the .fit file, with route and heart rate). It's a web-only option, not in the phone app. For your whole history at once: the account settings on connect.garmin.com, where Export Your Data emails you an archive.",
+      "syncAndroid": "In the Garmin Connect app: More (☰) → Settings → Health Connect, and allow it to write workouts. Runs then arrive through the Health Connect connection above, usually a few minutes after your watch syncs. This needs Android 14 or newer. Note that Garmin doesn't pass on the GPS route, so imported runs have distance, duration and heart rate but no map. Export the .fit file when you want the route too.",
+      "syncIos": "In the Garmin Connect app: More (☰) → Settings → Apple Health, and allow it to write workouts. Runs then arrive through the Apple Health connection above, usually a few minutes after your watch syncs. Note that Garmin doesn't pass on the GPS route this way either, so imported runs have no map. Export the .fit file when you want the route.",
       "syncWeb": "Automatic sync needs the mobile app, using Health Connect on Android or Apple Health on iPhone. On the web, import a file instead."
     }
   },
