@@ -72,21 +72,18 @@ beforeEach(() => {
 
 // ── Ships dormant ────────────────────────────────────────────────────────────
 
-describe("coros dormancy", () => {
-  // The load-bearing guarantee of the scaffold PR: COROS publishes no technical
-  // API documentation before onboarding, so the authorization URL and scope are
-  // PLACEHOLDERS. Until a human replaces them from the real API pack, no client
-  // id may reach the OAuth seam — otherwise setting VITE_COROS_CLIENT_ID alone
-  // would arm a provider that authorizes against nothing.
-  //
-  // EXPECTED TO CHANGE when the API pack lands: fill in AUTH_URL/SCOPE, flip
-  // API_DOCUMENTED, and rewrite this test to assert the real values.
-  it("passes no client id to the OAuth seam while the request shapes are placeholders", () => {
-    const spec = specs.find(s => s.authUrl !== undefined);
-    expect(spec).toBeTruthy();
-    expect(spec!.clientId).toBeUndefined();
-    expect(spec!.authUrl).toBe("");
-    expect(spec!.scope).toBe("");
+describe("coros oauth spec", () => {
+  // Calibrated against COROS API Reference V2.0.6. These pin the three places
+  // COROS differs from the providers already on this seam, each of which would
+  // fail silently rather than loudly if it regressed.
+  const spec = () => specs.find(s => s.authUrl !== undefined)!;
+
+  it("uses the documented authorization endpoint and sends no scope", () => {
+    // §3.1.2. The authorization request documents only client_id, redirect_uri,
+    // state and response_type — there is no scope to send, and buildAuthUrl
+    // omits the parameter entirely when the scope is empty.
+    expect(spec().authUrl).toBe("https://open.coros.com/oauth2/authorize");
+    expect(spec().scope).toBe("");
   });
 
   it("registers as a cloud provider on both platforms", () => {
@@ -100,7 +97,7 @@ describe("corosWorkoutToRun", () => {
   const START = Date.UTC(2026, 6, 10, 8, 0, 0); // 2026-07-10T08:00:00Z
   const base = (over: Partial<CorosWorkout> = {}): CorosWorkout => ({
     key: "wk1", startTime: START, staged: false,
-    summary: { sport: "run", distanceM: 12000, durationSec: 3723, avgHr: 152.4, maxHr: 178, utcOffsetMin: 120 },
+    summary: { sport: "run", distanceM: 12000, durationSec: 3723, utcOffsetMin: 120 },
     ...over,
   });
 
@@ -110,8 +107,10 @@ describe("corosWorkoutToRun", () => {
       type: "EASY",
       km: 12,
       durationSec: 3723,
-      hr: 152,
-      hrMax: 178,
+      // COROS's listing carries no heart rate at all (§4.2.4) — a workout with
+      // no .fit imports as distance and duration only.
+      hr: null,
+      hrMax: null,
       source: "watch",
       notes: "Imported from COROS",
       extId: "coros:wk1",
@@ -165,16 +164,15 @@ describe("corosWorkoutToRun", () => {
     expect(run!.date).toBe("2026-07-11");                    // watch-local calendar day
   });
 
-  it("a file without record-level HR keeps the summary's heart rate and ascent", () => {
+  it("takes heart rate from the file, since the listing carries none", () => {
+    // The only source of HR for a COROS import. A file recorded without a strap
+    // therefore yields a run with no heart rate, and that is correct.
     const noHr = Buffer.from(buildFit([
       { lat: 45.0, lng: 5.0, altM: 200, tFit: 1_000_000_000, distM: 0 },
       { lat: 45.01, lng: 5.0, altM: 210, tFit: 1_000_000_600, distM: 1113 },
     ], false)).toString("base64");
-    const run = corosWorkoutToRun(base({
-      key: "nohr",
-      summary: { sport: "run", avgHr: 151, maxHr: 174, ascentM: 88, utcOffsetMin: 0 },
-    }), noHr);
-    expect(run).toMatchObject({ hr: 151, hrMax: 174 });
+    expect(corosWorkoutToRun(base({ key: "nohr", summary: { sport: "run", utcOffsetMin: 0 } }), noHr)?.hr).toBeFalsy();
+    expect(corosWorkoutToRun(base({ key: "hr", summary: { sport: "run", utcOffsetMin: 0 } }), FILE_B64)?.hrMax).toBe(160);
   });
 
   it("falls back to the summary when the file is undecodable", () => {
@@ -195,6 +193,9 @@ describe("corosWorkoutToRun", () => {
 type Invoke = { fn: string; action: string; [k: string]: unknown };
 const START = Date.UTC(2026, 6, 10, 8, 0, 0);
 const summaryOf = () => ({ sport: "run" as const, distanceM: 10000, durationSec: 3000, utcOffsetMin: 0 });
+// A listed workout carries its .fit URL (§4.2.4); the client hands it back on
+// the `file` call. Without one the provider skips straight to the summary.
+const FIT_URL = "https://oss.coros.com/fit/1/2.fit";
 const ackCalls = () => invokeMock.mock.calls.map(c => c[0] as Invoke).filter(c => c.action === "ack");
 
 describe("coros scan", () => {
@@ -202,7 +203,7 @@ describe("coros scan", () => {
     invokeMock.mockImplementation(async (body: Invoke) => {
       if (body.action === "sync") return {
         connected: true, cursor: START + 5000, hasMore: false, stagedKeys: [],
-        workouts: [{ key: "a", startTime: START, staged: false, summary: summaryOf() }],
+        workouts: [{ key: "a", startTime: START, staged: false, fitUrl: FIT_URL, summary: summaryOf() }],
       };
       if (body.action === "file") return { connected: true, gone: true }; // summary fallback
       return { ok: true };
@@ -232,8 +233,8 @@ describe("coros scan", () => {
       if (body.action === "sync") return {
         connected: true, cursor: START + 9999, hasMore: true, stagedKeys: [],
         workouts: [
-          { key: "a", startTime: START, staged: false, summary: summaryOf() },
-          { key: "b", startTime: START + 1000, staged: false, summary: summaryOf() },
+          { key: "a", startTime: START, staged: false, fitUrl: FIT_URL, summary: summaryOf() },
+          { key: "b", startTime: START + 1000, staged: false, fitUrl: FIT_URL, summary: summaryOf() },
         ],
       };
       if (body.action === "file") return body.key === "a" ? { connected: true, gone: true } : { connected: true, transient: true };
@@ -252,7 +253,7 @@ describe("coros scan", () => {
         connected: true, cursor: 500, hasMore: false, stagedKeys: ["s1"],
         // Today's run arriving mid-backfill: a huge startTime that must not
         // become the watermark, or everything in between is skipped.
-        workouts: [{ key: "s1", startTime: START + 999_999_999, staged: true, summary: summaryOf() }],
+        workouts: [{ key: "s1", startTime: START + 999_999_999, staged: true, fitUrl: FIT_URL, summary: summaryOf() }],
       };
       if (body.action === "file") return { connected: true, gone: true };
       return { ok: true };
@@ -286,7 +287,7 @@ describe("coros scan", () => {
       if (body.action === "sync") return {
         connected: true, cursor: START + 5000, hasMore: false, stagedKeys: [],
         workouts: [0, 1, 2].map(i => ({
-          key: "n" + i, startTime: START + i, staged: false,
+          key: "n" + i, startTime: START + i, staged: false, fitUrl: FIT_URL,
           summary: { sport: "run" as const, distanceM: 0 }, // maps null
         })),
       };
@@ -295,6 +296,22 @@ describe("coros scan", () => {
     });
     expect(await corosProvider.scan!([], {})).toHaveLength(0);
     expect(ackCalls()).toHaveLength(0); // no ack, the page re-serves after a fix
+  });
+
+  it("skips the file call for a workout COROS listed without a .fit", async () => {
+    // An indoor or file-less workout: spending a round trip to be told there is
+    // no file would burn the documented 1000-calls/minute budget for nothing.
+    invokeMock.mockImplementation(async (body: Invoke) => {
+      if (body.action === "sync") return {
+        connected: true, cursor: START + 10, hasMore: false, stagedKeys: [],
+        workouts: [{ key: "nofit", startTime: START, staged: false, fitUrl: null, summary: summaryOf() }],
+      };
+      return { ok: true };
+    });
+    const out = await corosProvider.scan!([], {});
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ km: 10, extId: "coros:nofit" });
+    expect(invokeMock.mock.calls.map(c => (c[0] as Invoke).action)).not.toContain("file");
   });
 
   it("imports nothing and acks nothing when the edge function is unconfigured", async () => {

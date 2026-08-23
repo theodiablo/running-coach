@@ -219,7 +219,7 @@
       },
       "coros": {
         "label": "COROS",
-        "help": "Conecta tu cuenta de COROS para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj COROS, incluso si dejas el teléfono en casa. Todo tu historial se importa en la primera conexión."
+        "help": "Conecta tu cuenta de COROS para importar los entrenamientos terminados, con ruta, ritmo, desnivel y frecuencia cardíaca, desde tu reloj COROS, incluso si dejas el teléfono en casa. COROS solo comparte los últimos tres meses, así que los entrenamientos más antiguos no se pueden importar."
       }
     }
   },

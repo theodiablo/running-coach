@@ -128,6 +128,30 @@ describe("cloud OAuth state helpers", () => {
       .toEqual({ provider: "polar", kind: "web", code: null, state: "polar_import:xyz" });
   });
 
+  it("classifies a COROS return, whose state carries no separator", () => {
+    // COROS restricts `state` to a-z A-Z 0-9 (API Reference V2.0.6 §3.1.3), so
+    // it is the one provider whose prefix and nonce run together. Native still
+    // has to win over web: its prefix extends the plain one either way.
+    const c = CLOUD_OAUTH.coros;
+    expect(c.stateSep).toBe("");
+    expect(classifyCloudReturn(`?state=${c.statePrefix}abc123&code=c`))
+      .toEqual({ provider: "coros", kind: "web", code: "c", state: "corosimportabc123" });
+    expect(classifyCloudReturn(`?state=${c.nativeStatePrefix}abc123&code=c`))
+      .toEqual({ provider: "coros", kind: "native", code: "c", state: "corosimportnativeabc123" });
+  });
+
+  it("keeps every state a provider can emit within its own charset rule", () => {
+    // A punctuated prefix under an empty separator would silently reintroduce
+    // the characters COROS rejects, and the failure would surface only as a
+    // refused authorization on a live account.
+    for (const id of cloudOauthProviderIds) {
+      const cfg = CLOUD_OAUTH[id];
+      if ((cfg.stateSep ?? ":") !== "") continue;
+      expect(cfg.statePrefix).toMatch(/^[a-zA-Z0-9]+$/);
+      expect(cfg.nativeStatePrefix).toMatch(/^[a-zA-Z0-9]+$/);
+    }
+  });
+
   it("keeps providers unambiguous: disjoint state prefixes, unique keys and deep links", () => {
     const cfgs = cloudOauthProviderIds.map(id => CLOUD_OAUTH[id]);
     for (let i = 0; i < cfgs.length; i++) {

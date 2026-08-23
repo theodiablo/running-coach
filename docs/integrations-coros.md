@@ -10,174 +10,174 @@ Third vendor-cloud import provider, on the seam Polar established
 `increment_integration_sync_usage` are all keyed by a free-text `provider`
 column with no CHECK constraint, which is exactly what they were built for.
 
-**This provider is a scaffold. It is dormant, and not only for want of a client
-id.** Read the next section before touching any request shape.
+Calibrated against the **COROS API Reference V2.0.6 (February 2026)**, the
+partner document issued with API credentials. Every endpoint and field in the
+code cites a section of it. It is **not yet verified against a live account** —
+there are still no credentials — so the provider stays dormant behind
+`VITE_COROS_CLIENT_ID` exactly like Polar and Suunto, and the first live pass
+should be read against the Verification section below.
 
-## What is documented, and what is not
-
-COROS does not publish technical API documentation. The only public,
-first-party source is the help-centre article
+The public help-centre article
 [Submit an API Application](https://support.coros.com/hc/en-us/articles/17085887816340-Submit-an-API-Application)
-(the HTML page 403s to most fetchers; the same body is readable through the
-public Help Center API at
-`https://support.coros.com/api/v2/help_center/en-us/articles/17085887816340.json`).
+remains the only *public* source (OAuth 2.0, apply via `api@coros.com`, Client
+ID and Secret on approval). The reference itself is not published; do not try to
+re-derive it from the unofficial `teamapi.coros.com` Training Hub API, which is
+a different, non-OAuth interface.
 
-**Documented fact**, from that article and nothing else:
+## What COROS does differently
 
-- COROS grants third-party access "through our standard **OAuth 2.0** API
-  framework" to any platform meeting its security and operational requirements.
-- Onboarding is: submit company details, technical contacts and **OAuth 2.0
-  redirect URIs**; accept the API Terms of Use (security, data-privacy
-  compliance and **system rate limits**); then COROS issues an **API Client ID
-  and Secret**.
-- Applications go to `api@coros.com` plus the form linked from that article.
+Three traits shape the whole integration, and none of them match Suunto.
 
-**Not documented anywhere public**: the authorization endpoint, the token
-endpoint and its client-auth style, scopes, the API host, the workout listing
-and its paging/`since` semantics, the activity-file download path, the file
-format, the sport vocabulary, the rate-limit numbers, whether webhooks exist,
-and every field name. Those arrive with the credentials.
+**1. The workout list is a date range, not a cursor (§4.2).**
+`GET /v2/coros/sport/list` takes `startDate`/`endDate` as `YYYYMMDD`, spans at
+most **30 days** per call, and refuses any start earlier than **three months
+before today** (revision V2.5, in force since 2024-01-01).
 
-So **every one of those is a `TODO(coros-api)` placeholder in this codebase,
-deliberately left empty rather than filled from memory or inference.** An empty
-URL can only fail loudly; a plausible-but-wrong one ships a sync that reports
-"no new runs" forever.
+*There is therefore no full-history backfill, and there cannot be one.* The
+reachable past is a rolling ~3-month window. We keep our own epoch-ms watermark
+in `sync_cursor` and walk it forward 30 days at a time, clamped to a floor of
+`now - 88 days` (the shortest calendar three-month span is 90 days, so 88 stays
+inside it whatever the month and whichever clock COROS resolves "today" in). A
+first connect starts at that floor, not at zero. **The user-facing copy says so**
+— promising a full history import would be a lie the API cannot honour.
 
-**Do not substitute the unofficial API.** The publicly reverse-engineered
-"COROS Training Hub API" (`teamapi.coros.com`, MD5-hashed password login, used
-by various community libraries) is a different, non-OAuth interface that its own
-authors describe as undocumented and liable to change without notice. It is not
-the partner API this integration targets, and password-based vendor scraping is
-already ruled out for this app on ToS grounds (see the Zepp note in
-`docs/health-integrations.md`).
+**2. The listing carries no heart rate and no elevation (§4.2.4).**
+It has distance, duration, start/end time, timezone, sport, cadence, calories,
+steps, device name, and a direct `fitUrl`. HR and elevation exist only inside
+the `.fit`. So a COROS workout whose file is missing imports as distance and
+duration only — no HR, no route. That is correct behaviour, not a degraded
+import to be worked around, and it is why the mapper reads no HR from the
+summary.
 
-### Why the discipline, concretely
+**3. Refresh does not rotate the token (§3.3).**
+`POST /oauth2/refresh-token` answers `{"result":"0000","message":"OK"}` and
+nothing else: it **extends the existing accessToken by 30 days**. Expecting a
+new token here would throw on every refresh. The access token lasts 30 days; the
+refresh token never expires. There is no rotation to race, so `getFreshToken`
+needs no compare-and-swap — only the stored expiry moves.
 
-Suunto shipped against endpoints inferred from a sibling endpoint and needed two
-follow-up PRs — #202 (sync reported "no new runs" on a working sync) and #203
-(imports arrived with no route, because the FIT export path was extrapolated
-from the listing path and answered 401) — **with** real credentials and a live
-account to test against. A wrong endpoint never surfaces as an endpoint error:
-it looks like nothing new happened, or like a run that just has no map. Guessing
-with no API access at all would be strictly worse, so this PR does not.
+Smaller but load-bearing details:
+
+- **`state` must be `a-z A-Z 0-9`, max 128 bytes (§3.1.3).** COROS is the only
+  provider on this seam whose state carries no `:` — `stateSep: ""` in
+  `cloudOauthPreinit` and an alphanumeric nonce in `cloudOauth`. COROS itself
+  recommends the state as the CSRF guard.
+- **No `scope` parameter exists (§3.1.3)** — the authorization request documents
+  only `client_id`, `redirect_uri`, `state`, `response_type`. An empty scope in
+  the spec makes `buildAuthUrl` omit it; Polar's and Suunto's live URLs are
+  unchanged.
+- **No PKCE.** The token endpoint accepts no `code_verifier` (§3.2.3), so
+  sending a challenge would be theatre. `pkce: false`.
+- **Client credentials go in the form body (§3.2.2)**, not HTTP Basic.
+- **Data calls take `?token=` and `?openId=` as query parameters** (§4.1-4.3),
+  not an `Authorization` header.
+- **Responses are HTTP 200 with a result code in the body**; `"0000"` is success.
+  A non-0000 result is a failure however healthy the status line. **429** is the
+  documented rate-limit signal (Addendum), and the cap is **1000 calls/minute**.
+- **`openId`** (§3.2.4) is the COROS user id, stored as `external_user_id`.
+- **Run sports** are the mode/subMode pairs `8/1` Outdoor Run, `8/2` Indoor Run,
+  `15/1` Trail Run, `20/1` Track Run; **walk** is `31/1` Walk and `16/1` Hike
+  (§4.2.4 workout type table).
+- **`fitUrl` is handed to us, not constructed** — it points at COROS object
+  storage and needs no token. The client passes it back on the `file` call, so
+  the edge function treats it as untrusted input and fetches it only when it is
+  `https` on a `coros.com` host. Without that check the action would be an open
+  proxy into our network.
+- **Sandbox exists**: `opentest.coros.com`. Set `COROS_API_BASE` to it while
+  verifying with test credentials.
+- **A workout summary push (webhook) is available** (§5): COROS POSTs new
+  workouts every ~5 minutes with `client` and `secret` in the request *headers*,
+  retries twice, and gives up after 24 hours. Not implemented yet — the staging
+  table and the staged-workout path are already wired, so `coros-webhook` is
+  additive whenever it is wanted.
 
 ## How it's wired
 
-What is **real and tested** today:
-
 - **Provider registration** — `corosProvider` in `src/imports/registry.ts`, its
   `cloudAuthCompleters` entry, and its `commitCloudScans` /
-  `cloudBackfillPending` participation (it uses the same deferred ack as
-  Suunto). `src/cloudOauthPreinit.ts` reserves the `coros_import` state
-  prefixes, storage keys and the `solutions.camboulive.run://coros-callback`
-  deep link (with the matching AndroidManifest intent filter); `polar.test.ts`
-  already asserts every provider's prefixes and keys stay disjoint.
-- **`corosWorkoutToRun`** — pure, unit-tested (`coros.test.ts`), and correct
-  today, because it consumes **our** normalised shape rather than COROS's:
-  file-first (route + HR series through the app's `parseFitFile`), summary
-  fallback, watch-local calendar date from `utcOffsetMin`, whole-bpm heart rate,
-  `extId: "coros:<key>"`. Never parse an activity file server-side.
-- **The scan loop** — cursor + **deferred ack**, the protocol Suunto proved and
-  the part that is ours, not COROS's: `sync` never advances the cursor, the
-  client acks only after runs are saved, staged workouts ack by key and never
-  move the watermark, and a page that produces no candidates acks immediately so
-  quiet history still advances. Plus the **schema tripwire**: a page whose every
-  fetched workout maps to null is treated as a normalisation mismatch and stops
-  the scan WITHOUT acking, so a wrong field name becomes a log line instead of a
-  silently consumed backfill. That guard matters more here than it did for
-  Suunto, because nobody has ever seen a COROS payload.
-- **`coros-import` actions that touch only our tables** — `status`,
-  `disconnect` and `ack` are complete: they read and write
-  `integration_connections` / `integration_staged_workouts` and call the atomic
-  `ack_integration_cursor` RPC.
-- **Dormancy**, asserted by a test: `coros.test.ts` pins that **no client id
-  reaches the OAuth seam** while the request shapes are placeholders.
+  `cloudBackfillPending` participation. `src/cloudOauthPreinit.ts` holds the
+  `corosimport` state prefixes, storage keys and the
+  `solutions.camboulive.run://coros-callback` deep link (with the matching
+  AndroidManifest intent filter); `polar.test.ts` asserts every provider's
+  prefixes and keys stay disjoint.
+- **`corosWorkoutToRun`** — pure and unit-tested (`coros.test.ts`). File first
+  (route + HR series through the app's `parseFitFile`), summary fallback,
+  watch-local calendar date from the 15-minute timezone unit, `extId:
+  "coros:<labelId>"`. Never parse a `.fit` server-side.
+- **The scan loop** — cursor + **deferred ack**: `sync` never advances the
+  cursor, the client acks only after runs are saved, staged workouts ack by key
+  and never move the watermark, and a page with no candidates acks immediately
+  so quiet windows still advance. A workout COROS listed with no `fitUrl` skips
+  the download call entirely rather than spending a request to be told there is
+  no file.
+- **The schema tripwire** — a page whose every fetched workout maps to null
+  stops the scan *without* acking. It guards `normalizeWorkout`, which is the
+  one function that could still be wrong in a way nothing else would catch: a
+  changed field name would otherwise consume the window silently.
+- **`normalizeWorkout` is the only place that knows COROS's vocabulary** —
+  mode/subMode pairs, epoch seconds, 15-minute timezone units — so the browser
+  never sees any of it. The same shape arrives from the listing and from the
+  summary push (§5.3.3), so one function serves both when the webhook lands.
 
-What is a **placeholder awaiting the API pack** (all marked `TODO(coros-api)`):
+### Dormancy
 
-| Unknown | Where |
-| --- | --- |
-| Authorization URL, scope | `AUTH_URL` / `SCOPE`, `providers/coros.ts` |
-| Token URL + client-auth style (Basic vs form body) | `TOKEN_URL` / `CLIENT_AUTH_IN_BODY` |
-| API host, listing path, `since`/paging semantics | `API` / `LIST_PATH` |
-| Activity-file path and format (FIT assumed) | `FILE_PATH` |
-| Extra app/subscription key, rate limits | `apiFetch` headers, `COROS_FILE_DAILY_LIMIT` |
-| Sport vocabulary (which values are run/walk) | `normalizeWorkout` |
-| Every workout field name | `normalizeWorkout` |
-| Provider-side account id in the token response | `externalUserIdFrom` |
-| Whether webhooks exist at all | no `coros-webhook` function yet |
+One gate, the same as every other cloud provider: `isAvailable()` is false
+without `VITE_COROS_CLIENT_ID`, and the edge function answers
+`{skipped: "coros not configured"}` without `COROS_CLIENT_ID` /
+`COROS_CLIENT_SECRET`. (The earlier scaffold carried a second `API_DOCUMENTED`
+gate because the request shapes were placeholders. They are documented now, so
+that gate is gone.)
 
-**The unknowns are deliberately concentrated in one server-side function.**
-`normalizeWorkout(raw)` in `coros-import` is the only place that will ever know
-COROS's vocabulary; it returns our `NormalWorkout` shape, so when the API pack
-lands that one function learns the field names and the client's already-tested
-mapper needs no change. (Suunto reads vendor field names client-side because its
-summaries arrive from two differently-shaped sources — the listing and a webhook
-body. COROS has no such constraint yet, so normalising at the edge is strictly
-better here.)
-
-### The two gates
-
-`API_DOCUMENTED` is `false` in **both** `providers/coros.ts` and
-`coros-import/index.ts`, and they must be flipped together.
-
-- Client: the client id is passed to `makeCloudOauth` **only** when
-  `API_DOCUMENTED` is true, so `isAvailable()` is false, the Settings row never
-  renders, `scan()` returns nothing, and `connect()` can never parse the empty
-  authorization URL. Setting `VITE_COROS_CLIENT_ID` alone **cannot** arm it.
-- Server: without `COROS_CLIENT_ID`/`COROS_CLIENT_SECRET` every action answers
-  `{skipped: "coros not configured"}`; with them but without `API_DOCUMENTED`,
-  everything that would reach COROS answers
-  `{skipped: "coros api not documented"}`.
-
-A production build with no `VITE_COROS_CLIENT_ID` inlines
-`{provider:"coros", authUrl:"", clientId:void 0, scope:""}`. The label strings
-ship in the locale chunks, as Suunto's did before it was activated, but nothing
-renders them: `ConnectionsCard` only builds a row for a cloud provider whose
-`isAvailable()` resolves true.
+`ConnectionsCard` only builds a row for a cloud provider whose `isAvailable()`
+resolves true, so a build without the variable renders nothing.
 
 ## Activation (maintainer)
 
 1. **Apply for API access.** Email `api@coros.com` and complete the form linked
-   from the help-centre article above, with company details, technical contacts
-   and the OAuth redirect URI `https://run.camboulive.solutions/` (trailing
-   slash — it must equal `redirectUri()` in `src/imports/cloudOauth.ts`
-   byte-for-byte). Accept the API Terms of Use. This is the schedule-critical
-   step, and until it completes there is nothing to calibrate against.
-2. **Fill in the API pack.** Replace every `TODO(coros-api)` constant in
-   `providers/coros.ts` and `coros-import/index.ts`, write `normalizeWorkout`,
-   then flip `API_DOCUMENTED` in both files. Update the dormancy test in
-   `coros.test.ts` to assert the real authorization URL and scope. Confirm from
-   the docs, rather than assuming: whether the token endpoint wants HTTP Basic
-   or form-body client auth; whether PKCE S256 is supported (this provider opts
-   in, like Suunto); whether an extra app key rides every API call; what unit
-   and clock the listing's `since` uses; and what the export format actually is
-   (if it is GPX or TCX rather than FIT, route the mapper's file branch through
-   `parseActivityFile`).
-3. **Server secrets**: `supabase secrets set COROS_CLIENT_ID=… COROS_CLIENT_SECRET=…`
-   (plus any app/subscription key the pack requires).
-4. **Client env — repo VARIABLE, not a secret** (the client id is public):
+   from the help-centre article, with company details, technical contacts and
+   the OAuth redirect URI `https://run.camboulive.solutions/` (trailing slash —
+   it must equal `redirectUri()` in `src/imports/cloudOauth.ts` byte-for-byte).
+   §1.2 also asks for an application name (≤50 chars), a description (≤100
+   chars) and a logo as PNG in **two** sizes, 144x144 and 102x102. COROS accepts
+   one or two callback domains.
+2. **Server secrets**: `supabase secrets set COROS_CLIENT_ID=… COROS_CLIENT_SECRET=…`
+   Optionally `COROS_API_BASE=https://opentest.coros.com` to run against the
+   sandbox first, and `COROS_FILE_DAILY_LIMIT` to change the per-user daily
+   download cap from its default of 300.
+3. **Client env — repo VARIABLE, not a secret** (the client id is public):
    Actions repo variable `VITE_COROS_CLIENT_ID`, already wired into
    `deploy.yml` / `deploy-pr.yml` / `release.yml` / `android-pr.yml`.
-5. **No migration to apply** — `integration_connections` already serves this
+4. **No migration to apply** — `integration_connections` already serves this
    provider. Functions auto-deploy on merge to `main`, so set the secrets first.
 
 ## Verification
 
 Local (no credentials): `supabase functions serve` + curl — every action
-returns `{skipped}`; with fake secrets set, `status`/`ack`/`disconnect` still
-work against the DB while `sync`/`file`/`exchange` return
-`{skipped: "coros api not documented"}`, and `sync_cursor` only ever grows
-(two concurrent acks never rewind it).
+returns `{skipped}`. With fake secrets set, `status` / `ack` / `disconnect`
+still work against the DB, and `sync_cursor` only ever grows (two concurrent
+acks never rewind it).
 
-Live (after credentials, and **before** trusting the import): connect on web and
-Android (deep-link bounce, cold start); watch the first backfill page in the
-function logs — `coros-import sync since=… listed=… offered=…` is the line that
-tells a wrong `since` unit from an over-strict sport filter, and
-`coros-import skipped unrecognised workouts N` catches a sport vocabulary that
-is still wrong. Then confirm a real run imports **with a map and an HR chart**,
-not just with a distance: a route-less import is what a wrong file endpoint
-looks like from the app, and it is the failure that took Suunto two follow-up
-PRs to spot. Deliberately ignore an import toast and check the batch re-serves
-on the next scan with no re-downloads; disconnect wipes both tables; reconnect
-re-backfills.
+Live, against the sandbox first if credentials allow. The code is documented but
+unproven, so read the function logs before trusting an import:
+
+- `coros-import sync 20260601..20260701 listed=… offered=…` is the line that
+  separates an empty window from an over-strict sport filter. If `listed` is 0
+  for a range you know has runs, suspect the **date resolution** — COROS does
+  not say which clock it reads `YYYYMMDD` in, and ours is UTC.
+- `coros-import skipped non-run workouts N` catches a mode/subMode pair we do
+  not recognise yet.
+- Confirm a run imports **with a map and an HR chart**, not merely with a
+  distance. For COROS a missing `.fit` means no route *and* no heart rate, which
+  on screen looks like an ordinary manual entry rather than an error. This is
+  the failure that took Suunto two follow-up PRs to spot.
+- **Check the three-month floor behaves**: a first connect should import roughly
+  the last three months and then stop, and `hasMore` should go false rather than
+  looping. A window with no workouts must still advance the cursor.
+- **Check the refresh path** by forcing `expires_at` into the past: the sync
+  should still work and the row's expiry should move forward *without* the
+  access token changing (§3.3 extends rather than rotates).
+- Unbind the app inside the COROS app and reopen Settings: the row should flip
+  to disconnected via the `bindState` check (§3.5).
+- Deliberately ignore an import toast and check the batch re-serves on the next
+  scan with no re-downloads; disconnect wipes both tables and deauthorizes at
+  COROS; reconnect re-imports the reachable window.

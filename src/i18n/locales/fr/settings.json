@@ -219,7 +219,7 @@
       },
       "coros": {
         "label": "COROS",
-        "help": "Connecte ton compte COROS pour importer tes sorties terminées, avec tracé, allure, dénivelé et fréquence cardiaque, depuis ta montre COROS, même quand tu laisses ton téléphone à la maison. Tout ton historique est importé à la première connexion."
+        "help": "Connecte ton compte COROS pour importer tes sorties terminées, avec tracé, allure, dénivelé et fréquence cardiaque, depuis ta montre COROS, même quand tu laisses ton téléphone à la maison. COROS ne partage que les trois derniers mois, les sorties plus anciennes ne peuvent pas être importées."
       }
     }
   },

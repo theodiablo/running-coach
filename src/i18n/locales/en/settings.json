@@ -219,7 +219,7 @@
       },
       "coros": {
         "label": "COROS",
-        "help": "Connect your COROS account to import finished runs, with route, pace, elevation and heart rate, from your COROS watch, even when you leave your phone at home. Your full history imports when you first connect."
+        "help": "Connect your COROS account to import finished runs, with route, pace, elevation and heart rate, from your COROS watch, even when you leave your phone at home. COROS only shares the last three months, so older runs cannot be imported."
       }
     }
   },

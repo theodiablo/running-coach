@@ -10,48 +10,41 @@ import type { Run } from "../../types";
 // summaries, fetches one file per invocation and maps them with the app's own
 // parser, exactly like Suunto.
 //
-// SHIPPED DORMANT, AND NOT ONLY FOR WANT OF A CLIENT ID. COROS publishes no
-// technical API documentation before a developer application is approved: the
-// public help centre describes the onboarding process and states the API is
-// OAuth 2.0, and nothing else — no authorization URL, no scopes, no endpoints,
-// no field names. Those arrive with the credentials. So the request shapes
-// below are PLACEHOLDERS, not guesses, and `API_DOCUMENTED` keeps the provider
-// unavailable until a human replaces them from the real API pack. Setting
-// VITE_COROS_CLIENT_ID alone must NOT be able to arm it — see the note on that
-// constant. Background and the full checklist: docs/integrations-coros.md.
+// Calibrated against the COROS API Reference V2.0.6 (February 2026), the
+// partner document issued with API credentials. Every endpoint, parameter and
+// field name below cites a section of it. Still UNVERIFIED against a live
+// account: dormant until VITE_COROS_CLIENT_ID is set, exactly like Polar and
+// Suunto, and the first live pass should be read against the checklist in
+// docs/integrations-coros.md.
 //
-// Why the discipline: Suunto shipped against inferred endpoints and needed two
-// follow-up fixes (#202, #203) for a sync that reported "no new runs" and
-// imports that arrived with no route — with real credentials and a live account
-// to test against. A wrong endpoint never looks like an endpoint error from the
-// app; it looks like "nothing new". Guessing blind would be strictly worse.
+// Three COROS traits shape this file, and none of them match Suunto:
+//   - The workout list is a DATE RANGE query (§4.2), max 30 days per call, and
+//     COROS refuses any start date earlier than three months before today. So
+//     there is no full-history backfill to be had: the reachable past is a
+//     rolling ~3-month window, and the scan walks it forward in 30-day pages.
+//   - The listing carries NO heart rate and NO elevation (§4.2.4). Both come
+//     from the .fit file, whose direct URL rides in the listing as `fitUrl`.
+//   - `state` is restricted to a-z A-Z 0-9 (§3.1.3), which is why this provider
+//     alone uses an unpunctuated state (see cloudOauthPreinit).
 
 const COROS_CLIENT_ID = import.meta.env?.VITE_COROS_CLIENT_ID as string | undefined;
 
-// TODO(coros-api): fill both in from the COROS API pack issued at onboarding,
-// then flip API_DOCUMENTED. Deliberately EMPTY rather than plausible: an empty
-// string can only fail loudly, while a wrong-but-well-formed URL would ship a
-// provider that authorizes against nothing and reports "no new runs" forever.
-const AUTH_URL = "";
+// §3.1.2. COROS documents no `scope` parameter on the authorization endpoint,
+// so the empty scope sends none (see buildAuthUrl).
+const AUTH_URL = "https://open.coros.com/oauth2/authorize";
 const SCOPE = "";
-
-// The arming switch. Typed `boolean` (not inferred `false`) so the guards below
-// read as ordinary runtime checks rather than dead branches the compiler prunes.
-const API_DOCUMENTED: boolean = false;
 
 const oauth = makeCloudOauth({
   provider: "coros",
   authUrl: AUTH_URL,
-  // Gated on BOTH the config AND the calibration flag. Passing the id through
-  // only once the endpoints are real means `enabled` is false today, so
-  // connect() returns false before it could parse the empty AUTH_URL, and
-  // completeAuth() is "idle" on every load.
-  clientId: API_DOCUMENTED ? COROS_CLIENT_ID : undefined,
+  clientId: COROS_CLIENT_ID,
   scope: SCOPE,
-  // New provider, never shipped without it: PKCE from the start, like Suunto.
-  // (Whether COROS's authorization server supports S256 is itself unconfirmed —
-  // one more thing to check against the API pack before flipping the flag.)
-  pkce: true,
+  // NO PKCE. COROS's authorization request documents only client_id,
+  // redirect_uri, state and response_type (§3.1.3), and its token endpoint
+  // accepts no code_verifier (§3.2.3) — sending a challenge we could never
+  // redeem would be theatre. The CSRF guard is the nonce in `state`, which
+  // COROS explicitly recommends for exactly that (§3.1.3).
+  pkce: false,
   functionName: "coros-import",
 });
 
@@ -67,29 +60,34 @@ const ANOMALY_MIN_FETCHED = 3;
 const RUN_CACHE_MAX = 200;
 
 // What `coros-import` returns per workout. This is OUR shape, not COROS's:
-// the edge function's normalizeWorkout() is the single place that knows the
-// vendor's field names, so the moment the API pack lands exactly one server
-// function changes and everything below — including the tested mapper — is
-// already correct. (Suunto reads vendor field names client-side because its
-// summaries arrive from two differently-shaped sources; COROS has no such
-// constraint, and normalising at the edge keeps the unknown in one file.)
+// normalizeWorkout() in the edge function is the single place that knows the
+// vendor's field names and units, so the browser never sees a mode/subMode pair
+// or a 15-minute timezone unit.
+//
+// Deliberately thin, because COROS's listing (§4.2.4) is thin: it carries
+// distance, duration, start time, timezone, sport and a .fit URL — and NO
+// heart rate and NO elevation. Both of those come from the .fit alone, which is
+// why a COROS workout with no file imports as distance-and-duration only.
 export type CorosSummary = {
   distanceM?: number | null;
   durationSec?: number | null;
-  avgHr?: number | null;
-  maxHr?: number | null;
-  ascentM?: number | null;
-  // Minutes to add to UTC to get the watch's local clock, for the calendar date.
+  // Minutes to add to UTC for the watch's local clock. COROS reports a
+  // 15-minute-unit timezone (§4.2.4, 32 = UTC+08:00); the server converts.
   utcOffsetMin?: number | null;
-  // Already collapsed to the two kinds the app stores; the server drops
-  // everything else before it ever reaches a download.
+  // Collapsed from COROS's mode/subMode pair (§4.2.4 workout type table); the
+  // server drops every other sport before it reaches a download.
   sport?: "run" | "walk" | null;
 };
 
 export type CorosWorkout = {
+  // COROS's `labelId` (§4.2.4).
   key: string;
-  startTime: number; // epoch ms, UTC
+  startTime: number; // epoch ms, UTC (COROS sends seconds; the server converts)
   staged: boolean;
+  // Direct .fit download URL from the listing (§4.2.4 `fitUrl`). Passed back to
+  // the edge function on the `file` call, which validates the host before
+  // fetching. Absent when COROS listed no file for the workout.
+  fitUrl?: string | null;
   summary?: CorosSummary;
 };
 
@@ -116,16 +114,6 @@ function b64ToBytes(b64: string): Uint8Array | null {
 const num = (v: number | null | undefined): number | null =>
   v != null && Number.isFinite(Number(v)) ? Number(v) : null;
 
-// Heart rate is stored as a whole number of bpm, and a 0 average means "the
-// watch recorded none", not a real reading. (No unit conversion here: Suunto
-// needs one because its API documents heart rate in Hz in places. Whether
-// COROS reports anything in non-obvious units is unknown until the API pack
-// lands — one more thing normalizeWorkout owns, not a guess to make here.)
-const bpm = (v: number | null | undefined): number | null => {
-  const n = num(v);
-  return n == null || n <= 0 ? null : Math.round(n);
-};
-
 // One normalised COROS workout (+ optional activity-file bytes) → an
 // ImportedRun, or null when unusable. The file wins when it parses (full route
 // + HR series through the shared parser, which derives distance, elevation and
@@ -142,9 +130,6 @@ export function corosWorkoutToRun(w: CorosWorkout, fileB64: string | null): Impo
   const type = s.sport === "walk" ? "WALK" : "EASY";
   const extId = EXT_PREFIX + w.key;
   const offsetMin = num(s.utcOffsetMin);
-  const sHr = bpm(s.avgHr);
-  const sHrMax = bpm(s.maxHr);
-  const sAscent = num(s.ascentM);
   // Calendar date on the WATCH's clock, consistent across both branches: the
   // parser's date is phone-local, which disagrees near midnight when the run
   // happened in another timezone (and would then miss the plan auto-tick).
@@ -164,11 +149,6 @@ export function corosWorkoutToRun(w: CorosWorkout, fileB64: string | null): Impo
         return {
           ...res.run,
           ...(offsetMin != null && Number.isFinite(startedMs) ? { date: localDate(startedMs) } : {}),
-          // A file without record-level HR (no strap) or without barometric
-          // altitude still keeps whatever the summary carried.
-          hr: res.run.hr ?? sHr,
-          hrMax: res.run.hrMax ?? sHrMax,
-          ...(res.run.elevation == null && sAscent != null ? { elevation: Math.round(sAscent) } : {}),
           type,
           source: "watch",
           notes: "Imported from COROS",
@@ -189,9 +169,10 @@ export function corosWorkoutToRun(w: CorosWorkout, fileB64: string | null): Impo
     type,
     km,
     durationSec: Math.round(num(s.durationSec) || 0),
-    hr: sHr,
-    hrMax: sHrMax,
-    ...(sAscent != null ? { elevation: Math.round(sAscent) } : {}),
+    // No HR and no elevation: COROS's listing carries neither (§4.2.4), so a
+    // workout whose .fit never arrived imports as distance and duration only.
+    hr: null,
+    hrMax: null,
     effort: null,
     source: "watch",
     notes: "Imported from COROS",
@@ -241,7 +222,14 @@ const cacheRun = (key: string, run: ImportedRun | null): void => {
 // nothing) and the cursor would never come back for it.
 async function fetchWorkoutRun(w: CorosWorkout): Promise<ImportedRun | null | "transient"> {
   if (runCache.has(w.key)) return runCache.get(w.key) ?? null;
-  const res = await oauth.invoke<FileRes>({ action: "file", key: w.key });
+  // No fitUrl in the listing means COROS has no file for this workout — go
+  // straight to the summary rather than spending a call to be told so.
+  if (!w.fitUrl) {
+    const run = corosWorkoutToRun(w, null);
+    cacheRun(w.key, run);
+    return run;
+  }
+  const res = await oauth.invoke<FileRes>({ action: "file", key: w.key, fitUrl: w.fitUrl });
   if (!res || res.error || res.transient) return "transient";
   // `gone` (the workout genuinely has no file) → summary fallback.
   const fileB64 = typeof res.file === "string" ? res.file : null;
@@ -373,5 +361,5 @@ export const corosProvider: ImportProvider = {
   help:
     "Connect your COROS account to import finished runs (route, pace, elevation and " +
     "heart rate) recorded on your COROS watch, even when you leave your phone at home. " +
-    "Your full history imports when you first connect.",
+    "COROS only serves the last three months, so older runs cannot be imported.",
 };

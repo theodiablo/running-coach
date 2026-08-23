@@ -360,13 +360,15 @@ pipeline needs no changes. Three providers:
   on first connect, and `suunto-webhook` staging new workouts server-side.
   Credentials for every cloud provider live in the generic
   `integration_connections` table (service-role-only). **COROS** rides the same
-  seam (`providers/coros.ts`, `docs/integrations-coros.md`) but is a **scaffold,
-  shipped dormant**: COROS publishes no technical API documentation before a
-  developer application is approved, so its endpoints, scopes and field names
-  are `TODO(coros-api)` placeholders rather than guesses, and `API_DOCUMENTED`
-  (client AND edge function) keeps it unavailable until the real API pack fills
-  them in — `VITE_COROS_CLIENT_ID` alone cannot arm it. The seam itself needed
-  no changes, and no migration: `integration_connections` is generic.
+  seam (`providers/coros.ts`, `docs/integrations-coros.md`), calibrated against
+  the COROS API Reference V2.0.6 and dormant until `VITE_COROS_CLIENT_ID` is
+  set. It needed no migration, but it bends the seam in three places worth
+  knowing: its workout list is a **30-day date range** with a hard **3-month
+  history floor** (so there is no full-history backfill, and the copy says so),
+  its listing carries **no HR and no elevation** (both live only in the `.fit`,
+  whose URL the listing hands over), and its token refresh **extends** the
+  existing token instead of rotating it. Its OAuth `state` must also be
+  alphanumeric, the one provider that carries no `:` separator.
 
 **Strava API is deliberately excluded**: its agreement bans AI-model use of API
 data and the coach reads runs — users' own CSV/GPX exports are fine, that's

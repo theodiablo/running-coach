@@ -111,7 +111,10 @@ export function buildAuthUrl(
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", spec.clientId!);
   url.searchParams.set("redirect_uri", opts.redirectUri);
-  url.searchParams.set("scope", spec.scope);
+  // COROS's authorization endpoint documents no `scope` parameter at all
+  // (API Reference V2.0.6 §3.1.3), so an empty scope sends none. Polar's and
+  // Suunto's live URLs are unchanged — theirs are non-empty.
+  if (spec.scope) url.searchParams.set("scope", spec.scope);
   url.searchParams.set("state", opts.state);
   if (opts.challenge) {
     url.searchParams.set("code_challenge", opts.challenge);
@@ -124,9 +127,10 @@ export function makeCloudOauth(spec: CloudOauthSpec): CloudOauth {
   const keys = CLOUD_OAUTH[spec.provider];
   const enabled = !!spec.clientId;
 
+  const sep = keys.stateSep ?? ":";
   const expectedStates = (nonce: string): string[] => [
-    keys.statePrefix + ":" + nonce,
-    keys.nativeStatePrefix + ":" + nonce,
+    keys.statePrefix + sep + nonce,
+    keys.nativeStatePrefix + sep + nonce,
   ];
 
   const invoke = async <T,>(body: { action: string; [k: string]: unknown }): Promise<T | null> => {
@@ -143,12 +147,15 @@ export function makeCloudOauth(spec: CloudOauthSpec): CloudOauth {
   // on web, and on the "rc-cloud-oauth-return" deep-link event on native.
   const connect = async (): Promise<boolean | "pending"> => {
     if (!enabled || typeof window === "undefined") return false;
-    const nonce = newNonce();
+    // A provider whose state may carry no punctuation (COROS) also needs an
+    // alphanumeric nonce, or the UUID's dashes would break the same rule the
+    // separator is avoiding. Stripping keeps all 128 bits of randomness.
+    const nonce = sep === "" ? newNonce().replace(/[^a-zA-Z0-9]/g, "") : newNonce();
     writeConnectValue(keys.nonceKey, nonce);
     const pkce = spec.pkce ? await newPkce() : null;
     if (pkce) writeConnectValue(keys.verifierKey, pkce.verifier);
     const url = new URL(buildAuthUrl(spec, {
-      state: (isNative ? keys.nativeStatePrefix : keys.statePrefix) + ":" + nonce,
+      state: (isNative ? keys.nativeStatePrefix : keys.statePrefix) + sep + nonce,
       redirectUri: redirectUri(),
       challenge: pkce?.challenge,
     }));
