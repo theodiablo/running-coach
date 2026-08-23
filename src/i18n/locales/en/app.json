@@ -43,7 +43,16 @@
     "body": "We'd like to collect limited usage analytics and crash reports to fix bugs and see what's used. No run data, routes, notes, or heart rate, or coach messages are ever sent. You can change this any time in Settings → Privacy.",
     "privacyPolicy": "Privacy policy",
     "decline": "Decline",
-    "accept": "Accept"
+    "accept": "Accept",
+    "screenTitle": "Help us improve, on your terms",
+    "screenBody": "Both are off until you turn them on. Nothing about your runs is ever sent: no routes, no heart rate, no notes, no coach messages.",
+    "crashTitle": "Share crash reports",
+    "crashDesc": "Stack traces and device info when the app crashes. No location, no personal data. Helps us fix bugs faster.",
+    "analyticsTitle": "Share product analytics",
+    "analyticsDesc": "Anonymous usage events, like how often a plan is built, so we build the right features next.",
+    "control": "You're in control.",
+    "continue": "Continue",
+    "changeLater": "You can change these any time in Settings → Privacy."
   },
   "crash": {
     "title": "Something went wrong",

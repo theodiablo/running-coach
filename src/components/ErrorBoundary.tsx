@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { isNative, nativeBuildLabel } from "../native";
-import { getConsent, captureError } from "../telemetry";
+import { getCrashConsent, captureError } from "../telemetry";
 // Bound t (not the hook): ErrorBoundary is a class and renders only on crash,
 // by which point initI18n has run, so the active language is available.
 import { t } from "../i18n";
@@ -10,9 +10,9 @@ const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || "";
 
 // App-wide crash guard. A render-time exception anywhere below this boundary
 // would otherwise white-screen the user; instead we show a friendly fallback
-// with a reload, and feed the crash to telemetry under the single consent rule:
-// auto-report on BOTH web and native whenever the user has granted analytics
-// consent (getConsent()), and never otherwise. Capture goes through the bundled
+// with a reload, and feed the crash to telemetry under one consent rule:
+// auto-report on BOTH web and native whenever the user has granted the crash
+// channel (getCrashConsent(), independent of product analytics), never otherwise. Capture goes through the bundled
 // captureException API (see telemetry/posthog.ts) — PostHog's remote
 // exception-autocapture bundle is blocked by our CSP. On native this also covers
 // uncaught window errors / promise rejections via the listeners in
@@ -76,11 +76,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     window.addEventListener("unhandledrejection", this.onUnhandledRejection);
   }
 
-  // Send the current crash once, if analytics consent is granted. Called after
+  // Send the current crash once, if crash-report consent is granted. Called after
   // state.error is populated (directly in componentDidCatch, via the setState
   // callback in the native window/rejection listeners).
   maybeReport() {
-    if (this.state.decision === "sent" || !this.state.error || !getConsent()) return;
+    if (this.state.decision === "sent" || !this.state.error || !getCrashConsent()) return;
     this.report();
     this.setState({ decision: "sent" });
   }

@@ -31,14 +31,17 @@
   },
   "privacy": {
     "title": "Privacy",
-    "shareLabel": "Share usage & crash reports",
-    "shareAria": "Share usage and crash reports",
-    "shareDesc": "Limited app analytics and crash diagnostics. No run data, routes, heart-rate samples, or coach messages are ever sent.",
-    "crashNote": "If the app crashes, you'll still be asked before any crash report is sent.",
+    "crashLabel": "Share crash reports",
+    "crashDesc": "Stack traces and device info when the app crashes. No location, no personal data.",
+    "crashOn": "Crash reports enabled.",
+    "crashOff": "Crash reports disabled.",
+    "shareLabel": "Share product analytics",
+    "shareAria": "Share product analytics",
+    "shareDesc": "Anonymous usage events. No run data, routes, heart-rate samples, or coach messages are ever sent.",
+    "sharingOn": "Product analytics enabled.",
+    "sharingOff": "Product analytics disabled.",
     "policyLink": "Privacy policy",
-    "disclaimerLink": "Health & safety disclaimer",
-    "sharingOn": "Sharing enabled.",
-    "sharingOff": "Sharing disabled."
+    "disclaimerLink": "Health & safety disclaimer"
   },
   "backup": {
     "title": "Backup & restore",

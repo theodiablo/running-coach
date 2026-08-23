@@ -43,7 +43,16 @@
     "body": "Nos gustaría recopilar datos básicos de uso e informes de fallos para corregir errores y saber qué funciones se utilizan. Nunca se envían datos de tus entrenamientos, rutas, notas, frecuencia cardíaca ni mensajes del entrenador. Puedes cambiarlo en cualquier momento en Ajustes → Privacidad.",
     "privacyPolicy": "Política de privacidad",
     "decline": "Rechazar",
-    "accept": "Aceptar"
+    "accept": "Aceptar",
+    "screenTitle": "Ayúdanos a mejorar, a tu manera",
+    "screenBody": "Las dos opciones están desactivadas hasta que las actives. Nunca se envía nada de tus entrenamientos: ni rutas, ni frecuencia cardíaca, ni notas, ni mensajes del entrenador.",
+    "crashTitle": "Compartir informes de fallos",
+    "crashDesc": "Trazas de error e información del dispositivo cuando la app falla. Sin ubicación ni datos personales. Nos ayuda a corregir errores más rápido.",
+    "analyticsTitle": "Compartir datos de uso",
+    "analyticsDesc": "Eventos anónimos, como cuántos planes se crean, para desarrollar las funciones adecuadas.",
+    "control": "Tú tienes el control.",
+    "continue": "Continuar",
+    "changeLater": "Puedes cambiarlo en cualquier momento en Ajustes → Privacidad."
   },
   "crash": {
     "title": "Algo ha salido mal",

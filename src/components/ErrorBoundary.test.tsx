@@ -12,7 +12,7 @@ vi.mock("../native", () => ({
   nativeBuildLabel: () => native.label,
 }));
 vi.mock("../telemetry", () => ({
-  getConsent: () => "declined",
+  getCrashConsent: () => true,
   captureError: vi.fn(),
 }));
 

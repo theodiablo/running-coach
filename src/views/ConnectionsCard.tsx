@@ -15,6 +15,7 @@ import { setGeoDebug } from "../geo/trackLog";
 import { WatchSyncLog } from "./WatchSyncLog";
 import { TrackDiagLog } from "./TrackDiagLog";
 import { BetaBadge } from "../components/BetaBadge";
+import { ToggleSwitch } from "../components/ToggleSwitch";
 import { HR_BLE_DISCLOSED_KEY, PLAY_STORE_BETA_URL, APP_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
 import type { ImportProvider } from "../imports/types";
 import type { HrMethod, SettingsState } from "../types";
@@ -43,15 +44,6 @@ type ImportsFlags = Record<string, boolean>;
 function withProviderEnabled(settings: SettingsState, id: string, on: boolean): SettingsState {
   if (healthStoreProviderIds.has(id)) return { ...settings, watchImport: on };
   return { ...settings, imports: { ...(settings.imports as ImportsFlags | undefined), [id]: on } };
-}
-
-function Switch({ on, onToggle, label, disabled }: { on: boolean; onToggle: () => void; label: string; disabled?: boolean }) {
-  return (
-    <button type="button" onClick={onToggle} role="switch" aria-checked={on} aria-label={label} disabled={disabled}
-      className={"relative shrink-0 w-11 h-6 rounded-full transition-colors " + (on ? "bg-orange-500" : "bg-slate-600") + (disabled ? " opacity-50" : "")}>
-      <span className={"absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform " + (on ? "translate-x-5" : "translate-x-0")} />
-    </button>
-  );
 }
 
 // Collapsible help: settings should configure, not lecture — the long
@@ -163,7 +155,7 @@ function BleRow({ settings, saveSettings, showToast }: ConnectionsProps) {
         icon={<Bluetooth size={16} />}
         label={t("settings.connections.ble.label")}
         status={paired ? paired.name : t("settings.connections.notSetUp")}
-        control={<Switch on={on} onToggle={toggle} label={t("settings.connections.ble.label")} />}
+        control={<ToggleSwitch on={on} onToggle={toggle} label={t("settings.connections.ble.label")} />}
       />
       {paired && (
         <div className="flex items-center justify-between gap-2 bg-slate-700/60 rounded-xl px-3 py-2">
@@ -373,14 +365,14 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
               <p className="text-sm text-slate-200">{t("settings.connections.store.hrToggle")}</p>
               <p className="text-xs text-slate-500">{t("settings.connections.store.hrToggleDesc")}</p>
             </div>
-            <Switch on={hrOn} onToggle={() => { void toggleHr(); }} label={t("settings.connections.store.hrToggle")} disabled={busy} />
+            <ToggleSwitch on={hrOn} onToggle={() => { void toggleHr(); }} label={t("settings.connections.store.hrToggle")} disabled={busy} />
           </div>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm text-slate-200">{t("settings.connections.store.watchToggle")}</p>
               <p className="text-xs text-slate-500">{t("settings.connections.store.watchToggleDesc")}</p>
             </div>
-            <Switch on={watchOn} onToggle={() => { void toggleWatch(); }} label={t("settings.connections.store.watchToggle")} disabled={busy} />
+            <ToggleSwitch on={watchOn} onToggle={() => { void toggleWatch(); }} label={t("settings.connections.store.watchToggle")} disabled={busy} />
           </div>
           {watchOn && (
             <button type="button" onClick={scanOlder} disabled={scanning}

@@ -46,6 +46,11 @@ don't flip them without reading this:
   surface. Enabling it would need a `script-src` relaxation and a fresh consent
   review.
 
+`capture_heatmaps`, `capture_dead_clicks` and `capture_performance` are set to
+`false` explicitly rather than left to their defaults: we use none of them, and
+they are product analytics, so they must not ride along on a crash-only consent
+(or get switched on by PostHog's remote config).
+
 `person_profiles: 'identified_only'` (anonymous events don't create Person
 profiles — count unique users by `distinct_id` instead).
 
@@ -70,38 +75,80 @@ an explicit var.
 
 ## Consent model
 
-- **Opt-in (EU/ePrivacy).** Telemetry collects **nothing** until the user accepts
-  via the first-run **`ConsentBanner`** (`src/components/ConsentBanner.tsx`),
-  shown over both the login screen and the app. Until then the SDK never inits,
-  so no cookie / `localStorage` entry is written on the user's behalf. The choice
-  is changeable any time in **Settings → Privacy**.
-- **Consent is per-device.** The single source of truth is `localStorage`
-  (`rc_telemetry_consent_v2` — rotated from `rc_telemetry_consent`, which the old
-  opt-out build auto-populated), tri-state: `"1"` granted, `"0"` denied, **absent =
-  undecided** (banner not answered → reads as not consented). It is deliberately
-  *not* in the synced app_state blob: consent to store data on a device is
-  inherently per-device, so a fresh browser should ask again. `getConsent()`
-  returns true only for `"1"`; `getConsentDecision()` exposes the tri-state for
-  the banner's visibility.
-- **Crashes are auto-reported on both platforms, consent-gated.** A crash — a
-  React render error, or an uncaught window `error` / `unhandledrejection` — is
-  captured via the bundled `captureException` whenever the user has granted
-  analytics consent, and never otherwise. The rule is identical on web and
+**Two channels, both opt-in.** Crash reports and product analytics are separate
+consents with separate switches, because they are separate asks: plenty of people
+will help fix a crash without wanting their usage measured. Neither is on until
+the user says so — nothing is pre-ticked, so the first-run answer is a real
+choice either way.
+
+- **Where the choice is made.** Both are answered by the first-run
+  `ConsentBanner` (`src/components/ConsentBanner.tsx`), which is the *gate*
+  (self-renders nothing unless telemetry is configured and the analytics key is
+  still `unset`) and picks one of two presentations:
+  - **native** → `ConsentScreen` (`src/components/ConsentScreen.tsx`), a
+    full-screen first-run screen with one switch per channel, both off, and a
+    single **Continue**. Continuing untouched is a complete refusal, which is why
+    there is no separate "skip". It renders over the login screen, before the
+    back/Escape dispatcher exists, so — like `OnboardingWizard` — it deliberately
+    does **not** register `useDismissable`.
+  - **web** → the compact bottom bar. A full-screen interstitial over the
+    marketing landing is the wrong trade, so Accept/Decline there answers both
+    channels together.
+
+  Either way the choice is changeable any time in **Settings → Privacy**, which
+  carries the same two toggles.
+- **Consent is per-device**, in `localStorage`, deliberately *not* in the synced
+  app_state blob: consent to store data on a device is inherently per-device, so
+  a fresh browser should ask again. Two tri-state keys, `"1"` granted / `"0"`
+  denied / **absent = undecided** (reads as not consented):
+
+  | Key | Channel | Absent means |
+  | --- | ------- | ------------ |
+  | `rc_telemetry_consent_v2` | Product analytics. Also the "has the user been asked?" flag — the first-run UI shows while it is `unset`. | undecided → off |
+  | `rc_crash_consent_v1` | Crash reports. | **inherits the analytics key** |
+
+  That inheritance is the upgrade path: the single choice these replaced covered
+  *"usage analytics and crash reports"*, so an install that already answered keeps
+  that answer for both — nobody is re-asked, and a "no" is never quietly upgraded
+  to a "yes". The first explicit crash answer ends the inheritance.
+  (`rc_telemetry_consent_v2` is itself a rotation: the old opt-out build
+  *auto-wrote* the v1 key, so a v1 value meant "defaulted", not "agreed".)
+- **Read them through the seam**, never off `localStorage`: `getConsent()` /
+  `getConsentDecision()` (analytics), `getCrashConsent()` /
+  `getCrashConsentDecision()` (crashes, inheritance applied). Write with
+  `setConsent`, `setCrashConsent`, or `setTelemetryConsent({analytics, crashes})`
+  — the first-run UI uses the last one so it can never leave one channel written
+  and the other undecided. Every write re-syncs the provider.
+- **Crashes are auto-reported on both platforms, gated on the crash channel.** A
+  crash — a React render error, or an uncaught window `error` /
+  `unhandledrejection` — is captured via the bundled `captureException` whenever
+  `getCrashConsent()`, and never otherwise. The rule is identical on web and
   native. The `ErrorBoundary` still shows a friendly crash screen (reload +
-  copy/email-trace escape hatch); it no longer asks *per crash* whether to send
-  (that native-only "Send report" prompt was removed when native moved to
-  auto-report). PostHog's *automatic* exception capture stays off (blocked by our
-  CSP — see above), so crashes ride our own handlers, not the remote bundle.
-- `track()` / `identifyUser()` are gated on consent. `captureError()` is not —
-  its call sites are (the `ErrorBoundary` and the web global handlers report only
-  when `getConsent()`). Keep that split when extending.
+  copy/email-trace escape hatch); it does not ask *per crash* (that native-only
+  "Send report" prompt was removed when native moved to auto-report). PostHog's
+  *automatic* exception capture stays off (blocked by our CSP — see above), so
+  crashes ride our own handlers, not the remote bundle.
+- `track()` / `identifyUser()` are gated on the **analytics** channel.
+  `captureError()` is gated by its call sites on the **crash** channel (the
+  `ErrorBoundary` and the web global handlers). Keep that split when extending —
+  a new automatic collection surface belongs to whichever channel it measures,
+  and if it isn't clearly one of the two it needs its own consent, not a
+  borrowed one.
+- **A crash-only consent must stay crash-only.** The SDK is opted in whenever
+  *either* channel is granted, so the automatic web events ($pageview /
+  $pageleave) follow the analytics channel through `set_config` rather than
+  opt-in state — including on the defensive opt-in inside `captureError`, which
+  would otherwise emit the deferred initial pageview for someone who only agreed
+  to crash reports. `capture_heatmaps`, `capture_dead_clicks` and
+  `capture_performance` are off explicitly for the same reason (they are
+  analytics, and they are otherwise reachable from PostHog's remote config).
 
 ## What's wired today
 
 - `initTelemetry()` / `installGlobalErrorHandlers()` — `src/main.tsx`.
 - `ErrorBoundary` around `<App/>` — `src/main.tsx` / `src/components/ErrorBoundary.tsx`.
-- First-run opt-in `ConsentBanner` + `identifyUser` / `resetUser` on auth —
-  `src/App.tsx`.
+- First-run opt-in `ConsentBanner` (native: the full-screen `ConsentScreen`) +
+  `identifyUser` / `resetUser` on auth — `src/App.tsx`.
 - Events (`onboarding_completed`, `run_logged`, `plan_generated`,
   `race_target_set`, `race_completed` `{source:"manual"|"auto"}`,
   `plan_race_added` — a secondary race folded into the plan) —
@@ -176,8 +223,8 @@ an explicit var.
   sell — but it is **dormant today**: premium entry points are hidden from free
   users (`canShowPremiumTeaser === false`), so this fires ~never until the tier
   is unveiled. Don't read the silence as no demand. See `docs/monetization.md`.
-- Settings → Privacy toggle (reads/writes consent directly) —
-  `src/modals/SettingsModal.tsx`.
+- Settings → Privacy toggles, one per channel (read/write consent directly) —
+  `src/modals/settings/AccountPage.tsx`.
 
 ## How the PostHog adapter maps to the seam
 
@@ -185,25 +232,26 @@ an explicit var.
 
 ```js
 isConfigured(): boolean              // !!VITE_POSTHOG_KEY
-init(): void                         // load SDK (dynamic import) + opt_in_capturing
-shutdown(): void                     // opt_out_capturing
+setConsent({analytics, crashes})     // load SDK (dynamic import) + opt in/out to match
 identify(id): void                   // posthog.identify(supabaseUserId)
 reset(): void                        // posthog.reset()
 track(event, props): void            // posthog.capture(event, { ...props, native })
 captureError(error, context): void   // posthog.captureException; context: { kind, componentStack }
 ```
 
-Consent is driven entirely from `opt_in_capturing` / `opt_out_capturing` (the
-SDK loads in `opt_out_capturing_by_default` mode), so a single import serves both
-states. `init`/`track`/`identify` run through a tiny queue that replays calls
-made before the dynamic import resolves.
+Consent is driven from `opt_in_capturing` / `opt_out_capturing` (the SDK loads in
+`opt_out_capturing_by_default` mode), so a single import serves both states; the
+SDK is not loaded at all while both channels are off. Within an opted-in SDK the
+analytics channel is *config*, not opt-in state (see the consent model above).
+`setConsent`/`track`/`identify` run through a tiny queue that replays calls made
+before the dynamic import resolves.
 
 `captureError` carries a defensive opted-out path: if it's ever called while the
 SDK is opted out, it opts in just long enough to send the one exception and does
 **not** synchronously re-opt-out (that would risk dropping the still-queued
 report) — the next reload re-reads the persisted opt-out and starts paused again.
-In normal flow this branch is dormant: every crash call site already checks
-`getConsent()` first, so `captureError` runs only when the SDK is opted in.
+Because the automatic web events follow the analytics channel, an SDK opted in
+this way still emits nothing but the `$exception`.
 
 ## Swapping vendors
 
@@ -212,5 +260,5 @@ another adapter implementing the interface above; keep the SDK import confined t
 that one adapter file, read keys from `import.meta.env.VITE_*` (no baked-in
 default, like `MAP_KEY`), gate any native-only SDK pieces on `isNative`, and
 prefer the vendor's EU/privacy host. For example **Sentry** (`@sentry/react` +
-`@sentry/capacitor`) would wire its `beforeSend` to drop events when
-`getConsent()` is false, so even native background errors honour consent.
+`@sentry/capacitor`) would wire its `beforeSend` to drop analytics events when
+`getConsent()` is false and exceptions when `getCrashConsent()` is false, so even native background errors honour consent.

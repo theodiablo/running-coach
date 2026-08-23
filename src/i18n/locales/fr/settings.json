@@ -31,14 +31,17 @@
   },
   "privacy": {
     "title": "Confidentialité",
-    "shareLabel": "Partager les données d'utilisation et les rapports de plantage",
-    "shareAria": "Partager les données d'utilisation et les rapports de plantage",
-    "shareDesc": "Statistiques d'utilisation limitées et diagnostics de plantage. Aucune donnée concernant tes sorties, tes itinéraires ou ta fréquence cardiaque, ni aucun message du coach, n'est envoyé.",
-    "crashNote": "Si l'app plante, ton accord te sera toujours demandé avant l'envoi d'un rapport.",
+    "crashLabel": "Partager les rapports de plantage",
+    "crashDesc": "Traces d'erreur et infos sur l'appareil quand l'app plante. Aucune position, aucune donnée personnelle.",
+    "crashOn": "Rapports de plantage activés.",
+    "crashOff": "Rapports de plantage désactivés.",
+    "shareLabel": "Partager les statistiques d'utilisation",
+    "shareAria": "Partager les statistiques d'utilisation",
+    "shareDesc": "Événements d'utilisation anonymes. Aucune donnée concernant tes sorties, tes itinéraires ou ta fréquence cardiaque, ni aucun message du coach, n'est envoyé.",
+    "sharingOn": "Statistiques d'utilisation activées.",
+    "sharingOff": "Statistiques d'utilisation désactivées.",
     "policyLink": "Politique de confidentialité",
-    "disclaimerLink": "Avertissement santé et sécurité",
-    "sharingOn": "Partage activé.",
-    "sharingOff": "Partage désactivé."
+    "disclaimerLink": "Avertissement santé et sécurité"
   },
   "backup": {
     "title": "Sauvegarde et restauration",
