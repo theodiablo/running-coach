@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch window's background: the app's own slate with the brand mark,
+     replacing Capacitor's stock white/blue splash.png. This is not a brief
+     flash — the launch theme stays on the activity for its whole life, so this
+     is what a user looks at until the WebView paints its first frame (seconds
+     on a slow device, which is why only some users ever reported seeing it). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:width="192dp"
+        android:height="192dp"
+        android:gravity="center"
+        android:drawable="@drawable/splash_logo" />
+</layer-list>

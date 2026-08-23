@@ -1,9 +1,20 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { HR_HEALTH_CONNECT_AUTH_KEY } from "../constants";
-import { flushPendingHr, hasHealthConnectAuthorization, HR_PENDING_MAX_AGE_MS } from "./healthconnect";
+import { flushPendingHr, hasHealthConnectAuthorization, healthConnectSource, HR_PENDING_MAX_AGE_MS } from "./healthconnect";
+
+const hc = vi.hoisted(() => ({
+  checkAvailability: vi.fn<() => Promise<{ availability: string }>>(),
+  checkHealthPermissions: vi.fn<() => Promise<{ hasAllPermissions?: boolean }>>(),
+  requestHealthPermissions: vi.fn<() => Promise<{ hasAllPermissions?: boolean }>>(),
+  readRecords: vi.fn<() => Promise<{ records?: unknown[] }>>(),
+}));
+vi.mock("@pianissimoproject/capacitor-health-connect", () => ({ HealthConnect: hc }));
 
 beforeEach(() => {
   localStorage.clear();
+  vi.clearAllMocks();
+  hc.checkAvailability.mockResolvedValue({ availability: "Available" });
+  hc.checkHealthPermissions.mockResolvedValue({ hasAllPermissions: true });
 });
 
 describe("flushPendingHr", () => {
@@ -61,5 +72,42 @@ describe("flushPendingHr", () => {
     localStorage.setItem(HR_HEALTH_CONNECT_AUTH_KEY, "1");
 
     expect(hasHealthConnectAuthorization()).toBe(true);
+  });
+});
+
+describe("healthConnectSource.checkPermissions", () => {
+  // The permission bridge is a process-killer when Health Connect is missing
+  // (uncaught coroutine exception in the plugin — no promise ever rejects), so
+  // "unavailable" must be answered without calling it at all. This is what made
+  // Settings → Integrations close the app on every Android 13-and-below device
+  // without the Health Connect app installed.
+  it("answers false without touching the permission bridge when unavailable", async () => {
+    localStorage.setItem(HR_HEALTH_CONNECT_AUTH_KEY, "1");
+    hc.checkAvailability.mockResolvedValue({ availability: "NotSupported" });
+
+    expect(await healthConnectSource.checkPermissions()).toBe(false);
+    expect(hc.checkHealthPermissions).not.toHaveBeenCalled();
+    expect(hasHealthConnectAuthorization()).toBe(false);
+  });
+
+  it("answers false without touching the permission bridge when Health Connect needs installing", async () => {
+    hc.checkAvailability.mockResolvedValue({ availability: "NotInstalled" });
+
+    expect(await healthConnectSource.checkPermissions()).toBe(false);
+    expect(hc.checkHealthPermissions).not.toHaveBeenCalled();
+  });
+
+  it("reads the real grant once Health Connect is available", async () => {
+    expect(await healthConnectSource.checkPermissions()).toBe(true);
+    expect(hc.checkHealthPermissions).toHaveBeenCalledTimes(1);
+    expect(hasHealthConnectAuthorization()).toBe(true);
+  });
+
+  it("clears the local marker when the grant was revoked", async () => {
+    localStorage.setItem(HR_HEALTH_CONNECT_AUTH_KEY, "1");
+    hc.checkHealthPermissions.mockResolvedValue({ hasAllPermissions: false });
+
+    expect(await healthConnectSource.checkPermissions()).toBe(false);
+    expect(hasHealthConnectAuthorization()).toBe(false);
   });
 });

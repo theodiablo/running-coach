@@ -119,6 +119,31 @@ carries a `live` flag:
   Both health-store import providers share the synced `settings.watchImport`
   flag via `providerEnabledInSettings` (`src/imports/registry.ts`).
 
+**Never call the Health Connect bridge without an availability gate — an
+uncaught exception in there kills the app process.** The plugin runs every
+method inside a `lifecycleScope.launch` with no `catch`, and its lazily built
+`HealthConnectClient.getOrCreate` throws whenever Health Connect is missing. An
+exception escaping a coroutine reaches the thread's uncaught handler, so the app
+simply *closes*: no crash overlay, no `ErrorBoundary`, and no rejected promise
+for the caller's `try/catch` to see. Health Connect is part of the platform only
+on **Android 14+**; below that it is a separate app most people never installed
+— so `healthConnectSource.checkPermissions()`, which `HealthStoreRow` calls on
+mount, closed the app for every one of those users the moment they opened
+Settings → Integrations (reported on a Fairphone 3). Two guards, keep both:
+`checkPermissions` answers "not granted" without touching the bridge unless
+`availability()` says `Available` (and `fetchRange` gates through it), and
+`patches/@pianissimoproject+capacitor-health-connect+0.7.1.patch` routes every
+coroutine failure back through `call.reject`. Our own `WatchImportPlugin`
+already catches inside each coroutine — copy that shape in any new local plugin,
+never the upstream one's.
+
+Known gap on the same path: `getSdkStatus` reports `SDK_UNAVAILABLE` both for
+"this device can never run it" and for "the Health Connect app just isn't
+installed", so those Android 13-and-below users are told the store isn't
+supported when installing it would work. Only
+`SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED` currently routes to the Play Store
+(`connectHealthConnect`'s `NotInstalled` branch).
+
 **Method preference syncs; the device does NOT.** `settings.hrMethod`
 (`"off"|"bluetooth"|"healthconnect"|"healthkit"`) is in the synced blob; the
 bonded BLE device `{id,name}` is **per-device localStorage** (`src/hr/device.ts`,

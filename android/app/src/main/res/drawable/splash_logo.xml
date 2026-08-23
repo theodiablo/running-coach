@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportHeight="108"
+    android:viewportWidth="108">
+    <!-- Running Coach "Pulse Stride" mark in orange, for the dark launch window
+         (drawable/splash.xml) and the API 31+ platform splash icon. Same mark
+         and same 220x120 -> 108dp framing as drawable-v24/ic_launcher_foreground,
+         which draws it dark on the orange launcher background instead — keep the
+         two in sync if the mark changes (docs/marketing.md). -->
+    <group
+        android:translateX="24"
+        android:translateY="37.65"
+        android:scaleX="0.2727"
+        android:scaleY="0.2727">
+        <path
+            android:pathData="M10,80 L60,80 L78,44 L96,96 L114,60 L132,80 L160,80 L200,28"
+            android:strokeColor="#F97316"
+            android:strokeWidth="16"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M188,28 A12,12 0 1 0 212,28 A12,12 0 1 0 188,28 Z"
+            android:fillColor="#F97316" />
+    </group>
+</vector>

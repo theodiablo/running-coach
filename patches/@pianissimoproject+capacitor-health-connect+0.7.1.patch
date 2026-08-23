@@ -1,0 +1,107 @@
+diff --git a/node_modules/@pianissimoproject/capacitor-health-connect/android/src/main/java/com/ubiehealth/capacitor/healthconnect/HealthConnectPlugin.kt b/node_modules/@pianissimoproject/capacitor-health-connect/android/src/main/java/com/ubiehealth/capacitor/healthconnect/HealthConnectPlugin.kt
+index e9cef04..51d3218 100644
+--- a/node_modules/@pianissimoproject/capacitor-health-connect/android/src/main/java/com/ubiehealth/capacitor/healthconnect/HealthConnectPlugin.kt
++++ b/node_modules/@pianissimoproject/capacitor-health-connect/android/src/main/java/com/ubiehealth/capacitor/healthconnect/HealthConnectPlugin.kt
+@@ -52,13 +52,36 @@ class HealthConnectPlugin : Plugin() {
+         PermissionController.createRequestPermissionResultContract()
+     }
+ 
++    // PATCH (running-coach): every plugin method below does its work inside a
++    // coroutine, and an exception escaping one reaches the thread's uncaught
++    // handler — which KILLS THE APP PROCESS. The promise the JS caller is
++    // awaiting never rejects, so no amount of try/catch on our side can defend
++    // against it. `healthConnectClient` above throws exactly that way (lazy
++    // HealthConnectClient.getOrCreate) whenever Health Connect is absent, which
++    // is the normal state on Android 13 and below: opening Settings →
++    // Integrations, which checks the permission, closed the app outright.
++    // Route failures back to the caller as a rejected promise instead.
++    private fun launchForCall(call: PluginCall, block: suspend () -> Unit) {
++        this.activity.lifecycleScope.launch {
++            try {
++                block()
++            } catch (e: Exception) {
++                call.reject(e.message ?: "Health Connect is unavailable", e)
++            }
++        }
++    }
++
+     @PluginMethod
+     fun checkAvailability(call: PluginCall) {
+-        val availability = when (val status = HealthConnectClient.getSdkStatus(this.context)) {
++        val availability = when (HealthConnectClient.getSdkStatus(this.context)) {
+             HealthConnectClient.SDK_AVAILABLE -> "Available"
+-            HealthConnectClient.SDK_UNAVAILABLE -> "NotSupported"
+             HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "NotInstalled"
+-            else -> throw RuntimeException("Invalid sdk status: $status")
++            // PATCH (running-coach): SDK_UNAVAILABLE and anything a future SDK
++            // adds both mean "can't use it". Throwing here left the JS promise
++            // unsettled forever (Capacitor logs a synchronous plugin throw and
++            // drops it), hanging the caller instead of reporting a device that
++            // simply has no Health Connect.
++            else -> "NotSupported"
+         }
+ 
+         val res = JSObject().apply {
+@@ -69,7 +92,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun insertRecords(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             val records = call.getArray("records").toList<JSONObject>().map { it.toRecord() }
+             val result = healthConnectClient.insertRecords(records)
+ 
+@@ -82,7 +105,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun readRecord(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             val type = call.getString("type").let {
+                 RECORDS_TYPE_NAME_MAP[it] ?: throw IllegalArgumentException("Unexpected RecordType: $it")
+             }
+@@ -101,7 +124,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun readRecords(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             val type = call.getString("type").let {
+                 RECORDS_TYPE_NAME_MAP[it] ?: throw IllegalArgumentException("Unexpected RecordType: $it")
+             }
+@@ -126,7 +149,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun getChangesToken(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             val types = call.getArray("types").toList<String>().map {
+                 RECORDS_TYPE_NAME_MAP[it] ?: throw IllegalArgumentException("Unexpected RecordType: $it")
+             }.toSet()
+@@ -145,7 +168,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun getChanges(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             var token = requireNotNull(call.getString("token"))
+             val changes = flow {
+                 do {
+@@ -234,7 +257,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun checkHealthPermissions(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             val reqReadPermissions = call.getArray("read").toList<String>().map {
+                 HealthPermission.getReadPermission(
+                         recordType = RECORDS_TYPE_NAME_MAP[it]
+@@ -261,7 +284,7 @@ class HealthConnectPlugin : Plugin() {
+ 
+     @PluginMethod
+     fun revokeHealthPermissions(call: PluginCall) {
+-        this.activity.lifecycleScope.launch {
++        launchForCall(call) {
+             healthConnectClient.permissionController.revokeAllPermissions()
+             call.resolve()
+         }
