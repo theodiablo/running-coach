@@ -1,8 +1,8 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..e77533d 100644
+index a92fcf9..25edea4 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-@@ -32,8 +32,18 @@ import com.getcapacitor.annotation.PermissionCallback;
+@@ -32,8 +32,19 @@ import com.getcapacitor.annotation.PermissionCallback;
  import com.google.android.gms.location.LocationServices;
  import com.google.android.gms.tasks.OnSuccessListener;
  
@@ -18,19 +18,25 @@ index a92fcf9..e77533d 100644
 +import java.util.Locale;
 +
 +import androidx.core.app.ActivityCompat;
++import androidx.core.content.ContextCompat;
  import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  
  @CapacitorPlugin(
-@@ -50,6 +60,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+@@ -50,6 +61,13 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  )
  public class BackgroundGeolocation extends Plugin {
      private BackgroundGeolocationService.LocalBinder service = null;
 +    // Held so handleOnDestroy can unregister it (see there for why).
 +    private ServiceReceiver serviceReceiver = null;
++    private HrReceiver hrReceiver = null;
++    // Not rebuilt per notification — see contentIntent().
++    private PendingIntent contentIntent = null;
++    // Distinct from every other PendingIntent in the app (contentIntent()).
++    private static final int CONTENT_INTENT_REQUEST_CODE = 28351;
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +102,490 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +108,572 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -45,6 +51,11 @@ index a92fcf9..e77533d 100644
 -                                "backgroundTitle",
 -                                "Using your location"
 -                            )
+-                    )
+-                    .setContentText(backgroundMessage)
+-                    .setOngoing(true)
+-                    .setPriority(Notification.PRIORITY_HIGH)
+-                    .setWhen(System.currentTimeMillis());
 +            backgroundNotification = buildNotification(
 +                    call.getString("backgroundTitle", "Using your location"),
 +                    backgroundMessage,
@@ -109,24 +120,10 @@ index a92fcf9..e77533d 100644
 +        } catch (Exception e) {
 +            Logger.error("Could not set notification color", e);
 +        }
-+
-+        Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
-+                getContext().getPackageName()
-+        );
-+        if (launchIntent != null) {
-+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-+            builder.setContentIntent(
-+                    PendingIntent.getActivity(
-+                            getContext(),
-+                            0,
-+                            launchIntent,
-+                            PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                     )
--                    .setContentText(backgroundMessage)
--                    .setOngoing(true)
--                    .setPriority(Notification.PRIORITY_HIGH)
--                    .setWhen(System.currentTimeMillis());
-+            );
+ 
++        PendingIntent contentIntent = contentIntent();
++        if (contentIntent != null) {
++            builder.setContentIntent(contentIntent);
 +        }
 +
 +        // Set the Channel ID for Android O.
@@ -135,6 +132,42 @@ index a92fcf9..e77533d 100644
 +        }
 +
 +        return builder.build();
++    }
++
++    // The notification's tap target, built ONCE and reused by every rebuild.
++    // Upstream built it inline with FLAG_CANCEL_CURRENT, which was harmless when
++    // the notification was posted once per run — but the live renderer below
++    // re-posts it on every accepted fix, so that cancelled the very PendingIntent
++    // the displayed notification was holding, roughly every two seconds.
++    // Cancelling invalidates the record for everyone pointing at it, SystemUI
++    // included: a lock-screen tap captures the PendingIntent before the keyguard
++    // is dismissed and sends it after, by which time it had been cancelled — the
++    // send failed silently and the shade just collapsed. That is why tapping the
++    // run notification did nothing. Identity is (package, request code,
++    // Intent.filterEquals), so the loop was also cancelling the guided-workout
++    // notification's tap target, which resolves to the same launcher intent; the
++    // request code below keeps the two records apart.
++    private PendingIntent contentIntent() {
++        if (contentIntent != null) {
++            return contentIntent;
++        }
++        Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
++                getContext().getPackageName()
++        );
++        if (launchIntent == null) {
++            return null;
++        }
++        // The flags the app's other foreground-service notification uses, which
++        // has always opened correctly: bring the existing task forward and hand
++        // the intent to the running activity rather than starting a second copy.
++        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
++        contentIntent = PendingIntent.getActivity(
++                getContext(),
++                CONTENT_INTENT_REQUEST_CODE,
++                launchIntent,
++                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
++        );
++        return contentIntent;
 +    }
 +
 +    // Replaces the foreground-service notification's content in place (same id,
@@ -198,8 +231,13 @@ index a92fcf9..e77533d 100644
 +    private static final long LIVE_MIN_INTERVAL_MS = 2000;
 +    private static final double LIVE_MIN_MOVE_M = 5;
 +    private static final long LIVE_CUR_PACE_WINDOW_MS = 30000;
-+    // An HR reading JS can no longer refresh is dropped rather than shown stale.
++    // An HR reading nothing can refresh any more is dropped rather than shown
++    // stale — the strap is off, or its link died.
 +    private static final long LIVE_HR_STALE_MS = 90000;
++    // A beat re-posts the notification at most this often. Straps notify at
++    // 1-2Hz, and on its own HR moves one digit on a line the fixes refresh
++    // anyway; renderLiveStats still skips a re-post whose text is unchanged.
++    private static final long LIVE_HR_RENDER_MIN_MS = 5000;
 +    private static final double EARTH_RADIUS_M = 6371000;
 +
 +    private static class LiveStats {
@@ -210,7 +248,8 @@ index a92fcf9..e77533d 100644
 +        double addedM;        // metres accumulated from fixes since that push
 +        double fallbackPaceSecPerKm;
 +        int hrBpm;
-+        long hrAtMs;
++        long hrAtMs;          // epoch ms of that beat, whichever end supplied it
++        long hrRenderedAt;    // last HR-driven re-post (LIVE_HR_RENDER_MIN_MS)
 +        String shown;         // last message posted, to skip no-op notifies
 +        double lastLat, lastLng;
 +        long lastFixMs;       // 0 = no accepted fix yet (warm-up)
@@ -234,6 +273,19 @@ index a92fcf9..e77533d 100644
 +    // (the app's namespace, not this package's) and is mirrored in
 +    // LivePublishPlugin.kt — keep the two in step.
 +    static final String LIVE_FIX_ACTION = "solutions.camboulive.run.LIVE_FIX";
++
++    // ── Live HR relay (screen-off heart rate) ────────────────────────────────
++    // HR reaches the notification the other way round: the patched bluetooth-le
++    // plugin broadcasts every beat straight from its GATT callback, and this
++    // plugin renders it. It has to. A JS push carries the timestamp of the
++    // SAMPLE, and JS stops seeing beats the moment the WebView is frozen, so the
++    // reading it re-seeded aged past LIVE_HR_STALE_MS and the renderer dropped
++    // HR mid-run — pushing more often could never fix that, because the sample
++    // was old, not the push. The GATT callback keeps firing when nothing else
++    // does (it is what the HR journal is built on), so this is the one source
++    // that stays live with the screen off. Package-restricted, app-owned action,
++    // mirrored in BluetoothLe.kt — keep the two in step.
++    static final String HR_SAMPLE_ACTION = "solutions.camboulive.run.HR_SAMPLE";
 +    // Interval that opens a GAP marker, mirroring useRunTracker's GAP_MS: the
 +    // relayed stream must not draw a tunnel as a straight bridge.
 +    private static final long LIVE_GAP_MS = 60_000;
@@ -265,7 +317,7 @@ index a92fcf9..e77533d 100644
 +    private File journalFile() {
 +        return new File(getContext().getFilesDir(), FIX_JOURNAL_FILE);
 +    }
- 
++
 +    private void journalFix(double lat, double lng, long t, Location location) {
 +        // Formatted on the calling thread (Location is not safe to hold across
 +        // threads), written on the journal thread.
@@ -381,7 +433,10 @@ index a92fcf9..e77533d 100644
 +        }
 +        call.resolve();
 +    }
-+
+ 
+-            // Set the Channel ID for Android O.
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
 +    private void seedLiveStats(PluginCall call, String message, boolean updated) {
 +        synchronized (liveLock) {
 +            Number km = optNumber(call, "km");
@@ -391,7 +446,7 @@ index a92fcf9..e77533d 100644
 +            }
 +            if (liveStats == null) {
 +                liveStats = new LiveStats();
-+            }
+             }
 +            Number pace = optNumber(call, "paceSecPerKm");
 +            Number hr = optNumber(call, "hr");
 +            Number hrAtMs = optNumber(call, "hrAtMs");
@@ -404,17 +459,27 @@ index a92fcf9..e77533d 100644
 +            liveStats.baseKm = km.doubleValue();
 +            liveStats.addedM = 0;
 +            liveStats.fallbackPaceSecPerKm = pace == null ? 0 : pace.doubleValue();
-+            liveStats.hrBpm = hr == null ? 0 : (int) Math.round(hr.doubleValue());
-+            liveStats.hrAtMs = hrAtMs == null ? 0 : hrAtMs.longValue();
++            // HR is a seed like the rest, with one difference: it can arrive
++            // OLDER than what we already hold. JS's beats stop while the WebView
++            // is frozen, the relay's do not, so a push must never overwrite a
++            // fresher relayed reading — nor clear one, which would hand the
++            // frozen end a veto over the live one. A sensor that really stopped
++            // ages out through LIVE_HR_STALE_MS instead.
++            int seedBpm = hr == null ? 0 : (int) Math.round(hr.doubleValue());
++            long seedAtMs = hrAtMs == null ? 0 : hrAtMs.longValue();
++            if (seedBpm > 0 && seedAtMs >= liveStats.hrAtMs) {
++                liveStats.hrBpm = seedBpm;
++                liveStats.hrAtMs = seedAtMs;
++            } else if (seedBpm <= 0 && liveStats.hrAtMs <= 0) {
++                liveStats.hrBpm = 0;
++            }
 +            // Only what actually reached the shade counts as displayed, so a refused
 +            // push is re-rendered by the next fix instead of being deduped away.
 +            liveStats.shown = updated ? message : null;
 +        }
 +    }
  
--            // Set the Channel ID for Android O.
--            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
--                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
+-            backgroundNotification = builder.build();
 +    // Folds one broadcast fix into the live stats and refreshes the notification.
 +    // Called for every location the service reports, foreground or not.
 +    private void onLiveLocation(Location location) {
@@ -422,21 +487,45 @@ index a92fcf9..e77533d 100644
 +            LiveStats live = liveStats;
 +            if (live != null && live.tracking) {
 +                foldLiveLocation(live, location);
-             }
++            }
 +            // no live stats, or paused — onPos ignores fixes then too
-+        }
-+    }
- 
--            backgroundNotification = builder.build();
-+    private void foldLiveLocation(LiveStats live, Location location) {
-+        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
-+        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
-+            return;
          }
 -        service.addWatcher(
 -                call.getCallbackId(),
 -                backgroundNotification,
 -                call.getFloat("distanceFilter", 0f)
++    }
++
++    // Folds one relayed beat into the live stats. Never trusts a beat older than
++    // the one it holds (the relay and a JS push are two clocks on one stream).
++    // Unlike a fix it IS folded while paused — a beat accrues nothing, and
++    // keeping the reading current means it hasn't aged out by the resume. It is
++    // not RENDERED while paused: liveMessage only builds the tracking line, and
++    // the paused message carries the frozen duration JS put in front of it.
++    private void onHrSample(int bpm, long t) {
++        if (bpm <= 0 || t <= 0) {
++            return;
++        }
++        synchronized (liveLock) {
++            LiveStats live = liveStats;
++            if (live == null || t < live.hrAtMs) {
++                return;
++            }
++            live.hrBpm = bpm;
++            live.hrAtMs = t;
++            if (!live.tracking || t - live.hrRenderedAt < LIVE_HR_RENDER_MIN_MS) {
++                return; // the next fix renders it, if nothing else does first
++            }
++            live.hrRenderedAt = t;
++            renderLiveStats(live);
++        }
++    }
++
++    private void foldLiveLocation(LiveStats live, Location location) {
++        double accuracy = location.hasAccuracy() ? location.getAccuracy() : 0;
++        if (location.hasAccuracy() && accuracy > LIVE_ACC_MAX_M) {
++            return;
++        }
 +        long t = location.getTime() > 0 ? location.getTime() : System.currentTimeMillis();
 +        double lat = location.getLatitude(), lng = location.getLongitude();
 +        if (live.lastFixMs == 0) {
@@ -573,7 +662,7 @@ index a92fcf9..e77533d 100644
      }
  
      @PermissionCallback
-@@ -188,6 +613,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +701,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -581,7 +670,22 @@ index a92fcf9..e77533d 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -248,17 +674,29 @@ public class BackgroundGeolocation extends Plugin {
+@@ -245,20 +759,44 @@ public class BackgroundGeolocation extends Plugin {
+     }
+ 
+     // Receives messages from the service.
++    private class HrReceiver extends BroadcastReceiver {
++        @Override
++        public void onReceive(Context context, Intent intent) {
++            try {
++                onHrSample(intent.getIntExtra("bpm", 0), intent.getLongExtra("t", 0));
++            } catch (Exception exception) {
++                // A display failure must never cost us anything else.
++                Logger.error("Failed to fold live HR", exception);
++            }
++        }
++    }
++
      private class ServiceReceiver extends BroadcastReceiver {
          @Override
          public void onReceive(Context context, Intent intent) {
@@ -617,7 +721,7 @@ index a92fcf9..e77533d 100644
          }
      }
  
-@@ -315,8 +753,9 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,16 +853,29 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -627,8 +731,20 @@ index a92fcf9..e77533d 100644
 +                serviceReceiver,
                  new IntentFilter(BackgroundGeolocationService.ACTION_BROADCAST)
          );
++
++        // A framework broadcast rather than a LocalBroadcastManager one: the
++        // sender is another plugin's module, which doesn't depend on that
++        // library. NOT_EXPORTED plus the sender's setPackage keeps it inside
++        // the app either way.
++        hrReceiver = new HrReceiver();
++        ContextCompat.registerReceiver(
++                this.getContext(),
++                hrReceiver,
++                new IntentFilter(HR_SAMPLE_ACTION),
++                ContextCompat.RECEIVER_NOT_EXPORTED
++        );
      }
-@@ -324,7 +763,7 @@ public class BackgroundGeolocation extends Plugin {
+ 
      @Override
      protected void handleOnResume() {
          if (service != null) {
@@ -637,7 +753,7 @@ index a92fcf9..e77533d 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,12 +772,46 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,12 +884,54 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {
@@ -681,6 +797,14 @@ index a92fcf9..e77533d 100644
 +                // a torn-down bridge can fail getContext(); nothing left to leak
 +            }
 +            serviceReceiver = null;
++        }
++        if (hrReceiver != null) {
++            try {
++                getContext().unregisterReceiver(hrReceiver);
++            } catch (RuntimeException ignored) {
++                // never registered, or the bridge is already gone
++            }
++            hrReceiver = null;
 +        }
          if (service != null) {
              service.stopService();

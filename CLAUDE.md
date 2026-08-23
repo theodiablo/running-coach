@@ -278,6 +278,12 @@ Always re-verify a finding before acting on it; agents report false positives.
   died — renderer, process, or nothing — because the JS logs stop identically in
   all three. Always on natively; filed to `shell_diagnostics` only with the
   hidden developer log enabled.
+- **A notification that re-posts must not rebuild its `PendingIntent`.** Cache
+  it and use `FLAG_UPDATE_CURRENT`: `FLAG_CANCEL_CURRENT` invalidates the record
+  every holder points at, SystemUI included, so a re-posting notification
+  cancels its own tap target — and any other notification sharing the key
+  (package, request code, `Intent.filterEquals`), which is how the live-run
+  notification silently broke both its own tap and the guided workout's.
 - **A background app cannot start an activity** (Android 10+; a foreground service
   is not an exemption), and tearing the activity down stops the plugins' services
   with it — including the one recording the run. So a background recovery path

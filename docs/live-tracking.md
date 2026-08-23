@@ -425,7 +425,7 @@ Applied by `postinstall` → `patch-package`; native plugin modules compile
 straight out of `node_modules` (`android/capacitor.settings.gradle`), so a
 committed patch reaches every local and CI build. Three packages are patched.
 
-### `@capacitor-community/bluetooth-le` (HR journal)
+### `@capacitor-community/bluetooth-le` (HR journal + live relay)
 
 Adds `setHrJournal` / `getHrJournal` / `clearHrJournal` and, in
 `startNotifications`' notify callback, one line that appends a Heart Rate
@@ -436,6 +436,15 @@ backgrounded run recorded no heart rate at all. Guarded on an armed flag and on
 the `0x2A37` characteristic, so nothing else in the app is ever journalled, and
 wrapped so a write failure can never cost the sample itself. Consumed by
 `src/hr/hrJournal.ts` — `docs/health-integrations.md`.
+
+The same callback also **relays** each beat (`relayHrMeasurement`): bpm parsed
+natively — `parseHrBpm` mirrors `parseHrMeasurement` in `src/utils/hr.ts`,
+including 0 bpm meaning no skin contact — and broadcast on
+`solutions.camboulive.run.HR_SAMPLE`, `setPackage`d to the app so it never
+leaves it, behind the same armed flag. That is what keeps heart rate on the
+lock-screen run notification once JS is frozen; the receiving half is change (6)
+of the background-geolocation patch below, which explains why a JS push could
+never do it.
 
 ### `mdast-util-gfm-autolink-literal` (iOS 15 regex lookbehind)
 
@@ -495,7 +504,7 @@ compiler:
 
 ### `@capacitor-community/background-geolocation`
 
-Five independent changes.
+Seven independent changes.
 (1) Lifecycle NPE fix: it crashed in production ("Unable to pause activity" →
 NPE at `Bridge.getPermissionStates`, Bridge.java:1217) because its
 `handleOnPause`/`handleOnResume` call `getPermissionState("location")` — the
@@ -538,7 +547,38 @@ app-local `LivePublishPlugin.kt` for screen-off live-share uploads
 (`docs/live-sharing.md`). One native fold, three consumers — never duplicate
 the acceptance gates. The action string is duplicated in the Kotlin plugin;
 keep them in step.
-(5) The native fold runs BEFORE the saved-call lookup in `ServiceReceiver`,
+(5) **The tap target is built once and cached** (`contentIntent()`), and this
+is not a tidy-up. Upstream built it inline with `FLAG_CANCEL_CURRENT`, which is
+harmless when the notification is posted once per run — but change (2) re-posts
+it on **every accepted fix**, so roughly every two seconds it cancelled the very
+PendingIntent the displayed notification was holding. Cancelling invalidates
+the record for everyone pointing at it, SystemUI included: a lock-screen tap
+captures the PendingIntent *before* the keyguard is dismissed and sends it
+*after*, by which time it had been cancelled — the send failed silently and the
+shade just collapsed. **Tapping the run notification did nothing at all**, and
+the same loop was cancelling the guided-workout notification's tap target too,
+because PendingIntent identity is (package, request code, `Intent.filterEquals`)
+and both resolve `getLaunchIntentForPackage` at request code 0. Hence the cache,
+`FLAG_UPDATE_CURRENT` instead of `FLAG_CANCEL_CURRENT`, a request code of its
+own, and `NEW_TASK | CLEAR_TOP` — the flags `IndoorSessionService.kt` has always
+opened correctly with. **Never rebuild a PendingIntent on a notification that
+re-posts.**
+(6) **HR is relayed natively, and travels the opposite way to everything else
+here**: the patched `bluetooth-le` plugin broadcasts each parsed beat on the
+package-restricted, app-owned action `solutions.camboulive.run.HR_SAMPLE`, and
+this plugin folds it into the live stats (`onHrSample`, re-posting at most every
+`LIVE_HR_RENDER_MIN_MS`). It has to work that way. A JS push carries the
+timestamp of the **sample**, and JS stops seeing beats the moment the WebView is
+frozen — so the reading it re-seeded aged past `LIVE_HR_STALE_MS` (90s) and the
+renderer dropped HR mid-run. Pushing more often cannot fix that (the fix that
+tried, #207): the sample was old, not the push. A GATT callback keeps firing
+when nothing else does, which is the same premise the HR journal is built on.
+Consequently `seedLiveStats` **never lets a JS push overwrite or clear a fresher
+relayed beat** — it compares timestamps — or the frozen end would hold a veto
+over the live one; a sensor that really stopped ages out through
+`LIVE_HR_STALE_MS` as before. The action string is duplicated in `BluetoothLe.kt`;
+keep them in step.
+(7) The native fold runs BEFORE the saved-call lookup in `ServiceReceiver`,
 not just before the bridge hop: a WebView reload releases saved calls while
 the service keeps broadcasting, and gating on the call silently froze the
 notification, the journal and the relay for the rest of the run. The receiver
