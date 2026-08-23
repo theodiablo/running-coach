@@ -16,7 +16,18 @@
     </style>
 
 
+    <!-- The launch window. Nothing swaps this theme afterwards, so it is also
+         the window behind the WebView for the rest of the session: it must be
+         the app's own colour, never Capacitor's stock white splash.
+         windowSplashScreenBackground / windowSplashScreenAnimatedIcon are
+         core-splashscreen's compat attributes, which it forwards to the platform
+         splash on API 31+; android:windowBackground is what everything below
+         API 31 actually draws (an Android 13 phone is where the stock art was
+         visible for seconds at a time). Keep the three in step. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="android:windowBackground">@drawable/splash</item>
         <item name="android:background">@drawable/splash</item>
     </style>
 </resources>

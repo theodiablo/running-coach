@@ -130,6 +130,16 @@ background:
   `ios/App/App/Assets.xcassets/AppIcon.appiconset/`; iOS applies its own mask,
   and App Store Connect rejects icons with alpha).
 
+- the Android **launch window**
+  (`drawable/splash_logo.xml`, the mark in orange `#F97316` on
+  `@color/splash_background`).
+
 Keep all of these in sync if the mark changes. The iOS launch screen is a solid
-`#0f172a` frame in `LaunchScreen.storyboard`, matching the Android SplashScreen
-background.
+`#0f172a` frame in `LaunchScreen.storyboard`, matching the Android launch
+window (`drawable/splash.xml`, wired into `AppTheme.NoActionBarLaunch`). That
+theme is never swapped, so it is the window behind the WebView for the whole
+session, not a flash: it shipped as Capacitor's stock white splash art with the
+Capacitor logo, which users on slower phones sat looking at for seconds on every
+launch. `@capacitor/splash-screen` is **not installed** — a `plugins.SplashScreen`
+block in `capacitor.config.json` configures nothing and is what made that art
+look intentional; the theme and `drawable/splash.xml` are the whole mechanism.

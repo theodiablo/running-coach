@@ -254,6 +254,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   all run imports through the provider registry (`src/imports/`). Add sources
   by implementing the interface — never touch `navigator.geolocation` or a
   native bridge directly from UI code.
+- **An exception escaping a plugin's coroutine KILLS THE PROCESS** — the app just
+  closes, with no overlay and no rejected promise for a JS `catch` to see. Gate
+  every native call on its own availability check (`healthConnectSource`), and
+  patch a plugin that `launch`es without a `catch` (`patches/`); a local plugin
+  catches inside each coroutine (`WatchImportPlugin`).
 - **Anything that must keep working with the screen off rides the accepted-GPS-fix
   render path, never a timer** — background JS timers are throttled to a crawl,
   which is exactly when a run is being recorded. The lock-screen notification

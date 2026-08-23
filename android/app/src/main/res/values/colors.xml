@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- slate-900: the app's own background, and the same colour as the iOS
+         LaunchScreen.storyboard frame — the launch window must not flash a
+         different colour than the app it is about to show. -->
+    <color name="splash_background">#0F172A</color>
+</resources>

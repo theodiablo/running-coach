@@ -68,8 +68,18 @@ export const healthConnectSource = {
 
   // Non-prompting check of whether heart-rate read is already granted — used to
   // show connection status in Settings without popping the OS dialog.
+  //
+  // The availability gate is not an optimization, it is the crash guard: the
+  // plugin runs this method inside a coroutine with no catch, and its lazily
+  // built HealthConnectClient throws whenever Health Connect is missing — an
+  // uncaught coroutine exception, which kills the process instead of rejecting
+  // the promise the `catch` below is waiting on. Health Connect is a separate,
+  // usually absent app on Android 13 and below, so opening Settings →
+  // Integrations closed the app outright on those devices. The plugin is
+  // patched to reject instead (patches/), but never reach it unguarded either.
   async checkPermissions() {
     try {
+      if (!(await isAvailable())) { setHealthConnectAuthorization(false); return false; }
       const r = await (await getHealthConnect()).plugin.checkHealthPermissions({ read: ["HeartRateSeries"], write: [] });
       const ok = !!(r?.hasAllPermissions || r?.grantedPermissions?.length);
       setHealthConnectAuthorization(ok);
@@ -82,7 +92,7 @@ export const healthConnectSource = {
   // (watch not synced) so the caller can defer and retry.
   async fetchRange(startMs: number, endMs: number) {
     try {
-      if (!(await isAvailable()) || !(await healthConnectSource.checkPermissions())) return null;
+      if (!(await healthConnectSource.checkPermissions())) return null; // gates availability too
       const res = await (await getHealthConnect()).plugin.readRecords({
         type: "HeartRateSeries",
         // The plugin's Android serializer calls JSONObject.getString(...) then
@@ -114,7 +124,7 @@ export async function flushPendingHr(
     now,
     canRead: async () =>
       enabled && allowNativeRead && isAndroid && hasHealthConnectAuthorization()
-      && (await isAvailable()) && (await healthConnectSource.checkPermissions()),
+      && (await healthConnectSource.checkPermissions()),
     fetchRange: (startMs, endMs) => healthConnectSource.fetchRange(startMs, endMs),
   });
 }
