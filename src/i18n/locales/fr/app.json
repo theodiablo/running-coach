@@ -43,7 +43,16 @@
     "body": "Nous aimerions collecter des statistiques d'utilisation limitées et des rapports de plantage pour corriger les bugs et savoir quelles fonctions sont utilisées. Nous n'envoyons jamais les données de tes sorties, tes itinéraires, tes notes, ta fréquence cardiaque ni tes messages au coach. Tu peux changer d'avis à tout moment dans Paramètres → Confidentialité.",
     "privacyPolicy": "Politique de confidentialité",
     "decline": "Refuser",
-    "accept": "Accepter"
+    "accept": "Accepter",
+    "screenTitle": "Aide-nous à améliorer l'app, à ta façon",
+    "screenBody": "Les deux options sont désactivées tant que tu ne les actives pas. Rien de tes sorties n'est jamais envoyé : ni itinéraires, ni fréquence cardiaque, ni notes, ni messages au coach.",
+    "crashTitle": "Partager les rapports de plantage",
+    "crashDesc": "Traces d'erreur et infos sur l'appareil quand l'app plante. Aucune position, aucune donnée personnelle. Cela nous aide à corriger les bugs plus vite.",
+    "analyticsTitle": "Partager les statistiques d'utilisation",
+    "analyticsDesc": "Des événements anonymes, comme le nombre de plans créés, pour développer les bonnes fonctionnalités.",
+    "control": "Tu gardes la main.",
+    "continue": "Continuer",
+    "changeLater": "Tu peux changer d'avis à tout moment dans Paramètres → Confidentialité."
   },
   "crash": {
     "title": "Un problème est survenu",

@@ -31,14 +31,17 @@
   },
   "privacy": {
     "title": "Privacidad",
-    "shareLabel": "Compartir datos de uso e informes de fallos",
-    "shareAria": "Compartir datos de uso e informes de fallos",
-    "shareDesc": "Datos básicos de uso y diagnósticos de fallos. Nunca se envían tus entrenamientos, rutas, muestras de frecuencia cardíaca ni mensajes del entrenador.",
-    "crashNote": "Si la aplicación falla, se te pedirá permiso antes de enviar cualquier informe.",
+    "crashLabel": "Compartir informes de fallos",
+    "crashDesc": "Trazas de error e información del dispositivo cuando la app falla. Sin ubicación ni datos personales.",
+    "crashOn": "Informes de fallos activados.",
+    "crashOff": "Informes de fallos desactivados.",
+    "shareLabel": "Compartir datos de uso",
+    "shareAria": "Compartir datos de uso",
+    "shareDesc": "Eventos de uso anónimos. Nunca se envían tus entrenamientos, rutas, muestras de frecuencia cardíaca ni mensajes del entrenador.",
+    "sharingOn": "Datos de uso activados.",
+    "sharingOff": "Datos de uso desactivados.",
     "policyLink": "Política de privacidad",
-    "disclaimerLink": "Aviso de salud y seguridad",
-    "sharingOn": "Envío de datos activado.",
-    "sharingOff": "Envío de datos desactivado."
+    "disclaimerLink": "Aviso de salud y seguridad"
   },
   "backup": {
     "title": "Copia de seguridad y restauración",

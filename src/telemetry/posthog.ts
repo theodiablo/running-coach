@@ -19,9 +19,11 @@ const HOST = import.meta.env.VITE_POSTHOG_HOST || "https://eu.i.posthog.com";
 const ENV = import.meta.env.VITE_APP_ENV || "development";
 
 type TelemetryProps = Record<string, unknown>;
+type ConsentChoice = { analytics: boolean; crashes: boolean };
 type PostHogLike = {
   init: (key: string, options: Record<string, unknown>) => void;
   register: (props: TelemetryProps) => void;
+  set_config: (options: Record<string, unknown>) => void;
   opt_in_capturing: (options?: Record<string, unknown>) => void;
   opt_out_capturing: () => void;
   has_opted_out_capturing: () => boolean;
@@ -30,6 +32,12 @@ type PostHogLike = {
   capture: (event: string, props?: TelemetryProps) => void;
   captureException: (error: Error, context?: TelemetryProps) => void;
 };
+
+// Product-analytics consent, pushed by the seam. It decides the SDK's automatic
+// web events, which must stay off for a crash-reports-only consent — including
+// while captureError has the SDK opted in to send one exception.
+let analyticsAllowed = false;
+const webEvents = () => ({ capture_pageview: analyticsAllowed, capture_pageleave: analyticsAllowed });
 
 let ph: PostHogLike | null = null; // resolved posthog instance, once loaded + init'd
 let loading: Promise<void> | null = null; // in-flight dynamic import; null again if it fails (retryable)
@@ -40,15 +48,13 @@ function ensureLoaded() {
   loading = import("posthog-js")
     .then(({ default: posthog }) => {
       posthog.init(KEY, {
-        // Standard product-analytics web events: pageviews + pageleaves. They
-        // give visitor/session counts and populate PostHog's Web Analytics, and
-        // both are part of the core bundle (no remote fetch), so they work under
-        // our CSP. They fire on web AND inside the native WebView (one pageview
-        // per app open, since there's no router). Still consent-gated: capture
-        // stays off until opt_in_capturing (opt_out_capturing_by_default below).
+        // Standard product-analytics web events (pageviews + pageleaves) give
+        // visitor/session counts and populate PostHog's Web Analytics; both are
+        // part of the core bundle (no remote fetch), so they work under our CSP,
+        // on web AND inside the native WebView (one pageview per app open, since
+        // there's no router). They follow the ANALYTICS channel — see webEvents.
         api_host: HOST,
-        capture_pageview: true,
-        capture_pageleave: true,
+        ...webEvents(),
         // Autocapture stays OFF *by design*: it records the visible text of
         // clicked elements ($el_text), which in this app can include race names
         // and run details — exactly the free text the telemetry policy never
@@ -62,6 +68,12 @@ function ensureLoaded() {
         // handlers (index.ts global handlers + ErrorBoundary).
         capture_exceptions: false,
         disable_session_recording: true,
+        // Unused capture surfaces, off explicitly rather than by default: they
+        // are product analytics, so they must not ride along on a crash-only
+        // consent (or get switched on by PostHog's remote config).
+        capture_heatmaps: false,
+        capture_dead_clicks: false,
+        capture_performance: false,
         // Don't fetch PostHog's optional remote scripts (recorder, surveys,
         // toolbar, …). We use none of them, and this keeps the CSP tight: only
         // connect-src needs *.i.posthog.com, script-src stays 'self'. Event
@@ -91,14 +103,22 @@ function withPH(fn: (posthog: PostHogLike) => void) {
 export const posthogProvider = {
   isConfigured: () => !!KEY,
 
-  // captureEventName:false suppresses PostHog's own $opt_in event so opting in
-  // is silent (it would otherwise count as an event the user didn't trigger).
-  init() {
-    withPH((p) => p.opt_in_capturing({ captureEventName: false }));
-  },
-
-  shutdown() {
-    if (ph) ph.opt_out_capturing();
+  // The SDK is opted in whenever EITHER channel is granted (crash reports need
+  // it too) and never loaded at all while both are off, so nothing is stored on
+  // the device before a choice. Analytics granularity is not opt-in/out state
+  // but config: set_config runs BEFORE opt_in_capturing so the deferred initial
+  // $pageview isn't emitted for a crash-only consent. captureEventName:false
+  // suppresses PostHog's own $opt_in event (an event the user didn't trigger).
+  setConsent({ analytics, crashes }: ConsentChoice) {
+    analyticsAllowed = analytics;
+    if (!analytics && !crashes) {
+      if (ph) ph.opt_out_capturing();
+      return;
+    }
+    withPH((p) => {
+      p.set_config(webEvents());
+      p.opt_in_capturing({ captureEventName: false });
+    });
   },
 
   identify(id: string) {
@@ -114,11 +134,11 @@ export const posthogProvider = {
     withPH((p) => p.capture(event, props));
   },
 
-  // May be called while opted out — the native per-crash "Send report" path.
-  // Opt in just long enough to send this one exception; we deliberately do NOT
-  // re-opt-out synchronously (that can drop the still-queued report). It's safe:
-  // the app is on the crash screen with no other events firing, and the next
-  // reload re-reads the persisted opt-out and starts paused again.
+  // Defensive: if this is ever reached while the SDK is opted out, opt in just
+  // long enough to send this one exception; we deliberately do NOT re-opt-out
+  // synchronously (that can drop the still-queued report). Safe because the
+  // automatic web events follow analyticsAllowed, so an opted-in crash-only SDK
+  // still emits nothing but the $exception.
   captureError(error: Error, context?: TelemetryProps) {
     withPH((p) => {
       if (p.has_opted_out_capturing()) {

@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Download, Upload, Trash2, Shield } from "lucide-react";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../../i18n";
 import { INPUT_CLS, PRIVACY_URL, DISCLAIMER_URL } from "../../constants";
-import { isNative } from "../../native";
-import { getConsent, setConsent } from "../../telemetry";
+import { getConsent, setConsent, getCrashConsent, setCrashConsent } from "../../telemetry";
+import { ToggleSwitch } from "../../components/ToggleSwitch";
 import { EmailSection } from "./EmailSection";
 import { PasswordSection } from "./PasswordSection";
 import type { User } from "@supabase/supabase-js";
@@ -39,16 +39,23 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
     if (n !== (settings.name || "")) saveSettings({...settings, name: n});
   };
 
-  // Telemetry consent (opt-in). The source of truth is the telemetry module's
-  // per-device localStorage flag, set first via the first-run ConsentBanner;
-  // this toggle just lets the user change their mind. Local state mirrors it so
-  // the switch re-renders on tap.
+  // Telemetry consent (opt-in), two independent channels. The source of truth is
+  // the telemetry module's per-device localStorage flags, answered first on the
+  // first-run consent screen; these toggles just let the user change their mind.
+  // Local state mirrors them so the switches re-render on tap.
   const [analyticsOn, setAnalyticsOn] = useState(getConsent());
+  const [crashOn, setCrashOn] = useState(getCrashConsent());
   const toggleAnalytics = () => {
     const next = !analyticsOn;
     setConsent(next);
     setAnalyticsOn(next);
     if (showToast) showToast(next ? t("settings.privacy.sharingOn") : t("settings.privacy.sharingOff"));
+  };
+  const toggleCrash = () => {
+    const next = !crashOn;
+    setCrashConsent(next);
+    setCrashOn(next);
+    if (showToast) showToast(next ? t("settings.privacy.crashOn") : t("settings.privacy.crashOff"));
   };
 
   return (
@@ -94,18 +101,18 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
         </div>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
+            <p className="text-sm text-slate-200">{t("settings.privacy.crashLabel")}</p>
+            <p className="text-xs text-slate-400">{t("settings.privacy.crashDesc")}</p>
+          </div>
+          <ToggleSwitch on={crashOn} onToggle={toggleCrash} label={t("settings.privacy.crashLabel")}/>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-sm text-slate-200">{t("settings.privacy.shareLabel")}</p>
             <p className="text-xs text-slate-400">{t("settings.privacy.shareDesc")}</p>
           </div>
-          <button onClick={toggleAnalytics} role="switch" aria-checked={analyticsOn}
-            aria-label={t("settings.privacy.shareAria")}
-            className={"relative shrink-0 w-11 h-6 rounded-full transition-colors " + (analyticsOn ? "bg-orange-500" : "bg-slate-600")}>
-            <span className={"absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform " + (analyticsOn ? "translate-x-5" : "translate-x-0")}/>
-          </button>
+          <ToggleSwitch on={analyticsOn} onToggle={toggleAnalytics} label={t("settings.privacy.shareAria")}/>
         </div>
-        {isNative && (
-          <p className="text-xs text-slate-500">{t("settings.privacy.crashNote")}</p>
-        )}
         <div className="flex items-center gap-2 text-xs">
           <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
             className="text-orange-400 hover:text-orange-300">

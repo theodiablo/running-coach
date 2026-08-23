@@ -235,9 +235,13 @@ Always re-verify a finding before acting on it; agents report false positives.
 - **Telemetry:** everything goes through the vendor-agnostic seam
   `src/telemetry/index.ts`; only `src/telemetry/posthog.ts` imports the SDK
   (dynamic import, no-op until `VITE_POSTHOG_KEY`). Consent is opt-in,
-  per-device (`localStorage`, not the synced blob). Autocapture and session
-  recording stay OFF. Read `docs/telemetry.md` before adding/swapping a
-  provider or an event.
+  per-device (`localStorage`, not the synced blob), and **two independent
+  channels** — crash reports (`getCrashConsent`) and product analytics
+  (`getConsent`), each with its own switch, nothing pre-ticked. Anything that
+  collects automatically belongs to one of them (never a borrowed consent), and
+  a crash-only consent must stay crash-only. Autocapture and session recording
+  stay OFF. Read `docs/telemetry.md` before adding/swapping a provider or an
+  event.
 
 ## Native platforms (Capacitor shells)
 - **One bundle serves web + both shells**; `isNative`
