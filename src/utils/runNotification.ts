@@ -22,22 +22,18 @@ export type RunNotificationInput = {
   /** Wall clock now (ms) — passed in so the builder stays pure. */
   nowMs: number;
   /**
-   * Guided-workout current step ("Rep 3/6 · 800 m · 4:35/km"), pre-localized.
-   * iOS-only display (Live Activity step line): Android's step surface is the
-   * WorkoutGuide plugin's own notification, and the patched service rebuilds
-   * `message` natively — a step suffix there would flicker away on the first
-   * background fix.
+   * Guided-workout step ("Rep 3/6 · 800 m · 4:35/km"), pre-localized. iOS only:
+   * Android has the WorkoutGuide plugin's own notification, and a step suffix
+   * would flicker away when the service rebuilds `message` natively.
    */
   stepText?: string | null;
 };
 
 /**
- * What the Android foreground service needs to keep the message live by itself:
- * the authoritative distance/pace as of this push, the latest HR reading, and
- * whether fixes should still be counted. The service adds the distance of every
- * fix that lands after the push (same filters as the tracker) on top of `km`,
- * so the two ends never disagree — see docs/live-tracking.md. Android-only, and
- * NOT display state: `sameNotificationContent` ignores it.
+ * The seed the Android service re-renders from while JS is frozen: it adds each
+ * later fix's distance on top of `km`, using the tracker's own filters, so the
+ * two ends can't disagree (docs/live-tracking.md). Not display state —
+ * `sameNotificationContent` ignores it.
  */
 export type RunNotificationLive = {
   km: number;

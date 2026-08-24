@@ -391,7 +391,10 @@ changes.
   self-explanatory. When one is genuinely needed (a non-obvious constraint,
   invariant, or workaround), one line max. Going longer to document a truly
   unclear trade-off should be rare, and points at `docs/` for anything
-  architectural rather than restating it inline.
+  architectural rather than restating it inline. **Keep the constraint, drop the
+  story**: how a bug was found, what a user did, how many rounds it took belong
+  in the commit message, not above the fix. If a comment needs a paragraph, the
+  paragraph goes in `docs/` and the comment is the one line that links it.
 - **French and Spanish copy:** French uses informal `tu` (app copy in
   `src/i18n/`); `vous` is for surfaces read by people who aren't users yet —
   marketing (`docs/marketing.md`) and the public live-run watch page

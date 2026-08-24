@@ -4,24 +4,14 @@ import { saveRoute, queuePendingRoute } from "../routes";
 import type { ImportedRun } from "./types";
 import type { Run } from "../types";
 
-// Persist an imported run's transient route `points` (GPX/TCX; HealthKit route)
-// and/or raw HR series (health-store imports), swapping them for a run_routes
-// reference, with the same save-or-queue offline fallback as
-// LiveRunTracker.handleSave. Runs with neither pass through untouched. This is
-// THE step the ImportProvider contract assigns to the caller: providers return
-// points/hrSamples, the save path persists them into the (blob-external)
-// run_routes row, and neither reaches addRuns.
-//
-// A GPS trace rides `routeId` (History shows a map button). An HR-only sidecar
-// (HR series, no GPS — the common Garmin/Samsung-on-Health-Connect case) rides
-// the separate `hrRouteId`, so the run powers the detail HR chart/time-in-zone
-// card without History offering a blank map. The raw HR stream sits in the same
-// `stats.hrSamples` sidecar a BLE-strap run uses.
+// Swaps an imported run's transient `points`/`hrSamples` for a run_routes
+// reference, so neither reaches addRuns and the synced blob. A GPS trace rides
+// `routeId` (History shows a map button); an HR-only sidecar rides the separate
+// `hrRouteId`, so the detail HR chart works without History offering a blank
+// map. Runs with neither pass through untouched.
 export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>> {
-  // providerId rides along for the import toast only — destructured out here
-  // with the other transients so no provenance marker the Run shape doesn't
-  // define can reach addRuns and the synced blob. Discarding it IS the point,
-  // so the binding is deliberately unused.
+  // providerId names the source in the import toast and goes no further;
+  // discarding it IS the point, so the binding is deliberately unused.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { points, hrSamples, providerId, ...run } = r;
   const hasRoute = !!points?.length;
@@ -43,17 +33,10 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
     const id = await saveRoute({ points: pts, stats });
     return hasRoute ? { ...run, ...efforts, routeId: id } : { ...run, hrRouteId: id };
   } catch {
-    // Offline / save failed. TRADE-OFF (deliberate): only a GPS trace is queued
-    // for retry; an HR-only sidecar (no GPS — the HealthKit / Health Connect HR
-    // case) is dropped here instead.
-    //   Consequence: a run imported while Supabase is unreachable still saves
-    //   with its avg/max HR aggregates, but the raw ~1Hz stream is lost, so the
-    //   detail HR chart + time-in-zone card won't populate for that one run.
-    //   Why accept it: the pending queue + flushPendingRoutes relink only know
-    //   how to reattach a `routeId`. Supporting an offline HR-only sidecar would
-    //   need a parallel queue that relinks `hrRouteId` — real complexity for
-    //   enrichment-only data (the HR is still summarised on the run). GPS traces
-    //   ARE user-authored data worth that machinery; a derived series isn't.
+    // Offline: only a GPS trace is queued for retry. The pending queue relinks
+    // a `routeId` only, and a parallel `hrRouteId` queue isn't worth it for
+    // enrichment-only data — the run still saves with its avg/max HR, it just
+    // loses the raw series behind the detail chart.
     if (!hasRoute) return run;
     const routeTmp = "rt" + Date.now();
     queuePendingRoute({ tmpId: routeTmp, points: pts, stats });
