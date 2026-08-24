@@ -31,9 +31,8 @@ server-side transaction** (so the sync cursor lives in our row), and pushes
     bytes — the client's global 15s Supabase fetch timeout would abort batched
     binaries): staged rows flagged `staged`, listed workouts walked ascending
     from the cursor. **Never advances the cursor.**
-  - `fit {key}` → one base64 FIT, from the **self-calibrating** export endpoint
-    below. `gone` (404/410 on the *calibrated* endpoint) is the only terminal
-    miss; 401/403/429/5xx/network — and every miss before calibration — are
+  - `fit {key}` → one base64 FIT, from the documented export route below.
+    `gone` (404/410) is the only terminal miss; 401/403/429/5xx/network are
     `transient` so quota exhaustion can't permanently degrade runs to
     summary-only.
   - `ack {cursor, stagedKeys}` → `ack_integration_cursor` RPC (atomic
@@ -126,29 +125,22 @@ distance rounded to 100 m — it never looks like an endpoint error, and the
 client's retry budget turned it into a *permanent* summary-only run after three
 scans. **Never infer one Suunto endpoint from another.**
 
-So the export path isn't a constant: `suunto-import` walks the candidates in
-`_shared/suunto/fitExport.mjs` — documented v3 route first, then the same route
-with the bare-JWT auth style (Suunto's own getting-started curl omits `Bearer`,
-and the v2 listing accepting both doesn't mean v3 does), then the pre-v3 shape
-as the net — and remembers the one that returned real FIT bytes in
-`sync_state.fitVariant`. Afterwards every download is one request, and the day
-the endpoint moves again it re-calibrates instead of silently degrading every
-run.
+The export route is therefore taken from the partner docs, not inferred:
+`fitPath` in `_shared/suunto/fitExport.mjs`, pinned by
+`src/imports/suuntoFitExport.test.ts`.
 
-Three rules keep the memo honest, pinned by
-`src/imports/suuntoFitExport.test.ts`:
+It briefly shipped as a self-calibrating ladder of candidate paths and auth
+styles, memoised in `sync_state.fitVariant`, written while the documented route
+was still unknown. The live connection calibrated to the documented route on
+its first download and never fell past it, so the ladder was removed; the two
+guards that were doing real work stay:
 
-- **A 2xx never calibrates on its own** — the body must start with `.FIT` at
-  bytes 8-11, or an APIM notice (or a JSON envelope pointing at a download URL)
-  would be remembered as the export path.
-- **404/410 is terminal only on the calibrated endpoint.** Before calibration
-  it equally means no candidate was right, so it stays `transient`.
+- **A 2xx is not a FIT.** The body must start with `.FIT` at bytes 8-11, or an
+  APIM notice (or a JSON envelope pointing at a download URL) imports as a
+  trace.
 - **"Answered, but not with a FIT" gets its own log line**
   (`fit body was not a FIT`) — that points at the response shape, a different
   fix from a 401 or a 404.
-
-Watch for `suunto-import fit endpoint calibrated <variant>` in the function
-logs on the first successful download.
 
 ## CALIBRATE on first live pass
 

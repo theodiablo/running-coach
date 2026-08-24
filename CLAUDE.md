@@ -183,8 +183,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   ids prefixed `past-`, renumbered across the join) and re-stamps the rest **by
   calendar date, never by session id** — ids name a grid slot, not a day.
   A week that has elapsed is therefore a real thing in `plan.weeks`;
-  `isElapsedWeek` (`src/utils/plan.ts`, server twin
-  `_shared/coach/weeks.mjs`) is the one definition, and the past is read-only
+  `isElapsedWeek` (`_shared/coach/weeks.mjs`, wrapped for
+  Date-taking callers by `src/utils/plan.ts`) is the one definition, and the past is read-only
   everywhere downstream: the coach's tools refuse it, its load rules never
   report against it, and only the trailing 2 weeks of it reach the model.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild

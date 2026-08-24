@@ -9,6 +9,7 @@ import { MAX_GPX_BYTES } from "../utils/gpx";
 import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
 import { persistImportedRoutes } from "../imports/persistRoutes";
+import { carryPrefill } from "../utils/carryPrefill";
 import { getSeenIds } from "../watch/import";
 import type { ImportedRun } from "../imports/types";
 import type { HrPending, Run } from "../types";
@@ -90,29 +91,12 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
     }
     setBusy(true);
     addRuns([{
+      // Everything the recorder or importer measured that this form can't edit
+      // rides through untouched; the form's own values win. An allowlist here
+      // silently dropped extId (every cloud sync then reported "no new runs"),
+      // then hrCoverage and activity — carryPrefill ends that class of bug.
+      ...carryPrefill(prefill),
       ...runFormToPatch(f),
-      // Carry the GPS trace reference through from a live-tracked run.
-      ...(prefill?.source   ? { source: prefill.source } : {}),
-      ...(prefill?.routeId  ? { routeId: prefill.routeId } : {}),
-      // Best efforts came from the trace, which this form can't edit — so they
-      // survive the user correcting the distance or duration on the way in.
-      ...(prefill?.bestEfforts ? { bestEfforts: prefill.bestEfforts } : {}),
-      ...(prefill?.routeTmp ? { routeTmp: prefill.routeTmp, routePending: true } : {}),
-      // HR-only sidecar (health-store import with HR but no GPS) — powers the
-      // detail HR chart/zones; see the hrRouteId note in src/types.ts.
-      ...(prefill?.hrRouteId ? { hrRouteId: prefill.hrRouteId } : {}),
-      // Health-store HR wasn't ready at save — relink on next load (RunningCoach).
-      // Two fields, one per platform: see the hrPendingHk note in src/types.ts.
-      ...(prefill?.hrPending ? { hrPending: prefill.hrPending } : {}),
-      ...(prefill?.hrPendingHk ? { hrPendingHk: prefill.hrPendingHk } : {}),
-      // Carry the watch-import provenance through so repeated scans dedupe on it.
-      ...(prefill?.hcId ? { hcId: prefill.hcId } : {}),
-      // Same for a cloud provider's workout key. Without it the run is invisible
-      // to the provider's knownKeys, so every later sync re-lists the workout,
-      // re-downloads its FIT against the daily quota, and then discards the
-      // candidate as a duplicate — reporting "no new runs" on a sync that worked.
-      ...(prefill?.extId ? { extId: prefill.extId } : {}),
-      ...(prefill?.startedAt ? { startedAt: prefill.startedAt } : {}),
     }]);
     setBusy(false); onSaved?.(); onDone();
   };

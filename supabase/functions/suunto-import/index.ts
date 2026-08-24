@@ -20,9 +20,7 @@
 // Architecture, protocol, deploy/secrets: docs/integrations-suunto.md.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  fitVariantAuth, fitVariantPath, fitVariantsToTry, looksLikeFit,
-} from "../_shared/suunto/fitExport.mjs";
+import { fitPath, looksLikeFit } from "../_shared/suunto/fitExport.mjs";
 
 const SUUNTO_CLIENT_ID = Deno.env.get("SUUNTO_CLIENT_ID");
 const SUUNTO_CLIENT_SECRET = Deno.env.get("SUUNTO_CLIENT_SECRET");
@@ -193,70 +191,43 @@ async function apiFetch(
   return res;
 }
 
-// `gone` = every attempt was a hard "no FIT here" on a calibrated endpoint.
+// `gone` = the endpoint answered a hard "no FIT here" for this workout.
 // `notFit` = something answered 2xx with a body that isn't a FIT, which is a
 // different problem from a rejection and deserves its own line in the logs.
 type FitMiss = { gone: boolean; status: number; notFit: boolean };
 
-const fitVariantMemo = (row: ConnectionRow): string => {
-  const v = row.sync_state?.fitVariant;
-  return typeof v === "string" ? v : "";
-};
-
-// Download one workout's FIT, calibrating the export endpoint as it goes:
-// candidates are tried in order and the one that returns real FIT bytes is
-// remembered on the row (_shared/suunto/fitExport.mjs explains why this is a
-// ladder and not a constant). A miss reports whether every attempt was a hard
-// "no FIT here" — which only means the workout has none once the endpoint is
-// calibrated, since before that it equally means no path was right.
+// Download one workout's FIT from the documented export route.
 async function fetchWorkoutFit(
   admin: SupabaseClient, userId: string, row: ConnectionRow, key: string,
-): Promise<{ bytes: Uint8Array; variantId: string } | FitMiss | "reauth"> {
+): Promise<{ bytes: Uint8Array } | FitMiss | "reauth"> {
   const first = await getFreshToken(admin, userId, row);
   if (first === "reauth") return "reauth";
   let token = first.token;
-  let refreshed = false;
 
-  const memo = fitVariantMemo(row);
-  const variants = fitVariantsToTry(memo);
-  let lastStatus = 0;
-  let allGone = true;
-  let notFit = false;
-
-  for (const variant of variants) {
-    const get = () => fetch(`${API}${fitVariantPath(variant, key)}`, {
-      headers: {
-        "Authorization": fitVariantAuth(variant, token),
-        "Ocp-Apim-Subscription-Key": SUUNTO_SUBSCRIPTION_KEY!,
-        "Accept": "application/octet-stream",
-      },
-    });
-    let res = await get();
-    if (res.status === 401 && !refreshed) {
-      // Expiry raced the clock check — one forced refresh for the whole ladder.
-      refreshed = true;
-      const forced = await getFreshToken(admin, userId, row, true);
-      if (forced === "reauth") return "reauth";
-      token = forced.token;
-      res = await get();
-    }
-    if (res.ok) {
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (looksLikeFit(bytes)) return { bytes, variantId: variant.id };
-      // A 2xx that isn't a FIT — this path answers something else (an APIM
-      // notice, or an envelope pointing at a download URL).
-      notFit = true;
-      allGone = false;
-      lastStatus = res.status;
-      continue;
-    }
-    lastStatus = res.status;
-    if (res.status !== 404 && res.status !== 410) { allGone = false; continue; }
-    // A hard miss on the CALIBRATED endpoint is the real answer; don't spend
-    // the other requests re-asking paths that can't know better.
-    if (memo === variant.id) break;
+  const get = () => fetch(`${API}${fitPath(key)}`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Ocp-Apim-Subscription-Key": SUUNTO_SUBSCRIPTION_KEY!,
+      "Accept": "application/octet-stream",
+    },
+  });
+  let res = await get();
+  if (res.status === 401) {
+    // Expiry raced the clock check — one forced refresh, then the real answer.
+    const forced = await getFreshToken(admin, userId, row, true);
+    if (forced === "reauth") return "reauth";
+    token = forced.token;
+    res = await get();
   }
-  return { gone: allGone && !!memo, status: lastStatus, notFit };
+  if (res.ok) {
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (looksLikeFit(bytes)) return { bytes };
+    // A 2xx that isn't a FIT — this path answered something else.
+    return { gone: false, status: res.status, notFit: true };
+  }
+  // 404/410 on the documented route means this workout has no FIT (indoor, or
+  // still processing) — not that some other path might serve it.
+  return { gone: res.status === 404 || res.status === 410, status: res.status, notFit: false };
 }
 
 const workoutKeyOf = (w: WorkoutSummary): string =>
@@ -497,24 +468,12 @@ Deno.serve(async (req) => {
         return json({ connected: true, transient: true }); // network — retry next scan
       }
       if (res === "reauth") return json({ connected: false, reauth: true, transient: true });
-      if ("bytes" in res) {
-        if (res.variantId !== fitVariantMemo(row)) {
-          // Remember the endpoint that worked, so every later download is one
-          // request. Logged because it is the answer to the question the code
-          // couldn't: which export path Suunto actually serves.
-          await admin.from("integration_connections")
-            .update({ sync_state: { ...(row.sync_state || {}), fitVariant: res.variantId } })
-            .eq("user_id", user.id).eq("provider", "suunto");
-          console.log("suunto-import fit endpoint calibrated", res.variantId);
-        }
-        return json({ connected: true, fit: b64(res.bytes) });
-      }
-      // Only a hard "this workout has no FIT" on the calibrated endpoint is
-      // terminal (client falls back to the summary). Everything else —
-      // including every miss before the endpoint is calibrated — is transient:
-      // marking it terminal would permanently import summary-only runs, the
-      // exact failure that shipped (a 401 on every download, which on the
-      // client looks like "no route", never like an endpoint error).
+      if ("bytes" in res) return json({ connected: true, fit: b64(res.bytes) });
+      // Only a hard "this workout has no FIT" is terminal (the client falls back
+      // to the summary). Everything else is transient: marking it terminal would
+      // permanently import summary-only runs, the exact failure that shipped (a
+      // 401 on every download, which on the client looks like "no route", never
+      // like an endpoint error).
       //
       // Both misses are LOGGED, status only — never the key, the body or a header.
       if (res.gone) {

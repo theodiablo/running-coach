@@ -5,6 +5,8 @@ import {
   DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
 } from "./planStyles";
+// @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
+import { isElapsedWeek as isElapsedWeekYmd } from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
 import type { Plan, PlanProgress, SessionSd } from "../types";
 
@@ -588,18 +590,20 @@ export function findOpenPlanSession(
 }
 
 // ── Week windows ────────────────────────────────────────────────────────────
-// A plan week owns [startDate, startDate + 7). Weeks are contiguous, so
-// `weekEnd <= today` splits a plan cleanly into elapsed / current-and-ahead.
-// This is the ONE definition of elapsed — PlanView's ordering, the overdue
-// lookback and the rebuild carry below all read it. The coach's server half
-// keeps a date-string twin (_shared/coach/weeks.mjs); keep both ends in sync.
+// A plan week owns [startDate, startDate + 7), so a week is elapsed once that
+// span has ended. PlanView's ordering, the overdue lookback and the rebuild
+// carry below all read it, and the coach's tools and load rules read it server
+// side — so the predicate itself lives with the edge functions and this is a
+// Date-taking adapter, not a second copy. (It was two implementations, one
+// comparing Dates and one comparing date strings, which disagreed by a day
+// either side of midnight in any non-UTC timezone.)
 type WeekWindow = { startDate?: string };
 
 export const startOfDay = (d: Date) => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; };
 export const startOfToday = () => startOfDay(new Date());
 export const weekStart = (w: WeekWindow) => new Date((w.startDate || "") + "T00:00:00");
-export const weekEnd = (w: WeekWindow) => { const e = weekStart(w); e.setDate(e.getDate() + 7); return e; };
-export const isElapsedWeek = (w: WeekWindow, today: Date = startOfToday()) => weekEnd(w) <= today;
+export const isElapsedWeek = (w: WeekWindow, today: Date = startOfToday()) =>
+  isElapsedWeekYmd(w, ymd(today));
 
 // A training session's id (w{n}d{dOff}) names a SLOT in the plan grid, not a
 // day — buildPlan mints the same "w2d4" for week 2 / offset 4 whatever date
