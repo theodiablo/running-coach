@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Trash2, Copy, EyeOff } from "lucide-react";
+import { RefreshCw, Trash2, Copy, EyeOff, Upload } from "lucide-react";
 import { getTrackLog, clearTrackLog, setGeoDebug, type GeoDiagEvent } from "../geo/trackLog";
-import { clearShellLog, readShellLog, type ShellDiagReport } from "../diag/shellLog";
+import { clearShellLog, fileShellReport, readShellLog, type ShellDiagReport } from "../diag/shellLog";
 
 // Hidden developer diagnostics for live GPS tracking (revealed together with the
 // watch sync log from Settings → Connections by tapping the section title 5×).
@@ -79,6 +79,16 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
   const copy = () => {
     try { navigator.clipboard?.writeText(JSON.stringify(report, null, 2)); } catch { /* ignore */ }
   };
+  // Filing is deliberate: this panel is only open because something went wrong,
+  // and the native log survives whatever it was, so there is nothing to catch
+  // in the moment. (It used to file itself on boot, on every foreground and on
+  // a 60s timer, which cost an IPC round-trip per foreground on every Android
+  // install and, off Android, inserted a row a minute forever.)
+  const [sent, setSent] = useState<"" | "ok" | "err">("");
+  const send = () => {
+    void fileShellReport("manual: sent from developer log")
+      .then(ok => setSent(ok ? "ok" : "err")).catch(() => setSent("err"));
+  };
   const rows = [...report.events].reverse(); // newest first
   return (
     <div className="space-y-2 pt-3 mt-1 border-t border-slate-700/60">
@@ -86,8 +96,12 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex-1">Shell / renderer log (dev)</p>
         <button type="button" aria-label="Refresh shell log" onClick={onRefresh} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"><RefreshCw size={13} /></button>
         <button type="button" aria-label="Copy shell log as JSON" onClick={copy} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"><Copy size={13} /></button>
+        <button type="button" aria-label="Send shell log to the maintainer" onClick={send} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"><Upload size={13} /></button>
         <button type="button" aria-label="Clear shell log" onClick={wipe} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"><Trash2 size={13} /></button>
       </div>
+      {sent && <p className={`text-[11px] ${sent === "ok" ? "text-emerald-400" : "text-rose-400"}`}>
+        {sent === "ok" ? "Report sent." : "Couldn't send — offline, or nothing to report."}
+      </p>}
       <p className="text-[11px] text-slate-500 -mt-1">
         Recorded natively, so it survives the WebView dying — which is exactly when the GPS log below
         stops. Always on: no need to have armed anything before the run that went wrong.

@@ -10,7 +10,6 @@ import { mintPublishToken, readPublishToken, storePublishToken } from "../live/p
 import { enableLiveUpload, disableLiveUpload } from "../geo/liveUpload";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { useRunTracker } from "../hooks/useRunTracker";
-import { markRender } from "../diag/frameHeartbeat";
 import { useGuidedWorkout } from "../hooks/useGuidedWorkout";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -107,11 +106,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   const rt = useRunTracker({ hrMethod: effectiveHrMethod, stepText });
   const tracker = rt as Omit<typeof rt, "location"> & { location: LocationPreview | null };
   const { state, points, stats, error, pending, location } = tracker;
-  // Diagnostics: stamps every render of this component, so a report can say
-  // whether React is still re-rendering while the numbers on screen are frozen
-  // (see src/diag/frameHeartbeat.ts). One assignment to a module-level number —
-  // not observable state, so a discarded or double-invoked render costs nothing.
-  markRender();
   const [busy, setBusy] = useState(false);
   // ── Guided workout (premium) ─────────────────────────────────────────────
   // The sign-in entitlement read can be stale (offline, or predating a grant),

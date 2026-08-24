@@ -145,8 +145,10 @@ observation, which arrived after the fixes above had been attempted, is that the
 *map keeps panning and redrawing* through the whole stale stretch. Leaflet writes
 to the DOM imperatively, outside React, so a moving map is direct proof that the
 compositor is drawing and touch is being delivered. Whatever stalls sits *above*
-painting: React not committing, or the tracker's 1s tick not firing.
-`src/diag/frameHeartbeat.ts` measures exactly those two.
+painting: React not committing, or the tracker's 1s tick not firing. (A
+`frameHeartbeat` module measured exactly those two while this was open; it was
+removed once the trigger below was found, and is worth restoring from git
+history if a freeze is ever reported again.)
 
 ### The trigger was not in this app
 

@@ -21,8 +21,10 @@ their findings yourself — parallel agents editing overlapping files conflict.
 Always re-verify a finding before acting on it; agents report false positives.
 
 ## Setup & commands
-- `npm install` first in a fresh checkout (a SessionStart hook does it for you
-  in web sessions); everything below fails with module-not-found until you do.
+- `./scripts/setup-env.sh` first in a fresh checkout — npm deps (via `npm ci`,
+  so patch-package starts from pristine packages) plus Deno, which
+  `typecheck:supabase` needs. A SessionStart hook runs it in web sessions, and
+  it is what a cloud environment's setup script should point at. Idempotent.
 - `npm run dev` — Vite dev server.
 - `npm test` — Vitest (run mode); `npm run test:watch` for watch. Suite lives
   in `src/**/*.test.{ts,tsx}`.
@@ -277,9 +279,7 @@ Always re-verify a finding before acting on it; agents report false positives.
   frozen-recorder bug that cost four rounds turned out to be an Android System
   WebView regression, a Play-updated system app that changes underneath a build
   that hasn't, and every fix aimed at the shell missed because the app was never
-  what broke. `src/diag/frameHeartbeat.ts` measures the two layers that can
-  actually stall (React committing, the tracker's 1s tick) before anything is
-  attempted.
+  what broke. Establish WHICH layer stalled before attempting a fix.
 - **Backgrounded Android may run no JS** when nothing holds the process (a
   strapless indoor session). Once the app leaves the foreground the
   WebView's task queues are frozen — a native bridge callback does not wake it,
@@ -300,8 +300,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   being reclaimed. Detail: `docs/live-tracking.md`.
 - **Shell diagnostics** (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) record what
   died — renderer, process, or nothing — because the JS logs stop identically in
-  all three. Always on natively; filed to `shell_diagnostics` only with the
-  hidden developer log enabled.
+  all three. Always on natively; filed to `shell_diagnostics` only from the
+  developer log's Send button, never automatically.
 - **A notification that re-posts must not rebuild its `PendingIntent`.** Cache
   it and use `FLAG_UPDATE_CURRENT`: `FLAG_CANCEL_CURRENT` invalidates the record
   every holder points at, SystemUI included, so a re-posting notification

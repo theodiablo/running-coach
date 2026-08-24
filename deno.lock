@@ -1,6 +1,7 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@deno/installer-shell-setup@*": "0.3.4",
     "npm:@anthropic-ai/sdk@*": "0.110.0",
     "npm:@capacitor-community/bluetooth-le@^8.2.0": "8.2.0_@capacitor+core@8.4.1",
     "npm:@capacitor/android@^8.4.1": "8.4.1_@capacitor+core@8.4.1",
@@ -37,6 +38,11 @@
     "npm:typescript@^6.0.3": "6.0.3",
     "npm:vite@^8.0.12": "8.1.3",
     "npm:vitest@^4.1.8": "4.1.10_@vitest+coverage-v8@4.1.10__vitest@4.1.10__jsdom@29.1.1___css-tree@3.2.1__vite@8.1.3_jsdom@29.1.1__css-tree@3.2.1_vite@8.1.3"
+  },
+  "jsr": {
+    "@deno/installer-shell-setup@0.3.4": {
+      "integrity": "48665d1a737d487cce6874bc97bba70a5aeffa7053aca3f60df93c6fab8963b4"
+    }
   },
   "npm": {
     "@adobe/css-tools@4.5.0": {
@@ -3450,6 +3456,7 @@
         "npm:@capacitor/core@^8.4.1",
         "npm:@capacitor/geolocation@^8.2.0",
         "npm:@capacitor/ios@^8.4.2",
+        "npm:@capacitor/local-notifications@^8.2.1",
         "npm:@eslint/js@^10.0.1",
         "npm:@fontsource/archivo@^5.2.8",
         "npm:@pianissimoproject/capacitor-health-connect@~0.7.1",
@@ -3492,7 +3499,8 @@
         },
         "xcode": {
           "uuid": "^11.1.1"
-        }
+        },
+        "nanoid": "^3.3.18"
       }
     }
   }
