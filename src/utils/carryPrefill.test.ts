@@ -14,18 +14,14 @@ describe("carryPrefill", () => {
     });
   });
 
-  // The two fields the old allowlist dropped, from the two recorders.
-  it("carries hrCoverage from a strap-recorded run", () => {
+  // The field the old allowlist dropped, from both recorders.
+  it("carries hrCoverage, which the old allowlist dropped", () => {
     expect(carryPrefill({ source: "gps", hrCoverage: 0.94 }).hrCoverage).toBe(0.94);
-  });
-
-  it("carries activity from an indoor session", () => {
-    expect(carryPrefill({ source: "indoor", activity: "bike" }).activity).toBe("bike");
   });
 
   it("leaves the fields the form owns to the form", () => {
     expect(carryPrefill({
-      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000,
+      date: "2026-08-23", type: "OTHER", activity: "bike", km: 10, durationSec: 3000,
       hr: 150, hrMax: 175, elevation: 100, effort: 3, notes: "hi", routeId: "r1",
     })).toEqual({ routeId: "r1" });
   });

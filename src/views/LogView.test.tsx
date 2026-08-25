@@ -91,3 +91,48 @@ describe("LogView", () => {
     });
   });
 });
+
+// The review form rebuilds the run from its own fields, so anything the
+// recorder measured that the form cannot edit has to be carried across it.
+// This is where `extId` was lost once already (every later cloud sync then
+// reported "no new runs"), so the boundary is pinned end to end rather than
+// only at carryPrefill.
+describe("LogView save carries what the recorder measured", () => {
+  const save = () => fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+
+  it("keeps a strap-recorded run's HR coverage", () => {
+    const addRuns = vi.fn();
+    setup({ addRuns, prefill: {
+      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000,
+      source: "gps", routeId: "r1", hr: 150, hrMax: 172, hrCoverage: 0.94,
+    } });
+    save();
+    expect(addRuns).toHaveBeenCalledTimes(1);
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ hrCoverage: 0.94, routeId: "r1", source: "gps" });
+  });
+
+  // `activity` reaches the run through the FORM (it is seeded and re-emitted by
+  // runFormToPatch), not through the carry — asserted here so a future change to
+  // either half can't quietly drop it.
+  it("keeps an indoor session's machine and its provenance", () => {
+    const addRuns = vi.fn();
+    setup({ addRuns, prefill: {
+      date: "2026-08-23", type: "OTHER", km: 0, durationSec: 2700,
+      source: "indoor", activity: "bike", hrRouteId: "h1", hrCoverage: 0.88, bestEfforts: {},
+    } });
+    save();
+    const saved = addRuns.mock.calls[0][0][0];
+    expect(saved).toMatchObject({ type: "OTHER", activity: "bike", source: "indoor", hrRouteId: "h1" });
+    expect(saved.hrCoverage).toBe(0.88);
+  });
+
+  it("still lets the form win over the prefill it was seeded from", () => {
+    const addRuns = vi.fn();
+    setup({ addRuns, prefill: {
+      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000, source: "gps", routeId: "r1",
+    } });
+    fireEvent.change(screen.getByLabelText(/Distance/i), { target: { value: "9.5" } });
+    save();
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ km: 9.5, routeId: "r1" });
+  });
+});

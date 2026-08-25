@@ -7,11 +7,15 @@ import type { Run } from "../types";
 // This used to be an allowlist of individual spreads in LogView, and a field
 // left off it was lost silently: `extId` went missing for every cloud import
 // (so each sync re-listed the same workout and reported "no new runs"), and
-// `hrCoverage` and `activity` for every strap-recorded and indoor session.
-// Inverting it means a new field on Run rides through by default, and only a
-// field the form OWNS has to be named.
+// `hrCoverage` for every strap-recorded run and indoor session. Inverting it
+// means a new field on Run rides through by default, and only a field the form
+// OWNS has to be named.
+//
+// `activity` is one of those: the form seeds it and clears it when the type
+// moves off OTHER, so an edited run can't keep claiming it was done on a bike.
 const FORM_OWNED = new Set([
-  "date", "type", "km", "durationSec", "hr", "hrMax", "elevation", "effort", "notes",
+  "date", "type", "activity", "km", "durationSec", "hr", "hrMax", "elevation",
+  "effort", "notes",
 ]);
 
 // Not run data: `pace` is a display hint, `wNum`/`sId` name the plan session
