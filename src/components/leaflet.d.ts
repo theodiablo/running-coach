@@ -23,10 +23,15 @@ declare module "leaflet" {
     setLatLngs: (points: LatLngExpression[]) => Polyline;
   };
   export type ToggleHandler = { enable: () => void; disable: () => void };
+  // What latLngBounds().pad() hands back — opaque, only ever passed to fitBounds.
+  export type PaddedBounds = unknown;
   export type Map = {
     setView: (latlng: LatLngExpression, zoom: number, options?: { animate?: boolean }) => Map;
     getZoom: () => number;
-    fitBounds: (bounds: unknown, options?: { animate?: boolean }) => Map;
+    fitBounds: (bounds: PaddedBounds, options?: { animate?: boolean }) => Map;
+    // Re-reads the container size Leaflet caches; nothing but a window resize
+    // does it automatically (see the ResizeObserver in RouteMap).
+    invalidateSize: (options?: { animate?: boolean }) => Map;
     addControl: (control: Control) => Map;
     removeControl: (control: Control) => Map;
     createPane: (name: string) => HTMLElement;
@@ -60,7 +65,7 @@ declare module "leaflet" {
     marker: (latlng: LatLngExpression, options?: Record<string, unknown>) => Addable<Marker>;
     circle: (latlng: LatLngExpression, options?: Record<string, unknown>) => Addable<Circle>;
     divIcon: (options?: Record<string, unknown>) => DivIcon;
-    latLngBounds: (points: LatLngExpression[]) => { pad: (amount: number) => unknown };
+    latLngBounds: (points: LatLngExpression[]) => { pad: (amount: number) => PaddedBounds };
   };
   const L: LeafletModule;
   export default L;

@@ -139,6 +139,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // the current position at the default zoom and re-arms follow.
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [following, setFollowing] = useState(true);
+  // Full-screen map: RouteMap lifts itself over the viewport, so the recenter
+  // button has to leave the (unchanged) map slot and float over the screen too.
+  const [mapExpanded, setMapExpanded] = useState(false);
   // "Find a route" loop finder (needs the map capability AND premium). The
   // chosen loop becomes a sky dashed guide line under the recorded track —
   // purely visual, the runner follows it by eye. Ephemeral: never saved, gone
@@ -734,10 +737,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         <RouteMap points={points} follow={state === "tracking"} interactive
           recenterSignal={recenterSignal} onFollowingChange={setFollowing}
           guidePoints={plannedRoute?.points}
+          expandable onExpandedChange={setMapExpanded}
           location={location} className="h-full w-full" style={{}} />
         {live && !following && (
           <button type="button" onClick={() => setRecenterSignal(n => n + 1)} aria-label={t("tracker.map.recenter")}
-            className="absolute bottom-3 right-3 z-[1000] flex items-center justify-center w-11 h-11 rounded-full bg-slate-900/85 text-orange-400 border border-slate-700 shadow-lg active:scale-95 transition-transform">
+            className={(mapExpanded ? "fixed z-[1050]" : "absolute z-[1000]")
+              + " right-3 flex items-center justify-center w-11 h-11 rounded-full bg-slate-900/85 text-orange-400 border border-slate-700 shadow-lg active:scale-95 transition-transform"}
+            style={{ bottom: mapExpanded ? "calc(0.75rem + var(--safe-bottom))" : "0.75rem" }}>
             <LocateFixed size={20} />
           </button>
         )}

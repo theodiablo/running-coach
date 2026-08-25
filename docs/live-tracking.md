@@ -285,6 +285,30 @@ primitive-keyed effects (`[highlight?.lat, highlight?.lng]`,
 `[recenterSignal]`) sit AFTER the track effect so they layer on top and never
 fight the polyline redraw.
 
+**The map's box can change size without a window resize, and Leaflet won't
+notice.** It caches the container size and refreshes it only on a *window*
+resize, so a map whose own box changes keeps framing the route into a box it no
+longer has: when a run ends, the tracker's panel grows and the map shrinks under
+it, and the fit computed against the taller box pushes the last stretch of the
+track under the bottom edge — measured at 71px off a 612→412px map, top looking
+perfectly fine. A `ResizeObserver` on the map element is the fix:
+`invalidateSize` then re-apply the camera (`applyCamera` — the one rule: centre
+the head while follow is armed, otherwise re-fit the stored bounds). It skips
+the re-frame once `userMovedRef` says the user panned or zoomed — resizing under
+someone who went looking at a corner must not yank them back.
+
+**Full screen (`expandable`)** is the same mechanism's other customer: the map
+element never moves in the DOM (so Leaflet is never torn down and the view
+survives both directions) — the wrapper is two boxes, the outer keeping the
+caller's size/rounding *in flow* so the page behind doesn't reflow, the inner
+shell lifting to `position:fixed; inset:0` at `EXPANDED_Z` (above the bottom nav
+and a host modal's content, below `ModalOverlay`'s z-2000 and the tracker's
+z-1100 overlays). The ResizeObserver does the re-framing. It registers
+`useDismissable`, so back/Escape leaves full screen before closing the modal
+hosting it, and `onExpandedChange` lets a caller floating its own control over
+the map (the tracker's recenter FAB) follow it out to the viewport. On:
+`LiveRunTracker`, `RunDetailModal`, the History inline map.
+
 ## Native background tracking (the `geoSource` seam)
 
 Browser tracking is foreground-only (screen must stay on). True background
