@@ -97,7 +97,9 @@
   },
   "map": {
     "noKey": "El mapa necesita VITE_MAPTILER_KEY. La ruta se registra igualmente.",
-    "recenter": "Centrar en mi posición"
+    "recenter": "Centrar en mi posición",
+    "fullscreen": "Ver el mapa en pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa"
   },
   "hrTarget": {
     "addProfile": "Añade tu perfil de FC en Ajustes para ver una zona objetivo",

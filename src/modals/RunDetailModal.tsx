@@ -151,7 +151,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
         {hasPoints && route && (
           <>
             <RouteMap points={route.points} interactive endpoints highlight={highlight} onPick={onPick}
-              className="h-56 rounded-xl overflow-hidden" />
+              expandable className="h-56 rounded-xl overflow-hidden" />
 
             {/* Series toggles + combined chart + highlighted-point readout */}
             <div className="bg-slate-800 rounded-2xl p-4 space-y-3">

@@ -97,7 +97,9 @@
   },
   "map": {
     "noKey": "Le fond de carte nécessite VITE_MAPTILER_KEY. Le parcours s'enregistre quand même.",
-    "recenter": "Recentrer sur ma position"
+    "recenter": "Recentrer sur ma position",
+    "fullscreen": "Afficher la carte en plein écran",
+    "exitFullscreen": "Quitter le plein écran"
   },
   "hrTarget": {
     "addProfile": "Ajoute ton profil FC dans les Paramètres pour voir une zone cible",

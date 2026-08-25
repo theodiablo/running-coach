@@ -1,10 +1,12 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import type { CSSProperties, MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
-import L, { type Circle, type Control, type LatLngExpression, type Map, type Marker, type Polyline } from "leaflet";
+import { Maximize2, Minimize2 } from "lucide-react";
+import L, { type Circle, type Control, type LatLngExpression, type Map, type Marker, type PaddedBounds, type Polyline } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAP_ATTRIBUTION, MAP_KEY, MAP_TILE_URL } from "../constants";
 import { cachedTileLayer } from "./cachedTileLayer";
+import { useDismissable } from "../hooks/useDismissable";
 import { segments } from "../utils/geo";
 
 // Imperative Leaflet wrapper. We drive the map directly via refs (no
@@ -57,6 +59,11 @@ type RouteMapProps = {
   // Report a tap on a guide line (by its RouteGuide.id) so the map itself can
   // select a candidate, not just the cards.
   onGuidePick?: (id: string) => void;
+  // Offer the full-screen toggle (top-right of the map).
+  expandable?: boolean;
+  // Told when the map enters/leaves full screen, so a caller that floats its own
+  // control over the map (the tracker's recenter button) can follow it out.
+  onExpandedChange?: (expanded: boolean) => void;
 };
 
 const GUIDE_COLOR = "#38bdf8"; // sky — visually distinct from the orange record line
@@ -64,13 +71,21 @@ const GUIDE_COLOR = "#38bdf8"; // sky — visually distinct from the orange reco
 type ToggleKey = "dragging" | "scrollWheelZoom" | "doubleClickZoom" | "boxZoom" | "keyboard" | "touchZoom" | "tap";
 
 const LIVE_DEFAULT_ZOOM = 16; // recenter/snap-back zoom for the live map
+// Full-screen lift: above the app chrome (bottom nav z-20) and a host modal's
+// own content, below ModalOverlay (z-2000) so a confirm still lands on top —
+// and below the tracker's z-1100 in-modal overlays (countdown, HR nudge).
+const EXPANDED_Z = 1000;
 
 export function RouteMap({ points = [], follow = false, interactive = true, location = null, className = "", style,
   endpoints = false, highlight = null, onPick, recenterSignal = 0, onFollowingChange,
-  guidePoints = null, guides, fitGuides = false, onGuidePick }: RouteMapProps) {
+  guidePoints = null, guides, fitGuides = false, onGuidePick,
+  expandable = false, onExpandedChange }: RouteMapProps) {
   const { t } = useTranslation();
   const onGuidePickRef = useRef(onGuidePick);
   useEffect(() => { onGuidePickRef.current = onGuidePick; });
+  const onExpandedChangeRef = useRef(onExpandedChange);
+  useEffect(() => { onExpandedChangeRef.current = onExpandedChange; });
+  const [expanded, setExpanded] = useState(false);
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const linesRef = useRef<Polyline[]>([]);
@@ -88,6 +103,8 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   const recenterMountedRef = useRef(false);           // skips the recenter effect's initial mount firing
   const followingRef = useRef(true);                 // nav-follow armed & not user-suspended
   const programmaticRef = useRef(false);             // guards our own setView from the gesture handler
+  const userMovedRef = useRef(false);                // the user has panned/zoomed: don't re-frame under them
+  const fitBoundsRef = useRef<PaddedBounds>(null);   // last framed route bounds, re-applied on resize
   const onFollowingChangeRef = useRef(onFollowingChange);
   useEffect(() => { onFollowingChangeRef.current = onFollowingChange; });
 
@@ -109,6 +126,28 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     map.setView(ll, zoom, { animate: false });
     programmaticRef.current = false;
   }, []);
+
+  // The one camera rule, shared by the track effect and the resize handler:
+  // while follow is armed keep the head centred at the user's zoom, otherwise
+  // frame the whole route. Reading `follow` off a ref keeps it callable from the
+  // ResizeObserver, which fires outside any render.
+  const followRef = useRef(follow);
+  useEffect(() => { followRef.current = follow; });
+  const applyCamera = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (followRef.current) {
+      if (followingRef.current && headRef.current)
+        programmaticSetView(headRef.current, Math.max(map.getZoom(), LIVE_DEFAULT_ZOOM));
+    } else if (fitBoundsRef.current) {
+      // Guard as programmatic: fitBounds changes zoom (fires `zoomstart`), which
+      // the gesture handler would otherwise read as a user pan and suspend follow
+      // — spuriously showing the recenter button on tracking→paused.
+      programmaticRef.current = true;
+      map.fitBounds(fitBoundsRef.current, { animate: false });
+      programmaticRef.current = false;
+    }
+  }, [programmaticSetView]);
 
   // Create the map once. Recreating it whenever interactivity changes would snap
   // the view back to the world map (it happened on every Start) — so interactive
@@ -151,7 +190,11 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const onGesture = () => { if (!programmaticRef.current) emitFollowing(false); };
+    const onGesture = () => {
+      if (programmaticRef.current) return;
+      userMovedRef.current = true;
+      emitFollowing(false);
+    };
     map.on("dragstart", onGesture);
     map.on("zoomstart", onGesture);
     return () => { map.off("dragstart", onGesture); map.off("zoomstart", onGesture); };
@@ -261,22 +304,39 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       if (head) place(dotRef, head, dot("#f97316")); else drop(dotRef);
     }
 
-    // Camera: while follow is armed AND not user-suspended, keep the head centred
-    // (preserving the user's zoom). Otherwise, when not in follow mode, frame the
-    // whole route. A user-suspended live map is left exactly where they put it.
-    if (follow) {
-      if (followingRef.current && head) programmaticSetView(head, Math.max(map.getZoom(), LIVE_DEFAULT_ZOOM));
-    } else if (segs.length) {
-      // Flattened only here — the fit branch is the only consumer, and spreading
-      // a whole track into a second array is a stack-overflow risk at scale.
-      // Guard as programmatic: fitBounds changes zoom (fires `zoomstart`), which
-      // the gesture handler would otherwise read as a user pan and suspend follow
-      // — spuriously showing the recenter button on tracking→paused.
+    // Camera (the rule itself lives in applyCamera). Bounds are computed only
+    // when they'll actually be used — flattening the whole track on every GPS fix
+    // would be pure waste on the hot path (and spreading one into a second array
+    // is a stack-overflow risk at scale).
+    if (!follow && segs.length) fitBoundsRef.current = L.latLngBounds(segs.flat()).pad(0.15);
+    applyCamera();
+  }, [points, follow, endpoints, applyCamera]);
+
+  // Leaflet caches the container size and refreshes it only on a WINDOW resize,
+  // so any layout change that resizes the map alone leaves it framing the route
+  // into a box that no longer exists — the tracker's panel growing when a run
+  // ends shrinks the map, and the fit computed against the taller box pushes the
+  // bottom of the track under the edge (top looks right, the last stretch is
+  // gone). Same story entering/leaving full screen. Watch the box itself.
+  useEffect(() => {
+    const el = elRef.current;
+    const map = mapRef.current;
+    if (!el || !map || typeof ResizeObserver === "undefined") return;
+    let w = el.clientWidth, h = el.clientHeight;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth === w && el.clientHeight === h) return;
+      w = el.clientWidth;
+      h = el.clientHeight;
       programmaticRef.current = true;
-      map.fitBounds(L.latLngBounds(segs.flat()).pad(0.15), { animate: false });
+      map.invalidateSize({ animate: false });
       programmaticRef.current = false;
-    }
-  }, [points, follow, endpoints, programmaticSetView]);
+      // Re-frame only a camera the user hasn't taken over — resizing under
+      // someone who panned to a corner shouldn't yank the view back.
+      if (!userMovedRef.current) applyCamera();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [applyCamera]);
 
   // Guide lines (suggested loops / planned line) — drawn in the low-z "guide"
   // pane so they read as background under any recorded track. Keyed on a cheap
@@ -406,6 +466,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     const map = mapRef.current;
     if (!map) return;
     if (!recenterMountedRef.current) { recenterMountedRef.current = true; return; }
+    userMovedRef.current = false;
     if (headRef.current) programmaticSetView(headRef.current, LIVE_DEFAULT_ZOOM);
     emitFollowing(true);
   }, [recenterSignal, emitFollowing, programmaticSetView]);
@@ -449,18 +510,48 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     }
   }, [location, points.length, programmaticSetView]);
 
+  // Full screen. The user's own pan/zoom is dropped on the way in and out so the
+  // new box gets a fresh frame of the route (that is the point of the gesture),
+  // and the resize handler above does the rest once the layout lands. Registered
+  // on the back/Escape stack so it pops before the modal hosting it.
+  const toggleExpanded = useCallback(() => {
+    userMovedRef.current = false;
+    setExpanded(v => !v);
+  }, []);
+  useEffect(() => { onExpandedChangeRef.current?.(expanded); }, [expanded]);
+  useDismissable(expanded, toggleExpanded);
+
   return (
     // `isolation: isolate` keeps Leaflet's internal z-indexes (panes up to 800,
     // controls at 1000) contained to this box. Without it they leak to the root
     // stacking context and can paint over a higher-level overlay — e.g. an inline
     // History map bleeding through the full-screen RunDetailModal (z-50).
-    <div className={className} style={{ position: "relative", isolation: "isolate", ...style }}>
-      <div ref={elRef} style={{ position: "absolute", inset: 0 }} />
-      {!MAP_KEY && (
-        <div className="absolute bottom-1 left-1 right-1 z-[400] text-[10px] text-amber-300 bg-slate-900/80 rounded px-1.5 py-0.5 pointer-events-none">
-          {t("tracker.map.noKey")}
-        </div>
-      )}
+    //
+    // Two boxes: the outer one holds the caller's size/rounding and STAYS in
+    // flow, so going full screen doesn't collapse the page behind it; the inner
+    // shell is what lifts to cover the viewport. The map element itself never
+    // moves in the DOM, so Leaflet survives the trip untouched — the
+    // ResizeObserver above is what tells it about the new box.
+    <div className={className}
+      style={{ position: "relative", isolation: "isolate", ...style, ...(expanded ? { zIndex: EXPANDED_Z } : null) }}>
+      <div style={expanded
+        ? { position: "fixed", inset: 0, background: "#0f172a" }
+        : { position: "absolute", inset: 0 }}>
+        <div ref={elRef} style={{ position: "absolute", inset: 0 }} />
+        {expandable && (
+          <button type="button" onClick={toggleExpanded}
+            aria-label={t(expanded ? "tracker.map.exitFullscreen" : "tracker.map.fullscreen")}
+            className="absolute right-2 z-[1100] flex items-center justify-center w-10 h-10 rounded-lg bg-slate-900/85 text-slate-200 border border-slate-700 shadow-lg active:scale-95 transition-transform"
+            style={{ top: expanded ? "calc(0.5rem + var(--safe-top))" : "0.5rem" }}>
+            {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          </button>
+        )}
+        {!MAP_KEY && (
+          <div className="absolute bottom-1 left-1 right-1 z-[400] text-[10px] text-amber-300 bg-slate-900/80 rounded px-1.5 py-0.5 pointer-events-none">
+            {t("tracker.map.noKey")}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

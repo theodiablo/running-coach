@@ -97,7 +97,9 @@
   },
   "map": {
     "noKey": "Map tiles need VITE_MAPTILER_KEY — route still records.",
-    "recenter": "Recenter on my position"
+    "recenter": "Recenter on my position",
+    "fullscreen": "Show the map full screen",
+    "exitFullscreen": "Leave full screen"
   },
   "hrTarget": {
     "addProfile": "Add your HR profile in Settings to see a target zone",

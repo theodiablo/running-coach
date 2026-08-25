@@ -40,7 +40,7 @@ function RouteMapLoader({run}: RouteMapLoaderProps) {
       {!run.routeId && (
         <p className="text-[11px] text-amber-400 text-center">{t("progress.history.pendingSync")}</p>
       )}
-      <RouteMap points={route.points} interactive className="h-56 rounded-xl overflow-hidden" style={{}}/>
+      <RouteMap points={route.points} interactive expandable className="h-56 rounded-xl overflow-hidden" style={{}}/>
     </>
   );
 }
