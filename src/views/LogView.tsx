@@ -93,8 +93,8 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
     addRuns([{
       // Everything the recorder or importer measured that this form can't edit
       // rides through untouched; the form's own values win. An allowlist here
-      // silently dropped extId (every cloud sync then reported "no new runs"),
-      // then hrCoverage and activity — carryPrefill ends that class of bug.
+      // silently dropped extId, and every cloud sync then reported "no new
+      // runs" — carryPrefill ends that class of bug.
       ...carryPrefill(prefill),
       ...runFormToPatch(f),
     }]);

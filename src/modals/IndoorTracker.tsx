@@ -163,8 +163,8 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
       // Same coverage guard as a run: a strap that dropped halfway leaves the
       // mean of whatever survived, and on this screen heart rate IS the session,
       // so quoting a fragment's average would misreport the whole thing. Below
-      // the threshold the samples still save (the detail chart draws them) and
-      // hrCoverage records how much was measured.
+      // the threshold the samples still save, and run detail recomputes the
+      // coverage from them to say why there is no average.
       if (coverage >= HR_MIN_COVERAGE) { hr = hrStats.hrAvg; hrMax = hrStats.hrMax; }
       else showToast?.(t("tracker.hr.partial", { pct: Math.round(coverage * 100) }), "err");
     }
@@ -195,9 +195,6 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
       source: "indoor",
       bestEfforts: {},
       ...(hr != null ? { hr, hrMax } : {}),
-      // How much of the session the sensor actually measured, so no surface has
-      // to guess whether the stored series is the whole thing or a fragment.
-      ...(hrSamples.length ? { hrCoverage: +coverage.toFixed(2) } : {}),
       // The HealthKit marker rides its own field: shipped Android clients strip
       // any hrPending whose source isn't "healthconnect" from the synced blob.
       ...(hrPending ? (hrPending.source === "healthkit" ? { hrPendingHk: hrPending } : { hrPending }) : {}),

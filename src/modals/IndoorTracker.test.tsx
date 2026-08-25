@@ -148,14 +148,13 @@ describe("IndoorTracker", () => {
     const saved = onFinish.mock.calls[0][0];
     expect(saved.hr).toBeUndefined();
     expect(saved.hrMax).toBeUndefined();
-    // The samples still save (the detail chart draws them) and the run records
-    // how much was actually measured.
+    // The samples still save — the detail chart draws them, and recomputes the
+    // coverage from them to say why there is no average.
     expect(saved.hrRouteId).toBe("route-1");
-    expect(saved.hrCoverage).toBeCloseTo(0.03, 2);   // 60s of 1800s
     expect(toast).toHaveBeenCalled();
   });
 
-  it("stamps full coverage when the strap ran the whole session", async () => {
+  it("claims the average when the strap ran the whole session", async () => {
     const onFinish = vi.fn();
     show(onFinish);
     start();
@@ -163,7 +162,11 @@ describe("IndoorTracker", () => {
     vi.setSystemTime(START + 1_800_000);
     finish();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
-    expect(onFinish.mock.calls[0][0].hrCoverage).toBeCloseTo(0.97, 2);
+    // The other side of the coverage guard: a stream that covered the session
+    // does get quoted as its heart rate.
+    const saved = onFinish.mock.calls[0][0];
+    expect(saved.hr).toBeGreaterThan(0);
+    expect(saved.hrMax).toBeGreaterThan(0);
   });
 
   it("records the machine the session was done on", async () => {

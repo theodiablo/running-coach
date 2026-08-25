@@ -100,15 +100,31 @@ describe("LogView", () => {
 describe("LogView save carries what the recorder measured", () => {
   const save = () => fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
-  it("keeps a strap-recorded run's HR coverage", () => {
+  it("keeps a tracked run's trace and measured efforts", () => {
     const addRuns = vi.fn();
     setup({ addRuns, prefill: {
       date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000,
-      source: "gps", routeId: "r1", hr: 150, hrMax: 172, hrCoverage: 0.94,
+      source: "gps", routeId: "r1", hr: 150, hrMax: 172,
+      bestEfforts: { "5k": 1200 }, startedAt: "2026-08-23T06:00:00.000Z",
     } });
     save();
     expect(addRuns).toHaveBeenCalledTimes(1);
-    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ hrCoverage: 0.94, routeId: "r1", source: "gps" });
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({
+      routeId: "r1", source: "gps", bestEfforts: { "5k": 1200 },
+      startedAt: "2026-08-23T06:00:00.000Z",
+    });
+  });
+
+  // The one that actually bit: a cloud import's workout key. Without it the run
+  // is invisible to the provider's knownKeys and every later sync re-lists it.
+  it("keeps a cloud import's workout key", () => {
+    const addRuns = vi.fn();
+    setup({ addRuns, prefill: {
+      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000,
+      source: "watch", extId: "suunto:123", notes: "Imported from Suunto",
+    } });
+    save();
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ extId: "suunto:123" });
   });
 
   // `activity` reaches the run through the FORM (it is seeded and re-emitted by
@@ -118,12 +134,12 @@ describe("LogView save carries what the recorder measured", () => {
     const addRuns = vi.fn();
     setup({ addRuns, prefill: {
       date: "2026-08-23", type: "OTHER", km: 0, durationSec: 2700,
-      source: "indoor", activity: "bike", hrRouteId: "h1", hrCoverage: 0.88, bestEfforts: {},
+      source: "indoor", activity: "bike", hrRouteId: "h1", bestEfforts: {},
     } });
     save();
-    const saved = addRuns.mock.calls[0][0][0];
-    expect(saved).toMatchObject({ type: "OTHER", activity: "bike", source: "indoor", hrRouteId: "h1" });
-    expect(saved.hrCoverage).toBe(0.88);
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({
+      type: "OTHER", activity: "bike", source: "indoor", hrRouteId: "h1",
+    });
   });
 
   it("still lets the form win over the prefill it was seeded from", () => {

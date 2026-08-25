@@ -1,15 +1,14 @@
 import type { Run } from "../types";
 
 // What a recorder or importer measured that the run form cannot edit — the GPS
-// trace reference, best efforts, HR coverage, import provenance — has to
-// survive the review step on its way to `addRuns`.
+// trace reference, best efforts, import provenance — has to survive the review
+// step on its way to `addRuns`.
 //
 // This used to be an allowlist of individual spreads in LogView, and a field
-// left off it was lost silently: `extId` went missing for every cloud import
-// (so each sync re-listed the same workout and reported "no new runs"), and
-// `hrCoverage` for every strap-recorded run and indoor session. Inverting it
-// means a new field on Run rides through by default, and only a field the form
-// OWNS has to be named.
+// left off it was lost silently: `extId` went missing for every cloud import,
+// so each sync re-listed the same workout and reported "no new runs". Inverting
+// it means a new field on Run rides through by default, and only a field the
+// form OWNS has to be named.
 //
 // `activity` is one of those: the form seeds it and clears it when the type
 // moves off OTHER, so an edited run can't keep claiming it was done on a bike.

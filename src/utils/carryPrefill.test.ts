@@ -14,9 +14,10 @@ describe("carryPrefill", () => {
     });
   });
 
-  // The field the old allowlist dropped, from both recorders.
-  it("carries hrCoverage, which the old allowlist dropped", () => {
-    expect(carryPrefill({ source: "gps", hrCoverage: 0.94 }).hrCoverage).toBe(0.94);
+  // A field nothing here has heard of still rides through — that is the point
+  // of inverting the allowlist, and what stops the next `extId`.
+  it("carries a field it was never told about", () => {
+    expect(carryPrefill({ source: "gps", somethingNew: 42 }).somethingNew).toBe(42);
   });
 
   it("leaves the fields the form owns to the form", () => {

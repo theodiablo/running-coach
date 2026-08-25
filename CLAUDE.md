@@ -373,11 +373,12 @@ changes.
   per-platform fields `hrPending` / `hrPendingHk` (see
   `docs/health-integrations.md`). `id` is generated in `addRuns` if absent;
   runs are kept sorted newest-first. Measured best efforts ride `bestEfforts`
-  (`{}` = measured, covers no standard distance; absent = never measured). A
-  live-HR run also carries `hrCoverage` (0..1 of its duration the stream
-  actually measured) — **below `HR_MIN_COVERAGE` it carries no `hr`/`hrMax` at
-  all**, because a dropped sensor's fragment mean is not the run's heart rate
-  and it would feed the coach, the zones and race predictions.
+  (`{}` = measured, covers no standard distance; absent = never measured).
+  **Below `HR_MIN_COVERAGE` a live-HR run carries no `hr`/`hrMax` at all**,
+  because a dropped sensor's fragment mean is not the run's heart rate and it
+  would feed the coach, the zones and race predictions; the raw samples still
+  save, and coverage is recomputed from them wherever it's needed rather than
+  stored on the run.
 - **Route:** `run_routes` row `{id, user_id, points, stats, created_at}`;
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form

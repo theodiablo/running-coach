@@ -133,13 +133,6 @@ export type Run = Record<string, unknown> & {
   // the synced blob by an old phone. Old clients ignore unknown fields, so the
   // iOS marker rides here untouched until the iPhone resolves it.
   hrPendingHk?: HrPending | null;
-  // Fraction (0..1) of this run's duration the stored HR series actually
-  // measured, stamped at save time from the raw samples. A dropped Bluetooth
-  // link leaves a fragment whose mean is not the run's heart rate, so below
-  // HR_MIN_COVERAGE the run carries no hr/hrMax at all and this is what tells
-  // the detail view why. Absent = never measured, or measured before the field
-  // existed; 1 = full coverage.
-  hrCoverage?: number;
   // Fastest contiguous 1K/5K/10K/half/marathon found inside this run's GPS
   // trace, in seconds, keyed by BestEffortKey (src/utils/bestEfforts.ts).
   // Extracted ONCE at save time, so every later PB comparison is an in-memory

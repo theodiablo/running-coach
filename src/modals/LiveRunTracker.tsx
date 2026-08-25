@@ -617,8 +617,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       // A dropped link leaves the mean of whatever fragment survived — a cooldown
       // walk's 85bpm stamped on a 70-minute session — and that number goes on to
       // feed the coach, the HR zones and race predictions. Below the threshold
-      // the samples are still stored (the detail chart draws them) and
-      // hrCoverage records how much of the run was measured.
+      // the samples are still stored, and run detail recomputes the coverage
+      // from them to say why there is no average.
       if (coverage >= HR_MIN_COVERAGE) { hr = hrStats.hrAvg; hrMax = hrStats.hrMax; }
       else showToast?.(t("tracker.hr.partial", { pct: Math.round(coverage * 100) }), "err");
     }
@@ -656,9 +656,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       ...(routeId ? { routeId } : {}),
       ...(routeTmp ? { routeTmp, routePending: true } : {}),
       ...(hr != null ? { hr, hrMax } : {}),
-      // How much of the run the sensor actually measured, so no surface has to
-      // guess whether a stored HR series is the whole run or a fragment.
-      ...(hrSamples.length ? { hrCoverage: +coverage.toFixed(2) } : {}),
       // HealthKit markers ride their own field: shipped Android clients clear
       // any hrPending whose source isn't "healthconnect" from the synced blob,
       // which would destroy an iPhone's deferred HR before it could resolve.

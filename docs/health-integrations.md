@@ -172,7 +172,7 @@ duration, capping each per-sample gap so a hole can't count as measured. The cap
 strap notifies at ~1-2Hz and sits on the floor, but `stats.hrSamples` is also
 written by the watch / HealthKit / GPX importers, whose series can legitimately
 be one sample a minute — a fixed 10s cap scored a perfectly continuous import at
-17% and called it a dropout. Below `HR_MIN_COVERAGE` `handleSave` stores the samples and the coverage but **no `hr`/`hrMax`**, and
+17% and called it a dropout. Below `HR_MIN_COVERAGE` `handleSave` stores the samples but **no `hr`/`hrMax`**, and
 toasts why. `RunDetailModal` re-derives coverage from the raw samples rather
 than the stored field, so runs recorded before it existed are labelled too.
 
