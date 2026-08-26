@@ -29,6 +29,9 @@ type DashboardProps = {
   skipSess: (weekNumber: number, sessionId: string) => void;
   openSettings: () => void;
   openCoach: (session?: null, source?: CoachSource) => void;
+  // Persists the one-time overdue coach explainer as shown (the hub owns the
+  // settings flag). Optional so a bare render — and the tests — need not pass it.
+  markCoachOverdueIntroSeen?: () => void;
   openRunDetail?: (run: Run) => void;
   // A run this account is recording on another device right now (live
   // sharing). Null whenever there is nothing to follow.
@@ -52,7 +55,7 @@ const OVERDUE_SHOWN = 3;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -88,6 +91,18 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     lastReportedOverdue = overdueCount;
     track("overdue_shown", {count: overdueCount});
   }, [overdueCount]);
+
+  // The first backlog an account ever sees carries a line on what the coach can
+  // do about it — the moment the capability is worth believing. Captured at
+  // mount so marking it seen can't yank the copy out from under the reader; the
+  // flag then keeps it from ever returning.
+  const [showOverdueCoachIntro] = useState(settings.coachOverdueIntroSeen === false);
+  useEffect(() => {
+    if (!showOverdueCoachIntro || !overdueCount) return;
+    markCoachOverdueIntroSeen?.();
+    // Fires once per mount at most, and the flag makes the next mount a no-op.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showOverdueCoachIntro, !!overdueCount]);
   const wkMon = weekStart(today);
   // Running kilometres only: a cross-training session's distance is not one
   // (docs/indoor-sessions.md), and these tiles are read as training volume.
@@ -219,6 +234,12 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
               <p className="text-xs text-slate-400 mt-0.5 leading-snug">{t("dashboard.overdue.subtitle")}</p>
             </div>
           </div>
+          {showOverdueCoachIntro && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-slate-900/60 p-3">
+              <CoachAvatar chip size={13} className="w-6 h-6 mt-0.5"/>
+              <p className="text-xs text-slate-400 leading-snug">{t("dashboard.overdue.coachIntro")}</p>
+            </div>
+          )}
           <div className="mt-3 space-y-2">
             {overdueShown.map(s => (
               <div key={s.id} className="flex items-center gap-2 rounded-xl bg-slate-800/70 px-3 py-2">

@@ -82,5 +82,11 @@
     "available": "Hay una nueva versión de Running Coach disponible.",
     "update": "Actualizar",
     "dismiss": "Descartar"
+  },
+  "coachmark": {
+    "title": "Tu entrenador está aquí",
+    "body": "Cuéntale qué ha pasado: una molestia, una semana perdida, un imprevisto. Te propondrá un ajuste de tu plan y tú lo aceptas antes de que cambie nada.",
+    "cta": "Entendido",
+    "dismiss": "Cerrar"
   }
 }

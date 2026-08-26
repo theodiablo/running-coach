@@ -459,6 +459,15 @@ changes.
   answer is GDPR health data — never persisted. Progress persists per-step via
   `onSaveProgress`, capped at the health step; clear `onboardStep`/`intent` on
   complete/skip, and set `onboarded: true` on any first-run completion/dismissal.
+- **One-time signposts are seeded `false`, and absent means never show.**
+  `coachIntroSeen` (the `Coachmark` pointing at the header's Coach pill) and
+  `coachOverdueIntroSeen` (the explainer on the first overdue card) are both
+  written `false` when onboarding completes and `true` once shown — so they only
+  ever reach accounts that onboarded after they shipped, and an existing runner
+  is never ambushed mid-training. Any future one-time hint follows this: seed at
+  onboarding, mark seen the moment it has been, and read `=== false`, never
+  `!flag`. Copy captured at mount (`Dashboard`) so persisting "seen" can't yank
+  it out from under the reader.
 - **One screen, one job.** `LogView` is the manual form (and, alone on its own
   screen, the file importer) — never a chooser: it is only reached once
   `RecordSheet` has settled *how*, so it offers no recorder. It accepts a

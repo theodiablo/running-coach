@@ -82,5 +82,11 @@
     "available": "A new version of Running Coach is available.",
     "update": "Update",
     "dismiss": "Dismiss"
+  },
+  "coachmark": {
+    "title": "Your coach lives here",
+    "body": "Tell it what happened — a niggle, a missed week, a schedule clash — and it'll suggest a change to your plan. You approve it before anything moves.",
+    "cta": "Got it",
+    "dismiss": "Dismiss"
   }
 }

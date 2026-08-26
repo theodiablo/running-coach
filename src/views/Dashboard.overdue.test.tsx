@@ -118,6 +118,65 @@ describe("Dashboard overdue card", () => {
     expect(shown()[1][1]).toEqual({count: 6});
   });
 
+  describe("first-backlog coach explainer", () => {
+    const INTRO = /Your coach can rebuild what's left/;
+    const withFlag = (coachOverdueIntroSeen: boolean | undefined) =>
+      ({raceDate: "", distanceKm: "", goalSec: "", coachOverdueIntroSeen} as unknown as SettingsState);
+
+    it("explains what the coach can do the first time a backlog appears", () => {
+      // The moment the capability is worth believing: there is now a problem it
+      // solves, on a card that already offers it.
+      renderDash(planOf([sess("missed", "2026-03-08")]), {settings: withFlag(false)});
+      expect(screen.getByText(INTRO)).toBeInTheDocument();
+    });
+
+    it("marks itself seen so it never returns", () => {
+      const mark = vi.fn();
+      renderDash(planOf([sess("missed", "2026-03-08")]), {
+        settings: withFlag(false), markCoachOverdueIntroSeen: mark,
+      });
+      expect(mark).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays put for the rest of the visit once shown", () => {
+      // Marking it seen writes straight back into the settings blob, which flows
+      // back down as a prop. The copy must survive that: the flag governs the
+      // NEXT mount, not the one the reader is looking at.
+      const plan = planOf([sess("missed", "2026-03-08")]);
+      const props = {
+        runs: [], plan, races: null, settings: withFlag(false),
+        goTab: vi.fn(), goProgress: vi.fn(), goLog: vi.fn(),
+        toggleSess: vi.fn(), skipSess: vi.fn(),
+        openSettings: vi.fn(), openCoach: vi.fn(), markCoachOverdueIntroSeen: vi.fn(),
+      } as unknown as React.ComponentProps<typeof Dashboard>;
+      const { rerender } = render(<Dashboard {...props}/>);
+      expect(screen.getByText(INTRO)).toBeInTheDocument();
+
+      rerender(<Dashboard {...props} settings={withFlag(true)}/>);
+      expect(screen.getByText(INTRO)).toBeInTheDocument();
+    });
+
+    it("says nothing once it has been shown", () => {
+      renderDash(planOf([sess("missed", "2026-03-08")]), {settings: withFlag(true)});
+      expect(screen.queryByText(INTRO)).toBeNull();
+    });
+
+    it("never appears for an account that onboarded before it existed", () => {
+      // Absent (not false) is the whole install base at ship time: a signpost
+      // that surprises a runner mid-training is worse than one they never see.
+      renderDash(planOf([sess("missed", "2026-03-08")]), {settings: withFlag(undefined)});
+      expect(screen.queryByText(INTRO)).toBeNull();
+    });
+
+    it("does not fire on a plan with nothing overdue", () => {
+      const mark = vi.fn();
+      renderDash(planOf([sess("future", "2026-03-12")]), {
+        settings: withFlag(false), markCoachOverdueIntroSeen: mark,
+      });
+      expect(mark).not.toHaveBeenCalled();
+    });
+  });
+
   it("uses forgiving wording — no shaming, no streak language", () => {
     renderDash(planOf([sess("missed", "2026-03-08")]));
     const card = screen.getByText("1 session still open").closest("div")!.parentElement!.parentElement!;
