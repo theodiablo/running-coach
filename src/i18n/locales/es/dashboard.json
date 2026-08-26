@@ -23,7 +23,9 @@
     "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o pide a tu entrenador que reajuste el plan.",
     "more_one": "1 más en tu plan",
     "more_other": "{{count}} más en tu plan",
-    "adjust": "Ajustar mi plan"
+    "adjust": "Ajustar mi plan",
+    "markedDone": "Sesión marcada como hecha",
+    "markedSkipped": "Sesión omitida"
   },
   "session": {
     "today": "Sesión de hoy",
@@ -33,7 +35,14 @@
     "skipTitle": "Omitir esta sesión",
     "startRun": "Empezar",
     "logIt": "Registrar",
-    "markDone": "Marcar hecha"
+    "markDone": "Marcar hecha",
+    "markDoneLocked": "Podrás marcarla el {{date}}. ¿La hiciste antes? Usa Registrar y así se guarda el entrenamiento.",
+    "confirm": {
+      "kicker": "Completada",
+      "done": "Bien, {{title}} está hecha.",
+      "skipped": "{{title}} omitida, no pasa nada.",
+      "meta": "{{date}} · sin registro"
+    }
   },
   "noPlan": "Aún no tienes plan de entrenamiento. ¿Empezamos?",
   "setUpPlan": "Configurar mi plan",
