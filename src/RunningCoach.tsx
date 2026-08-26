@@ -121,7 +121,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
-  const [tab,         setTab]         = useState("dash");
+  const [tab,         setTabState]    = useState("dash");
   const [runs,        setRuns]        = useState<Run[]>([]);
   const [plan,        setPlan]        = useState<Plan | null>(null);
   const [settings,    setSettings]    = useState<SettingsState>({
@@ -234,6 +234,23 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   useEffect(() => { runsRef.current = runs; }, [runs]);
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  const saveSettings = (s: SettingsState) => { setSettings(s); db.set(STORAGE_KEYS.SETTINGS, s); };
+  // The two one-time coach signposts are strictly "show once": each marks itself
+  // seen the moment it actually has been, so neither can come back on the next
+  // launch (or on another device — they ride the synced settings blob). The
+  // overdue explainer waits until it is really on screen (`useSeenOnScreen` in
+  // `Dashboard`); the coachmark is a full-screen overlay, so being on Home is
+  // enough.
+  const markCoachIntroSeen = () => saveSettings({...settings, coachIntroSeen: true});
+  // Every tab change goes through here, which is what spends the coachmark on
+  // the one exit it has no control over: the bottom nav sits at the header's
+  // z-20, above the pointer's z-10 dimmer, so a tab tap lands on it and unmounts
+  // the pointer without running `onDismiss`. Left unspent, the flag stays
+  // `false` and the dimmer comes back on every later Home visit and every launch.
+  const setTab = (next: string) => {
+    if (next !== "dash" && settings.coachIntroSeen === false) markCoachIntroSeen();
+    setTabState(next);
+  };
   const planRef = useRef(plan);
   useEffect(() => { planRef.current = plan; }, [plan]);
   // Latest watch-import scanner, refreshed each render so the long-lived boot /
@@ -524,7 +541,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   useEffect(() => {
     const goBack = (): boolean => {
       if (dismissTop()) return true;
-      if (tabRef.current !== "dash") { setTab("dash"); return true; }
+      // Raw setter: this listener is registered once, and going TO Home is the
+      // one tab change with nothing to spend (see `setTab`).
+      if (tabRef.current !== "dash") { setTabState("dash"); return true; }
       return false;
     };
     const onKey = (e: KeyboardEvent) => {
@@ -583,8 +602,6 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   }, [loading]);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
-  const saveSettings = (s: SettingsState) => { setSettings(s); db.set(STORAGE_KEYS.SETTINGS, s); };
-
   // Complete a cloud provider's OAuth return (a no-op on every normal load and
   // when the provider is unconfigured — gated on the state marker inside). On
   // success, flip the provider's enable flag on and scan straight away for
@@ -996,10 +1013,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     window.scrollTo(0, 0);
   };
   const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
-  // The two one-time coach signposts. Both are strictly "show once": each marks
-  // itself seen the moment it has been, so neither can come back on the next
-  // launch (or on another device — they ride the synced settings blob).
-  const markCoachIntroSeen = () => saveSettings({...settings, coachIntroSeen: true});
+  // The overdue explainer's half of the two one-time coach signposts; the
+  // coachmark's `markCoachIntroSeen` sits up with `setTab`, which spends it.
   const markCoachOverdueIntroSeen = () => saveSettings({...settings, coachOverdueIntroSeen: true});
   // A session-context object opens the coach about that session; a bare call
   // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape

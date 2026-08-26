@@ -24,8 +24,16 @@ describe("Coachmark", () => {
     ["Dismiss", "the close button"],
   ])("dismisses on %s", label => {
     const onDismiss = setup();
-    fireEvent.click(screen.getAllByRole("button", {name: label})[0]);
+    fireEvent.click(screen.getByRole("button", {name: label}));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers exactly one named dismiss control", () => {
+    // The dimmer duplicates the close button for anyone who can see it, so it
+    // stays out of the accessibility tree rather than announcing a second,
+    // indistinguishable "Dismiss".
+    setup();
+    expect(screen.getAllByRole("button", {name: "Dismiss"})).toHaveLength(1);
   });
 
   it("dismisses on Android back / Escape", () => {
@@ -39,8 +47,9 @@ describe("Coachmark", () => {
     // The whole design: the header (z-20) stays lit and tappable, so tapping the
     // Coach pill is a valid way to answer the pointer. A dimmer at or above z-20
     // would swallow that tap.
-    setup();
-    const dimmer = screen.getAllByRole("button", {name: "Dismiss"})[0];
+    const { container } = render(
+      <Coachmark title="t" body="b" cta="c" onDismiss={vi.fn()}/>);
+    const dimmer = container.querySelector("button[aria-hidden]")!;
     expect(dimmer.className).toContain("z-10");
     expect(screen.getByRole("dialog").className).toContain("z-30");
   });

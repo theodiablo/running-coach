@@ -168,6 +168,43 @@ describe("Dashboard overdue card", () => {
       expect(screen.queryByText(INTRO)).toBeNull();
     });
 
+    it("waits until it is really on screen before spending itself", () => {
+      // The card sits below the stat tiles and the next-session card, so a Home
+      // visit that never scrolled down would otherwise burn the one-time
+      // explainer without it ever being read.
+      const observed: Element[] = [];
+      let fire: (entries: {isIntersecting: boolean}[]) => void = () => {};
+      const disconnect = vi.fn();
+      vi.stubGlobal("IntersectionObserver", class {
+        constructor(cb: (entries: {isIntersecting: boolean}[]) => void) { fire = cb; }
+        observe(el: Element) { observed.push(el); }
+        disconnect = disconnect;
+        unobserve() {}
+        takeRecords() { return []; }
+        root = null; rootMargin = ""; thresholds = [];
+      });
+      try {
+        const mark = vi.fn();
+        renderDash(planOf([sess("missed", "2026-03-08")]), {
+          settings: withFlag(false), markCoachOverdueIntroSeen: mark,
+        });
+        expect(observed).toHaveLength(1);
+        expect(mark).not.toHaveBeenCalled();
+
+        fire([{isIntersecting: false}]);
+        expect(mark).not.toHaveBeenCalled();
+
+        fire([{isIntersecting: true}]);
+        expect(mark).toHaveBeenCalledTimes(1);
+
+        // Once spent, further intersections must not re-write the blob.
+        fire([{isIntersecting: true}]);
+        expect(mark).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("does not fire on a plan with nothing overdue", () => {
       const mark = vi.fn();
       renderDash(planOf([sess("future", "2026-03-12")]), {

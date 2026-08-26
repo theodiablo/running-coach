@@ -10,10 +10,10 @@ import { useDismissable } from "../hooks/useDismissable";
 // so the control being pointed at stays lit and still works — tapping it is a
 // perfectly good way to answer a pointer that says "your coach lives here".
 //
-// Dismissing is the ONLY exit (there is no timeout): the dimmer, the close
-// button, the CTA, and Android back / Escape via useDismissable all run
-// `onDismiss`, whose caller is expected to persist "seen" — a pointer that can
-// reappear is worse than one that was never shown.
+// The bottom nav shares that z-20, so a tab tap lands too and unmounts the
+// pointer without running `onDismiss`. Leaving Home therefore spends the flag
+// on the caller's side (`RunningCoach`) — a pointer that can reappear is worse
+// than one that was never shown.
 type CoachmarkProps = {
   title: string;
   body: string;
@@ -26,7 +26,10 @@ export function Coachmark({ title, body, cta, onDismiss }: CoachmarkProps) {
   useDismissable(true, onDismiss);
   return (
     <>
-      <button aria-label={t("app.coachmark.dismiss")} onClick={onDismiss}
+      {/* Redundant with the close button for anyone who can see the dimmer, so
+          it stays out of the accessibility tree rather than announcing a second
+          identical "Dismiss". */}
+      <button aria-hidden tabIndex={-1} onClick={onDismiss}
         className="fixed inset-0 z-10 w-full h-full bg-slate-950/60 cursor-default"/>
       <div role="dialog" aria-label={title}
         className="fixed right-3 z-30 w-60 bg-slate-800 border border-orange-500/40 rounded-2xl p-3.5 shadow-xl shadow-slate-950/50 animate-pop"
