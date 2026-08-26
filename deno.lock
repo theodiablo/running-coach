@@ -3450,6 +3450,7 @@
         "npm:@capacitor/core@^8.4.1",
         "npm:@capacitor/geolocation@^8.2.0",
         "npm:@capacitor/ios@^8.4.2",
+        "npm:@capacitor/local-notifications@^8.2.1",
         "npm:@eslint/js@^10.0.1",
         "npm:@fontsource/archivo@^5.2.8",
         "npm:@pianissimoproject/capacitor-health-connect@~0.7.1",
@@ -3492,7 +3493,8 @@
         },
         "xcode": {
           "uuid": "^11.1.1"
-        }
+        },
+        "nanoid": "^3.3.18"
       }
     }
   }

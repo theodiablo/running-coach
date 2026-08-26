@@ -10,7 +10,6 @@ import { mintPublishToken, readPublishToken, storePublishToken } from "../live/p
 import { enableLiveUpload, disableLiveUpload } from "../geo/liveUpload";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { useRunTracker } from "../hooks/useRunTracker";
-import { markRender } from "../diag/frameHeartbeat";
 import { useGuidedWorkout } from "../hooks/useGuidedWorkout";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
@@ -107,11 +106,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   const rt = useRunTracker({ hrMethod: effectiveHrMethod, stepText });
   const tracker = rt as Omit<typeof rt, "location"> & { location: LocationPreview | null };
   const { state, points, stats, error, pending, location } = tracker;
-  // Diagnostics: stamps every render of this component, so a report can say
-  // whether React is still re-rendering while the numbers on screen are frozen
-  // (see src/diag/frameHeartbeat.ts). One assignment to a module-level number —
-  // not observable state, so a discarded or double-invoked render costs nothing.
-  markRender();
   const [busy, setBusy] = useState(false);
   // ── Guided workout (premium) ─────────────────────────────────────────────
   // The sign-in entitlement read can be stale (offline, or predating a grant),
@@ -626,8 +620,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       // A dropped link leaves the mean of whatever fragment survived — a cooldown
       // walk's 85bpm stamped on a 70-minute session — and that number goes on to
       // feed the coach, the HR zones and race predictions. Below the threshold
-      // the samples are still stored (the detail chart draws them) and
-      // hrCoverage records how much of the run was measured.
+      // the samples are still stored, and run detail recomputes the coverage
+      // from them to say why there is no average.
       if (coverage >= HR_MIN_COVERAGE) { hr = hrStats.hrAvg; hrMax = hrStats.hrMax; }
       else showToast?.(t("tracker.hr.partial", { pct: Math.round(coverage * 100) }), "err");
     }
@@ -665,9 +659,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       ...(routeId ? { routeId } : {}),
       ...(routeTmp ? { routeTmp, routePending: true } : {}),
       ...(hr != null ? { hr, hrMax } : {}),
-      // How much of the run the sensor actually measured, so no surface has to
-      // guess whether a stored HR series is the whole run or a fragment.
-      ...(hrSamples.length ? { hrCoverage: +coverage.toFixed(2) } : {}),
       // HealthKit markers ride their own field: shipped Android clients clear
       // any hrPending whose source isn't "healthconnect" from the synced blob,
       // which would destroy an iPhone's deferred HR before it could resolve.

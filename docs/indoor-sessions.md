@@ -105,8 +105,7 @@ the same reasons. Keep the two in step — every rule in
   run: with no location service, backgrounding freezes JS immediately, so the
   journal is the only record of that stretch.
 - The **coverage guard** applies unchanged: below `HR_MIN_COVERAGE` the session
-  keeps its raw samples but claims no `hr`/`hrMax`, stamps `hrCoverage`, and
-  toasts. On this screen heart rate *is* the session, so quoting a dropped
+  keeps its raw samples but claims no `hr`/`hrMax`, and toasts. On this screen heart rate *is* the session, so quoting a dropped
   strap's fragment would misreport the whole thing rather than one field of it.
 
 Note the asymmetry in `useRunTracker`: the Android **fix** journal is

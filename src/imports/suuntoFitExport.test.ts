@@ -1,13 +1,11 @@
 import { describe, it, expect } from "vitest";
-// The FIT-export endpoint calibration is server-side (suunto-import runs the
-// ladder), but the ordering and the "is this really a FIT?" check are pure —
-// and they're what stands between a working import and the silent
-// summary-only degradation that shipped, so they're tested here.
-import { FIT_VARIANTS, fitVariantAuth, fitVariantPath, fitVariantsToTry, looksLikeFit }
+// The FIT download itself is server-side (suunto-import), but the export path
+// and the "is this really a FIT?" check are pure — and they're what stands
+// between a working import and the silent summary-only degradation that
+// shipped, so they're tested here.
+import { fitMissIsTerminal, fitPath, looksLikeFit }
   // @ts-expect-error — plain ESM module shared with the Supabase edge function.
   from "../../supabase/functions/_shared/suunto/fitExport.mjs";
-
-type Variant = { id: string };
 
 const fitBytes = (sig = ".FIT") => {
   const b = new Uint8Array(20);
@@ -15,40 +13,43 @@ const fitBytes = (sig = ".FIT") => {
   return b;
 };
 
-describe("suunto FIT export variants", () => {
-  it("leads with the documented v3 route, keeping the older shapes as the net", () => {
-    // The FIT export lives on a different API VERSION and path shape from the
-    // workout listing (`/v2/workouts`) this function pages — extrapolating one
-    // from the other is what produced the 401 that degraded every import.
-    const urls = FIT_VARIANTS.map((v: Variant) => `${fitVariantPath(v, "abc")} | ${fitVariantAuth(v, "tok")}`);
-    expect(urls).toEqual([
-      "/v3/workouts/abc/fit | Bearer tok",
-      "/v3/workouts/abc/fit | tok",
-      "/v2/workout/exportFit/abc | Bearer tok",
-    ]);
+describe("suunto FIT export", () => {
+  it("uses the documented v3 export route", () => {
+    // A different API version and path shape from the workout listing —
+    // extrapolating one from the other is what produced the 401 that degraded
+    // every import to summary-only.
+    expect(fitPath("abc")).toBe("/v3/workouts/abc/fit");
   });
 
   it("escapes the workout key", () => {
-    expect(fitVariantPath(FIT_VARIANTS[0], "a/b?c")).toBe("/v3/workouts/a%2Fb%3Fc/fit");
-  });
-
-  it("tries every candidate before calibration, in most-likely-first order", () => {
-    expect(fitVariantsToTry("").map((v: Variant) => v.id)).toEqual(FIT_VARIANTS.map((v: Variant) => v.id));
-    expect(fitVariantsToTry("nonsense").map((v: Variant) => v.id)).toEqual(FIT_VARIANTS.map((v: Variant) => v.id));
-  });
-
-  it("puts a calibrated variant first, keeping the rest as the net", () => {
-    const order = fitVariantsToTry("v2-exportfit").map((v: Variant) => v.id);
-    expect(order[0]).toBe("v2-exportfit");
-    expect([...order].sort()).toEqual(FIT_VARIANTS.map((v: Variant) => v.id).sort());
+    expect(fitPath("a/b?c")).toBe("/v3/workouts/a%2Fb%3Fc/fit");
   });
 
   it("only accepts a body that really is a FIT", () => {
-    // A 2xx alone must never calibrate the endpoint: an APIM notice or a JSON
-    // error page would be remembered as the export path forever.
+    // A 2xx alone means nothing: an APIM notice or a JSON error page arrives
+    // as 200 too, and importing one as a trace is worse than no trace.
     expect(looksLikeFit(fitBytes())).toBe(true);
     expect(looksLikeFit(fitBytes("JSON"))).toBe(false);
     expect(looksLikeFit(new Uint8Array(4))).toBe(false);
     expect(looksLikeFit(null)).toBe(false);
+  });
+
+  // A terminal miss makes the client import the run summary-only, and a
+  // summary-only import never heals — its key is behind the cursor. So the one
+  // failure that must never be terminal is the one a WRONG route produces for
+  // every workout alike.
+  it("only calls a 404/410 terminal once the route has served a FIT", () => {
+    expect(fitMissIsTerminal(404, false)).toBe(false);
+    expect(fitMissIsTerminal(410, false)).toBe(false);
+    expect(fitMissIsTerminal(404, true)).toBe(true);
+    expect(fitMissIsTerminal(410, true)).toBe(true);
+  });
+
+  it("never calls anything but a hard miss terminal", () => {
+    // 401/403/429/5xx are the endpoint or the quota talking, not the workout —
+    // terminal there is exactly the failure that shipped.
+    for (const status of [0, 401, 403, 429, 500, 502]) {
+      expect(fitMissIsTerminal(status, true)).toBe(false);
+    }
   });
 });

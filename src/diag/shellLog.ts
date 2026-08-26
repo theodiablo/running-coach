@@ -3,7 +3,6 @@ import { isAndroid, nativeBuildLabel, platform } from "../native";
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { getTrackLog, isGeoDebugEnabled } from "../geo/trackLog";
-import { renderAgeMs, tickAgeMs } from "./frameHeartbeat";
 
 // Reads the shell diagnostics the Android side records (ShellDiagLog.kt) — the
 // half of the story the JS GPS log cannot tell.
@@ -108,12 +107,6 @@ function findLast(events: ShellDiagEvent[], match: (e: ShellDiagEvent) => boolea
 
 // ── filing a report ────────────────────────────────────────────────────────
 
-function clientState(): string {
-  const vis = typeof document !== "undefined" ? document.visibilityState : "?";
-  const ms = (v: number | null) => (v == null ? "never" : v + "ms");
-  return `renderAge=${ms(renderAgeMs())} tickAge=${ms(tickAgeMs())} visibilityState=${vis}`;
-}
-
 /**
  * File the current diagnostics to `shell_diagnostics`, so a session that went
  * wrong can be read afterwards instead of reconstructed from memory.
@@ -125,18 +118,22 @@ function clientState(): string {
  * accuracy radius, drop reason) but no coordinates.
  *
  * Best-effort in every direction: signed out, offline or a missing table all
- * resolve false rather than throwing at a caller who is already dealing with a
- * failure.
+ * resolve a reason rather than throwing at a caller who is already dealing with
+ * a failure. The reason is returned rather than a bare false because the manual
+ * Send button reports it to whoever pressed it, and "offline" and "the log is
+ * not armed" send them looking in completely different places.
  */
-export async function fileShellReport(note?: string): Promise<boolean> {
-  if (!isGeoDebugEnabled()) return false;
+export type FileReportResult = "sent" | "not-armed" | "signed-out" | "empty" | "failed";
+
+export async function fileShellReport(note?: string): Promise<FileReportResult> {
+  if (!isGeoDebugEnabled()) return "not-armed";
   const user_id = currentUserId();
-  if (!user_id) return false;
+  if (!user_id) return "signed-out";
   try {
     const report = await readShellLog();
     // Nothing to say and nothing to correlate it with — don't file an empty row.
     const track = getTrackLog();
-    if (!report.events.length && !track.length) return false;
+    if (!report.events.length && !track.length) return "empty";
     const { error } = await supabase.from("shell_diagnostics").insert({
       user_id,
       platform,
@@ -145,96 +142,11 @@ export async function fileShellReport(note?: string): Promise<boolean> {
       verdict: report.verdict || null,
       events: report.events,
       track,
-      // The client-side half of the picture, carried on `note` so it needs no
-      // schema change mid-incident: which layer above painting had stopped.
-      // A stale renderAge and a stale tickAge mean different things and need
-      // different fixes — see src/diag/frameHeartbeat.ts.
-      note: [note, clientState()].filter(Boolean).join(" | "),
+      note: note || null,
     });
-    return !error;
+    return error ? "failed" : "sent";
   } catch {
-    return false;
+    return "failed";
   }
 }
 
-// Newest native event timestamp already filed, so a return to the foreground
-// with nothing new to say doesn't file a duplicate every time the screen wakes.
-const LAST_FILED_KEY = "rc_shell_diag_filed_at";
-const readLastFiled = (): number => {
-  try { return Number(localStorage.getItem(LAST_FILED_KEY)) || 0; } catch { return 0; }
-};
-const writeLastFiled = (at: number) => {
-  try { localStorage.setItem(LAST_FILED_KEY, String(at)); } catch { /* non-fatal */ }
-};
-
-async function fileIfNew(reason: string): Promise<void> {
-  // Gated HERE, before the bridge call. `readShellLog` is a real IPC round-trip
-  // into the shell (SharedPreferences read + JSON of up to 80 events), and
-  // ungated it ran on every Android install, on every foreground and once a
-  // minute — including mid-run — for people who have never opened the developer
-  // log. Still re-read per attempt rather than captured at arm time, so
-  // enabling the log mid-session takes effect immediately (see below).
-  if (!isGeoDebugEnabled()) return;
-  const report = await readShellLog();
-  const newest = report.events.reduce((max, e) => (e.at > max ? e.at : max), 0);
-  // `<=` and not `newest && <=`: an EMPTY native log must stop here too. Off
-  // Android (and after the panel's Clear) `newest` is 0 forever, so the old
-  // guard never fired, `writeLastFiled(0)` never moved the watermark, and
-  // `fileShellReport` still filed on a non-empty GPS track — an iOS or web user
-  // with the developer log on inserted a row every 60 seconds, indefinitely.
-  // These automatic filers trigger on native lifecycle events, so no native
-  // event means nothing to file; the manual path from ConnectionsCard still
-  // files a GPS-only report on every platform.
-  if (newest <= readLastFiled()) return;
-  if (await fileShellReport(reason)) writeLastFiled(newest);
-}
-
-/**
- * Arm automatic filing. Nothing to press, and nothing to remember to press —
- * the whole point is that the report exists for a failure nobody was expecting.
- *
- * Three triggers, covering the ways a session ends badly:
- *
- *  • **Boot.** Whatever killed the last session is by definition no longer
- *    running, and the native log is sitting there describing it. This is the
- *    one that catches a killed process and (since a background renderer death
- *    now forces a relaunch on the next foreground) a reclaimed renderer too.
- *  • **Return to the foreground.** Catches the case where nothing was killed
- *    at all — the app came back by itself — which is a different bug and needs
- *    to be told apart from the other two rather than going unreported.
- *  • **A 60s timer**, which is the only one that survives a page that never
- *    learns it is visible again — see the comment on it below.
- *
- * Gated on the hidden developer log, deduped on the newest native event, and
- * best-effort throughout. Returns its own teardown.
- */
-export function armShellReporting(): () => void {
-  // Deliberately NOT gated here — `fileIfNew` re-reads the flag on every attempt
-  // instead. Arming on the boot-time value meant enabling the developer log
-  // mid-session did nothing until the next restart, which is exactly the moment
-  // someone reaches for it: the app has just misbehaved and the evidence is
-  // sitting on the device unsent. The listener and the timer themselves cost
-  // nothing while the flag is off, because every attempt returns at line one.
-  void fileIfNew("auto: app boot").catch(() => { /* best-effort */ });
-  const onVisible = () => {
-    if (document.visibilityState !== "visible") return;
-    void fileIfNew("auto: returned to foreground").catch(() => { /* best-effort */ });
-  };
-  document.addEventListener("visibilitychange", onVisible);
-  // A timer as well, and it is not belt-and-braces — it is the only trigger that
-  // survives the bug being investigated. `visibilitychange` is exactly the event
-  // a WebView that has not noticed it is on screen fails to deliver, so a report
-  // about that failure would never be sent: the instrument was blind to its own
-  // subject. Safe to lean on because a backgrounded WebView keeps executing
-  // while a foreground service holds the process (docs/live-tracking.md), and
-  // cheap because fileIfNew sends nothing when the native log hasn't moved.
-  const poll = setInterval(() => {
-    void fileIfNew("auto: periodic").catch(() => { /* best-effort */ });
-  }, SHELL_REPORT_POLL_MS);
-  return () => {
-    document.removeEventListener("visibilitychange", onVisible);
-    clearInterval(poll);
-  };
-}
-
-const SHELL_REPORT_POLL_MS = 60_000;

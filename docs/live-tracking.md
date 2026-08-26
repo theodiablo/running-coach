@@ -145,8 +145,10 @@ observation, which arrived after the fixes above had been attempted, is that the
 *map keeps panning and redrawing* through the whole stale stretch. Leaflet writes
 to the DOM imperatively, outside React, so a moving map is direct proof that the
 compositor is drawing and touch is being delivered. Whatever stalls sits *above*
-painting: React not committing, or the tracker's 1s tick not firing.
-`src/diag/frameHeartbeat.ts` measures exactly those two.
+painting: React not committing, or the tracker's 1s tick not firing. (A
+`frameHeartbeat` module measured exactly those two while this was open; it was
+removed once the trigger below was found, and is worth restoring from git
+history if a freeze is ever reported again.)
 
 ### The trigger was not in this app
 
@@ -170,8 +172,9 @@ Three rules fall out of this, and all are cheap:
   picture is stale — the opposite conclusion from the obvious one.
 - **Measure the layer before fixing it.** Painting, React committing and the
   tracker tick all present as one frozen screen and need different fixes. Four
-  rounds went to fixes for a layer that was never measured; `renderAge`/`tickAge`
-  in the report's `note` settle it in one line.
+  rounds went to fixes for a layer that was never measured. `frameHeartbeat`
+  measured the two that can actually stall and is in git history (see above) —
+  restore it before attempting a fix, rather than guessing again.
 - **A renderer reclaim is not memory pressure.** The one `renderer-gone` in that
   capture carried `avail=3329MB total=7503MB low=false`. Sizing fixes around the
   low-memory killer was reasoning from an assumption the data does not support.

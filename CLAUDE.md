@@ -21,8 +21,10 @@ their findings yourself — parallel agents editing overlapping files conflict.
 Always re-verify a finding before acting on it; agents report false positives.
 
 ## Setup & commands
-- `npm install` first in a fresh checkout (a SessionStart hook does it for you
-  in web sessions); everything below fails with module-not-found until you do.
+- `./scripts/setup-env.sh` first in a fresh checkout — npm deps (via `npm ci`,
+  so patch-package starts from pristine packages) plus Deno, which
+  `typecheck:supabase` needs. A SessionStart hook runs it in web sessions, and
+  it is what a cloud environment's setup script should point at. Idempotent.
 - `npm run dev` — Vite dev server.
 - `npm test` — Vitest (run mode); `npm run test:watch` for watch. Suite lives
   in `src/**/*.test.{ts,tsx}`.
@@ -183,8 +185,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   ids prefixed `past-`, renumbered across the join) and re-stamps the rest **by
   calendar date, never by session id** — ids name a grid slot, not a day.
   A week that has elapsed is therefore a real thing in `plan.weeks`;
-  `isElapsedWeek` (`src/utils/plan.ts`, server twin
-  `_shared/coach/weeks.mjs`) is the one definition, and the past is read-only
+  `isElapsedWeek` (`_shared/coach/weeks.mjs`, wrapped for
+  Date-taking callers by `src/utils/plan.ts`) is the one definition, and the past is read-only
   everywhere downstream: the coach's tools refuse it, its load rules never
   report against it, and only the trailing 2 weeks of it reach the model.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
@@ -277,9 +279,7 @@ Always re-verify a finding before acting on it; agents report false positives.
   frozen-recorder bug that cost four rounds turned out to be an Android System
   WebView regression, a Play-updated system app that changes underneath a build
   that hasn't, and every fix aimed at the shell missed because the app was never
-  what broke. `src/diag/frameHeartbeat.ts` measures the two layers that can
-  actually stall (React committing, the tracker's 1s tick) before anything is
-  attempted.
+  what broke. Establish WHICH layer stalled before attempting a fix.
 - **Backgrounded Android may run no JS** when nothing holds the process (a
   strapless indoor session). Once the app leaves the foreground the
   WebView's task queues are frozen — a native bridge callback does not wake it,
@@ -300,8 +300,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   being reclaimed. Detail: `docs/live-tracking.md`.
 - **Shell diagnostics** (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) record what
   died — renderer, process, or nothing — because the JS logs stop identically in
-  all three. Always on natively; filed to `shell_diagnostics` only with the
-  hidden developer log enabled.
+  all three. Always on natively; filed to `shell_diagnostics` only from the
+  developer log's Send button, never automatically.
 - **A notification that re-posts must not rebuild its `PendingIntent`.** Cache
   it and use `FLAG_UPDATE_CURRENT`: `FLAG_CANCEL_CURRENT` invalidates the record
   every holder points at, SystemUI included, so a re-posting notification
@@ -373,11 +373,12 @@ changes.
   per-platform fields `hrPending` / `hrPendingHk` (see
   `docs/health-integrations.md`). `id` is generated in `addRuns` if absent;
   runs are kept sorted newest-first. Measured best efforts ride `bestEfforts`
-  (`{}` = measured, covers no standard distance; absent = never measured). A
-  live-HR run also carries `hrCoverage` (0..1 of its duration the stream
-  actually measured) — **below `HR_MIN_COVERAGE` it carries no `hr`/`hrMax` at
-  all**, because a dropped sensor's fragment mean is not the run's heart rate
-  and it would feed the coach, the zones and race predictions.
+  (`{}` = measured, covers no standard distance; absent = never measured).
+  **Below `HR_MIN_COVERAGE` a live-HR run carries no `hr`/`hrMax` at all**,
+  because a dropped sensor's fragment mean is not the run's heart rate and it
+  would feed the coach, the zones and race predictions; the raw samples still
+  save, and coverage is recomputed from them wherever it's needed rather than
+  stored on the run.
 - **Route:** `run_routes` row `{id, user_id, points, stats, created_at}`;
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form
@@ -391,7 +392,10 @@ changes.
   self-explanatory. When one is genuinely needed (a non-obvious constraint,
   invariant, or workaround), one line max. Going longer to document a truly
   unclear trade-off should be rare, and points at `docs/` for anything
-  architectural rather than restating it inline.
+  architectural rather than restating it inline. **Keep the constraint, drop the
+  story**: how a bug was found, what a user did, how many rounds it took belong
+  in the commit message, not above the fix. If a comment needs a paragraph, the
+  paragraph goes in `docs/` and the comment is the one line that links it.
 - **French and Spanish copy:** French uses informal `tu` (app copy in
   `src/i18n/`); `vous` is for surfaces read by people who aren't users yet —
   marketing (`docs/marketing.md`) and the public live-run watch page

@@ -67,8 +67,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
       // series and the time-in-zone card agree (a sparse GPS trace could otherwise
       // hide the chart line while the zone card still rendered).
       hasHr: !!(hrSamples && hrSamples.length),
-      // Derived from the samples rather than read off run.hrCoverage so runs
-      // saved before the field existed get the same honesty.
+      // Always derived from the samples, so it can't go stale against them.
       coverage: hrCoverage(hrSamples, run.durationSec || 0),
       hasElev: series.some(r => r.elevM != null),
     };

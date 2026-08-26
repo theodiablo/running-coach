@@ -1,12 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { armShellReporting, verdictFor, type ShellDiagEvent } from "./shellLog";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fileShellReport, verdictFor, type ShellDiagEvent } from "./shellLog";
 
 const h = vi.hoisted(() => ({
   isAndroid: true,
+  userId: "u1" as string | null,
   nativeEvents: [] as { at: number; kind: string; detail?: string }[],
   geoDebug: true,
   trackLog: [] as unknown[],
-  insert: vi.fn(async () => ({ error: null })),
+  insert: vi.fn(async (): Promise<{ error: { message: string } | null }> => ({ error: null })),
   getEvents: vi.fn(),
 }));
 
@@ -22,7 +23,7 @@ vi.mock("../native", () => ({
   nativeBuildLabel: () => "1.14.0",
 }));
 vi.mock("../supabase", () => ({ supabase: { from: () => ({ insert: h.insert }) } }));
-vi.mock("../db", () => ({ currentUserId: () => "u1" }));
+vi.mock("../db", () => ({ currentUserId: () => h.userId }));
 vi.mock("../geo/trackLog", () => ({
   getTrackLog: () => h.trackLog,
   isGeoDebugEnabled: () => h.geoDebug,
@@ -100,71 +101,39 @@ describe("verdictFor", () => {
   });
 });
 
-describe("armShellReporting", () => {
+// The Send button in the developer log reports this result to whoever pressed
+// it, so each way of not sending has to be distinguishable. A single "couldn't
+// send — offline, or nothing to report" sent the reader looking for a network
+// problem when the log was simply not armed.
+describe("fileShellReport", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    h.isAndroid = true;
     h.geoDebug = true;
-    h.nativeEvents = [];
+    h.userId = "u1";
+    h.nativeEvents = [{ at: 1, kind: "background" }];
     h.trackLog = [];
     h.insert.mockClear();
-    h.getEvents.mockClear();
-    localStorage.clear();
-  });
-  afterEach(() => { vi.useRealTimers(); });
-
-  const settle = async () => { await vi.advanceTimersByTimeAsync(0); };
-  const minute = async () => { await vi.advanceTimersByTimeAsync(60_000); };
-
-  // The bug: the dedupe watermark was skipped whenever the native log was empty
-  // (`newest && …`), which is the permanent state off Android and the state
-  // after the panel's Clear. `fileShellReport` still filed on a non-empty GPS
-  // track, and `writeLastFiled(0)` never moved the watermark — so an iOS or web
-  // user who turned the developer log on inserted a row every 60 seconds, for as
-  // long as the app stayed open.
-  it("does not file on a loop when there is no native log to dedupe on", async () => {
-    h.isAndroid = false;          // iOS or web: readShellLog always returns []
-    h.trackLog = [{ at: 1, kind: "fix" }]; // …but the GPS log has content
-    const disarm = armShellReporting();
-    await settle();
-    for (let i = 0; i < 5; i++) await minute();
-    disarm();
-    expect(h.insert).not.toHaveBeenCalled();
+    h.insert.mockImplementation(async () => ({ error: null }));
   });
 
-  // Non-vacuity: the guard above must not have switched automatic filing off.
-  it("still files once when a native event has landed, and not again", async () => {
-    h.nativeEvents = [{ at: 1_700_000_000_000, kind: "background", detail: "saver=false" }];
-    const disarm = armShellReporting();
-    await settle();
+  it("files a report and says so", async () => {
+    await expect(fileShellReport("manual")).resolves.toBe("sent");
     expect(h.insert).toHaveBeenCalledTimes(1);
-    for (let i = 0; i < 3; i++) await minute();
-    expect(h.insert).toHaveBeenCalledTimes(1); // nothing new happened natively
-    h.nativeEvents = [...h.nativeEvents, { at: 1_700_000_060_000, kind: "foreground" }];
-    await minute();
-    expect(h.insert).toHaveBeenCalledTimes(2);
-    disarm();
   });
 
-  // The developer-log flag has to be read before the bridge call, not after:
-  // `readShellLog` is IPC into the shell, and it was running on every Android
-  // install every 60s regardless of the flag.
-  it("makes no bridge call at all while the developer log is off", async () => {
+  it("names the unarmed log rather than blaming the network", async () => {
     h.geoDebug = false;
-    h.nativeEvents = [{ at: 1_700_000_000_000, kind: "background" }];
-    const disarm = armShellReporting();
-    await settle();
-    await minute();
-    disarm();
-    expect(h.getEvents).not.toHaveBeenCalled();
+    await expect(fileShellReport()).resolves.toBe("not-armed");
     expect(h.insert).not.toHaveBeenCalled();
   });
 
-  it("does make the bridge call once the log is on", async () => {
-    h.nativeEvents = [{ at: 1_700_000_000_000, kind: "background" }];
-    const disarm = armShellReporting();
-    await settle();
-    disarm();
-    expect(h.getEvents).toHaveBeenCalled();
+  it("distinguishes signed out, nothing to file, and a rejected insert", async () => {
+    h.userId = null;
+    await expect(fileShellReport()).resolves.toBe("signed-out");
+    h.userId = "u1";
+    h.nativeEvents = [];
+    await expect(fileShellReport()).resolves.toBe("empty");
+    h.nativeEvents = [{ at: 1, kind: "background" }];
+    h.insert.mockImplementation(async () => ({ error: { message: "nope" } }));
+    await expect(fileShellReport()).resolves.toBe("failed");
   });
 });

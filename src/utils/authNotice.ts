@@ -1,14 +1,8 @@
-// The seam between App.tsx, which processes auth callbacks (deep link on
-// native, URL params on web), and RunningCoach, which owns the only toast.
-//
-// It is a buffered event, not a bare one, because a callback can be processed
-// before anything is listening: a deep link that COLD-STARTS the app is handled
-// from getLaunchUrl while the store is still loading and RunningCoach has yet to
-// mount. A plain dispatch would be swallowed there, which is precisely the
-// "I tapped the link and the app said nothing" failure this exists to fix. So
-// the notice is parked, then drained by whoever gets there first: a live
-// listener drains it synchronously inside emitAuthNotice, and a late-mounting
-// host drains it on mount.
+// Carries auth-callback feedback from App.tsx to RunningCoach, which owns the
+// only toast. BUFFERED, because a deep link that cold-starts the app is handled
+// before RunningCoach mounts and a bare dispatch would be swallowed: the notice
+// is parked, then drained by whichever arrives first — a live listener inside
+// emitAuthNotice, or a late mount.
 export const AUTH_NOTICE_EVENT = "rc-auth-notice";
 
 export type AuthNotice = { key: string; type: "ok" | "err"; vars?: Record<string, string> };
@@ -20,16 +14,13 @@ export function emitAuthNotice(key: string, type: "ok" | "err" = "ok", vars?: Re
   window.dispatchEvent(new Event(AUTH_NOTICE_EVENT));
 }
 
-// Park WITHOUT dispatching — for a notice aimed at a host that is about to be
-// REMOUNTED (App's store-refresh remount): a live dispatch would be drained by
-// the outgoing instance, whose toast dies with it. The incoming mount drains
-// the parked notice instead.
+// Park WITHOUT dispatching, for a host about to be remounted: a live dispatch
+// would be drained by the outgoing instance, whose toast dies with it.
 export function parkAuthNotice(key: string, type: "ok" | "err" = "ok", vars?: Record<string, string>) {
   pending = { key, type, vars };
 }
 
-// Consumes the parked notice, if any. One consumption path for both timings, so
-// a notice can never be shown twice.
+// One consumption path for both timings, so a notice can't be shown twice.
 export function takeAuthNotice(): AuthNotice | null {
   const notice = pending;
   pending = null;
