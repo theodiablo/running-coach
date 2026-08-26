@@ -1,12 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { verdictFor, type ShellDiagEvent } from "./shellLog";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fileShellReport, verdictFor, type ShellDiagEvent } from "./shellLog";
 
 const h = vi.hoisted(() => ({
   isAndroid: true,
+  userId: "u1" as string | null,
   nativeEvents: [] as { at: number; kind: string; detail?: string }[],
   geoDebug: true,
   trackLog: [] as unknown[],
-  insert: vi.fn(async () => ({ error: null })),
+  insert: vi.fn(async (): Promise<{ error: { message: string } | null }> => ({ error: null })),
   getEvents: vi.fn(),
 }));
 
@@ -22,7 +23,7 @@ vi.mock("../native", () => ({
   nativeBuildLabel: () => "1.14.0",
 }));
 vi.mock("../supabase", () => ({ supabase: { from: () => ({ insert: h.insert }) } }));
-vi.mock("../db", () => ({ currentUserId: () => "u1" }));
+vi.mock("../db", () => ({ currentUserId: () => h.userId }));
 vi.mock("../geo/trackLog", () => ({
   getTrackLog: () => h.trackLog,
   isGeoDebugEnabled: () => h.geoDebug,
@@ -97,5 +98,42 @@ describe("verdictFor", () => {
     expect(verdict).not.toContain("Recording stopped there");
     // Ambiguous by construction, so it must not claim the process survived either.
     expect(verdict).toContain("process death");
+  });
+});
+
+// The Send button in the developer log reports this result to whoever pressed
+// it, so each way of not sending has to be distinguishable. A single "couldn't
+// send — offline, or nothing to report" sent the reader looking for a network
+// problem when the log was simply not armed.
+describe("fileShellReport", () => {
+  beforeEach(() => {
+    h.geoDebug = true;
+    h.userId = "u1";
+    h.nativeEvents = [{ at: 1, kind: "background" }];
+    h.trackLog = [];
+    h.insert.mockClear();
+    h.insert.mockImplementation(async () => ({ error: null }));
+  });
+
+  it("files a report and says so", async () => {
+    await expect(fileShellReport("manual")).resolves.toBe("sent");
+    expect(h.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the unarmed log rather than blaming the network", async () => {
+    h.geoDebug = false;
+    await expect(fileShellReport()).resolves.toBe("not-armed");
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes signed out, nothing to file, and a rejected insert", async () => {
+    h.userId = null;
+    await expect(fileShellReport()).resolves.toBe("signed-out");
+    h.userId = "u1";
+    h.nativeEvents = [];
+    await expect(fileShellReport()).resolves.toBe("empty");
+    h.nativeEvents = [{ at: 1, kind: "background" }];
+    h.insert.mockImplementation(async () => ({ error: { message: "nope" } }));
+    await expect(fileShellReport()).resolves.toBe("failed");
   });
 });

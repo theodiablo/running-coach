@@ -567,20 +567,26 @@ export function ConnectionsCard(props: ConnectionsProps) {
   // here from the old Integrations section — same key, same behaviour).
   const [debug, setDebug] = useState(isWatchDebugEnabled());
   const tapsRef = useRef(0);
+  // Both flags move together, here and nowhere else. The panels used to clear
+  // one each on their own Hide button, which left the card seeded from the watch
+  // flag while `fileShellReport`'s gate (the geo flag) was off — an open panel
+  // whose Send button could only ever fail.
+  const armDeveloperLogs = (on: boolean) => {
+    setWatchDebug(on);
+    setGeoDebug(on); // arms GPS tracking logging too (off = no cost on normal runs)
+    setDebug(on);
+  };
   const revealTap = () => {
     tapsRef.current += 1;
     if (tapsRef.current < 5) return;
     tapsRef.current = 0;
     const next = !isWatchDebugEnabled();
-    setWatchDebug(next);
-    setGeoDebug(next); // same gesture arms GPS tracking logging (off = no cost on normal runs)
-    setDebug(next);
-    // File immediately on enabling. The native shell log is always recording, so
+    armDeveloperLogs(next);
+    // File immediately on enabling: the native shell log is always recording, so
     // at the moment someone turns this on there is usually already a report worth
-    // having — and the automatic filers can't produce one: they only send when a
-    // NEW native lifecycle event has landed since the last report, and flipping a
-    // setting isn't one. Turning it on after something went wrong and having
-    // nothing arrive is exactly the trap this closes.
+    // having, and nothing else files one — the Send button below is the only
+    // other path, and it needs someone to press it. Turning the log on after
+    // something went wrong and having nothing arrive is the trap this closes.
     if (next) void fileShellReport("manual: developer logs enabled").catch(() => {});
     showToast?.(next ? "Developer logs enabled" : "Developer logs hidden");
   };
@@ -619,8 +625,8 @@ export function ConnectionsCard(props: ConnectionsProps) {
         <p>{t("settings.connections.help.hrEditable")}</p>
       </HowItWorks>
 
-      {debug && <WatchSyncLog onHide={() => setDebug(false)} />}
-      {debug && isNative && <TrackDiagLog onHide={() => setDebug(false)} />}
+      {debug && <WatchSyncLog onHide={() => armDeveloperLogs(false)} />}
+      {debug && isNative && <TrackDiagLog onHide={() => armDeveloperLogs(false)} />}
     </div>
   );
 }

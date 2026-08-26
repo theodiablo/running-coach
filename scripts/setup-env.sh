@@ -37,7 +37,21 @@ DENO_INSTALL="${DENO_INSTALL:-$HOME/.deno}"
 if [ ! -x "$DENO_INSTALL/bin/deno" ] && ! command -v deno >/dev/null 2>&1; then
   log "Installing Deno"
   export DENO_INSTALL
-  curl -fsSL https://deno.land/install.sh | sh -s -- -y >/dev/null 2>&1
+  # From a temp CWD: the installer runs `deno run jsr:@deno/installer-shell-setup`,
+  # which writes that dependency into the lockfile of whatever directory it starts
+  # in — started at the repo root, every cold container rewrites deno.lock.
+  # Kept out of `set -e`, and its output kept: only typecheck:supabase needs Deno,
+  # so a failure here must degrade to a warning rather than abort the script (and
+  # with it the SessionStart hook that runs it) with nothing printed.
+  deno_log=$(mktemp)
+  if ( cd "$(mktemp -d)" && curl -fsSL https://deno.land/install.sh | sh -s -- -y ) \
+      >"$deno_log" 2>&1; then
+    :
+  else
+    log "Deno install FAILED — npm run typecheck:supabase will not run. Installer said:"
+    tail -n 20 "$deno_log" >&2
+  fi
+  rm -f "$deno_log"
 fi
 # Reachable from a NON-INTERACTIVE shell, which is what tool calls and CI use:
 # the installer only edits the shell rc files, and those are not sourced there,

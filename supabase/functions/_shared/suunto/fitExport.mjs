@@ -17,3 +17,12 @@ export function looksLikeFit(bytes) {
   if (!bytes || bytes.length < 14) return false;
   return bytes[8] === 0x2e && bytes[9] === 0x46 && bytes[10] === 0x49 && bytes[11] === 0x54;
 }
+
+// Is a failed download this workout's own answer, or possibly a wrong route?
+// A hard miss (404/410) means "no FIT for this workout" ONLY on a route this
+// connection has already been served a FIT from (`sync_state.fitOk`): a wrong
+// route answers 404 for EVERY workout, and calling that terminal degrades every
+// import to summary-only, permanently and with no retry. Unproven, the caller
+// keeps it transient and the client's per-workout retry budget decides.
+export const fitMissIsTerminal = (status, routeProven) =>
+  !!routeProven && (status === 404 || status === 410);

@@ -118,18 +118,22 @@ function findLast(events: ShellDiagEvent[], match: (e: ShellDiagEvent) => boolea
  * accuracy radius, drop reason) but no coordinates.
  *
  * Best-effort in every direction: signed out, offline or a missing table all
- * resolve false rather than throwing at a caller who is already dealing with a
- * failure.
+ * resolve a reason rather than throwing at a caller who is already dealing with
+ * a failure. The reason is returned rather than a bare false because the manual
+ * Send button reports it to whoever pressed it, and "offline" and "the log is
+ * not armed" send them looking in completely different places.
  */
-export async function fileShellReport(note?: string): Promise<boolean> {
-  if (!isGeoDebugEnabled()) return false;
+export type FileReportResult = "sent" | "not-armed" | "signed-out" | "empty" | "failed";
+
+export async function fileShellReport(note?: string): Promise<FileReportResult> {
+  if (!isGeoDebugEnabled()) return "not-armed";
   const user_id = currentUserId();
-  if (!user_id) return false;
+  if (!user_id) return "signed-out";
   try {
     const report = await readShellLog();
     // Nothing to say and nothing to correlate it with — don't file an empty row.
     const track = getTrackLog();
-    if (!report.events.length && !track.length) return false;
+    if (!report.events.length && !track.length) return "empty";
     const { error } = await supabase.from("shell_diagnostics").insert({
       user_id,
       platform,
@@ -140,9 +144,9 @@ export async function fileShellReport(note?: string): Promise<boolean> {
       track,
       note: note || null,
     });
-    return !error;
+    return error ? "failed" : "sent";
   } catch {
-    return false;
+    return "failed";
   }
 }
 

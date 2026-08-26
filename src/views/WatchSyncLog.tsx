@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { RefreshCw, Trash2, Copy, ChevronDown, ChevronRight, EyeOff } from "lucide-react";
-import { getScanLog, clearScanLog, setWatchDebug, type ScanLogEntry, type ScanLogSession } from "../watch/scanLog";
+import { getScanLog, clearScanLog, type ScanLogEntry, type ScanLogSession } from "../watch/scanLog";
 
 // Hidden developer diagnostics for watch import (revealed from Settings →
 // Integrations by tapping the section title). Shows what each Health Connect scan
@@ -66,12 +66,12 @@ function EntryCard({ e }: { e: ScanLogEntry }) {
   );
 }
 
-export function WatchSyncLog({ onHide }: { onHide?: () => void }) {
+export function WatchSyncLog({ onHide }: { onHide: () => void }) {
   const [entries, setEntries] = useState<ScanLogEntry[]>(() => getScanLog());
   const refresh = () => setEntries(getScanLog());
   const wipe = () => { clearScanLog(); refresh(); };
   const copy = () => { try { navigator.clipboard?.writeText(JSON.stringify(entries, null, 2)); } catch { /* ignore */ } };
-  const hide = () => { setWatchDebug(false); onHide?.(); };
+  const hide = () => onHide();
 
   const rows = [...entries].reverse();
 

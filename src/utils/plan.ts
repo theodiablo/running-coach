@@ -6,7 +6,7 @@ import {
   type StyleId,
 } from "./planStyles";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
-import { isElapsedWeek as isElapsedWeekYmd } from "../../supabase/functions/_shared/coach/weeks.mjs";
+import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
 import type { Plan, PlanProgress, SessionSd } from "../types";
 
@@ -599,11 +599,16 @@ export function findOpenPlanSession(
 // either side of midnight in any non-UTC timezone.)
 type WeekWindow = { startDate?: string };
 
+// Named type rather than the untyped import binding: a bare `@ts-expect-error`
+// import lands as `any`, so a signature change in weeks.mjs would compile clean
+// here and silently mis-split past from upcoming. Same pattern as planStyles.ts.
+const weeks = sharedWeeks as { isElapsedWeek: (w: WeekWindow, today?: string) => boolean };
+
 export const startOfDay = (d: Date) => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; };
 export const startOfToday = () => startOfDay(new Date());
 export const weekStart = (w: WeekWindow) => new Date((w.startDate || "") + "T00:00:00");
 export const isElapsedWeek = (w: WeekWindow, today: Date = startOfToday()) =>
-  isElapsedWeekYmd(w, ymd(today));
+  weeks.isElapsedWeek(w, ymd(today));
 
 // A training session's id (w{n}d{dOff}) names a SLOT in the plan grid, not a
 // day — buildPlan mints the same "w2d4" for week 2 / offset 4 whatever date

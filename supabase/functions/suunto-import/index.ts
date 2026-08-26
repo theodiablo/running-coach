@@ -20,7 +20,7 @@
 // Architecture, protocol, deploy/secrets: docs/integrations-suunto.md.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fitPath, looksLikeFit } from "../_shared/suunto/fitExport.mjs";
+import { fitMissIsTerminal, fitPath, looksLikeFit } from "../_shared/suunto/fitExport.mjs";
 
 const SUUNTO_CLIENT_ID = Deno.env.get("SUUNTO_CLIENT_ID");
 const SUUNTO_CLIENT_SECRET = Deno.env.get("SUUNTO_CLIENT_SECRET");
@@ -191,43 +191,30 @@ async function apiFetch(
   return res;
 }
 
-// `gone` = the endpoint answered a hard "no FIT here" for this workout.
+// `gone` = the endpoint answered a hard "no FIT here" for this workout, on a
+// route this connection has already been served a FIT from. Before that proof
+// a 404/410 equally means the route is wrong for this account, so it stays
+// transient — terminal there would degrade every import to summary-only,
+// permanently and silently, for as long as the route was wrong.
 // `notFit` = something answered 2xx with a body that isn't a FIT, which is a
 // different problem from a rejection and deserves its own line in the logs.
 type FitMiss = { gone: boolean; status: number; notFit: boolean };
+
+const fitRouteProven = (row: ConnectionRow): boolean => row.sync_state?.fitOk === true;
 
 // Download one workout's FIT from the documented export route.
 async function fetchWorkoutFit(
   admin: SupabaseClient, userId: string, row: ConnectionRow, key: string,
 ): Promise<{ bytes: Uint8Array } | FitMiss | "reauth"> {
-  const first = await getFreshToken(admin, userId, row);
-  if (first === "reauth") return "reauth";
-  let token = first.token;
-
-  const get = () => fetch(`${API}${fitPath(key)}`, {
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Ocp-Apim-Subscription-Key": SUUNTO_SUBSCRIPTION_KEY!,
-      "Accept": "application/octet-stream",
-    },
-  });
-  let res = await get();
-  if (res.status === 401) {
-    // Expiry raced the clock check — one forced refresh, then the real answer.
-    const forced = await getFreshToken(admin, userId, row, true);
-    if (forced === "reauth") return "reauth";
-    token = forced.token;
-    res = await get();
-  }
+  const res = await apiFetch(admin, userId, row, `${API}${fitPath(key)}`, "application/octet-stream");
+  if (res === "reauth") return "reauth";
   if (res.ok) {
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (looksLikeFit(bytes)) return { bytes };
     // A 2xx that isn't a FIT — this path answered something else.
     return { gone: false, status: res.status, notFit: true };
   }
-  // 404/410 on the documented route means this workout has no FIT (indoor, or
-  // still processing) — not that some other path might serve it.
-  return { gone: res.status === 404 || res.status === 410, status: res.status, notFit: false };
+  return { gone: fitMissIsTerminal(res.status, fitRouteProven(row)), status: res.status, notFit: false };
 }
 
 const workoutKeyOf = (w: WorkoutSummary): string =>
@@ -468,12 +455,24 @@ Deno.serve(async (req) => {
         return json({ connected: true, transient: true }); // network — retry next scan
       }
       if (res === "reauth") return json({ connected: false, reauth: true, transient: true });
-      if ("bytes" in res) return json({ connected: true, fit: b64(res.bytes) });
-      // Only a hard "this workout has no FIT" is terminal (the client falls back
-      // to the summary). Everything else is transient: marking it terminal would
-      // permanently import summary-only runs, the exact failure that shipped (a
-      // 401 on every download, which on the client looks like "no route", never
-      // like an endpoint error).
+      if ("bytes" in res) {
+        if (!fitRouteProven(row)) {
+          // First FIT this connection has been served: from here a 404/410 is
+          // this workout's own answer rather than a possibly-wrong route, so it
+          // may be terminal. Written once, then never touched again.
+          await admin.from("integration_connections")
+            .update({ sync_state: { ...(row.sync_state || {}), fitOk: true } })
+            .eq("user_id", user.id).eq("provider", "suunto");
+        }
+        return json({ connected: true, fit: b64(res.bytes) });
+      }
+      // Only a hard "this workout has no FIT" on a proven route is terminal (the
+      // client falls back to the summary). Everything else is transient: marking
+      // it terminal would permanently import summary-only runs, the exact failure
+      // that shipped (a 401 on every download, which on the client looks like "no
+      // route", never like an endpoint error). An unproven route's 404 still
+      // reaches the summary eventually — the client's own per-workout retry
+      // budget gives up after FIT_FAIL_LIMIT scans.
       //
       // Both misses are LOGGED, status only — never the key, the body or a header.
       if (res.gone) {

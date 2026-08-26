@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, Trash2, Copy, EyeOff, Upload } from "lucide-react";
-import { getTrackLog, clearTrackLog, setGeoDebug, type GeoDiagEvent } from "../geo/trackLog";
-import { clearShellLog, fileShellReport, readShellLog, type ShellDiagReport } from "../diag/shellLog";
+import { getTrackLog, clearTrackLog, type GeoDiagEvent } from "../geo/trackLog";
+import { clearShellLog, fileShellReport, readShellLog, type FileReportResult, type ShellDiagReport } from "../diag/shellLog";
 
 // Hidden developer diagnostics for live GPS tracking (revealed together with the
 // watch sync log from Settings → Connections by tapping the section title 5×).
@@ -70,6 +70,17 @@ function EventRow({ e }: { e: GeoDiagEvent }) {
   );
 }
 
+// Each failure sends the reader somewhere different, so none of them may be
+// reported as one vague "couldn't send": `not-armed` in particular is fixed by
+// re-arming the developer log, not by finding a connection.
+const SEND_RESULT: Record<FileReportResult, string> = {
+  sent: "Report sent.",
+  "not-armed": "Not sent — the developer log is off. Re-arm it (tap the section title 5×) and try again.",
+  "signed-out": "Not sent — signed out.",
+  empty: "Nothing to send — no shell events and no GPS log yet.",
+  failed: "Couldn't send — offline, or the insert was rejected.",
+};
+
 // The shell half: what happened to the app itself while it was backgrounded.
 // Always populated (the native log is not behind the debug flag), and shown
 // first because it is the question the fix stream below can't answer — when the
@@ -84,10 +95,10 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
   // in the moment. (It used to file itself on boot, on every foreground and on
   // a 60s timer, which cost an IPC round-trip per foreground on every Android
   // install and, off Android, inserted a row a minute forever.)
-  const [sent, setSent] = useState<"" | "ok" | "err">("");
+  const [sent, setSent] = useState<"" | FileReportResult>("");
   const send = () => {
     void fileShellReport("manual: sent from developer log")
-      .then(ok => setSent(ok ? "ok" : "err")).catch(() => setSent("err"));
+      .then(setSent).catch(() => setSent("failed"));
   };
   const rows = [...report.events].reverse(); // newest first
   return (
@@ -99,8 +110,8 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
         <button type="button" aria-label="Send shell log to the maintainer" onClick={send} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"><Upload size={13} /></button>
         <button type="button" aria-label="Clear shell log" onClick={wipe} className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300"><Trash2 size={13} /></button>
       </div>
-      {sent && <p className={`text-[11px] ${sent === "ok" ? "text-emerald-400" : "text-rose-400"}`}>
-        {sent === "ok" ? "Report sent." : "Couldn't send — offline, or nothing to report."}
+      {sent && <p className={`text-[11px] ${sent === "sent" ? "text-emerald-400" : "text-rose-400"}`}>
+        {SEND_RESULT[sent]}
       </p>}
       <p className="text-[11px] text-slate-500 -mt-1">
         Recorded natively, so it survives the WebView dying — which is exactly when the GPS log below
@@ -112,7 +123,6 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
         </p>
       )}
       {report.device && <p className="text-[11px] text-slate-500">{report.device}</p>}
-      <p className="text-[11px] text-slate-500">Filed automatically — on app start, on each return to the foreground, and once a minute while anything new has landed.</p>
       {rows.length === 0
         ? <p className="text-xs text-slate-500 py-2">Nothing recorded yet.</p>
         : (
@@ -140,7 +150,7 @@ const SHELL_KIND_CLS: Record<string, string> = {
   foreground: "bg-emerald-600/15 text-emerald-300 border-emerald-600/30",
 };
 
-export function TrackDiagLog({ onHide }: { onHide?: () => void }) {
+export function TrackDiagLog({ onHide }: { onHide: () => void }) {
   const [events, setEvents] = useState<GeoDiagEvent[]>(() => getTrackLog());
   const [shell, setShell] = useState<ShellDiagReport>({ events: [], device: "", verdict: "" });
   const refreshShell = () => { void readShellLog().then(setShell); };
@@ -148,7 +158,7 @@ export function TrackDiagLog({ onHide }: { onHide?: () => void }) {
   const refresh = () => { setEvents(getTrackLog()); refreshShell(); };
   const wipe = () => { clearTrackLog(); setEvents(getTrackLog()); };
   const copy = () => { try { navigator.clipboard?.writeText(JSON.stringify(events, null, 2)); } catch { /* ignore */ } };
-  const hide = () => { setGeoDebug(false); onHide?.(); };
+  const hide = () => onHide();
 
   const s = summarize(events);
   const rows = [...events].reverse(); // newest first

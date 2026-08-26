@@ -32,9 +32,10 @@ server-side transaction** (so the sync cursor lives in our row), and pushes
     binaries): staged rows flagged `staged`, listed workouts walked ascending
     from the cursor. **Never advances the cursor.**
   - `fit {key}` → one base64 FIT, from the documented export route below.
-    `gone` (404/410) is the only terminal miss; 401/403/429/5xx/network are
-    `transient` so quota exhaustion can't permanently degrade runs to
-    summary-only.
+    `gone` (404/410) is the only terminal miss, and only once this connection
+    has been served a real FIT at least once (`sync_state.fitOk`); 401/403/429/
+    5xx/network are `transient` so quota exhaustion can't permanently degrade
+    runs to summary-only.
   - `ack {cursor, stagedKeys}` → `ack_integration_cursor` RPC (atomic
     `greatest()`, rewind-proof) + staged-row deletion. The client acks only
     AFTER runs are saved — an unacked page re-serves next scan.
@@ -94,7 +95,7 @@ Per the partner docs, all three calls are **v3**:
 | --- | --- | --- |
 | List workouts | `GET /v3/workouts/?since=&until=&limit=&offset=&filter-by-modification-time=` | `sync` (`LIST_PATH`) |
 | One workout | `GET /v3/workouts/{workoutKey}?extensions=` | not called — see below |
-| Workout FIT | `GET /v3/workouts/{workoutIdOrKey}/fit` | `fit` (first candidate) |
+| Workout FIT | `GET /v3/workouts/{workoutIdOrKey}/fit` | `fit` (`fitPath`) |
 
 The v2 listing that shipped first is kept as a fallback (`LIST_PATH_LEGACY`),
 tried only when the v3 one rejects the request and logged as
@@ -141,6 +142,14 @@ guards that were doing real work stay:
 - **"Answered, but not with a FIT" gets its own log line**
   (`fit body was not a FIT`) — that points at the response shape, a different
   fix from a 401 or a 404.
+- **A 404/410 is only terminal on a route this connection has used.** The first
+  FIT that really arrives sets `sync_state.fitOk`; until then a hard miss stays
+  `transient`, because a wrong route answers 404 for *every* workout and a
+  terminal answer there would degrade every import to summary-only,
+  permanently and silently (see "A summary-only import does not heal itself"
+  below). The client's own per-workout retry budget still falls back to the
+  summary after three scans, so a workout that genuinely has no FIT costs three
+  scans rather than never resolving.
 
 ## CALIBRATE on first live pass
 

@@ -172,8 +172,9 @@ Three rules fall out of this, and all are cheap:
   picture is stale — the opposite conclusion from the obvious one.
 - **Measure the layer before fixing it.** Painting, React committing and the
   tracker tick all present as one frozen screen and need different fixes. Four
-  rounds went to fixes for a layer that was never measured; `renderAge`/`tickAge`
-  in the report's `note` settle it in one line.
+  rounds went to fixes for a layer that was never measured. `frameHeartbeat`
+  measured the two that can actually stall and is in git history (see above) —
+  restore it before attempting a fix, rather than guessing again.
 - **A renderer reclaim is not memory pressure.** The one `renderer-gone` in that
   capture carried `avail=3329MB total=7503MB low=false`. Sizing fixes around the
   low-memory killer was reasoning from an assumption the data does not support.
