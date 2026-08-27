@@ -65,4 +65,24 @@ describe("RunningCoach (smoke)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Running Coach" }));
     expect(screen.getByText(/Ada/)).toBeInTheDocument();
   });
+
+  // The coachmark's dimmer sits below the bottom nav on purpose (so the Coach
+  // pill it points at stays tappable), which means a tab tap unmounts it
+  // without running any of its dismiss controls. Leaving Home has to spend the
+  // flag anyway, or the pointer returns on every later Home visit and launch.
+  it("spends the coachmark when a nav tab takes the user off Home", async () => {
+    store = {
+      [STORAGE_KEYS.SETTINGS]: { ...SETTINGS, coachIntroSeen: false },
+      [STORAGE_KEYS.PLAN]: PLAN,
+    };
+    render(<RunningCoach onSignOut={() => {}} />);
+    expect(await screen.findByRole("dialog", { name: /coach/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Running Coach" }));
+
+    expect(await screen.findByText(/Ada/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /coach/i })).not.toBeInTheDocument();
+    expect((store[STORAGE_KEYS.SETTINGS] as { coachIntroSeen?: boolean }).coachIntroSeen).toBe(true);
+  });
 });

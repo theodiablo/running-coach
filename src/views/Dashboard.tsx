@@ -13,6 +13,7 @@ import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
+import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
 import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
 
@@ -30,6 +31,9 @@ type DashboardProps = {
   openSettings: () => void;
   openCoach: (session?: null, source?: CoachSource) => void;
   showToast: (msg: string, type?: string, action?: {label: string; onClick: () => void}) => void;
+  // Persists the one-time overdue coach explainer as shown (the hub owns the
+  // settings flag). Optional so a bare render — and the tests — need not pass it.
+  markCoachOverdueIntroSeen?: () => void;
   openRunDetail?: (run: Run) => void;
   // A run this account is recording on another device right now (live
   // sharing). Null whenever there is nothing to follow.
@@ -56,7 +60,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, showToast, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -119,6 +123,18 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     setConfirmed(null);
   };
 
+
+  // The first backlog an account ever sees carries a line on what the coach can
+  // do about it — the moment the capability is worth believing. Captured at
+  // mount so marking it seen can't yank the copy out from under the reader; the
+  // flag then keeps it from ever returning. It is spent when it has really been
+  // on screen, not at mount: this card sits well down the page, so a Home visit
+  // that never scrolled would otherwise burn it unread.
+  const [showOverdueCoachIntro] = useState(settings.coachOverdueIntroSeen === false);
+  const overdueCoachIntroRef = useSeenOnScreen<HTMLDivElement>(
+    showOverdueCoachIntro && overdueCount > 0,
+    () => markCoachOverdueIntroSeen?.(),
+  );
   const wkMon = weekStart(today);
   // Running kilometres only: a cross-training session's distance is not one
   // (docs/indoor-sessions.md), and these tiles are read as training volume.
@@ -250,6 +266,12 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
               <p className="text-xs text-slate-400 mt-0.5 leading-snug">{t("dashboard.overdue.subtitle")}</p>
             </div>
           </div>
+          {showOverdueCoachIntro && (
+            <div ref={overdueCoachIntroRef} className="mt-3 flex items-start gap-2.5 rounded-xl bg-slate-900/60 p-3">
+              <CoachAvatar chip size={13} className="w-6 h-6 mt-0.5"/>
+              <p className="text-xs text-slate-400 leading-snug">{t("dashboard.overdue.coachIntro")}</p>
+            </div>
+          )}
           <div className="mt-3 space-y-2">
             {overdueShown.map(s => (
               <div key={s.id} className="flex items-center gap-2 rounded-xl bg-slate-800/70 px-3 py-2">

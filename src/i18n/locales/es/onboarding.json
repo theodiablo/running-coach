@@ -111,7 +111,13 @@
     "metaGoal": "Meta {{km}} km · {{date}}",
     "weekPlan": "semanas de entrenamiento",
     "sessionsPerWeek": "sesiones / semana",
-    "coachNote": "Los imprevistos ocurren: una molestia, una semana sin entrenar o un conflicto de horarios. Tu <c>entrenador</c> puede adaptar el plan en cualquier momento desde Plan o Inicio."
+    "coach": {
+      "title": "Tu entrenador, cuando la semana no sale según el plan",
+      "ex1": "«Mueve mi tirada larga al domingo»",
+      "ex2": "«Me he saltado toda la semana»",
+      "ex3": "«Me molesta la rodilla»",
+      "guarantee": "Propone los cambios y tú los aceptas. Nada cambia hasta que lo confirmes."
+    }
   },
   "level": {
     "label": "¿Con qué frecuencia corres actualmente?"

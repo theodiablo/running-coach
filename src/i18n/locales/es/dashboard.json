@@ -25,7 +25,8 @@
     "more_other": "{{count}} más en tu plan",
     "adjust": "Ajustar mi plan",
     "markedDone": "Sesión marcada como hecha",
-    "markedSkipped": "Sesión omitida"
+    "markedSkipped": "Sesión omitida",
+    "coachIntro": "Retrasarse una semana es normal. Tu entrenador puede reorganizar lo que queda según los días que tengas de verdad, y verás cada cambio antes de aplicarlo."
   },
   "session": {
     "today": "Sesión de hoy",

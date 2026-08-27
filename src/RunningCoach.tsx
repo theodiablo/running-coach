@@ -35,6 +35,7 @@ import { persistImportedRoutes } from "./imports/persistRoutes";
 import { Toast } from "./components/Toast";
 import { Confetti } from "./components/Confetti";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
+import { Coachmark } from "./components/Coachmark";
 import { usePresence } from "./hooks/usePresence";
 import { OnboardingWizard } from "./modals/OnboardingWizard";
 import { BackupModal } from "./modals/BackupModal";
@@ -119,7 +120,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
-  const [tab,         setTab]         = useState("dash");
+  const [tab,         setTabState]    = useState("dash");
   const [runs,        setRuns]        = useState<Run[]>([]);
   const [plan,        setPlan]        = useState<Plan | null>(null);
   const [settings,    setSettings]    = useState<SettingsState>({
@@ -232,6 +233,23 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   useEffect(() => { runsRef.current = runs; }, [runs]);
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  const saveSettings = (s: SettingsState) => { setSettings(s); db.set(STORAGE_KEYS.SETTINGS, s); };
+  // The two one-time coach signposts are strictly "show once": each marks itself
+  // seen the moment it actually has been, so neither can come back on the next
+  // launch (or on another device — they ride the synced settings blob). The
+  // overdue explainer waits until it is really on screen (`useSeenOnScreen` in
+  // `Dashboard`); the coachmark is a full-screen overlay, so being on Home is
+  // enough.
+  const markCoachIntroSeen = () => saveSettings({...settings, coachIntroSeen: true});
+  // Every tab change goes through here, which is what spends the coachmark on
+  // the one exit it has no control over: the bottom nav sits at the header's
+  // z-20, above the pointer's z-10 dimmer, so a tab tap lands on it and unmounts
+  // the pointer without running `onDismiss`. Left unspent, the flag stays
+  // `false` and the dimmer comes back on every later Home visit and every launch.
+  const setTab = (next: string) => {
+    if (next !== "dash" && settings.coachIntroSeen === false) markCoachIntroSeen();
+    setTabState(next);
+  };
   const planRef = useRef(plan);
   useEffect(() => { planRef.current = plan; }, [plan]);
   // Latest watch-import scanner, refreshed each render so the long-lived boot /
@@ -513,7 +531,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   useEffect(() => {
     const goBack = (): boolean => {
       if (dismissTop()) return true;
-      if (tabRef.current !== "dash") { setTab("dash"); return true; }
+      // Raw setter: this listener is registered once, and going TO Home is the
+      // one tab change with nothing to spend (see `setTab`).
+      if (tabRef.current !== "dash") { setTabState("dash"); return true; }
       return false;
     };
     const onKey = (e: KeyboardEvent) => {
@@ -572,8 +592,6 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   }, [loading]);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
-  const saveSettings = (s: SettingsState) => { setSettings(s); db.set(STORAGE_KEYS.SETTINGS, s); };
-
   // Complete a cloud provider's OAuth return (a no-op on every normal load and
   // when the provider is unconfigured — gated on the state marker inside). On
   // success, flip the provider's enable flag on and scan straight away for
@@ -985,12 +1003,17 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     window.scrollTo(0, 0);
   };
   const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
+  // The overdue explainer's half of the two one-time coach signposts; the
+  // coachmark's `markCoachIntroSeen` sits up with `setTab`, which spends it.
+  const markCoachOverdueIntroSeen = () => saveSettings({...settings, coachOverdueIntroSeen: true});
   // A session-context object opens the coach about that session; a bare call
   // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
   // so the click event never counts as a session. `source` is analytics only.
   const openCoach = (session?: unknown, source?: CoachSource) => {
     const ctx = session && typeof session === "object" && "session" in session ? session as CoachSessionContext : null;
     setCoachSession(ctx); setShowCoach(true);
+    // Opening the coach answers the pointer, whatever led here.
+    if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
   const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
@@ -1018,7 +1041,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       const r = run && typeof run === "object" && "durationSec" in run ? run as Run : null;
       if (r) setDetailRun(r);
     },
-    openCoach,
+    openCoach, markCoachOverdueIntroSeen,
     // An interrupted run waiting to be resumed/saved (Dashboard banner). The
     // tracker owns the actual resume/discard; the banner is just the way in.
     recovery: recoveryInfo,
@@ -1043,7 +1066,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           // `plan` carries the race-shaped fields incl. targetEditionId (set when
           // a catalogue edition was picked, null otherwise). Clear the onboarding
           // scaffolding (onboardStep/intent) so it doesn't linger in the blob.
-          const next = {...settings, name, onboarded: true, onboardStep: 0, intent: null, healthAck, ...plan, ...(hr || {})};
+          // Seeding the coach signposts `false` here (rather than reading an
+          // absent flag as "not yet shown") keeps them to accounts that onboard
+          // from this version on — see the SettingsState comment.
+          const next = {...settings, name, onboarded: true, onboardStep: 0, intent: null, healthAck,
+            coachIntroSeen: false, coachOverdueIntroSeen: false, ...plan, ...(hr || {})};
           saveSettings(next);
           // Only build a plan if the race was actually set up (the user may have
           // skipped straight to the health gate) — buildPlan needs date+distance.
@@ -1122,6 +1149,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
+
+      {/* The one-time pointer at the header's Coach pill (seeded at onboarding
+          completion). Home only, and gated on `plan` exactly like the pill it
+          points at — with no plan there is no pill to point to. */}
+      {plan && !onboarding && tab === "dash" && settings.coachIntroSeen === false && (
+        <Coachmark title={t("app.coachmark.title")} body={t("app.coachmark.body")}
+          cta={t("app.coachmark.cta")} onDismiss={markCoachIntroSeen}/>
+      )}
 
       <header className="fixed top-0 inset-x-0 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20"
         style={{height:"calc(44px + var(--safe-top))", paddingTop:"var(--safe-top)"}}>

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useTranslation, Trans } from "react-i18next";
-import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, MessageCircle, Trophy, Navigation, Loader } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, Trophy, Navigation, Loader } from "lucide-react";
 import { INPUT_CLS, DISCLAIMER_VERSION, DISCLAIMER_URL } from "../constants";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../i18n";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
@@ -20,6 +20,7 @@ import {
 import { RaceFormModal } from "./RaceFormModal";
 import { AddRaceCard } from "../components/AddRaceCard";
 import { Confetti } from "../components/Confetti";
+import { CoachAvatar } from "../components/CoachAvatar";
 import { onboardingSteps } from "../utils/onboarding";
 import { searchEditions, editionLabel, findEdition } from "../utils/races";
 import { suggestedGoalSec } from "../utils/goal";
@@ -730,12 +731,23 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                     </div>
                   </div>
                 </div>
-                <div className="flex items-start gap-2.5 text-left bg-slate-800/60 rounded-xl p-3">
-                  <MessageCircle size={16} className="text-orange-400 shrink-0 mt-0.5"/>
-                  <p className="text-xs text-slate-400">
-                    <Trans i18nKey="onboarding.summary.coachNote" t={t}
-                      components={{ c: <span className="text-slate-200 font-medium" /> }}/>
-                  </p>
+                {/* The one place onboarding signposts the coach. Teaching by
+                    example (phrases a runner would actually type) rather than by
+                    feature list, and the propose-and-confirm guarantee, which is
+                    otherwise only discoverable by opening the chat. */}
+                <div className="bg-slate-800 rounded-2xl p-4 space-y-3 text-left">
+                  <div className="flex items-center gap-2.5">
+                    <CoachAvatar chip size={15} className="w-7 h-7"/>
+                    <p className="text-sm font-semibold">{t("onboarding.summary.coach.title")}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {(["ex1", "ex2", "ex3"] as const).map(k => (
+                      <p key={k} className="text-xs text-slate-300 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5">
+                        {t("onboarding.summary.coach." + k)}
+                      </p>
+                    ))}
+                  </div>
+                  <p className="text-xs text-sky-300">{t("onboarding.summary.coach.guarantee")}</p>
                 </div>
                 <button onClick={complete}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">

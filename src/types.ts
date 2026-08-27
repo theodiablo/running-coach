@@ -39,6 +39,12 @@ export type SettingsState = Record<string, unknown> & {
   onboardStep: number;
   intent: Intent;
   healthAck: HealthAck;
+  // One-time coach signposts, both seeded `false` when onboarding completes and
+  // flipped to `true` once shown. Absent (every account that onboarded before
+  // they existed) means "never show" on purpose: neither should surprise a
+  // runner mid-training who already knows where the coach is.
+  coachIntroSeen?: boolean;
+  coachOverdueIntroSeen?: boolean;
   hrMethod: HrMethod;
   hrOptOut: boolean;
   // Opt-in preference (synced) for importing finished runs from a watch via

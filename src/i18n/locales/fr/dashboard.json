@@ -25,7 +25,8 @@
     "more_other": "{{count}} autres dans ton plan",
     "adjust": "Ajuster mon plan",
     "markedDone": "Séance validée",
-    "markedSkipped": "Séance passée"
+    "markedSkipped": "Séance passée",
+    "coachIntro": "Prendre du retard, ça arrive. Ton coach peut réorganiser ce qui reste selon les jours dont tu disposes vraiment, et tu vois chaque changement avant qu'il s'applique."
   },
   "session": {
     "today": "Séance du jour",

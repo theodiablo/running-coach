@@ -111,7 +111,13 @@
     "metaGoal": "Objectif {{km}} km · {{date}}",
     "weekPlan": "semaines d'entraînement",
     "sessionsPerWeek": "séances / semaine",
-    "coachNote": "Les imprévus arrivent : une gêne, une semaine sans entraînement ou un emploi du temps chargé. Ton <c>coach</c> peut adapter ce plan à tout moment depuis Plan ou Accueil."
+    "coach": {
+      "title": "Ton coach, quand la semaine ne se passe pas comme prévu",
+      "ex1": "« Décale ma sortie longue à dimanche »",
+      "ex2": "« J'ai raté toute la semaine »",
+      "ex3": "« J'ai une gêne au genou »",
+      "guarantee": "Il propose, tu valides. Rien ne change tant que tu n'as pas confirmé."
+    }
   },
   "level": {
     "label": "À quelle fréquence cours-tu actuellement ?"

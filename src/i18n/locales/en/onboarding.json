@@ -111,7 +111,13 @@
     "metaGoal": "Goal {{km}} km · {{date}}",
     "weekPlan": "week plan",
     "sessionsPerWeek": "sessions / week",
-    "coachNote": "Life happens — a niggle, a missed week, a schedule clash. Your <c>coach</c> can adapt this plan anytime, from Plan or Home."
+    "coach": {
+      "title": "Your coach, when the week doesn't go to plan",
+      "ex1": "“Move my long run to Sunday”",
+      "ex2": "“I missed the whole week”",
+      "ex3": "“My knee's been niggling”",
+      "guarantee": "It proposes, you accept. Nothing changes until you say so."
+    }
   },
   "level": {
     "label": "How much do you run right now?"
