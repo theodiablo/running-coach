@@ -8,7 +8,7 @@
 // Stay dependency-free (no React, no i18n, no supabase) — importing supabase
 // here would create the client early, the exact race this file exists to win.
 
-export type CloudOauthProviderId = "polar" | "suunto";
+export type CloudOauthProviderId = "polar" | "suunto" | "coros";
 
 export type CloudOauthConfig = {
   // OAuth `state` markers. Native-initiated connects mark their state so the
@@ -16,6 +16,10 @@ export type CloudOauthConfig = {
   // native prefix still starts with the plain one, so check native FIRST.
   statePrefix: string;
   nativeStatePrefix: string;
+  // Separator between the prefix and the per-connect nonce. ":" everywhere
+  // except COROS, whose docs restrict `state` to a-z A-Z 0-9 (max 128 bytes),
+  // so its states are one unbroken alphanumeric run.
+  stateSep?: string;
   // The provider's deep link. Same scheme as AUTH_DEEP_LINK (supabase.ts),
   // different host — Android needs a matching intent filter (AndroidManifest),
   // iOS already claims the whole scheme via CFBundleURLTypes.
@@ -51,6 +55,20 @@ export const CLOUD_OAUTH: Record<CloudOauthProviderId, CloudOauthConfig> = {
     nonceKey: "rc_suunto_oauth_nonce",
     verifierKey: "rc_suunto_oauth_verifier",
   },
+  // COROS restricts `state` to a-z A-Z 0-9 (API Reference V2.0.6 §3.1.3), so
+  // this provider alone carries no ":" — prefix and nonce run together, and the
+  // nonce is stripped to hex in cloudOauth. The native prefix still extends the
+  // plain one, so classify must keep checking native FIRST.
+  coros: {
+    statePrefix: "corosimport",
+    nativeStatePrefix: "corosimportnative",
+    stateSep: "",
+    deepLink: "solutions.camboulive.run://coros-callback",
+    codeKey: "rc_coros_oauth_code",
+    stateKey: "rc_coros_oauth_state",
+    nonceKey: "rc_coros_oauth_nonce",
+    verifierKey: "rc_coros_oauth_verifier",
+  },
 };
 
 export const cloudOauthProviderIds = Object.keys(CLOUD_OAUTH) as CloudOauthProviderId[];
@@ -77,8 +95,9 @@ export function classifyCloudReturn(search: string): CloudReturn {
   if (!state) return { provider: null, kind: "none", code: null, state: null };
   for (const provider of cloudOauthProviderIds) {
     const cfg = CLOUD_OAUTH[provider];
-    if (!state.startsWith(cfg.statePrefix + ":")) continue;
-    const kind = state.startsWith(cfg.nativeStatePrefix + ":") ? "native" : "web";
+    const sep = cfg.stateSep ?? ":";
+    if (!state.startsWith(cfg.statePrefix + sep)) continue;
+    const kind = state.startsWith(cfg.nativeStatePrefix + sep) ? "native" : "web";
     return { provider, kind, code: params.get("code"), state };
   }
   return { provider: null, kind: "none", code: null, state: null };

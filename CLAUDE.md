@@ -559,5 +559,7 @@ changes.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
 - `docs/integrations-suunto.md` — Suunto cloud import.
+- `docs/integrations-coros.md` — COROS cloud import (scaffold: dormant until
+  COROS documents its API).
 - `docs/monetization.md` — monetization direction, the premium seam, payments path.
 - `infra/README.md` — Terraform-managed AWS resources, remote state, OIDC trust.
