@@ -24,6 +24,8 @@
     "more_one": "1 more in your plan",
     "more_other": "{{count}} more in your plan",
     "adjust": "Adjust my plan",
+    "markedDone": "Session ticked off",
+    "markedSkipped": "Session skipped",
     "coachIntro": "Falling behind a week is normal. Your coach can rebuild what's left around the days you actually have — you'll see every change before it's applied."
   },
   "session": {
@@ -34,7 +36,14 @@
     "skipTitle": "Skip this session",
     "startRun": "Start run",
     "logIt": "Log it",
-    "markDone": "Mark as done"
+    "markDone": "Mark as done",
+    "markDoneLocked": "You can tick this off on {{date}}. Ran it early? Use Log it, so the run is saved too.",
+    "confirm": {
+      "kicker": "Ticked off",
+      "done": "Nice, {{title}} is done.",
+      "skipped": "{{title}} skipped, no harm done.",
+      "meta": "{{date}} · nothing logged"
+    }
   },
   "noPlan": "No training plan yet. Ready to get started?",
   "setUpPlan": "Set Up My Plan",

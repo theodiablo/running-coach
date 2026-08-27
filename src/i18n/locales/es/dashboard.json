@@ -24,6 +24,8 @@
     "more_one": "1 más en tu plan",
     "more_other": "{{count}} más en tu plan",
     "adjust": "Ajustar mi plan",
+    "markedDone": "Sesión marcada como hecha",
+    "markedSkipped": "Sesión omitida",
     "coachIntro": "Retrasarse una semana es normal. Tu entrenador puede reorganizar lo que queda según los días que tengas de verdad, y verás cada cambio antes de aplicarlo."
   },
   "session": {
@@ -34,7 +36,14 @@
     "skipTitle": "Omitir esta sesión",
     "startRun": "Empezar",
     "logIt": "Registrar",
-    "markDone": "Marcar hecha"
+    "markDone": "Marcar hecha",
+    "markDoneLocked": "Podrás marcarla el {{date}}. ¿La hiciste antes? Usa Registrar y así se guarda el entrenamiento.",
+    "confirm": {
+      "kicker": "Completada",
+      "done": "Bien, {{title}} está hecha.",
+      "skipped": "{{title}} omitida, no pasa nada.",
+      "meta": "{{date}} · sin registro"
+    }
   },
   "noPlan": "Aún no tienes plan de entrenamiento. ¿Empezamos?",
   "setUpPlan": "Configurar mi plan",

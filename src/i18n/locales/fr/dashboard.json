@@ -24,6 +24,8 @@
     "more_one": "1 autre dans ton plan",
     "more_other": "{{count}} autres dans ton plan",
     "adjust": "Ajuster mon plan",
+    "markedDone": "Séance validée",
+    "markedSkipped": "Séance passée",
     "coachIntro": "Prendre du retard, ça arrive. Ton coach peut réorganiser ce qui reste selon les jours dont tu disposes vraiment, et tu vois chaque changement avant qu'il s'applique."
   },
   "session": {
@@ -34,7 +36,14 @@
     "skipTitle": "Passer cette séance",
     "startRun": "Démarrer",
     "logIt": "Saisir",
-    "markDone": "Marquer terminée"
+    "markDone": "Marquer terminée",
+    "markDoneLocked": "Tu pourras la valider le {{date}}. Déjà faite ? Utilise Saisir, la sortie sera enregistrée aussi.",
+    "confirm": {
+      "kicker": "Validée",
+      "done": "Bien joué, {{title}} est terminée.",
+      "skipped": "{{title}} passée, aucun souci.",
+      "meta": "{{date}} · rien d'enregistré"
+    }
   },
   "noPlan": "Pas encore de plan d'entraînement. On s'y met ?",
   "setUpPlan": "Configurer mon plan",

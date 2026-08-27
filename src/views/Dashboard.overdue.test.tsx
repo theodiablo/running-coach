@@ -26,7 +26,7 @@ const renderDash = (plan: Plan | null, over: Record<string, unknown> = {}) => {
     runs: [], plan, settings, races: null,
     goTab: vi.fn(), goProgress: vi.fn(), goLog: vi.fn(),
     toggleSess: vi.fn(), skipSess: vi.fn(),
-    openSettings: vi.fn(), openCoach: vi.fn(),
+    openSettings: vi.fn(), openCoach: vi.fn(), showToast: vi.fn(),
     ...over,
   };
   render(<Dashboard {...(props as unknown as React.ComponentProps<typeof Dashboard>)} />);

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, CalendarClock, Check, ChevronRight, PenLine, Play, Radio, Route, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, PenLine, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
@@ -30,6 +30,7 @@ type DashboardProps = {
   skipSess: (weekNumber: number, sessionId: string) => void;
   openSettings: () => void;
   openCoach: (session?: null, source?: CoachSource) => void;
+  showToast: (msg: string, type?: string, action?: {label: string; onClick: () => void}) => void;
   // Persists the one-time overdue coach explainer as shown (the hub owns the
   // settings flag). Optional so a bare render — and the tests — need not pass it.
   markCoachOverdueIntroSeen?: () => void;
@@ -52,11 +53,14 @@ const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, str
 // How many overdue rows the card renders before deferring the rest to the plan.
 const OVERDUE_SHOWN = 3;
 
+// How long the next-session card stays on its confirmation before advancing.
+const CONFIRM_MS = 2500;
+
 // Survives Dashboard remounts so `overdue_shown` counts backlog changes, not
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -77,6 +81,10 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // right session via openTracker / goLog / toggleSess.
   const nextSess = nextSession(plan, today) as DashboardSession | null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
+  // A session dated in the future can't already be done — ungated, the card
+  // refilled under the same button and a repeated tap ticked off sessions weeks
+  // out. Ran it early? "Log it" saves the run and ticks the session.
+  const canMarkDone = !!nextSess && nextSess.date <= todayStr;
   // Sessions the runner never got to. Only the freshest few are rendered — a
   // month away must not come back as a wall of guilt.
   const overdue = overdueSessions(plan, today) as DashboardSession[];
@@ -92,6 +100,29 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     lastReportedOverdue = overdueCount;
     track("overdue_shown", {count: overdueCount});
   }, [overdueCount]);
+  // A tick is a plan edit, not a checkbox: it lands on a confirmation card with
+  // Undo and no action row, so a double-tap can't consume the next session.
+  // `advanced` re-fires the enter animation once it settles — a silent refill in
+  // place read as nothing having happened.
+  const [confirmed, setConfirmed] = useState<{wNum: number; sId: string; title: string; date: string; skipped: boolean} | null>(null);
+  const [advanced, setAdvanced] = useState(0);
+  const confirmTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
+
+  const settleSess = (sess: DashboardSession, skipped: boolean) => {
+    (skipped ? skipSess : toggleSess)(sess.wNum, sess.id);
+    setConfirmed({wNum: sess.wNum, sId: sess.id, title: describeSession(sess), date: fmt.sht(sess.date), skipped});
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    confirmTimer.current = window.setTimeout(() => { setConfirmed(null); setAdvanced(n => n + 1); }, CONFIRM_MS);
+  };
+  // Both handlers are their own inverse, so undo is the same call again.
+  const undoConfirmed = () => {
+    if (!confirmed) return;
+    (confirmed.skipped ? skipSess : toggleSess)(confirmed.wNum, confirmed.sId);
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    setConfirmed(null);
+  };
+
 
   // The first backlog an account ever sees carries a line on what the coach can
   // do about it — the moment the capability is worth believing. Captured at
@@ -252,13 +283,21 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                   <p className="text-[11px] text-slate-500">{fmt.sht(s.date) + " · " + s.km + " km"}</p>
                 </div>
                 <button
-                  onClick={() => { track("overdue_resolved", {action: "done"}); toggleSess(s.wNum, s.id); }}
+                  onClick={() => {
+                    track("overdue_resolved", {action: "done"});
+                    toggleSess(s.wNum, s.id);
+                    showToast(t("dashboard.overdue.markedDone"), "ok", {label: t("common.undo"), onClick: () => toggleSess(s.wNum, s.id)});
+                  }}
                   aria-label={t("common.done")} title={t("common.done")}
                   className="flex-shrink-0 p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors">
                   <Check size={15}/>
                 </button>
                 <button
-                  onClick={() => { track("overdue_resolved", {action: "skip"}); skipSess(s.wNum, s.id); }}
+                  onClick={() => {
+                    track("overdue_resolved", {action: "skip"});
+                    skipSess(s.wNum, s.id);
+                    showToast(t("dashboard.overdue.markedSkipped"), "ok", {label: t("common.undo"), onClick: () => skipSess(s.wNum, s.id)});
+                  }}
                   aria-label={t("common.skip")} title={t("dashboard.session.skipTitle")}
                   className="flex-shrink-0 p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-200 transition-colors">
                   <X size={15}/>
@@ -280,12 +319,38 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         </div>
       )}
 
-      {nextSess ? (
+      {confirmed ? (
+        <div>
+          <p className="text-emerald-300 text-xs font-bold uppercase tracking-widest mb-2">
+            {t("dashboard.session.confirm.kicker")}
+          </p>
+          <div className="border-2 border-emerald-500/40 bg-emerald-500/10 rounded-2xl p-4 animate-slide-up">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-full bg-emerald-500 text-slate-900 flex items-center justify-center flex-shrink-0 animate-pop" aria-hidden>
+                <Check size={17} strokeWidth={3}/>
+              </span>
+              <div className="min-w-0" role="status">
+                <p className="text-sm text-white leading-snug">
+                  {t(confirmed.skipped ? "dashboard.session.confirm.skipped" : "dashboard.session.confirm.done", {title: confirmed.title})}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">{t("dashboard.session.confirm.meta", {date: confirmed.date})}</p>
+              </div>
+            </div>
+            <div className="flex justify-center mt-3">
+              <button onClick={undoConfirmed}
+                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">
+                <RotateCcw size={13}/>{t("common.undo")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : nextSess ? (
         <div>
           <p className="text-orange-300 text-xs font-bold uppercase tracking-widest mb-2">
             {nextIsToday ? t("dashboard.session.today") : t("dashboard.session.upNext")}
           </p>
-          <div className={"border-2 rounded-2xl p-4 " + sessionTypeClass(nextSess.type, TBG)}>
+          <div key={"sess-" + advanced}
+            className={"border-2 rounded-2xl p-4 " + (advanced ? "animate-slide-up " : "") + sessionTypeClass(nextSess.type, TBG)}>
             <button onClick={() => goTab("plan")} className="w-full text-left group" title={t("dashboard.session.viewInPlan")}>
               <div className="flex items-start justify-between gap-2">
                 <span className={"text-xs font-bold uppercase tracking-wide " + sessionTypeClass(nextSess.type, TCLR)}>
@@ -329,18 +394,25 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
               </button>
             </div>
             <div className="flex gap-4 mt-2.5 justify-center">
+              {canMarkDone && (
+                <button
+                  onClick={() => settleSess(nextSess, false)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+                  <Check size={13}/>{t("dashboard.session.markDone")}
+                </button>
+              )}
               <button
-                onClick={() => toggleSess(nextSess.wNum, nextSess.id)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors">
-                <Check size={13}/>{t("dashboard.session.markDone")}
-              </button>
-              <button
-                onClick={() => skipSess(nextSess.wNum, nextSess.id)}
+                onClick={() => settleSess(nextSess, true)}
                 className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
                 title={t("dashboard.session.skipTitle")}>
                 <X size={13}/>{t("common.skip")}
               </button>
             </div>
+            {!canMarkDone && (
+              <p className="mt-2.5 text-center text-xs text-slate-500 leading-snug">
+                {t("dashboard.session.markDoneLocked", {date: fmt.sht(nextSess.date)})}
+              </p>
+            )}
           </div>
         </div>
       ) : !plan ? (
