@@ -23,7 +23,8 @@
     "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o pide a tu entrenador que reajuste el plan.",
     "more_one": "1 más en tu plan",
     "more_other": "{{count}} más en tu plan",
-    "adjust": "Ajustar mi plan"
+    "adjust": "Ajustar mi plan",
+    "coachIntro": "Retrasarse una semana es normal. Tu entrenador puede reorganizar lo que queda según los días que tengas de verdad, y verás cada cambio antes de aplicarlo."
   },
   "session": {
     "today": "Sesión de hoy",

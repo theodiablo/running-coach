@@ -23,7 +23,8 @@
     "subtitle": "Life happens. Tick off what you did, skip what you didn't, or let your coach reshape the plan.",
     "more_one": "1 more in your plan",
     "more_other": "{{count}} more in your plan",
-    "adjust": "Adjust my plan"
+    "adjust": "Adjust my plan",
+    "coachIntro": "Falling behind a week is normal. Your coach can rebuild what's left around the days you actually have — you'll see every change before it's applied."
   },
   "session": {
     "today": "Today's session",

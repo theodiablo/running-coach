@@ -23,7 +23,8 @@
     "subtitle": "La vie fait des siennes. Coche ce que tu as fait, passe ce que tu n'as pas fait, ou demande à ton coach de remodeler le plan.",
     "more_one": "1 autre dans ton plan",
     "more_other": "{{count}} autres dans ton plan",
-    "adjust": "Ajuster mon plan"
+    "adjust": "Ajuster mon plan",
+    "coachIntro": "Prendre du retard, ça arrive. Ton coach peut réorganiser ce qui reste selon les jours dont tu disposes vraiment, et tu vois chaque changement avant qu'il s'applique."
   },
   "session": {
     "today": "Séance du jour",
