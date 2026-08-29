@@ -20,7 +20,10 @@ vi.mock("../health/connect", () => ({
   connectHealthConnect: vi.fn(async () => ({ availability: "Available", heartRate: true, activity: true })),
 }));
 vi.mock("../hr/ble", () => ({
-  bleSource: { scan: vi.fn(async () => {}), requestPermissions: vi.fn(async () => true) },
+  bleSource: {
+    scan: vi.fn(async (onFound: (d: { id: string; name: string }) => void) => { onFound({ id: "d1", name: "HRM-Pro" }); }),
+    requestPermissions: vi.fn(async () => true),
+  },
 }));
 
 import { ConnectionsCard } from "./ConnectionsCard";
@@ -91,5 +94,45 @@ describe("ConnectionsCard (Android shell)", () => {
     const reconnect = await screen.findByRole("button", { name: "Reconnect" });
     fireEvent.click(reconnect);
     await waitFor(() => expect(saved.some(s => s.watchImport === true)).toBe(true));
+  });
+
+  // The tracker's "don't record heart rate" writes settings.hrOptOut, which
+  // silences the prompt on every device forever. This row is the only way back.
+  it("offers to undo the heart-rate opt-out, and hides once it is undone", () => {
+    const saved: SettingsState[] = [];
+    const { rerender } = render(<ConnectionsCard
+      settings={{ hrMethod: "off", hrOptOut: true } as SettingsState}
+      saveSettings={s => saved.push(s)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Turn back on" }));
+    expect(saved[0].hrOptOut).toBe(false);
+
+    rerender(<ConnectionsCard settings={saved[0]} saveSettings={s => saved.push(s)} />);
+    expect(screen.queryByRole("button", { name: "Turn back on" })).toBeNull();
+  });
+
+  it("clears the opt-out when a sensor is paired", async () => {
+    localStorage.setItem("rc_hr_ble_disclosed", "1"); // skip the disclosure gate
+    const saved: SettingsState[] = [];
+    render(<ConnectionsCard
+      settings={{ hrMethod: "off", hrOptOut: true } as SettingsState}
+      saveSettings={s => saved.push(s)} />);
+    fireEvent.click(screen.getByRole("switch", { name: "Bluetooth heart-rate sensor" }));
+    fireEvent.click(await screen.findByText("HRM-Pro"));
+    await waitFor(() => expect(saved.length).toBe(1));
+    expect(saved[0].hrMethod).toBe("bluetooth");
+    expect(saved[0].hrOptOut).toBe(false);
+  });
+
+  it("clears the opt-out when the health store becomes the HR source", async () => {
+    const { healthConnectSource } = await import("../hr/healthconnect");
+    (healthConnectSource.checkPermissions as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    const saved: SettingsState[] = [];
+    render(<ConnectionsCard
+      settings={{ hrMethod: "off", hrOptOut: true } as SettingsState}
+      saveSettings={s => saved.push(s)} />);
+    fireEvent.click(await screen.findByRole("switch", { name: "Heart rate after runs" }));
+    await waitFor(() => expect(saved.length).toBe(1));
+    expect(saved[0].hrMethod).toBe("healthconnect");
+    expect(saved[0].hrOptOut).toBe(false);
   });
 });

@@ -67,6 +67,7 @@ import type {
   Run,
   RunHighlight,
   RunPatch,
+  SettingsPage,
   SettingsState,
   ToastAction,
   ToastState,
@@ -145,6 +146,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [showBackup,  setShowBackup]  = useState(false);
   const [showRestore, setShowRestore] = useState(false);
   const [showSettings,setShowSettings]= useState(false);
+  const [settingsPage,setSettingsPage]= useState<SettingsPage | null>(null);
+  // A recorder that sent the user to settings to set up heart rate gets
+  // reopened when they come back — sending them to pair a strap must not also
+  // cost them the run they were starting. A ref, not state: goHome clears it
+  // synchronously before dismissAll runs the settings modal's own close.
+  const resumeRecorderRef = useRef<"tracker" | "indoor" | null>(null);
   const [showDeleteAccount,setShowDeleteAccount]= useState(false);
   const [onboarding,  setOnboarding]  = useState(false);
   const [showTracker, setShowTracker] = useState(false);
@@ -996,13 +1003,37 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // delete) still gets to refuse — and every pending navigation intent is
   // dropped, so Home comes up the way a cold start would show it.
   const goHome = () => {
+    resumeRecorderRef.current = null;
     dismissAll();
     setLogPrefill(null); setLogImportOpen(false); setPlanPrefill(null);
     setProgressSub("log"); setHighlight(null);
     setTab("dash"); setHomeNonce(n => n + 1);
     window.scrollTo(0, 0);
   };
-  const openSettings = () => { saveUserContext(userContextRef.current); setShowSettings(true); };
+  // A page id deep-links onto that sub-page; a bare call (or an event from
+  // onClick={openSettings}) opens the hub menu. Guard on value so a click event
+  // never counts as a page, the same shape openTracker/openCoach use.
+  const openSettings = (page?: unknown) => {
+    saveUserContext(userContextRef.current);
+    setSettingsPage(page === "account" || page === "integrations" || page === "training" ? page : null);
+    setShowSettings(true);
+  };
+  // Leaving settings FOR another full-screen flow (backup, restore, coach,
+  // import, delete): drop the pending recorder so it can't reappear when that
+  // flow is done — only closing settings itself returns to the recorder.
+  const leaveSettings = () => { resumeRecorderRef.current = null; setShowSettings(false); };
+  const closeSettings = () => {
+    setShowSettings(false);
+    const resume = resumeRecorderRef.current;
+    resumeRecorderRef.current = null;
+    if (resume === "tracker") setShowTracker(true);
+    if (resume === "indoor") setShowIndoor(true);
+  };
+  const configureHrFrom = (recorder: "tracker" | "indoor", page?: SettingsPage) => {
+    if (recorder === "tracker") setShowTracker(false); else setShowIndoor(false);
+    resumeRecorderRef.current = recorder;
+    openSettings(page || "integrations");
+  };
   // The overdue explainer's half of the two one-time coach signposts; the
   // coachmark's `markCoachIntroSeen` sits up with `setTab`, which spends it.
   const markCoachOverdueIntroSeen = () => saveSettings({...settings, coachOverdueIntroSeen: true});
@@ -1062,7 +1093,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         catalogue={catalogue} addRace={addRace} addEdition={addEdition}
         refreshCatalogue={refreshCatalogue} showToast={showToast}
         onSaveProgress={(partial, step) => saveSettings({...settings, ...partial, onboardStep: step})}
-        onComplete={({name, plan, hr, healthAck}) => {
+        onComplete={({name, plan, hr, hrMethod, healthAck}) => {
           // `plan` carries the race-shaped fields incl. targetEditionId (set when
           // a catalogue edition was picked, null otherwise). Clear the onboarding
           // scaffolding (onboardStep/intent) so it doesn't linger in the blob.
@@ -1070,7 +1101,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           // absent flag as "not yet shown") keeps them to accounts that onboard
           // from this version on — see the SettingsState comment.
           const next = {...settings, name, onboarded: true, onboardStep: 0, intent: null, healthAck,
-            coachIntroSeen: false, coachOverdueIntroSeen: false, ...plan, ...(hr || {})};
+            coachIntroSeen: false, coachOverdueIntroSeen: false, ...plan, ...(hr || {}),
+            ...(hrMethod ? {hrMethod} : {})};
           saveSettings(next);
           // Only build a plan if the race was actually set up (the user may have
           // skipped straight to the health gate) — buildPlan needs date+distance.
@@ -1101,12 +1133,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRecordSheet(false)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
-        onConfigureHr={() => { setShowTracker(false); openSettings(); }}
+        onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "", { crossTraining: false }) || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
       {showIndoor && <IndoorTracker showToast={showToast} settings={settings} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        onConfigureHr={() => { setShowIndoor(false); openSettings(); }}
+        onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         // An indoor save can only tick a cross-training day, never that day's
         // easy run — and the GPS tracker above is filtered the other way.
@@ -1120,14 +1152,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showRestore && <RestoreModal onRestore={handleRestore}     onClose={() => setShowRestore(false)}/>}
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
-        scanImportsNow={shared.scanImportsNow} user={user} plan={plan}
-        onBackup={()  => { setShowSettings(false); exportData(); }}
-        onRestore={() => { setShowSettings(false); setShowRestore(true); }}
+        scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
+        onBackup={()  => { leaveSettings(); exportData(); }}
+        onRestore={() => { leaveSettings(); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}
-        onOpenCoach={plan ? () => { setShowSettings(false); openCoach(null, "settings"); } : undefined}
-        onImportFile={() => { setShowSettings(false); goImport(); }}
-        onDeleteAccount={() => { setShowSettings(false); setShowDeleteAccount(true); }}
-        onClose={()   => setShowSettings(false)}/>}
+        onOpenCoach={plan ? () => { leaveSettings(); openCoach(null, "settings"); } : undefined}
+        onImportFile={() => { leaveSettings(); goImport(); }}
+        onDeleteAccount={() => { leaveSettings(); setShowDeleteAccount(true); }}
+        onClose={closeSettings}/>}
       {showDeleteAccount && <DeleteAccountModal
         onSignOut={signOutClearingReminders}
         onClose={() => setShowDeleteAccount(false)}/>}

@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LogOut } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
-import { SettingsHub, type SettingsPage } from "./settings/SettingsHub";
+import { SettingsHub } from "./settings/SettingsHub";
 import { SubPage } from "./settings/SubPage";
 import { AccountPage } from "./settings/AccountPage";
 import { IntegrationsPage } from "./settings/IntegrationsPage";
 import { TrainingProfilePage } from "./settings/TrainingProfilePage";
 import type { User } from "@supabase/supabase-js";
-import type { Plan, SettingsState, UserContextState } from "../types";
+import type { Plan, SettingsPage, SettingsState, UserContextState } from "../types";
 
 type SettingsModalProps = {
   settings: SettingsState;
@@ -26,6 +26,11 @@ type SettingsModalProps = {
   showToast?: (msg: string, type?: string) => void;
   scanImportsNow?: () => Promise<number>;
   plan?: Plan | null;
+  // Open straight onto a sub-page. Every nudge that sends the user here is
+  // about one specific setting (the tracker's HR prompt means Integrations,
+  // the plan builder's means Training profile), and the hub menu is a dead end
+  // for someone who was told to "set up" something in particular.
+  initialPage?: SettingsPage;
 };
 
 // Settings is a hub, not a page: the root is a three-row menu and every control
@@ -36,10 +41,14 @@ type SettingsModalProps = {
 // The flows that replace the whole screen (backup, restore, delete account, the
 // coach) still close settings first, as they always did: their handlers come in
 // from RunningCoach already wired that way.
-export function SettingsModal({settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, showToast, scanImportsNow, plan}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, showToast, scanImportsNow, plan}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
-  const [page, setPage] = useState<SettingsPage | null>(null);
+  const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
+  // Back out of a deep-linked page and settings closes: the page was reached
+  // from somewhere else (a recorder's "connect a sensor"), so back belongs to
+  // that caller, not to a hub menu the user never passed through.
+  const leavePage = () => { if (initialPage) onClose(); else setPage(null); };
 
   return (
     <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col animate-slide-up">
@@ -62,7 +71,7 @@ export function SettingsModal({settings, saveSettings, userContext, saveUserCont
 
       {/* key: a fresh mount per page so the slide-up enter animation re-fires. */}
       {page && (
-        <SubPage key={page} title={t(`settings.hub.${page}.title`)} onBack={() => setPage(null)}>
+        <SubPage key={page} title={t(`settings.hub.${page}.title`)} onBack={leavePage}>
           {page === "account" && (
             <AccountPage settings={settings} saveSettings={saveSettings} user={user}
               onBackup={onBackup} onRestore={onRestore}

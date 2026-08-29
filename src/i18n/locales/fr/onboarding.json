@@ -81,7 +81,11 @@
     "autoPlaceholder": "auto",
     "dontKnow": "Je ne connais pas ma FC max",
     "enterBirthYear": "Saisis ton année de naissance ci-dessus pour l'estimer.",
-    "estimated": "Estimée à partir de l'âge (Tanaka, 208 − 0,7×âge) : {{max}} bpm de FC max, avec une FC de repos typique de 60 bpm."
+    "estimated": "Estimée à partir de l'âge (Tanaka, 208 − 0,7×âge) : {{max}} bpm de FC max, avec une FC de repos typique de 60 bpm.",
+    "sensorTitle": "Tu portes un capteur de fréquence cardiaque ?",
+    "sensorBody": "Associe une ceinture ou une montre qui diffuse la fréquence cardiaque et on l'enregistre pendant tes sorties, sans rien saisir.",
+    "sensorCta": "Connecter un capteur",
+    "sensorPaired": "{{name}} associé. L'enregistrement démarrera à ta prochaine sortie."
   },
   "health": {
     "title": "Une dernière chose",

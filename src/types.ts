@@ -107,6 +107,10 @@ export type SessionSd = {
   elevM?: number;
 };
 
+// Settings sub-pages (the hub's three rows) — named here because views deep-link
+// into them through the shared bag's openSettings.
+export type SettingsPage = "account" | "integrations" | "training";
+
 export type Run = Record<string, unknown> & {
   id?: string;
   date: string;

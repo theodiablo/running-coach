@@ -81,7 +81,11 @@
     "autoPlaceholder": "auto",
     "dontKnow": "I don't know my heart rate",
     "enterBirthYear": "Enter your birth year above to estimate it.",
-    "estimated": "Estimated from age (Tanaka, 208 − 0.7×age): {{max}} bpm max HR, with a typical 60 bpm resting HR."
+    "estimated": "Estimated from age (Tanaka, 208 − 0.7×age): {{max}} bpm max HR, with a typical 60 bpm resting HR.",
+    "sensorTitle": "Wearing a heart-rate sensor?",
+    "sensorBody": "Pair a chest strap or a watch that broadcasts heart rate and we'll record it during your runs, no typing.",
+    "sensorCta": "Connect a sensor",
+    "sensorPaired": "Paired {{name}}. It will record on your next run."
   },
   "health": {
     "title": "One last thing",

@@ -511,7 +511,14 @@ changes.
   **Training Profile** (HR zones, coach memory). Sub-pages mount over the hub
   and register their own `useDismissable`, so back pops one level. A vendor we
   can't connect to gets a *guide* in `VendorGuides.tsx`, never a fake
-  integration. Analysis surfaces live in Progress → Stats.
+  integration. Analysis surfaces live in Progress → Stats. **A nudge that says
+  "set it up in Settings" must name the sub-page** — `openSettings("integrations"
+  | "training")` mounts it directly, and back out of a deep-linked page closes
+  settings rather than popping to a menu the user never saw; the hub root is a
+  dead end for someone told to configure one specific thing. A recorder that
+  sends the user there reopens itself when settings closes, so pairing a sensor
+  never costs the run they were starting. And **a synced "don't ask me" flag
+  (`hrOptOut`) needs a visible way back on** — nothing else ever unsets it.
 
 ## Git / PR workflow
 - **Open a PR automatically when a task is finished** — committed, pushed, and

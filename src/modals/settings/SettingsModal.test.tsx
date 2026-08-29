@@ -76,6 +76,22 @@ describe("SettingsModal hub", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // Every nudge that sends the user here names one setting; landing on the menu
+  // made "Set up" a dead end (the HR prompt's whole point was Integrations).
+  it("opens straight onto the page a nudge asked for", () => {
+    render(<SettingsModal {...baseProps} initialPage="integrations" />);
+    expect(screen.getByText("Connections & sync")).toBeInTheDocument();
+  });
+
+  // Back from a deep-linked page returns to whatever opened it (the recorder),
+  // not to a hub menu the user never passed through.
+  it("closes settings when backing out of a deep-linked page", () => {
+    const onClose = vi.fn();
+    render(<SettingsModal {...baseProps} initialPage="training" onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("returns to the hub via the back button", () => {
     render(<SettingsModal {...baseProps} />);
     fireEvent.click(screen.getByText("Integrations"));

@@ -7,7 +7,7 @@ import { describeSession } from "../utils/sessionDesc";
 import { sessionSteps } from "../utils/sessionSteps";
 import { useDismissable } from "../hooks/useDismissable";
 import { HRTarget } from "./HRTarget";
-import type { PlanSession, RunType, SettingsState } from "../types";
+import type { PlanSession, RunType, SettingsPage, SettingsState } from "../types";
 
 const typeClass = (type: PlanSession["type"]) => TCLR[(type as RunType) || "OTHER"] || TCLR.OTHER;
 
@@ -22,7 +22,7 @@ type PlanSessionRowProps = {
   onSkip: () => void;
   onAskCoach: () => void;
   onFindRoute?: () => void;   // optional (route finder feature-gated); opens the finder for this distance
-  openSettings: () => void;
+  openSettings: (page?: SettingsPage) => void;
 };
 
 // One plan session, with labeled actions. Replaces the old cramped icon row:

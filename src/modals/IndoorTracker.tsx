@@ -21,7 +21,7 @@ import { isNative, isAndroid, isIos } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
 import { track } from "../telemetry";
 import { hrNudgeFor } from "../utils/hrNudge";
-import { RUN_ACTIVITIES, type HrMethod, type Run, type RunActivity, type SettingsState } from "../types";
+import { RUN_ACTIVITIES, type HrMethod, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
 
 type IndoorTrackerProps = {
   onFinish: (prefill: Partial<Run>) => void;
@@ -30,7 +30,7 @@ type IndoorTrackerProps = {
   settings: SettingsState;
   hrMethod: HrMethod;
   hrOptOut?: boolean;
-  onConfigureHr?: () => void;
+  onConfigureHr?: (page?: SettingsPage) => void;
   onDeclineHr?: () => void;
 };
 
@@ -291,7 +291,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
             {/* Cross-training targets the aerobic base zone — the same band the
                 plan's "Optional cross-training" day is asking for. */}
             <div className="text-center">
-              <HRTarget type="OTHER" settings={settings} openSettings={() => onConfigureHr?.()} />
+              <HRTarget type="OTHER" settings={settings} openSettings={page => onConfigureHr?.(page)} />
             </div>
           </div>
         )}
