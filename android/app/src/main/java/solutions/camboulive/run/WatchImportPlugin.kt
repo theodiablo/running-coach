@@ -1,5 +1,6 @@
 package solutions.camboulive.run
 
+import android.os.Build
 import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
@@ -22,6 +23,7 @@ import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -42,8 +44,7 @@ import java.time.Instant
 class WatchImportPlugin : Plugin() {
 
     // The scopes the import genuinely needs. `granted` is measured against THIS
-    // set and nothing else — see routePermission for why the route scope is
-    // deliberately not part of it.
+    // set and nothing else — the route scope below is never part of it.
     private val readPermissions = setOf(
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
@@ -51,26 +52,24 @@ class WatchImportPlugin : Plugin() {
         HealthPermission.getReadPermission(HeartRateRecord::class),
     )
 
-    // The GPS route of a session. Three things make this scope unlike the others:
-    //
-    //  1. There is no `HealthPermission` constant for it — the Jetpack SDK
-    //     exposes only PERMISSION_WRITE_EXERCISE_ROUTE — so it is spelled out.
-    //  2. Health Connect IGNORES app requests for it. It is granted only by the
-    //     user in Health Connect settings ("Exercise routes"), or one session at
-    //     a time through the route-consent dialog. Including it in the request
-    //     below is therefore a no-op on the sheet, kept because it costs nothing
-    //     and is the honest statement of what the app wants; the grant itself
-    //     has to come from settings.
-    //  3. It is treated as more sensitive than ordinary health data, so it can
-    //     be absent on a device where everything else is granted.
-    //
-    // Because of (2) it MUST stay out of `readPermissions`: folding it into the
-    // `containsAll` check would report every existing, working connection as
-    // ungranted and break watch import for everyone who never opens Health
-    // Connect settings. It is reported separately as `routes`, for diagnostics
-    // only — nothing gates on it.
+    // The GPS route scope. Spelled out because the Jetpack SDK has no constant
+    // for it, and kept OUT of readPermissions because the user grants it in
+    // Health Connect rather than from our sheet — gating on it would report
+    // every working connection as ungranted (docs/health-integrations.md).
     private val routePermission = "android.permission.health.READ_EXERCISE_ROUTES"
-    private val requestPermissions = readPermissions + routePermission
+
+    // Asked for only on Android 14+, where Health Connect is part of the platform
+    // and the request contract routes through the OS permission dialog, which
+    // simply denies anything it won't grant. Below 34 the contract hands the raw
+    // strings to the standalone Health Connect APK, and this permission is not in
+    // the Jetpack SDK's vocabulary at all (no constant, no mapping) — an older
+    // APK refusing the whole batch over it would leave a first-time connect with
+    // NOTHING granted, breaking watch import outright on Android 8-13. The scope
+    // is documented as un-requestable anyway, so including it there is pure
+    // downside; the manifest declaration is what actually offers the user the
+    // toggle, on every version.
+    private val requestPermissions =
+        if (Build.VERSION.SDK_INT >= 34) readPermissions + routePermission else readPermissions
     private val requestContract = PermissionController.createRequestPermissionResultContract()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -126,20 +125,16 @@ class WatchImportPlugin : Plugin() {
         resolveGranted(call) { fromSheet }
     }
 
-    // Read what Health Connect currently reports as granted, unioned with
-    // `extra` (the permission sheet's own result, when there was one), and
-    // resolve the call with it.
-    //
-    // The whole coroutine body is guarded, and the call is ALWAYS resolved. An
-    // exception escaping a plugin coroutine reaches the thread's uncaught
-    // handler and KILLS THE APP PROCESS — no crash overlay, and the promise the
-    // JS side is awaiting never settles, so the connect flow would hang even if
-    // the process survived (docs/health-integrations.md; the pianissimo plugin
-    // needed a patch for exactly this). `client()` is the realistic thrower:
-    // HealthConnectClient.getOrCreate fails whenever Health Connect is absent.
+    // Health Connect's current grants, unioned with `extra` (the sheet's own
+    // result, when there was one). Nothing may escape the coroutine: an uncaught
+    // exception there kills the app process and leaves the JS promise unsettled
+    // (docs/health-integrations.md). `client()` is the realistic thrower — it
+    // fails whenever Health Connect is absent. Cancellation is rethrown rather
+    // than reported as "not granted", which would clear a live grant marker.
     private fun resolveGranted(call: PluginCall, extra: () -> Set<String>) {
         scope.launch {
             val granted = try { extra() + client().permissionController.getGrantedPermissions() }
+            catch (e: CancellationException) { throw e }
             catch (e: Exception) { try { extra() } catch (e2: Exception) { emptySet() } }
             call.resolve(try { grantJson(granted) } catch (e: Exception) { JSObject().put("granted", false) })
         }
@@ -239,23 +234,11 @@ class WatchImportPlugin : Plugin() {
         }
     }
 
-    // The GPS route of ONE session, as the same [lat, lng, t, alt] tuples a
-    // recorded run stores, so an imported session can land with a map instead of
-    // distance-only. Called lazily by the TS import layer for NEW runs only.
-    //
-    // The route does NOT come back on the bulk readRecords above: a route is not
-    // an independent record, and Health Connect attaches it only to a
-    // single-record read. Hence the per-session readRecord here.
-    //
-    // Resolves rather than rejects for every "no map" outcome, because the route
-    // is strictly optional enrichment — a missing or unconsented route must
-    // import the run exactly as before, never fail the scan:
-    //   data             → route present, points populated
-    //   consent-required → exercise routes not granted (the usual case: the
-    //                      permission can't be asked for from our sheet, see
-    //                      routePermission)
-    //   none             → the writing app attached no route to this session
-    //   unavailable      → read failed (session gone, HC error)
+    // One session's GPS route, as the [lat, lng, t, alt] tuples a recorded run
+    // stores. Per-session readRecord because a route is not an independent
+    // record and never comes back on the bulk sweep above. Resolves (never
+    // rejects) for every "no map" outcome so an unconsented route still imports
+    // the run — see docs/health-integrations.md.
     //   { id } → { status, points: [[lat, lng, t(ms epoch), alt|null], …] }
     @PluginMethod
     fun readExerciseRoute(call: PluginCall) {
@@ -284,7 +267,8 @@ class WatchImportPlugin : Plugin() {
                     }
                     is ExerciseRouteResult.ConsentRequired -> "consent-required"
                     is ExerciseRouteResult.NoData -> "none"
-                    else -> "none"
+                    // A future subtype is not evidence the app wrote no route.
+                    else -> "unavailable"
                 }
                 call.resolve(JSObject().put("status", status).put("points", points))
             } catch (e: Exception) {

@@ -72,13 +72,19 @@ export async function availability(): Promise<WatchImportAvailability> {
 async function isAvailable() { return (await availability()) === "Available"; }
 
 // Non-prompting permission check; keeps the local marker in sync with the real
-// grant (clears it if the user revoked access in Health Connect).
-async function checkPermissions(): Promise<boolean> {
+// grant (clears it if the user revoked access in Health Connect). The separate
+// route grant rides along for the scan log only — it never gates anything.
+async function checkPermissionState(): Promise<{ granted: boolean; routes: boolean }> {
   try {
-    const ok = !!(await getWatchImportPlugin().checkHealthPermissions())?.granted;
-    setWatchAuthorization(ok);
-    return ok;
-  } catch { setWatchAuthorization(false); return false; }
+    const res = await getWatchImportPlugin().checkHealthPermissions();
+    const granted = !!res?.granted;
+    setWatchAuthorization(granted);
+    return { granted, routes: !!res?.routes };
+  } catch { setWatchAuthorization(false); return { granted: false, routes: false }; }
+}
+
+async function checkPermissions(): Promise<boolean> {
+  return (await checkPermissionState()).granted;
 }
 
 // Prompt for exercise/distance/elevation/HR read access. Returns whether granted.
@@ -115,8 +121,8 @@ export async function scanWatchSessions(
   }
   try {
     const avail = await availability();
-    const perm = avail === "Available" ? await checkPermissions() : false;
-    if (!perm) {
+    const perm = avail === "Available" ? await checkPermissionState() : { granted: false, routes: false };
+    if (!perm.granted) {
       appendScanLog({ at: now, trigger, days, availability: avail, permission: false, rawCount: 0, importedCount: 0, sessions: [] });
       return [];
     }
@@ -131,7 +137,7 @@ export async function scanWatchSessions(
     // its GPS route (map + pace curve) — lazy per-run reads, so an all-skipped
     // scan does no extra I/O.
     const { runs: imported, routeStatuses } = await enrichNewRuns(importedC);
-    appendScanLog({ at: now, trigger, days, availability: avail, permission: true, rawCount: raw.length, importedCount: imported.length, sessions: toLogSessions(classified), ...(routeStatuses.length ? { routeStatuses } : {}) });
+    appendScanLog({ at: now, trigger, days, availability: avail, permission: true, routesGranted: perm.routes, rawCount: raw.length, importedCount: imported.length, sessions: toLogSessions(classified), ...(routeStatuses.length ? { routeStatuses } : {}) });
     return imported;
   } catch (e) {
     appendScanLog({ at: now, trigger, days, availability: "skipped", permission: false, rawCount: 0, importedCount: 0, error: String((e as { message?: string })?.message || e), sessions: [] });
@@ -169,6 +175,13 @@ async function routeFor(raw: ClassifiedSession["raw"]): Promise<{ points: TrackP
   } catch { return { points: [], status: "unavailable" }; }
 }
 
+// Fewest points that can be a route. `routeId` is what History gates its "view
+// route" map button on, so a lone start fix (or a route whose other points all
+// failed validation) must stay on the HR sidecar rather than promise a map that
+// renders one dot — the exact case the routeId/hrRouteId split exists to prevent
+// (src/types.ts).
+const MIN_ROUTE_POINTS = 2;
+
 // Attach the HR series and GPS route to each NEW run. A run that came back with
 // a route rides `points` → persistImportedRoute simplifies it into a run_routes
 // row, stamps `routeId` and extracts best efforts from the trace — the same save
@@ -183,7 +196,7 @@ async function enrichNewRuns(items: ClassifiedSession[]): Promise<{ runs: Import
       run: {
         ...base,
         ...(hrSamples.length ? { hrSamples } : {}),
-        ...(route.points.length ? { points: route.points } : {}),
+        ...(route.points.length >= MIN_ROUTE_POINTS ? { points: route.points } : {}),
       },
       status: route.status,
     };

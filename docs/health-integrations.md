@@ -309,16 +309,30 @@ things make this scope unlike every other one the app reads:
   Declaring it in the manifest is what makes that toggle exist. It is therefore
   **kept out of** `readPermissions`' `containsAll` grant check — folding it in
   would report every working connection as ungranted. It rides
-  `checkHealthPermissions().routes` for diagnostics only; nothing gates on it.
+  `checkHealthPermissions().routes` into the scan log (`routesGranted`) for
+  diagnostics only; nothing gates on it.
+- **It is only asked for on Android 14+.** `HealthPermissionsRequestContract`
+  branches on `SDK_INT >= 34`: at 34+ it goes through the OS permission dialog,
+  which simply denies what it won't grant. Below that it hands the raw strings
+  to the standalone Health Connect APK — and `READ_EXERCISE_ROUTES` appears
+  nowhere in the Jetpack SDK (no constant, no mapping), so an older APK that
+  refused the whole batch over it would leave a **first-time** connect with
+  nothing granted and watch import dead on Android 8-13. Since the scope is
+  un-requestable anyway, asking for it there is pure downside; the manifest
+  declaration still offers the user the toggle on every version.
 - **Every "no route" outcome is normal, not an error.** `readExerciseRoute`
   *resolves* with `status` `consent-required` / `none` / `unavailable` and no
   points, and the session imports with totals + HR exactly as before. The
-  statuses are recorded per imported run in the scan log (`routeStatuses`) so
-  "I allowed routes and still get no map" is diagnosable.
+  statuses are recorded per imported run in the scan log (`routeStatuses`,
+  alongside `routesGranted`) so "I allowed routes and still get no map" can be
+  told apart from "the grant never took". A route of fewer than
+  `MIN_ROUTE_POINTS` fixes is treated as no route: `routeId` is what gates
+  History's map button, and a lone start fix would promise a map showing one
+  dot — the case the `routeId`/`hrRouteId` split exists to prevent.
 - **The SDK pin is a narrow window.** `connect-client` must be
   ≥ `1.1.0-alpha03` (`ExerciseRouteResult` doesn't exist before it — the old
   `1.1.0-alpha02` pin ships the `ExerciseRoute` class but no way to read one)
-  and ≤ `1.1.0-alpha10` (`1.1.0-alpha12` deleted the internal
+  and ≤ `1.1.0-alpha10` (`1.1.0-alpha11` deleted the internal
   `impl.converters.permission` package the pianissimo plugin imports, so
   anything later — 1.1.0 stable included — fails that plugin's build). Pinned at
   `1.1.0-alpha10`. Gradle resolves ONE `connect-client` for the APK across both

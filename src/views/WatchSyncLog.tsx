@@ -53,10 +53,13 @@ const ROUTE_LABEL: Record<string, string> = {
 
 function routeSummary(e: ScanLogEntry): string {
   const statuses = e.routeStatuses;
-  if (!statuses?.length) return "";
+  if (!statuses?.length) return e.routesGranted ? "routes allowed" : "";
   const counts = new Map<string, number>();
   for (const s of statuses) counts.set(s, (counts.get(s) || 0) + 1);
-  return [...counts].map(([s, n]) => `${n} ${ROUTE_LABEL[s] || s}`).join(", ");
+  const per = [...counts].map(([s, n]) => `${n} ${ROUTE_LABEL[s] || s}`).join(", ");
+  // Whether the grant exists is the other half of the answer: "no route written"
+  // means something quite different with routes allowed than without.
+  return e.routesGranted ? `${per} · routes allowed` : per;
 }
 
 function EntryCard({ e }: { e: ScanLogEntry }) {

@@ -27,6 +27,11 @@ export type ScanLogEntry = {
   days: number;                   // window scanned
   availability: WatchImportAvailability | "skipped";
   permission: boolean;            // exercise-read grant present at scan time
+  // The SEPARATE exercise-routes grant, which the user makes in Health Connect
+  // rather than from our sheet — false is the normal state of a working
+  // connection, and nothing gates on it. Recorded so "I allowed routes and still
+  // get no map" can be told apart from "I never allowed them".
+  routesGranted?: boolean;
   rawCount: number;               // sessions Health Connect returned
   importedCount: number;
   error?: string;

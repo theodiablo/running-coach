@@ -100,10 +100,10 @@ dependencies {
     //     does not exist before it. The previous pin, 1.1.0-alpha02, ships the
     //     `ExerciseRoute` data class but NOT the result wrapper that exposes it
     //     on a read — routes are unreadable there.
-    //   - CEILING 1.1.0-alpha10: 1.1.0-alpha12 DELETED the internal
+    //   - CEILING 1.1.0-alpha10: 1.1.0-alpha11 DELETED the internal
     //     `androidx.health.connect.client.impl.converters.permission` package,
     //     and the pianissimo plugin imports `toProtoPermission` from it. Any
-    //     pin at alpha12 or later (including 1.1.0 stable) fails that plugin's
+    //     pin at alpha11 or later (including 1.1.0 stable) fails that plugin's
     //     compilation. Moving past it means patching or dropping that plugin.
     // alpha10 is the top of that window. Verified by inspecting the published
     // AARs, not by release notes (whose route entries are misleading).
