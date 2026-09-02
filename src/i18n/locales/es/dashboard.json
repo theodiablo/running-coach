@@ -42,8 +42,11 @@
       "kicker": "Completada",
       "done": "Bien, {{title}} está hecha.",
       "skipped": "{{title}} omitida, no pasa nada.",
-      "meta": "{{date}} · sin registro"
-    }
+      "meta": "{{date}} · sin registro",
+      "metaRun": "{{date}} · {{detail}}",
+      "runDetail": "{{km}} km en {{dur}}"
+    },
+    "alreadyRan": "Ya la hice"
   },
   "noPlan": "Aún no tienes plan de entrenamiento. ¿Empezamos?",
   "setUpPlan": "Configurar mi plan",
@@ -63,5 +66,13 @@
     "title": "Entrenamiento interrumpido detectado",
     "subtitle": "{{km}} km registrados el {{date}}. Puedes reanudarlo o guardarlo.",
     "action": "Abrir"
+  },
+  "reconcile": {
+    "title": "¿Cuál fue el entrenamiento?",
+    "scheduled": "prevista el {{date}}",
+    "closest": "La más cercana",
+    "move": "Mover también la sesión al {{date}}, para que tu plan cuadre con los días que corriste",
+    "confirm": "Es esta",
+    "note": "No cambia nada hasta que confirmes."
   }
 }

@@ -18,7 +18,10 @@
     "heading": "Semana {{week}} · {{date}}",
     "targetRun": "{{type}} · {{km}} km a {{pace}}/km",
     "targetOther": "Entrenamiento cruzado · {{mins}}",
-    "ticksOff": "Al guardar, la sesión queda marcada como hecha."
+    "ticksOff": "Al guardar, la sesión queda marcada como hecha.",
+    "offerHeading": "Cuenta para tu sesión del {{date}}",
+    "decline": "No es esta",
+    "declineUndo": "Mejor sí, contarla para la sesión del {{date}}"
   },
   "gpsBanner": "Registro realizado con GPS. La distancia, la duración y el desnivel ya están completados. Añade un tipo y notas, y guarda.",
   "indoorBanner": "Sesión indoor registrada. La duración y la frecuencia cardiaca ya están completadas; no hay distancia que registrar. Añade notas y guarda.",

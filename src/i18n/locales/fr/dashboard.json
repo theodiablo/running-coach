@@ -42,8 +42,11 @@
       "kicker": "Validée",
       "done": "Bien joué, {{title}} est terminée.",
       "skipped": "{{title}} passée, aucun souci.",
-      "meta": "{{date}} · rien d'enregistré"
-    }
+      "meta": "{{date}} · rien d'enregistré",
+      "metaRun": "{{date}} · {{detail}}",
+      "runDetail": "{{km}} km en {{dur}}"
+    },
+    "alreadyRan": "Je l'ai déjà faite"
   },
   "noPlan": "Pas encore de plan d'entraînement. On s'y met ?",
   "setUpPlan": "Configurer mon plan",
@@ -63,5 +66,13 @@
     "title": "Sortie interrompue détectée",
     "subtitle": "{{km}} km enregistrés le {{date}}. Reprends-la ou sauvegarde-la.",
     "action": "Ouvrir"
+  },
+  "reconcile": {
+    "title": "C'était quelle sortie ?",
+    "scheduled": "prévue le {{date}}",
+    "closest": "La plus proche",
+    "move": "Déplacer aussi la séance au {{date}}, pour que ton plan colle aux jours où tu as couru",
+    "confirm": "C'est celle-là",
+    "note": "Rien ne change tant que tu n'as pas confirmé."
   }
 }

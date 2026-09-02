@@ -10,8 +10,9 @@ import { LogView } from "./LogView";
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
 
 const noop = () => {};
+const addNone = () => [];
 const setup = (props: Partial<Parameters<typeof LogView>[0]> = {}) =>
-  render(<LogView addRuns={noop} onDone={noop} runs={[]} {...props}/>);
+  render(<LogView addRuns={addNone} onDone={noop} runs={[]} {...props}/>);
 
 afterEach(cleanup);
 

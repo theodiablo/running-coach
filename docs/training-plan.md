@@ -58,6 +58,48 @@ Elapsed weeks are a real distinction downstream: `isElapsedWeek`
 PlanView's ordering, the overdue lookback (`docs/reminders.md`) and the coach's
 validator/tools/context (`docs/coach-agent.md`).
 
+## Linking a run to the session it settled
+
+`PlanSession.runId` names the run that settled a session — for a long time it
+was minted `null`, carried by `carryProgress`, and never written. Until it was,
+"done" was a boolean with no evidence behind it, and the only way a run met a
+session was `findOpenPlanSession`: same calendar day, at the single moment a
+recorder handed off to the log form. Do Thursday's tempo on Wednesday and the
+two never met — the session stayed untickable (the Dashboard tick is gated to
+today-or-past, correctly: ungated it walked forward through the plan) and the
+run stayed anonymous.
+
+`src/utils/sessionMatch.ts` is the one matcher, pure and shared by both entry
+points. A run is a candidate for a session when it is within
+`MATCH_WINDOW_DAYS` (3) either side, agrees on `isCrossTraining` (a bike ride
+must never tick off a tempo, and vice versa), and is not already some other
+session's `runId` — **one run settles one session**. Candidates rank by day gap
+first, then by how close the distance is to the prescription, then by recency.
+
+It only ever **proposes**. Two surfaces apply it, both by a confirmed tap:
+
+- **At save time** (`offeredSession` in `RunningCoach`, rendered by `LogView`).
+  A recorder's hand-off carries an `offered` session in the prefill — distinct
+  from `wNum`/`sId`, which mean the runner already chose it and there is nothing
+  to confirm. The offer shows above the Save button with its own date and a
+  "Not this one" that saves the run alone. `offered` is not run data:
+  `carryPrefill` drops it.
+- **After the fact** (`ReconcileSheet`, from the next-session card's "I already
+  ran this"). Ranked candidates, best preselected, nothing applied until
+  "Count it".
+
+Both land in `linkSess`, which sets `done` **and** `runId` in one write, and
+optionally re-dates the session to the day the run happened — the plan's dates
+feed the coach and the load rules, so a tempo left dated Thursday that the legs
+did on Wednesday misstates recovery. The move is only offered when the day falls
+inside the session's own plan week (`canMoveSessionTo`); outside it the session
+would be filed under a week it no longer falls in.
+
+Undo is **not** the same call again the way `toggleSess`/`skipSess` are: it has
+to release the run and put back the original date (`unlinkSess`). For the same
+reason, unticking a session anywhere clears its `runId` — otherwise the run
+stays invisible to every other session's candidate list.
+
 ## Methodology styles
 
 `opts.style` / `settings.planStyle` / `plan.style`: buildPlan composes weeks

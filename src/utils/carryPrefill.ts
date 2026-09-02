@@ -18,9 +18,10 @@ const FORM_OWNED = new Set([
 ]);
 
 // Not run data: `pace` is a display hint, `wNum`/`sId` name the plan session
-// the save ticks off (RunningCoach consumes them from the prefill), and `id` is
-// minted by addRuns.
-const NOT_RUN_DATA = new Set(["pace", "wNum", "sId", "id"]);
+// the save ticks off (RunningCoach consumes them from the prefill), `offered`
+// is the session the form is proposing to tick off, and `id` is minted by
+// addRuns.
+const NOT_RUN_DATA = new Set(["pace", "wNum", "sId", "offered", "id"]);
 
 export function carryPrefill(prefill: Partial<Run> | null | undefined): Partial<Run> {
   if (!prefill) return {};

@@ -13,7 +13,9 @@ import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
-import { buildPlan, carryProgress, findOpenPlanSession } from "./utils/plan";
+import { buildPlan, carryProgress } from "./utils/plan";
+import { bestSessionForRun } from "./utils/sessionMatch";
+import type { SessionWithWeek } from "./utils/overdue";
 import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
 import { distanceKm } from "./utils/geo";
 import { ymd, fmt } from "./utils/format";
@@ -62,6 +64,7 @@ import type {
   JoinedEdition,
   Plan,
   PlanPrefill,
+  PlanSession,
   RacesState,
   RouteBackup,
   Run,
@@ -140,7 +143,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // three for a standard distance. Null the rest of the time — there is no
   // "nothing to report" sheet.
   const [achievement, setAchievement] = useState<{ run: Run; efforts: EffortRank[]; confetti: boolean } | null>(null);
-  const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { wNum?: number; sId?: string }) | null>(null);
+  const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { wNum?: number; sId?: string; offered?: SessionWithWeek | null }) | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
   const [logImportOpen, setLogImportOpen] = useState(false);
   const [showBackup,  setShowBackup]  = useState(false);
@@ -201,7 +204,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // no premium gate (see docs/live-sharing.md).
   const liveRun = useLiveRun(user?.id);
   // Plan session the tracker was opened from ("Record run" on a session card),
-  // threaded into the save prefill so LogView's onSaved auto-ticks it.
+  // threaded into the save prefill so LogView's onSaved ticks it off.
   const [trackerLink, setTrackerLink] = useState<{ wNum: number; sId: string } | null>(null);
   // A distance to pre-open the route finder with (set when the tracker is opened
   // from a plan session's "Find a route"). Kept SEPARATE from trackerLink, which
@@ -829,15 +832,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     return added;
   };
 
-  const toggleSess = (wNum: number, sId: string) => {
+  // One writer for every session-progress edit, so done/skipped/runId/date can
+  // never drift apart across the handlers below.
+  const patchSess = (wNum: number, sId: string, patch: (s: PlanSession) => PlanSession) => {
     setPlan(prev => {
       if (!prev) return prev;
       const p = {...prev,
         weeks: prev.weeks.map(w => {
           if (w.weekNumber !== wNum) return w;
-          return {...w,
-            sessions: w.sessions.map(s => s.id !== sId ? s : {...s, done: !s.done, skipped: false}),
-          };
+          return {...w, sessions: w.sessions.map(s => s.id !== sId ? s : patch(s))};
         }),
       };
       db.set(STORAGE_KEYS.PLAN, p);
@@ -845,21 +848,26 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     });
   };
 
-  const skipSess = (wNum: number, sId: string) => {
-    setPlan(prev => {
-      if (!prev) return prev;
-      const p = {...prev,
-        weeks: prev.weeks.map(w => {
-          if (w.weekNumber !== wNum) return w;
-          return {...w,
-            sessions: w.sessions.map(s => s.id !== sId ? s : {...s, skipped: !s.skipped, done: false}),
-          };
-        }),
-      };
-      db.set(STORAGE_KEYS.PLAN, p);
-      return p;
-    });
-  };
+  // Unticking releases the run it claimed, or the session keeps pointing at a
+  // run that no longer settles it — and that run stays invisible to every other
+  // session's candidate list (src/utils/sessionMatch.ts).
+  const toggleSess = (wNum: number, sId: string) =>
+    patchSess(wNum, sId, s => ({...s, done: !s.done, skipped: false, runId: s.done ? null : s.runId}));
+
+  // Tick a session off AND record which run did it. `date` re-dates the session
+  // to the day the run actually happened — the plan's own dates feed the coach
+  // and the load rules, so a tempo left dated Thursday that the legs did on
+  // Wednesday misstates recovery. Only ever called from a confirmed tap.
+  const linkSess = (wNum: number, sId: string, runId: string | null, date?: string) =>
+    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(date ? {date} : {})}));
+
+  // The inverse, for the confirmation card's Undo: `date` puts back whatever the
+  // session was dated before the link moved it.
+  const unlinkSess = (wNum: number, sId: string, date?: string) =>
+    patchSess(wNum, sId, s => ({...s, done: false, runId: null, ...(date ? {date} : {})}));
+
+  const skipSess = (wNum: number, sId: string) =>
+    patchSess(wNum, sId, s => ({...s, skipped: !s.skipped, done: false, runId: null}));
 
   const deleteRun = (id: string) => {
     setRuns(prev => {
@@ -919,7 +927,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Always remounts LogView (prefillVer is its key): the importer/form choice is
   // initial state inside it, so a bare goLog() from the record sheet has to be
   // able to pull it back to the form when the importer is already showing.
-  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
+  // A recorder's hand-off: the session this run most likely settles, within a
+  // few days either side (src/utils/sessionMatch.ts). It is an OFFER — the log
+  // form shows it and lets the runner decline, because a plan edit nobody asked
+  // for, announced by a toast that deletes itself, is the bug #221 fixed.
+  // An explicit link (Start run from a plan row) is not an offer: already chosen.
+  const offeredSession = (run: Partial<Run>) => ({ offered: bestSessionForRun(planRef.current, run) });
+
+  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string; offered?: SessionWithWeek | null }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
   // Land on the Log tab with the file-import panel open (Settings ->
   // Integrations vendor guides). Bumps prefillVer so LogView remounts and reads
   // openImport as initial state even when already on the Log tab.
@@ -978,7 +993,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       showToast(t("app.toasts.foundRun", { source, km: r.km, date: fmt.sht(r.date || "") }), "ok",
         // Imports only ever map to running types (watch/mapping.ts), so this
         // must not reach that day's cross-training session either.
-        { label: t("app.toasts.review"), onClick: () => goVia(() => goLog({ ...r, ...(findOpenPlanSession(planRef.current, r.date || "", { crossTraining: false }) || {}) })) });
+        { label: t("app.toasts.review"), onClick: () => goVia(() => goLog({ ...r, ...offeredSession(r) })) });
     } else {
       showToast(t("app.toasts.foundRuns", { source, n: found.length }), "ok",
         { label: t("app.toasts.importAll"), onClick: () => {
@@ -1047,7 +1062,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1123,9 +1138,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           setOnboarding(false);
           track("onboarding_completed", {});
         }}/>}
-      {/* Unlinked opens: a run recorded from here auto-ticks whatever plan
-          session matches its date on save (findOpenPlanSession), rather than
-          claiming one up front the way a plan row's Start run does. */}
+      {/* Unlinked opens: a run recorded from here is OFFERED whatever plan
+          session it plausibly settles (offeredSession), to confirm on the save
+          screen, rather than claiming one up front the way a plan row's
+          Start run does. */}
       {showRecordSheet && <RecordSheet
         onTrack={() => shared.openTracker()}
         onIndoor={() => shared.openIndoor()}
@@ -1135,14 +1151,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
-        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || findOpenPlanSession(plan, prefill.date || "", { crossTraining: false }) || {}) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
+        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || offeredSession(prefill)) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
       {showIndoor && <IndoorTracker showToast={showToast} settings={settings} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         // An indoor save can only tick a cross-training day, never that day's
         // easy run — and the GPS tracker above is filtered the other way.
-        onFinish={prefill => { setShowIndoor(false); goLog({ ...prefill, ...(indoorLink || findOpenPlanSession(plan, prefill.date || "", { crossTraining: true }) || {}) }); setIndoorLink(null); }}
+        onFinish={prefill => { setShowIndoor(false); goLog({ ...prefill, ...(indoorLink || offeredSession(prefill)) }); setIndoorLink(null); }}
         onClose={() => { setShowIndoor(false); setIndoorLink(null); }}/>}
       {showLiveWatch && <LiveWatchModal row={liveRun.row} onClose={() => setShowLiveWatch(false)}/>}
       {showBackup && <BackupModal
@@ -1226,8 +1242,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
-          onSaved={() => {
-            if (logPrefill?.wNum != null && logPrefill?.sId) toggleSess(logPrefill.wNum, logPrefill.sId);
+          onSaved={(saved, link) => {
+            // The link is whatever the form ended up with: the session the
+            // runner arrived on, or the offered one they didn't decline.
+            if (link) linkSess(link.wNum, link.sId, saved[0]?.id || null);
             // A saved single-run import review (prefill carries the provider
             // extId) confirms the cloud page — release its deferred ack.
             if (logPrefill?.extId) commitCloudScans();

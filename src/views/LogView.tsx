@@ -13,11 +13,17 @@ import { carryPrefill } from "../utils/carryPrefill";
 import { getSeenIds } from "../watch/import";
 import type { ImportedRun } from "../imports/types";
 import type { HrPending, Run } from "../types";
+import type { SessionWithWeek } from "../utils/overdue";
 
 type LogPrefill = Partial<Run> & {
   pace?: number;
   wNum?: number;
   sId?: string;
+  // A session the app thinks this run settled, within a few days either side
+  // (src/utils/sessionMatch.ts). Unlike wNum/sId — which mean "the runner
+  // already chose this session" — an offer is shown for confirmation and can be
+  // declined here. Never both.
+  offered?: SessionWithWeek | null;
   hrPending?: HrPending | null;
 };
 
@@ -28,9 +34,11 @@ type LogPrefill = Partial<Run> & {
 // logging a plan session, reviewing something a recorder just captured
 // (`prefill.source`), and importing a file.
 type LogViewProps = {
-  addRuns: (runs: Partial<Run>[]) => void;
+  addRuns: (runs: Partial<Run>[]) => Run[];
   onDone: () => void;
-  onSaved?: () => void;
+  // The saved runs (with their minted ids) and the plan session the save
+  // settles, if any — the hub ticks it off and records which run did it.
+  onSaved?: (saved: Run[], link: { wNum: number; sId: string } | null) => void;
   prefill?: LogPrefill | null;
   // Existing log, used to dedupe file imports (comes in via the shared bag).
   runs?: Run[];
@@ -69,6 +77,11 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
   // Required-field errors show only once a save has been attempted — an empty
   // form isn't a mistake yet.
   const [attempted, setAttempted] = useState(false);
+  // An offered session is confirmed by default — it is shown, named and dated
+  // right above the Save button, so it is a decision the runner sees rather
+  // than a plan edit that happens behind a disappearing toast. Declining
+  // saves the run on its own.
+  const [declined, setDeclined] = useState(false);
   const [importing, setImporting] = useState(!!openImport);
   const [csvMsg, setCsvMsg] = useState("");
   const [csvOk,  setCsvOk]  = useState(false);
@@ -90,7 +103,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       return;
     }
     setBusy(true);
-    addRuns([{
+    const saved = addRuns([{
       // Everything the recorder or importer measured that this form can't edit
       // rides through untouched; the form's own values win. An allowlist here
       // silently dropped extId, and every cloud sync then reported "no new
@@ -98,7 +111,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       ...carryPrefill(prefill),
       ...runFormToPatch(f),
     }]);
-    setBusy(false); onSaved?.(); onDone();
+    setBusy(false); onSaved?.(saved || [], link); onDone();
   };
 
   // One handler for every supported activity file (CSV / GPX / TCX), routed
@@ -159,7 +172,22 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
 
   // Logging a plan session: saving it also ticks the session off (RunningCoach's
   // onSaved), so the screen says so rather than letting it happen silently.
-  const session = prefill?.wNum != null && prefill?.sId ? prefill : null;
+  // Two ways to get here — the runner picked the session (wNum/sId), or the app
+  // matched one to the run and is offering it.
+  const chosen = prefill?.wNum != null && prefill?.sId ? prefill : null;
+  const offered = !chosen && !declined ? prefill?.offered || null : null;
+  // One shape for both, so the banner below doesn't branch: note that an
+  // offer's `date` is the SESSION's day, which is exactly the day the run is
+  // not — that difference is the whole point of showing it.
+  const session = chosen
+    ? { wNum: chosen.wNum!, sId: chosen.sId!, date: chosen.date || "", type: chosen.type || "",
+        km: Number(chosen.km) || 0, pace: chosen.pace || 0, durationSec: chosen.durationSec }
+    : offered
+    ? { wNum: offered.wNum, sId: offered.id, date: offered.date, type: offered.type,
+        km: Number(offered.km) || 0, pace: offered.pace || 0,
+        durationSec: offered.sd?.minutes ? offered.sd.minutes * 60 : undefined }
+    : null;
+  const link = session ? { wNum: session.wNum, sId: session.sId } : null;
   const title = importing
     ? t("log.titleImport")
     : prefill?.source ? t("log.titleReview")
@@ -215,13 +243,16 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
         </div>
       )}
 
-      {/* Which session you're logging, and what saving will do to it. Skipped
-          when a source banner already explains the arrival (a tracked run that
-          happens to be linked says it on the Save button instead). */}
-      {session && !prefill?.source && (
+      {/* Which session you're logging, and what saving will do to it. A chosen
+          session is skipped when a source banner already explains the arrival
+          (a tracked run that happens to be linked says it on the Save button
+          instead); an OFFER always shows — it is the thing being confirmed. */}
+      {session && (offered || !prefill?.source) && (
         <div className="bg-orange-500/10 border border-orange-500/25 rounded-xl px-4 py-3 mb-5 space-y-0.5">
           <p className="text-sm font-semibold text-white">
-            {t("log.session.heading", { week: session.wNum, date: fmt.sht(session.date || "") })}
+            {offered
+              ? t("log.session.offerHeading", { date: fmt.sht(session.date) })
+              : t("log.session.heading", { week: session.wNum, date: fmt.sht(session.date) })}
           </p>
           {/* A cross-training session's prescription is its duration, which
               planSessionPrefill only carries when the session declares one —
@@ -238,7 +269,23 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
             </p>
           )}
           <p className="text-xs text-slate-400">{t("log.session.ticksOff")}</p>
+          {/* The one control that makes this an offer rather than a silent
+              plan edit: the run saves on its own and the session stays open. */}
+          {offered && (
+            <button onClick={() => setDeclined(true)}
+              className="pt-1 text-xs font-semibold text-slate-400 hover:text-slate-200 underline underline-offset-2 transition-colors">
+              {t("log.session.decline")}
+            </button>
+          )}
         </div>
+      )}
+
+      {/* Declining is undoable until the run is saved — nothing has happened yet. */}
+      {declined && prefill?.offered && (
+        <button onClick={() => setDeclined(false)}
+          className="w-full text-xs text-slate-500 hover:text-slate-300 underline underline-offset-2 mb-5 transition-colors">
+          {t("log.session.declineUndo", { date: fmt.sht(prefill.offered.date) })}
+        </button>
       )}
 
       <div className="space-y-4" ref={formRef}>

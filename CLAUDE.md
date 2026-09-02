@@ -200,6 +200,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   `OTHER` entries are kept out of the pool. No surface may claim more than the
   log supports (`isFirstEffort` vs `isPersonalBest`, and `EffortRank.estimated`
   per distance). Detail: `docs/best-efforts.md`.
+- **A run and the session it settled are linked by `runId`, never guessed
+  silently.** `src/utils/sessionMatch.ts` is the one matcher (±3 days, the
+  `isCrossTraining` line, one run settles one session) and it only *proposes* —
+  the save screen offers its match with a decline, the Dashboard's "I already
+  ran this" opens `ReconcileSheet`; both apply through `linkSess`, which writes
+  `done` + `runId` (and may re-date the session to the day it happened, only
+  inside its own week). Unticking anywhere clears `runId`, and undoing a link is
+  `unlinkSess`, not the same call again. Detail: `docs/training-plan.md`.
 - **Overdue plan sessions are derived, never stored** — `overdueSessions` /
   `nextSession` (`src/utils/overdue.ts`) are the one definition, and a session
   must never appear in both. Copy stays forgiving ("still open", amber, never
