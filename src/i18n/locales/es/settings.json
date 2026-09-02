@@ -156,7 +156,11 @@
       "hrEditable": "Los valores importados siguen siendo editables en cada entrenamiento."
     },
     "howItWorksNamed": "Cómo funciona {{name}}",
-    "aboutLabel": "Sobre estas conexiones"
+    "aboutLabel": "Sobre estas conexiones",
+    "hrOptOut": {
+      "note": "La frecuencia cardíaca está desactivada en tus entrenamientos.",
+      "undo": "Volver a activar"
+    }
   },
   "hrDisclosure": {
     "title": "Conectar un sensor de frecuencia cardíaca",

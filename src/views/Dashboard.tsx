@@ -15,7 +15,7 @@ import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
-import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsState } from "../types";
+import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsPage, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
 type DashboardProps = {
@@ -28,7 +28,7 @@ type DashboardProps = {
   goLog: (prefill: Partial<Run>) => void;
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
-  openSettings: () => void;
+  openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: null, source?: CoachSource) => void;
   showToast: (msg: string, type?: string, action?: {label: string; onClick: () => void}) => void;
   // Persists the one-time overdue coach explainer as shown (the hub owns the

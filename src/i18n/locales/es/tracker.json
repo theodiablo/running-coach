@@ -53,7 +53,9 @@
     "cantReach": "no se encuentra el sensor",
     "reconnecting": "señal perdida, reconectando…",
     "postRun": "La frecuencia cardíaca se añade desde {{store}} cuando terminas.",
-    "partial": "La frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento, así que no se guardó como media."
+    "partial": "La frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento, así que no se guardó como media.",
+    "offChip": "Frecuencia cardíaca desactivada",
+    "offChipCta": "Conectar un sensor"
   },
   "gps": {
     "accuracyGood": "Precisión GPS de ±{{acc}} m. Todo listo",
@@ -77,9 +79,9 @@
     "pairTitle": "¿Emparejar tu sensor de frecuencia cardíaca?",
     "pairBody": "La captura de frecuencia cardíaca por Bluetooth está seleccionada, pero no hay ningún sensor emparejado en este teléfono. Empareja uno en Ajustes para registrar las pulsaciones en tiempo real.",
     "pairAccept": "Emparejar sensor",
-    "setupTitle": "¿Registrar tu frecuencia cardíaca?",
-    "setupBody": "Conecta un sensor Bluetooth o Health Connect para registrar la frecuencia cardíaca automáticamente, sin tener que introducirla a mano. Puedes configurarlo más tarde en Ajustes.",
-    "setupAccept": "Configurar",
+    "setupTitle": "¿Entrenar por frecuencia cardíaca?",
+    "setupBody": "Conecta una banda, un reloj o Health Connect: cada sesión mostrará una zona objetivo y tu entrenador podrá distinguir un rodaje suave de uno duro.",
+    "setupAccept": "Conectar un sensor",
     "newBeta": "Nueva beta",
     "betaWarning": "Esta función de captura es nueva y puede fallar. Comprueba las lecturas guardadas antes de usarlas para tomar decisiones de entrenamiento.",
     "optOut": "No registrar la frecuencia cardíaca"

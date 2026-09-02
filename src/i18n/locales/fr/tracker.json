@@ -53,7 +53,9 @@
     "cantReach": "capteur introuvable",
     "reconnecting": "signal perdu, reconnexion…",
     "postRun": "La fréquence cardiaque est ajoutée depuis {{store}} à la fin de ta sortie.",
-    "partial": "La fréquence cardiaque ne couvre que {{pct}} % de cette sortie, elle n'a donc pas été enregistrée comme moyenne."
+    "partial": "La fréquence cardiaque ne couvre que {{pct}} % de cette sortie, elle n'a donc pas été enregistrée comme moyenne.",
+    "offChip": "Fréquence cardiaque désactivée",
+    "offChipCta": "Connecter un capteur"
   },
   "gps": {
     "accuracyGood": "Précision GPS de ±{{acc}} m. C'est parti",
@@ -77,9 +79,9 @@
     "pairTitle": "Associer ton capteur de fréquence cardiaque ?",
     "pairBody": "La capture de la fréquence cardiaque par Bluetooth est sélectionnée, mais aucun capteur n'est associé sur ce téléphone. Associe-en un dans les Paramètres pour enregistrer la fréquence cardiaque en temps réel.",
     "pairAccept": "Associer un capteur",
-    "setupTitle": "Suivre ta fréquence cardiaque ?",
-    "setupBody": "Connecte un capteur Bluetooth ou Health Connect pour enregistrer automatiquement la fréquence cardiaque, sans avoir à la saisir. Tu peux configurer cette option plus tard dans les Paramètres.",
-    "setupAccept": "Configurer",
+    "setupTitle": "T'entraîner à la fréquence cardiaque ?",
+    "setupBody": "Connecte une ceinture, une montre ou Health Connect : chaque séance affiche alors une zone cible, et ton coach distingue une sortie facile d'une sortie difficile.",
+    "setupAccept": "Connecter un capteur",
     "newBeta": "Nouveauté · bêta",
     "betaWarning": "Cette fonction de capture est nouvelle et peut dysfonctionner. Vérifie les mesures enregistrées avant de les utiliser pour tes décisions d'entraînement.",
     "optOut": "Ne pas enregistrer la fréquence cardiaque"

@@ -156,7 +156,11 @@
       "hrEditable": "Les valeurs importées restent modifiables sur chaque sortie."
     },
     "howItWorksNamed": "Comment fonctionne {{name}}",
-    "aboutLabel": "À propos de ces connexions"
+    "aboutLabel": "À propos de ces connexions",
+    "hrOptOut": {
+      "note": "La fréquence cardiaque est désactivée pour tes sorties.",
+      "undo": "Réactiver"
+    }
   },
   "hrDisclosure": {
     "title": "Connecter un capteur de fréquence cardiaque",

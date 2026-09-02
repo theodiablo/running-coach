@@ -225,6 +225,29 @@ copy is platform-branched (Health Connect / Apple Health / "use the mobile app"
 on web). Adding a vendor is a `VENDORS` entry plus its i18n keys under
 `settings.guides.<id>` in all three locales.
 
+### Finding it in the first place
+
+The Connections card is four taps from anywhere, so the entry points that
+*point* at it carry the feature:
+
+- **Onboarding, heart-rate step** — native only, offers the same
+  disclosure-gated pairing (`useBlePairing` + `BleScanList`), and a strap paired
+  there completes onboarding with `hrMethod: "bluetooth"`. Pairing IS choosing
+  the source, exactly as in the card.
+- **The recorders' Start prompt** — `hrNudgeFor` (`src/utils/hrNudge.ts`) picks
+  which prompt; accepting deep-links to **Integrations**
+  (`openSettings("integrations")`), and closing settings reopens the recorder
+  that sent them, so setting up HR never costs the user their run start.
+- **The tracker's idle HR chip** — with no source configured, the stat block
+  keeps a tappable "Heart rate off · Connect a sensor" row, so the feature has a
+  standing surface rather than only a modal the user dismisses to get going.
+- **`HRTarget`'s "add your HR profile"** (dashboard, plan rows, plan builder) is
+  about `maxHR`, not a device: it deep-links to **Training profile**.
+
+`settings.hrOptOut` (the prompt's "don't record heart rate") is synced and
+silences the prompt everywhere, so it must stay reversible: the card shows an
+undo row while it is set, and choosing any HR source clears it (`withHrMethod`).
+
 ## Watch run import (phone-free runs)
 
 For runners who leave the phone at home (e.g. Garmin Forerunner, Amazfit):

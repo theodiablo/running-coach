@@ -81,7 +81,11 @@
     "autoPlaceholder": "auto",
     "dontKnow": "No conozco mi frecuencia cardiaca",
     "enterBirthYear": "Introduce tu año de nacimiento arriba para estimarla.",
-    "estimated": "Estimada a partir de la edad (Tanaka, 208 − 0,7×edad): {{max}} ppm de FC máxima, con una FC en reposo típica de 60 ppm."
+    "estimated": "Estimada a partir de la edad (Tanaka, 208 − 0,7×edad): {{max}} ppm de FC máxima, con una FC en reposo típica de 60 ppm.",
+    "sensorTitle": "¿Llevas un sensor de frecuencia cardíaca?",
+    "sensorBody": "Empareja una banda o un reloj que emita la frecuencia cardíaca y la registraremos durante tus entrenamientos, sin escribir nada.",
+    "sensorCta": "Conectar un sensor",
+    "sensorPaired": "{{name}} emparejado. Empezará a registrar en tu próximo entrenamiento."
   },
   "health": {
     "title": "Una última cosa",

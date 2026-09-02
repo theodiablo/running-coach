@@ -156,7 +156,11 @@
       "hrEditable": "Imported values stay editable on every run."
     },
     "howItWorksNamed": "How {{name}} works",
-    "aboutLabel": "About these connections"
+    "aboutLabel": "About these connections",
+    "hrOptOut": {
+      "note": "Heart rate is switched off for your runs.",
+      "undo": "Turn back on"
+    }
   },
   "hrDisclosure": {
     "title": "Connect a heart-rate sensor",

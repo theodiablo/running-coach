@@ -53,7 +53,9 @@
     "cantReach": "can't reach sensor",
     "reconnecting": "signal lost, reconnecting…",
     "postRun": "Heart rate is added from {{store}} after you finish.",
-    "partial": "Heart rate only covered {{pct}}% of this run, so it wasn't saved as the run's average."
+    "partial": "Heart rate only covered {{pct}}% of this run, so it wasn't saved as the run's average.",
+    "offChip": "Heart rate off",
+    "offChipCta": "Connect a sensor"
   },
   "gps": {
     "accuracyGood": "GPS accuracy ±{{acc}} m — good to go",
@@ -77,9 +79,9 @@
     "pairTitle": "Pair your heart-rate sensor?",
     "pairBody": "Bluetooth heart-rate capture is selected, but no sensor is paired on this phone. Pair one in Settings to record live BPM.",
     "pairAccept": "Pair sensor",
-    "setupTitle": "Track your heart rate?",
-    "setupBody": "Connect a Bluetooth sensor or Health Connect to capture heart rate automatically — no need to type it in. You can set this up later in Settings.",
-    "setupAccept": "Set up",
+    "setupTitle": "Train by heart rate?",
+    "setupBody": "Connect a chest strap, a watch or Health Connect and every session gets a zone target, and your coach can tell an easy run from a hard one.",
+    "setupAccept": "Connect a sensor",
     "newBeta": "New beta",
     "betaWarning": "This capture feature is new and can break. Please check saved readings before using them for training decisions.",
     "optOut": "Don't record heart rate"

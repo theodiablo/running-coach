@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Bluetooth, Watch, Loader, Check, RefreshCw, Trash2, ChevronDown, Smartphone } from "lucide-react";
+import { Bluetooth, Watch, Loader, RefreshCw, Trash2, ChevronDown, Smartphone } from "lucide-react";
 import { isNative, isAndroid } from "../native";
-import { bleSource } from "../hr/ble";
 import { healthConnectSource } from "../hr/healthconnect";
 import { healthKitSource } from "../hr/healthkit";
 import { connectHealthConnect } from "../health/connect";
-import { getPairedDevice, setPairedDevice, forgetPairedDevice } from "../hr/device";
-import { HrSensorDisclosure } from "../modals/HrSensorDisclosure";
+import { getPairedDevice, forgetPairedDevice } from "../hr/device";
+import { useBlePairing } from "../hooks/useBlePairing";
+import { BleScanList } from "../components/BleScanList";
 import { importProviders, healthStoreProviderIds, providerEnabledInSettings } from "../imports/registry";
 import { isWatchDebugEnabled, setWatchDebug } from "../watch/scanLog";
 import { fileShellReport } from "../diag/shellLog";
@@ -16,7 +16,7 @@ import { WatchSyncLog } from "./WatchSyncLog";
 import { TrackDiagLog } from "./TrackDiagLog";
 import { BetaBadge } from "../components/BetaBadge";
 import { ToggleSwitch } from "../components/ToggleSwitch";
-import { HR_BLE_DISCLOSED_KEY, PLAY_STORE_BETA_URL, APP_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
+import { PLAY_STORE_BETA_URL, APP_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
 import type { ImportProvider } from "../imports/types";
 import type { HrMethod, SettingsState } from "../types";
 
@@ -85,45 +85,35 @@ function RowShell({ icon, label, status, control }: { icon: React.ReactNode; lab
   );
 }
 
+// A heart-rate source is also an answer to the tracker's "track your heart
+// rate?" prompt, so choosing one clears the opt-out that prompt can set —
+// otherwise a runner who once tapped "don't record" is never asked again even
+// after pairing a strap. Off never sets it: only the prompt itself opts out.
+function withHrMethod(settings: SettingsState, m: HrMethod): SettingsState {
+  return { ...settings, hrMethod: m, ...(m === "off" ? {} : { hrOptOut: false }) };
+}
+
 // ── Bluetooth heart-rate sensor (live HR during runs) ───────────────────────
 function BleRow({ settings, saveSettings, showToast }: ConnectionsProps) {
   const { t } = useTranslation();
   const [paired, setPaired] = useState(() => getPairedDevice());
   const [setupOpen, setSetupOpen] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [found, setFound] = useState<{ id: string; name: string }[]>([]);
-  const [showDisclosure, setShowDisclosure] = useState(false);
   const on = settings.hrMethod === "bluetooth" && !!paired;
 
-  const setMethod = (m: HrMethod) => saveSettings({ ...settings, hrMethod: m });
+  const setMethod = (m: HrMethod) => saveSettings(withHrMethod(settings, m));
 
-  const disclosed = () => {
-    try { return localStorage.getItem(HR_BLE_DISCLOSED_KEY) === "1"; } catch { return false; }
-  };
-  const markDisclosed = () => {
-    try { localStorage.setItem(HR_BLE_DISCLOSED_KEY, "1"); } catch { /* quota — non-fatal */ }
-  };
-
-  const runScan = async () => {
-    setFound([]);
-    setScanning(true);
-    try {
-      await bleSource.scan((d: { id: string; name: string }) =>
-        setFound(prev => prev.some(x => x.id === d.id) ? prev : [...prev, d]));
-    } catch {
-      showToast?.(t("settings.hrSensor.scanFailed"), "err");
-    }
-    setScanning(false);
-  };
-  // Gate the first scan behind the prominent disclosure + OS Bluetooth prompt.
-  const startScan = () => { if (disclosed()) runScan(); else setShowDisclosure(true); };
-  const acceptDisclosure = async () => {
-    setShowDisclosure(false);
-    const ok = await bleSource.requestPermissions();
-    if (!ok) { showToast?.(t("settings.hrSensor.permissionNeeded"), "err"); return; }
-    markDisclosed();
-    runScan();
-  };
+  const pairing = useBlePairing({
+    showToast,
+    onPaired: d => {
+      setPaired(d);
+      setSetupOpen(false);
+      // Pairing IS choosing this as the HR source (it replaces a health-store
+      // method — hrMethod is single-select by design: one HR source per run).
+      setMethod("bluetooth");
+      showToast?.(t("settings.hrSensor.paired", { name: d.name }));
+    },
+  });
+  const { startScan } = pairing;
 
   const toggle = () => {
     if (on) { setMethod("off"); setSetupOpen(false); return; }
@@ -132,20 +122,9 @@ function BleRow({ settings, saveSettings, showToast }: ConnectionsProps) {
     startScan();
   };
 
-  const choose = (d: { id: string; name: string }) => {
-    setPairedDevice(d);
-    setPaired(d);
-    setFound([]);
-    setSetupOpen(false);
-    // Pairing IS choosing this as the HR source (it replaces a health-store
-    // method — hrMethod is single-select by design: one HR source per run).
-    setMethod("bluetooth");
-    showToast?.(t("settings.hrSensor.paired", { name: d.name }));
-  };
   const forget = () => {
     forgetPairedDevice();
     setPaired(null);
-    setFound([]);
     if (settings.hrMethod === "bluetooth") setMethod("off");
   };
 
@@ -171,28 +150,23 @@ function BleRow({ settings, saveSettings, showToast }: ConnectionsProps) {
           </span>
         </div>
       )}
-      {setupOpen && (
-        <div className="space-y-2">
-          <button type="button" onClick={startScan} disabled={scanning}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center gap-2 disabled:opacity-50">
-            {scanning ? <Loader size={15} className="animate-spin" /> : <Bluetooth size={15} />}
-            {scanning ? t("settings.hrSensor.scanning") : t("settings.hrSensor.pair")}
-          </button>
-          {found.map(d => (
-            <button key={d.id} type="button" onClick={() => choose(d)}
-              className="w-full flex items-center justify-between gap-2 bg-slate-700/60 hover:bg-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200">
-              <span className="truncate">{d.name}</span>
-              {paired?.id === d.id && <Check size={15} className="text-emerald-400 shrink-0" />}
-            </button>
-          ))}
-          {!scanning && !found.length && (
-            <p className="text-xs text-slate-500">{t("settings.hrSensor.pairHelp")}</p>
-          )}
-        </div>
-      )}
-      {showDisclosure && (
-        <HrSensorDisclosure onAccept={acceptDisclosure} onCancel={() => setShowDisclosure(false)} />
-      )}
+      {setupOpen && <BleScanList pairing={pairing} pairedId={paired?.id} />}
+    </div>
+  );
+}
+
+// The tracker's "don't record heart rate" is otherwise a one-way door: it sets
+// settings.hrOptOut, which silences every future prompt on every device, and
+// nothing else ever writes it back. This row is where it comes undone.
+function HrOptOutRow({ settings, saveSettings }: ConnectionsProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-between gap-3 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+      <p className="text-xs text-amber-200 min-w-0">{t("settings.connections.hrOptOut.note")}</p>
+      <button type="button" onClick={() => saveSettings({ ...settings, hrOptOut: false })}
+        className="text-xs font-semibold text-amber-100 hover:text-white underline underline-offset-2 shrink-0">
+        {t("settings.connections.hrOptOut.undo")}
+      </button>
     </div>
   );
 }
@@ -284,7 +258,7 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
   const applyGrant = (prev: { hr: boolean; watch: boolean }, grant: { hr: boolean; watch: boolean }): boolean => {
     let next = settings;
     if (grant.watch && !prev.watch) next = withProviderEnabled(next, isAndroid ? "healthconnect" : "healthkit", true);
-    if (grant.hr && !prev.hr && (settings.hrMethod || "off") === "off") next = { ...next, hrMethod: storeMethod };
+    if (grant.hr && !prev.hr && (settings.hrMethod || "off") === "off") next = withHrMethod(next, storeMethod);
     if (next !== settings) { saveSettings(next); return true; }
     return false;
   };
@@ -312,7 +286,7 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
       const grant = await doConnect();
       if (!grant.hr) return;
     }
-    saveSettings({ ...settings, hrMethod: storeMethod });
+    saveSettings(withHrMethod(settings, storeMethod));
   };
 
   const toggleWatch = async () => {
@@ -561,7 +535,7 @@ function MobileAppPointer() {
 
 export function ConnectionsCard(props: ConnectionsProps) {
   const { t } = useTranslation();
-  const { showToast } = props;
+  const { settings, showToast } = props;
   const [cloudProviders, setCloudProviders] = useState<ImportProvider[]>([]);
   // Hidden developer sync-log: tap the section title 5× to toggle it (moved
   // here from the old Integrations section — same key, same behaviour).
@@ -611,6 +585,7 @@ export function ConnectionsCard(props: ConnectionsProps) {
       </div>
       <p className="text-xs text-slate-400 -mt-1">{t("settings.connections.subtitle")}</p>
 
+      {isNative && settings.hrOptOut && (settings.hrMethod || "off") === "off" && <HrOptOutRow {...props} />}
       {isNative && <BleRow {...props} />}
       {isNative && <HealthStoreRow {...props} />}
       {cloudProviders.map(p => <CloudRow key={p.id} provider={p} {...props} />)}

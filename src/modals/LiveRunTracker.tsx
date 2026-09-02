@@ -35,7 +35,7 @@ import { canShowPremiumTeaser, isPremiumActive } from "../premium";
 import { primeCues } from "../cues";
 import { track } from "../telemetry";
 import { hrNudgeFor } from "../utils/hrNudge";
-import type { HrMethod, HrPending, PlanSession, Run, SuggestedRoute } from "../types";
+import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
   onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
@@ -43,7 +43,9 @@ type LiveRunTrackerProps = {
   showToast?: (msg: string, type?: string) => void;
   hrMethod: HrMethod;
   hrOptOut?: boolean;
-  onConfigureHr?: () => void;
+  // Deep-links into settings; the page defaults to Integrations (where a
+  // sensor is paired), but the profile nudge asks for Training profile.
+  onConfigureHr?: (page?: SettingsPage) => void;
   onDeclineHr?: () => void;
   // When set (e.g. opened from a plan session), auto-open the route finder with
   // this distance pre-filled.
@@ -806,6 +808,19 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 : t("tracker.hr.connecting")}
             </span>
           </div>
+        )}
+
+        {/* HR has a permanent slot here, not just a prompt on Start: with no
+            source the screen said nothing at all about heart rate, so the one
+            modal a runner dismisses to get going was the whole feature's only
+            surface. Idle only — mid-run this would be noise. */}
+        {isNative && !hrSrc && state === "idle" && (
+          <button onClick={() => onConfigureHr?.()}
+            className="w-full bg-slate-800 hover:bg-slate-700 rounded-xl px-3 py-2 flex items-center justify-center gap-2 transition-colors">
+            <HeartPulse size={16} className="text-slate-500 shrink-0" />
+            <span className="text-xs text-slate-400">{t("tracker.hr.offChip")}</span>
+            <span className="text-xs font-semibold text-orange-300">{t("tracker.hr.offChipCta")}</span>
+          </button>
         )}
 
         {hrSrc && !hrSrc.live && (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, Trophy, Navigation, Loader } from "lucide-react";
+import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, Trophy, Navigation, Loader, Bluetooth } from "lucide-react";
 import { INPUT_CLS, DISCLAIMER_VERSION, DISCLAIMER_URL } from "../constants";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../i18n";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
@@ -22,13 +22,16 @@ import { AddRaceCard } from "../components/AddRaceCard";
 import { Confetti } from "../components/Confetti";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { onboardingSteps } from "../utils/onboarding";
+import { isNative } from "../native";
+import { useBlePairing, type BleDevice } from "../hooks/useBlePairing";
+import { BleScanList } from "../components/BleScanList";
 import { searchEditions, editionLabel, findEdition } from "../utils/races";
 import { suggestedGoalSec } from "../utils/goal";
 import { deriveAge, runnerAge, tanakaMaxHR } from "../utils/hr";
 import { buildPlan } from "../utils/plan";
 import type { PlanSessionInput } from "../utils/plan";
 import { addWeeks, ymd, fmt } from "../utils/format";
-import type { CatalogueEdition, CatalogueRace, HealthAck, Intent, JoinedEdition, SettingsState } from "../types";
+import type { CatalogueEdition, CatalogueRace, HealthAck, HrMethod, Intent, JoinedEdition, SettingsState } from "../types";
 
 
 type OnboardingStepKey = "welcome" | "intent" | "race" | "raceGoal" | "training" | "hr" | "health" | "summary";
@@ -49,6 +52,9 @@ type OnboardingCompletePayload = {
     availTime: DurationBand;
   };
   hr: Pick<SettingsState, "birthYear" | "age" | "maxHR" | "restHR"> | null;
+  // Set only when a strap was paired here — pairing IS choosing it as the HR
+  // source, the same rule the Connections card follows.
+  hrMethod: HrMethod | null;
   healthAck: NonNullable<HealthAck>;
 };
 type OnboardingWizardProps = {
@@ -148,6 +154,16 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const [maxHR,  setMaxHR]  = useState(String(settings.maxHR || ""));
   const [restHR, setRestHR] = useState(String(settings.restHR || 60));
   const [maxHRHint, setMaxHRHint] = useState("");
+  // A runner who already owns a strap should never have to discover pairing on
+  // their own later: the heart-rate step is the one moment we have their
+  // attention on the subject, so it offers the same disclosure-gated pairing
+  // the Connections card does. Native only — a browser can't reach a sensor.
+  const [sensor, setSensor] = useState<BleDevice | null>(null);
+  const [sensorOpen, setSensorOpen] = useState(false);
+  const sensorPairing = useBlePairing({
+    showToast,
+    onPaired: d => { setSensor(d); setSensorOpen(false); },
+  });
 
   // Final step — health & safety screening + disclaimer. The screening answer is
   // GDPR special-category health data, so it lives ONLY in local state and is
@@ -256,7 +272,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     const hasHR = ageN != null || mhrN > 0;
     const hr = hasHR ? {birthYear: byN, age: ageN ?? 0, maxHR: mhrN || tanakaMax || 0, restHR: parseInt(restHR) || 60} : null;
     const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, trainingLevel: level, ...availMeta};
-    onComplete({name: trimmedName, plan, hr, healthAck: {v: DISCLAIMER_VERSION, at: new Date().toISOString()}});
+    onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck: {v: DISCLAIMER_VERSION, at: new Date().toISOString()}});
   };
 
   // Text + band narrow the catalogue, same as the Races tab; a match passes the
@@ -605,6 +621,25 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 <div><label className="text-xs text-slate-400 block mb-1.5">{t("onboarding.hr.restHR")}</label>
                   <input type="number" min="30" max="120" placeholder="60" value={restHR} onChange={e => setRestHR(e.target.value)} className={INPUT_CLS}/></div>
               </div>
+
+              {isNative && (
+                <div className="bg-slate-800 rounded-2xl p-3 space-y-2">
+                  <p className="text-sm font-semibold text-slate-200">{t("onboarding.hr.sensorTitle")}</p>
+                  <p className="text-xs text-slate-400">{t("onboarding.hr.sensorBody")}</p>
+                  {sensor ? (
+                    <p className="text-xs text-emerald-300 flex items-center gap-1.5">
+                      <Check size={13} className="shrink-0"/>{t("onboarding.hr.sensorPaired", { name: sensor.name })}
+                    </p>
+                  ) : sensorOpen ? (
+                    <BleScanList pairing={sensorPairing}/>
+                  ) : (
+                    <button type="button" onClick={() => { setSensorOpen(true); sensorPairing.startScan(); }}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center gap-2 transition-colors">
+                      <Bluetooth size={15}/>{t("onboarding.hr.sensorCta")}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div>
                 {!(parseInt(maxHR) || 0) && (

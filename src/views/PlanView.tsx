@@ -14,7 +14,7 @@ import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { PlanSessionRow } from "../components/PlanSessionRow";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsState } from "../types";
+import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsPage, SettingsState } from "../types";
 import { carryProgress, isElapsedWeek, planSessionPrefill, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 
@@ -54,7 +54,7 @@ type PlanViewProps = {
   ) => Plan;
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
-  openSettings: () => void;
+  openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
   openIndoor: (link?: { wNum: number; sId: string }) => void;
@@ -273,7 +273,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
         </div>
 
         {!settings.maxHR && (
-          <button type="button" onClick={openSettings}
+          <button type="button" onClick={() => openSettings("training")}
             className="w-full mt-4 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/25 rounded-xl p-3 text-xs text-amber-200 flex gap-2 items-start text-left transition-colors">
             <span className="flex-shrink-0 text-base leading-none">💡</span>
             <span>{t("plan.setup.hrNudge")}</span>
