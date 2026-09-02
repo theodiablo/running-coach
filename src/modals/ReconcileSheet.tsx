@@ -11,7 +11,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
-import { ConfirmButtons } from "../components/ModalPrimitives";
 import { describeSession } from "../utils/sessionDesc";
 import { fmt } from "../utils/format";
 import { isCrossTraining } from "../types";
@@ -65,17 +64,20 @@ export function ReconcileSheet({ session, runs, canMoveTo, onConfirm, onClose }:
           </p>
         </div>
 
-        <div role="radiogroup" aria-label={t("dashboard.reconcile.title")} className="space-y-2">
+        {/* Real radios, not styled buttons: arrow-key roving focus and the
+            single-tab-stop group are what a screen reader is promised by the
+            role, and the platform already implements both. */}
+        <fieldset className="space-y-2 border-0 p-0 m-0">
+          <legend className="sr-only">{t("dashboard.reconcile.title")}</legend>
           {runs.map((r, i) => {
             const on = r.id === picked;
             return (
-              <button key={r.id} role="radio" aria-checked={on} onClick={() => setPicked(r.id)}
-                className={"w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border-2 text-left transition-colors "
+              <label key={r.id}
+                className={"flex items-start gap-3 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-orange-400 "
                   + (on ? "border-orange-500 bg-orange-500/10" : "border-slate-700 bg-slate-900/40 hover:border-slate-600")}>
-                <span className={"w-4 h-4 mt-0.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center "
-                  + (on ? "border-orange-500" : "border-slate-500")} aria-hidden>
-                  {on && <span className="w-2 h-2 rounded-full bg-orange-500"/>}
-                </span>
+                <input type="radio" name="reconcile-run" value={r.id} checked={on}
+                  onChange={() => setPicked(r.id)}
+                  className="w-4 h-4 mt-0.5 accent-orange-500 flex-shrink-0"/>
                 <span className="min-w-0">
                   <span className="block text-sm text-white font-medium">
                     {fmt.sht(r.date) + (isCrossTraining(r) ? "" : " · " + r.km + " km")}
@@ -87,10 +89,10 @@ export function ReconcileSheet({ session, runs, canMoveTo, onConfirm, onClose }:
                   </span>
                   <span className="block text-[11px] text-slate-400 mt-0.5">{runLine(r)}</span>
                 </span>
-              </button>
+              </label>
             );
           })}
-        </div>
+        </fieldset>
 
         {moves && (
           <label className="flex items-center gap-3 pt-3 border-t border-slate-700 cursor-pointer">
@@ -102,12 +104,18 @@ export function ReconcileSheet({ session, runs, canMoveTo, onConfirm, onClose }:
           </label>
         )}
 
-        <ConfirmButtons
-          onCancel={onClose}
-          onAccept={() => { if (run) onConfirm(run.id, moves && move ? run.date : null); }}
-          cancelLabel={t("common.cancel")}
-          acceptLabel={t("dashboard.reconcile.confirm")}
-        />
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button onClick={onClose}
+            className="py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200">
+            {t("common.cancel")}
+          </button>
+          {/* Disabled rather than silently inert: the candidate list can empty
+              out under an open sheet (the session gets settled elsewhere). */}
+          <button onClick={() => run && onConfirm(run.id, moves && move ? run.date : null)} disabled={!run}
+            className="py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:hover:bg-orange-500 text-white">
+            {t("dashboard.reconcile.confirm")}
+          </button>
+        </div>
         <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 pt-0.5">
           <Check size={12}/>{t("dashboard.reconcile.note")}
         </p>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, CalendarClock, Check, ChevronRight, PenLine, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PenLine, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
@@ -95,16 +95,20 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // Thursday's tempo on Wednesday", which no amount of date-gating can give.
   // Proposed only: nothing links until the sheet is confirmed.
   const [reconciling, setReconciling] = useState<DashboardSession | null>(null);
-  const nextCandidates = useMemo(
-    () => (nextSess ? candidateRuns(plan, nextSess, runs) : []),
-    [plan, nextSess, runs]);
-  const reconcileOptions = useMemo(
-    () => (reconciling ? candidateRuns(plan, reconciling, runs) : []),
-    [plan, reconciling, runs]);
+  // Recomputed per render rather than memoised: `today` and the selectors above
+  // are rebuilt every render anyway, so a dep array would never hold. Each call
+  // is one pass over `runs`.
+  const nextCandidates = nextSess ? candidateRuns(plan, nextSess, runs) : [];
+  const reconcileOptions = reconciling ? candidateRuns(plan, reconciling, runs) : [];
   // Sessions the runner never got to. Only the freshest few are rendered — a
   // month away must not come back as a wall of guilt.
   const overdue = overdueSessions(plan, today) as DashboardSession[];
   const overdueShown = overdue.slice(0, OVERDUE_SHOWN);
+  // The headline case one day later: a session missed on Thursday, run on
+  // Wednesday, is still the same run waiting to be named. Without this the only
+  // action left on it is the evidence-free tick this whole feature replaces.
+  const overdueLinkable = new Set(
+    overdueShown.filter(s => candidateRuns(plan, s, runs).length).map(s => s.id));
 
   // Report the backlog once per size change. The last-reported value is module
   // scope, NOT a ref: Dashboard remounts on every tab switch and on the header
@@ -323,6 +327,14 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                   <p className="text-xs text-slate-300 truncate">{describeSession(s)}</p>
                   <p className="text-[11px] text-slate-500">{fmt.sht(s.date) + " · " + s.km + " km"}</p>
                 </div>
+                {overdueLinkable.has(s.id) && (
+                  <button
+                    onClick={() => setReconciling(s)}
+                    aria-label={t("dashboard.session.alreadyRan")} title={t("dashboard.session.alreadyRan")}
+                    className="flex-shrink-0 p-2 rounded-lg border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20 text-orange-200 transition-colors">
+                    <Link2 size={15}/>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     track("overdue_resolved", {action: "done"});

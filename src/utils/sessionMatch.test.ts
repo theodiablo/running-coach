@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bestSessionForRun, candidateRuns, canMoveSessionTo, claimedRunIds, MATCH_WINDOW_DAYS } from "./sessionMatch";
+import { bestSessionForRun, candidateRuns, canMoveSessionTo, claimedRunIds, MATCH_WINDOW_DAYS, releaseRun, runFitsSession } from "./sessionMatch";
 import type { Plan, PlanSession, Run } from "../types";
 
 const sess = (id: string, date: string, extra: Partial<PlanSession> = {}): PlanSession =>
@@ -124,5 +124,69 @@ describe("canMoveSessionTo", () => {
   it("refuses an unknown week", () => {
     expect(canMoveSessionTo(plan, 9, "2026-03-10")).toBe(false);
     expect(canMoveSessionTo(null, 3, "2026-03-10")).toBe(false);
+  });
+});
+
+// A recorder cannot corroborate a cross-day guess with the type — the GPS
+// tracker saves every run as EASY — so the distance has to carry it.
+describe("bestSessionForRun · corroborating a cross-day guess", () => {
+  it("declines to offer a session whose prescription the run is nowhere near", () => {
+    const plan = planOf([sess("intervals", "2026-03-12", { type: "INTERVALS", km: 12 })]);
+    expect(bestSessionForRun(plan, run("a", "2026-03-11", { km: 5 }))).toBeNull();
+  });
+
+  it("still offers it when the distance is in the ballpark", () => {
+    const plan = planOf([sess("intervals", "2026-03-12", { type: "INTERVALS", km: 12 })]);
+    expect(bestSessionForRun(plan, run("a", "2026-03-11", { km: 11.4 }))?.id).toBe("intervals");
+  });
+
+  // Same-day needs no corroboration: the day already says which session you
+  // meant, and that was the behaviour before any of this existed.
+  it("offers a same-day session whatever the distance", () => {
+    const plan = planOf([sess("intervals", "2026-03-11", { type: "INTERVALS", km: 12 })]);
+    expect(bestSessionForRun(plan, run("a", "2026-03-11", { km: 5 }))?.id).toBe("intervals");
+  });
+
+  // A cross-training session's km is synthetic (docs/indoor-sessions.md), and
+  // an indoor run carries km:0 — there is no distance to compare.
+  it("offers a cross-training day across a day without a distance check", () => {
+    const plan = planOf([sess("bike", "2026-03-12", { type: "OTHER", km: 6 })]);
+    const ride = run("a", "2026-03-11", { type: "OTHER", km: 0 });
+    expect(bestSessionForRun(plan, ride)?.id).toBe("bike");
+  });
+});
+
+// The form can still change the date and the type after a match was proposed.
+describe("runFitsSession", () => {
+  const session = sess("w3d3", "2026-03-12");
+
+  it("accepts a run inside the window on the same side of the line", () => {
+    expect(runFitsSession(session, { date: "2026-03-11", type: "EASY" })).toBe(true);
+  });
+
+  it("rejects a run edited into a bike ride", () => {
+    expect(runFitsSession(session, { date: "2026-03-11", type: "OTHER" })).toBe(false);
+  });
+
+  it("rejects a run edited out of the window", () => {
+    expect(runFitsSession(session, { date: "2026-02-20", type: "EASY" })).toBe(false);
+  });
+});
+
+// The plan must never point at a run that is gone: a session left `done` with a
+// dangling runId asserts evidence it no longer has, and keeps that id out of
+// every other session's candidate list forever.
+describe("releaseRun", () => {
+  it("unticks the session that claimed the deleted run", () => {
+    const plan = planOf([sess("a", "2026-03-10", { done: true, runId: "r1" }), sess("b", "2026-03-11")]);
+    const out = releaseRun(plan, "r1")!;
+    expect(out.weeks[0].sessions[0]).toMatchObject({ done: false, runId: null });
+    expect(claimedRunIds(out).size).toBe(0);
+  });
+
+  it("returns the same plan when nothing claimed the run, so the caller can skip the write", () => {
+    const plan = planOf([sess("a", "2026-03-10")]);
+    expect(releaseRun(plan, "r1")).toBe(plan);
+    expect(releaseRun(null, "r1")).toBeNull();
   });
 });

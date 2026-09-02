@@ -21,7 +21,8 @@
     "ticksOff": "Saving this marks the session done.",
     "offerHeading": "Counts toward your session on {{date}}",
     "decline": "Not this one",
-    "declineUndo": "Actually, count it toward the session on {{date}}"
+    "declineUndo": "Actually, count it toward the session on {{date}}",
+    "noLongerFits": "Your edits no longer match the session on {{date}}, so saving won't tick it off."
   },
   "gpsBanner": "Tracked by GPS — distance, time and elevation are filled in. Add a type and notes, then save.",
   "indoorBanner": "Indoor session recorded. Duration and heart rate are filled in; there is no distance to record. Add notes, then save.",

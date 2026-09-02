@@ -10,20 +10,22 @@ import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
 import { persistImportedRoutes } from "../imports/persistRoutes";
 import { carryPrefill } from "../utils/carryPrefill";
+import { runFitsSession } from "../utils/sessionMatch";
 import { getSeenIds } from "../watch/import";
 import type { ImportedRun } from "../imports/types";
+import { isCrossTraining } from "../types";
 import type { HrPending, Run } from "../types";
 import type { SessionWithWeek } from "../utils/overdue";
 
 type LogPrefill = Partial<Run> & {
   pace?: number;
-  wNum?: number;
-  sId?: string;
-  // A session the app thinks this run settled, within a few days either side
-  // (src/utils/sessionMatch.ts). Unlike wNum/sId — which mean "the runner
-  // already chose this session" — an offer is shown for confirmation and can be
-  // declined here. Never both.
-  offered?: SessionWithWeek | null;
+  // The plan session this save settles, as a whole row — enough to re-check the
+  // pairing against what the runner types, which a bare {wNum, sId} was not.
+  session?: SessionWithWeek | null;
+  // Whether the app matched that session to the run (src/utils/sessionMatch.ts)
+  // rather than the runner picking it. An offer is shown for confirmation and
+  // can be declined here; a chosen session has already been decided.
+  sessionOffered?: boolean;
   hrPending?: HrPending | null;
 };
 
@@ -174,20 +176,21 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
   // onSaved), so the screen says so rather than letting it happen silently.
   // Two ways to get here — the runner picked the session (wNum/sId), or the app
   // matched one to the run and is offering it.
-  const chosen = prefill?.wNum != null && prefill?.sId ? prefill : null;
-  const offered = !chosen && !declined ? prefill?.offered || null : null;
-  // One shape for both, so the banner below doesn't branch: note that an
-  // offer's `date` is the SESSION's day, which is exactly the day the run is
-  // not — that difference is the whole point of showing it.
-  const session = chosen
-    ? { wNum: chosen.wNum!, sId: chosen.sId!, date: chosen.date || "", type: chosen.type || "",
-        km: Number(chosen.km) || 0, pace: chosen.pace || 0, durationSec: chosen.durationSec }
-    : offered
-    ? { wNum: offered.wNum, sId: offered.id, date: offered.date, type: offered.type,
-        km: Number(offered.km) || 0, pace: offered.pace || 0,
-        durationSec: offered.sd?.minutes ? offered.sd.minutes * 60 : undefined }
-    : null;
-  const link = session ? { wNum: session.wNum, sId: session.sId } : null;
+  const linked = prefill?.session && !(prefill.sessionOffered && declined) ? prefill.session : null;
+  // Re-checked against the FORM, not the prefill: the runner can still change
+  // the date and the type, and a prefilled link that no longer fits must let go
+  // rather than tick off a tempo with a bike ride. Read at render, so the
+  // banner disappears the moment the edit invalidates it instead of the save
+  // quietly doing something the screen still promises.
+  const fits = !!linked && runFitsSession(linked, {date: f.date, type: f.type});
+  const session = linked && fits ? linked : null;
+  const offered = session && prefill?.sessionOffered ? session : null;
+  const link = session ? { wNum: session.wNum, sId: session.id } : null;
+  // A cross-training session's prescription is its DURATION: buildPlan gives it
+  // a synthetic km purely to satisfy the coach validator, and showing that as a
+  // target would claim a distance nobody covered (docs/indoor-sessions.md).
+  const sessionMins = session?.sd?.minutes || 0;
+  const runKm = session && !isCrossTraining(session) ? Number(session.km) || 0 : 0;
   const title = importing
     ? t("log.titleImport")
     : prefill?.source ? t("log.titleReview")
@@ -257,15 +260,15 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
           {/* A cross-training session's prescription is its duration, which
               planSessionPrefill only carries when the session declares one —
               claiming "0min" would be worse than saying nothing. */}
-          {(session.km || session.durationSec) && (
+          {(runKm || sessionMins) && (
             <p className="text-sm text-orange-200">
-              {session.km
+              {runKm
                 ? t("log.session.targetRun", {
                     km: session.km,
                     type: t("common.types." + session.type, { defaultValue: session.type }),
                     pace: fmt.pace(session.pace),
                   })
-                : t("log.session.targetOther", { mins: fmt.mins(Math.round((session.durationSec || 0) / 60)) })}
+                : t("log.session.targetOther", { mins: fmt.mins(sessionMins) })}
             </p>
           )}
           <p className="text-xs text-slate-400">{t("log.session.ticksOff")}</p>
@@ -281,11 +284,19 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       )}
 
       {/* Declining is undoable until the run is saved — nothing has happened yet. */}
-      {declined && prefill?.offered && (
+      {declined && prefill?.sessionOffered && prefill.session && (
         <button onClick={() => setDeclined(false)}
           className="w-full text-xs text-slate-500 hover:text-slate-300 underline underline-offset-2 mb-5 transition-colors">
-          {t("log.session.declineUndo", { date: fmt.sht(prefill.offered.date) })}
+          {t("log.session.declineUndo", { date: fmt.sht(prefill.session.date) })}
         </button>
+      )}
+
+      {/* Edited out of its own session's reach. Saying so beats a banner that
+          silently vanishes, having promised a tick that is no longer coming. */}
+      {linked && !fits && (
+        <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-2.5 mb-5">
+          {t("log.session.noLongerFits", { date: fmt.sht(linked.date) })}
+        </p>
       )}
 
       <div className="space-y-4" ref={formRef}>

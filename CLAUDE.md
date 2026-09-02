@@ -206,8 +206,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   the save screen offers its match with a decline, the Dashboard's "I already
   ran this" opens `ReconcileSheet`; both apply through `linkSess`, which writes
   `done` + `runId` (and may re-date the session to the day it happened, only
-  inside its own week). Unticking anywhere clears `runId`, and undoing a link is
-  `unlinkSess`, not the same call again. Detail: `docs/training-plan.md`.
+  inside its own week). **A `runId` never outlives its `done` or its run** —
+  unticking/skipping clears it, `deleteRun` calls `releaseRun`, `carryProgress`
+  drops it with the `done` it drops — or the run is claimed by a session that
+  reads as untouched and is offered to nothing. Undoing a link is `unlinkSess`,
+  not the same call again. Detail: `docs/training-plan.md`.
 - **Overdue plan sessions are derived, never stored** — `overdueSessions` /
   `nextSession` (`src/utils/overdue.ts`) are the one definition, and a session
   must never appear in both. Copy stays forgiving ("still open", amber, never

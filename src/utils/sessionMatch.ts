@@ -19,6 +19,15 @@ export const MATCH_WINDOW_DAYS = 3;
 // A run as stored: `Run.id` is optional only because addRuns mints it on save.
 export type SavedRun = Run & { id: string };
 
+// How far a run's distance may fall from the prescription before a CROSS-DAY
+// match stops being proposed by default. Same-day needs no corroboration — the
+// day says which session you meant — but reaching across days is a guess, and a
+// recorder cannot corroborate it with the type: the GPS tracker saves every run
+// as EASY because it has no idea what you were doing. Distance is the only
+// signal it does have, so a 5 km jog must not arrive offering to tick off
+// Thursday's 12 km intervals.
+const CROSS_DAY_KM_TOLERANCE = 0.35;
+
 
 const dayOf = (d: string) => Date.parse(d + "T00:00:00");
 // Whole days between two YYYY-MM-DD strings. Rounded, so a DST hour can't
@@ -38,13 +47,20 @@ export function claimedRunIds(plan: Plan | null | undefined): Set<string> {
   return out;
 }
 
-const eligible = (session: PlanSession, run: Run) =>
-  !!run.id
-  && !!run.date
-  // The running / cross-training line: a bike ride must not tick off a tempo,
-  // and a run must not tick off the bike day (src/types.ts, docs/indoor-sessions.md).
-  && isCrossTraining(run) === isCrossTraining(session)
-  && Math.abs(dayGap(run.date, session.date)) <= MATCH_WINDOW_DAYS;
+// Whether a run could be the session at all, ignoring how good a match it is.
+// Exported because the log form re-checks it against what the runner actually
+// typed: a prefilled offer that gets edited into a bike ride, or dated three
+// weeks back, must stop claiming the session it arrived with.
+export function runFitsSession(session: PlanSession, run: Partial<Run>): boolean {
+  return !!run.date
+    && !!session?.date
+    // The running / cross-training line: a bike ride must not tick off a tempo,
+    // and a run must not tick off the bike day (src/types.ts, docs/indoor-sessions.md).
+    && isCrossTraining(run) === isCrossTraining(session)
+    && Math.abs(dayGap(run.date, session.date)) <= MATCH_WINDOW_DAYS;
+}
+
+const eligible = (session: PlanSession, run: Run) => !!run.id && runFitsSession(session, run);
 
 // How far a run's distance falls from what the session prescribed, as a
 // fraction. Cross-training carries km:0 by design, so it ranks on date alone.
@@ -78,6 +94,10 @@ export function candidateRuns(
 // The session a freshly recorded run most likely belongs to, for the save-time
 // offer. Same ranking, read the other way round: nearest day first, then the
 // closest prescription. Returns the session with its week number, or null.
+//
+// Stricter than `candidateRuns` on purpose: this one is shown ACCEPTED, so a
+// cross-day guess has to survive the distance check above. The sheet's list is
+// picked from by a human and needs no such corroboration.
 export function bestSessionForRun(
   plan: Plan | null | undefined,
   run: Run | Partial<Run>,
@@ -85,10 +105,12 @@ export function bestSessionForRun(
   if (!run?.date) return null;
   const claimed = claimedRunIds(plan);
   if (run.id && claimed.has(run.id)) return null;
+  const plausible = (s: PlanSession) =>
+    s.date === run.date || !Number(s.km) || kmError(s, run as Run) <= CROSS_DAY_KM_TOLERANCE;
   const open: SessionWithWeek[] = [];
   for (const w of plan?.weeks || [])
     for (const s of w.sessions || [])
-      if (isOpen(s) && eligible(s, run as Run)) open.push({ ...s, wNum: w.weekNumber });
+      if (isOpen(s) && eligible(s, run as Run) && plausible(s)) open.push({ ...s, wNum: w.weekNumber });
   return open.sort((a, b) =>
     Math.abs(dayGap(run.date!, a.date)) - Math.abs(dayGap(run.date!, b.date))
     || kmError(a, run as Run) - kmError(b, run as Run)
@@ -107,4 +129,21 @@ export function canMoveSessionTo(
   if (!week?.startDate || !date) return false;
   const off = dayGap(date, week.startDate);
   return off >= 0 && off < 7;
+}
+
+// Release every claim on a run — the plan must never point at a run that is
+// gone. `deleteRun` is the caller: a session left `done` with a dangling
+// `runId` asserts evidence it no longer has, and keeps that id out of every
+// other session's candidate list forever. Returns the same plan when nothing
+// claimed the run, so a caller can skip the write.
+export function releaseRun(plan: Plan | null, runId: string): Plan | null {
+  if (!plan?.weeks?.length || !runId || !claimedRunIds(plan).has(runId)) return plan;
+  return {
+    ...plan,
+    weeks: plan.weeks.map(w => ({
+      ...w,
+      sessions: (w.sessions || []).map(s =>
+        s.runId === runId ? { ...s, done: false, runId: null } : s),
+    })),
+  };
 }

@@ -289,10 +289,40 @@ describe("findOpenPlanSession", () => {
   });
 });
 
+// A session left `{done:false, runId:"r1"}` reads as untouched everywhere,
+// while r1 stays claimed and so is offered to no session at all — not even this
+// one (src/utils/sessionMatch.ts).
+describe("carryProgress · a dropped `done` drops the run with it", () => {
+  it("clears runId on a session whose done is dropped for being too far ahead", () => {
+    const far = ymd(new Date(Date.now() + 30 * 86_400_000));
+    const oldPlan = { weeks: [{ weekNumber: 1, startDate: "2026-01-05", sessions: [
+      { id: "s1", date: far, type: "EASY", desc: "Easy", km: 8, pace: 360, done: true, runId: "r1" },
+    ] }] } as unknown as Plan;
+    const next = { weeks: [{ weekNumber: 1, startDate: "2026-01-05", sessions: [
+      { id: "s1", date: far, type: "EASY", desc: "Easy", km: 8, pace: 360, done: false, runId: null },
+    ] }] } as unknown as Plan;
+    const out = carryProgress(oldPlan, next, "coach");
+    expect(out.weeks[0].sessions[0]).toMatchObject({ done: false, runId: null });
+  });
+
+  it("keeps the run on a session whose done survives", () => {
+    const soon = ymd(new Date());
+    const oldPlan = { weeks: [{ weekNumber: 1, startDate: "2026-01-05", sessions: [
+      { id: "s1", date: soon, type: "EASY", desc: "Easy", km: 8, pace: 360, done: true, runId: "r1" },
+    ] }] } as unknown as Plan;
+    const next = { weeks: [{ weekNumber: 1, startDate: "2026-01-05", sessions: [
+      { id: "s1", date: soon, type: "EASY", desc: "Easy", km: 8, pace: 360, done: false, runId: null },
+    ] }] } as unknown as Plan;
+    const out = carryProgress(oldPlan, next, "coach");
+    expect(out.weeks[0].sessions[0]).toMatchObject({ done: true, runId: "r1" });
+  });
+});
+
 describe("planSessionPrefill", () => {
   it("carries distance and pace for a run", () => {
     expect(planSessionPrefill({ id: "s1", date: "2026-08-12", type: "EASY", km: 8, pace: 330 }, 3))
-      .toEqual({ date: "2026-08-12", type: "EASY", km: 8, pace: 330, wNum: 3, sId: "s1" });
+      .toEqual({ date: "2026-08-12", type: "EASY", km: 8, pace: 330,
+        session: { id: "s1", date: "2026-08-12", type: "EASY", km: 8, pace: 330, wNum: 3 } });
   });
 
   // buildPlan gives cross-training a synthetic km purely to satisfy the coach
@@ -301,14 +331,16 @@ describe("planSessionPrefill", () => {
   it("drops the synthetic distance for cross-training and prefills the duration", () => {
     const prefill = planSessionPrefill(
       { id: "s2", date: "2026-08-12", type: "OTHER", km: 6, pace: 400, sd: { kind: "cross", minutes: 40 } }, 3);
-    expect(prefill).toEqual({ date: "2026-08-12", type: "OTHER", durationSec: 2400, wNum: 3, sId: "s2" });
+    expect(prefill).toEqual({ date: "2026-08-12", type: "OTHER", durationSec: 2400,
+      session: { id: "s2", date: "2026-08-12", type: "OTHER", km: 6, pace: 400, sd: { kind: "cross", minutes: 40 }, wNum: 3 } });
     expect(prefill).not.toHaveProperty("km");
     expect(prefill).not.toHaveProperty("pace");
   });
 
   it("omits the duration when the session doesn't prescribe one", () => {
     expect(planSessionPrefill({ id: "s3", date: "2026-08-12", type: "OTHER", km: 6 }, 3))
-      .toEqual({ date: "2026-08-12", type: "OTHER", wNum: 3, sId: "s3" });
+      .toEqual({ date: "2026-08-12", type: "OTHER",
+        session: { id: "s3", date: "2026-08-12", type: "OTHER", km: 6, wNum: 3 } });
   });
 });
 

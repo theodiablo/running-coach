@@ -19,7 +19,8 @@ const setup = (props: Partial<Parameters<typeof LogView>[0]> = {}) => {
   const addRuns = vi.fn((rs: Partial<Run>[]) => rs.map((r, i) => ({...r, id: "new" + i} as Run)));
   const onSaved = vi.fn();
   render(<LogView addRuns={addRuns} onDone={() => {}} onSaved={onSaved} runs={[]}
-    prefill={{date: "2026-03-11", type: "TEMPO", km: 8.2, durationSec: 2412, source: "gps", offered}}
+    prefill={{date: "2026-03-11", type: "TEMPO", km: 8.2, durationSec: 2412, source: "gps",
+      session: offered, sessionOffered: true}}
     {...props}/>);
   return { addRuns, onSaved };
 };
@@ -57,13 +58,33 @@ describe("LogView · the session a recorded run is offered", () => {
   it("keeps the offer out of the saved run — it is not run data", () => {
     const { addRuns } = setup();
     save();
-    expect(addRuns.mock.calls[0][0][0]).not.toHaveProperty("offered");
+    expect(addRuns.mock.calls[0][0][0]).not.toHaveProperty("session");
+    expect(addRuns.mock.calls[0][0][0]).not.toHaveProperty("sessionOffered");
+  });
+
+  // The runner can still edit the date and the type after the offer arrives, so
+  // the link is re-checked against the form, not frozen from the prefill.
+  it("lets go of the session when the run is edited into a bike ride", () => {
+    const { onSaved } = setup();
+    fireEvent.change(screen.getByLabelText(/Type/i), {target: {value: "OTHER"}});
+    expect(screen.queryByText(/Counts toward your session on/)).toBeNull();
+    expect(screen.getByText(/no longer match/)).toBeInTheDocument();
+    save();
+    expect(onSaved).toHaveBeenCalledWith(expect.anything(), null);
+  });
+
+  it("lets go of the session when the run is dated out of the window", () => {
+    const { onSaved } = setup();
+    fireEvent.change(screen.getByLabelText(/Date/i), {target: {value: "2026-02-20"}});
+    expect(screen.getByText(/no longer match/)).toBeInTheDocument();
+    save();
+    expect(onSaved).toHaveBeenCalledWith(expect.anything(), null);
   });
 
   // A session the runner picked themselves is not an offer: it was already
   // chosen, so there is nothing to decline.
   it("does not offer to decline a session the runner chose", () => {
-    setup({prefill: {date: "2026-03-12", type: "TEMPO", km: 8, pace: 300, wNum: 3, sId: "w3d3"}});
+    setup({prefill: {date: "2026-03-12", type: "TEMPO", km: 8, pace: 300, session: offered}});
     expect(screen.queryByRole("button", {name: "Not this one"})).toBeNull();
     expect(screen.getByText(/Week 3/)).toBeInTheDocument();
   });

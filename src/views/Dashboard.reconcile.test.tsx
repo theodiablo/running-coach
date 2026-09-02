@@ -108,6 +108,21 @@ describe("Dashboard next-session card · reconciling an already-recorded run", (
     expect(screen.queryByRole("radio")).toBeNull();
   });
 
+  // One day later the same run is still the one that settled the session — the
+  // only action left on an overdue row used to be the evidence-free tick.
+  it("offers the same route from an overdue row", () => {
+    const props = renderDash({plan: planOf([{...thursday, date: "2026-03-09"}])});
+    fireEvent.click(screen.getByRole("button", {name: "I already ran this"}));
+    fireEvent.click(screen.getByRole("button", {name: "Count it"}));
+    expect(props.linkSess).toHaveBeenCalledWith(3, "w3d3", "r1", "2026-03-11");
+  });
+
+  it("leaves an overdue row's bare tick alone when no run could be it", () => {
+    renderDash({runs: [], plan: planOf([{...thursday, date: "2026-03-09"}])});
+    expect(screen.queryByRole("button", {name: "I already ran this"})).toBeNull();
+    expect(screen.getByRole("button", {name: "Done"})).toBeInTheDocument();
+  });
+
   it("never offers a run another session already claims", () => {
     renderDash({plan: planOf([{id: "w3d1", date: "2026-03-10", type: "EASY", desc: "Easy 6km", km: 6, pace: 360, done: true, runId: "r1"}, thursday])});
     expect(alreadyRan()).toBeNull();

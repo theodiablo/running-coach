@@ -14,7 +14,7 @@ import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from 
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress } from "./utils/plan";
-import { bestSessionForRun } from "./utils/sessionMatch";
+import { bestSessionForRun, canMoveSessionTo, releaseRun } from "./utils/sessionMatch";
 import type { SessionWithWeek } from "./utils/overdue";
 import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
 import { distanceKm } from "./utils/geo";
@@ -143,7 +143,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // three for a standard distance. Null the rest of the time — there is no
   // "nothing to report" sheet.
   const [achievement, setAchievement] = useState<{ run: Run; efforts: EffortRank[]; confetti: boolean } | null>(null);
-  const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { wNum?: number; sId?: string; offered?: SessionWithWeek | null }) | null>(null);
+  const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { session?: SessionWithWeek | null; sessionOffered?: boolean }) | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
   const [logImportOpen, setLogImportOpen] = useState(false);
   const [showBackup,  setShowBackup]  = useState(false);
@@ -858,8 +858,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // to the day the run actually happened — the plan's own dates feed the coach
   // and the load rules, so a tempo left dated Thursday that the legs did on
   // Wednesday misstates recovery. Only ever called from a confirmed tap.
-  const linkSess = (wNum: number, sId: string, runId: string | null, date?: string) =>
-    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(date ? {date} : {})}));
+  const linkSess = (wNum: number, sId: string, runId: string | null, date?: string) => {
+    // The containment rule lives with the writer, not only with the sheet that
+    // offers the move: a session re-dated out of its own week would be filed
+    // under a week it no longer falls in (src/utils/sessionMatch.ts).
+    const moveTo = date && canMoveSessionTo(planRef.current, wNum, date) ? date : null;
+    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(moveTo ? {date: moveTo} : {})}));
+  };
 
   // The inverse, for the confirmation card's Undo: `date` puts back whatever the
   // session was dated before the link moved it.
@@ -882,6 +887,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       const next = prev.filter(x => x.id !== id);
       db.set(STORAGE_KEYS.RUNS, next);
       return next;
+    });
+    // A session that pointed at this run must let go of it, or the plan keeps
+    // asserting evidence that no longer exists.
+    setPlan(prev => {
+      const released = releaseRun(prev, id);
+      if (released === prev) return prev;
+      db.set(STORAGE_KEYS.PLAN, released);
+      return released;
     });
     showToast(t("app.toasts.runDeleted"));
   };
@@ -932,9 +945,23 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // form shows it and lets the runner decline, because a plan edit nobody asked
   // for, announced by a toast that deletes itself, is the bug #221 fixed.
   // An explicit link (Start run from a plan row) is not an offer: already chosen.
-  const offeredSession = (run: Partial<Run>) => ({ offered: bestSessionForRun(planRef.current, run) });
+  const offeredSession = (run: Partial<Run>) =>
+    ({ session: bestSessionForRun(planRef.current, run), sessionOffered: true });
 
-  const goLog = (prefill?: Partial<Run> & { wNum?: number; sId?: string; offered?: SessionWithWeek | null }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
+  // The full row behind a {wNum, sId} the runner already chose (a plan session's
+  // "Start run"), so every hand-off carries a session the log form can re-check.
+  const sessionRow = (link: { wNum: number; sId: string } | null): SessionWithWeek | null => {
+    const s = planRef.current?.weeks?.find(w => w.weekNumber === link?.wNum)
+      ?.sessions?.find(x => x.id === link?.sId);
+    return s && link ? { ...s, wNum: link.wNum } : null;
+  };
+
+  const chosenOrOffered = (link: { wNum: number; sId: string } | null, run: Partial<Run>) => {
+    const chosen = sessionRow(link);
+    return chosen ? { session: chosen, sessionOffered: false } : offeredSession(run);
+  };
+
+  const goLog = (prefill?: Partial<Run> & { session?: SessionWithWeek | null; sessionOffered?: boolean }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
   // Land on the Log tab with the file-import panel open (Settings ->
   // Integrations vendor guides). Bumps prefillVer so LogView remounts and reads
   // openImport as initial state even when already on the Log tab.
@@ -1151,14 +1178,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
-        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...(trackerLink || offeredSession(prefill)) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
+        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
       {showIndoor && <IndoorTracker showToast={showToast} settings={settings} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         // An indoor save can only tick a cross-training day, never that day's
         // easy run — and the GPS tracker above is filtered the other way.
-        onFinish={prefill => { setShowIndoor(false); goLog({ ...prefill, ...(indoorLink || offeredSession(prefill)) }); setIndoorLink(null); }}
+        onFinish={prefill => { setShowIndoor(false); goLog({ ...prefill, ...chosenOrOffered(indoorLink, prefill) }); setIndoorLink(null); }}
         onClose={() => { setShowIndoor(false); setIndoorLink(null); }}/>}
       {showLiveWatch && <LiveWatchModal row={liveRun.row} onClose={() => setShowLiveWatch(false)}/>}
       {showBackup && <BackupModal
