@@ -7,10 +7,11 @@
 
 import { describe, it, expect } from "vitest";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
-import { buildMessages, generateProposal, MAX_VALIDATOR_RETRIES, MAX_MODEL_CALLS, SYSTEM_PROMPT } from "../../supabase/functions/_shared/coach/engine.mjs";
+import { buildMessages, generateProposal, MAX_VALIDATOR_RETRIES, MAX_MODEL_CALLS, MAX_LENGTH_RETRIES, SYSTEM_PROMPT } from "../../supabase/functions/_shared/coach/engine.mjs";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
 import { createMockModel } from "../../supabase/functions/_shared/coach/mock.mjs";
 import { validatePlan } from "./coachValidation";
+import { COACH_LINK_TARGETS } from "./coachLinks";
 import { buildPlan } from "./plan";
 import { ymd } from "./format";
 
@@ -287,6 +288,13 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(SYSTEM_PROMPT).toContain("Never propose a change as a gesture");
   });
 
+  it("system prompt bans external URLs but documents every in-app target", () => {
+    expect(SYSTEM_PROMPT).toContain("Never put an external URL in a reply");
+    // The prompt is the only place the model learns these tokens; a target
+    // renamed in coachLinks.ts without updating it silently stops working.
+    for (const target of COACH_LINK_TARGETS) expect(SYSTEM_PROMPT).toContain(`app:${target}`);
+  });
+
   it("memory-only tool suggestions do not mark the plan changed", async () => {
     const context = makeContext("please remember I prefer Sunday long runs");
     let calls = 0;
@@ -529,5 +537,71 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(result.status).toBe("proposed");
     expect(result.changed).toBe(true);
     expect(result.toolCalls.map(t => t.name)).toEqual(["add_session"]);
+  });
+  // A max_tokens turn is a cut-off turn, not a finished one. Spending the whole
+  // budget before emitting any text surfaced a "proposed" round whose rationale
+  // was empty — a blank reply bubble with nothing to confirm or reject.
+  it("retries a truncated turn instead of surfacing an empty rationale", async () => {
+    const context = makeContext("How am I doing?");
+    let calls = 0;
+    const callModel = async () => {
+      calls++;
+      if (calls === 1) return { content: [], stop_reason: "max_tokens", usage: { input_tokens: 5, output_tokens: 4096 } };
+      return { content: [{ type: "text", text: "You're on track." }], stop_reason: "end_turn", usage: { input_tokens: 5, output_tokens: 5 } };
+    };
+    const result = await generate({ baseline: context.plan, context, callModel });
+    expect(calls).toBe(2);
+    expect(result.status).toBe("proposed");
+    expect(result.rationale).toBe("You're on track.");
+  });
+
+  it("nudges for brevity without appending the truncated turn", async () => {
+    const context = makeContext("How am I doing?");
+    const seen: ModelMessage[][] = [];
+    let calls = 0;
+    const callModel = async (messages: ModelMessage[]) => {
+      seen.push(structuredClone(messages));
+      calls++;
+      if (calls === 1) return { content: [], stop_reason: "max_tokens", usage: { input_tokens: 5, output_tokens: 4096 } };
+      return { content: [{ type: "text", text: "Short answer." }], stop_reason: "end_turn", usage: { input_tokens: 5, output_tokens: 5 } };
+    };
+    await generate({ baseline: context.plan, context, callModel });
+    // Same turn re-asked: no assistant turn was added for the truncated reply.
+    expect(seen[1].filter(m => m.role === "assistant")).toHaveLength(0);
+    expect(seen[1]).toHaveLength(seen[0].length);
+    expect(seen[1][seen[1].length - 1].content).toMatch(/cut off/i);
+  });
+
+  it("gives up with a real explanation when truncation keeps repeating", async () => {
+    const context = makeContext("How am I doing?");
+    let calls = 0;
+    const callModel = async () => {
+      calls++;
+      return { content: [], stop_reason: "max_tokens", usage: { input_tokens: 5, output_tokens: 4096 } };
+    };
+    const result = await generate({ baseline: context.plan, context, callModel });
+    expect(calls).toBe(MAX_LENGTH_RETRIES + 1);
+    expect(result.status).toBe("no_valid_adjustment");
+    expect(result.rationale).toMatch(/cut off/i);
+    expect(result.toolCalls).toEqual([]);
+  });
+
+  it("keeps a truncated turn's tool calls from reaching the plan", async () => {
+    const context = makeContext("How am I doing?");
+    let calls = 0;
+    const callModel = async () => {
+      calls++;
+      if (calls === 1) return {
+        // A tool_use block the model never finished writing.
+        content: [{ type: "tool_use", id: "cut", name: "reduce_week_volume", input: { week_number: 2, factor: 0.7 } }],
+        stop_reason: "max_tokens",
+        usage: { input_tokens: 5, output_tokens: 4096 },
+      };
+      return { content: [{ type: "text", text: "Nothing needed changing." }], stop_reason: "end_turn", usage: { input_tokens: 5, output_tokens: 5 } };
+    };
+    const result = await generate({ baseline: context.plan, context, callModel });
+    expect(result.status).toBe("proposed");
+    expect(result.toolCalls).toEqual([]);
+    expect(result.changed).toBe(false);
   });
 });

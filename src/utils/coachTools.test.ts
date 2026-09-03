@@ -291,6 +291,44 @@ describe("assessGoalFeasibility", () => {
     const runs = [{ date: today(3), type: "EASY", km: 5, durationSec: 5 * 450 }]; // 7:30/km best
     expect(assessGoal({ ...goal, recentRuns: runs })).toMatch(/UNREALISTIC/);
   });
+  // Regression: a hilly goal's plan carries targetPace = goalSec / flat-equivalent
+  // distance, which is FASTER than the pace actually run on the day. Judging
+  // feasibility against it read a real 4:50/km as missing a 4:10/km bar that was
+  // never the goal, and told a runner on track their 4:31/km target was
+  // unrealistic. Every other fixture here is a flat course, where the two
+  // paces coincide and the bug is invisible.
+  describe("on a course with climb (targetPace faster than race pace)", () => {
+    // 20 km in 5410s = 4:31/km on the ground; 200m of climb → targetPace 4:10/km.
+    const hilly = { goal: { goalSec: 5410, distanceKm: 20, raceDate: "2026-11-01" }, targetPace: 250 };
+    const runs = [
+      { date: today(6), type: "EASY", km: 8, durationSec: 8 * 290 },   // 4:50/km best
+      { date: today(2), type: "LONG", km: 14, durationSec: 14 * 300 },
+    ];
+
+    it("judges feasibility against race pace, not the flat-equivalent", () => {
+      const out = assessGoal({ ...hilly, recentRuns: runs });
+      expect(out).not.toMatch(/UNREALISTIC/);
+      expect(out).toMatch(/plausible/);
+    });
+    it("quotes the goal as race pace", () => {
+      const out = assessGoal({ ...hilly, recentRuns: runs });
+      expect(out).toMatch(/4:31\/km race pace/);
+      expect(out).not.toMatch(/4:10\/km race pace/);
+    });
+    it("still surfaces the flat-equivalent as context", () => {
+      expect(assessGoal({ ...hilly, recentRuns: runs })).toMatch(/climbs.*flat fitness of ~4:10\/km/);
+    });
+    it("keeps calling out a goal that is unrealistic on race pace too", () => {
+      const slow = [{ date: today(3), type: "EASY", km: 5, durationSec: 5 * 450 }];
+      expect(assessGoal({ ...hilly, recentRuns: slow })).toMatch(/UNREALISTIC/);
+    });
+  });
+
+  it("omits the climb note on a flat course", () => {
+    const runs = [{ date: today(5), type: "LONG", km: 15, durationSec: 15 * 380 }];
+    expect(assessGoal({ ...goal, recentRuns: runs })).not.toMatch(/climbs/);
+  });
+
   it("accepts a plausible goal", () => {
     const runs = [
       { date: today(10), type: "TEMPO", km: 8, durationSec: 8 * 310 },

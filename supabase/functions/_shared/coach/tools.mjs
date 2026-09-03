@@ -422,6 +422,14 @@ export function assessGoalFeasibility(ctx) {
   const { goal, targetPace, recentRuns = [] } = ctx;
   const { goalSec, distanceKm, raceDate } = goal || {};
   if (!goalSec || !distanceKm) return "No race goal is configured — nothing to assess.";
+  // Feasibility is judged on RACE pace — the ground pace the runner has to hold
+  // on the day — never on plan.targetPace, which is the hill-adjusted
+  // flat-equivalent (buildPlan: goalSec / flatEqDist) and is FASTER than race
+  // pace on any course with climb. Comparing a real logged ground pace against
+  // that equivalent flipped verdicts to UNREALISTIC on hilly goals. Derived
+  // from the goal being assessed rather than read off the plan, so it can't
+  // drift when settings hold a newer goal than the built plan.
+  const racePace = Math.round(goalSec / distanceKm);
   // OTHER is cross-training: its distance is not a running distance, so it must
   // never reach weeklyKm / longest / bestPace — a logged bike ride would read as
   // a fast long run and talk the runner into a more ambitious goal.
@@ -439,16 +447,19 @@ export function assessGoalFeasibility(ctx) {
   const longest = Math.max(...sample.map(r => r.km));
   const bestPace = Math.min(...sample.map(r => Math.round(r.durationSec / r.km)));
   const lines = [
-    `Goal: ${distanceKm} km on ${raceDate} at ~${fmtPace(targetPace)}/km target pace.`,
+    `Goal: ${distanceKm} km on ${raceDate} at ~${fmtPace(racePace)}/km race pace.`,
     `Last ${weeks} weeks: ~${weeklyKm.toFixed(1)} km/week` + (recent.length
       ? `; longest recent run ${longest.toFixed(1)} km; best recent pace ${fmtPace(bestPace)}/km.`
       : ` (no runs logged in that window); longest run on record ${longest.toFixed(1)} km; best pace on record ${fmtPace(bestPace)}/km.`),
   ];
-  if (bestPace > targetPace * 1.15)
+  // Only worth saying when the course actually climbs enough to separate the two.
+  if (targetPace && targetPace <= racePace * 0.98)
+    lines.push(`The course climbs: holding ${fmtPace(racePace)}/km on it takes the flat fitness of ~${fmtPace(targetPace)}/km, which is what the plan's session paces are built from.`);
+  if (bestPace > racePace * 1.15)
     lines.push("Assessment: goal pace is far below anything shown recently — the goal looks UNREALISTIC right now; recommend discussing a slower goal or a later race.");
   else if (longest < distanceKm * 0.5 && distanceKm > 15)
     lines.push("Assessment: endurance is the gap (longest run under half the race distance) — the goal is AT RISK; protect the long-run progression above all.");
-  else if (bestPace <= targetPace * 0.93)
+  else if (bestPace <= racePace * 0.93)
     lines.push("Assessment: recent paces are comfortably faster than goal pace — the goal looks CONSERVATIVE. If the plan feels too easy, suggest a more ambitious goal in the plan settings (the whole plan is rebuilt from the goal) rather than hand-editing sessions.");
   else
     lines.push("Assessment: the goal looks broadly plausible if the remaining plan is executed consistently.");

@@ -31,7 +31,14 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
    Three tools are **read-only** and can never touch the plan:
-   `reassess_goal_feasibility` (goal assessment from context),
+   `reassess_goal_feasibility` (goal assessment from context — it judges
+   against **race pace**, `goalSec / distanceKm`, derived from the goal it is
+   assessing; never `plan.targetPace`, which is the hill-adjusted
+   flat-equivalent and is faster than race pace on any course with climb.
+   Comparing a real logged ground pace against that equivalent read a runner's
+   on-target 4:31/km as missing a 4:10/km bar that was never their goal, and
+   flipped the verdict to UNREALISTIC. The flat-equivalent is still reported to
+   the model as context when the course actually climbs),
    `remember_runner_context` (memory suggestion, user-confirmed), and
    `get_run_detail` (fetches a compact digest of ONE recent run's recorded
    detail — per-km splits, HR time-in-zone, downsampled pace/elevation/HR
@@ -58,6 +65,15 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    call actually succeeded — a model stuck failing the same invalid input
    every turn never moves the plan off baseline, and that must not be
     reported as "proposed, nothing needs to change."
+   A turn that stops on `max_tokens` is **discarded, not executed** — its text
+   is cut off and any `tool_use` block it was emitting is incomplete. The same
+   turn is re-asked with a brevity nudge appended to the trailing user message
+   (never a second consecutive user turn, and the truncated assistant turn is
+   never appended), bounded by `MAX_LENGTH_RETRIES`; on exhaustion the round
+   ends with an explanation the runner can act on. Left unhandled, a turn that
+   spent its whole budget before writing any text surfaced as a `proposed`
+   round with a NULL rationale — a blank reply bubble. The edge function also
+   backstops every success-path rationale, so no route can render an empty one.
    Context-sensitive gates also reject semantically unsafe tool use before the
    structural validator runs: `add_session` is blocked for current pain, injury,
    illness, fatigue, missed-week make-up, unsafe "train through pain" memory, or
@@ -260,6 +276,28 @@ The prompt now carries explicit stay-in-role / no-credential-shaped-output /
 no-gesture-edits rules (asserted in `coachGolden.test.ts`), and the live suite
 replays the trajectory verbatim as three SAFETY-gated adversarial scenarios,
 one of them multi-turn (`evals/coach/README.md`).
+
+**No external links; in-app links are the one exception.** The same review
+found an ITBS reply citing two YouTube URLs for strengthening drills — almost
+certainly invented video ids. The model cannot verify that a link is live or
+shows what it claims, so the prompt bans external URLs outright. Because a
+prompt rule is not enforcement, `CoachText` (`src/components/CoachText.tsx`, the
+one renderer for coach markdown) drops the `href` from every link and keeps only
+its text, which also neutralises GFM autolinking of bare URLs and emails.
+
+The exception is an **in-app link**: markdown to an `app:` target, rendered as a
+button that closes the chat and lands the runner on the screen. It exists
+because ~9% of logged rounds end in a "go here" nudge with no way to get there,
+and the most common one is structural — the coach can never change the goal
+itself (`buildPlan` is the author), so "adjust it in the plan settings" is its
+designated hand-off and was a dead end. `src/utils/coachLinks.ts` holds the
+allowlist (`goal`, `log`, `training`, `integrations`, `history`) and is the only
+gate: an invented target degrades to plain text, exactly like an external URL.
+Adding one means touching three places — the allowlist, `goCoachLink` in
+`RunningCoach.tsx`, and the prompt's list of tokens (the only place the model
+learns them; `coachGolden.test.ts` fails if the two drift). Note `CoachText`
+must keep its `urlTransform`: react-markdown drops every scheme but
+http/https/mailto/tel, so `app:` would otherwise arrive as an empty href.
 
 Cost shape differs sharply and is worth knowing before a switch: on the same
 suite Mistral spent ~64-90k input / ~1k output tokens against Sonnet's

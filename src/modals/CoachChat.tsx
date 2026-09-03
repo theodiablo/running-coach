@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, type ComponentPropsWithoutRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { CoachText } from "../components/CoachText";
+import type { CoachLinkTarget } from "../utils/coachLinks";
 import { useTranslation, Trans } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { Loader, MessageSquarePlus, Send, X, Flag, History, ArrowLeft } from "lucide-react";
 import { CoachAvatar } from "../components/CoachAvatar";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { coachPropose, coachCritique, coachConfirm, coachPing, coachUsage, CoachServerError } from "../coach";
 import { submitCoachFeedback } from "../coachFeedback";
 import { diffPlans } from "../utils/coachDiff";
@@ -19,34 +19,6 @@ import { CoachUsageRing, CoachUsageRingSkeleton } from "./CoachUsageRing";
 import type { CoachTrajectorySummary, CoachTranscript, TrajectoryStatus } from "../coachHistory";
 import type { CoachSessionContext, Plan } from "../types";
 
-// The model replies in markdown (headers, bold, tables); rendered via
-// react-markdown rather than manually injecting raw HTML through a sanitizer
-// pair — it emits real React elements, so there's no HTML string to sanitize.
-// Component overrides keep every element inside the narrow chat bubble's
-// dark slate / orange-500 palette instead of react-markdown's default
-// (unstyled, full-size) tags.
-const MD_COMPONENTS = {
-  h1: (p: ComponentPropsWithoutRef<"p">) => <p className="text-sm font-bold text-slate-100 mt-2 mb-1 first:mt-0" {...p}/>,
-  h2: (p: ComponentPropsWithoutRef<"p">) => <p className="text-sm font-bold text-slate-100 mt-2 mb-1 first:mt-0" {...p}/>,
-  h3: (p: ComponentPropsWithoutRef<"p">) => <p className="text-sm font-semibold text-slate-100 mt-2 mb-1 first:mt-0" {...p}/>,
-  p: (p: ComponentPropsWithoutRef<"p">) => <p className="mb-2 last:mb-0 leading-relaxed" {...p}/>,
-  strong: (p: ComponentPropsWithoutRef<"strong">) => <strong className="font-semibold text-slate-100" {...p}/>,
-  ul: (p: ComponentPropsWithoutRef<"ul">) => <ul className="list-disc pl-4 mb-2 space-y-0.5 last:mb-0" {...p}/>,
-  ol: (p: ComponentPropsWithoutRef<"ol">) => <ol className="list-decimal pl-4 mb-2 space-y-0.5 last:mb-0" {...p}/>,
-  li: (p: ComponentPropsWithoutRef<"li">) => <li className="leading-relaxed" {...p}/>,
-  a: (p: ComponentPropsWithoutRef<"a">) => <a className="text-orange-400 underline underline-offset-2" target="_blank" rel="noopener noreferrer" {...p}/>,
-  code: (p: ComponentPropsWithoutRef<"code">) => <code className="bg-slate-900/60 px-1 py-0.5 rounded text-orange-300 text-xs font-mono" {...p}/>,
-  pre: (p: ComponentPropsWithoutRef<"pre">) => <pre className="bg-slate-900/60 rounded-lg p-2 overflow-x-auto text-xs font-mono mb-2 last:mb-0" {...p}/>,
-  blockquote: (p: ComponentPropsWithoutRef<"blockquote">) => <blockquote className="border-l-2 border-slate-600 pl-2 italic text-slate-400 mb-2 last:mb-0" {...p}/>,
-  hr: () => <hr className="border-slate-700 my-2"/>,
-  table: (p: ComponentPropsWithoutRef<"table">) => <div className="overflow-x-auto mb-2 last:mb-0"><table className="w-full text-xs border-collapse" {...p}/></div>,
-  th: (p: ComponentPropsWithoutRef<"th">) => <th className="border border-slate-700 px-2 py-1 text-left font-semibold bg-slate-800/60" {...p}/>,
-  td: (p: ComponentPropsWithoutRef<"td">) => <td className="border border-slate-700 px-2 py-1 align-top" {...p}/>,
-};
-
-const CoachText = ({ text }: { text: string }) => (
-  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{text}</ReactMarkdown>
-);
 
 // Tappable starter prompts for the empty chat — teach what the coach can do and
 // lower the blank-page barrier. Each just seeds `send` with the phrase.
@@ -93,13 +65,16 @@ type CoachChatProps = {
   appendUserContext: (text: string) => boolean;
   showToast: (msg: string, type?: string) => void;
   onClose: () => void;
+  // Following an in-app link the coach offered closes the chat and lands on the
+  // screen, so the runner does not have to find it themselves.
+  onNavigate: (target: CoachLinkTarget) => void;
   // Opening the coach about a specific plan session: the greeting names the
   // session, starter chips steer at it, and its details ride (invisibly) with the
   // user's first message so the model knows exactly which session is meant.
   sessionContext?: CoachSessionContext | null;
 };
 
-export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onClose, sessionContext }: CoachChatProps) {
+export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onClose, onNavigate, sessionContext }: CoachChatProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
 
@@ -404,7 +379,7 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onC
               (m.role === "user"
                 ? "whitespace-pre-wrap bg-orange-500/20 border border-orange-500/30"
                 : "bg-slate-800 border border-slate-700")}>
-              {m.role === "user" ? m.text : <CoachText text={m.text}/>}
+              {m.role === "user" ? m.text : <CoachText text={m.text} onNavigate={onNavigate}/>}
               {m.sessionCard && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
                   <div className="flex items-center gap-2">
