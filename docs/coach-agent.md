@@ -277,15 +277,27 @@ no-gesture-edits rules (asserted in `coachGolden.test.ts`), and the live suite
 replays the trajectory verbatim as three SAFETY-gated adversarial scenarios,
 one of them multi-turn (`evals/coach/README.md`).
 
-**No links, enforced in the renderer.** The same review found an ITBS reply
-citing two YouTube URLs for strengthening drills — almost certainly invented
-video ids. The model cannot verify that a link is live or shows what it claims,
-so the prompt bans URLs outright and tells it to name an app screen in plain
-text instead. Because a prompt rule is not enforcement, `CoachText`
-(`src/components/CoachText.tsx`, the one renderer for coach markdown) drops the
-`href` from every link and keeps only its text, so a hallucinated URL can never
-become something the runner can follow. GFM autolinking of bare URLs and emails
-is neutralised by the same override — pinned in `src/coachMarkdown.test.tsx`.
+**No external links; in-app links are the one exception.** The same review
+found an ITBS reply citing two YouTube URLs for strengthening drills — almost
+certainly invented video ids. The model cannot verify that a link is live or
+shows what it claims, so the prompt bans external URLs outright. Because a
+prompt rule is not enforcement, `CoachText` (`src/components/CoachText.tsx`, the
+one renderer for coach markdown) drops the `href` from every link and keeps only
+its text, which also neutralises GFM autolinking of bare URLs and emails.
+
+The exception is an **in-app link**: markdown to an `app:` target, rendered as a
+button that closes the chat and lands the runner on the screen. It exists
+because ~9% of logged rounds end in a "go here" nudge with no way to get there,
+and the most common one is structural — the coach can never change the goal
+itself (`buildPlan` is the author), so "adjust it in the plan settings" is its
+designated hand-off and was a dead end. `src/utils/coachLinks.ts` holds the
+allowlist (`goal`, `log`, `training`, `integrations`, `history`) and is the only
+gate: an invented target degrades to plain text, exactly like an external URL.
+Adding one means touching three places — the allowlist, `goCoachLink` in
+`RunningCoach.tsx`, and the prompt's list of tokens (the only place the model
+learns them; `coachGolden.test.ts` fails if the two drift). Note `CoachText`
+must keep its `urlTransform`: react-markdown drops every scheme but
+http/https/mailto/tel, so `app:` would otherwise arrive as an empty href.
 
 Cost shape differs sharply and is worth knowing before a switch: on the same
 suite Mistral spent ~64-90k input / ~1k output tokens against Sonnet's

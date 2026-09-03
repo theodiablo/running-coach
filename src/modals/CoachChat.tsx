@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { CoachText } from "../components/CoachText";
+import type { CoachLinkTarget } from "../utils/coachLinks";
 import { useTranslation, Trans } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { Loader, MessageSquarePlus, Send, X, Flag, History, ArrowLeft } from "lucide-react";
@@ -64,13 +65,16 @@ type CoachChatProps = {
   appendUserContext: (text: string) => boolean;
   showToast: (msg: string, type?: string) => void;
   onClose: () => void;
+  // Following an in-app link the coach offered closes the chat and lands on the
+  // screen, so the runner does not have to find it themselves.
+  onNavigate: (target: CoachLinkTarget) => void;
   // Opening the coach about a specific plan session: the greeting names the
   // session, starter chips steer at it, and its details ride (invisibly) with the
   // user's first message so the model knows exactly which session is meant.
   sessionContext?: CoachSessionContext | null;
 };
 
-export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onClose, sessionContext }: CoachChatProps) {
+export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onClose, onNavigate, sessionContext }: CoachChatProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
 
@@ -375,7 +379,7 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onC
               (m.role === "user"
                 ? "whitespace-pre-wrap bg-orange-500/20 border border-orange-500/30"
                 : "bg-slate-800 border border-slate-700")}>
-              {m.role === "user" ? m.text : <CoachText text={m.text}/>}
+              {m.role === "user" ? m.text : <CoachText text={m.text} onNavigate={onNavigate}/>}
               {m.sessionCard && (
                 <div className="mt-3 pt-3 border-t border-slate-700">
                   <div className="flex items-center gap-2">

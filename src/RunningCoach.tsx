@@ -14,6 +14,7 @@ import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from 
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress } from "./utils/plan";
+import type { CoachLinkTarget } from "./utils/coachLinks";
 import { bestSessionForRun, canMoveSessionTo, releaseRun } from "./utils/sessionMatch";
 import type { SessionWithWeek } from "./utils/overdue";
 import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
@@ -288,6 +289,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [coachSession, setCoachSession] = useState<CoachSessionContext | null>(null);
   // Stash from a "Set as target" promote → consumed by PlanView's setup form.
   const [planPrefill, setPlanPrefill] = useState<PlanPrefill | null>(null);
+  // Set only by the coach's "change your goal" link: PlanView opens straight
+  // into its editor rather than the plan it is asking the runner to rebuild.
+  const [planEditNonce, setPlanEditNonce] = useState(0);
   // Which Progress sub-tab to open, and a nonce so navigating there again (even
   // to the same sub-tab) re-applies it.
   const [progressSub,  setProgressSub]  = useState<ProgressSub>("log");
@@ -1044,6 +1048,20 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // its OWN close handler — so a guarded one (a recording tracker, a busy
   // delete) still gets to refuse — and every pending navigation intent is
   // dropped, so Home comes up the way a cold start would show it.
+  // The coach's in-app links (src/utils/coachLinks.ts). Close the chat first —
+  // it is a full-screen modal, so navigating under it would land the runner on a
+  // screen they cannot see.
+  const goCoachLink = (target: CoachLinkTarget) => {
+    setShowCoach(false);
+    switch (target) {
+      case "goal":         setPlanEditNonce(n => n + 1); setTab("plan"); break;
+      case "log":          goLog(); break;
+      case "training":     openSettings("training"); break;
+      case "integrations": openSettings("integrations"); break;
+      case "history":      goProgress("log"); break;
+    }
+  };
+
   const goHome = () => {
     resumeRecorderRef.current = null;
     dismissAll();
@@ -1214,7 +1232,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           onError={() => { setShowCoach(false); showToast(t("coach.errors.transport.offline"), "err"); }}>
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
             <CoachChat plan={plan} onApplyPlan={applyCoachPlan} sessionContext={coachSession}
-              appendUserContext={appendUserContext} showToast={showToast} onClose={() => setShowCoach(false)}/>
+              appendUserContext={appendUserContext} showToast={showToast} onClose={() => setShowCoach(false)}
+              onNavigate={goCoachLink}/>
           </Suspense>
         </ChunkLoadBoundary>
       )}
@@ -1267,7 +1286,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
       <div key={`${tab}:${homeNonce}`} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
         {tab === "dash"  && <Dashboard  {...shared}/>}
-        {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}/>}
+        {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}
+          openEditNonce={planEditNonce}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
           onSaved={(saved, link) => {
             // The link is whatever the form ended up with: the session the

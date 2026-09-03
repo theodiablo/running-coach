@@ -11,6 +11,7 @@ import { buildMessages, generateProposal, MAX_VALIDATOR_RETRIES, MAX_MODEL_CALLS
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
 import { createMockModel } from "../../supabase/functions/_shared/coach/mock.mjs";
 import { validatePlan } from "./coachValidation";
+import { COACH_LINK_TARGETS } from "./coachLinks";
 import { buildPlan } from "./plan";
 import { ymd } from "./format";
 
@@ -287,9 +288,11 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(SYSTEM_PROMPT).toContain("Never propose a change as a gesture");
   });
 
-  it("system prompt bans links, which cannot be verified and get faked", () => {
-    expect(SYSTEM_PROMPT).toContain("Never put a link or a URL in a reply");
-    expect(SYSTEM_PROMPT).toContain("name the screen in plain text");
+  it("system prompt bans external URLs but documents every in-app target", () => {
+    expect(SYSTEM_PROMPT).toContain("Never put an external URL in a reply");
+    // The prompt is the only place the model learns these tokens; a target
+    // renamed in coachLinks.ts without updating it silently stops working.
+    for (const target of COACH_LINK_TARGETS) expect(SYSTEM_PROMPT).toContain(`app:${target}`);
   });
 
   it("memory-only tool suggestions do not mark the plan changed", async () => {
