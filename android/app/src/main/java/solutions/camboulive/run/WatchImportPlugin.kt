@@ -1,11 +1,13 @@
 package solutions.camboulive.run
 
+import android.os.Build
 import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ElevationGainedRecord
+import androidx.health.connect.client.records.ExerciseRouteResult
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.metadata.DataOrigin
@@ -21,9 +23,11 @@ import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.time.Instant
 
 // Reads finished exercise (run/walk) sessions from Android Health Connect, so a
@@ -39,12 +43,33 @@ import java.time.Instant
 @CapacitorPlugin(name = "WatchImport")
 class WatchImportPlugin : Plugin() {
 
+    // The scopes the import genuinely needs. `granted` is measured against THIS
+    // set and nothing else — the route scope below is never part of it.
     private val readPermissions = setOf(
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
         HealthPermission.getReadPermission(ElevationGainedRecord::class),
         HealthPermission.getReadPermission(HeartRateRecord::class),
     )
+
+    // The GPS route scope. Spelled out because the Jetpack SDK has no constant
+    // for it, and kept OUT of readPermissions because the user grants it in
+    // Health Connect rather than from our sheet — gating on it would report
+    // every working connection as ungranted (docs/health-integrations.md).
+    private val routePermission = "android.permission.health.READ_EXERCISE_ROUTES"
+
+    // Asked for only on Android 14+, where Health Connect is part of the platform
+    // and the request contract routes through the OS permission dialog, which
+    // simply denies anything it won't grant. Below 34 the contract hands the raw
+    // strings to the standalone Health Connect APK, and this permission is not in
+    // the Jetpack SDK's vocabulary at all (no constant, no mapping) — an older
+    // APK refusing the whole batch over it would leave a first-time connect with
+    // NOTHING granted, breaking watch import outright on Android 8-13. The scope
+    // is documented as un-requestable anyway, so including it there is pure
+    // downside; the manifest declaration is what actually offers the user the
+    // toggle, on every version.
+    private val requestPermissions =
+        if (Build.VERSION.SDK_INT >= 34) readPermissions + routePermission else readPermissions
     private val requestContract = PermissionController.createRequestPermissionResultContract()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -73,30 +98,53 @@ class WatchImportPlugin : Plugin() {
 
     @PluginMethod
     fun checkHealthPermissions(call: PluginCall) {
-        scope.launch {
-            val granted = try { client().permissionController.getGrantedPermissions() }
-            catch (e: Exception) { emptySet<String>() }
-            call.resolve(JSObject().put("granted", granted.containsAll(readPermissions)))
-        }
+        resolveGranted(call) { emptySet() }
     }
 
     @PluginMethod
     fun requestHealthPermissions(call: PluginCall) {
         try {
-            val intent = requestContract.createIntent(context, readPermissions)
+            val intent = requestContract.createIntent(context, requestPermissions)
             startActivityForResult(call, intent, "permsResult")
         } catch (e: Exception) {
             call.reject(e.message ?: "Couldn't open Health Connect permissions")
         }
     }
 
+    // Reports the UNION of what the sheet returned and what Health Connect says is
+    // granted right now. The activity result alone is not the whole truth: the
+    // route scope can only be turned on inside Health Connect, so a user who did
+    // that would otherwise not be seen — and if the extra scope ever made a sheet
+    // return an empty result, re-reading the controller keeps a working
+    // connection from being reported as revoked.
     @ActivityCallback
     fun permsResult(call: PluginCall?, result: ActivityResult) {
         if (call == null) return
-        val granted = try { requestContract.parseResult(result.resultCode, result.data) }
+        val fromSheet = try { requestContract.parseResult(result.resultCode, result.data) }
         catch (e: Exception) { emptySet<String>() }
-        call.resolve(JSObject().put("granted", granted.containsAll(readPermissions)))
+        resolveGranted(call) { fromSheet }
     }
+
+    // Health Connect's current grants, unioned with `extra` (the sheet's own
+    // result, when there was one). Nothing may escape the coroutine: an uncaught
+    // exception there kills the app process and leaves the JS promise unsettled
+    // (docs/health-integrations.md). `client()` is the realistic thrower — it
+    // fails whenever Health Connect is absent. Cancellation is rethrown rather
+    // than reported as "not granted", which would clear a live grant marker.
+    private fun resolveGranted(call: PluginCall, extra: () -> Set<String>) {
+        scope.launch {
+            val granted = try { extra() + client().permissionController.getGrantedPermissions() }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { try { extra() } catch (e2: Exception) { emptySet() } }
+            call.resolve(try { grantJson(granted) } catch (e: Exception) { JSObject().put("granted", false) })
+        }
+    }
+
+    // `granted` stays the import's own all-or-nothing gate over readPermissions;
+    // `routes` rides alongside as an independent, purely informational flag.
+    private fun grantJson(granted: Set<String>): JSObject = JSObject()
+        .put("granted", granted.containsAll(readPermissions))
+        .put("routes", granted.contains(routePermission))
 
     @PluginMethod
     fun readExerciseSessions(call: PluginCall) {
@@ -139,10 +187,8 @@ class WatchImportPlugin : Plugin() {
     // can't interleave its samples. Uses the already-granted HeartRateRecord read
     // permission (the aggregates in sessionJson already need it), so this adds no
     // new manifest scope or Play health-data declaration. Called lazily by the TS
-    // import layer for NEW runs only. Health Connect has no GPS route for any
-    // known writer, so there is deliberately no route read here (adding
-    // READ_EXERCISE_ROUTES would force a Play re-declaration for data that doesn't
-    // exist yet); revisit if a watch app starts writing ExerciseRoute.
+    // import layer for NEW runs only. The GPS route is a separate lazy read —
+    // see readExerciseRoute.
     //   { startTime, endTime, dataOrigin? } → { samples: [{ bpm, t(ms epoch) }] }
     @PluginMethod
     fun readHeartRateSeries(call: PluginCall) {
@@ -184,6 +230,49 @@ class WatchImportPlugin : Plugin() {
                 call.resolve(JSObject().put("samples", samples))
             } catch (e: Exception) {
                 call.reject(e.message ?: "Couldn't read heart rate series")
+            }
+        }
+    }
+
+    // One session's GPS route, as the [lat, lng, t, alt] tuples a recorded run
+    // stores. Per-session readRecord because a route is not an independent
+    // record and never comes back on the bulk sweep above. Resolves (never
+    // rejects) for every "no map" outcome so an unconsented route still imports
+    // the run — see docs/health-integrations.md.
+    //   { id } → { status, points: [[lat, lng, t(ms epoch), alt|null], …] }
+    @PluginMethod
+    fun readExerciseRoute(call: PluginCall) {
+        val id = call.getString("id")
+        if (id.isNullOrEmpty()) {
+            call.reject("id is required")
+            return
+        }
+        scope.launch {
+            try {
+                val rec = client().readRecord(ExerciseSessionRecord::class, id).record
+                val points = JSArray()
+                val status = when (val res = rec.exerciseRouteResult) {
+                    is ExerciseRouteResult.Data -> {
+                        for (loc in res.exerciseRoute.route) {
+                            val p = JSArray()
+                            p.put(loc.latitude)
+                            p.put(loc.longitude)
+                            p.put(loc.time.toEpochMilli())
+                            // Altitude is optional per location; keep the slot so
+                            // the tuple stays positional.
+                            p.put(loc.altitude?.inMeters ?: JSONObject.NULL)
+                            points.put(p)
+                        }
+                        "data"
+                    }
+                    is ExerciseRouteResult.ConsentRequired -> "consent-required"
+                    is ExerciseRouteResult.NoData -> "none"
+                    // A future subtype is not evidence the app wrote no route.
+                    else -> "unavailable"
+                }
+                call.resolve(JSObject().put("status", status).put("points", points))
+            } catch (e: Exception) {
+                call.resolve(JSObject().put("status", "unavailable").put("points", JSArray()))
             }
         }
     }

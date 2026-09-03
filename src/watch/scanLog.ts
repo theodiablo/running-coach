@@ -1,5 +1,5 @@
 import { WATCH_SCAN_LOG_KEY, WATCH_SCAN_LOG_MAX, WATCH_DEBUG_KEY } from "../constants";
-import type { WatchImportAvailability } from "./plugin";
+import type { WatchImportAvailability, RouteReadStatus } from "./plugin";
 import type { ClassifiedSession, SessionOutcome } from "./mapping";
 
 // Developer diagnostics for watch import. Every Health Connect scan records what
@@ -27,10 +27,20 @@ export type ScanLogEntry = {
   days: number;                   // window scanned
   availability: WatchImportAvailability | "skipped";
   permission: boolean;            // exercise-read grant present at scan time
+  // The SEPARATE exercise-routes grant, which the user makes in Health Connect
+  // rather than from our sheet — false is the normal state of a working
+  // connection, and nothing gates on it. Recorded so "I allowed routes and still
+  // get no map" can be told apart from "I never allowed them".
+  routesGranted?: boolean;
   rawCount: number;               // sessions Health Connect returned
   importedCount: number;
   error?: string;
   sessions: ScanLogSession[];
+  // Per-imported-run route outcome, in importedCount order. Absent when the scan
+  // imported nothing. All "consent-required" is the expected default (exercise
+  // routes are granted in Health Connect, not from our sheet); "none" means the
+  // writing app attached no route to that session.
+  routeStatuses?: RouteReadStatus[];
 };
 
 export function getScanLog(): ScanLogEntry[] {
