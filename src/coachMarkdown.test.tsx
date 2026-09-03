@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CoachText } from "./components/CoachText";
 
 afterEach(cleanup);
 
@@ -36,5 +37,34 @@ describe("coach markdown autolinking (patched remark-gfm)", () => {
     expect(html("see www.example.com")).toContain('href="http://www.example.com"');
     expect(html("| a | b |\n| - | - |\n| 1 | 2 |")).toContain("<table>");
     expect(html("~~gone~~")).toContain("<del>");
+  });
+});
+
+// The coach is instructed never to emit a URL, but a prompt rule is not
+// enforcement: a mistral-era reply shipped fabricated YouTube links for
+// strengthening drills. CoachText renders link TEXT without the href, so a
+// hallucinated URL can never become something the runner can follow.
+describe("CoachText neutralises links", () => {
+  const coach = (md: string) => render(<CoachText text={md}/>).container;
+
+  it("keeps a markdown link's text but drops the anchor", () => {
+    const c = coach("Try [clamshells](https://youtube.com/watch?v=fake).");
+    expect(c.querySelector("a")).toBeNull();
+    expect(c.textContent).toContain("clamshells");
+  });
+
+  it("does not linkify a bare URL", () => {
+    expect(coach("see www.example.com").querySelector("a")).toBeNull();
+    expect(coach("see https://example.com/drills").querySelector("a")).toBeNull();
+  });
+
+  it("does not linkify a bare email", () => {
+    expect(coach("mail bob@example.com").querySelector("a")).toBeNull();
+  });
+
+  it("leaves the rest of the coach's formatting intact", () => {
+    const c = coach("**Week 3**\n\n- easy 5 km\n- rest");
+    expect(c.querySelector("strong")?.textContent).toBe("Week 3");
+    expect(c.querySelectorAll("li")).toHaveLength(2);
   });
 });
