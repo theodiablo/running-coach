@@ -18,7 +18,11 @@
     "heading": "Semaine {{week}} · {{date}}",
     "targetRun": "{{type}} · {{km}} km à {{pace}}/km",
     "targetOther": "Entraînement croisé · {{mins}}",
-    "ticksOff": "En enregistrant, la séance sera validée."
+    "ticksOff": "En enregistrant, la séance sera validée.",
+    "offerHeading": "Compte pour ta séance du {{date}}",
+    "decline": "Ce n'est pas celle-là",
+    "declineUndo": "Finalement, compter pour la séance du {{date}}",
+    "noLongerFits": "Après tes modifications, ça ne correspond plus à la séance du {{date}} : elle ne sera pas validée."
   },
   "gpsBanner": "Sortie enregistrée par GPS. La distance, la durée et le dénivelé positif sont déjà renseignés. Ajoute un type et des notes, puis enregistre.",
   "indoorBanner": "Séance en salle enregistrée. La durée et la fréquence cardiaque sont déjà renseignées, il n'y a pas de distance à enregistrer. Ajoute des notes, puis enregistre.",
