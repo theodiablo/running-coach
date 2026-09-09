@@ -146,7 +146,13 @@ data "aws_iam_policy_document" "tf_read" {
       "iam:GetPolicyVersion",
       "iam:GetRole",
       "iam:GetRolePolicy",
+      # The SES SMTP user (ses_sending.tf) is refreshed on every plan.
+      "iam:GetUser",
+      "iam:GetUserPolicy",
+      "iam:ListAccessKeys",
       "iam:ListAttachedRolePolicies",
+      "iam:ListAttachedUserPolicies",
+      "iam:ListGroupsForUser",
       "iam:ListInstanceProfilesForRole",
       # The aws_iam_openid_connect_provider data source resolves the provider by
       # URL, not by ARN, so it enumerates before it can Get. Without List, every
@@ -154,6 +160,8 @@ data "aws_iam_policy_document" "tf_read" {
       "iam:ListOpenIDConnectProviders",
       "iam:ListRolePolicies",
       "iam:ListRoleTags",
+      "iam:ListUserPolicies",
+      "iam:ListUserTags",
       # For infra/permissions-check.sh: proves the write policy without
       # performing any write, so a policy bug is caught before it depends on a
       # merge to main to surface.
@@ -283,9 +291,18 @@ data "aws_iam_policy_document" "tf_apply" {
     sid    = "ManageSes"
     effect = "Allow"
     actions = [
+      "ses:CreateConfigurationSet",
+      "ses:DeleteConfigurationSet",
+      "ses:PutConfigurationSetDeliveryOptions",
+      "ses:PutConfigurationSetReputationOptions",
+      "ses:PutConfigurationSetSendingOptions",
+      "ses:PutConfigurationSetSuppressionOptions",
+      "ses:PutConfigurationSetTrackingOptions",
       "ses:CreateEmailIdentity",
       "ses:DeleteEmailIdentity",
+      "ses:PutEmailIdentityConfigurationSetAttributes",
       "ses:PutEmailIdentityDkimSigningAttributes",
+      "ses:PutEmailIdentityMailFromAttributes",
       "ses:TagResource",
       "ses:UntagResource",
       "ses:CreateReceiptRuleSet",
@@ -297,6 +314,27 @@ data "aws_iam_policy_document" "tf_apply" {
       "ses:SetActiveReceiptRuleSet",
     ]
     resources = ["*"]
+  }
+
+  # The send-only SMTP user Supabase Auth signs in as (ses_sending.tf). Scoped
+  # to its own name prefix, and deliberately without iam:AttachUserPolicy — its
+  # permissions can only ever be the inline policy Terraform writes, so there
+  # is no managed-policy path to widen them.
+  statement {
+    sid    = "ManageProjectSesUser"
+    effect = "Allow"
+    actions = [
+      "iam:CreateAccessKey",
+      "iam:CreateUser",
+      "iam:DeleteAccessKey",
+      "iam:DeleteUser",
+      "iam:DeleteUserPolicy",
+      "iam:PutUserPolicy",
+      "iam:TagUser",
+      "iam:UntagUser",
+      "iam:UpdateAccessKey",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:user/system/${local.managed_user_prefix}*"]
   }
 
   statement {

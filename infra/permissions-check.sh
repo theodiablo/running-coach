@@ -31,6 +31,7 @@ BACKUP_OBJECT="${BACKUP_BUCKET}/supabase/run-app-20260101T000000Z.tar.gz"
 SITE_BUCKET="arn:aws:s3:::run.camboulive.solutions"
 SES_BUCKET="arn:aws:s3:::ses-inbound-camboulive-solutions"
 OTHER_BUCKET="arn:aws:s3:::luffashop-backups"
+SMTP_USER="arn:aws:iam::${ACCOUNT}:user/system/run-app-ses-smtp-auth"
 SITE_DISTRIBUTION="arn:aws:cloudfront::${ACCOUNT}:distribution/E42OGU5IVYJ14"
 OTHER_DISTRIBUTION="arn:aws:cloudfront::${ACCOUNT}:distribution/E00000000000X"
 
@@ -111,6 +112,16 @@ check "update the site distribution" "$APPLY_ROLE" cloudfront:UpdateDistribution
 check "create a distribution"        "$APPLY_ROLE" cloudfront:CreateDistribution "*" allowed
 check "manage the receipt rule"      "$APPLY_ROLE" ses:UpdateReceiptRule  "*" allowed
 check "manage the email identity"    "$APPLY_ROLE" ses:CreateEmailIdentity "*" allowed
+check "manage the config set"        "$APPLY_ROLE" ses:PutConfigurationSetSuppressionOptions "*" allowed
+
+echo
+echo "tf-apply: the SES SMTP user"
+# The one IAM user this configuration owns: send-only credentials for Supabase
+# Auth. Its access key IS the SMTP password, so key rotation has to be in scope.
+check "create the SMTP user"         "$APPLY_ROLE" iam:CreateUser      "$SMTP_USER" allowed
+check "write its inline policy"      "$APPLY_ROLE" iam:PutUserPolicy   "$SMTP_USER" allowed
+check "rotate its access key"        "$APPLY_ROLE" iam:CreateAccessKey "$SMTP_USER" allowed
+check "read it back on refresh"      "$APPLY_ROLE" iam:GetUser         "$SMTP_USER" allowed
 
 echo
 echo "tf-apply: reading the roles it manages"
@@ -140,6 +151,10 @@ check "read a backup tarball"      "$APPLY_ROLE" s3:GetObject    "$BACKUP_OBJECT
 check "write to the site bucket"   "$APPLY_ROLE" s3:PutObject    "${SITE_BUCKET}/index.html" denied
 check "touch another project"      "$APPLY_ROLE" s3:DeleteBucket "$OTHER_BUCKET"  denied
 check "create an unprefixed role"  "$APPLY_ROLE" iam:CreateRole  "arn:aws:iam::${ACCOUNT}:role/Unrelated" denied
+check "create an unprefixed user"  "$APPLY_ROLE" iam:CreateUser  "arn:aws:iam::${ACCOUNT}:user/Unrelated" denied
+# Never granted: the SMTP user's permissions are only ever the inline policy
+# Terraform writes, so there is no managed-policy route to widening them.
+check "attach a policy to the user" "$APPLY_ROLE" iam:AttachUserPolicy "$SMTP_USER" denied
 # Distributions do take resource-level ARNs, so the destructive CloudFront
 # actions are pinned to this project's one rather than granted account-wide.
 check "break another distribution" "$APPLY_ROLE" cloudfront:UpdateDistribution "$OTHER_DISTRIBUTION" denied
@@ -156,6 +171,7 @@ check "read a backup tarball"      "$PLAN_ROLE" s3:GetObject "$BACKUP_OBJECT" de
 # The adoption widened the apply role, not this one.
 check "update the distribution"    "$PLAN_ROLE" cloudfront:UpdateDistribution "$SITE_DISTRIBUTION" denied
 check "delete a receipt rule"      "$PLAN_ROLE" ses:DeleteReceiptRule "*" denied
+check "rotate the SMTP key"        "$PLAN_ROLE" iam:CreateAccessKey "$SMTP_USER" denied
 check "configure the site bucket"  "$PLAN_ROLE" s3:PutBucketPolicy "$SITE_BUCKET" denied
 
 echo
