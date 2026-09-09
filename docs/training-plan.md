@@ -22,6 +22,30 @@ marathon, ≤36 km ceiling for ultras), NOT capped by the long-session minutes �
 so it can exceed the configured long-day duration; PlanView shows an honest
 nudge when it does. `plan.longRunPeakKm` exposes the peak for that nudge.
 
+## Phases
+
+Each week carries a `phase` (`BASE` · `BUILD` · `PEAK` · `TAPER` · `RACE`) that
+PlanView shows as the week's badge, so **the label is a promise about the
+week's sessions** and the two are derived from one set of boundaries in
+`buildPlan`:
+
+- **taper** = the last 3 weeks before race week (easy only — the validator also
+  forbids tempo/intervals inside 7 days of the race).
+- **base** = the first `min(4, ceil((N-3)/2))` weeks: easy running only, no
+  quality. Capping it at *half the pre-taper runway* is what keeps a short plan
+  honest — from 11 weeks up it is the fixed 4 it always was.
+- **peak** = the last 4 pre-taper weeks (never earlier than the end of base);
+  **build** fills any gap between base and peak.
+
+The composers read `isBase`/`isTaper`/`phase` from those same boundaries, and
+`buildW` (the week's index *within the post-base block*) drives the
+tempo/intervals alternation — so quality work starts exactly when the label
+says BUILD/PEAK. A previous split definition (base fixed at `w < 4`, peak at
+`w >= N-7`, peak tested first) labelled the easy base weeks of every plan
+shorter than 11 weeks `PEAK`, and an 8-week plan reached its taper having
+prescribed a single quality week. `runwalk` is the one style with no
+tempo/intervals by design; its phase still moves the run/walk ratio.
+
 ## Rebuilds and retained history
 
 `buildPlan` always anchors week 1 on the **next Monday**, so a rebuilt plan

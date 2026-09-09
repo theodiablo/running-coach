@@ -213,6 +213,42 @@ describe("buildPlan", () => {
     // No mini-taper: the week's other session keeps its normal prescription.
     expect(nonRace.some(s => s.desc !== "Easy run — keep it light around your race")).toBe(true);
   });
+
+  // A week's phase label is a promise about its sessions. Short plans used to
+  // label their easy base weeks PEAK (the peak window was the last 7 pre-taper
+  // weeks, which on a 8-week plan started at week 2) and, with the base block
+  // fixed at 4 weeks, never got to a tempo at all.
+  describe("phase labels match what the week actually prescribes", () => {
+    const QUALITY = ["TEMPO", "INTERVALS"];
+    const horizons = [4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 20];
+
+    it.each(horizons)("%i-week horizon: no easy-only PEAK or BUILD week", weeks => {
+      const plan = buildPlan(raceDateInDays(weeks * 7 + 8), 7200, SESSIONS, 20, 0);
+      const training = plan.weeks.filter(w => w.phase !== "RACE");
+      expect(training.length).toBeGreaterThan(0);
+      training.forEach(w => {
+        const hasQuality = w.sessions.some(s => QUALITY.includes(s.type));
+        if (w.phase === "PEAK" || w.phase === "BUILD") expect(hasQuality).toBe(true);
+        else expect(hasQuality).toBe(false); // BASE and TAPER stay easy
+      });
+    });
+
+    it.each(horizons)("%i-week horizon: phases run BASE → BUILD → PEAK → TAPER", weeks => {
+      const plan = buildPlan(raceDateInDays(weeks * 7 + 8), 7200, SESSIONS, 20, 0);
+      const order = ["BASE", "BUILD", "PEAK", "TAPER", "RACE"];
+      const seen = plan.weeks.map(w => order.indexOf(w.phase));
+      expect(seen.every(i => i >= 0)).toBe(true);
+      expect(seen).toEqual([...seen].sort((a, b) => a - b));
+      expect(plan.weeks[0].phase).toBe("BASE"); // every plan starts in base
+    });
+
+    it("gives even the shortest real horizon a quality week", () => {
+      // 8 weeks out with 3 sessions/week: base, then tempo/intervals, then taper.
+      const plan = buildPlan(raceDateInDays(64), 7200, SESSIONS, 20, 0);
+      const quality = plan.weeks.filter(w => w.sessions.some(s => QUALITY.includes(s.type)));
+      expect(quality.length).toBeGreaterThan(0);
+    });
+  });
 });
 
 // Frozen-clock snapshots of the default ("balanced") output, committed BEFORE

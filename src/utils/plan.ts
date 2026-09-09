@@ -58,6 +58,7 @@ type WeekCtx = {
   phase: string;
   isBase: boolean;
   isTaper: boolean;
+  buildW: number; // 0-based week index within the post-base block
   rampFrac: number; // 0→1 progress through the pre-taper ramp (long-run ramp)
   longSess: PlanSessionInput;
   qualSessions: PlanSessionInput[];
@@ -146,15 +147,21 @@ export function buildPlan(
   // Long run ramps linearly from this start to the peak over the pre-taper weeks.
   const startLong = Math.max(shape.floorKm, fitFloor, levelFloor);
   const lastBuildW = N - 4; // 0-based index of the final pre-taper week (peak hits here)
+  // Phase boundaries. The base block is what the composers actually treat as
+  // base (easy only, no quality), so it must never swallow the whole pre-taper
+  // block: a short plan that spent 4 weeks in base labelled its easy weeks
+  // PEAK and never prescribed a tempo. Half the pre-taper runway, capped at 4
+  // — identical to the old fixed 4 from 11 weeks up.
+  const baseW  = Math.min(4, Math.max(1, Math.ceil((N - 3) / 2)));
+  const peakW  = Math.max(baseW, N - 7); // first PEAK week; BUILD fills any gap
 
   const weeks: PlanWeek[] = [];
 
   for (let w = 0; w < N; w++) {
     const wS = new Date(w0); wS.setDate(w0.getDate() + w * 7);
     const isTaper = w >= N - 3;
-    const isPeak  = w >= N - 7 && !isTaper;
-    const isBase  = w < 4;
-    const phase   = isTaper ? "TAPER" : isPeak ? "PEAK" : isBase ? "BASE" : "BUILD";
+    const isBase  = w < baseW && !isTaper;
+    const phase   = isTaper ? "TAPER" : isBase ? "BASE" : w >= peakW ? "PEAK" : "BUILD";
     const ss: PlanSession[] = [];
 
     const addS = (dOff: number, type: string, km: number, desc: string, pace: number, sd: SessionSd) => {
@@ -186,7 +193,7 @@ export function buildPlan(
     }
 
     COMPOSERS[style]({
-      w, N, phase, isBase, isTaper, rampFrac, longSess, qualSessions, longKm,
+      w, N, phase, isBase, isTaper, buildW: w - baseW, rampFrac, longSess, qualSessions, longKm,
       addS, paces: { easy, tmpo, intv, long: longP, walk: walkP }, tgt, dist,
     });
 
@@ -314,8 +321,7 @@ function composeBalanced(c: WeekCtx) {
       desc = "Easy run — relaxed aerobic effort";
       sd   = { kind: "easy", variant: "relaxed" };
     } else {
-      const buildW = w - 4;
-      if (buildW % 2 === 0) {
+      if (c.buildW % 2 === 0) {
         type = "TEMPO"; pace = tmpo;
         km   = Math.min(maxQ * 0.85, q.minutes * 60 / tmpo * 0.8);
         desc = "Tempo run — " + fmt.pace(tmpo) + "/km, comfortably hard";
@@ -365,8 +371,7 @@ function composePolarized(c: WeekCtx) {
         { kind: "easy", variant: "conversational" });
       return;
     }
-    const buildW = w - 4;
-    if (buildW % 2 === 0) {
+    if (c.buildW % 2 === 0) {
       addS(q.dayOffset, "TEMPO",
         Math.min(maxQ * 0.85, q.minutes * 60 / tmpo * 0.8),
         "Tempo run — " + fmt.pace(tmpo) + "/km, your one hard session this week", tmpo,
