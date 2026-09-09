@@ -28,7 +28,11 @@ describe("carryPrefill", () => {
   });
 
   it("drops navigation state that isn't run data", () => {
-    expect(carryPrefill({ pace: 300, wNum: 2, sId: "w2d4", id: "old" })).toEqual({});
+    expect(carryPrefill({
+      pace: 300, id: "old",
+      session: { id: "w2d4", date: "2026-08-12", type: "EASY", km: 8, pace: 300, wNum: 2 },
+      sessionOffered: true,
+    } as Parameters<typeof carryPrefill>[0])).toEqual({});
   });
 
   it("skips null and undefined rather than storing them", () => {

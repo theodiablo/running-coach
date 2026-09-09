@@ -10,8 +10,9 @@ import { LogView } from "./LogView";
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
 
 const noop = () => {};
+const addNone = () => [];
 const setup = (props: Partial<Parameters<typeof LogView>[0]> = {}) =>
-  render(<LogView addRuns={noop} onDone={noop} runs={[]} {...props}/>);
+  render(<LogView addRuns={addNone} onDone={noop} runs={[]} {...props}/>);
 
 afterEach(cleanup);
 
@@ -24,7 +25,8 @@ describe("LogView", () => {
   });
 
   it("names the plan session being logged, and that saving ticks it off", () => {
-    setup({ prefill: { date: "2026-08-18", type: "TEMPO", km: 8, pace: 310, wNum: 3, sId: "w3-tue" } });
+    setup({ prefill: { date: "2026-08-18", type: "TEMPO", km: 8, pace: 310,
+      session: { id: "w3-tue", wNum: 3, date: "2026-08-18", type: "TEMPO", desc: "Tempo 8km", km: 8, pace: 310 } } });
     expect(screen.getByText("Log this session")).toBeInTheDocument();
     expect(screen.getByText(/Week 3/)).toBeInTheDocument();
     expect(screen.getByText(/8 km at 5:10\/km/)).toBeInTheDocument();
@@ -35,7 +37,8 @@ describe("LogView", () => {
   // A cross-training session's km is synthetic (see planSessionPrefill), so the
   // prefill carries a duration instead — the banner must not claim a distance.
   it("states a cross-training session's duration rather than a distance", () => {
-    setup({ prefill: { date: "2026-08-19", type: "OTHER", durationSec: 2400, wNum: 3, sId: "w3-wed" } });
+    setup({ prefill: { date: "2026-08-19", type: "OTHER", durationSec: 2400,
+      session: { id: "w3-wed", wNum: 3, date: "2026-08-19", type: "OTHER", desc: "Cross-training", km: 6, pace: 400, sd: { kind: "cross", minutes: 40 } } } });
     expect(screen.getByText(/Cross-training · 40min/)).toBeInTheDocument();
   });
 
@@ -62,7 +65,8 @@ describe("LogView", () => {
     expect(screen.getByRole("button", { name: "Choose file" })).toBeInTheDocument();
     unmount();
 
-    setup({ prefill: { date: "2026-08-18", type: "TEMPO", km: 8, wNum: 3, sId: "w3-tue" } });
+    setup({ prefill: { date: "2026-08-18", type: "TEMPO", km: 8,
+      session: { id: "w3-tue", wNum: 3, date: "2026-08-18", type: "TEMPO", desc: "Tempo 8km", km: 8, pace: 310 } } });
     expect(screen.queryByText(/Got a file from your watch/)).not.toBeInTheDocument();
   });
 

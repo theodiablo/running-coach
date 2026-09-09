@@ -169,6 +169,13 @@ choice either way.
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
+- `session_reconciled` `{moved, gap}` — a run already in the log was named as
+  the one that settled a plan session ("I already ran this", `ReconcileSheet`).
+  `gap` is the whole-day distance between the run and the session (0-3, see
+  `MATCH_WINDOW_DAYS`) and `moved` whether the session was re-dated onto the
+  run's day. A boolean and a small integer only — never a date or a description.
+  It measures whether the reconcile route is used at all, and how far off the
+  plan real training days fall.
 - `live_run_started` `{}` — fired the moment a live GPS tracking session
   actually begins (after the disclosure / permission / HR gates and the
   countdown, never on Resume) — `src/modals/LiveRunTracker.tsx`. Pairs with

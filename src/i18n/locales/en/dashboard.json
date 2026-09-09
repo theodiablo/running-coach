@@ -42,8 +42,11 @@
       "kicker": "Ticked off",
       "done": "Nice, {{title}} is done.",
       "skipped": "{{title}} skipped, no harm done.",
-      "meta": "{{date}} · nothing logged"
-    }
+      "meta": "{{date}} · nothing logged",
+      "metaRun": "{{date}} · {{detail}}",
+      "runDetail": "{{km}} km in {{dur}}"
+    },
+    "alreadyRan": "I already ran this"
   },
   "noPlan": "No training plan yet. Ready to get started?",
   "setUpPlan": "Set Up My Plan",
@@ -63,5 +66,13 @@
     "title": "Interrupted run found",
     "subtitle": "{{km}} km recorded on {{date}} — resume or save it",
     "action": "Open"
+  },
+  "reconcile": {
+    "title": "Which run was it?",
+    "scheduled": "scheduled {{date}}",
+    "closest": "Closest",
+    "move": "Move the session to {{date}} too, so your plan matches the days you ran",
+    "confirm": "Count it",
+    "note": "Nothing changes until you confirm."
   }
 }

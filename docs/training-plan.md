@@ -58,6 +58,73 @@ Elapsed weeks are a real distinction downstream: `isElapsedWeek`
 PlanView's ordering, the overdue lookback (`docs/reminders.md`) and the coach's
 validator/tools/context (`docs/coach-agent.md`).
 
+## Linking a run to the session it settled
+
+`PlanSession.runId` names the run that settled a session — for a long time it
+was minted `null`, carried by `carryProgress`, and never written. Until it was,
+"done" was a boolean with no evidence behind it, and the only way a run met a
+session was `findOpenPlanSession`: same calendar day, at the single moment a
+recorder handed off to the log form. Do Thursday's tempo on Wednesday and the
+two never met — the session stayed untickable (the Dashboard tick is gated to
+today-or-past, correctly: ungated it walked forward through the plan) and the
+run stayed anonymous.
+
+`src/utils/sessionMatch.ts` is the one matcher, pure and shared by both entry
+points. A run is a candidate for a session when it is within
+`MATCH_WINDOW_DAYS` (3) either side, agrees on `isCrossTraining` (a bike ride
+must never tick off a tempo, and vice versa), and is not already some other
+session's `runId` — **one run settles one session**. Candidates rank by day gap
+first, then by how close the distance is to the prescription, then by recency.
+
+`bestSessionForRun` is stricter than `candidateRuns` on purpose: it is shown
+already accepted, so a **cross-day** guess must also land within
+`CROSS_DAY_KM_TOLERANCE` of the prescription. A recorder cannot corroborate the
+guess with the type — the GPS tracker saves every run as `EASY`, because it has
+no idea what you were doing — so distance is the only signal it has, and without
+the check a 5 km jog arrived offering to tick off Thursday's 12 km intervals.
+Same-day matches are exempt: the day already says which session you meant, which
+is the pre-existing `findOpenPlanSession` behaviour. The sheet's list is picked
+from by a human and needs no such corroboration.
+
+It only ever **proposes**. Two surfaces apply it, both by a confirmed tap:
+
+- **At save time** (`offeredSession` in `RunningCoach`, rendered by `LogView`).
+  Every hand-off carries the session as a **whole row** (`prefill.session`) plus
+  `sessionOffered`, which says whether the app matched it or the runner chose
+  it; an offer gets a "Not this one" that saves the run alone. The row rather
+  than a bare `{wNum, sId}` because **the form re-checks the pairing against
+  what the runner types**: `runFitsSession(session, f)` is read at render, so
+  changing the type to Other or the date out of the window drops the link and
+  says so, instead of the save quietly ticking a tempo off with a bike ride.
+  Neither field is run data — `carryPrefill` drops both. Note the row carries
+  cross-training's *synthetic* km (`buildPlan` mints one to satisfy the coach
+  validator), so anything reading it for display must go through
+  `isCrossTraining` first.
+- **After the fact** (`ReconcileSheet`, from the next-session card's "I already
+  ran this" and from an overdue row's link button — the same case one day
+  later, whose only other action is the evidence-free tick this replaces).
+  Ranked candidates, best preselected, nothing applied until "Count it".
+
+Both land in `linkSess`, which sets `done` **and** `runId` in one write, and
+optionally re-dates the session to the day the run happened — the plan's dates
+feed the coach and the load rules, so a tempo left dated Thursday that the legs
+did on Wednesday misstates recovery. The move is only offered when the day falls
+inside the session's own plan week (`canMoveSessionTo`); outside it the session
+would be filed under a week it no longer falls in.
+
+Undo is **not** the same call again the way `toggleSess`/`skipSess` are: it has
+to release the run and put back the original date (`unlinkSess`).
+
+**A `runId` must never outlive the thing it points at, and never outlive its own
+`done`.** A session left `{done: false, runId: "r1"}` reads as untouched
+everywhere, while r1 stays claimed and is therefore offered to no session at all
+— not even that one, with nothing on screen to explain why. So: unticking or
+skipping clears `runId`; `deleteRun` calls `releaseRun` to drop every claim on
+the run it removes; and `carryProgress` nulls `runId` on any session whose
+`done` it drops for being past `DONE_LOOKAHEAD_DAYS`. The week-containment rule
+for a re-date lives in `linkSess` itself, not only in the sheet that offers the
+move.
+
 ## Methodology styles
 
 `opts.style` / `settings.planStyle` / `plan.style`: buildPlan composes weeks

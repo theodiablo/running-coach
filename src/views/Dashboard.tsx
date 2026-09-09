@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, CalendarClock, Check, ChevronRight, PenLine, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PenLine, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
@@ -9,10 +9,12 @@ import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { overdueSessions, nextSession } from "../utils/overdue";
 import { planSessionPrefill } from "../utils/plan";
+import { candidateRuns, canMoveSessionTo, dayGap, type SavedRun } from "../utils/sessionMatch";
 import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
+import { ReconcileSheet } from "../modals/ReconcileSheet";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
 import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsPage, SettingsState } from "../types";
@@ -28,6 +30,10 @@ type DashboardProps = {
   goLog: (prefill: Partial<Run>) => void;
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
+  // Tick a session off naming the run that settled it, optionally re-dating the
+  // session to the day that run happened; and its inverse, for Undo.
+  linkSess: (weekNumber: number, sessionId: string, runId: string, date?: string) => void;
+  unlinkSess: (weekNumber: number, sessionId: string, date?: string) => void;
   openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: null, source?: CoachSource) => void;
   showToast: (msg: string, type?: string, action?: {label: string; onClick: () => void}) => void;
@@ -60,7 +66,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -85,10 +91,24 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // refilled under the same button and a repeated tap ticked off sessions weeks
   // out. Ran it early? "Log it" saves the run and ticks the session.
   const canMarkDone = !!nextSess && nextSess.date <= todayStr;
+  // Runs already in the log that could BE this session — the answer to "I ran
+  // Thursday's tempo on Wednesday", which no amount of date-gating can give.
+  // Proposed only: nothing links until the sheet is confirmed.
+  const [reconciling, setReconciling] = useState<DashboardSession | null>(null);
+  // Recomputed per render rather than memoised: `today` and the selectors above
+  // are rebuilt every render anyway, so a dep array would never hold. Each call
+  // is one pass over `runs`.
+  const nextCandidates = nextSess ? candidateRuns(plan, nextSess, runs) : [];
+  const reconcileOptions = reconciling ? candidateRuns(plan, reconciling, runs) : [];
   // Sessions the runner never got to. Only the freshest few are rendered — a
   // month away must not come back as a wall of guilt.
   const overdue = overdueSessions(plan, today) as DashboardSession[];
   const overdueShown = overdue.slice(0, OVERDUE_SHOWN);
+  // The headline case one day later: a session missed on Thursday, run on
+  // Wednesday, is still the same run waiting to be named. Without this the only
+  // action left on it is the evidence-free tick this whole feature replaces.
+  const overdueLinkable = new Set(
+    overdueShown.filter(s => candidateRuns(plan, s, runs).length).map(s => s.id));
 
   // Report the backlog once per size change. The last-reported value is module
   // scope, NOT a ref: Dashboard remounts on every tab switch and on the header
@@ -104,21 +124,46 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // Undo and no action row, so a double-tap can't consume the next session.
   // `advanced` re-fires the enter animation once it settles — a silent refill in
   // place read as nothing having happened.
-  const [confirmed, setConfirmed] = useState<{wNum: number; sId: string; title: string; date: string; skipped: boolean} | null>(null);
+  // `link` is set when the tick named a run: undo then has to release the run
+  // and put back whatever date the session carried, so it can't be the same
+  // call again the way toggleSess/skipSess are.
+  type Confirmed = {wNum: number; sId: string; title: string; meta: string; skipped: boolean; link?: {prevDate: string}};
+  const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
   const [advanced, setAdvanced] = useState(0);
   const confirmTimer = useRef<number | null>(null);
   useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
 
-  const settleSess = (sess: DashboardSession, skipped: boolean) => {
-    (skipped ? skipSess : toggleSess)(sess.wNum, sess.id);
-    setConfirmed({wNum: sess.wNum, sId: sess.id, title: describeSession(sess), date: fmt.sht(sess.date), skipped});
+  const holdConfirmation = (c: Confirmed) => {
+    setConfirmed(c);
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
     confirmTimer.current = window.setTimeout(() => { setConfirmed(null); setAdvanced(n => n + 1); }, CONFIRM_MS);
   };
-  // Both handlers are their own inverse, so undo is the same call again.
+
+  const settleSess = (sess: DashboardSession, skipped: boolean) => {
+    (skipped ? skipSess : toggleSess)(sess.wNum, sess.id);
+    holdConfirmation({wNum: sess.wNum, sId: sess.id, title: describeSession(sess), skipped,
+      meta: t("dashboard.session.confirm.meta", {date: fmt.sht(sess.date)})});
+  };
+
+  // "I already ran this": the tick names the run that settled the session, and
+  // optionally moves the session to the day it actually happened.
+  const reconcileSess = (sess: DashboardSession, run: SavedRun, moveTo: string | null) => {
+    setReconciling(null);
+    track("session_reconciled", {moved: !!moveTo, gap: Math.abs(dayGap(run.date, sess.date))});
+    linkSess(sess.wNum, sess.id, run.id, moveTo || undefined);
+    holdConfirmation({wNum: sess.wNum, sId: sess.id, title: describeSession(sess), skipped: false,
+      link: {prevDate: sess.date},
+      meta: t("dashboard.session.confirm.metaRun", {
+        date: fmt.sht(run.date),
+        detail: isCrossTraining(run) ? fmt.dur(run.durationSec) : t("dashboard.session.confirm.runDetail", {km: run.km, dur: fmt.dur(run.durationSec)}),
+      })});
+  };
+
   const undoConfirmed = () => {
     if (!confirmed) return;
-    (confirmed.skipped ? skipSess : toggleSess)(confirmed.wNum, confirmed.sId);
+    if (confirmed.link) unlinkSess(confirmed.wNum, confirmed.sId, confirmed.link.prevDate);
+    // toggleSess/skipSess are their own inverse, so undo is the same call again.
+    else (confirmed.skipped ? skipSess : toggleSess)(confirmed.wNum, confirmed.sId);
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
     setConfirmed(null);
   };
@@ -282,6 +327,14 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                   <p className="text-xs text-slate-300 truncate">{describeSession(s)}</p>
                   <p className="text-[11px] text-slate-500">{fmt.sht(s.date) + " · " + s.km + " km"}</p>
                 </div>
+                {overdueLinkable.has(s.id) && (
+                  <button
+                    onClick={() => setReconciling(s)}
+                    aria-label={t("dashboard.session.alreadyRan")} title={t("dashboard.session.alreadyRan")}
+                    className="flex-shrink-0 p-2 rounded-lg border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20 text-orange-200 transition-colors">
+                    <Link2 size={15}/>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     track("overdue_resolved", {action: "done"});
@@ -333,7 +386,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                 <p className="text-sm text-white leading-snug">
                   {t(confirmed.skipped ? "dashboard.session.confirm.skipped" : "dashboard.session.confirm.done", {title: confirmed.title})}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">{t("dashboard.session.confirm.meta", {date: confirmed.date})}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{confirmed.meta}</p>
               </div>
             </div>
             <div className="flex justify-center mt-3">
@@ -408,7 +461,14 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                 <X size={13}/>{t("common.skip")}
               </button>
             </div>
-            {!canMarkDone && (
+            {/* Ran it already, on some other day? Name the run instead of being
+                told to come back tomorrow. */}
+            {nextCandidates.length > 0 ? (
+              <button onClick={() => setReconciling(nextSess)}
+                className="mt-2.5 w-full py-2 rounded-xl border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20 text-orange-200 text-xs font-semibold transition-colors">
+                {t("dashboard.session.alreadyRan")}
+              </button>
+            ) : !canMarkDone && (
               <p className="mt-2.5 text-center text-xs text-slate-500 leading-snug">
                 {t("dashboard.session.markDoneLocked", {date: fmt.sht(nextSess.date)})}
               </p>
@@ -468,6 +528,18 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             </p>
           )}
         </div>
+      )}
+
+      {reconciling && (
+        <ReconcileSheet
+          session={reconciling}
+          runs={reconcileOptions}
+          canMoveTo={date => canMoveSessionTo(plan, reconciling.wNum, date)}
+          onConfirm={(runId, moveTo) => {
+            const run = reconcileOptions.find(r => r.id === runId);
+            if (run) reconcileSess(reconciling, run, moveTo);
+          }}
+          onClose={() => setReconciling(null)}/>
       )}
     </div>
   );

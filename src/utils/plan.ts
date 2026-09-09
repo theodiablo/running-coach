@@ -558,7 +558,9 @@ export function planSessionPrefill(
   s: { id: string; date: string; type: string; km?: number | string; pace?: number; sd?: SessionSd },
   wNum: number,
 ) {
-  const base = { date: s.date, type: s.type, wNum, sId: s.id };
+  // The whole row rides along, not just its ids: the log form re-checks the
+  // pairing against what the runner types (src/utils/sessionMatch.ts).
+  const base = { date: s.date, type: s.type, session: { ...s, wNum } };
   if (!isCrossTraining(s))
     return { ...base, km: Number(s.km), pace: s.pace };
   return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}) };
@@ -668,8 +670,14 @@ export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | 
   const cut = new Date(); cut.setHours(0, 0, 0, 0);
   cut.setDate(cut.getDate() + DONE_LOOKAHEAD_DAYS);
   const doneCutoff = ymd(cut);
-  const carry = (s: StoredSession, f: PlanProgress) =>
-    ({ ...s, ...f, done: !!f.done && s.date <= doneCutoff });
+  // Dropping `done` has to drop the run with it: a session left
+  // `{done:false, runId:"r1"}` reads as untouched everywhere, while r1 stays
+  // claimed and so is offered to no session at all — not even this one
+  // (src/utils/sessionMatch.ts).
+  const carry = (s: StoredSession, f: PlanProgress) => {
+    const done = !!f.done && s.date <= doneCutoff;
+    return { ...s, ...f, done, runId: done ? f.runId ?? null : null };
+  };
 
   if (mode === "coach") {
     const flags = new Map<string, PlanProgress>();
