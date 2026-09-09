@@ -12,7 +12,7 @@
 
 import { HARD_TYPES } from "./validation.mjs";
 import { stylePacing } from "./styles.mjs";
-import { isElapsedWeek, todayYmd } from "./weeks.mjs";
+import { addDays, isElapsedWeek, todayYmd } from "./weeks.mjs";
 
 const SWAP_TYPES = ["EASY", "TEMPO", "INTERVALS", "LONG", "WALK"];
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -32,6 +32,16 @@ const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / dayMs);
 // honest record-keeping rather than a rewrite.
 const PAST_EDIT_GRACE_DAYS = 1;
 const isPastDate = (date, today) => daysBetween(date, today) > PAST_EDIT_GRACE_DAYS;
+
+// Tools that never touch the plan: the engine dispatches them and applyToolCall
+// refuses them as unknown. Named here so the engine's dispatch and the tests'
+// expectations cannot drift from the definitions below.
+export const READ_ONLY_TOOLS = [
+  "reassess_goal_feasibility",
+  "assess_week_adherence",
+  "remember_runner_context",
+  "get_run_detail",
+];
 
 export class CoachToolError extends Error {
   constructor(code, message) {
@@ -144,6 +154,12 @@ export const TOOL_DEFS = [
     name: "reassess_goal_feasibility",
     description:
       "Analyse whether the race goal still looks realistic given recent training (returns an assessment; does NOT change the plan). Use when the runner doubts the goal, or when repeated reductions suggest the goal itself is the problem.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "assess_week_adherence",
+    description:
+      "Report what training actually happened in the recent plan weeks versus what was prescribed, plus the runner's current long-run capability (returns an assessment; does NOT change the plan). Use BEFORE deciding that a runner has fallen behind, missed a week, or needs a recovery week — plan ticks alone understate runners who train outside the plan. It separates total volume (which decides whether a cutback is warranted) from the long-run progression (which volume elsewhere can never substitute for) and gives the resume distance for the next long run.",
     input_schema: { type: "object", properties: {} },
   },
   {
@@ -463,5 +479,131 @@ export function assessGoalFeasibility(ctx) {
     lines.push("Assessment: recent paces are comfortably faster than goal pace — the goal looks CONSERVATIVE. If the plan feels too easy, suggest a more ambitious goal in the plan settings (the whole plan is rebuilt from the goal) rather than hand-editing sessions.");
   else
     lines.push("Assessment: the goal looks broadly plausible if the remaining plan is executed consistently.");
+  return lines.join("\n");
+}
+
+// ── assess_week_adherence ───────────────────────────────────────────────────
+// Two questions the coach kept conflating, answered separately because they
+// have different right answers:
+//
+//   1. How much training actually happened?  Everything counts. This is the
+//      input to "is this runner tired / do they need a cutback", and judging it
+//      off plan ticks alone told a runner averaging 7-9 km per run — against a
+//      plan prescribing 2.5 km — to take a recovery week.
+//   2. Did the long-run progression advance?  Only a long run counts. Its
+//      adaptations come from one continuous bout (glycogen depletion, fat
+//      oxidation, connective-tissue tolerance); two short runs are not one long
+//      one, and cross-training carries no running load at all. Letting volume
+//      buy back a missed long run would erode the coach's one correct instinct.
+//
+// So volume offsets the FATIGUE judgment and never the long-run ledger. The
+// resume rung follows from the same split: a missed long run does not reset the
+// ladder, because current capability is the longest run actually run recently,
+// not the rung the plan says you are on.
+//
+// Deterministic and pure, like assessGoalFeasibility — the model gets one
+// authoritative answer per round instead of re-deriving it from two lists it
+// has to join by date in its head, which is how the same question one minute
+// apart produced a recovery week and no change at all.
+
+const ADHERENCE_WEEKS = 3;
+export const RECENT_LONGEST_DAYS = 21;
+// A long run more than this above the runner's current longest is the jump the
+// resume rung exists to catch; ~10% per week is the usual safe progression.
+const LONG_STEP_TOLERANCE = 1.15;
+const SAFE_STEP = 1.1;
+
+const isRunning = (r) => r && r.km > 0 && r.type !== "WALK" && r.type !== "OTHER";
+const km1 = (n) => n.toFixed(1);
+const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : null);
+
+export function assessWeekAdherence(ctx) {
+  const today = ctx.today || todayYmd();
+  const runs = (ctx.recentRuns || []).filter(r => r && YMD.test(r.date || ""));
+  const weeks = ((ctx.plan && ctx.plan.weeks) || [])
+    .filter(w => YMD.test(w.startDate || "") && w.startDate <= today)
+    .slice(-ADHERENCE_WEEKS);
+  if (!weeks.length) return "The plan has no started weeks yet — nothing to assess against.";
+
+  const lines = [];
+  let prescribedTotal = 0, ranTotal = 0;
+  let lastLongMissed = null;
+
+  for (const w of weeks) {
+    const end = addDays(w.startDate, 7);
+    const inWeek = runs.filter(r => r.date >= w.startDate && r.date < end);
+    const ran = inWeek.filter(isRunning);
+    const sessions = (w.sessions || []).filter(s => s.type !== "RACE");
+    const prescribed = sessions.reduce((t, s) => t + (Number(s.km) || 0), 0);
+    const ranKm = ran.reduce((t, r) => t + r.km, 0);
+    const partial = end > today;
+    // A week still running is reported but never scored: two days into it,
+    // "29% of prescribed" is an artefact of the calendar, not a shortfall.
+    if (!partial) {
+      prescribedTotal += prescribed;
+      ranTotal += ranKm;
+    }
+
+    const share = pct(ranKm, prescribed);
+    let line = `Week ${w.weekNumber} (${w.startDate}${partial ? ", still in progress" : ""}): `
+      + `prescribed ${km1(prescribed)} km over ${sessions.length} sessions, `
+      + `ran ${km1(ranKm)} km over ${ran.length} ${ran.length === 1 ? "run" : "runs"}`
+      + (share == null || partial ? "." : ` (${share}%).`);
+
+    // The long-run ledger, kept strictly separate from the volume above.
+    const longSessions = sessions.filter(s => s.type === "LONG");
+    if (longSessions.length) {
+      const target = Math.max(...longSessions.map(s => Number(s.km) || 0));
+      const longest = ran.length ? Math.max(...ran.map(r => r.km)) : 0;
+      const met = longest >= target * 0.9;
+      // A long run still ahead of today has not been missed — it has not
+      // happened yet, and reporting it as missed invents a shortfall.
+      const due = longSessions.every(s => !YMD.test(s.date || "") || s.date < today);
+      line += ` Long run: prescribed ${km1(target)} km, longest run ${km1(longest)} km — `
+        + (met ? "done." : due ? "MISSED." : "not due yet.");
+      if (!met && due) lastLongMissed = { week: w.weekNumber, target };
+    }
+
+    // Cross-training: real aerobic work, deliberately not folded into the
+    // running total — km:0 by design, and it carries no running load.
+    const cross = inWeek.filter(r => !isRunning(r));
+    const crossMin = Math.round(cross.reduce((t, r) => t + (Number(r.durationSec) || 0), 0) / 60);
+    if (crossMin) line += ` Plus ${crossMin} min cross-training (aerobic maintenance, no running load).`;
+    lines.push(line);
+  }
+
+  // Current capability: the longest run actually run recently, whatever the
+  // plan's ladder says. A missed week moves this, a missed tick does not.
+  const cutoff = addDays(today, -RECENT_LONGEST_DAYS);
+  const recentRuns = runs.filter(r => isRunning(r) && r.date >= cutoff);
+  const recentLongest = recentRuns.length ? Math.max(...recentRuns.map(r => r.km)) : 0;
+  lines.push(recentLongest
+    ? `Longest run in the last ${RECENT_LONGEST_DAYS} days: ${km1(recentLongest)} km.`
+    : `No runs logged in the last ${RECENT_LONGEST_DAYS} days.`);
+
+  const nextLong = ((ctx.plan && ctx.plan.weeks) || [])
+    .flatMap(w => w.sessions || [])
+    .filter(s => s.type === "LONG" && !s.done && !s.skipped && YMD.test(s.date || "") && s.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (nextLong && recentLongest) {
+    const target = Number(nextLong.km) || 0;
+    const step = target / recentLongest;
+    lines.push(`Next long run: ${km1(target)} km on ${nextLong.date} — a ${Math.round((step - 1) * 100)}% step from that longest run.`
+      + (step > LONG_STEP_TOLERANCE
+        ? ` That is a bigger jump than the ~10%/week guideline; consider reducing it toward ${km1(recentLongest * SAFE_STEP)} km rather than inserting a recovery week.`
+        : " That is within a normal progression — no adjustment needed on those grounds."));
+  }
+
+  const share = pct(ranTotal, prescribedTotal);
+  if (share == null)
+    lines.push("Assessment: the plan prescribed no distance over this window — judge from the runs alone.");
+  else if (share >= 90)
+    lines.push(`Assessment: running volume has HELD UP (${share}% of prescribed over ${weeks.length} weeks). Do not cut the coming week on adherence grounds`
+      + (lastLongMissed ? `, but week ${lastLongMissed.week}'s long run did not happen — address that through the long-run progression above, never by adding volume elsewhere.` : "."));
+  else if (share >= 60)
+    lines.push(`Assessment: running volume is somewhat DOWN (${share}% of prescribed). Resume as planned unless the runner reports fatigue, pain or illness`
+      + (lastLongMissed ? `; week ${lastLongMissed.week}'s long run was missed, so use the resume rung above rather than the plan's next rung.` : "."));
+  else
+    lines.push(`Assessment: running volume is WELL DOWN (${share}% of prescribed). Resume gently — a lighter week is warranted, and missed volume is never compressed into the weeks that follow.`);
   return lines.join("\n");
 }

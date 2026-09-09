@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
-import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, CoachToolError } from "../../supabase/functions/_shared/coach/tools.mjs";
+import { TOOL_DEFS, READ_ONLY_TOOLS, applyToolCall, assessGoalFeasibility, assessWeekAdherence, CoachToolError } from "../../supabase/functions/_shared/coach/tools.mjs";
 import { validatePlan } from "./coachValidation";
 
 type TestSession = {
@@ -251,8 +251,15 @@ describe("applyToolCall", () => {
     const def = toolDefs.find(d => d.name === "get_run_detail") as ToolDef & { input_schema: { required: string[] } };
     expect(def).toBeDefined();
     expect(def.input_schema.required).toEqual(["run_id"]);
-    // Read-only: the plan-transform dispatcher must refuse it.
-    expect(() => applyTool(plan(), "get_run_detail", { run_id: "x" })).toThrow(/Unknown tool/);
+  });
+
+  // The read-only list is the engine's dispatch contract: anything on it must
+  // be a real tool the plan-transform dispatcher refuses outright.
+  it("every read-only tool is defined and refused by applyToolCall", () => {
+    for (const name of READ_ONLY_TOOLS as string[]) {
+      expect(toolDefs.some(d => d.name === name)).toBe(true);
+      expect(() => applyTool(plan(), name, {})).toThrow(/Unknown tool/);
+    }
   });
 
   // Property: any single tool applied with valid input to a valid plan yields a
@@ -270,7 +277,7 @@ describe("applyToolCall", () => {
     };
     for (const def of toolDefs) {
       // Read-only tools are dispatched by the engine, not applyToolCall.
-      if (["reassess_goal_feasibility", "remember_runner_context", "get_run_detail"].includes(def.name)) continue;
+      if ((READ_ONLY_TOOLS as string[]).includes(def.name)) continue;
       const out = applyTool(plan(), def.name, toolInputs[def.name as ToolName]);
       const r = validatePlan(out, { baseline: plan(), today: TODAY });
       expect(Array.isArray(r.errors)).toBe(true);
@@ -371,5 +378,105 @@ describe("assessGoalFeasibility", () => {
     expect(out).not.toMatch(/longest recent run 30\.0 km/);
     expect(out).toMatch(/no runs logged in that window/);
     expect(out).toMatch(/longest run on record 30\.0 km/);
+  });
+});
+
+// Volume offsets the FATIGUE judgment and never the long-run ledger — the two
+// questions the coach conflated when the same context one minute apart produced
+// a recovery week and no change at all.
+describe("assessWeekAdherence", () => {
+  type Sess = { id: string; type: string; km: number; date: string; done?: boolean; skipped?: boolean };
+  const assess = assessWeekAdherence as (ctx: {
+    plan: { weeks: { weekNumber: number; startDate: string; sessions: Sess[] }[] };
+    recentRuns: { date: string; type: string; km: number; durationSec: number }[];
+    today: string;
+  }) => string;
+
+  const TODAY = "2026-08-31";
+  const sess = (id: string, type: string, km: number, date: string, extra: Partial<Sess> = {}) =>
+    ({ id, type, km, date, ...extra });
+  const run = (date: string, km: number, type = "EASY", durationSec = km * 330) =>
+    ({ date, type, km, durationSec });
+
+  // Weeks 1-2 complete, week 3 two days old — the shape of the real case.
+  const twoWeekPlan = (longKm = [8.1, 9.5, 10.9]) => ({ weeks: [
+    { weekNumber: 1, startDate: "2026-08-17", sessions: [
+      sess("w1d2", "EASY", 2.5, "2026-08-19"), sess("w1d6", "LONG", longKm[0], "2026-08-23")] },
+    { weekNumber: 2, startDate: "2026-08-24", sessions: [
+      sess("w2d2", "EASY", 2.7, "2026-08-26"), sess("w2d6", "LONG", longKm[1], "2026-08-30")] },
+    { weekNumber: 3, startDate: "2026-08-31", sessions: [
+      sess("w3d2", "EASY", 2.9, "2026-09-02"), sess("w3d6", "LONG", longKm[2], "2026-09-06")] },
+  ]});
+
+  it("does not call a runner behind when they out-run the prescription", () => {
+    const out = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [
+      run("2026-08-19", 7), run("2026-08-23", 9.2), run("2026-08-26", 7), run("2026-08-30", 10)] });
+    expect(out).toMatch(/HELD UP/);
+    expect(out).toMatch(/Do not cut the coming week/);
+    expect(out).not.toMatch(/WELL DOWN/);
+  });
+
+  // The regression: this exact context produced both a recovery week and no
+  // change at all. Neither was right — the long run was genuinely missed, and
+  // a recovery week was wrong for someone running 7-9 km against a 2.7 km plan.
+  it("gives a resume rung instead of a recovery week after one missed long run", () => {
+    const out = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [
+      run("2026-08-18", 7.76), run("2026-08-23", 9.22), run("2026-08-25", 7.09),
+      run("2026-08-31", 4.89), { date: "2026-08-30", type: "OTHER", km: 0, durationSec: 2400 }] });
+    expect(out).toMatch(/Longest run in the last 21 days: 9\.2 km/);
+    expect(out).toMatch(/Next long run: 10\.9 km/);
+    expect(out).toMatch(/18% step/);
+    expect(out).toMatch(/reducing it toward 10\.1 km rather than inserting a recovery week/);
+  });
+
+  it("never lets volume elsewhere settle a missed long run", () => {
+    // Plenty of running, but every run far short of the prescribed long.
+    const out = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [
+      run("2026-08-18", 6), run("2026-08-20", 6), run("2026-08-22", 6),
+      run("2026-08-25", 6), run("2026-08-27", 6), run("2026-08-29", 6)] });
+    expect(out).toMatch(/HELD UP/);
+    expect(out).toMatch(/MISSED/);
+    expect(out).toMatch(/never by adding volume elsewhere/);
+  });
+
+  it("reports cross-training but keeps it out of the running total", () => {
+    const withCross = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [
+      run("2026-08-23", 8.1), run("2026-08-30", 9.5),
+      { date: "2026-08-26", type: "OTHER", km: 0, durationSec: 1800 }] });
+    const withoutCross = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [
+      run("2026-08-23", 8.1), run("2026-08-30", 9.5)] });
+    expect(withCross).toMatch(/30 min cross-training \(aerobic maintenance, no running load\)/);
+    // Same percentages either way: the bike ride changed the narrative, not the ledger.
+    expect(withCross.match(/\(\d+%\)/g)).toEqual(withoutCross.match(/\(\d+%\)/g));
+  });
+
+  it("does not score a week still in progress, or call its long run missed", () => {
+    const out = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [
+      run("2026-08-23", 8.1), run("2026-08-30", 9.5)] });
+    expect(out).toMatch(/Week 3 \(2026-08-31, still in progress\)/);
+    expect(out).toMatch(/not due yet/);
+    // Scored on weeks 1-2 only (17.6 of 22.8 km). Including week 3's untouched
+    // 13.8 km would read as 48% and invent a collapse two days into the week.
+    expect(out).toMatch(/\(77% of prescribed\)/);
+    expect(out).not.toMatch(/WELL DOWN/);
+  });
+
+  it("still calls a real drop-off what it is", () => {
+    const out = assess({ plan: twoWeekPlan(), today: TODAY, recentRuns: [run("2026-08-19", 3)] });
+    expect(out).toMatch(/WELL DOWN/);
+    expect(out).toMatch(/Resume gently/);
+    expect(out).toMatch(/never compressed into the weeks that follow/);
+  });
+
+  it("leaves a normal progression alone", () => {
+    const out = assess({ plan: twoWeekPlan([8.1, 9.5, 10]), today: TODAY, recentRuns: [
+      run("2026-08-23", 8.1), run("2026-08-30", 9.5)] });
+    expect(out).toMatch(/within a normal progression/);
+    expect(out).not.toMatch(/bigger jump/);
+  });
+
+  it("says so when no week has started", () => {
+    const future = { weeks: [{ weekNumber: 1, startDate: "2026-09-07", sessions: [] }] };
+    expect(assess({ plan: future, today: TODAY, recentRuns: [] })).toMatch(/no started weeks/);
   });
 });

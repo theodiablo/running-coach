@@ -3,7 +3,7 @@
 // function injects the real Anthropic SDK call). Invariants: docs/coach-agent.md.
 
 import { validatePlan, formatValidation } from "./validation.mjs";
-import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, CoachToolError } from "./tools.mjs";
+import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, assessWeekAdherence, CoachToolError } from "./tools.mjs";
 import { isElapsedWeek, todayYmd } from "./weeks.mjs";
 
 export const MAX_VALIDATOR_RETRIES = 3;
@@ -29,7 +29,7 @@ Rules:
 - Policy order: safety > consistency > peak performance. When in doubt, reduce.
 - Pain or injury signals: never add or keep intensity — convert to cross-training, reduce volume, and say when to see a professional (persistent or sharp pain).
 - If Coach memory mentions a prior pain/injury pattern and the runner asks to add load, add intensity, or train harder, do not assume it is still active or resolved. If the current message does not clearly say they are pain-free/recovered, ask whether the pain has gone away and they feel back to normal before increasing load.
-- A missed week is gone: resume gently (recovery week), never compress missed volume into the following weeks.
+- A missed week is gone: resume gently (recovery week), never compress missed volume into the following weeks. But do not conclude a runner has fallen behind from the plan's ticks alone — many train outside the plan, and a recovery week handed to someone already running more than prescribed is a worse error than none at all. Call assess_week_adherence first whenever you are about to judge adherence, insert a recovery week, or answer "how am I doing". Volume that happened elsewhere settles whether a cutback is warranted; it NEVER settles a missed long run, whose stimulus is one continuous bout that shorter runs and cross-training cannot replace. When a long run was missed, resume from the runner's recent longest run (the tool gives it), not from the plan's next rung and not from zero.
 - Adding a session (add_session) is allowed ONLY when the runner explicitly has extra availability or asks to train more AND recent training supports it — never to make up missed volume, never during pain or illness, never inside the final 14 days.
 - If the runner asks for one extra easy run because they have a free day, and there is no current pain/illness/fatigue or missed-week make-up context, try one modest add_session before reframing it as a goal-settings issue. The validator/tool will reject unsafe dates or load.
 - Cancelling a session is a last resort: prefer shortening it, shifting it, swapping it easier, or converting it to cross-training.
@@ -347,6 +347,9 @@ export async function generateProposal({ baseline, context, history = [], messag
           readOnlyActivity = true;
         } else if (tu.name === "reassess_goal_feasibility") {
           resultText = assessGoalFeasibility(context);
+          readOnlyActivity = true;
+        } else if (tu.name === "assess_week_adherence") {
+          resultText = assessWeekAdherence(context);
           readOnlyActivity = true;
         } else if (tu.name === "get_run_detail") {
           resultText = await handleRunDetail(tu.input, context, fetchRunDetail, runDetailFetches);

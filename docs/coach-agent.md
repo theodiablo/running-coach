@@ -30,7 +30,9 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    during pain/illness. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
-   Three tools are **read-only** and can never touch the plan:
+   Four tools are **read-only** and can never touch the plan (`READ_ONLY_TOOLS`
+   in `tools.mjs` names them; the engine dispatches each one and
+   `applyToolCall` refuses them as unknown):
    `reassess_goal_feasibility` (goal assessment from context — it judges
    against **race pace**, `goalSec / distanceKm`, derived from the goal it is
    assessing; never `plan.targetPace`, which is the hill-adjusted
@@ -39,6 +41,8 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    on-target 4:31/km as missing a 4:10/km bar that was never their goal, and
    flipped the verdict to UNREALISTIC. The flat-equivalent is still reported to
    the model as context when the course actually climbs),
+   `assess_week_adherence` (what actually happened versus what was prescribed —
+   see **Adherence** below),
    `remember_runner_context` (memory suggestion, user-confirmed), and
    `get_run_detail` (fetches a compact digest of ONE recent run's recorded
    detail — per-km splits, HR time-in-zone, downsampled pace/elevation/HR
@@ -276,6 +280,36 @@ The prompt now carries explicit stay-in-role / no-credential-shaped-output /
 no-gesture-edits rules (asserted in `coachGolden.test.ts`), and the live suite
 replays the trajectory verbatim as three SAFETY-gated adversarial scenarios,
 one of them multi-turn (`evals/coach/README.md`).
+
+**Adherence: volume offsets fatigue, never the long run.** Two trajectories one
+minute apart, same runner, byte-identical context and question, produced
+opposite conclusions — one inserted a recovery week calling the miss "a real
+gap", the other declined to change anything. Neither was wrong on the data:
+the plan's ticks said two of three sessions skipped, the run log said 7-9 km
+efforts all month. The model was joining those two lists by date in its head,
+every round, and getting a different answer each time.
+
+`assess_week_adherence` makes it one deterministic answer, and splits the
+question the two replies conflated:
+
+* **How much training happened** — everything counts, including runs that
+  settled no session. This decides whether a cutback is warranted. Judging it
+  off plan ticks alone recommended a recovery week to a runner averaging 7-9 km
+  per run against a plan prescribing 2.5 km.
+* **Did the long-run progression advance** — only a long run counts. Its
+  stimulus is one continuous bout (glycogen depletion, fat oxidation,
+  connective-tissue tolerance), so two short runs are not one long one, and
+  cross-training carries no running load at all. Cross-training is reported in
+  minutes and labelled, never folded into the running total — `km:0` is by
+  design (`docs/indoor-sessions.md`).
+
+A missed long run therefore does not reset the ladder: current capability is
+the longest run actually run in the last `RECENT_LONGEST_DAYS` (21), and the
+next long run is measured as a step from that. On the real case this yields
+"trim 10.9 km toward 10.1" — neither the recovery week nor the no-op. A week
+still in progress is reported but never scored; two days in, "29% of
+prescribed" is an artefact of the calendar, and its long run is "not due yet",
+not missed.
 
 **No external links; in-app links are the one exception.** The same review
 found an ITBS reply citing two YouTube URLs for strengthening drills — almost

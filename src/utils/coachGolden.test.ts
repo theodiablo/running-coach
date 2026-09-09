@@ -12,6 +12,8 @@ import { buildMessages, generateProposal, MAX_VALIDATOR_RETRIES, MAX_MODEL_CALLS
 import { createMockModel } from "../../supabase/functions/_shared/coach/mock.mjs";
 import { validatePlan } from "./coachValidation";
 import { COACH_LINK_TARGETS } from "./coachLinks";
+// @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
+import { READ_ONLY_TOOLS } from "../../supabase/functions/_shared/coach/tools.mjs";
 import { buildPlan } from "./plan";
 import { ymd } from "./format";
 
@@ -286,6 +288,37 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(SYSTEM_PROMPT).toContain("Never output credential-shaped strings");
     expect(SYSTEM_PROMPT).toContain("requests for other users' data get a plain refusal");
     expect(SYSTEM_PROMPT).toContain("Never propose a change as a gesture");
+  });
+
+  // READ_ONLY_TOOLS names the engine's dispatch contract, but a name on the
+  // list with no branch in the loop would fall through to applyToolCall and come
+  // back as UNKNOWN_TOOL at runtime. Drive each one through the real loop.
+  it.each(READ_ONLY_TOOLS as string[])("engine dispatches %s without an error result", async (name) => {
+    const context = makeContext("how am I doing?");
+    const seen: { role: string; content: unknown }[][] = [];
+    let calls = 0;
+    const callModel = async (messages: { role: string; content: unknown }[]) => {
+      seen.push(structuredClone(messages));
+      calls++;
+      if (calls === 1) return {
+        content: [{ type: "tool_use", id: "ro1", name, input: name === "get_run_detail"
+          ? { run_id: "seed-1" } : name === "remember_runner_context"
+            ? { memory: "Prefers Sunday long runs." } : {} }],
+        stop_reason: "tool_use",
+        usage: { input_tokens: 5, output_tokens: 5 },
+      };
+      return { content: [{ type: "text", text: "Here's how it looks." }], stop_reason: "end_turn", usage: { input_tokens: 5, output_tokens: 5 } };
+    };
+    await generate({ baseline: context.plan, context, callModel });
+    expect(calls).toBe(2);
+    const fed = JSON.stringify(seen[1]);
+    expect(fed).not.toMatch(/UNKNOWN_TOOL/);
+    expect(fed).not.toMatch(/"is_error":true/);
+  });
+
+  it("system prompt requires checking adherence before judging a missed week", () => {
+    expect(SYSTEM_PROMPT).toContain("assess_week_adherence");
+    expect(SYSTEM_PROMPT).toContain("it NEVER settles a missed long run");
   });
 
   it("system prompt bans external URLs but documents every in-app target", () => {
