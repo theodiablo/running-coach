@@ -31,11 +31,37 @@ week's sessions** and the two are derived from one set of boundaries in
 
 - **taper** = the last 3 weeks before race week (easy only — the validator also
   forbids tempo/intervals inside 7 days of the race).
-- **base** = the first `min(4, ceil((N-3)/2))` weeks: easy running only, no
-  quality. Capping it at *half the pre-taper runway* is what keeps a short plan
-  honest — from 11 weeks up it is the fixed 4 it always was.
+- **base** = the first `min(4, ceil((N-3)/2))` weeks *minus the runner's base
+  credit* (below): easy running only, no quality. Capping it at *half the
+  pre-taper runway* is what keeps a short plan honest — from 11 weeks up it is
+  the fixed 4 it always was.
 - **peak** = the last 4 pre-taper weeks (never earlier than the end of base);
   **build** fills any gap between base and peak.
+
+### The base credit
+
+The base block is the **phase-block twin of the long run's fitness floor**.
+`buildPlan` always re-anchors week 1 on the next Monday, so without a fitness
+signal a runner who adds a race mid-training is marched back through a base
+block they have just run — four weeks of easy-only work they had already
+finished. `baseCredit` reads the same `recentRuns` the long-run floor does and
+shortens the on-ramp:
+
+| Weeks (of the last 4) with ≥2 real runs | Weeks credited |
+| --- | --- |
+| 0–1 | 0 — a new or returning runner gets the full block |
+| 2 | 1 |
+| 3–4 | 2 |
+
+Only running counts: cross-training builds fitness but not the running base
+(same `isCrossTraining` line as the long-run floor), and one run a week is not
+a block. The ladder is deliberately coarse and capped at 2 — evidence of
+consistency shortens the on-ramp, it does not hand a fit runner a plan that is
+all quality; a 16-week block still opens with base weeks. On a 4–5 week runway
+`fullBase` is 1, so a credited runner starts straight in their one quality week
+— which is the honest shape when there is only one week of work to be had.
+Self-reported `level` deliberately does **not** feed this: it floors the long
+run, but only logged runs buy a shorter base.
 
 The composers read `isBase`/`isTaper`/`phase` from those same boundaries, and
 `buildW` (the week's index *within the post-base block*) drives the

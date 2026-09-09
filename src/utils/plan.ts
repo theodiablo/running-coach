@@ -69,6 +69,24 @@ type WeekCtx = {
   dist: number;
 };
 
+// Weeks of the standard base block the runner has already effectively done —
+// the phase-block twin of the long run's fitness floor. A "trained" week is one
+// of the last 4 seven-day windows holding at least 2 real runs (cross-training
+// builds fitness but not the running base, and a single weekly run isn't a
+// block). The ladder is deliberately coarse: it takes 3 consistent weeks to
+// earn the full 2-week credit, and a lay-off earns none.
+const TRAINED_WEEK_RUNS = 2;
+function baseCredit(recentRuns: RecentRun[], today: Date) {
+  const weekAgo = (n: number) => ymd(new Date(today.getTime() - n * 7 * 86400000));
+  const trainedWeeks = [0, 1, 2, 3].filter(i => {
+    const from = weekAgo(i + 1), to = weekAgo(i);
+    const runs = recentRuns.filter(r =>
+      r && r.date && r.date > from && r.date <= to && (r.km ?? 0) > 0 && !isCrossTraining(r));
+    return runs.length >= TRAINED_WEEK_RUNS;
+  }).length;
+  return trainedWeeks >= 3 ? 2 : trainedWeeks >= 2 ? 1 : 0;
+}
+
 // `opts` is additive so the positional call sites keep working. Every app call
 // site must pass `style` — omitting it silently rebuilds as "balanced".
 export function buildPlan(
@@ -152,7 +170,11 @@ export function buildPlan(
   // block: a short plan that spent 4 weeks in base labelled its easy weeks
   // PEAK and never prescribed a tempo. Half the pre-taper runway, capped at 4
   // — identical to the old fixed 4 from 11 weeks up.
-  const baseW  = Math.min(4, Math.max(1, Math.ceil((N - 3) / 2)));
+  const fullBase = Math.min(4, Math.max(1, Math.ceil((N - 3) / 2)));
+  // ...and recent consistency shortens it (docs/training-plan.md). A rebuild
+  // re-anchors week 1 on the next Monday, so adding a race mid-block otherwise
+  // marched the runner back through a base block they had just run.
+  const baseW  = Math.max(0, fullBase - baseCredit(recentRuns, today));
   const peakW  = Math.max(baseW, N - 7); // first PEAK week; BUILD fills any gap
 
   const weeks: PlanWeek[] = [];
