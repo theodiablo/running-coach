@@ -253,9 +253,17 @@ inbox, and confirm the notification arrives at the old one.
   the PR/release jobs — that makes each PR/tag write its own private cache
   instead of sharing main's. A brand-new PR before main has seeded is cold
   once, then warm. `android/gradle.properties` enables `caching`/`parallel`
-  with a 4 GB heap but **not** `configuration-cache`: setup-gradle only
-  persists config-cache state with a `cache-encryption-key`, so it was pure
-  overhead in CI (opt in locally instead).
+  with a 4 GB heap but **not** `configuration-cache`: setup-gradle v6 dropped
+  config-cache persistence entirely, so it was pure overhead in CI (opt in
+  locally instead).
+- **setup-gradle runs v6's default `cache-provider: enhanced`** — the
+  fine-grained, deduplicating cache v4 had built in, which Gradle extracted
+  into the proprietary `gradle-actions-caching` component at v6. Deliberate:
+  it is free in perpetuity for public repos, the cache still lives in GitHub's
+  Actions cache (nothing leaves GitHub), and the component is vendored in
+  gradle/actions so the SHA pin still covers everything that runs. `basic` is
+  NOT the v4 behaviour — it is a plain `@actions/cache` path cache with no
+  restore-key matching, which is exactly what lets PRs read main's seed above.
 - **iOS:** SPM clones are pinned to `ios/SourcePackages`
   (`-clonedSourcePackagesDirPath`, gitignored) and cached via `actions/cache`
   keyed on the repo name + the *synced* `CapApp-SPM/Package.swift` — the cache
@@ -267,9 +275,10 @@ inbox, and confirm the notification arrives at the old one.
   iOS seed (macOS minutes bill ×10, and `ios-pr.yml` is path-filtered to
   `ios/**`), so the SPM cache is same-ref only. Deliberately no DerivedData
   caching (unreliable invalidation, big caches, small win).
-- Repo is private → free tier: 2,000 min/mo (macOS ×10), 10 GB Actions cache
-  (LRU-evicted), 500 MB artifact storage — PR APKs use `retention-days: 14` to
-  stay clear of the storage cap.
+- Repo is public → standard runners are free and unmetered, but the 10 GB
+  Actions cache (LRU-evicted) still applies, so keep an eye on what the Android
+  and SPM caches hold. PR APKs use `retention-days: 14` to keep artifact
+  storage tidy.
 - **PR APK builds are opt-in via the `apk` label** (`android-pr.yml`): the job
   is skipped unless the PR carries the label (it was ~34% of all billable
   Actions minutes when it ran on every push). Add the label to get a
