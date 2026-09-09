@@ -106,3 +106,69 @@ resource "aws_iam_user_policy" "ses_smtp_auth" {
 resource "aws_iam_access_key" "ses_smtp_auth" {
   user = aws_iam_user.ses_smtp_auth.name
 }
+
+# --- DNS -------------------------------------------------------------------
+#
+# Managed here, unlike the apex's own records, for one reason: the DKIM tokens
+# are outputs of the identity above. Copying three of them into the console by
+# hand is the step that silently fails — a mistyped token verifies nothing and
+# says nothing. Terraform wires them straight through instead.
+#
+# The zone is a data source: it predates this configuration, holds the live
+# site's alias and the apex's inbound MX, and nothing here may be able to
+# destroy it.
+data "aws_route53_zone" "primary" {
+  name         = "${local.ses_domain}."
+  private_zone = false
+}
+
+# count, not for_each: the tokens are unknown until apply, and for_each refuses
+# an unknown set. Easy DKIM always returns exactly three.
+resource "aws_route53_record" "auth_dkim" {
+  count = 3
+
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = "${aws_sesv2_email_identity.auth.dkim_signing_attributes[0].tokens[count.index]}._domainkey.${local.ses_auth_domain}"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["${aws_sesv2_email_identity.auth.dkim_signing_attributes[0].tokens[count.index]}.dkim.amazonses.com"]
+}
+
+resource "aws_route53_record" "auth_mail_from_mx" {
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = local.ses_auth_mail_from
+  type    = "MX"
+  ttl     = 300
+  records = ["10 feedback-smtp.${var.aws_region}.amazonses.com"]
+}
+
+# On the MAIL FROM domain, not the sending domain: SPF authorises the envelope
+# sender, and DMARC's relaxed alignment accepts the shared organisational
+# domain.
+resource "aws_route53_record" "auth_mail_from_spf" {
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = local.ses_auth_mail_from
+  type    = "TXT"
+  ttl     = 300
+  records = ["v=spf1 include:amazonses.com ~all"]
+}
+
+resource "aws_route53_record" "auth_dmarc" {
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = "_dmarc.${local.ses_auth_domain}"
+  type    = "TXT"
+  ttl     = 300
+  records = ["v=DMARC1; p=none; rua=mailto:postmaster@${local.ses_domain}"]
+}
+
+# The rua mailbox is on a different domain than the DMARC record, so that
+# domain has to say it accepts the reports (RFC 7489 external destination
+# verification). Without this, Google and Microsoft drop them silently — and
+# p=none exists precisely to collect them.
+resource "aws_route53_record" "auth_dmarc_report_auth" {
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = "${local.ses_auth_domain}._report._dmarc.${local.ses_domain}"
+  type    = "TXT"
+  ttl     = 300
+  records = ["v=DMARC1"]
+}

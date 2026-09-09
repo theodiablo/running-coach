@@ -34,6 +34,13 @@ OTHER_BUCKET="arn:aws:s3:::luffashop-backups"
 SMTP_USER="arn:aws:iam::${ACCOUNT}:user/system/run-app-ses-smtp-auth"
 SMTP_BOUNDARY="arn:aws:iam::${ACCOUNT}:policy/run-app-ses-smtp-boundary"
 SITE_DISTRIBUTION="arn:aws:cloudfront::${ACCOUNT}:distribution/E42OGU5IVYJ14"
+# Resolved rather than hardcoded, the same way the configuration resolves it.
+# An empty result is not a failure here: on the very first run after the grant
+# lands the caller may not have the read yet, and the zone cases are skipped
+# with a warning instead of failing the whole check.
+MAIL_ZONE_ID="$(aws route53 list-hosted-zones-by-name --dns-name camboulive.solutions \
+  --query 'HostedZones[0].Id' --output text 2>/dev/null | sed 's#/hostedzone/##')"
+OTHER_ZONE="arn:aws:route53:::hostedzone/Z00000000000000000000"
 OTHER_DISTRIBUTION="arn:aws:cloudfront::${ACCOUNT}:distribution/E00000000000X"
 
 pass=0
@@ -125,6 +132,19 @@ check "manage the email identity"    "$APPLY_ROLE" ses:CreateEmailIdentity "*" a
 check "manage the config set"        "$APPLY_ROLE" ses:PutConfigurationSetSuppressionOptions "*" allowed
 
 echo
+echo "tf-apply: the auth mail DNS records"
+# Route 53 scopes writes per hosted zone, so the negative case is the one that
+# matters: this grant must not reach any other zone in the account.
+if [ -n "$MAIL_ZONE_ID" ] && [ "$MAIL_ZONE_ID" != "None" ]; then
+  MAIL_ZONE="arn:aws:route53:::hostedzone/${MAIL_ZONE_ID}"
+  check "change records in the zone"  "$APPLY_ROLE" route53:ChangeResourceRecordSets "$MAIL_ZONE"  allowed
+  check "read the zone on refresh"    "$APPLY_ROLE" route53:ListResourceRecordSets   "$MAIL_ZONE"  allowed
+  check "change another zone"         "$APPLY_ROLE" route53:ChangeResourceRecordSets "$OTHER_ZONE" denied
+else
+  printf '  warn  %-58s zone lookup returned nothing, cases skipped\n' "camboulive.solutions"
+fi
+
+echo
 echo "tf-apply: the SES SMTP user and its boundary"
 # The one IAM user this configuration owns: send-only credentials for Supabase
 # Auth. Its access key IS the SMTP password, so key rotation has to be in scope.
@@ -201,6 +221,10 @@ check "delete a receipt rule"      "$PLAN_ROLE" ses:DeleteReceiptRule "*" denied
 check "rotate the SMTP key"        "$PLAN_ROLE" iam:CreateAccessKey "$SMTP_USER" denied
 check "create the SMTP user"       "$PLAN_ROLE" iam:CreateUser "$SMTP_USER" denied "$SMTP_BOUNDARY"
 check "configure the site bucket"  "$PLAN_ROLE" s3:PutBucketPolicy "$SITE_BUCKET" denied
+if [ -n "$MAIL_ZONE_ID" ] && [ "$MAIL_ZONE_ID" != "None" ]; then
+  check "read a zone"              "$PLAN_ROLE" route53:ListResourceRecordSets   "arn:aws:route53:::hostedzone/${MAIL_ZONE_ID}" allowed
+  check "change a DNS record"      "$PLAN_ROLE" route53:ChangeResourceRecordSets "arn:aws:route53:::hostedzone/${MAIL_ZONE_ID}" denied
+fi
 
 echo
 echo "backup role: scoped to its own bucket"

@@ -173,13 +173,21 @@ data "aws_iam_policy_document" "tf_read" {
   }
 
   # Read-only ahead of the adoption of the site bucket, CloudFront and SES, so
-  # that plans covering them work without another policy change.
+  # that plans covering them work without another policy change. Route 53 reads
+  # are here rather than scoped because the zone is resolved by a data source,
+  # which enumerates by DNS name before it has an id to Get.
   statement {
     sid    = "ReadAdoptionTargets"
     effect = "Allow"
     actions = [
       "cloudfront:Get*",
       "cloudfront:List*",
+      "route53:GetChange",
+      "route53:GetHostedZone",
+      "route53:ListHostedZones",
+      "route53:ListHostedZonesByName",
+      "route53:ListResourceRecordSets",
+      "route53:ListTagsForResource",
       "ses:Describe*",
       "ses:Get*",
       "ses:List*",
@@ -376,6 +384,19 @@ data "aws_iam_policy_document" "tf_apply" {
       "iam:UntagPolicy",
     ]
     resources = ["arn:aws:iam::${local.account_id}:policy/${local.managed_user_prefix}*"]
+  }
+
+  # The auth identity's DNS records (ses_sending.tf). Route 53 scopes writes to
+  # a hosted zone, never to individual records, so this grant covers every
+  # record in the zone — including the apex MX that receives mail and the alias
+  # that serves the live site. Terraform touches only what it declares, so the
+  # exposure is a future bug in this configuration rather than a standing
+  # capability; pinning it to the one zone is as far as IAM can narrow it.
+  statement {
+    sid       = "ManageAuthMailDns"
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = [data.aws_route53_zone.primary.arn]
   }
 
   statement {

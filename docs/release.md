@@ -225,10 +225,12 @@ Account dashboard says which.
    (`infra/README.md`), and applying first leaves the merge with nothing to do
    — the workflow skips apply on a zero-change plan, so `main` stays green.
    Merging first gets a half-applied plan and a red default branch.
-2. `terraform output auth_mail_dns_records` and add every record in Route 53
-   (3 DKIM CNAMEs, the MAIL FROM MX and SPF TXT, the DMARC record and the
-   `_report._dmarc` record that authorises its off-domain `rua` mailbox). DNS
-   is not Terraform-managed. SES will not send until the DKIM records resolve.
+2. Wait for verification. The same apply writes the DNS records (DKIM CNAMEs,
+   MAIL FROM MX and SPF, DMARC and the `_report._dmarc` record authorising its
+   off-domain `rua` mailbox) into Route 53, so there is nothing to copy — but
+   SES will not send until it sees them, usually minutes. SES → Verified
+   identities → `mail.camboulive.solutions` says **Verified** when it is ready;
+   configure Supabase before that and every auth email fails.
 3. Dashboard → Authentication → Emails → **SMTP Settings**:
    host `email-smtp.eu-west-1.amazonaws.com`, port 587, sender
    `noreply@mail.camboulive.solutions`, username/password from

@@ -93,6 +93,14 @@ pinned to this project's distribution (`ManageSiteDistribution`). Adding a
 second distribution therefore means widening that statement first, from a
 workstation, because of `DenySelfModification`.
 
+Route 53 sits in between. `ChangeResourceRecordSets` is pinned to the one
+hosted zone (`ManageAuthMailDns`), but Route 53 has no record-level resource
+type, so within that zone the grant reaches the apex MX that receives mail and
+the alias that serves the live site, not just the auth records. Terraform
+changes only what it declares, so the exposure is a future bug in `infra/`
+rather than a standing capability — but it is the widest of the scoped grants,
+and worth knowing before adding records here.
+
 **Be honest about the residual risk.** A role that can create IAM roles and
 users and attach policies is close to an administrative credential, and those Denys close
 the obvious escalation paths rather than proving containment. It could still
@@ -165,6 +173,7 @@ maintain them now.
 | SES configuration set | `runapp-auth` | Default config set for the identity above: reputation metrics on, bounce-only suppression. |
 | IAM user | `run-app-ses-smtp-auth` | Send-only SES credentials Supabase Auth signs in as over SMTP. Its access key is the SMTP username/password pair. |
 | IAM policy | `run-app-ses-smtp-boundary` | Permissions boundary on that user, and the condition the apply role's user-creation grant is gated on. |
+| Route 53 records | 3 DKIM CNAMEs, MAIL FROM MX + SPF, DMARC + `_report._dmarc` | Verification and alignment for the auth sending domain. The zone itself is a `data` source. |
 
 Three deliberate non-decisions worth knowing before you change them:
 
@@ -194,10 +203,12 @@ and nothing here needs to reissue or rotate it), the
 `ses-forwarder-camboulive-solutions` Lambda and its role (not part of this
 adoption's scope), the `runapp-notify` SES configuration set the contribution
 notifier sends through (so do not read the `runapp-auth` set below as the only
-one in the account), and the Route 53 records for `camboulive.solutions` and
-`mail.camboulive.solutions` (MX, DKIM, SPF, mail-from, DMARC). The records the
-auth identity needs are printed by `terraform output auth_mail_dns_records` —
-SES will not send from the identity until the DKIM CNAMEs resolve.
+one in the account), and the Route 53 records for the apex itself (its MX,
+DKIM and SPF, the site's alias, the ACM validation records). The zone is
+resolved as a `data` source, so this configuration can never destroy it, and
+the only records it manages are the auth sending domain's — added because the
+DKIM tokens come off the identity resource, and hand-copying them is the step
+that fails silently.
 
 ## State
 
