@@ -106,6 +106,7 @@
   "input": {
     "aria": "Message to coach",
     "placeholder": "e.g. help me feel fresh for this weekend",
-    "placeholderFollowUp": "Suggest an edit…"
+    "placeholderFollowUp": "Suggest an edit…",
+    "dictate": "Speak your message"
   }
 }

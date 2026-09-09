@@ -1,0 +1,41 @@
+{
+  "button": "Avis",
+  "aria": "Envoyer un avis",
+  "badge": "Bêta",
+  "intro": {
+    "title": "Dis-nous ce qui ne va pas",
+    "body": "Running Coach est en bêta, et tu fais partie des rares personnes qui l'utilisent sur un vrai entraînement. Si quelque chose est cassé, confus ou simplement pénible, ce bouton nous joint directement.",
+    "pointVoice": "Dis-le à voix haute : ton téléphone le transcrit",
+    "pointType": "Ou écris, si tu préfères",
+    "pointPrivacy": "Aucun enregistrement n'est conservé ni envoyé",
+    "type": "Écrire",
+    "record": "Enregistrer un message"
+  },
+  "compose": {
+    "title": "Quelque chose à corriger avant d'envoyer ?",
+    "placeholder": "Que s'est-il passé, et à quoi t'attendais-tu ?",
+    "addMore": "Ajouter",
+    "clear": "Effacer",
+    "listening": "À l'écoute…",
+    "stop": "Arrêter",
+    "contextTitle": "Envoyé avec ton message",
+    "contextAccount": "Ton compte, pour qu'on puisse te répondre",
+    "send": "Envoyer"
+  },
+  "source": {
+    "dash": "Accueil",
+    "plan": "Plan",
+    "races": "Courses",
+    "progress": "Progrès",
+    "coach": "Discussion coach",
+    "settings": "Réglages"
+  },
+  "coachmark": {
+    "title": "Un truc bizarre ?",
+    "body": "Ce bouton est là pour la bêta. Appuie dessus quand tu veux pour nous envoyer un message vocal ou écrit."
+  },
+  "settingsRow": "Envoyer un avis",
+  "settingsHint": "Running Coach est en bêta. Dis-nous ce qui ne va pas.",
+  "sent": "Merci, c'est bien reçu.",
+  "error": "L'envoi a échoué. Réessaie dans un instant."
+}

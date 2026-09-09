@@ -36,6 +36,8 @@ import { Toast } from "./components/Toast";
 import { Confetti } from "./components/Confetti";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
 import { Coachmark } from "./components/Coachmark";
+import { FeedbackSheet, FeedbackButton } from "./modals/FeedbackSheet";
+import type { FeedbackSource } from "./betaFeedback";
 import { usePresence } from "./hooks/usePresence";
 import { OnboardingWizard } from "./modals/OnboardingWizard";
 import { BackupModal } from "./modals/BackupModal";
@@ -248,6 +250,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // `Dashboard`); the coachmark is a full-screen overlay, so being on Home is
   // enough.
   const markCoachIntroSeen = () => saveSettings({...settings, coachIntroSeen: true});
+  const markFeedbackIntroSeen = () => saveSettings({...settings, feedbackIntroSeen: true});
   // Every tab change goes through here, which is what spends the coachmark on
   // the one exit it has no control over: the bottom nav sits at the header's
   // z-20, above the pointer's z-10 dimmer, so a tab tap lands on it and unmounts
@@ -255,6 +258,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // `false` and the dimmer comes back on every later Home visit and every launch.
   const setTab = (next: string) => {
     if (next !== "dash" && settings.coachIntroSeen === false) markCoachIntroSeen();
+    if (next !== "dash" && settings.feedbackIntroSeen === false) markFeedbackIntroSeen();
     setTabState(next);
   };
   const planRef = useRef(plan);
@@ -283,6 +287,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Set when the coach is opened about a specific plan session (see openCoach) so
   // the chat greets/steers about it and rides its context; null on a plain open.
   const [coachSession, setCoachSession] = useState<CoachSessionContext | null>(null);
+  // Non-null while the beta feedback sheet is open; the value is the screen it
+  // was opened from.
+  const [feedbackSource, setFeedbackSource] = useState<FeedbackSource | null>(null);
   // Stash from a "Set as target" promote → consumed by PlanView's setup form.
   const [planPrefill, setPlanPrefill] = useState<PlanPrefill | null>(null);
   // Which Progress sub-tab to open, and a nonce so navigating there again (even
@@ -1037,6 +1044,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // The overdue explainer's half of the two one-time coach signposts; the
   // coachmark's `markCoachIntroSeen` sits up with `setTab`, which spends it.
   const markCoachOverdueIntroSeen = () => saveSettings({...settings, coachOverdueIntroSeen: true});
+  // Beta feedback: one sheet, three doors (the floating pill, the coach chat
+  // header, the settings hub). `source` names the screen in the stored row and
+  // in the context block the user is shown before sending.
+  const openFeedback = (source: FeedbackSource) => {
+    setFeedbackSource(source);
+    // Opening it answers the pointer, whatever led here.
+    if (settings.feedbackIntroSeen === false) markFeedbackIntroSeen();
+    track("feedback_opened", { source });
+  };
   // A session-context object opens the coach about that session; a bare call
   // (or an event from onClick={openCoach}) opens a fresh chat. Guard on shape
   // so the click event never counts as a session. `source` is analytics only.
@@ -1047,7 +1063,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1101,7 +1117,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           // absent flag as "not yet shown") keeps them to accounts that onboard
           // from this version on — see the SettingsState comment.
           const next = {...settings, name, onboarded: true, onboardStep: 0, intent: null, healthAck,
-            coachIntroSeen: false, coachOverdueIntroSeen: false, ...plan, ...(hr || {}),
+            coachIntroSeen: false, coachOverdueIntroSeen: false, feedbackIntroSeen: false, ...plan, ...(hr || {}),
             ...(hrMethod ? {hrMethod} : {})};
           saveSettings(next);
           // Only build a plan if the race was actually set up (the user may have
@@ -1158,6 +1174,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onSignOut={signOutClearingReminders}
         onOpenCoach={plan ? () => { leaveSettings(); openCoach(null, "settings"); } : undefined}
         onImportFile={() => { leaveSettings(); goImport(); }}
+        onFeedback={() => openFeedback("settings")}
         onDeleteAccount={() => { leaveSettings(); setShowDeleteAccount(true); }}
         onClose={closeSettings}/>}
       {showDeleteAccount && <DeleteAccountModal
@@ -1171,7 +1188,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           onError={() => { setShowCoach(false); showToast(t("coach.errors.transport.offline"), "err"); }}>
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
             <CoachChat plan={plan} onApplyPlan={applyCoachPlan} sessionContext={coachSession}
-              appendUserContext={appendUserContext} showToast={showToast} onClose={() => setShowCoach(false)}/>
+              appendUserContext={appendUserContext} showToast={showToast}
+              onFeedback={() => openFeedback("coach")} onClose={() => setShowCoach(false)}/>
           </Suspense>
         </ChunkLoadBoundary>
       )}
@@ -1188,6 +1206,26 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {plan && !onboarding && tab === "dash" && settings.coachIntroSeen === false && (
         <Coachmark title={t("app.coachmark.title")} body={t("app.coachmark.body")}
           cta={t("app.coachmark.cta")} onDismiss={markCoachIntroSeen}/>
+      )}
+
+      {/* The beta feedback sheet — above the coach chat's own z-50, because the
+          coach header is one of the three doors into it. */}
+      {feedbackSource && (
+        <FeedbackSheet source={feedbackSource}
+          introSeen={settings.feedbackIntroSeen !== false}
+          onIntroSeen={markFeedbackIntroSeen}
+          onSent={() => saveSettings({...settings, feedbackSent: true})}
+          showToast={showToast} onClose={() => setFeedbackSource(null)}/>
+      )}
+
+      {/* The one-time pointer at the feedback pill (seeded at onboarding
+          completion). Waits for the coach pointer to be spent so the two never
+          stack on a fresh account's first Home. */}
+      {!onboarding && tab === "dash" && settings.feedbackIntroSeen === false
+        && settings.coachIntroSeen !== false && (
+        <Coachmark anchor="feedback" title={t("feedback.coachmark.title")}
+          body={t("feedback.coachmark.body")} cta={t("app.coachmark.cta")}
+          onDismiss={markFeedbackIntroSeen}/>
       )}
 
       <header className="fixed top-0 inset-x-0 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20"
@@ -1236,6 +1274,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         {tab === "races" && <RacesView {...shared}/>}
         {tab === "progress" && <ProgressView {...shared} initialSub={progressSub} navKey={progressNonce}/>}
       </div>
+
+      {!onboarding && !showTracker && !showIndoor && (
+        <FeedbackButton collapsed={settings.feedbackSent === true}
+          onClick={() => openFeedback(tab as FeedbackSource)}/>
+      )}
 
       <BottomNav
         active={tab}

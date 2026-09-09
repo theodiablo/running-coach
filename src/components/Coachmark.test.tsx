@@ -44,13 +44,29 @@ describe("Coachmark", () => {
   });
 
   it("keeps the control it points at above the dimmer", () => {
-    // The whole design: the header (z-20) stays lit and tappable, so tapping the
-    // Coach pill is a valid way to answer the pointer. A dimmer at or above z-20
-    // would swallow that tap.
+    // The whole design: the anchored control stays lit and tappable, so tapping
+    // it is a valid way to answer the pointer. A dimmer at or above the control
+    // would swallow that tap. The bubble in turn clears both anchors — the
+    // header at z-20 and the feedback pill at z-30.
     const { container } = render(
       <Coachmark title="t" body="b" cta="c" onDismiss={vi.fn()}/>);
     const dimmer = container.querySelector("button[aria-hidden]")!;
     expect(dimmer.className).toContain("z-10");
-    expect(screen.getByRole("dialog").className).toContain("z-30");
+    expect(screen.getByRole("dialog").className).toContain("z-40");
+  });
+
+  it("points its arrow at whichever control it was given", () => {
+    // Two anchors, one overlay: the header's Coach pill hangs the bubble from
+    // the top, the feedback pill from the bottom. Getting this wrong puts an
+    // arrow on empty screen, which reads as a rendering bug.
+    const { container: header } = render(
+      <Coachmark title="t" body="b" cta="c" onDismiss={vi.fn()}/>);
+    expect(header.querySelector(".-top-1\\.5")).not.toBeNull();
+    expect(header.querySelector(".-bottom-1\\.5")).toBeNull();
+
+    const { container: feedback } = render(
+      <Coachmark anchor="feedback" title="t" body="b" cta="c" onDismiss={vi.fn()}/>);
+    expect(feedback.querySelector(".-bottom-1\\.5")).not.toBeNull();
+    expect(feedback.querySelector(".-top-1\\.5")).toBeNull();
   });
 });
