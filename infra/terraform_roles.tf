@@ -158,6 +158,8 @@ data "aws_iam_policy_document" "tf_read" {
       # URL, not by ARN, so it enumerates before it can Get. Without List, every
       # plan fails at the data source with AccessDenied.
       "iam:ListOpenIDConnectProviders",
+      "iam:ListPolicyTags",
+      "iam:ListPolicyVersions",
       "iam:ListRolePolicies",
       "iam:ListRoleTags",
       "iam:ListUserPolicies",
@@ -316,25 +318,64 @@ data "aws_iam_policy_document" "tf_apply" {
     resources = ["*"]
   }
 
-  # The send-only SMTP user Supabase Auth signs in as (ses_sending.tf). Scoped
-  # to its own name prefix, and deliberately without iam:AttachUserPolicy — its
-  # permissions can only ever be the inline policy Terraform writes, so there
-  # is no managed-policy path to widen them.
+  # The send-only SMTP user Supabase Auth signs in as (ses_sending.tf), and the
+  # permissions boundary that caps it. Scoped to its own name prefix, and
+  # deliberately without iam:AttachUserPolicy — a user's permissions can only
+  # ever be the inline policy Terraform writes, intersected with the boundary.
   statement {
     sid    = "ManageProjectSesUser"
     effect = "Allow"
     actions = [
       "iam:CreateAccessKey",
-      "iam:CreateUser",
       "iam:DeleteAccessKey",
       "iam:DeleteUser",
       "iam:DeleteUserPolicy",
-      "iam:PutUserPolicy",
       "iam:TagUser",
       "iam:UntagUser",
       "iam:UpdateAccessKey",
     ]
     resources = ["arn:aws:iam::${local.account_id}:user/system/${local.managed_user_prefix}*"]
+  }
+
+  # Creating a user, and writing what it may do, are the two actions that could
+  # turn this role into an administrative one: an inline policy has no ceiling
+  # of its own, and an access key on such a user is a durable credential usable
+  # from anywhere, long after the OIDC role that minted it is gone. Both are
+  # therefore allowed ONLY against a principal carrying the send-only boundary,
+  # which the boundary Deny below keeps honest. This is AWS's own delegation
+  # pattern, and it is what makes the grant above safe to hand to CI.
+  statement {
+    sid    = "ManageProjectSesUserPermissions"
+    effect = "Allow"
+    actions = [
+      "iam:CreateUser",
+      "iam:PutUserPermissionsBoundary",
+      "iam:PutUserPolicy",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:user/system/${local.managed_user_prefix}*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.ses_smtp_boundary_arn]
+    }
+  }
+
+  # The boundary policy itself. Creating it is in scope (a from-scratch apply
+  # has to); changing or deleting it afterwards is denied below, since a
+  # boundary this role could rewrite would not be a boundary.
+  statement {
+    sid    = "ManageProjectPolicies"
+    effect = "Allow"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:policy/${local.managed_user_prefix}*"]
   }
 
   statement {
@@ -396,7 +437,7 @@ data "aws_iam_policy_document" "tf_apply" {
   statement {
     sid       = "DenyPrivilegedManagedPolicies"
     effect    = "Deny"
-    actions   = ["iam:AttachRolePolicy"]
+    actions   = ["iam:AttachRolePolicy", "iam:AttachUserPolicy"]
     resources = ["*"]
 
     condition {
@@ -408,6 +449,22 @@ data "aws_iam_policy_document" "tf_apply" {
         "arn:aws:iam::aws:policy/PowerUserAccess",
       ]
     }
+  }
+
+  # Without this, ManageProjectPolicies would let the apply role publish a new
+  # version of the very boundary that caps the users it can create, and the
+  # containment above would be decorative. Same shape and same consequence as
+  # DenySelfModification: changing the boundary needs a local apply.
+  statement {
+    sid    = "DenyBoundaryTampering"
+    effect = "Deny"
+    actions = [
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:SetDefaultPolicyVersion",
+    ]
+    resources = [local.ses_smtp_boundary_arn]
   }
 
   # Deleting any of these is unrecoverable in a way an apply should never be

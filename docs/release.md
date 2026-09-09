@@ -212,18 +212,23 @@ it. Marketing mail is a separate identity and a separate sender when it exists;
 it never goes through GoTrue, whose mailer is for user-triggered transactional
 links only.
 
-The account has SES production access for `camboulive.solutions` (out of the
-sandbox — in the sandbox SES only delivers to verified addresses at 200/day,
-which would silently fail every real signup).
+**Check the account is out of the SES sandbox before pointing Supabase at it.**
+Production access is granted per AWS account and region, not per domain, so it
+covers `eu-west-1` as a whole; in the sandbox SES delivers only to verified
+addresses at 200/day, and every real signup fails silently. Console → SES →
+Account dashboard says which.
 
 ### Setting it up
 
-1. Merge the `infra/` change, then **`terraform apply` from a workstation** —
-   a PR that widens the CI policy cannot be applied by CI itself
-   (`infra/README.md`).
+1. **`terraform apply` from a workstation, from the branch, BEFORE merging.**
+   A change that widens the CI policy cannot be applied by CI itself
+   (`infra/README.md`), and applying first leaves the merge with nothing to do
+   — the workflow skips apply on a zero-change plan, so `main` stays green.
+   Merging first gets a half-applied plan and a red default branch.
 2. `terraform output auth_mail_dns_records` and add every record in Route 53
-   (3 DKIM CNAMEs, the MAIL FROM MX and SPF TXT, DMARC). DNS is not Terraform-
-   managed. SES will not send until the DKIM records resolve.
+   (3 DKIM CNAMEs, the MAIL FROM MX and SPF TXT, the DMARC record and the
+   `_report._dmarc` record that authorises its off-domain `rua` mailbox). DNS
+   is not Terraform-managed. SES will not send until the DKIM records resolve.
 3. Dashboard → Authentication → Emails → **SMTP Settings**:
    host `email-smtp.eu-west-1.amazonaws.com`, port 587, sender
    `noreply@mail.camboulive.solutions`, username/password from

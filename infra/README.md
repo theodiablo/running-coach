@@ -68,12 +68,18 @@ the read policy grants bucket-level actions against bucket ARNs, never
 The apply role's S3 writes are confined to buckets named `run-app-*`, plus the
 two adopted buckets that predate that naming convention
 (`run.camboulive.solutions` and `ses-inbound-camboulive-solutions`), and its
-IAM writes to roles named `GitHub-Actions-RunApp-*` plus the single user
-`/system/run-app-*` (the SES SMTP credentials). Three explicit Denys
+IAM writes to roles named `GitHub-Actions-RunApp-*`, plus users under
+`/system/run-app-*` (the SES SMTP credentials) and policies named
+`run-app-*`. Creating one of those users, or writing its inline policy, is
+allowed **only for a principal carrying the send-only permissions boundary** —
+without that condition, "CI can create an IAM user" would mean "CI can mint a
+durable administrative access key", which is worse than the role path because a
+static key outlives the OIDC role that made it. Four explicit Denys
 apply on top: it cannot
 modify either CI role (including itself), cannot attach `AdministratorAccess`,
-`IAMFullAccess` or `PowerUserAccess` to anything, and cannot delete the state
-bucket or either adopted bucket. Deleting one of those means a local apply —
+`IAMFullAccess` or `PowerUserAccess` to any role or user, cannot rewrite or
+delete the permissions boundary that caps the users it can create, and cannot
+delete the state bucket or either adopted bucket. Deleting one of those means a local apply —
 deliberately, since bucket-level *configuration* on them is routine and
 deletion never is.
 
@@ -122,11 +128,16 @@ nobody is checking.
 
 `DenySelfModification` means the apply role cannot write its own inline policy,
 so **any PR that changes `terraform_roles.tf` merges green and then fails at
-apply**. Run `terraform apply` once from a workstation after merging it (or
-before, from the branch); afterwards CI carries on as normal. This is the
+apply**. Run `terraform apply` from a workstation **on the branch, before
+merging**: the merge then plans zero changes, the workflow skips apply
+entirely, and `main` stays green. Applying after the merge instead means a
+half-applied plan and a red default branch — the resources land, the two role
+policies do not. This is the
 intended blast radius for the thing that grants CI its permissions, not a bug
 to route around — but it does mean a change that adds a resource *and* the
-permission to manage it (the SES SMTP user, say) is a two-step deploy.
+permission to manage it (the SES SMTP user, say) is a two-step deploy. The same
+applies to the SES permissions boundary: `DenyBoundaryTampering` refuses any
+new version of it, so editing what that user may do is a local apply too.
 
 ### Bootstrapping
 
@@ -153,6 +164,7 @@ maintain them now.
 | SES domain identity | `mail.camboulive.solutions` | Sending identity for Supabase Auth mail, with a `bounce.mail.` custom MAIL FROM. |
 | SES configuration set | `runapp-auth` | Default config set for the identity above: reputation metrics on, bounce-only suppression. |
 | IAM user | `run-app-ses-smtp-auth` | Send-only SES credentials Supabase Auth signs in as over SMTP. Its access key is the SMTP username/password pair. |
+| IAM policy | `run-app-ses-smtp-boundary` | Permissions boundary on that user, and the condition the apply role's user-creation grant is gated on. |
 
 Three deliberate non-decisions worth knowing before you change them:
 
@@ -180,7 +192,9 @@ needs to point at them: the ACM certificate backing the CloudFront
 distribution (DNS-validated certs need their validation records adopted too,
 and nothing here needs to reissue or rotate it), the
 `ses-forwarder-camboulive-solutions` Lambda and its role (not part of this
-adoption's scope), and the Route 53 records for `camboulive.solutions` and
+adoption's scope), the `runapp-notify` SES configuration set the contribution
+notifier sends through (so do not read the `runapp-auth` set below as the only
+one in the account), and the Route 53 records for `camboulive.solutions` and
 `mail.camboulive.solutions` (MX, DKIM, SPF, mail-from, DMARC). The records the
 auth identity needs are printed by `terraform output auth_mail_dns_records` —
 SES will not send from the identity until the DKIM CNAMEs resolve.
@@ -210,9 +224,11 @@ Versioning is on, so a corrupted state file can be rolled back to a previous
 version.
 
 **State holds one real secret**: the SES SMTP user's access key
-(`ses_sending.tf`), because a `terraform output` is the only way to read an
-access key's secret back after creation. Everything else in there is bucket
-names and role ARNs. The bucket is private, encrypted and versioned, which is
+(`ses_sending.tf`). That is a choice, not a constraint — `aws_iam_access_key`
+takes a `pgp_key`, and with one set only the encrypted forms are stored — but a
+PGP key is one more thing to hold, and the credential is pasted into the
+Supabase dashboard by hand anyway. Everything else in there is bucket names and
+role ARNs. The bucket is private, encrypted and versioned, which is
 what makes that acceptable — keep it that way, and assume anything you add is
 captured verbatim too.
 

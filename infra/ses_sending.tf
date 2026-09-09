@@ -14,6 +14,11 @@ locals {
   # the GitHub Actions OIDC roles). The apply role's write access is scoped to
   # this prefix.
   managed_user_prefix = "run-app-"
+  # Spelled out rather than read off the resource, because the apply role's own
+  # policy conditions on it (terraform_roles.tf) and a resource reference there
+  # would make the two files circular.
+  ses_smtp_boundary_name = "${local.managed_user_prefix}ses-smtp-boundary"
+  ses_smtp_boundary_arn  = "arn:aws:iam::${local.account_id}:policy/${local.managed_user_prefix}ses-smtp-boundary"
 }
 
 resource "aws_sesv2_configuration_set" "auth" {
@@ -70,6 +75,17 @@ resource "aws_sesv2_email_identity_mail_from_attributes" "auth" {
 resource "aws_iam_user" "ses_smtp_auth" {
   name = "${local.managed_user_prefix}ses-smtp-auth"
   path = "/system/"
+  # The ceiling, not the grant — the user can do at most what this allows, even
+  # if its inline policy is rewritten. It is what keeps "CI can create an IAM
+  # user" from meaning "CI can mint durable admin credentials": an access key is
+  # a static credential that outlives the OIDC role that created it.
+  permissions_boundary = aws_iam_policy.ses_smtp_boundary.arn
+}
+
+resource "aws_iam_policy" "ses_smtp_boundary" {
+  name        = local.ses_smtp_boundary_name
+  description = "Permissions ceiling for the SES SMTP user: send from the auth identity, nothing else."
+  policy      = data.aws_iam_policy_document.ses_smtp_auth.json
 }
 
 data "aws_iam_policy_document" "ses_smtp_auth" {

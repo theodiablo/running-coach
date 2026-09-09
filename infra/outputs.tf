@@ -59,6 +59,11 @@ output "auth_mail_dns_records" {
     mail_from_mx  = { (local.ses_auth_mail_from) = "10 feedback-smtp.${var.aws_region}.amazonses.com" }
     mail_from_txt = { (local.ses_auth_mail_from) = "v=spf1 include:amazonses.com ~all" }
     dmarc_txt     = { "_dmarc.${local.ses_auth_domain}" = "v=DMARC1; p=none; rua=mailto:postmaster@${local.ses_domain}" }
+    # The rua mailbox is on a different domain than the DMARC record, so that
+    # domain has to say it accepts the reports (RFC 7489 external destination
+    # verification). Without this record Google and Microsoft silently drop
+    # them, and p=none exists precisely to collect them.
+    dmarc_report_auth_txt = { "${local.ses_auth_domain}._report._dmarc.${local.ses_domain}" = "v=DMARC1" }
   }
 }
 
@@ -67,9 +72,13 @@ output "auth_smtp_host" {
   value       = "email-smtp.${var.aws_region}.amazonaws.com"
 }
 
+# Sensitive not because an access key id is a secret on its own, but because it
+# is half of one: `terraform apply` prints every root output, and the CI apply
+# log is not redacted. `terraform output -raw` still reads it.
 output "auth_smtp_username" {
   description = "SMTP username for Supabase Auth (the access key id of the send-only SES user)."
   value       = aws_iam_access_key.ses_smtp_auth.id
+  sensitive   = true
 }
 
 output "auth_smtp_password" {
