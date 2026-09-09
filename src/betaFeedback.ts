@@ -7,7 +7,17 @@ import { platform, nativeBuildLabel } from "./native";
 // surfaces that carry their own entry point because a floating pill can't sit
 // on them (the coach's send button is already bottom-right, and a badge over
 // the settings list reads as an ad).
-export type FeedbackSource = "dash" | "plan" | "races" | "progress" | "coach" | "settings";
+export type FeedbackSource =
+  | "dash" | "plan" | "races" | "progress" | "log" | "coach" | "settings";
+
+// `tab` is a bare string on the state hub and takes values the sheet has no
+// name for. Map rather than cast: an unmapped tab reaches the UI as the raw
+// i18n key ("feedback.source.log") and lands in the stored row, where it
+// quietly pollutes the column the reports are grouped by.
+const TAB_SOURCES = new Set<string>(["dash", "plan", "races", "progress", "log"]);
+export function feedbackSourceForTab(tab: string): FeedbackSource {
+  return TAB_SOURCES.has(tab) ? tab as FeedbackSource : "dash";
+}
 
 export type FeedbackInputMode = "text" | "voice";
 

@@ -31,6 +31,7 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private var activatedSession = false
 
     @objc func available(_ call: CAPPluginCall) {
         // On-device recognition is per-locale: a device with no downloaded model
@@ -69,11 +70,16 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 self.recognizer = recognizer
 
-                // .record with .duckOthers so a runner's music drops rather than
-                // stops, matching how AudioCuePlugin treats the same session.
+                // .playAndRecord, NOT .record: `duckOthers` is only settable on
+                // playAndRecord/playback/multiRoute, so pairing it with .record
+                // throws and dictation never starts at all. Ducking keeps a
+                // runner's music quiet for the moment rather than stopping it,
+                // the same courtesy AudioCuePlugin extends for its cues.
                 let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
+                try session.setCategory(.playAndRecord, mode: .measurement,
+                                        options: [.duckOthers, .allowBluetooth, .defaultToSpeaker])
                 try session.setActive(true, options: .notifyOthersOnDeactivation)
+                self.activatedSession = true
 
                 let request = SFSpeechAudioBufferRecognitionRequest()
                 request.shouldReportPartialResults = true
@@ -89,11 +95,14 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
 
                 self.task = recognizer.recognitionTask(with: request) { [weak self] result, error in
                     guard let self else { return }
+                    // This handler's queue is not guaranteed, and AVAudioEngine
+                    // is not thread-safe — every other mutation of engine/task/
+                    // request is confined to main, so teardown must be too.
                     if let result {
                         let text = result.bestTranscription.formattedString
                         if result.isFinal {
                             self.notifyListeners("final", data: ["text": text])
-                            self.teardown()
+                            DispatchQueue.main.async { self.teardown() }
                         } else {
                             // Rendered live in the composer: without it, several
                             // seconds of silence reads as a broken button.
@@ -101,7 +110,7 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
                         }
                     } else if error != nil {
                         self.emitError("speech_failed")
-                        self.teardown()
+                        DispatchQueue.main.async { self.teardown() }
                     }
                 }
 
@@ -145,7 +154,11 @@ public class SpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         if engine.isRunning { engine.stop() }
         engine.inputNode.removeTap(onBus: 0)
         recognizer = nil
-        // Hand the audio session back so music resumes at full volume.
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // Hand the session back only if we took it: AudioCuePlugin owns one too,
+        // and deactivating its session under a playing cue would cut the cue off.
+        if activatedSession {
+            activatedSession = false
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 }

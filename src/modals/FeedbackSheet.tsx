@@ -34,8 +34,11 @@ export function FeedbackSheet({ source, introSeen, onIntroSeen, onSent, onClose,
   const [text, setText] = useState("");
   const [mode, setMode] = useState<FeedbackInputMode>("text");
   const [busy, setBusy] = useState(false);
-  const dictation = useDictation(append =>
-    setText(cur => (cur ? `${cur} ${append}` : append).slice(0, MAX_FEEDBACK_LEN)));
+  const dictation = useDictation({
+    onText: append =>
+      setText(cur => (cur ? `${cur} ${append}` : append).slice(0, MAX_FEEDBACK_LEN)),
+    onProblem: () => showToast(t("feedback.compose.voiceFailed")),
+  });
   useDismissable(true, onClose);
 
   // Dictating marks the whole report as voice-entered even if it is then

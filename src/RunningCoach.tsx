@@ -39,7 +39,7 @@ import { Confetti } from "./components/Confetti";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
 import { Coachmark } from "./components/Coachmark";
 import { FeedbackSheet, FeedbackButton } from "./modals/FeedbackSheet";
-import type { FeedbackSource } from "./betaFeedback";
+import { feedbackSourceForTab, type FeedbackSource } from "./betaFeedback";
 import { usePresence } from "./hooks/usePresence";
 import { OnboardingWizard } from "./modals/OnboardingWizard";
 import { BackupModal } from "./modals/BackupModal";
@@ -254,14 +254,28 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // enough.
   const markCoachIntroSeen = () => saveSettings({...settings, coachIntroSeen: true});
   const markFeedbackIntroSeen = () => saveSettings({...settings, feedbackIntroSeen: true});
-  // Every tab change goes through here, which is what spends the coachmark on
-  // the one exit it has no control over: the bottom nav sits at the header's
+  // Every tab change goes through here, which is what spends the coachmarks on
+  // the one exit they have no control over: the bottom nav sits at the header's
   // z-20, above the pointer's z-10 dimmer, so a tab tap lands on it and unmounts
   // the pointer without running `onDismiss`. Left unspent, the flag stays
   // `false` and the dimmer comes back on every later Home visit and every launch.
+  //
+  // ONE write, not one per pointer: saveSettings replaces the whole blob from
+  // the `settings` captured this render, so two calls in a tick would leave
+  // only the second one's flag set and silently revive the other pointer.
   const setTab = (next: string) => {
-    if (next !== "dash" && settings.coachIntroSeen === false) markCoachIntroSeen();
-    if (next !== "dash" && settings.feedbackIntroSeen === false) markFeedbackIntroSeen();
+    if (next !== "dash") {
+      const spend = {...settings};
+      let spent = false;
+      if (settings.coachIntroSeen === false) { spend.coachIntroSeen = true; spent = true; }
+      // Only if it could actually have been on screen: the feedback pointer
+      // waits for the coach one, so spending it on the same tap that spends the
+      // coach pointer would burn it unread ("seen" must mean seen).
+      if (settings.feedbackIntroSeen === false && settings.coachIntroSeen !== false) {
+        spend.feedbackIntroSeen = true; spent = true;
+      }
+      if (spent) saveSettings(spend);
+    }
     setTabState(next);
   };
   const planRef = useRef(plan);
@@ -1322,7 +1336,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
       {!onboarding && !showTracker && !showIndoor && (
         <FeedbackButton collapsed={settings.feedbackSent === true}
-          onClick={() => openFeedback(tab as FeedbackSource)}/>
+          onClick={() => openFeedback(feedbackSourceForTab(tab))}/>
       )}
 
       <BottomNav

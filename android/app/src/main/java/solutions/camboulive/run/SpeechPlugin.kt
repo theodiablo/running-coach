@@ -168,7 +168,18 @@ class SpeechPlugin : Plugin() {
         }
 
         override fun onError(error: Int) {
-            emitError("speech_error_$error")
+            // Hearing nothing is not a failure. A pause long enough to trip
+            // NO_MATCH or SPEECH_TIMEOUT is ordinary dictation, and reporting it
+            // as an error would put "voice input isn't available" in front of
+            // someone who merely stopped to think. End the session quietly and
+            // let them tap again.
+            if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+            ) {
+                notifyListeners("final", JSObject().put("text", ""))
+            } else {
+                emitError("speech_error_$error")
+            }
             destroyRecognizer()
         }
 

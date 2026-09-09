@@ -110,8 +110,10 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
   // Dictation appends into the composer and stops there: a recognizer mishears
   // names and paces constantly, so the transcript is always edited-then-sent by
   // hand. Auto-sending would spend one of the day's messages on a mis-hear.
-  const dictation = useDictation(append =>
-    setInput(cur => (cur ? `${cur} ${append}` : append)));
+  const dictation = useDictation({
+    onText: append => setInput(cur => (cur ? `${cur} ${append}` : append)),
+    onProblem: () => showToast(t("feedback.compose.voiceFailed"), "err"),
+  });
 
   // Localized display strings + a canonical-English context prefix, both derived
   // from the same session so the bubble reads in the user's language while the
@@ -277,6 +279,9 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
     // so only treat a real string as an override and otherwise read the input.
     const text = (typeof preset === "string" ? preset : input).trim();
     if (!text || busy || exhausted) return;
+    // Close the mic before the round: a transcript settling afterwards would
+    // append into an input the user has already moved on from.
+    await dictation.stop();
     // Count genuine coach interactions — a user actually sending a message.
     // Never the message text; just whether it opens a chat or follows up on an
     // already-open trajectory (a proposal round). Consent-gated in track().
@@ -562,7 +567,7 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
               {dictation.supported && (
                 <button
                   onClick={() => { if (dictation.listening) void dictation.stop(); else void dictation.start(); }}
-                  disabled={busy || exhausted}
+                  disabled={(busy && !dictation.listening) || exhausted}
                   aria-label={dictation.listening ? t("feedback.compose.stop") : t("coach.input.dictate")}
                   aria-pressed={dictation.listening}
                   className={"px-3.5 rounded-xl border transition-colors disabled:opacity-40 " +

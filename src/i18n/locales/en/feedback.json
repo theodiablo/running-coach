@@ -20,13 +20,15 @@
     "stop": "Stop",
     "contextTitle": "Sent with your note",
     "contextAccount": "Your account, so we can reply",
-    "send": "Send feedback"
+    "send": "Send feedback",
+    "voiceFailed": "Voice input isn't available. You can type instead."
   },
   "source": {
     "dash": "Home",
     "plan": "Plan",
     "races": "Races",
     "progress": "Progress",
+    "log": "Log a run",
     "coach": "Coach chat",
     "settings": "Settings"
   },

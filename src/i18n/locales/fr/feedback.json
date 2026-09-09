@@ -20,13 +20,15 @@
     "stop": "Arrêter",
     "contextTitle": "Envoyé avec ton message",
     "contextAccount": "Ton compte, pour qu'on puisse te répondre",
-    "send": "Envoyer"
+    "send": "Envoyer",
+    "voiceFailed": "La dictée n'est pas disponible. Tu peux écrire à la place."
   },
   "source": {
     "dash": "Accueil",
     "plan": "Plan",
     "races": "Courses",
     "progress": "Progrès",
+    "log": "Enregistrer une sortie",
     "coach": "Discussion coach",
     "settings": "Réglages"
   },

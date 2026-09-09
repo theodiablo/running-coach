@@ -38,13 +38,34 @@ web build is unchanged. `src/speech/source.test.ts` pins it.
 `useDictation` (`src/hooks/useDictation.ts`) is what UI consumes. It appends
 settled text to the field and exposes `supported`, `listening` and `partial`.
 
-Two rules the UI must keep:
+Rules the UI must keep:
 
 - **Interim results are rendered live.** All the recognizers emit partial
   hypotheses; without showing them, four seconds of silence reads as a bug.
 - **Never auto-send.** Recognizers mangle names and paces, so the transcript
   always lands in an editable field. On the coach that also means a mis-hear
   costs a tap, not one of the five daily messages.
+- **`onEnd` always resets the mic state.** A session ends for four reasons —
+  the recognizer settled an utterance and released the mic, the caller stopped
+  it, it failed, or another surface took the microphone. Only the second is the
+  user's own doing, so a consumer that clears `listening` anywhere else will
+  sooner or later show a live mic over a closed recognizer.
+- **A failure is always spoken about.** `onProblem` fires when dictation cannot
+  start (denied permission, no on-device model for the locale, recognizer busy)
+  and when it dies mid-utterance. A mic that does nothing reads as a broken app.
+  Hearing *nothing* is not a failure: Android's `ERROR_NO_MATCH` and
+  `ERROR_SPEECH_TIMEOUT` are an ordinary pause and end the session quietly.
+
+**One microphone, one session.** The feedback sheet opens over the coach chat,
+so two `useDictation` hooks can be mounted at once. Starting a second session
+supersedes the first and tells it so (`onEnd("superseded")`) rather than
+silently stealing its listeners — otherwise the coach sits on a frozen partial
+and its Stop button stops the sheet's dictation instead of its own.
+
+Permission is requested **before** availability is checked: iOS reports a
+recognizer as unavailable while its authorization is still `notDetermined`, so
+asking the other way round hides the mic on every fresh install and the
+usage-description strings are never exercised.
 
 Permission is requested on first tap, never on a screen's load:
 `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` +

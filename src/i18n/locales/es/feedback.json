@@ -20,13 +20,15 @@
     "stop": "Detener",
     "contextTitle": "Se envía con tu nota",
     "contextAccount": "Tu cuenta, para poder responderte",
-    "send": "Enviar comentarios"
+    "send": "Enviar comentarios",
+    "voiceFailed": "El dictado no está disponible. Puedes escribirlo."
   },
   "source": {
     "dash": "Inicio",
     "plan": "Plan",
     "races": "Carreras",
     "progress": "Progreso",
+    "log": "Registrar carrera",
     "coach": "Chat con el entrenador",
     "settings": "Ajustes"
   },

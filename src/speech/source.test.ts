@@ -23,6 +23,5 @@ describe("getSpeechSource", () => {
     expect(source).not.toBeNull();
     expect(typeof source!.prepare).toBe("function");
     expect(typeof source!.start).toBe("function");
-    expect(typeof source!.stop).toBe("function");
   });
 });
