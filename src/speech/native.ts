@@ -20,10 +20,10 @@ async function detach() {
 }
 
 export const nativeSpeechSource: SpeechSource = {
-  async prepare() {
+  async prepare(lang: string) {
     try {
       const plugin = getSpeechPlugin();
-      const { available } = await plugin.available();
+      const { available } = await plugin.available({ lang });
       if (!available) return false;
       const { granted } = await plugin.requestPermission();
       return granted;

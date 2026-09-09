@@ -50,6 +50,22 @@ Permission is requested on first tap, never on a screen's load:
 `RECORD_AUDIO` (Android), `NSMicrophoneUsageDescription` +
 `NSSpeechRecognitionUsageDescription` (iOS).
 
+## Read-aloud: not built
+
+The coach does not speak its answers yet. The two TTS engines exist but are
+not reusable as they stand: Android's `TextToSpeech` lives inside
+`WorkoutGuidePlugin`, driven by the workout schedule and holding the
+foreground service, and iOS's `AVSpeechSynthesizer` sits behind
+`AudioCuePlugin.play`, which wants a cue tone. The `src/cues/` seam is also
+deliberately silent on Android, because the native engine owns every sound
+there and a JS cue would double up.
+
+Doing it properly means a `speak` method on the *Speech* plugin on both
+platforms, with its own audio-session lifecycle coordinated against
+`AudioCuePlugin` — and its own per-device mute, not `WORKOUT_CUES_MUTED_KEY`:
+silencing interval cues mid-run and silencing the coach are different
+intentions.
+
 ## Beta feedback
 
 One sheet (`src/modals/FeedbackSheet.tsx`), three doors, all calling

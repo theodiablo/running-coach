@@ -2,7 +2,7 @@ import { registerPlugin } from "@capacitor/core";
 
 export type SpeechNative = {
   /** Whether this device actually has a usable recognizer. Never assume it. */
-  available(): Promise<{ available: boolean }>;
+  available(opts: { lang: string }): Promise<{ available: boolean }>;
   /** Prompts on first call. Resolves the granted state, never throws to kill the app. */
   requestPermission(): Promise<{ granted: boolean }>;
   start(opts: { lang: string }): Promise<void>;

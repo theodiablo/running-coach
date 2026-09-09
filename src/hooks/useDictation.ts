@@ -30,10 +30,11 @@ export function useDictation(onText: (append: string) => void) {
 
   const start = useCallback(async () => {
     if (!source) return false;
-    if (!(await source.prepare())) return false;
+    const lang = currentLocaleTag();
+    if (!(await source.prepare(lang))) return false;
     setPartial("");
     setListening(true);
-    await source.start(currentLocaleTag(), {
+    await source.start(lang, {
       onPartial: setPartial,
       onFinal: text => {
         setPartial("");

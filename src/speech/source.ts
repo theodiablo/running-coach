@@ -10,8 +10,9 @@ export type SpeechHandlers = {
 };
 
 export type SpeechSource = {
-  /** Availability + permission, in one call. False means "offer typing". */
-  prepare(): Promise<boolean>;
+  /** Availability + permission, in one call. False means "offer typing".
+   *  Locale-sensitive: iOS on-device models are per-language. */
+  prepare(lang: string): Promise<boolean>;
   start(lang: string, handlers: SpeechHandlers): Promise<void>;
   stop(): Promise<void>;
 };
