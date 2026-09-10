@@ -162,3 +162,19 @@ resource "aws_cloudfront_distribution" "site" {
     minimum_protocol_version = "TLSv1.2_2021"
   }
 }
+
+# Google Search Console ownership proof for the site's canonical origin
+# (index.html rel=canonical, public/sitemap.xml, WEB_APP_ORIGIN). On the
+# subdomain rather than the apex, which is where the property is registered and
+# which keeps this clear of the apex's own SPF TXT.
+#
+# The zone data source lives in ses_sending.tf, which explains why it is a data
+# source; allow_overwrite stays false so an unmanaged TXT already on this name
+# fails the apply instead of being replaced.
+resource "aws_route53_record" "site_google_verification" {
+  zone_id = data.aws_route53_zone.primary.zone_id
+  name    = local.site_bucket_name
+  type    = "TXT"
+  ttl     = 300
+  records = ["google-site-verification=CUJdbeBXHaFwEf34kLohlnZ_8t0wqRcemS110nD3d1M"]
+}
