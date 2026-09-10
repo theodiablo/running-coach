@@ -10,7 +10,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@anthropic-ai/sdk@0.120",
+        "npm:@anthropic-ai/sdk@0.124",
         "npm:@capacitor-community/background-geolocation@1.2.26",
         "npm:@capacitor-community/bluetooth-le@^8.3.0",
         "npm:@capacitor/android@^8.4.1",

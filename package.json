@@ -58,7 +58,7 @@
     "nanoid": "^3.3.18"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.120.0",
+    "@anthropic-ai/sdk": "^0.124.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/ios": "^8.4.2",
