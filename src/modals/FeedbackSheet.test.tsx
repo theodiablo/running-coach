@@ -32,21 +32,12 @@ describe("FeedbackSheet", () => {
 
     // Leaving the explainer spends the flag there and then, so a sheet reopened
     // before the settings blob round-trips doesn't show it a second time.
-    fireEvent.click(screen.getByRole("button", { name: "Type" }));
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
     expect(onIntroSeen).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Tell us what's not working")).not.toBeInTheDocument();
 
     rerender(<FeedbackSheet {...props} introSeen onIntroSeen={onIntroSeen}/>);
     expect(screen.queryByText("Tell us what's not working")).not.toBeInTheDocument();
-  });
-
-  it("offers no microphone where there is no recognizer", () => {
-    // The web build: the seam returns null, so the sheet must not advertise
-    // dictation or promise that nothing is uploaded — there is no recording.
-    render(<FeedbackSheet {...props} introSeen={false}/>);
-    expect(screen.queryByText(/Record a note/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No recording is kept/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
   });
 
   it("shows the context block it is about to send", () => {
@@ -67,7 +58,7 @@ describe("FeedbackSheet", () => {
     fireEvent.click(send);
 
     await waitFor(() => expect(submitBetaFeedback).toHaveBeenCalledWith({
-      body: "charts unreadable", source: "progress", inputMode: "text",
+      body: "charts unreadable", source: "progress",
     }));
   });
 });

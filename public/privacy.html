@@ -62,9 +62,6 @@
         <li><strong>Heart-rate data</strong> — measured by a paired Bluetooth heart-rate
           sensor, or read from Android Health Connect, if you turn either on (Android
           only; see below).</li>
-        <li><strong>Text you dictate</strong>, if you use the microphone button to speak a
-          message to the coach or a piece of feedback. We receive the <strong>text</strong>
-          only — never a recording (see below).</li>
       </ul>
 
       <h2 class="accent">Location data &amp; background tracking</h2>
@@ -144,41 +141,6 @@
         </ul>
       </div>
 
-      <h2 class="accent">Voice input (dictation)</h2>
-      <div class="card">
-        <p>In the Android and iOS apps you can speak instead of typing when you message the
-          AI coach or send us beta feedback. This is <strong>entirely optional</strong> —
-          the microphone is used only while you hold a dictation session open, and every
-          screen that offers it also takes typing. The web version has no voice input at
-          all.</p>
-        <ul>
-          <li><strong>We never receive audio.</strong> Your speech is turned into text by
-            your phone's own dictation, and the recording is not saved to a file, not
-            uploaded, and not stored by us — there is nowhere in our systems that audio
-            could go. Only the resulting text is sent, and only when you tap send.</li>
-          <li><strong>You see the text before it is sent.</strong> The transcript lands in
-            an ordinary text box that you can edit, correct or clear. Nothing is submitted
-            automatically.</li>
-          <li><strong>The microphone is only ever opened by your tap</strong>, never when a
-            screen loads, and it is released as soon as the dictation ends. Your phone shows
-            its own microphone indicator throughout.</li>
-          <li><strong>One caveat, on Android.</strong> We ask Android for offline
-            recognition, but that is a request rather than a guarantee: on a device with no
-            offline language pack installed, Android's own speech service may transcribe
-            the audio on Google's servers under
-            <a href="https://policies.google.com/privacy" target="_blank"
-              rel="noopener noreferrer">Google's privacy policy</a>. That is the operating
-            system's speech service, not ours, and it is the same one used by the keyboard's
-            microphone key. On iOS, transcription is performed on your device.</li>
-          <li>Once the text reaches us it is treated like anything else you typed: a coach
-            message follows the <strong>AI coach</strong> section below; feedback is stored
-            with your account so we can reply, and deleting your account deletes it.</li>
-          <li>You can refuse or revoke the microphone permission in your phone's settings at
-            any time. The dictation button then simply disappears and typing continues to
-            work.</li>
-        </ul>
-      </div>
-
       <h2>How your data is stored</h2>
       <p>Your account and data are stored using <a href="https://supabase.com">Supabase</a>
         (authentication and a per-user database). Every user's data is isolated by
@@ -235,11 +197,6 @@
         <li><strong>Health Connect (read heart rate)</strong> — to read your
           heart rate for a recorded run. Requested only if you choose Health Connect as
           your heart-rate source.</li>
-        <li><strong>Microphone</strong> — to let you dictate a message to the coach or a
-          piece of feedback instead of typing it. Requested only the first time you tap the
-          microphone button, never on a screen load, and used only while that dictation is
-          open. No recording is kept (see <strong>Voice input</strong> above). The iOS app
-          asks for the same permission, plus speech recognition.</li>
       </ul>
 
       <h2>Children</h2>

@@ -106,7 +106,6 @@
   "input": {
     "aria": "Mensaje para el entrenador",
     "placeholder": "p. ej., ayúdame a llegar descansado al fin de semana",
-    "placeholderFollowUp": "Sugiere un cambio…",
-    "dictate": "Habla tu mensaje"
+    "placeholderFollowUp": "Sugiere un cambio…"
   }
 }

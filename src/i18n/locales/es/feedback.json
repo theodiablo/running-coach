@@ -5,23 +5,14 @@
   "intro": {
     "title": "Cuéntanos qué no funciona",
     "body": "Running Coach está en beta y eres una de las pocas personas que lo usa con un entrenamiento real. Si algo falla, confunde o simplemente molesta, este botón llega directamente a nosotros.",
-    "pointVoice": "Dilo en voz alta: tu teléfono lo convierte en texto",
-    "pointType": "O escríbelo, si lo prefieres",
-    "pointPrivacy": "No se guarda ni se envía ninguna grabación",
-    "type": "Escribir",
-    "record": "Grabar una nota"
+    "start": "Entendido"
   },
   "compose": {
     "title": "¿Algo que corregir antes de enviar?",
     "placeholder": "¿Qué pasó y qué esperabas en su lugar?",
-    "addMore": "Añadir más",
-    "clear": "Borrar",
-    "listening": "Escuchando…",
-    "stop": "Detener",
     "contextTitle": "Se envía con tu nota",
     "contextAccount": "Tu cuenta, para poder responderte",
-    "send": "Enviar comentarios",
-    "voiceFailed": "El dictado no está disponible. Puedes escribirlo."
+    "send": "Enviar comentarios"
   },
   "source": {
     "dash": "Inicio",
@@ -34,7 +25,7 @@
   },
   "coachmark": {
     "title": "¿Viste algo raro?",
-    "body": "Este botón está aquí por la beta. Púlsalo cuando quieras para enviarnos una nota de voz o un texto."
+    "body": "Este botón está aquí por la beta. Púlsalo cuando quieras para contarnos qué no funciona."
   },
   "settingsRow": "Enviar comentarios",
   "settingsHint": "Running Coach está en beta. Cuéntanos qué no funciona.",

@@ -19,16 +19,12 @@ export function feedbackSourceForTab(tab: string): FeedbackSource {
   return TAB_SOURCES.has(tab) ? tab as FeedbackSource : "dash";
 }
 
-export type FeedbackInputMode = "text" | "voice";
-
 export const MAX_FEEDBACK_LEN = 4000;
 
 // Send beta feedback. Inserts WITHOUT a returning .select() — beta_feedback has
 // no client SELECT policy, so reading back the row would 403 even though the
 // write succeeds (mirrors submitCoachFeedback in src/coachFeedback.ts).
-export async function submitBetaFeedback(
-  { body, source, inputMode }: { body: string; source: FeedbackSource; inputMode: FeedbackInputMode },
-) {
+export async function submitBetaFeedback({ body, source }: { body: string; source: FeedbackSource }) {
   const user_id = currentUserId();
   if (!user_id) throw new Error("Not signed in");
   const text = body.trim();
@@ -36,7 +32,10 @@ export async function submitBetaFeedback(
   const id = crypto.randomUUID();
   const { error } = await supabase.from("beta_feedback").insert({
     id, user_id, body: text.slice(0, MAX_FEEDBACK_LEN),
-    source, platform, app_version: nativeBuildLabel() || null, input_mode: inputMode,
+    source, platform, app_version: nativeBuildLabel() || null,
+    // The column outlives the dictation feature it was added for (migrations are
+    // append-only); everything the app sends is typed.
+    input_mode: "text",
   });
   if (error) throw error;
   notifyContribution({ type: "beta_feedback", feedbackId: id });

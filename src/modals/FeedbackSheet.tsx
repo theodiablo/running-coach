@@ -1,14 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Mic, Pencil, Check, X, Square } from "lucide-react";
+import { MessageSquare, X } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
-import { useDictation } from "../hooks/useDictation";
 import { track } from "../telemetry";
 import { platform, nativeBuildLabel } from "../native";
-import {
-  submitBetaFeedback, MAX_FEEDBACK_LEN,
-  type FeedbackSource, type FeedbackInputMode,
-} from "../betaFeedback";
+import { submitBetaFeedback, MAX_FEEDBACK_LEN, type FeedbackSource } from "../betaFeedback";
 
 type Props = {
   source: FeedbackSource;
@@ -32,36 +28,21 @@ export function FeedbackSheet({ source, introSeen, onIntroSeen, onSent, onClose,
   const { t } = useTranslation();
   const [showIntro, setShowIntro] = useState(!introSeen);
   const [text, setText] = useState("");
-  const [mode, setMode] = useState<FeedbackInputMode>("text");
   const [busy, setBusy] = useState(false);
-  const dictation = useDictation({
-    onText: append =>
-      setText(cur => (cur ? `${cur} ${append}` : append).slice(0, MAX_FEEDBACK_LEN)),
-    onProblem: () => showToast(t("feedback.compose.voiceFailed")),
-  });
   useDismissable(true, onClose);
 
-  // Dictating marks the whole report as voice-entered even if it is then
-  // edited: what we want to know is whether the mic got used at all.
-  const listen = async () => {
-    if (dictation.listening) return dictation.stop();
-    if (await dictation.start()) setMode("voice");
-  };
-
-  const leaveIntro = (viaVoice: boolean) => {
+  const leaveIntro = () => {
     setShowIntro(false);
     onIntroSeen();
-    if (viaVoice) void listen();
   };
 
   const send = async () => {
     const body = text.trim();
     if (!body || busy) return;
-    await dictation.stop();
     setBusy(true);
     try {
-      await submitBetaFeedback({ body, source, inputMode: mode });
-      track("feedback_sent", { source, mode });
+      await submitBetaFeedback({ body, source });
+      track("feedback_sent", { source });
       showToast(t("feedback.sent"));
       onSent();
       onClose();
@@ -88,29 +69,10 @@ export function FeedbackSheet({ source, introSeen, onIntroSeen, onSent, onClose,
             </span>
             <h2 className="text-base font-semibold mt-2">{t("feedback.intro.title")}</h2>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{t("feedback.intro.body")}</p>
-            <div className="mt-3 space-y-1.5 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
-              {dictation.supported && (
-                <p className="flex items-center gap-2 text-[11px] text-slate-400"><Mic size={12}/> {t("feedback.intro.pointVoice")}</p>
-              )}
-              <p className="flex items-center gap-2 text-[11px] text-slate-400"><Pencil size={12}/> {t("feedback.intro.pointType")}</p>
-              {dictation.supported && (
-                <p className="flex items-center gap-2 text-[11px] text-slate-400"><Check size={12}/> {t("feedback.intro.pointPrivacy")}</p>
-              )}
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => leaveIntro(false)}
-                className={dictation.supported
-                  ? "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium border border-slate-600 text-slate-300 hover:text-white transition-colors"
-                  : "flex-1 py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors"}>
-                {dictation.supported && <Pencil size={14}/>} {t("feedback.intro.type")}
-              </button>
-              {dictation.supported && (
-                <button onClick={() => leaveIntro(true)}
-                  className="flex-[1.4] flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors">
-                  <Mic size={14}/> {t("feedback.intro.record")}
-                </button>
-              )}
-            </div>
+            <button onClick={leaveIntro}
+              className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors">
+              {t("feedback.intro.start")}
+            </button>
           </div>
         ) : (
           <div className="px-4 pb-4 pt-1 overflow-y-auto">
@@ -126,32 +88,6 @@ export function FeedbackSheet({ source, introSeen, onIntroSeen, onSent, onClose,
               aria-label={t("feedback.aria")}
               className="w-full mt-2 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500 resize-none"/>
 
-            {dictation.listening && (
-              <p className="text-[11px] text-orange-300 mt-1.5 italic">
-                {dictation.partial || t("feedback.compose.listening")}
-              </p>
-            )}
-
-            {dictation.supported && (
-              <div className="flex gap-2 mt-2">
-                <button onClick={listen}
-                  aria-label={dictation.listening ? t("feedback.compose.stop") : t("feedback.intro.record")}
-                  aria-pressed={dictation.listening}
-                  className={"flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors " +
-                    (dictation.listening
-                      ? "bg-orange-500/15 border-orange-500/50 text-orange-300"
-                      : "border-slate-600 text-slate-400 hover:text-white")}>
-                  {dictation.listening ? <Square size={11}/> : <Mic size={11}/>}
-                  {dictation.listening ? t("feedback.compose.stop") : t("feedback.compose.addMore")}
-                </button>
-                {!!text && (
-                  <button onClick={() => setText("")}
-                    className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-600 text-slate-400 hover:text-white transition-colors">
-                    <X size={11}/> {t("feedback.compose.clear")}
-                  </button>
-                )}
-              </div>
-            )}
 
             <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-3">{t("feedback.compose.contextTitle")}</p>
             <div className="mt-1.5 bg-slate-900/60 border border-slate-700 rounded-xl p-3 space-y-1">
