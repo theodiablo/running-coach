@@ -147,6 +147,16 @@ permission to manage it (the SES SMTP user, say) is a two-step deploy. The same
 applies to the SES permissions boundary: `DenyBoundaryTampering` refuses any
 new version of it, so editing what that user may do is a local apply too.
 
+**A new `data` source is worse than a new resource**, and it is worth knowing
+before you add one. A resource that needs a permission the live apply role
+lacks fails at apply; a data source that needs a read the live *plan* role
+lacks fails at **plan**, so every PR goes red — including PRs that have nothing
+to do with the change — until the local apply lands the read. That is what
+`data.aws_route53_zone.primary` did: `route53:ListHostedZones` reached the
+policy in the same commit that first used it, which the deployed plan role did
+not have yet. The order that avoids it is the same one as everywhere else here:
+apply from the branch first, and the PR that follows is green.
+
 ### Bootstrapping
 
 Both CI roles are declared in `terraform_roles.tf` but had to exist before CI

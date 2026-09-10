@@ -224,7 +224,10 @@ Account dashboard says which.
    A change that widens the CI policy cannot be applied by CI itself
    (`infra/README.md`), and applying first leaves the merge with nothing to do
    — the workflow skips apply on a zero-change plan, so `main` stays green.
-   Merging first gets a half-applied plan and a red default branch.
+   Merging first gets a half-applied plan and a red default branch. Until that
+   apply runs, the PR's own `terraform` check is red too: the Route 53 zone
+   lookup needs a read the deployed plan role does not have yet
+   (`infra/README.md`).
 2. Wait for verification. The same apply writes the DNS records (DKIM CNAMEs,
    MAIL FROM MX and SPF, DMARC and the `_report._dmarc` record authorising its
    off-domain `rua` mailbox) into Route 53, so there is nothing to copy — but
