@@ -162,16 +162,3 @@ resource "aws_cloudfront_distribution" "site" {
     minimum_protocol_version = "TLSv1.2_2021"
   }
 }
-
-# Superseded: this verifies nothing. The Search Console property is a *Domain*
-# property, proved by a TXT at the zone root and covering every subdomain, so
-# the live token is the one in dns.tf. Kept only because deleting a record is a
-# destroying plan, which terraform.yml refuses without an allow_destroy
-# dispatch; remove it in a change dispatched that way.
-resource "aws_route53_record" "site_google_verification" {
-  zone_id = data.aws_route53_zone.primary.zone_id
-  name    = local.site_bucket_name
-  type    = "TXT"
-  ttl     = 300
-  records = ["google-site-verification=CUJdbeBXHaFwEf34kLohlnZ_8t0wqRcemS110nD3d1M"]
-}

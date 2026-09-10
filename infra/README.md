@@ -185,7 +185,6 @@ maintain them now.
 | IAM policy | `run-app-ses-smtp-boundary` | Permissions boundary on that user, and the condition the apply role's user-creation grant is gated on. |
 | Route 53 records | 3 DKIM CNAMEs, MAIL FROM MX + SPF, DMARC + `_report._dmarc` | Verification and alignment for the auth sending domain. The zone itself is a `data` source. |
 | Route 53 record | `camboulive.solutions` TXT | Apex TXT set, adopted: the SES SPF value plus the Google Search Console proof for the Domain property (`dns.tf`). |
-| Route 53 record | `run.camboulive.solutions` TXT | Superseded verification token (`site.tf`). Verifies nothing — a Domain property is proved at the root. Removal is a destroy, so it needs an `allow_destroy` dispatch. |
 
 Three deliberate non-decisions worth knowing before you change them:
 
