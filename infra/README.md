@@ -184,7 +184,7 @@ maintain them now.
 | IAM user | `run-app-ses-smtp-auth` | Send-only SES credentials Supabase Auth signs in as over SMTP. Its access key is the SMTP username/password pair. |
 | IAM policy | `run-app-ses-smtp-boundary` | Permissions boundary on that user, and the condition the apply role's user-creation grant is gated on. |
 | Route 53 records | 3 DKIM CNAMEs, MAIL FROM MX + SPF, DMARC + `_report._dmarc` | Verification and alignment for the auth sending domain. The zone itself is a `data` source. |
-| Route 53 record | `run.camboulive.solutions` TXT | Google Search Console ownership proof for the site's canonical origin (`site.tf`). |
+| Route 53 record | `camboulive.solutions` TXT | Apex TXT set, adopted: the SES SPF value plus the Google Search Console proof for the Domain property (`dns.tf`). |
 
 Three deliberate non-decisions worth knowing before you change them:
 
@@ -214,14 +214,20 @@ and nothing here needs to reissue or rotate it), the
 `ses-forwarder-camboulive-solutions` Lambda and its role (not part of this
 adoption's scope), the `runapp-notify` SES configuration set the contribution
 notifier sends through (so do not read the `runapp-auth` set below as the only
-one in the account), and the Route 53 records for the apex itself (its MX,
-DKIM and SPF, the site's alias, the ACM validation records). The zone is
-resolved as a `data` source, so this configuration can never destroy it. The
-records it does manage are the auth sending domain's — added because the DKIM
-tokens come off the identity resource, and hand-copying them is the step that
-fails silently — and the site's Google Search Console proof (`site.tf`), which
-is here so that the token backing a verified property is reviewable rather than
-living only in the console.
+one in the account), and most of the Route 53 records for the apex
+itself (its MX and DKIM, the site's alias, the ACM validation records). The
+zone is resolved as a `data` source, so this configuration can never destroy
+it. The records it does manage are the auth sending domain's — added because
+the DKIM tokens come off the identity resource, and hand-copying them is the
+step that fails silently — and the apex TXT set (`dns.tf`).
+
+That last one is **adopted, not created**, and the distinction is load-bearing:
+the apex TXT already held the SPF value authorising SES to send for the domain,
+and Route 53 stores every TXT value for one name in a single record. A second
+resource for that name collides with the live one; a resource that omits the
+SPF value silently unauthenticates the domain's mail. The `import` block is
+what makes adding a value to that set safe. Any future apex TXT value goes into
+the same `records` list, never a new resource.
 
 ## State
 
