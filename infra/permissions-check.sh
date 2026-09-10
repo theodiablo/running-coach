@@ -33,6 +33,12 @@ SES_BUCKET="arn:aws:s3:::ses-inbound-camboulive-solutions"
 OTHER_BUCKET="arn:aws:s3:::luffashop-backups"
 SMTP_USER="arn:aws:iam::${ACCOUNT}:user/system/run-app-ses-smtp-auth"
 SMTP_BOUNDARY="arn:aws:iam::${ACCOUNT}:policy/run-app-ses-smtp-boundary"
+# SES ARNs are regional. configure-aws-credentials exports AWS_REGION in CI;
+# the fallback is var.aws_region's default.
+SES_REGION="${AWS_REGION:-eu-west-1}"
+AUTH_IDENTITY="arn:aws:ses:${SES_REGION}:${ACCOUNT}:identity/mail.camboulive.solutions"
+AUTH_CONFIG_SET="arn:aws:ses:${SES_REGION}:${ACCOUNT}:configuration-set/runapp-auth"
+APEX_IDENTITY="arn:aws:ses:${SES_REGION}:${ACCOUNT}:identity/camboulive.solutions"
 SITE_DISTRIBUTION="arn:aws:cloudfront::${ACCOUNT}:distribution/E42OGU5IVYJ14"
 # Resolved rather than hardcoded, the same way the configuration resolves it.
 # An empty result is not a failure here: on the very first run after the grant
@@ -159,6 +165,24 @@ check "delete the user"              "$APPLY_ROLE" iam:DeleteUser      "$SMTP_US
 check "delete its inline policy"     "$APPLY_ROLE" iam:DeleteUserPolicy "$SMTP_USER" allowed
 check "delete its access key"        "$APPLY_ROLE" iam:DeleteAccessKey "$SMTP_USER" allowed
 check "create the boundary policy"   "$APPLY_ROLE" iam:CreatePolicy    "$SMTP_BOUNDARY" allowed
+
+echo
+echo "the SMTP user itself: send-only, from the auth identity alone"
+# The user, not a CI role — this is the credential Supabase Auth signs in with,
+# and its boundary is evaluated here automatically. The configuration-set case
+# is a regression test: the identity carries runapp-auth as its default, so SES
+# authorises each send against the set as well, and an identity-only grant took
+# every password reset down with a 554 while the identity was verified and the
+# credentials were valid.
+check "send from the auth identity"  "$SMTP_USER" ses:SendRawEmail "$AUTH_IDENTITY"   allowed
+check "send through its config set"  "$SMTP_USER" ses:SendRawEmail "$AUTH_CONFIG_SET" allowed
+check "send via the v2 API"          "$SMTP_USER" ses:SendEmail    "$AUTH_IDENTITY"   allowed
+# Send-only, and only from the domain nobody else sends from: the apex is the
+# inbound/notifier identity, and auth mail must not be able to spend its
+# reputation.
+check "send from the apex identity"  "$SMTP_USER" ses:SendRawEmail "$APEX_IDENTITY"  denied
+check "read a backup tarball"        "$SMTP_USER" s3:GetObject     "$BACKUP_OBJECT"  denied
+check "rotate its own access key"    "$SMTP_USER" iam:CreateAccessKey "$SMTP_USER"   denied
 
 echo
 echo "tf-apply: reading the roles it manages"

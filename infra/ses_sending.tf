@@ -90,10 +90,18 @@ resource "aws_iam_policy" "ses_smtp_boundary" {
 
 data "aws_iam_policy_document" "ses_smtp_auth" {
   statement {
-    sid       = "SendFromAuthIdentity"
-    effect    = "Allow"
-    actions   = ["ses:SendRawEmail", "ses:SendEmail"]
-    resources = [aws_sesv2_email_identity.auth.arn]
+    sid     = "SendFromAuthIdentity"
+    effect  = "Allow"
+    actions = ["ses:SendRawEmail", "ses:SendEmail"]
+    # Both ARNs, not just the identity: the identity carries this set as its
+    # default, so SES authorises every send against the configuration set too
+    # and an identity-only grant fails the whole send with a 554 "Access
+    # denied" naming the set. It is the ceiling as well as the grant, so the
+    # boundary needs it for the same reason.
+    resources = [
+      aws_sesv2_email_identity.auth.arn,
+      aws_sesv2_configuration_set.auth.arn,
+    ]
   }
 }
 
