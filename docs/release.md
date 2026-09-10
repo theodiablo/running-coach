@@ -248,6 +248,16 @@ Account dashboard says which.
 5. Send a real password reset and check the headers: `dkim=pass` and
    `spf=pass` both aligned to `mail.camboulive.solutions`.
 
+**When auth mail stops sending, the auth logs name the cause verbatim** —
+Supabase → Logs → Auth, `/recover` or `/signup` at status 500. The client only
+ever shows `authErrors.emailSendFailed` (GoTrue reports every mailer failure as
+one `unexpected_failure`), so the log is the only place the reason exists. A 554
+"Access denied" naming a resource ARN is an IAM gap in the SMTP user, not a
+verification or sandbox problem: SES authorises a send against the identity
+**and** the identity's default configuration set, so both belong in
+`data.aws_iam_policy_document.ses_smtp_auth` — which is the boundary as well as
+the grant, and editing it is a local apply (`infra/README.md`).
+
 Rotating the credentials is `terraform taint aws_iam_access_key.ses_smtp_auth`
 plus a new apply, then pasting the new pair into the dashboard. Nothing reads
 them automatically.
