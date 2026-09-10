@@ -35,16 +35,14 @@ public class MainActivity extends BridgeActivity {
         // picks them up: WatchImport (post-run exercise import from Health Connect),
         // RunPermissions (POST_NOTIFICATIONS for the recording-run notification),
         // LivePublish (screen-off live-share uploads), WorkoutGuide (screen-off
-        // guided-workout cues), IndoorSession (the foreground service that
-        // holds the process while an indoor session records) and Speech
-        // (dictation for the coach composer and the feedback sheet).
+        // guided-workout cues) and IndoorSession (the foreground service that
+        // holds the process while an indoor session records).
         registerPlugin(WatchImportPlugin.class);
         registerPlugin(RunPermissionsPlugin.class);
         registerPlugin(LivePublishPlugin.class);
         registerPlugin(WorkoutGuidePlugin.class);
         registerPlugin(IndoorSessionPlugin.class);
         registerPlugin(ShellDiagPlugin.class);
-        registerPlugin(SpeechPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Shell diagnostics (ShellDiagLog). Always on, unlike the GPS log: these

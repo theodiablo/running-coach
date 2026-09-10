@@ -106,7 +106,6 @@
   "input": {
     "aria": "Message au coach",
     "placeholder": "P. ex. : aide-moi à arriver en forme ce week-end",
-    "placeholderFollowUp": "Suggère une modification…",
-    "dictate": "Dicte ton message"
+    "placeholderFollowUp": "Suggère une modification…"
   }
 }

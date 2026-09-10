@@ -43,10 +43,6 @@
 	<string>Running Coach reads your heart-rate samples and finished workouts from Apple Health to attach heart rate to your tracked runs and import runs recorded on your watch. Nothing is ever written to Apple Health.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Running Coach never writes or updates any data in Apple Health, and this permission is never requested. This description is only present because the app includes Apple's HealthKit framework.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Running Coach uses the microphone only while you are dictating a message to your coach or writing feedback. Nothing is recorded or uploaded.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Speech you dictate is turned into text on this iPhone, so you can talk to your coach instead of typing. The audio never leaves your device.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Running Coach uses your location to record your route, distance and pace while you run, including when the screen is off or the app is in the background during an active run.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

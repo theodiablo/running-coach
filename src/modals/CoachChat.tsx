@@ -3,8 +3,7 @@ import { CoachText } from "../components/CoachText";
 import type { CoachLinkTarget } from "../utils/coachLinks";
 import { useTranslation, Trans } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
-import { useDictation } from "../hooks/useDictation";
-import { Loader, MessageSquarePlus, Send, X, Flag, History, ArrowLeft, Mic, Square, MessageSquare } from "lucide-react";
+import { Loader, MessageSquarePlus, Send, X, Flag, History, ArrowLeft, MessageSquare } from "lucide-react";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { coachPropose, coachCritique, coachConfirm, coachPing, coachUsage, CoachServerError } from "../coach";
 import { submitCoachFeedback } from "../coachFeedback";
@@ -82,13 +81,6 @@ type CoachChatProps = {
 export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onFeedback, onClose, onNavigate, sessionContext }: CoachChatProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
-  // Dictation appends into the composer and stops there: a recognizer mishears
-  // names and paces constantly, so the transcript is always edited-then-sent by
-  // hand. Auto-sending would spend one of the day's messages on a mis-hear.
-  const dictation = useDictation({
-    onText: append => setInput(cur => (cur ? `${cur} ${append}` : append)),
-    onProblem: () => showToast(t("feedback.compose.voiceFailed"), "err"),
-  });
 
   // Localized display strings + a canonical-English context prefix, both derived
   // from the same session so the bubble reads in the user's language while the
@@ -254,9 +246,6 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
     // so only treat a real string as an override and otherwise read the input.
     const text = (typeof preset === "string" ? preset : input).trim();
     if (!text || busy || exhausted) return;
-    // Close the mic before the round: a transcript settling afterwards would
-    // append into an input the user has already moved on from.
-    await dictation.stop();
     // Count genuine coach interactions — a user actually sending a message.
     // Never the message text; just whether it opens a chat or follows up on an
     // already-open trajectory (a proposal round). Consent-gated in track().
@@ -527,11 +516,6 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
             {exhausted && (
               <p className="max-w-lg mx-auto text-[11px] text-amber-400 mb-2">{t("coach.usage.limitReached")}</p>
             )}
-            {dictation.listening && (
-              <p className="max-w-lg mx-auto text-[11px] text-orange-300 italic mb-2">
-                {dictation.partial || t("feedback.compose.listening")}
-              </p>
-            )}
             <div className="max-w-lg mx-auto flex gap-2">
               <input id="coach-message" name="coach-message" ref={inputRef} aria-label={t("coach.input.aria")} value={input} onChange={e => setInput(e.target.value)}
                 autoFocus={!!sessionContext}
@@ -539,19 +523,6 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
                 onKeyDown={e => { if (e.key === "Enter") send(); }}
                 placeholder={trajectoryId ? t("coach.input.placeholderFollowUp") : t("coach.input.placeholder")}
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500 disabled:opacity-50"/>
-              {dictation.supported && (
-                <button
-                  onClick={() => { if (dictation.listening) void dictation.stop(); else void dictation.start(); }}
-                  disabled={(busy && !dictation.listening) || exhausted}
-                  aria-label={dictation.listening ? t("feedback.compose.stop") : t("coach.input.dictate")}
-                  aria-pressed={dictation.listening}
-                  className={"px-3.5 rounded-xl border transition-colors disabled:opacity-40 " +
-                    (dictation.listening
-                      ? "bg-orange-500/15 border-orange-500/60 text-orange-300"
-                      : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white")}>
-                  {dictation.listening ? <Square size={16}/> : <Mic size={16}/>}
-                </button>
-              )}
               <button onClick={send} disabled={busy || !input.trim() || exhausted} aria-label={t("coach.send")}
                 className="bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white px-4 rounded-xl transition-colors">
                 <Send size={16}/>
