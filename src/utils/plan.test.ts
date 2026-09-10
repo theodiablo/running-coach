@@ -273,6 +273,21 @@ describe("buildPlan", () => {
         expect(baseWeeks(build(old))).toBe(4);
       });
 
+      it("does not credit runs squeezed into a single day", () => {
+        // Three runs a week, all on the same day of that week: a keen day, not
+        // a week of training — and a double or a missed import shouldn't buy one.
+        const sameDay = history(4, 3).map((r, i) =>
+          ({ ...r, date: raceDateInDays(-(Math.floor(i / 3) * 7 + 1)) }));
+        expect(baseWeeks(build(sameDay))).toBe(4);
+      });
+
+      it("does not credit a week of token jogs", () => {
+        // Two 2 km runs a week is consistency without a base — the runner this
+        // on-ramp exists for. 8 x 8 km weeks earn it; 8 x 2 km weeks don't.
+        expect(baseWeeks(build(history(4, 3).map(r => ({ ...r, km: 2 }))))).toBe(4);
+        expect(baseWeeks(build(history(4, 3)))).toBe(2);
+      });
+
       it("does not credit cross-training", () => {
         expect(baseWeeks(build(history(4, 3).map(r => ({ ...r, type: "OTHER" }))))).toBe(4);
       });

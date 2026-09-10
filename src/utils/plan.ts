@@ -71,20 +71,37 @@ type WeekCtx = {
 
 // Weeks of the standard base block the runner has already effectively done —
 // the phase-block twin of the long run's fitness floor. A "trained" week is one
-// of the last 4 seven-day windows holding at least 2 real runs (cross-training
-// builds fitness but not the running base, and a single weekly run isn't a
-// block). The ladder is deliberately coarse: it takes 3 consistent weeks to
-// earn the full 2-week credit, and a lay-off earns none.
-const TRAINED_WEEK_RUNS = 2;
-function baseCredit(recentRuns: RecentRun[], today: Date) {
-  const weekAgo = (n: number) => ymd(new Date(today.getTime() - n * 7 * 86400000));
+// of the last 4 seven-day windows holding runs on at least 2 separate days
+// (two runs on one day is a keen day, not a week of training; cross-training
+// builds fitness but not the running base) AND at least as much running as the
+// plan's own opening week would ask: counting entries alone, two 2 km jogs a
+// week bought a runner out of the on-ramp they most needed. The ladder is
+// deliberately coarse — 3 consistent weeks earn the full credit, a lay-off none.
+const TRAINED_WEEK_DAYS = 2;
+function baseCredit(recentRuns: RecentRun[], today: Date, weekKmFloor: number) {
+  // Calendar arithmetic, not fixed ms: across a DST change the ms form slides
+  // the whole 4-week grid a day and moves runs into the wrong window.
+  const weekAgo = (n: number) => {
+    const d = new Date(today); d.setDate(d.getDate() - n * 7); return ymd(d);
+  };
   const trainedWeeks = [0, 1, 2, 3].filter(i => {
     const from = weekAgo(i + 1), to = weekAgo(i);
     const runs = recentRuns.filter(r =>
       r && r.date && r.date > from && r.date <= to && (r.km ?? 0) > 0 && !isCrossTraining(r));
-    return runs.length >= TRAINED_WEEK_RUNS;
+    return new Set(runs.map(r => r.date)).size >= TRAINED_WEEK_DAYS
+      && runs.reduce((km, r) => km + (r.km ?? 0), 0) >= weekKmFloor;
   }).length;
   return trainedWeeks >= 3 ? 2 : trainedWeeks >= 2 ? 1 : 0;
+}
+
+// How far a session may be trimmed by the ramp guard. An intervals session's
+// distance is computed FROM its reps and its desc names them, so shrinking it
+// past one rep would leave the two disagreeing — hold it at reps-1.
+function trimFloor(s: PlanSession, floorKm: number) {
+  const sd = s.sd as { kind?: string; reps?: number; repM?: number } | undefined;
+  if (sd?.kind === "intervals" && sd.reps && sd.repM)
+    return Math.max(floorKm, s.km - sd.repM / 1000);
+  return floorKm;
 }
 
 // `opts` is additive so the positional call sites keep working. Every app call
@@ -170,12 +187,21 @@ export function buildPlan(
   // block: a short plan that spent 4 weeks in base labelled its easy weeks
   // PEAK and never prescribed a tempo. Half the pre-taper runway, capped at 4
   // — identical to the old fixed 4 from 11 weeks up.
-  const fullBase = Math.min(4, Math.max(1, Math.ceil((N - 3) / 2)));
+  const preTaper = N - 3;
+  const fullBase = Math.min(4, Math.max(1, Math.ceil(preTaper / 2)));
   // ...and recent consistency shortens it (docs/training-plan.md). A rebuild
   // re-anchors week 1 on the next Monday, so adding a race mid-block otherwise
-  // marched the runner back through a base block they had just run.
-  const baseW  = Math.max(0, fullBase - baseCredit(recentRuns, today));
-  const peakW  = Math.max(baseW, N - 7); // first PEAK week; BUILD fills any gap
+  // marched the runner back through a base block they had just run. The credit
+  // shortens the on-ramp; only a single-week runway can spend it entirely.
+  // Week 1's prescription is the yardstick for "already training" — the easy
+  // days open at 2.5 km, the long run at the fitness-aware start.
+  const weekKmFloor = startLong + 2.5 * qualSessions.length;
+  const onRamp = preTaper > 1 ? 1 : 0;
+  const baseW  = Math.max(onRamp, fullBase - baseCredit(recentRuns, today, weekKmFloor));
+  // At least one BUILD week wherever the runway allows: hansons puts its speed
+  // block there before PEAK's goal-pace strength work, and runwalk steps its
+  // run/walk ratio through it — collapsing BASE straight into PEAK skips both.
+  const peakW  = Math.max(baseW + (preTaper - baseW > 1 ? 1 : 0), N - 7);
 
   const weeks: PlanWeek[] = [];
 
@@ -295,6 +321,39 @@ export function buildPlan(
       });
     }
     wk.sessions.sort((a, b) => a.date.localeCompare(b.date));
+  });
+
+  // Ramp guard: the validator's own week-over-week rule (1.3x the bigger of the
+  // two preceding weeks, +3 km slack) enforced at generation time, so a plan is
+  // validator-clean by construction. Only a week that actually breaks it is
+  // touched — a clean plan comes through byte-identical. Shortening the base
+  // block is what made this reachable: quality sized off the day's time budget
+  // landing on a week still on the base easy line is a real jump, and the coach
+  // must never open on a week the app itself calls "making up missed volume".
+  // Quality keeps its slot and its intensity; only its distance gives way, and
+  // never the long run, which is the week's point.
+  const RAMP_FACTOR = 1.3, RAMP_SLACK_KM = 3, TRIM_FLOOR_KM = 1.5;
+  const wkKm = (wk: PlanWeek) => wk.sessions.reduce((t, s) => t + (s.type === "RACE" ? 0 : s.km), 0);
+  weeks.forEach((wk, i) => {
+    if (i === 0 || wk.phase === "TAPER" || weeks[i - 1].sessions.some(s => s.type === "RACE")) return;
+    const ref = Math.max(wkKm(weeks[i - 1]), i >= 2 ? wkKm(weeks[i - 2]) : 0);
+    if (ref <= 0) return;
+    // Half a tenth of headroom: a week trimmed to sit exactly ON the ceiling
+    // trips the validator's strict `>` on float noise alone.
+    let over = wkKm(wk) - (ref * RAMP_FACTOR + RAMP_SLACK_KM) + 0.05;
+    // Longest first: shed from the session that caused the jump, not the crumbs.
+    const trimmable = wk.sessions.filter(s => s.type !== "LONG" && s.type !== "RACE")
+      .sort((a, b) => b.km - a.km);
+    for (const s of trimmable) {
+      if (over <= 0) break;
+      const room = s.km - trimFloor(s, TRIM_FLOOR_KM);
+      if (room <= 0) continue;
+      // Distances are stored to 0.1 km, so shave whole tenths — rounding a
+      // just-enough cut back up leaves the week over the line it just cleared.
+      const cut = Math.min(Math.ceil(over * 10) / 10, room);
+      s.km = Math.round((s.km - cut) * 10) / 10;
+      over -= cut;
+    }
   });
 
   const rWS = new Date(w0); rWS.setDate(w0.getDate() + N * 7);
@@ -469,10 +528,9 @@ function composeLowfreq(c: WeekCtx) {
         { kind: "easy", variant: "relaxed" });
       return;
     }
-    const buildW = w - 4;
     // Two placed quality days: first = intervals, second = tempo. If only one
     // could be placed, it alternates so both stimuli still appear.
-    const doIntervals = hardDays.length >= 2 ? slot === 0 : buildW % 2 === 1;
+    const doIntervals = hardDays.length >= 2 ? slot === 0 : c.buildW % 2 === 1;
     if (doIntervals) {
       // Budget-derived reps; total = reps + allowance (see composeBalanced).
       const nominal = q.minutes <= 30 ? 6 : q.minutes <= 45 ? 5 : 6;

@@ -47,21 +47,50 @@ block they have just run — four weeks of easy-only work they had already
 finished. `baseCredit` reads the same `recentRuns` the long-run floor does and
 shortens the on-ramp:
 
-| Weeks (of the last 4) with ≥2 real runs | Weeks credited |
+| Trained weeks (of the last 4) | Weeks credited |
 | --- | --- |
 | 0–1 | 0 — a new or returning runner gets the full block |
 | 2 | 1 |
 | 3–4 | 2 |
 
-Only running counts: cross-training builds fitness but not the running base
-(same `isCrossTraining` line as the long-run floor), and one run a week is not
-a block. The ladder is deliberately coarse and capped at 2 — evidence of
-consistency shortens the on-ramp, it does not hand a fit runner a plan that is
-all quality; a 16-week block still opens with base weeks. On a 4–5 week runway
-`fullBase` is 1, so a credited runner starts straight in their one quality week
-— which is the honest shape when there is only one week of work to be had.
-Self-reported `level` deliberately does **not** feed this: it floors the long
-run, but only logged runs buy a shorter base.
+A **trained week** is a 7-day window holding runs on ≥2 separate days *and* at
+least as much running as the plan's own opening week would ask (`startLong +
+2.5 km` per other session — the long run's fitness-aware start plus the base
+easy line). Both halves are load-bearing: counting entries alone, two 2 km jogs
+a week bought a runner out of the on-ramp they most needed, and two runs on one
+day is a keen day, not a week of training. Only running counts — cross-training
+builds fitness but not the running base (same `isCrossTraining` line as the
+long-run floor). Windows are walked by calendar date, not fixed milliseconds, or
+a DST change slides the whole grid a day.
+
+The ladder is deliberately coarse and capped at 2 — evidence of consistency
+shortens the on-ramp, it does not hand a fit runner a plan that is all quality;
+a 16-week block still opens with base weeks, and every plan with more than one
+pre-taper week keeps at least one. Self-reported `level` deliberately does
+**not** feed this: it floors the long run, but only logged runs buy a shorter
+base.
+
+### The ramp guard
+
+Shortening the base block moves quality onto a smaller week, and a quality
+session is sized off the day's *time budget* while the easy day it replaces is
+on the base's gentle km line — a real jump in weekly volume. `buildPlan` closes
+with a guard that applies the validator's own ramp rule (`1.3 ×` the bigger of
+the two preceding weeks, `+3 km`) to its own output: a week over the line sheds
+distance from its quality sessions, longest first, never from the long run,
+which is the week's point. Intervals stop one rep short of disagreeing with
+their own description; distances are shaved in whole tenths, because rounding a
+just-enough cut back up leaves the week over the line it just cleared.
+
+A plan already inside the rule comes through byte-identical, so the guard is
+invisible to every clean plan — including the frozen snapshots. It is what
+keeps "generated plans are validator-clean by construction" true now that
+quality can start in week 2; it also cleans up a number of pre-existing
+short-horizon plans that were dirty before it existed. It does **not** touch
+`HARD_BACK_TO_BACK`: for `balanced`, a user-picked adjacent day pair is a
+pre-existing, validator-waived condition the generator must not silently
+rewrite (see the demotion sweep's exemption), and short plans can now reach it
+because they finally have quality sessions to place.
 
 The composers read `isBase`/`isTaper`/`phase` from those same boundaries, and
 `buildW` (the week's index *within the post-base block*) drives the
