@@ -4,5 +4,6 @@
   "emailSendFailed": "We couldn't send that email just now. Please try again in a few minutes.",
   "emailInvalid": "That email address doesn't look right. Check it and try again.",
   "emailTaken": "That address is already linked to an account. Sign in instead, or use another one.",
-  "tooManyRequests": "Too many attempts just now. Wait a moment and try again."
+  "tooManyRequests": "Too many attempts just now. Wait a moment and try again.",
+  "emailNotConfirmed": "Open the confirmation link we emailed you, then sign in."
 }

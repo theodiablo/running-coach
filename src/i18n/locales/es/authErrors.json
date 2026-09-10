@@ -4,5 +4,6 @@
   "emailSendFailed": "No hemos podido enviar ese correo ahora mismo. Inténtalo de nuevo en unos minutos.",
   "emailInvalid": "Esa dirección de correo no parece correcta. Revísala e inténtalo de nuevo.",
   "emailTaken": "Esa dirección ya está vinculada a una cuenta. Inicia sesión o usa otra.",
-  "tooManyRequests": "Demasiados intentos seguidos. Espera un momento e inténtalo de nuevo."
+  "tooManyRequests": "Demasiados intentos seguidos. Espera un momento e inténtalo de nuevo.",
+  "emailNotConfirmed": "Abre el enlace de confirmación que te enviamos por correo y luego inicia sesión."
 }

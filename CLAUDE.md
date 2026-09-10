@@ -142,9 +142,13 @@ Always re-verify a finding before acting on it; agents report false positives.
 - **Auth callbacks:** every native deep link is classified by the pure
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
-  email-change OTP (`?token_hash=&type=`, which needs `verifyOtp`, not the PKCE
-  exchange), then `?code=`, then GoTrue's bare `?message=` notice. Params are
-  read from the query *and* the fragment. Add new callback shapes there, with a
+  password recovery, then email-change OTP (`?token_hash=&type=`, which needs
+  `verifyOtp`, not the PKCE exchange), then `?code=`, then GoTrue's bare
+  `?message=` notice. Params are read from the query *and* the fragment.
+  **Recovery outranks `?code=`**: exchanged as an ordinary sign-in it drops the
+  user into the app with no way to set the password they came to replace, so
+  `App.tsx` renders `ResetPasswordScreen` over everything — before the store,
+  which it doesn't need and must not wait on — until a new password is saved. Add new callback shapes there, with a
   test, not as another branch in `App.tsx`. **Every branch must end in visible
   feedback**: a signed-in user never sees `LoginScreen`, so an auth failure
   reported there is invisible — emit `AUTH_NOTICE_EVENT` (toasted by
@@ -159,6 +163,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   trade a specific one for something vaguer. A successful send must also leave
   nothing to press again (`LoginScreen` swaps the form for "check your inbox"):
   a live button under a one-line note produced six 429s in ninety seconds.
+- **The login screen has one form, and it never asks the user to classify
+  themselves.** No sign-in/sign-up tabs: `Continue` tries to sign in, and the
+  one error that can't be told apart from the outside (`invalid_credentials`
+  answers identically for "no account" and "wrong password" — anything that told
+  them apart would be an account-enumeration oracle) opens a fork offering both
+  ways out with the typed credentials carried over. `intent` picks the copy and
+  which call goes first; it is not a mode the user sets. Reset copy never claims
+  an email was sent, for the same enumeration reason.
 - **Email change is one link + one notification, decided by server truth.**
   `double_confirm_changes` is **off**, so the confirmation goes to the new
   address only and the `email_changed` notification tells the old one — keep

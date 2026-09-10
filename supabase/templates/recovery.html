@@ -1,0 +1,33 @@
+<!--
+  Sent by "Forgot your password?" on the login screen (resetPasswordForEmail).
+
+  The link is built by hand rather than from {{ .ConfirmationURL }}, which
+  redirects through /verify and lands as a ?code= whose shape depends on the
+  flow GoTrue picked. ?token_hash=&type=recovery is the one shape the app can
+  classify with certainty on BOTH the web and the deep link, ahead of the
+  ordinary sign-in branch that would otherwise swallow it (src/utils/
+  authCallback.ts). .RedirectTo is what the client passed — the web origin, or
+  the native deep link — and falls back to the site itself for a reset started
+  from the dashboard.
+
+  Variables: .Email, .ConfirmationURL, .TokenHash, .Token, .SiteURL, .RedirectTo.
+
+  Not auto-deployed — paste into Dashboard -> Authentication -> Emails ->
+  "Reset Password" when it changes (docs/release.md).
+-->
+<h2>Choose a new password</h2>
+
+<p>
+  You asked to reset the password on your Running Coach account
+  (<strong>{{ .Email }}</strong>). Open the link below and pick a new one.
+</p>
+
+<p>
+  <a href="{{ if .RedirectTo }}{{ .RedirectTo }}{{ else }}{{ .SiteURL }}{{ end }}?token_hash={{ .TokenHash }}&type=recovery">
+    Choose a new password
+  </a>
+</p>
+
+<p>The link works once, and expires in an hour.</p>
+
+<p>If you didn't ask for this, ignore this email — your password stays as it is.</p>

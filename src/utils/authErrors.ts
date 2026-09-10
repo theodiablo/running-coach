@@ -64,5 +64,30 @@ export function authErrorMessage(err: unknown): AuthMessage | null {
   if (code === "email_exists" || code === "user_already_exists") {
     return { key: "authErrors.emailTaken", tone: "error" };
   }
+  // Confirmations are on, so a brand-new account can't sign in until the link
+  // is opened. GoTrue's own "Email not confirmed" doesn't say what to do.
+  if (code === "email_not_confirmed") {
+    return { key: "authErrors.emailNotConfirmed", tone: "error" };
+  }
   return null;
+}
+
+// The one error the merged login form forks on, rather than prints. GoTrue
+// answers identically for "no account with that address" and "wrong password"
+// — an endpoint that told them apart would be an account-enumeration oracle —
+// so the screen stops guessing and offers both ways out instead.
+export function isInvalidCredentials(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const { message, code } = err as AuthErrorLike;
+  return code === "invalid_credentials" || /invalid login credentials/i.test(message || "");
+}
+
+// Sign-up answered "that address is taken". Also a fork, not a dead end: the
+// person in front of the form is almost always the account's owner, arriving
+// from a "Get started" button out of habit.
+export function isEmailTaken(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const { message, code } = err as AuthErrorLike;
+  return code === "email_exists" || code === "user_already_exists"
+    || /already registered|already been registered/i.test(message || "");
 }
