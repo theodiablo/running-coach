@@ -32,8 +32,21 @@ describe("classifyAuthUrl", () => {
   });
 
   it("ignores a token_hash of another OTP type", () => {
-    const url = "solutions.camboulive.run://auth-callback?token_hash=abc123&type=recovery";
+    const url = "solutions.camboulive.run://auth-callback?token_hash=abc123&type=magiclink";
     expect(classifyAuthUrl(url)).toEqual({ kind: "none" });
+  });
+
+  it("recognises a password-reset link", () => {
+    const url = "solutions.camboulive.run://auth-callback?token_hash=abc123&type=recovery";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: "abc123", code: null });
+  });
+
+  // GoTrue's stock template redirects through /verify, which can hand back a
+  // code instead. Read as an ordinary sign-in it would drop the user into the
+  // app with no way to set the password they came to replace.
+  it("reads a recovery redirect that carries a code as a recovery, not a sign-in", () => {
+    const url = "solutions.camboulive.run://auth-callback?code=pkce-code&type=recovery";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: null, code: "pkce-code" });
   });
 
   it("recognises a Supabase PKCE return", () => {

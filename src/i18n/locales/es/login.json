@@ -1,14 +1,38 @@
 {
   "brand": "Running Coach",
-  "signIn": "Iniciar sesión",
-  "signUp": "Registrarse",
   "email": "Correo electrónico",
   "emailPlaceholder": "tu@ejemplo.com",
   "password": "Contraseña",
   "passwordPlaceholder": "••••••••",
   "createAccount": "Crear cuenta",
-  "or": "o",
   "continueWithGoogle": "Continuar con Google",
+  "heading": "Inicia sesión o crea tu cuenta",
+  "headingSignup": "Crea tu cuenta",
+  "continue": "Continuar",
+  "orWithEmail": "o con correo electrónico",
+  "forgot": "¿Olvidaste tu contraseña?",
+  "fork": {
+    "signInFailedTitle": "Ese correo y esa contraseña no coinciden con ninguna cuenta. ¿Cuál de los dos es?",
+    "create": "Crear una cuenta con este correo",
+    "takenTitle": "Esa dirección ya tiene una cuenta.",
+    "signIn": "Iniciar sesión",
+    "reset": "Envíame un enlace para restablecerla"
+  },
+  "reset": {
+    "title": "Restablece tu contraseña",
+    "intro": "Te enviamos un enlace por correo para elegir una nueva.",
+    "send": "Enviar enlace",
+    "back": "Volver a iniciar sesión",
+    "sentBody": "Si alguna cuenta usa {{email}}, el enlace para restablecerla ya va en camino.",
+    "linkFailed": "Ese enlace ha caducado o ya se ha usado. Pide uno nuevo aquí abajo."
+  },
+  "newPassword": {
+    "title": "Elige una contraseña nueva",
+    "signedInAs": "Sesión iniciada como {{email}}.",
+    "save": "Guardar y continuar",
+    "skip": "Ahora no",
+    "error": "No pudimos actualizar tu contraseña. Pide un enlace nuevo e inténtalo otra vez."
+  },
   "sent": {
     "title": "Revisa tu bandeja de entrada",
     "body": "Hemos enviado un enlace de confirmación a {{email}}. Ábrelo y vuelve aquí para iniciar sesión.",

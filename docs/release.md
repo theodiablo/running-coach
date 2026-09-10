@@ -306,6 +306,52 @@ app copy in `src/i18n/locales/*/settings.json` (`emailConfirmNote`,
 running the real flow: Settings → Account → Change, open the link in the new
 inbox, and confirm the notification arrives at the old one.
 
+### The password-reset pair
+
+| File | Dashboard template | Sent to |
+|---|---|---|
+| `recovery.html` | Reset Password | the account's address — the link that opens the new-password screen |
+| — (stock copy) | Password Changed Notification (needs its toggle **on**) | the account's address — after the fact, no link |
+
+`recovery.html` builds its own link rather than using `{{ .ConfirmationURL }}`:
+GoTrue's redirect through `/verify` can land as a bare `?code=`, which
+`classifyAuthUrl` would have to read as an ordinary sign-in — dropping the user
+into the app with no way to set the password they came to replace. The
+`?token_hash=&type=recovery` shape it sends instead is unambiguous on the web
+and on the native deep link alike. The app still recognises the stock shape
+(`?code=&type=recovery`, and supabase-js's `PASSWORD_RECOVERY` event), so a
+dashboard that has drifted back to the default template degrades rather than
+breaking — but it degrades to a shape whose classification depends on which
+flow GoTrue picked, so keep them in sync.
+
+Test a change by running the real flow: **Forgot your password?** on the login
+screen, open the link on a *different* device from the one that asked (the
+common case, and the one where a PKCE `?code=` would be unexchangeable), set a
+new password, and confirm the notification arrives.
+
+### The password-reset pair
+
+| File | Dashboard template | Sent to |
+|---|---|---|
+| `recovery.html` | Reset Password | the account's address — the link that opens the new-password screen |
+| — (stock copy) | Password Changed Notification (needs its toggle **on**) | the account's address — after the fact, no link |
+
+`recovery.html` builds its own link rather than using `{{ .ConfirmationURL }}`:
+GoTrue's redirect through `/verify` can land as a bare `?code=`, which
+`classifyAuthUrl` would otherwise have to read as an ordinary sign-in — dropping
+the user into the app with no way to set the password they came to replace. The
+`?token_hash=&type=recovery` shape it sends instead is unambiguous on the web
+and on the native deep link alike. The app still recognises the stock shapes
+(`?code=&type=recovery`, and supabase-js's `PASSWORD_RECOVERY` event), so a
+dashboard still on the default template degrades rather than breaking — but it
+degrades to a shape whose classification depends on which flow GoTrue picked,
+so keep the two in sync.
+
+Test a change by running the real flow: **Forgot your password?** on the login
+screen, open the link on a *different* device from the one that asked (the
+common case, and the one where a PKCE `?code=` is unexchangeable), set a new
+password, and confirm the notification arrives.
+
 ## CI caching & budget
 
 - **All workflows use Node 22** (Capacitor 8 CLI floor) — keep new workflows on

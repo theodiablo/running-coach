@@ -57,9 +57,9 @@ export default function MarketingGate() {
   const { t } = useTranslation("marketing");
   const [showLogin, setShowLogin] = useState(false);
   const [loginMode, setLoginMode] = useState<"signin" | "signup">("signup");
-  // "Get started" CTAs open the sign-up tab; "Log in" / "already have an
-  // account" open sign-in. The modal unmounts on close, so reopening always
-  // re-seeds LoginScreen from the mode passed here.
+  // "Get started" CTAs open the form set up to create an account; "Log in" /
+  // "already have an account" open it set up to sign in. The modal unmounts on
+  // close, so reopening always re-seeds LoginScreen from the intent passed here.
   const openLogin = (mode: "signin" | "signup") => {
     setLoginMode(mode);
     setShowLogin(true);
@@ -336,7 +336,7 @@ export default function MarketingGate() {
             >
               <X size={22} />
             </button>
-            <LoginScreen initialMode={loginMode} />
+            <LoginScreen intent={loginMode} />
           </div>
         </div>
       )}

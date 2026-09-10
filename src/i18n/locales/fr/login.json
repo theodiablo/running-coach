@@ -1,14 +1,38 @@
 {
   "brand": "Running Coach",
-  "signIn": "Se connecter",
-  "signUp": "S’inscrire",
   "email": "E-mail",
   "emailPlaceholder": "toi@exemple.com",
   "password": "Mot de passe",
   "passwordPlaceholder": "••••••••",
   "createAccount": "Créer un compte",
-  "or": "ou",
   "continueWithGoogle": "Continuer avec Google",
+  "heading": "Connecte-toi ou crée ton compte",
+  "headingSignup": "Crée ton compte",
+  "continue": "Continuer",
+  "orWithEmail": "ou avec un e-mail",
+  "forgot": "Mot de passe oublié ?",
+  "fork": {
+    "signInFailedTitle": "Cet e-mail et ce mot de passe ne correspondent à aucun compte. C'est lequel des deux ?",
+    "create": "Créer un compte avec cet e-mail",
+    "takenTitle": "Cette adresse a déjà un compte.",
+    "signIn": "Se connecter plutôt",
+    "reset": "Envoie-moi un lien de réinitialisation"
+  },
+  "reset": {
+    "title": "Réinitialise ton mot de passe",
+    "intro": "On t'envoie un lien par e-mail pour en choisir un nouveau.",
+    "send": "Envoyer le lien",
+    "back": "Retour à la connexion",
+    "sentBody": "Si un compte utilise {{email}}, un lien de réinitialisation est en route.",
+    "linkFailed": "Ce lien a expiré ou a déjà été utilisé. Demandes-en un nouveau ci-dessous."
+  },
+  "newPassword": {
+    "title": "Choisis un nouveau mot de passe",
+    "signedInAs": "Connecté avec {{email}}.",
+    "save": "Enregistrer et continuer",
+    "skip": "Plus tard",
+    "error": "On n'a pas pu mettre à jour ton mot de passe. Demande un nouveau lien et réessaie."
+  },
   "sent": {
     "title": "Regarde ta boîte de réception",
     "body": "On a envoyé un lien de confirmation à {{email}}. Ouvre-le, puis reviens ici pour te connecter.",

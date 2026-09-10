@@ -22,6 +22,7 @@ import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
 import { StoreLoadError } from "./components/StoreLoadError";
 import RunningCoach from "./RunningCoach";
 import LoginScreen from "./LoginScreen";
+import ResetPasswordScreen from "./ResetPasswordScreen";
 
 // Web-only marketing landing shown to signed-out visitors at the root path.
 // VITE_NATIVE_BUILD is set only by the Android build (see .github/workflows/
@@ -32,6 +33,36 @@ import LoginScreen from "./LoginScreen";
 const MarketingGate = import.meta.env.VITE_NATIVE_BUILD
   ? null
   : lazy(() => import("./marketing/MarketingGate"));
+
+// Captured at module load, before supabase-js's own initialize() can strip its
+// params from the URL: a mount effect reading window.location can miss them.
+const initialUrl = typeof window !== "undefined" ? window.location.href : "";
+
+// How long a recovery callback may take to produce a session before we call the
+// link dead. Only reachable when supabase-js owns the exchange (a stock-template
+// ?code=) and it fails silently — without this the user waits on the splash.
+const RECOVERY_SETTLE_MS = 8000;
+
+// Redeem a password-reset callback. Our own template sends a token_hash, which
+// only verifyOtp can spend; GoTrue's stock one can arrive as a ?code=, which
+// supabase-js exchanges itself on the web (`exchangeCode` false) but nobody
+// exchanges inside the shell. Either way the user ends up signed in, which is
+// what the new-password screen needs.
+async function redeemRecovery(cb: { tokenHash: string | null; code: string | null }, exchangeCode: boolean): Promise<boolean> {
+  try {
+    if (cb.tokenHash) {
+      const { error } = await supabase.auth.verifyOtp({ token_hash: cb.tokenHash, type: "recovery" });
+      if (error) throw error;
+    } else if (cb.code && exchangeCode) {
+      const { error } = await supabase.auth.exchangeCodeForSession(cb.code);
+      if (error) throw error;
+    }
+    return true;
+  } catch (err) {
+    console.error("Password-reset link rejected", err);
+    return false;
+  }
+}
 
 // Defensive cap on the initial auth resolution. Supabase requests are already
 // bounded by the fetch timeout in supabase.js, so getSession() should always
@@ -93,6 +124,12 @@ export default function App() {
   // session while a fetch is in flight.
   const [premium, setPremium] = useState<{ uid: string; until: string | null } | null>(null);
   const [authError, setAuthError] = useState<string | null>(null); // native deep-link sign-in failure
+  // A password-reset link is being redeemed, or has been: the new-password
+  // screen owns the app until it's done. Set from the callback we classify
+  // ourselves AND from supabase-js's own PASSWORD_RECOVERY event, because which
+  // one fires depends on the shape of the link the mail template sent.
+  const [recovering, setRecovering] = useState(false);
+  const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
@@ -138,10 +175,12 @@ export default function App() {
       });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
       if (s) {
         offlineSessionRef.current = null; // a real session supersedes the adopted one
       } else if (event === "SIGNED_OUT") {
         offlineSessionRef.current = null;
+        setRecovering(false); // nothing to set a password on any more
         // The one place account data may leave the device: an explicit
         // sign-out (or a dead refresh token). NOT in clearStore — that runs on
         // transient null-session states too, where wiping the mirror would
@@ -250,6 +289,15 @@ export default function App() {
           if (signedIn) await settleEmailChange(pendingBefore, { failure: cb.message });
           else reportAuthError(cb.message);
           return;
+        // Password-reset link. Ahead of "code" in classifyAuthUrl for a
+        // reason: exchanged as an ordinary sign-in it would drop the user into
+        // the app with no way to set the password they came here to replace.
+        case "recovery":
+          closeAuthBrowser();
+          if (await redeemRecovery(cb, true)) setRecovering(true);
+          else if (signedIn) emitAuthNotice("app.toasts.resetLinkFailed", "err");
+          else setResetLinkFailed(true);
+          return;
         // Email-change confirmation link (Settings -> Account) in its
         // ?token_hash=&type=email_change shape — sent when the mail template
         // uses {{ .TokenHash }}; these need verifyOtp, not the PKCE exchange.
@@ -304,6 +352,33 @@ export default function App() {
 
     return () => { mounted = false; listenerHandle?.remove?.(); };
   }, []);
+
+  // Web twin of the recovery branch above. Runs signed out too — opening a
+  // reset link is how a user with no usable password gets back in.
+  const recoveryUrlRef = useRef(false);
+  useEffect(() => {
+    if (isNative || recoveryUrlRef.current) return;
+    const cb = classifyAuthUrl(initialUrl);
+    if (cb.kind !== "recovery") return;
+    recoveryUrlRef.current = true;
+    // Only ours to clean up: a ?code= belongs to supabase-js, which reads it
+    // asynchronously and strips it once spent. Stripping it here would race
+    // that read and leave the link unredeemed.
+    if (cb.tokenHash) {
+      const url = new URL(window.location.href);
+      for (const k of ["token_hash", "type"]) url.searchParams.delete(k);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    redeemRecovery(cb, false).then(ok => { if (ok) setRecovering(true); else setResetLinkFailed(true); });
+  }, []);
+
+  // A reset link that never produces a session (supabase-js failed to exchange
+  // an expired ?code=) must not strand the user on the splash below.
+  useEffect(() => {
+    if (!recovering || session) return;
+    const timer = setTimeout(() => { setRecovering(false); setResetLinkFailed(true); }, RECOVERY_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [recovering, session]);
 
   // Web twin of the handler above, for email-change links only. In the browser
   // the confirmation redirect lands back on our own origin: supabase-js consumes
@@ -447,6 +522,15 @@ export default function App() {
   // Hard version gate blocks everything, even the login screen.
   if (updateState === "must-update") return <UpdateRequired />;
   if (session === undefined) return <Splash />;
+  // A password-reset link landed. The new-password screen comes before the
+  // store (it doesn't need app_state, and must not wait on a load that may be
+  // failing) and before the login screen (the link already signed them in —
+  // while the session is still landing, this is the splash).
+  if (recovering) {
+    return session
+      ? <ResetPasswordScreen email={session.user.email} onDone={() => setRecovering(false)} />
+      : <Splash />;
+  }
   // First-run telemetry opt-in. Shown over both the login screen and the app so
   // a visitor sees it at first visit; self-gates to nothing once decided (or if
   // telemetry isn't configured). Telemetry collects nothing until accepted here.
@@ -455,7 +539,10 @@ export default function App() {
     // the native shell skips it and shows LoginScreen directly. `isNative`
     // covers the runtime split; `MarketingGate` is null in the native build so
     // the chunk is never even shipped.
-    if (!isNative && MarketingGate) {
+    // A dead reset link is the one case that skips the marketing site: its
+    // login modal is closed by default, so the failure — and the form that asks
+    // for a fresh link — would be behind a CTA nobody knows to press.
+    if (!isNative && MarketingGate && !resetLinkFailed) {
       return (
         <>
           {/* If the marketing chunk can't be fetched (a stale chunk after a
@@ -473,7 +560,7 @@ export default function App() {
     }
     return (
       <>
-        <LoginScreen authError={authError} onClearAuthError={() => setAuthError(null)} />
+        <LoginScreen authError={authError} onClearAuthError={() => setAuthError(null)} resetLinkFailed={resetLinkFailed} />
         <ConsentBanner onConsentChange={() => {}} />
       </>
     );

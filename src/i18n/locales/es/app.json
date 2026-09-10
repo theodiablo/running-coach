@@ -37,7 +37,8 @@
     "importAll": "Importar todas",
     "emailChangeDone": "Dirección de correo actualizada a {{email}}.",
     "emailChangeFailed": "Ese enlace de confirmación ha caducado o ya se ha usado. Vuelve a iniciar el cambio desde los ajustes.",
-    "emailChangePending": "Seguimos esperando la confirmación de tu nueva dirección."
+    "emailChangePending": "Seguimos esperando la confirmación de tu nueva dirección.",
+    "resetLinkFailed": "Ese enlace para restablecer la contraseña ha caducado o ya se ha usado."
   },
   "consent": {
     "title": "¿Nos ayudas a mejorar la app?",

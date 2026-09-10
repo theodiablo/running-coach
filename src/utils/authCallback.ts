@@ -4,13 +4,24 @@ import { CLOUD_OAUTH, cloudOauthProviderIds, type CloudOauthProviderId } from ".
 // App.tsx's handler is a plain switch and the rules are testable without
 // mounting App. Priority order, and why it is that order: a cloud-provider
 // OAuth return first (its ?code= is NOT a Supabase code and must never reach
-// exchangeCodeForSession), then a provider error, then an email OTP
-// (?token_hash=&type=, which needs verifyOtp — PKCE does not cover those
-// links), then GoTrue's bare ?message= notice (unclassified, that tap is a
-// silent no-op), then the Supabase PKCE ?code=. See CLAUDE.md "Auth callbacks".
+// exchangeCodeForSession), then a provider error, then a password-recovery
+// link, then an email-change OTP (?token_hash=&type=, which needs verifyOtp —
+// PKCE does not cover those links), then GoTrue's bare ?message= notice
+// (unclassified, that tap is a silent no-op), then the Supabase PKCE ?code=.
+// See CLAUDE.md "Auth callbacks".
+//
+// Recovery outranks `code`: our own template sends ?token_hash=&type=recovery,
+// but GoTrue's stock one redirects through /verify and can land as a bare
+// ?code=&type=recovery — which the code branch would exchange into an ordinary
+// sign-in, dropping the user into the app with the password they can't
+// remember and no way to set a new one.
 export type AuthCallback =
   | { kind: "cloudOauth"; provider: CloudOauthProviderId; code: string | null; state: string | null }
   | { kind: "error"; message: string }
+  // Our own template sends a token_hash to verify; GoTrue's stock one can
+  // arrive as a code to exchange instead (on the web supabase-js does that
+  // itself). Either may be null, never both.
+  | { kind: "recovery"; tokenHash: string | null; code: string | null }
   | { kind: "otp"; tokenHash: string; otpType: "email_change" }
   | { kind: "notice"; message: string }
   | { kind: "code"; code: string }
@@ -43,6 +54,9 @@ export function classifyAuthUrl(url: string): AuthCallback {
   const provErr = params.get("error_description") || params.get("error");
   if (provErr) return { kind: "error", message: provErr };
   const tokenHash = params.get("token_hash");
+  if (params.get("type") === "recovery") {
+    return { kind: "recovery", tokenHash, code: params.get("code") };
+  }
   if (tokenHash && params.get("type") === "email_change") {
     return { kind: "otp", tokenHash, otpType: "email_change" };
   }
