@@ -163,14 +163,11 @@ resource "aws_cloudfront_distribution" "site" {
   }
 }
 
-# Google Search Console ownership proof for the site's canonical origin
-# (index.html rel=canonical, public/sitemap.xml, WEB_APP_ORIGIN). On the
-# subdomain rather than the apex, which is where the property is registered and
-# which keeps this clear of the apex's own SPF TXT.
-#
-# The zone data source lives in ses_sending.tf, which explains why it is a data
-# source; allow_overwrite stays false so an unmanaged TXT already on this name
-# fails the apply instead of being replaced.
+# Superseded: this verifies nothing. The Search Console property is a *Domain*
+# property, proved by a TXT at the zone root and covering every subdomain, so
+# the live token is the one in dns.tf. Kept only because deleting a record is a
+# destroying plan, which terraform.yml refuses without an allow_destroy
+# dispatch; remove it in a change dispatched that way.
 resource "aws_route53_record" "site_google_verification" {
   zone_id = data.aws_route53_zone.primary.zone_id
   name    = local.site_bucket_name
