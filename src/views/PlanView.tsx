@@ -62,6 +62,9 @@ type PlanViewProps = {
   showToast: (msg: string, type?: string) => void;
   planPrefill?: PlanPrefill | null;
   clearPlanPrefill?: () => void;
+  // Bumped when the coach's "change your goal" link is followed: the view opens
+  // in its editor, on the goal section, instead of the plan being questioned.
+  openEditNonce?: number;
   // "Find a route" is premium-only; free users reach the teaser inside the
   // tracker, except on iOS where the entry point is hidden entirely.
   isPremium?: boolean;
@@ -70,7 +73,7 @@ type PlanViewProps = {
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 
-export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, isPremium = false}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -94,7 +97,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   // Session card expanded to its coach-notes breakdown (one at a time).
   const [openSess,     setOpenSess]    = useState<string | null>(null);
   // A promote ("Set as target") opens the edit screen pre-filled.
-  const [editing,      setEditing]     = useState(!!planPrefill);
+  const [editing,      setEditing]     = useState(!!planPrefill || !!openEditNonce);
   // Which accordion section is expanded on the edit screen (one at a time).
   const [editSection,  setEditSection] = useState<EditSection>("goal");
 

@@ -403,7 +403,11 @@ async function handle(req: Request): Promise<any> {
     : {
       trajectoryId, roundIndex, status: "proposed",
       changed: result.changed,
-      rationale: result.rationale,
+      // Never surface an empty bubble: the engine guarantees text on the
+      // truncation path, but a round that ends on tool calls alone can still
+      // land here with nothing said.
+      rationale: result.rationale ||
+        "I've adjusted your plan — take a look at the changes below and confirm if they look right.",
       proposedPlan: result.plan,
       memorySuggestions,
       warnings: result.validation.warnings,
