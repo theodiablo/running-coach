@@ -49,7 +49,7 @@ Want to fork this and make it yours? Here's everything you need.
 
 ### Prerequisites
 
-- **Node 20+**
+- **Node 22.22.2+** — what CI runs; on newer lines `jsdom` needs 24.15+ or 26+
 - A free **[Supabase](https://supabase.com)** account (the free tier is plenty)
 
 ### 1. Create a Supabase project

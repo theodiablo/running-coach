@@ -259,8 +259,9 @@ inbox, and confirm the notification arrives at the old one.
 - **setup-gradle runs v6's default `cache-provider: enhanced`** — the
   fine-grained, deduplicating cache v4 had built in, which Gradle extracted
   into the proprietary `gradle-actions-caching` component at v6. Deliberate:
-  it is free in perpetuity for public repos, the cache still lives in GitHub's
-  Actions cache (nothing leaves GitHub), and the component is vendored in
+  it is free in perpetuity for public repos, the cache itself still lives in
+  GitHub's Actions cache (only cache-key metadata reaches Gradle, under its
+  Terms of Use safe harbour), and the component is vendored in
   gradle/actions so the SHA pin still covers everything that runs. `basic` is
   NOT the v4 behaviour — it is a plain `@actions/cache` path cache with no
   restore-key matching, which is exactly what lets PRs read main's seed above.
