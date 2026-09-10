@@ -3,7 +3,7 @@
 // Architecture, trust boundary, actions, and deploy/secrets: docs/coach-agent.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Anthropic from "npm:@anthropic-ai/sdk";
+import Anthropic from "npm:@anthropic-ai/sdk@0.120.0";
 import { isMistralModel, makeMistralModel } from "../_shared/coach/mistral.mjs";
 import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
