@@ -213,6 +213,104 @@ describe("buildPlan", () => {
     // No mini-taper: the week's other session keeps its normal prescription.
     expect(nonRace.some(s => s.desc !== "Easy run — keep it light around your race")).toBe(true);
   });
+
+  // A week's phase label is a promise about its sessions. Short plans used to
+  // label their easy base weeks PEAK (the peak window was the last 7 pre-taper
+  // weeks, which on a 8-week plan started at week 2) and, with the base block
+  // fixed at 4 weeks, never got to a tempo at all.
+  describe("phase labels match what the week actually prescribes", () => {
+    const QUALITY = ["TEMPO", "INTERVALS"];
+    const horizons = [4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 20];
+
+    it.each(horizons)("%i-week horizon: no easy-only PEAK or BUILD week", weeks => {
+      const plan = buildPlan(raceDateInDays(weeks * 7 + 8), 7200, SESSIONS, 20, 0);
+      const training = plan.weeks.filter(w => w.phase !== "RACE");
+      expect(training.length).toBeGreaterThan(0);
+      training.forEach(w => {
+        const hasQuality = w.sessions.some(s => QUALITY.includes(s.type));
+        if (w.phase === "PEAK" || w.phase === "BUILD") expect(hasQuality).toBe(true);
+        else expect(hasQuality).toBe(false); // BASE and TAPER stay easy
+      });
+    });
+
+    it.each(horizons)("%i-week horizon: phases run BASE → BUILD → PEAK → TAPER", weeks => {
+      const plan = buildPlan(raceDateInDays(weeks * 7 + 8), 7200, SESSIONS, 20, 0);
+      const order = ["BASE", "BUILD", "PEAK", "TAPER", "RACE"];
+      const seen = plan.weeks.map(w => order.indexOf(w.phase));
+      expect(seen.every(i => i >= 0)).toBe(true);
+      expect(seen).toEqual([...seen].sort((a, b) => a - b));
+      expect(plan.weeks[0].phase).toBe("BASE"); // every plan starts in base
+    });
+
+    // A rebuild re-anchors week 1 on the next Monday, so without a fitness
+    // signal for the phase block a runner who adds a race mid-training was sent
+    // back through a base block they had just run.
+    describe("recent consistency shortens the base block", () => {
+      // n weeks of `perWeek` runs ending yesterday.
+      const history = (weeks: number, perWeek: number) =>
+        Array.from({ length: weeks }, (_, wk) =>
+          Array.from({ length: perWeek }, (_, i) => ({
+            date: raceDateInDays(-(wk * 7 + i + 1)), km: 8, type: "EASY",
+          }))).flat();
+      const baseWeeks = (plan: TestPlan) => plan.weeks.filter(w => w.phase === "BASE").length;
+      const build = (recentRuns: { date: string; km: number; type: string }[]) =>
+        buildPlan(raceDateInDays(120), 7200, SESSIONS, 20, 0, { recentRuns });
+
+      it("keeps the full base block for a runner with no history", () => {
+        expect(baseWeeks(build([]))).toBe(4);
+      });
+
+      it("credits 2 weeks after 3+ consistent weeks, 1 after 2", () => {
+        expect(baseWeeks(build(history(4, 3)))).toBe(2);
+        expect(baseWeeks(build(history(3, 2)))).toBe(2);
+        expect(baseWeeks(build(history(2, 2)))).toBe(3);
+      });
+
+      it("credits nothing for one weekly run, a single week, or a lay-off", () => {
+        expect(baseWeeks(build(history(4, 1)))).toBe(4); // once a week isn't a block
+        expect(baseWeeks(build(history(1, 4)))).toBe(4); // one keen week isn't either
+        const old = history(4, 3).map(r => ({ ...r, date: raceDateInDays(-90) }));
+        expect(baseWeeks(build(old))).toBe(4);
+      });
+
+      it("does not credit runs squeezed into a single day", () => {
+        // Three runs a week, all on the same day of that week: a keen day, not
+        // a week of training — and a double or a missed import shouldn't buy one.
+        const sameDay = history(4, 3).map((r, i) =>
+          ({ ...r, date: raceDateInDays(-(Math.floor(i / 3) * 7 + 1)) }));
+        expect(baseWeeks(build(sameDay))).toBe(4);
+      });
+
+      it("does not credit a week of token jogs", () => {
+        // Two 2 km runs a week is consistency without a base — the runner this
+        // on-ramp exists for. 8 x 8 km weeks earn it; 8 x 2 km weeks don't.
+        expect(baseWeeks(build(history(4, 3).map(r => ({ ...r, km: 2 }))))).toBe(4);
+        expect(baseWeeks(build(history(4, 3)))).toBe(2);
+      });
+
+      it("does not credit cross-training", () => {
+        expect(baseWeeks(build(history(4, 3).map(r => ({ ...r, type: "OTHER" }))))).toBe(4);
+      });
+
+      it("puts a mid-block rebuild straight back into real work", () => {
+        // Race 9 weeks out, 4 consistent weeks behind: quality by week 3, not 5.
+        const plan = buildPlan(raceDateInDays(65), 7200, SESSIONS, 20, 0,
+          { recentRuns: history(4, 3) });
+        const firstQuality = plan.weeks.findIndex(w =>
+          w.sessions.some(s => s.type === "TEMPO" || s.type === "INTERVALS"));
+        expect(firstQuality).toBeGreaterThanOrEqual(0);
+        expect(firstQuality).toBeLessThanOrEqual(1);
+        expect(plan.weeks[firstQuality].phase).not.toBe("BASE");
+      });
+    });
+
+    it("gives even the shortest real horizon a quality week", () => {
+      // 8 weeks out with 3 sessions/week: base, then tempo/intervals, then taper.
+      const plan = buildPlan(raceDateInDays(64), 7200, SESSIONS, 20, 0);
+      const quality = plan.weeks.filter(w => w.sessions.some(s => QUALITY.includes(s.type)));
+      expect(quality.length).toBeGreaterThan(0);
+    });
+  });
 });
 
 // Frozen-clock snapshots of the default ("balanced") output, committed BEFORE

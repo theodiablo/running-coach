@@ -242,6 +242,14 @@ describe("buildPlan output passes the shared validator", () => {
     { id: "r1", date: ymd(new Date(Date.now() - 5 * 86400000)), type: "LONG", km: longest, durationSec: longest * 360 },
     { id: "r2", date: ymd(new Date(Date.now() - 12 * 86400000)), type: "EASY", km: longest * 0.6, durationSec: longest * 0.6 * 380 },
   ];
+  // seedRuns holds one run per week, so it earns no base credit. This one does:
+  // 3 separate days a week, real volume, for the last 4 weeks — the mid-block
+  // rebuild that shortens the base block and lets quality land earlier.
+  const trainedRuns = () => Array.from({ length: 4 }, (_, wk) =>
+    [1, 3, 5].map(d => ({
+      id: `t${wk}${d}`, date: ymd(new Date(Date.now() - (wk * 7 + d) * 86400000)),
+      type: "EASY", km: 8, durationSec: 8 * 360,
+    }))).flat();
   const sessions = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
 
   const cases: [string, string, number, number, number, object][] = [
@@ -276,6 +284,12 @@ describe("buildPlan output passes the shared validator", () => {
     ["marathon, 20 weeks, fit", weeksOut(20), 14400, 42.2, { recentRuns: seedRuns(18) }],
     // Self-reported level, no history: the onboarding path's higher week-1 start.
     ["marathon, 20 weeks, frequent (self-reported)", weeksOut(20), 14400, 42.2, { level: "frequent" }],
+    // Short horizons and credited histories: both shorten the base block, so
+    // quality lands on a smaller week. Neither was covered, which is how a
+    // generation that breaks the ramp rule reached main.
+    ["10k, 9 weeks, from scratch", weeksOut(9), 3000, 10, {}],
+    ["10k, 8 weeks, trained (credit)", weeksOut(8), 3000, 10, { recentRuns: trainedRuns() }],
+    ["half, 12 weeks, trained (credit)", weeksOut(12), 6600, 21.1, { recentRuns: trainedRuns() }],
   ];
   const styles = ["balanced", "polarized", "runwalk", "lowfreq", "hansons"];
 

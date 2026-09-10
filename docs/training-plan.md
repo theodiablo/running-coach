@@ -22,6 +22,85 @@ marathon, ≤36 km ceiling for ultras), NOT capped by the long-session minutes �
 so it can exceed the configured long-day duration; PlanView shows an honest
 nudge when it does. `plan.longRunPeakKm` exposes the peak for that nudge.
 
+## Phases
+
+Each week carries a `phase` (`BASE` · `BUILD` · `PEAK` · `TAPER` · `RACE`) that
+PlanView shows as the week's badge, so **the label is a promise about the
+week's sessions** and the two are derived from one set of boundaries in
+`buildPlan`:
+
+- **taper** = the last 3 weeks before race week (easy only — the validator also
+  forbids tempo/intervals inside 7 days of the race).
+- **base** = the first `min(4, ceil((N-3)/2))` weeks *minus the runner's base
+  credit* (below): easy running only, no quality. Capping it at *half the
+  pre-taper runway* is what keeps a short plan honest — from 11 weeks up it is
+  the fixed 4 it always was.
+- **peak** = the last 4 pre-taper weeks (never earlier than the end of base);
+  **build** fills any gap between base and peak.
+
+### The base credit
+
+The base block is the **phase-block twin of the long run's fitness floor**.
+`buildPlan` always re-anchors week 1 on the next Monday, so without a fitness
+signal a runner who adds a race mid-training is marched back through a base
+block they have just run — four weeks of easy-only work they had already
+finished. `baseCredit` reads the same `recentRuns` the long-run floor does and
+shortens the on-ramp:
+
+| Trained weeks (of the last 4) | Weeks credited |
+| --- | --- |
+| 0–1 | 0 — a new or returning runner gets the full block |
+| 2 | 1 |
+| 3–4 | 2 |
+
+A **trained week** is a 7-day window holding runs on ≥2 separate days *and* at
+least as much running as the plan's own opening week would ask (`startLong +
+2.5 km` per other session — the long run's fitness-aware start plus the base
+easy line). Both halves are load-bearing: counting entries alone, two 2 km jogs
+a week bought a runner out of the on-ramp they most needed, and two runs on one
+day is a keen day, not a week of training. Only running counts — cross-training
+builds fitness but not the running base (same `isCrossTraining` line as the
+long-run floor). Windows are walked by calendar date, not fixed milliseconds, or
+a DST change slides the whole grid a day.
+
+The ladder is deliberately coarse and capped at 2 — evidence of consistency
+shortens the on-ramp, it does not hand a fit runner a plan that is all quality;
+a 16-week block still opens with base weeks, and every plan with more than one
+pre-taper week keeps at least one. Self-reported `level` deliberately does
+**not** feed this: it floors the long run, but only logged runs buy a shorter
+base.
+
+### The ramp guard
+
+Shortening the base block moves quality onto a smaller week, and a quality
+session is sized off the day's *time budget* while the easy day it replaces is
+on the base's gentle km line — a real jump in weekly volume. `buildPlan` closes
+with a guard that applies the validator's own ramp rule (`1.3 ×` the bigger of
+the two preceding weeks, `+3 km`) to its own output: a week over the line sheds
+distance from its quality sessions, longest first, never from the long run,
+which is the week's point. Intervals stop one rep short of disagreeing with
+their own description; distances are shaved in whole tenths, because rounding a
+just-enough cut back up leaves the week over the line it just cleared.
+
+A plan already inside the rule comes through byte-identical, so the guard is
+invisible to every clean plan — including the frozen snapshots. It is what
+keeps "generated plans are validator-clean by construction" true now that
+quality can start in week 2; it also cleans up a number of pre-existing
+short-horizon plans that were dirty before it existed. It does **not** touch
+`HARD_BACK_TO_BACK`: for `balanced`, a user-picked adjacent day pair is a
+pre-existing, validator-waived condition the generator must not silently
+rewrite (see the demotion sweep's exemption), and short plans can now reach it
+because they finally have quality sessions to place.
+
+The composers read `isBase`/`isTaper`/`phase` from those same boundaries, and
+`buildW` (the week's index *within the post-base block*) drives the
+tempo/intervals alternation — so quality work starts exactly when the label
+says BUILD/PEAK. A previous split definition (base fixed at `w < 4`, peak at
+`w >= N-7`, peak tested first) labelled the easy base weeks of every plan
+shorter than 11 weeks `PEAK`, and an 8-week plan reached its taper having
+prescribed a single quality week. `runwalk` is the one style with no
+tempo/intervals by design; its phase still moves the run/walk ratio.
+
 ## Rebuilds and retained history
 
 `buildPlan` always anchors week 1 on the **next Monday**, so a rebuilt plan
