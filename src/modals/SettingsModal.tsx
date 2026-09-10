@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LogOut } from "lucide-react";
+import { LogOut, MessageSquare } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { SettingsHub } from "./settings/SettingsHub";
 import { SubPage } from "./settings/SubPage";
@@ -23,6 +23,10 @@ type SettingsModalProps = {
   onOpenCoach?: () => void;
   onImportFile?: () => void;
   onClose: () => void;
+  /** Opens the beta feedback sheet. Settings is where people look for
+   *  "how do I contact them", so it is the one door discoverable without
+   *  ever having noticed the floating pill. */
+  onFeedback: () => void;
   showToast?: (msg: string, type?: string) => void;
   scanImportsNow?: () => Promise<number>;
   plan?: Plan | null;
@@ -41,7 +45,7 @@ type SettingsModalProps = {
 // The flows that replace the whole screen (backup, restore, delete account, the
 // coach) still close settings first, as they always did: their handlers come in
 // from RunningCoach already wired that way.
-export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, showToast, scanImportsNow, plan}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
@@ -60,6 +64,21 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto p-4 space-y-5" style={{paddingBottom:"calc(1rem + var(--safe-bottom))"}}>
           <SettingsHub onOpen={setPage}/>
+
+          {/* An action, not a fourth destination — hence the rule above it and
+              the hint below, rather than another chevron row. */}
+          <div className="border-t border-slate-800 pt-4 space-y-1.5">
+            <button onClick={onFeedback}
+              className="w-full flex items-center justify-between gap-2 px-3.5 py-3 rounded-xl bg-slate-800 border border-orange-500/40 hover:border-orange-500/70 transition-colors">
+              <span className="flex items-center gap-2 text-sm font-medium text-orange-300">
+                <MessageSquare size={15}/>{t("feedback.settingsRow")}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded">
+                {t("feedback.badge")}
+              </span>
+            </button>
+            <p className="text-[11px] text-slate-500 px-1">{t("feedback.settingsHint")}</p>
+          </div>
           {onSignOut && (
             <button onClick={onSignOut}
               className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-2 transition-colors">

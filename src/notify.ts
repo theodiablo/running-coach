@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 type NotifyPayload =
   | { type: "report"; reportId: string }
   | { type: "coach_feedback"; feedbackId: string }
+  | { type: "beta_feedback"; feedbackId: string }
   | Record<string, unknown>;
 
 function errorMessage(err: unknown) {

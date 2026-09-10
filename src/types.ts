@@ -45,6 +45,10 @@ export type SettingsState = Record<string, unknown> & {
   // runner mid-training who already knows where the coach is.
   coachIntroSeen?: boolean;
   coachOverdueIntroSeen?: boolean;
+  feedbackIntroSeen?: boolean;
+  // True once this account has sent beta feedback: the pill drops its
+  // label and collapses to an icon, because the word was recruitment.
+  feedbackSent?: boolean;
   hrMethod: HrMethod;
   hrOptOut: boolean;
   // Opt-in preference (synced) for importing finished runs from a watch via

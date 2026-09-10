@@ -1,0 +1,43 @@
+{
+  "button": "Feedback",
+  "aria": "Send feedback",
+  "badge": "Beta",
+  "intro": {
+    "title": "Tell us what's not working",
+    "body": "Running Coach is in beta, and you're one of a small number of people using it on real training. If something is wrong, confusing, or just annoying, this button reaches us directly.",
+    "pointVoice": "Speak it — your phone turns it into text",
+    "pointType": "Or type, if you'd rather",
+    "pointPrivacy": "No recording is kept or uploaded",
+    "type": "Type",
+    "record": "Record a note"
+  },
+  "compose": {
+    "title": "Anything to fix before you send?",
+    "placeholder": "What happened, and what did you expect instead?",
+    "addMore": "Add more",
+    "clear": "Clear",
+    "listening": "Listening…",
+    "stop": "Stop",
+    "contextTitle": "Sent with your note",
+    "contextAccount": "Your account, so we can reply",
+    "send": "Send feedback",
+    "voiceFailed": "Voice input isn't available. You can type instead."
+  },
+  "source": {
+    "dash": "Home",
+    "plan": "Plan",
+    "races": "Races",
+    "progress": "Progress",
+    "log": "Log a run",
+    "coach": "Coach chat",
+    "settings": "Settings"
+  },
+  "coachmark": {
+    "title": "Found something odd?",
+    "body": "This button is here for the beta. Tap it any time to send us a voice note or a line of text."
+  },
+  "settingsRow": "Send feedback",
+  "settingsHint": "Running Coach is in beta — tell us what's not working.",
+  "sent": "Thanks — that landed.",
+  "error": "That didn't send. Try again in a moment."
+}

@@ -147,6 +147,24 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
     };
   }
 
+  if (kind === "beta_feedback") {
+    const feedbackId = asString(payload.feedbackId);
+    if (!feedbackId) return null;
+    const { data } = await admin.from("beta_feedback")
+      .select("id, body, source, platform, app_version, input_mode, created_at")
+      .eq("id", feedbackId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      kind,
+      reference: data.id,
+      maintainerSubject: "Running Coach - beta feedback",
+      maintainerText: `A user sent beta feedback.\n\nFeedback row owner: ${userId}\n\nFeedback: ${data.id}\nScreen: ${data.source ?? ""}\nPlatform: ${data.platform ?? ""}\nApp version: ${data.app_version ?? ""}\nEntered by: ${data.input_mode ?? ""}\nCreated: ${data.created_at}\n\n---\n${data.body}\n---\n\nReview in the Supabase dashboard (beta_feedback).`,
+      thanksName: null,
+    };
+  }
+
   return null;
 }
 

@@ -578,6 +578,7 @@ changes.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
+- `docs/voice-and-feedback.md` — on-device dictation seam (native-only) and the beta feedback button.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
