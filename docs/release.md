@@ -194,6 +194,64 @@ a post-deploy `curl` smoke test isn't possible there — confirm via the deploy
 call's returned `status: "ACTIVE"` and, for request-level confirmation,
 `mcp__Supabase__get_logs` with `service: "edge-function"`.
 
+## Supabase Auth email (SES SMTP)
+
+**Supabase's built-in SMTP sends 2 emails per hour, project-wide.** It is a
+development convenience, not a mail service — the cap is not per user, so on the
+free plan two password resets in an hour is the whole allowance and everyone
+else gets a 429 (`authErrorMessage` renders it as the amber cooldown). The fix
+is not a paid plan: **it is our own SMTP**, which is free-plan-compatible and
+also what makes the limit configurable.
+
+Sending goes through SES on a dedicated identity, `mail.camboulive.solutions`
+(`infra/ses_sending.tf`), separate from the apex — which receives inbound mail
+and sends the contribution notifier, and which any future marketing sending
+would otherwise share. **Auth mail gets its own reputation on purpose**: a
+campaign's complaint rate must never be able to take password resets down with
+it. Marketing mail is a separate identity and a separate sender when it exists;
+it never goes through GoTrue, whose mailer is for user-triggered transactional
+links only.
+
+**Check the account is out of the SES sandbox before pointing Supabase at it.**
+Production access is granted per AWS account and region, not per domain, so it
+covers `eu-west-1` as a whole; in the sandbox SES delivers only to verified
+addresses at 200/day, and every real signup fails silently. Console → SES →
+Account dashboard says which.
+
+### Setting it up
+
+1. **`terraform apply` from a workstation, from the branch, BEFORE merging.**
+   A change that widens the CI policy cannot be applied by CI itself
+   (`infra/README.md`), and applying first leaves the merge with nothing to do
+   — the workflow skips apply on a zero-change plan, so `main` stays green.
+   Merging first gets a half-applied plan and a red default branch. Until that
+   apply runs, the PR's own `terraform` check is red too: the Route 53 zone
+   lookup needs a read the deployed plan role does not have yet
+   (`infra/README.md`).
+2. Wait for verification. The same apply writes the DNS records (DKIM CNAMEs,
+   MAIL FROM MX and SPF, DMARC and the `_report._dmarc` record authorising its
+   off-domain `rua` mailbox) into Route 53, so there is nothing to copy — but
+   SES will not send until it sees them, usually minutes. SES → Verified
+   identities → `mail.camboulive.solutions` says **Verified** when it is ready;
+   configure Supabase before that and every auth email fails.
+3. Dashboard → Authentication → Emails → **SMTP Settings**:
+   host `email-smtp.eu-west-1.amazonaws.com`, port 587, sender
+   `noreply@mail.camboulive.solutions`, username/password from
+   `terraform output -raw auth_smtp_username` / `auth_smtp_password` (the
+   password is the access-key secret run through the SES SigV4 transform — the
+   provider computes it; the raw secret will not authenticate).
+4. Dashboard → Authentication → **Rate Limits** → "Emails sent per hour". With
+   custom SMTP the default becomes 30/hour and the field unlocks; raise it to
+   whatever the signup volume needs. `[auth.rate_limit] email_sent` in
+   `supabase/config.toml` is the **local stack only** and does not drive the
+   hosted project — same manual-sync rule as the templates below.
+5. Send a real password reset and check the headers: `dkim=pass` and
+   `spf=pass` both aligned to `mail.camboulive.solutions`.
+
+Rotating the credentials is `terraform taint aws_iam_access_key.ses_smtp_auth`
+plus a new apply, then pasting the new pair into the dashboard. Nothing reads
+them automatically.
+
 ## Supabase Auth email templates (manual sync)
 
 The transactional emails Supabase Auth sends (confirm signup, reset password,

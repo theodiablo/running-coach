@@ -68,11 +68,18 @@ the read policy grants bucket-level actions against bucket ARNs, never
 The apply role's S3 writes are confined to buckets named `run-app-*`, plus the
 two adopted buckets that predate that naming convention
 (`run.camboulive.solutions` and `ses-inbound-camboulive-solutions`), and its
-IAM writes to roles named `GitHub-Actions-RunApp-*`. Three explicit Denys
+IAM writes to roles named `GitHub-Actions-RunApp-*`, plus users under
+`/system/run-app-*` (the SES SMTP credentials) and policies named
+`run-app-*`. Creating one of those users, or writing its inline policy, is
+allowed **only for a principal carrying the send-only permissions boundary** —
+without that condition, "CI can create an IAM user" would mean "CI can mint a
+durable administrative access key", which is worse than the role path because a
+static key outlives the OIDC role that made it. Four explicit Denys
 apply on top: it cannot
 modify either CI role (including itself), cannot attach `AdministratorAccess`,
-`IAMFullAccess` or `PowerUserAccess` to anything, and cannot delete the state
-bucket or either adopted bucket. Deleting one of those means a local apply —
+`IAMFullAccess` or `PowerUserAccess` to any role or user, cannot rewrite or
+delete the permissions boundary that caps the users it can create, and cannot
+delete the state bucket or either adopted bucket. Deleting one of those means a local apply —
 deliberately, since bucket-level *configuration* on them is routine and
 deletion never is.
 
@@ -86,8 +93,16 @@ pinned to this project's distribution (`ManageSiteDistribution`). Adding a
 second distribution therefore means widening that statement first, from a
 workstation, because of `DenySelfModification`.
 
+Route 53 sits in between. `ChangeResourceRecordSets` is pinned to the one
+hosted zone (`ManageAuthMailDns`), but Route 53 has no record-level resource
+type, so within that zone the grant reaches the apex MX that receives mail and
+the alias that serves the live site, not just the auth records. Terraform
+changes only what it declares, so the exposure is a future bug in `infra/`
+rather than a standing capability — but it is the widest of the scoped grants,
+and worth knowing before adding records here.
+
 **Be honest about the residual risk.** A role that can create IAM roles and
-attach policies is close to an administrative credential, and those Denys close
+users and attach policies is close to an administrative credential, and those Denys close
 the obvious escalation paths rather than proving containment. It could still
 mint a new `GitHub-Actions-RunApp-*` role with a broad inline policy. The
 CloudFront/SES widening adds a second, different kind of risk: for everything
@@ -117,6 +132,31 @@ drift from a local apply, and on demand. When you widen or narrow a policy,
 extend the script in the same commit — a grant with no assertion is a grant
 nobody is checking.
 
+### Widening a CI policy needs a local apply
+
+`DenySelfModification` means the apply role cannot write its own inline policy,
+so **any PR that changes `terraform_roles.tf` merges green and then fails at
+apply**. Run `terraform apply` from a workstation **on the branch, before
+merging**: the merge then plans zero changes, the workflow skips apply
+entirely, and `main` stays green. Applying after the merge instead means a
+half-applied plan and a red default branch — the resources land, the two role
+policies do not. This is the
+intended blast radius for the thing that grants CI its permissions, not a bug
+to route around — but it does mean a change that adds a resource *and* the
+permission to manage it (the SES SMTP user, say) is a two-step deploy. The same
+applies to the SES permissions boundary: `DenyBoundaryTampering` refuses any
+new version of it, so editing what that user may do is a local apply too.
+
+**A new `data` source is worse than a new resource**, and it is worth knowing
+before you add one. A resource that needs a permission the live apply role
+lacks fails at apply; a data source that needs a read the live *plan* role
+lacks fails at **plan**, so every PR goes red — including PRs that have nothing
+to do with the change — until the local apply lands the read. That is what
+`data.aws_route53_zone.primary` did: `route53:ListHostedZones` reached the
+policy in the same commit that first used it, which the deployed plan role did
+not have yet. The order that avoids it is the same one as everywhere else here:
+apply from the branch first, and the PR that follows is green.
+
 ### Bootstrapping
 
 Both CI roles are declared in `terraform_roles.tf` but had to exist before CI
@@ -139,6 +179,11 @@ maintain them now.
 | SES domain identity | `camboulive.solutions` | Verified sending/receiving identity, DKIM enabled. Adopted. |
 | SES receipt rule set | `camboulive-solutions-inbound` | Active; the one rule (`forward-all`) writes inbound mail to S3 and invokes the forwarder Lambda. Adopted. |
 | S3 bucket | `ses-inbound-camboulive-solutions` | Inbound mail landing zone, 30-day expiry on `inbound/`. Adopted. |
+| SES domain identity | `mail.camboulive.solutions` | Sending identity for Supabase Auth mail, with a `bounce.mail.` custom MAIL FROM. |
+| SES configuration set | `runapp-auth` | Default config set for the identity above: reputation metrics on, bounce-only suppression. |
+| IAM user | `run-app-ses-smtp-auth` | Send-only SES credentials Supabase Auth signs in as over SMTP. Its access key is the SMTP username/password pair. |
+| IAM policy | `run-app-ses-smtp-boundary` | Permissions boundary on that user, and the condition the apply role's user-creation grant is gated on. |
+| Route 53 records | 3 DKIM CNAMEs, MAIL FROM MX + SPF, DMARC + `_report._dmarc` | Verification and alignment for the auth sending domain. The zone itself is a `data` source. |
 
 Three deliberate non-decisions worth knowing before you change them:
 
@@ -166,8 +211,14 @@ needs to point at them: the ACM certificate backing the CloudFront
 distribution (DNS-validated certs need their validation records adopted too,
 and nothing here needs to reissue or rotate it), the
 `ses-forwarder-camboulive-solutions` Lambda and its role (not part of this
-adoption's scope), and the Route 53 records for `camboulive.solutions` (MX,
-DKIM, SPF, mail-from).
+adoption's scope), the `runapp-notify` SES configuration set the contribution
+notifier sends through (so do not read the `runapp-auth` set below as the only
+one in the account), and the Route 53 records for the apex itself (its MX,
+DKIM and SPF, the site's alias, the ACM validation records). The zone is
+resolved as a `data` source, so this configuration can never destroy it, and
+the only records it manages are the auth sending domain's — added because the
+DKIM tokens come off the identity resource, and hand-copying them is the step
+that fails silently.
 
 ## State
 
@@ -193,9 +244,14 @@ aws s3api put-bucket-encryption --bucket run-app-tfstate \
 Versioning is on, so a corrupted state file can be rolled back to a previous
 version.
 
-State is not secret for this configuration (bucket names and role ARNs), but the
-bucket is private and encrypted regardless — Terraform state generally does
-capture resource attributes verbatim, so keep it that way if you add resources.
+**State holds one real secret**: the SES SMTP user's access key
+(`ses_sending.tf`). That is a choice, not a constraint — `aws_iam_access_key`
+takes a `pgp_key`, and with one set only the encrypted forms are stored — but a
+PGP key is one more thing to hold, and the credential is pasted into the
+Supabase dashboard by hand anyway. Everything else in there is bucket names and
+role ARNs. The bucket is private, encrypted and versioned, which is
+what makes that acceptable — keep it that way, and assume anything you add is
+captured verbatim too.
 
 ## GitHub Actions secrets
 

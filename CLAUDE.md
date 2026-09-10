@@ -168,7 +168,12 @@ Always re-verify a finding before acting on it; agents report false positives.
   though the change landed), so always `refreshSession` and let `user.new_email`
   decide what to say — `settleEmailChange` in `App.tsx`. Auth email templates
   are project config, not migrations: `supabase/templates/*.html` is the source
-  of truth, synced to the hosted project by hand (`docs/release.md`).
+  of truth, synced to the hosted project by hand (`docs/release.md`). Auth mail
+  leaves through **our own SES identity** (`mail.camboulive.solutions`, its DNS
+  records included, in `infra/ses_sending.tf`), never Supabase's built-in SMTP — that one is capped
+  at 2 emails/hour *project-wide* and its 429 is what the mailer-cooldown copy
+  above exists for. Marketing mail is a separate identity and never goes
+  through GoTrue, whose mailer is transactional-only.
 - **Multi-user:** open public signups — no single-user assumptions; per-user
   isolation via RLS on `app_state` and `profiles`.
 - **Plan building:** `buildPlan(raceDate, goalSec, planSessions, distanceKm,

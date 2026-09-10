@@ -146,14 +146,24 @@ data "aws_iam_policy_document" "tf_read" {
       "iam:GetPolicyVersion",
       "iam:GetRole",
       "iam:GetRolePolicy",
+      # The SES SMTP user (ses_sending.tf) is refreshed on every plan.
+      "iam:GetUser",
+      "iam:GetUserPolicy",
+      "iam:ListAccessKeys",
       "iam:ListAttachedRolePolicies",
+      "iam:ListAttachedUserPolicies",
+      "iam:ListGroupsForUser",
       "iam:ListInstanceProfilesForRole",
       # The aws_iam_openid_connect_provider data source resolves the provider by
       # URL, not by ARN, so it enumerates before it can Get. Without List, every
       # plan fails at the data source with AccessDenied.
       "iam:ListOpenIDConnectProviders",
+      "iam:ListPolicyTags",
+      "iam:ListPolicyVersions",
       "iam:ListRolePolicies",
       "iam:ListRoleTags",
+      "iam:ListUserPolicies",
+      "iam:ListUserTags",
       # For infra/permissions-check.sh: proves the write policy without
       # performing any write, so a policy bug is caught before it depends on a
       # merge to main to surface.
@@ -163,13 +173,21 @@ data "aws_iam_policy_document" "tf_read" {
   }
 
   # Read-only ahead of the adoption of the site bucket, CloudFront and SES, so
-  # that plans covering them work without another policy change.
+  # that plans covering them work without another policy change. Route 53 reads
+  # are here rather than scoped because the zone is resolved by a data source,
+  # which enumerates by DNS name before it has an id to Get.
   statement {
     sid    = "ReadAdoptionTargets"
     effect = "Allow"
     actions = [
       "cloudfront:Get*",
       "cloudfront:List*",
+      "route53:GetChange",
+      "route53:GetHostedZone",
+      "route53:ListHostedZones",
+      "route53:ListHostedZonesByName",
+      "route53:ListResourceRecordSets",
+      "route53:ListTagsForResource",
       "ses:Describe*",
       "ses:Get*",
       "ses:List*",
@@ -283,9 +301,18 @@ data "aws_iam_policy_document" "tf_apply" {
     sid    = "ManageSes"
     effect = "Allow"
     actions = [
+      "ses:CreateConfigurationSet",
+      "ses:DeleteConfigurationSet",
+      "ses:PutConfigurationSetDeliveryOptions",
+      "ses:PutConfigurationSetReputationOptions",
+      "ses:PutConfigurationSetSendingOptions",
+      "ses:PutConfigurationSetSuppressionOptions",
+      "ses:PutConfigurationSetTrackingOptions",
       "ses:CreateEmailIdentity",
       "ses:DeleteEmailIdentity",
+      "ses:PutEmailIdentityConfigurationSetAttributes",
       "ses:PutEmailIdentityDkimSigningAttributes",
+      "ses:PutEmailIdentityMailFromAttributes",
       "ses:TagResource",
       "ses:UntagResource",
       "ses:CreateReceiptRuleSet",
@@ -297,6 +324,79 @@ data "aws_iam_policy_document" "tf_apply" {
       "ses:SetActiveReceiptRuleSet",
     ]
     resources = ["*"]
+  }
+
+  # The send-only SMTP user Supabase Auth signs in as (ses_sending.tf), and the
+  # permissions boundary that caps it. Scoped to its own name prefix, and
+  # deliberately without iam:AttachUserPolicy — a user's permissions can only
+  # ever be the inline policy Terraform writes, intersected with the boundary.
+  statement {
+    sid    = "ManageProjectSesUser"
+    effect = "Allow"
+    actions = [
+      "iam:CreateAccessKey",
+      "iam:DeleteAccessKey",
+      "iam:DeleteUser",
+      "iam:DeleteUserPolicy",
+      "iam:TagUser",
+      "iam:UntagUser",
+      "iam:UpdateAccessKey",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:user/system/${local.managed_user_prefix}*"]
+  }
+
+  # Creating a user, and writing what it may do, are the two actions that could
+  # turn this role into an administrative one: an inline policy has no ceiling
+  # of its own, and an access key on such a user is a durable credential usable
+  # from anywhere, long after the OIDC role that minted it is gone. Both are
+  # therefore allowed ONLY against a principal carrying the send-only boundary,
+  # which the boundary Deny below keeps honest. This is AWS's own delegation
+  # pattern, and it is what makes the grant above safe to hand to CI.
+  statement {
+    sid    = "ManageProjectSesUserPermissions"
+    effect = "Allow"
+    actions = [
+      "iam:CreateUser",
+      "iam:PutUserPermissionsBoundary",
+      "iam:PutUserPolicy",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:user/system/${local.managed_user_prefix}*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.ses_smtp_boundary_arn]
+    }
+  }
+
+  # The boundary policy itself. Creating it is in scope (a from-scratch apply
+  # has to); changing or deleting it afterwards is denied below, since a
+  # boundary this role could rewrite would not be a boundary.
+  statement {
+    sid    = "ManageProjectPolicies"
+    effect = "Allow"
+    actions = [
+      "iam:CreatePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:TagPolicy",
+      "iam:UntagPolicy",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:policy/${local.managed_user_prefix}*"]
+  }
+
+  # The auth identity's DNS records (ses_sending.tf). Route 53 scopes writes to
+  # a hosted zone, never to individual records, so this grant covers every
+  # record in the zone — including the apex MX that receives mail and the alias
+  # that serves the live site. Terraform touches only what it declares, so the
+  # exposure is a future bug in this configuration rather than a standing
+  # capability; pinning it to the one zone is as far as IAM can narrow it.
+  statement {
+    sid       = "ManageAuthMailDns"
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = [data.aws_route53_zone.primary.arn]
   }
 
   statement {
@@ -358,7 +458,7 @@ data "aws_iam_policy_document" "tf_apply" {
   statement {
     sid       = "DenyPrivilegedManagedPolicies"
     effect    = "Deny"
-    actions   = ["iam:AttachRolePolicy"]
+    actions   = ["iam:AttachRolePolicy", "iam:AttachUserPolicy"]
     resources = ["*"]
 
     condition {
@@ -370,6 +470,22 @@ data "aws_iam_policy_document" "tf_apply" {
         "arn:aws:iam::aws:policy/PowerUserAccess",
       ]
     }
+  }
+
+  # Without this, ManageProjectPolicies would let the apply role publish a new
+  # version of the very boundary that caps the users it can create, and the
+  # containment above would be decorative. Same shape and same consequence as
+  # DenySelfModification: changing the boundary needs a local apply.
+  statement {
+    sid    = "DenyBoundaryTampering"
+    effect = "Deny"
+    actions = [
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:SetDefaultPolicyVersion",
+    ]
+    resources = [local.ses_smtp_boundary_arn]
   }
 
   # Deleting any of these is unrecoverable in a way an apply should never be
