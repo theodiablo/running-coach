@@ -15,27 +15,23 @@ import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
 import { getHrSource } from "../hr/source";
-import { effectiveHrMethod, resolveRunHr, runHrFields } from "../hr/runHr";
+import { recorderHrSetup, resolveRunHr, runHrFields } from "../hr/runHr";
 import { isHrStale, liveHrStatusLine } from "../utils/hr";
 import { requestRunNotificationsOnce } from "../geo/notifications";
 import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudgeBatteryOptimization } from "../geo/battery";
-import { getPairedDevice } from "../hr/device";
-import { hasHealthConnectAuthorization } from "../hr/healthconnect";
-import { hasHealthKitAuthorization } from "../healthkit/import";
 import { RouteMap } from "../components/RouteMap";
 import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
-import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
+import { Ctrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
 import { RouteFinderSheet } from "./RouteFinderSheet";
 import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
-import { isNative, isAndroid, isIos } from "../native";
+import { isNative } from "../native";
 import { BG_LOC_DISCLOSED_KEY, LIVE_SHARE_KEY, routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser, isPremiumActive } from "../premium";
 import { primeCues } from "../cues";
 import { track } from "../telemetry";
-import { hrNudgeFor } from "../utils/hrNudge";
 import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
@@ -61,8 +57,6 @@ type LiveRunTrackerProps = {
   onRefreshPremium?: () => Promise<string | null>;
 };
 
-type LocationPreview = { lat: number; lng: number; acc?: number | null };
-
 // `pulseKey` (optional): when it changes, the value re-mounts (via `key`) and
 // plays a subtle tick. Used only for the km stat, keyed on the whole-kilometre
 // count, so it pulses once per km rather than on every ~1s GPS update.
@@ -75,23 +69,11 @@ function Stat({ label, value, pulseKey }: { label: string; value: ReactNode; pul
   );
 }
 
-// Large, glove-friendly control button.
-function Ctrl({ onClick, color, children, disabled = false }: { onClick: () => void; color: string; children: ReactNode; disabled?: boolean }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      className={"flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-base font-semibold transition-[background-color,transform] active:scale-95 disabled:opacity-50 disabled:active:scale-100 " + color}>
-      {children}
-    </button>
-  );
-}
 
 export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
-  const pairedHrDevice = getPairedDevice();
-  const healthConnectAuthorized = hasHealthConnectAuthorization();
-  const healthKitAuthorized = hasHealthKitAuthorization();
-  // Local readiness for the *synced* method, from the same helper the indoor
-  // recorder uses (src/hr/runHr.ts).
-  const hrMethodHere = effectiveHrMethod(hrMethod);
+  // Same pre-start read as the indoor recorder, from the same helper
+  // (src/hr/runHr.ts).
+  const hr = recorderHrSetup(hrMethod, hrOptOut);
   const { t } = useTranslation();
   // Guided-workout step line for the lock-screen surfaces. The guide hook
   // needs the tracker's state/stats, so the value feeds BACK into
@@ -99,9 +81,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // pattern) — the re-render settles before effects run, so the notification
   // effect always pushes the settled value.
   const [stepText, setStepText] = useState<string | null>(null);
-  const rt = useRunTracker({ hrMethod: hrMethodHere, stepText });
-  const tracker = rt as Omit<typeof rt, "location"> & { location: LocationPreview | null };
-  const { state, points, stats, error, pending, location } = tracker;
+  const rt = useRunTracker({ hrMethod: hr.method, stepText });
+  const { state, points, stats, error, pending, location } = rt;
   const [busy, setBusy] = useState(false);
   // ── Guided workout (premium) ─────────────────────────────────────────────
   // The sign-in entitlement read can be stale (offline, or predating a grant),
@@ -173,7 +154,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     try { return localStorage.getItem(LIVE_SHARE_KEY) === "1"; } catch { return false; }
   });
   // What actually governs publishing and the on-air indicator.
-  const sharing = shareLive;
   // Set the moment the broadcast is torn down, so a re-render after the row has
   // been deleted can't resurrect it with one last "ended" write.
   const shareEndedRef = useRef(false);
@@ -326,12 +306,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   };
   const countdown = useCountdown(startTracking);
   const startWithCountdown = () => (reducedMotion ? startTracking() : countdown.start(3));
-  // Resolve the HR source once per render from the seam (source.js), instead of
-  // matching method-id strings all over this file — null off web/"off"/unknown,
-  // otherwise carries the `live` flag every branch below dispatches on.
-  const hrSrc = getHrSource(hrMethodHere);
-  // Live HR streams only from a `live` (Bluetooth) source; a post-run source
-  // (Health Connect) is fetched in handleSave instead, so no live tile for it.
+  // Null off web/"off"/unknown; a post-run source (Health Connect) is fetched in
+  // handleSave instead of streaming, so it gets no live tile.
+  const hrSrc = getHrSource(hr.method);
   const liveHr = !!hrSrc?.live;
   // A strap that dies leaves its last bpm on screen, and hrAvg stays non-null
   // for the rest of the run, so the status line would read "avg · max" forever
@@ -345,12 +322,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // now" dismisses just this run; "Don't record" sets the opt-out only for the
   // generic off-state prompt. Never blocks Start — see guardedStart/maybeShowHrNudge.
   const [showHrNudge, setShowHrNudge] = useState(false);
-  // See utils/hrNudge.ts for why the other platform's synced method yields none.
-  const hrNudgeChoice = hrNudgeFor({
-    isNative, isAndroid, isIos, hrMethod,
-    healthConnectAuthorized, healthKitAuthorized,
-    pairedHrDevice: !!pairedHrDevice, hrOptOut: !!hrOptOut,
-  });
   const disclosed = () => {
     try { return localStorage.getItem(BG_LOC_DISCLOSED_KEY) === "1"; } catch { return false; }
   };
@@ -387,7 +358,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // disclosure does. Returns whether the nudge took over (caller must not also
   // call fn in that case).
   const maybeShowHrNudge = (fn: () => void) => {
-    if (hrNudgeChoice) {
+    if (hr.nudge) {
       pendingStartRef.current = fn;
       setShowHrNudge(true);
       return true;
@@ -472,7 +443,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // simplify() so the ~1/s foreground clock ticks don't re-simplify a long trace
   // only to throw it away.
   useEffect(() => {
-    if (!sharing || shareEndedRef.current) return;
+    if (!shareLive || shareEndedRef.current) return;
     const status = state === "tracking" ? "live" : state === "paused" ? "paused" : state === "stopped" ? "ended" : null;
     if (!status) return;
     if (!canPublishNow(status, shareToken)) return;
@@ -496,7 +467,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
-  }, [sharing, state, points, stats, rt, shareToken, showToast, t]);
+  }, [shareLive, state, points, stats, rt, shareToken, showToast, t]);
 
   // The single-writer handoff. Arm the native uploader when the page goes
   // hidden mid-broadcast (visibilitychange fires before Android freezes the
@@ -508,7 +479,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   useEffect(() => {
     const sync = () => {
       const shouldArm = document.visibilityState === "hidden" &&
-        sharing && state === "tracking" && !shareEndedRef.current && !!publishTokenRef.current;
+        shareLive && state === "tracking" && !shareEndedRef.current && !!publishTokenRef.current;
       if (shouldArm && !uploaderArmedRef.current) {
         uploaderArmedRef.current = true;
         enableLiveUpload(publishTokenRef.current as string);
@@ -524,17 +495,17 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       // the frozen-WebView writer has no business staying armed.
       disarmLiveUpload();
     };
-  }, [sharing, state, disarmLiveUpload]);
+  }, [shareLive, state, disarmLiveUpload]);
 
   // Recording with sharing OFF ends any broadcast this device left behind — a
   // killed app, then a resume. The boot sweep skipped it (the recovery buffer was
   // still there) and nothing will publish over it, so this is its last chance to
   // come down before the 6h window expires.
   useEffect(() => {
-    if (sharing || sweptRef.current || state !== "tracking") return;
+    if (shareLive || sweptRef.current || state !== "tracking") return;
     sweptRef.current = true;
     void sweepOwnLiveRun();
-  }, [sharing, state]);
+  }, [shareLive, state]);
 
   // In-DOM confirm, never window.confirm (see CLAUDE.md): the Android back
   // gesture routes here, and a native dialog raised as the activity backgrounds
@@ -579,13 +550,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       hrSrc, liveSamples: rt.hrSamples, durationSec: stats.movingSec,
       startMs: startedAt || points.find(Boolean)?.[2] || Date.now(), endMs,
     });
-    // A dropped link leaves the mean of whatever fragment survived — a cooldown
-    // walk's 85bpm stamped on a 70-minute session — and that number would go on
-    // to feed the coach, the HR zones and race predictions. The samples still
-    // store, and run detail recomputes the coverage from them to say why there
-    // is no average.
-    if (resolved.partialCoverage != null)
-      showToast?.(t("tracker.hr.partial", { pct: Math.round(resolved.partialCoverage * 100) }), "err");
     const hrSamples = resolved.samples;
     const statObj = { km, durationSec: stats.movingSec, elevation: stats.elevation, avgPace: Math.round(stats.avgPace),
       ...(hrSamples.length ? { hrSamples } : {}) };
@@ -601,6 +565,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       queuePendingRoute({ tmpId: routeTmp, points: simplified, stats: statObj });
       showToast?.(t("tracker.routeUploadFailed"), "err");
     }
+    // After the upload, so the single-slot toast doesn't drop this one: a
+    // dropped link leaves the mean of whatever fragment survived — a cooldown
+    // walk's 85bpm stamped on a 70-minute session — which would go on to feed
+    // the coach, the zones and race predictions. The samples still store, and
+    // run detail recomputes the coverage from them to say why there is no average.
+    if (resolved.partialCoverage != null)
+      showToast?.(t("tracker.hr.partial", { pct: Math.round(resolved.partialCoverage * 100) }), "err");
     // Fastest 1K/5K/10K/half/marathon inside the trace, measured once here off
     // the SAME simplified points that get stored, so the run detail view and any
     // later comparison read identical numbers. Cheap (a two-pointer sweep) and
@@ -626,22 +597,20 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
   };
 
-  // Back/Escape dismissal, innermost first: countdown → HR nudge → discard
-  // confirm → the tracker itself (routed through handleClose so an in-progress
-  // run raises the discard confirm, never a silent teardown). Each registers
-  // only while shown, so the stack order matches what's visually on top. The
-  // bg-location disclosure self-registers inside BgLocationDisclosure, so it
-  // isn't listed here.
+  // Back/Escape dismissal, innermost first: countdown → discard confirm → the
+  // tracker itself (routed through handleClose so an in-progress run raises the
+  // discard confirm, never a silent teardown). Each registers only while shown,
+  // so the stack order matches what's visually on top. The HR nudge and the
+  // bg-location disclosure self-register in their own components.
   useDismissable(true, handleClose);
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
-  useDismissable(showHrNudge, () => dismissHrNudge(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
   // The public-link control, rendered both before a run and during one (a
   // runner who forgot to send the link shouldn't have to stop to fix that).
   // Only offered once the broadcast itself is on: minting a link over a run
   // that publishes nothing would hand someone a page that never fills in.
-  const shareLinkRow = !sharing ? null : shareToken ? (
+  const shareLinkRow = !shareLive ? null : shareToken ? (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
         <Link2 size={15} className="text-sky-300 shrink-0" />
@@ -881,7 +850,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
         {/* A broadcast in progress must be visible on the recording device — an
             invisible one is a privacy problem, not a feature. */}
-        {live && sharing && (
+        {live && shareLive && (
           <>
             <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
               <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
@@ -903,32 +872,21 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       )}
 
       {confirmDiscard && (
-        <ModalOverlay>
-          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
-            <p className="text-sm text-slate-200">{t("tracker.discardConfirm")}</p>
-            <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={t("tracker.controls.discard")}
-              onCancel={() => setConfirmDiscard(false)} onAccept={discardRun} />
-          </div>
-        </ModalOverlay>
+        <DiscardConfirm message={t("tracker.discardConfirm")}
+          onCancel={() => setConfirmDiscard(false)} onAccept={discardRun} />
       )}
 
       {/* Nudge to set up a heart-rate source, offered once per Start tap (never on
           Resume/pause cycles) while the location disclosure isn't up — see
           guardedStart/maybeShowHrNudge. Reappears each run until the user sets HR
           up or taps "Don't record heart rate" (persistent opt-out). */}
-      {showHrNudge && hrNudgeChoice && (
-        <HrNudgeSheet choice={hrNudgeChoice} onDismiss={dismissHrNudge}
+      {showHrNudge && hr.nudge && (
+        <HrNudgeSheet choice={hr.nudge} onDismiss={dismissHrNudge}
           onConfigure={() => onConfigureHr?.()} onDecline={onDeclineHr} />
       )}
 
       {countdown.count !== null && (
-        <button type="button" onClick={countdown.cancel} aria-label={t("common.cancel")}
-          className="absolute inset-0 z-[1100] flex items-center justify-center bg-slate-900/85">
-          <span key={countdown.count} aria-live="assertive"
-            className="text-8xl font-extrabold text-orange-400 tabular-nums animate-countdown">
-            {countdown.count > 0 ? countdown.count : t("tracker.countdown.go")}
-          </span>
-        </button>
+        <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
       )}
 
       {showFinder && (

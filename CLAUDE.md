@@ -285,8 +285,10 @@ Always re-verify a finding before acting on it; agents report false positives.
   by implementing the interface — never touch `navigator.geolocation` or a
   native bridge directly from UI code. **Both recorders sit either side of the
   same HR seam and must keep sharing what surrounds it** — `src/hr/runHr.ts`
-  (device readiness, save-time resolution), `HrNudgeSheet`, `liveHrStatusLine`:
-  a rule copied into one screen is a rule that drifts in the other.
+  (`recorderHrSetup` for device readiness + which setup prompt, `resolveRunHr`
+  for save-time resolution), `HrNudgeSheet`, `liveHrStatusLine`, and
+  `RecorderChrome` for the controls they render identically: a rule copied into
+  one screen is a rule that drifts in the other.
 - **A live BLE link is alive when the GATT CALLBACK says so, not when this JS
   last heard from it.** The callback runs in the app process and keeps firing
   while delivery to the WebView stalls (a backgrounded run held up by the

@@ -176,17 +176,10 @@ const bleSourceImpl = {
       // link. Give it one clean window instead: a healthy sensor lands a sample
       // within ~1s of the WebView waking and disarms this before it fires again.
       if (Date.now() - stallArmedAt > STALL_MS + STALL_GRACE_MS) { armStall(); return; }
-      // Silence in THIS stream is not silence on the link. The GATT callback
-      // runs in the app process and keeps firing while delivery to the WebView
-      // stalls — a backgrounded-but-alive recorder (a GPS run, held up by the
-      // location foreground service) is exactly that state, and tearing the
-      // link down there cost minutes of HR per run: the reconnect misses beats
-      // the healthy link was still delivering, then a failed direct connect
-      // falls into re-discovery and Android's scan throttle. So ask the
-      // callback (Android, patched shell) before acting; the journal is
-      // recording that stretch either way, and the next sample to land
-      // re-arms the live readout. Null (iOS, unpatched, no beat yet) keeps the
-      // original behaviour.
+      // Silence in THIS stream is not silence on the link: the GATT callback
+      // keeps firing while delivery to the WebView stalls, so ask it before
+      // tearing anything down (docs/health-integrations.md). Null — iOS, an
+      // unpatched shell, no beat yet — keeps the original behaviour.
       void lastNativeHrBeatAt().then(beatAt => {
         if (handle.stopped || stallTimer) return; // a sample landed meanwhile
         if (beatAt != null && Date.now() - beatAt < STALL_MS) { armStall(); return; }

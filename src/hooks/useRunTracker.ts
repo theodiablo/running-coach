@@ -347,7 +347,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // An indoor session has no location service to hold the process, so it runs
     // its own — but only with a live strap streaming, which is what makes its
     // connectedDevice type honest (src/indoor/session.ts).
-    if (indoor && hrWatchRef.current) startIndoorSessionService(runStartRef.current);
+    if (indoor && hrWatchRef.current) startIndoorSessionService(Date.now() - accRef.current * 1000);
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist, indoor]);
@@ -382,7 +382,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // the app was killed would otherwise journal nothing from here on, and the
     // beats already on disk are the ones the crash would have cost us.
     if (hrWatchRef.current) armHrJournal();
-    if (indoor && hrWatchRef.current) startIndoorSessionService(runStartRef.current);
+    if (indoor && hrWatchRef.current) startIndoorSessionService(Date.now() - accRef.current * 1000);
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist, indoor]);

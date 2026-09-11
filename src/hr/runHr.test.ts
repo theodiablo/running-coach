@@ -7,8 +7,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const j = vi.hoisted(() => ({ read: vi.fn<() => Promise<{ bpm: number; t: number }[]>>() }));
 vi.mock("./hrJournal", () => ({ readHrJournal: j.read }));
 vi.mock("../native", () => ({ isNative: true, isAndroid: true, isIos: false, platform: "android" }));
+const dev = vi.hoisted(() => ({ paired: vi.fn(), hc: vi.fn(), hk: vi.fn() }));
+vi.mock("./device", () => ({ getPairedDevice: dev.paired }));
+vi.mock("./healthconnect", () => ({ hasHealthConnectAuthorization: dev.hc }));
+vi.mock("../healthkit/import", () => ({ hasHealthKitAuthorization: dev.hk }));
 
-import { resolveRunHr, runHrFields } from "./runHr";
+import { recorderHrSetup, resolveRunHr, runHrFields } from "./runHr";
 
 const stream = (from: number, sec: number, bpm = 150) =>
   Array.from({ length: sec }, (_, i) => ({ bpm, t: from + i * 1000 }));
@@ -78,5 +82,39 @@ describe("runHrFields", () => {
 
   it("omits hr entirely when there is none to claim", () => {
     expect(runHrFields({ samples: [], hr: null, hrMax: null, hrPending: null, partialCoverage: 0.2 })).toEqual({});
+  });
+});
+
+describe("recorderHrSetup", () => {
+  // The synced method is a preference; the pairing/grant it needs is per-install.
+  // This is the gate on whether a native bridge is touched at all, so each row
+  // states both halves: what the recorder runs with, and what it offers instead.
+  beforeEach(() => {
+    dev.paired.mockReset().mockReturnValue(null);
+    dev.hc.mockReset().mockReturnValue(false);
+    dev.hk.mockReset().mockReturnValue(false);
+  });
+
+  it("keeps a method whose device state backs it", () => {
+    dev.paired.mockReturnValue({ id: "d1", name: "Polar H10" });
+    expect(recorderHrSetup("bluetooth")).toEqual({ method: "bluetooth", nudge: null });
+    dev.hc.mockReturnValue(true);
+    expect(recorderHrSetup("healthconnect")).toEqual({ method: "healthconnect", nudge: null });
+  });
+
+  it("falls back to off, and offers the prompt that names what is missing", () => {
+    expect(recorderHrSetup("bluetooth")).toEqual({ method: "off", nudge: { id: "pair", allowOptOut: false } });
+    expect(recorderHrSetup("healthconnect")).toEqual({ method: "off", nudge: { id: "auth", allowOptOut: false } });
+  });
+
+  it("offers the generic prompt when HR is simply off, and honours the opt-out", () => {
+    expect(recorderHrSetup("off").nudge).toEqual({ id: "setup", allowOptOut: true });
+    expect(recorderHrSetup("off", true).nudge).toBeNull();
+  });
+
+  it("never prompts about the other platform's method", () => {
+    // healthkit on Android: effectively off here, but a re-authorize prompt
+    // would be meaningless and the generic one would mislead.
+    expect(recorderHrSetup("healthkit")).toEqual({ method: "off", nudge: null });
   });
 });

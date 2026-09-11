@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { HeartPulse } from "lucide-react";
+import { useDismissable } from "../hooks/useDismissable";
 import { ModalOverlay, ConfirmButtons } from "./ModalPrimitives";
 import { BetaBadge } from "./BetaBadge";
 import type { HrNudgeChoice } from "../utils/hrNudge";
@@ -16,6 +17,8 @@ export function HrNudgeSheet({ choice, onDismiss, onConfigure, onDecline }: {
   onDecline?: () => void;
 }) {
   const { t } = useTranslation();
+  // Back/Escape cancel outright — unlike "Not now", which goes on to start.
+  useDismissable(true, () => onDismiss(false));
   const copy = {
     auth:   { title: t("tracker.hrNudge.authTitle"),   body: t("tracker.hrNudge.authBody"),   acceptLabel: t("tracker.hrNudge.authAccept") },
     hkAuth: { title: t("tracker.hrNudge.hkAuthTitle"), body: t("tracker.hrNudge.hkAuthBody"), acceptLabel: t("tracker.hrNudge.authAccept") },

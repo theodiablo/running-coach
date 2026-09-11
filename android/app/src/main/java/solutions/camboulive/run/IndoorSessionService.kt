@@ -11,7 +11,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.getcapacitor.Logger
@@ -45,8 +47,7 @@ class IndoorSessionService : Service() {
 
     companion object {
         const val ACTION_START = "solutions.camboulive.run.INDOOR_START"
-        const val ACTION_STOP = "solutions.camboulive.run.INDOOR_STOP"
-        const val EXTRA_STARTED_AT_MS = "startedAtMs"
+        const val EXTRA_CHRONOMETER_START_MS = "chronometerStartMs"
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
 
@@ -62,9 +63,11 @@ class IndoorSessionService : Service() {
         private const val HR_RENDER_MIN_MS = 5000L
     }
 
+    private val handler = Handler(Looper.getMainLooper())
+    private val dropStaleHr = Runnable { render() }
     private var title = "Indoor session"
     private var text = ""
-    private var startedAtMs = 0L
+    private var chronometerStartMs = 0L
     private var hrBpm = 0
     private var hrAtMs = 0L
     private var hrRenderedAt = 0L
@@ -78,20 +81,16 @@ class IndoorSessionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
         title = intent?.getStringExtra(EXTRA_TITLE) ?: title
         text = intent?.getStringExtra(EXTRA_TEXT) ?: text
-        // Epoch ms of the session start, already normalised by the plugin (a
-        // bridge Number reaches Kotlin as a Double, not a Long).
-        startedAtMs = intent?.getLongExtra(EXTRA_STARTED_AT_MS, 0L) ?: 0L
+        // Chronometer anchor in the System.currentTimeMillis timebase, already
+        // normalised by the plugin (a bridge Number reaches Kotlin as a Double,
+        // not a Long).
+        chronometerStartMs = intent?.getLongExtra(EXTRA_CHRONOMETER_START_MS, chronometerStartMs) ?: chronometerStartMs
 
         try {
             shown = liveText()
             startForegroundCompat(buildNotification(shown!!))
-            registerHrReceiver()
         } catch (exception: Exception) {
             // A foreground start refused (no notification permission, or an
             // Android 12+ background-start restriction) must never take the
@@ -99,11 +98,18 @@ class IndoorSessionService : Service() {
             // as it did before this service existed.
             Logger.error("Indoor session service could not start in foreground", exception)
             stopSelf()
+            return START_NOT_STICKY
+        }
+        // Outside the try above: this service holds the app process, and a
+        // notification decoration must never be able to stop it.
+        try { registerHrReceiver() } catch (exception: Exception) {
+            Logger.error("Indoor session HR relay unavailable", exception)
         }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(dropStaleHr)
         hrReceiver?.let {
             try { unregisterReceiver(it) } catch (ignored: RuntimeException) { /* never registered */ }
         }
@@ -141,6 +147,11 @@ class IndoorSessionService : Service() {
         if (t - hrRenderedAt < HR_RENDER_MIN_MS) return
         hrRenderedAt = t
         render()
+        // Nothing else will ever re-post this notification — a run's is redrawn
+        // by its fix stream, an indoor session has none — so the staleness rule
+        // below needs its own wake-up or a dead strap stays on screen forever.
+        handler.removeCallbacks(dropStaleHr)
+        handler.postDelayed(dropStaleHr, HR_STALE_MS)
     }
 
     private fun render() {
@@ -205,8 +216,8 @@ class IndoorSessionService : Service() {
         // timebase — the same contract the run notification's chronometer uses
         // (chronometerStartMs in the background-geolocation patch). Do not
         // convert to elapsedRealtime here.
-        if (startedAtMs > 0) {
-            builder.setWhen(startedAtMs).setUsesChronometer(true).setShowWhen(true)
+        if (chronometerStartMs > 0) {
+            builder.setWhen(chronometerStartMs).setUsesChronometer(true).setShowWhen(true)
         }
         return builder.build()
     }

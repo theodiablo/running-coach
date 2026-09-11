@@ -11,14 +11,17 @@ import { t } from "../i18n";
 // recovery buffer and MainActivity's renderer restart cover that one.
 
 const IndoorSession = registerPlugin<{
-  start: (options: { startedAtMs: number; title: string; text: string }) => Promise<void>;
+  start: (options: { chronometerStartMs: number; title: string; text: string }) => Promise<void>;
   stop: () => Promise<void>;
 }>("IndoorSession");
 
-export function startIndoorSessionService(startedAtMs: number | null): void {
+// `chronometerStartMs` anchors the OS-rendered clock, so it is now - movingMs —
+// MOVING time, the same contract as the run notification's, or a resumed session
+// reads ahead of the clock on screen.
+export function startIndoorSessionService(chronometerStartMs: number): void {
   if (!isAndroid) return;
   IndoorSession.start({
-    startedAtMs: startedAtMs || Date.now(),
+    chronometerStartMs,
     title: t("tracker.indoor.serviceTitle"),
     text: t("tracker.indoor.serviceText"),
   }).catch(() => { /* older shell / start refused — recording continues */ });

@@ -1228,7 +1228,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
-      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         // An indoor save can only tick a cross-training day, never that day's

@@ -4,7 +4,8 @@ import { getPairedDevice } from "./device";
 import { hasHealthConnectAuthorization } from "./healthconnect";
 import { hasHealthKitAuthorization } from "../healthkit/import";
 import { HR_MIN_COVERAGE, hrCoverage, hrSummary, mergeHrSamples } from "../utils/hr";
-import { isNative } from "../native";
+import { hrNudgeFor, type HrNudgeChoice } from "../utils/hrNudge";
+import { isAndroid, isIos, isNative } from "../native";
 import type { BleHrSample } from "./ble";
 import type { HrMethod, HrPending, Run } from "../types";
 
@@ -13,18 +14,41 @@ import type { HrMethod, HrPending, Run } from "../types";
 // side of it — which method is usable on THIS device, and how a finished
 // session's HR is resolved — have to be one implementation, not two that drift.
 
-// The synced `settings.hrMethod` is a preference; the pairing/authorization it
-// needs is per-install. Resolve it against this device's local state, falling
-// back to "off" when the selected source can't actually be used here (the
-// recorder then prompts the user to set it up, without blocking Start).
-// getHrSource already nulls an off-platform method, so no platform check here.
-export function effectiveHrMethod(hrMethod: HrMethod): HrMethod {
+export type RecorderHrSetup = {
+  /** What this device can actually use, "off" when the synced method isn't ready here. */
+  method: HrMethod;
+  /** Which setup prompt Start should raise instead, if any. */
+  nudge: HrNudgeChoice | null;
+};
+
+/**
+ * What a recorder needs to settle about heart rate before it starts. The synced
+ * `settings.hrMethod` is a preference; the pairing or authorization it needs is
+ * per-install, so it is narrowed to what this device holds and falls back to
+ * "off" — the recorder then offers `nudge`, never blocking Start. `getHrSource`
+ * already nulls an off-platform method, so there is no platform check here.
+ *
+ * One call, because the three device markers feed both the narrowing and the
+ * nudge: reading them per consumer cost a localStorage hit each, per render, on
+ * a screen that re-renders every second. The seam call itself stays at the call
+ * site — `getHrSource(setup.method)`.
+ */
+export function recorderHrSetup(hrMethod: HrMethod, hrOptOut?: boolean): RecorderHrSetup {
+  const pairedHrDevice = !!getPairedDevice();
+  const healthConnectAuthorized = hasHealthConnectAuthorization();
+  const healthKitAuthorized = hasHealthKitAuthorization();
   const ready = !isNative
     || (hrMethod || "off") === "off"
-    || (hrMethod === "bluetooth" && !!getPairedDevice())
-    || (hrMethod === "healthconnect" && hasHealthConnectAuthorization())
-    || (hrMethod === "healthkit" && hasHealthKitAuthorization());
-  return ready ? hrMethod : "off";
+    || (hrMethod === "bluetooth" && pairedHrDevice)
+    || (hrMethod === "healthconnect" && healthConnectAuthorized)
+    || (hrMethod === "healthkit" && healthKitAuthorized);
+  return {
+    method: ready ? hrMethod : "off",
+    nudge: hrNudgeFor({
+      isNative, isAndroid, isIos, hrMethod,
+      healthConnectAuthorized, healthKitAuthorized, pairedHrDevice, hrOptOut: !!hrOptOut,
+    }),
+  };
 }
 
 export type ResolvedRunHr = {
@@ -38,7 +62,6 @@ export type ResolvedRunHr = {
 };
 
 type HrSourceLike = NonNullable<ReturnType<typeof getHrSource>>;
-type PostRunHrSource = { id: string; fetchRange: (startMs: number, endMs: number) => Promise<{ hrAvg?: number; hrMax?: number | null }> };
 
 /**
  * Resolve a finished session's heart rate, for a GPS run and an indoor session
@@ -80,7 +103,7 @@ export async function resolveRunHr({ hrSrc, liveSamples, durationSec, startMs, e
   }
   if (hrSrc && !hrSrc.live) {
     let res = null;
-    try { res = await (hrSrc as unknown as PostRunHrSource).fetchRange(startMs, endMs); }
+    try { res = await hrSrc.fetchRange(startMs, endMs); }
     catch { /* unsynced — leave null */ }
     if (res?.hrAvg) { out.hr = res.hrAvg; out.hrMax = res.hrMax ?? null; }
     else out.hrPending = { start: startMs, end: endMs, source: hrSrc.id };

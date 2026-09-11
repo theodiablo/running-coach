@@ -103,10 +103,6 @@
     "fullscreen": "Show the map full screen",
     "exitFullscreen": "Leave full screen"
   },
-  "hrTarget": {
-    "addProfile": "Add your HR profile in Settings to see a target zone",
-    "range": "❤️ {{lo}}–{{hi}} bpm"
-  },
   "guided": {
     "title": "Guided session",
     "notifTitle": "Guided session",

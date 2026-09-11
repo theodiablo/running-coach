@@ -58,10 +58,12 @@ import { INDOOR_RUN_KEY } from "../constants";
 import type { Run, SettingsState } from "../types";
 
 const START = 1_700_000_000_000;
-const settings = { maxHR: 200, restHR: 60 } as unknown as SettingsState;
+const settings = { maxHR: 200, restHR: 60, hrMethod: "bluetooth" } as unknown as SettingsState;
+// The recorder reads hrMethod off settings; these override it per test.
+const withHr = (hrMethod: string) => ({ ...settings, hrMethod } as unknown as SettingsState);
 
 const show = (onFinish: (r: Partial<Run>) => void = () => {}) =>
-  render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+  render(<IndoorTracker settings={settings}
     onFinish={onFinish} onClose={() => {}} />);
 
 beforeEach(() => {
@@ -136,7 +138,7 @@ describe("IndoorTracker", () => {
   it("withholds heart rate when the strap only covered part of the session", async () => {
     const onFinish = vi.fn();
     const toast = vi.fn();
-    render(<IndoorTracker settings={settings} hrMethod="bluetooth" showToast={toast}
+    render(<IndoorTracker settings={settings} showToast={toast}
       onFinish={onFinish} onClose={() => {}} />);
     start();
     act(() => hr.watches[0].onSample({ bpm: 120, t: START }));
@@ -184,7 +186,7 @@ describe("IndoorTracker", () => {
   // after you finish". These two are that promise being kept.
   describe("post-run heart-rate source", () => {
     const showPostRun = (onFinish: (r: Partial<Run>) => void) =>
-      render(<IndoorTracker settings={settings} hrMethod="healthconnect"
+      render(<IndoorTracker settings={withHr("healthconnect")}
         onFinish={onFinish} onClose={() => {}} />);
 
     const record = async (onFinish: ReturnType<typeof vi.fn>) => {
@@ -281,7 +283,7 @@ describe("IndoorTracker", () => {
     it("asks in the DOM, never through window.confirm", () => {
       const confirmSpy = vi.spyOn(window, "confirm");
       const onClose = vi.fn();
-      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+      render(<IndoorTracker settings={settings}
         onFinish={() => {}} onClose={onClose} />);
       start();
       act(() => { vi.advanceTimersByTime(60_000); }); // real ticks, so the clock advances
@@ -295,7 +297,7 @@ describe("IndoorTracker", () => {
 
     it("keeps recording when the discard is cancelled", () => {
       const onClose = vi.fn();
-      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+      render(<IndoorTracker settings={settings}
         onFinish={() => {}} onClose={onClose} />);
       start();
       act(() => { vi.advanceTimersByTime(60_000); }); // real ticks, so the clock advances
@@ -311,7 +313,7 @@ describe("IndoorTracker", () => {
 
     it("closes and clears the buffer once the discard is confirmed", () => {
       const onClose = vi.fn();
-      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+      render(<IndoorTracker settings={settings}
         onFinish={() => {}} onClose={onClose} />);
       start();
       act(() => { vi.advanceTimersByTime(60_000); }); // real ticks, so the clock advances
@@ -324,7 +326,7 @@ describe("IndoorTracker", () => {
 
     it("closes straight away when there is nothing to lose", () => {
       const onClose = vi.fn();
-      render(<IndoorTracker settings={settings} hrMethod="bluetooth"
+      render(<IndoorTracker settings={settings}
         onFinish={() => {}} onClose={onClose} />);
       act(() => { fireEvent.click(screen.getByRole("button", { name: /close/i })); });
       expect(onClose).toHaveBeenCalledTimes(1);
@@ -333,7 +335,7 @@ describe("IndoorTracker", () => {
 
   it("saves a session recorded without a sensor rather than blocking on HR", async () => {
     const onFinish = vi.fn();
-    render(<IndoorTracker settings={settings} hrMethod="off" onFinish={onFinish} onClose={() => {}} />);
+    render(<IndoorTracker settings={withHr("off")} onFinish={onFinish} onClose={() => {}} />);
     start();
     vi.setSystemTime(START + 600_000);
     finish();

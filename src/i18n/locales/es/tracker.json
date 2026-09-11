@@ -103,10 +103,6 @@
     "fullscreen": "Ver el mapa en pantalla completa",
     "exitFullscreen": "Salir de pantalla completa"
   },
-  "hrTarget": {
-    "addProfile": "Añade tu perfil de FC en Ajustes para ver una zona objetivo",
-    "range": "❤️ {{lo}}–{{hi}} ppm"
-  },
   "guided": {
     "title": "Sesión guiada",
     "notifTitle": "Sesión guiada",

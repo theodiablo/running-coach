@@ -171,15 +171,17 @@ pattern (`HrSensorDisclosure`, `HR_BLE_DISCLOSED_KEY`). A skippable nudge (in
 run until the user sets HR up or taps "Don't record heart rate", which sets the
 synced `settings.hrOptOut`. It never blocks Start.
 
-**Both recorders finish a session through one resolver.** `src/hr/runHr.ts` is
-what `LiveRunTracker` and `IndoorTracker` share either side of the seam:
-`effectiveHrMethod` (the synced preference narrowed by this device's pairing /
-authorization) and `resolveRunHr` (journal merge → coverage guard → post-run
-`fetchRange` → pending marker), with `runHrFields` placing the per-platform
-pending marker. The nudge sheet (`src/components/HrNudgeSheet.tsx`) and the live
-status ladder (`liveHrStatusLine`, `src/utils/hr.ts`) are shared for the same
-reason — the two screens ask the same question of the same seam, so they must
-not answer it in two drifting copies.
+**Both recorders go through one module either side of the seam.**
+`src/hr/runHr.ts` holds `recorderHrSetup` (the synced preference narrowed by
+this device's pairing / authorization, plus which setup prompt Start should
+raise instead — one call, because the three per-device markers feed both) and
+`resolveRunHr` (journal merge → coverage guard → post-run `fetchRange` →
+pending marker), with `runHrFields` placing the per-platform pending marker.
+The seam call itself stays at the call site (`getHrSource(setup.method)`). The
+nudge sheet (`src/components/HrNudgeSheet.tsx`) and the live status ladder
+(`liveHrStatusLine`, `src/utils/hr.ts`) are shared for the same reason — the two
+screens ask the same question of the same seam, so they must not answer it in
+two drifting copies.
 
 HR lands in the **existing** run `hr`/`hrMax` fields (no shape change) via the
 `LogView` prefill — still user-editable — so all HR display (`HRZonesCard`,
