@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, HeartPulse, Bike } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
@@ -7,29 +7,24 @@ import { useRunTracker } from "../hooks/useRunTracker";
 import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
+import { recorderHrSetup, resolveRunHr, runHrFields } from "../hr/runHr";
 import { getHrSource } from "../hr/source";
-import { readHrJournal } from "../hr/hrJournal";
-import { HR_MIN_COVERAGE, effectiveMaxHR, hrCoverage, hrSummary, isHrStale, mergeHrSamples } from "../utils/hr";
-import { getPairedDevice } from "../hr/device";
-import { hasHealthConnectAuthorization } from "../hr/healthconnect";
-import { hasHealthKitAuthorization } from "../healthkit/import";
+import { effectiveMaxHR, isHrStale, liveHrStatusLine } from "../utils/hr";
+import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { LiveHrZone } from "../components/LiveHrZone";
 import { HRTarget } from "../components/HRTarget";
-import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
+import { Ctrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
 import { BetaBadge } from "../components/BetaBadge";
-import { isNative, isAndroid, isIos } from "../native";
+import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
 import { track } from "../telemetry";
-import { hrNudgeFor } from "../utils/hrNudge";
-import { RUN_ACTIVITIES, type HrMethod, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
+import { RUN_ACTIVITIES, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
 
 type IndoorTrackerProps = {
   onFinish: (prefill: Partial<Run>) => void;
   onClose: () => void;
   showToast?: (msg: string, type?: string) => void;
   settings: SettingsState;
-  hrMethod: HrMethod;
-  hrOptOut?: boolean;
   onConfigureHr?: (page?: SettingsPage) => void;
   onDeclineHr?: () => void;
 };
@@ -41,20 +36,11 @@ type IndoorTrackerProps = {
 // background-location consent apply with no GPS, and threading an `indoor`
 // branch through all of it would leave two half-features. See
 // docs/indoor-sessions.md.
-export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod, hrOptOut, onConfigureHr, onDeclineHr }: IndoorTrackerProps) {
+export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfigureHr, onDeclineHr }: IndoorTrackerProps) {
   const { t } = useTranslation();
-  const pairedHrDevice = getPairedDevice();
-  const healthConnectAuthorized = hasHealthConnectAuthorization();
-  const healthKitAuthorized = hasHealthKitAuthorization();
-  // Same two-key rule as LiveRunTracker: the synced method is only a preference,
-  // so the per-device pairing/grant must also be present before a bridge is used.
-  const hrReady = !isNative
-    || (hrMethod || "off") === "off"
-    || (hrMethod === "bluetooth" && !!pairedHrDevice)
-    || (hrMethod === "healthconnect" && healthConnectAuthorized)
-    || (hrMethod === "healthkit" && healthKitAuthorized);
-  const effectiveHrMethod = hrReady ? hrMethod : "off";
-  const rt = useRunTracker({ hrMethod: effectiveHrMethod, indoor: true });
+  // Same pre-start read as LiveRunTracker, from the same helper.
+  const hr = recorderHrSetup(settings.hrMethod, settings.hrOptOut);
+  const rt = useRunTracker({ hrMethod: hr.method, indoor: true });
   const { state, stats, pending } = rt;
   const [busy, setBusy] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
@@ -71,7 +57,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
     try { localStorage.setItem(INDOOR_ACTIVITY_KEY, a); } catch { /* quota — non-fatal */ }
   };
 
-  const hrSrc = getHrSource(effectiveHrMethod);
+  const hrSrc = getHrSource(hr.method);
   const liveHr = !!hrSrc?.live;
   const effMax = effectiveMaxHR(settings);
   const restHR = settings.restHR || 60;
@@ -82,25 +68,12 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   // render time: the 1s clock tick re-renders while tracking, and an hrStatus
   // change re-renders while idle, so this refreshes without a timer of its own.
   const hrStale = liveHr && isHrStale(stats.hrAt);
+  // Same ladder as the run recorder's, from the same helper.
+  const hrLine = liveHrStatusLine({ stale: hrStale, status: rt.hrStatus, hrAvg: stats.hrAvg, hrMax: stats.hrMax, hr: stats.hr });
 
-  // Same nudge rules as the run tracker — an indoor session with no HR source is
-  // the one case where the whole point of the screen is missing, but it still
-  // never blocks Start.
+  // An indoor session with no HR source is the one case where the whole point
+  // of the screen is missing, and it still never blocks Start.
   const [showHrNudge, setShowHrNudge] = useState(false);
-  const hrNudgeChoice = hrNudgeFor({
-    isNative, isAndroid, isIos, hrMethod,
-    healthConnectAuthorized, healthKitAuthorized,
-    pairedHrDevice: !!pairedHrDevice, hrOptOut: !!hrOptOut,
-  });
-  const HR_NUDGE_COPY = {
-    auth:   { title: t("tracker.hrNudge.authTitle"),   body: t("tracker.hrNudge.authBody"),   acceptLabel: t("tracker.hrNudge.authAccept") },
-    hkAuth: { title: t("tracker.hrNudge.hkAuthTitle"), body: t("tracker.hrNudge.hkAuthBody"), acceptLabel: t("tracker.hrNudge.authAccept") },
-    pair:   { title: t("tracker.hrNudge.pairTitle"),   body: t("tracker.hrNudge.pairBody"),   acceptLabel: t("tracker.hrNudge.pairAccept") },
-    setup:  { title: t("tracker.hrNudge.setupTitle"),  body: t("tracker.hrNudge.setupBody"),  acceptLabel: t("tracker.hrNudge.setupAccept") },
-  };
-  const hrNudge = hrNudgeChoice
-    ? { ...HR_NUDGE_COPY[hrNudgeChoice.id], allowOptOut: hrNudgeChoice.allowOptOut }
-    : null;
 
   const startSession = () => {
     track("indoor_session_started", { activity });
@@ -110,7 +83,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const startWithCountdown = () => (reducedMotion ? startSession() : countdown.start(3));
   // The nudge replaces this Start; the deferred action runs once it's dismissed.
   const handleStart = () => {
-    if (hrNudge) { setShowHrNudge(true); return; }
+    if (hr.nudge) { setShowHrNudge(true); return; }
     startWithCountdown();
   };
   const dismissHrNudge = (thenStart: boolean) => {
@@ -140,42 +113,21 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const handleSave = async () => {
     setBusy(true);
     const { startedAt, stoppedAt } = rt.runWindow();
-    // Heart rate, exactly as LiveRunTracker resolves it: a live source has
-    // already filled hrAvg/hrMax; a post-run source (Health Connect / Apple
-    // Health) is queried now over the session's window, and stamps a pending
-    // marker if the store hasn't synced yet so RunningCoach relinks on the next
-    // load. Without this the "added after you finish" line above is a promise
-    // the save never keeps. Branching on hrSrc, not a method id, so a future
-    // post-run source needs no edit here.
-    //
-    // Fold in the native HR journal first, for the same reason the run tracker
-    // does — and more so here: an indoor session has no location service, so
-    // backgrounding it freezes JS immediately and the journal is the only record
-    // of that stretch. Read it ONLY for a live source, the same condition that
-    // armed it; anything on disk under a post-run source belongs to an earlier
-    // BLE run, and merging it would both invent this session's HR and skip the
-    // store fetch below by producing an average.
-    const hrSamples = mergeHrSamples(rt.hrSamples, hrSrc?.live ? await readHrJournal() : []);
-    const hrStats = hrSummary(hrSamples);
-    const coverage = hrCoverage(hrSamples, stats.movingSec);
-    let hr = null, hrMax = null, hrPending = null;
-    if (hrStats.hrAvg != null) {
-      // Same coverage guard as a run: a strap that dropped halfway leaves the
-      // mean of whatever survived, and on this screen heart rate IS the session,
-      // so quoting a fragment's average would misreport the whole thing. Below
-      // the threshold the samples still save, and run detail recomputes the
-      // coverage from them to say why there is no average.
-      if (coverage >= HR_MIN_COVERAGE) { hr = hrStats.hrAvg; hrMax = hrStats.hrMax; }
-      else showToast?.(t("tracker.hr.partial", { pct: Math.round(coverage * 100) }), "err");
-    }
-    else if (hrSrc && !hrSrc.live) {
-      const startMs = startedAt || Date.now();
-      const endMs = stoppedAt || Date.now();
-      let res = null;
-      try { res = await (hrSrc as { fetchRange: (s: number, e: number) => Promise<{ hrAvg?: number; hrMax?: number }> }).fetchRange(startMs, endMs); } catch { /* unsynced — leave null */ }
-      if (res && res.hrAvg) { hr = res.hrAvg; hrMax = res.hrMax ?? null; }
-      else hrPending = { start: startMs, end: endMs, source: hrSrc.id };
-    }
+    // Heart rate through the one shared resolver (src/hr/runHr.ts) — a live
+    // source's stream folded together with the native journal and coverage-
+    // guarded, a post-run store queried over the session window. The journal
+    // matters more here than on a run: an indoor session has no location
+    // service, so backgrounding it freezes JS immediately and the journal is
+    // the only record of that stretch.
+    const resolved = await resolveRunHr({
+      hrSrc, liveSamples: rt.hrSamples, durationSec: stats.movingSec,
+      startMs: startedAt || Date.now(), endMs: stoppedAt || Date.now(),
+    });
+    // On this screen heart rate IS the session, so a fragment's average would
+    // misreport the whole thing. Run detail recomputes the coverage from the
+    // samples, which save either way, to say why there is no average.
+    if (resolved.partialCoverage != null)
+      showToast?.(t("tracker.hr.partial", { pct: Math.round(resolved.partialCoverage * 100) }), "err");
     // No distance axis at all: km stays 0 so running volume, pace, PBs and the
     // race predictor never see a bike session (docs/indoor-sessions.md).
     // bestEfforts is stamped empty ON PURPOSE — "measured, covers no standard
@@ -194,24 +146,20 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
       activity,
       source: "indoor",
       bestEfforts: {},
-      ...(hr != null ? { hr, hrMax } : {}),
-      // The HealthKit marker rides its own field: shipped Android clients strip
-      // any hrPending whose source isn't "healthconnect" from the synced blob.
-      ...(hrPending ? (hrPending.source === "healthkit" ? { hrPendingHk: hrPending } : { hrPending }) : {}),
+      ...runHrFields(resolved),
       ...(startedAt ? { startedAt: new Date(startedAt).toISOString() } : {}),
-      hrSamples,
+      hrSamples: resolved.samples,
     });
     rt.finalize();
     setBusy(false);
     onFinish(prefill);
   };
 
-  // Back/Escape, innermost first: countdown → HR nudge → discard confirm → the
-  // screen itself (through handleClose, so an in-progress session raises the
-  // discard confirm rather than closing).
+  // Back/Escape, innermost first: countdown → discard confirm → the screen
+  // itself (through handleClose, so an in-progress session raises the discard
+  // confirm rather than closing). The HR nudge self-registers.
   useDismissable(true, handleClose);
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
-  useDismissable(showHrNudge, () => dismissHrNudge(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
   const clock = fmt.dur(stats.movingSec) === "--" ? "0:00" : fmt.dur(stats.movingSec);
@@ -254,14 +202,18 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
             {!liveHr ? (hrSrc
               ? t("tracker.hr.postRun", { store: hrSrc.id === "healthkit" ? "Apple Health" : "Health Connect" })
               : t("tracker.indoor.noSensor"))
-              // Staleness outranks avg/max, which is otherwise pinned on for the
-              // rest of the session and leaves nothing to say the strap stopped.
-              : hrStale ? (rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach") : t("tracker.hr.reconnecting"))
-              : stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
-              : stats.hr != null ? t("tracker.hr.connected")
-              : rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach")
-              : t("tracker.hr.connecting")}
+              : t(hrLine.key, hrLine.params)}
           </p>
+          {/* The nudge only fires on Start, so without this a "Not now" leaves
+              no way to set a sensor up — on the screen where HR is the session.
+              Same affordance as the run recorder's. */}
+          {isNative && !hrSrc && state === "idle" && (
+            <button onClick={() => onConfigureHr?.()}
+              className="mt-2 mx-auto bg-slate-800 hover:bg-slate-700 rounded-xl px-3 py-2 flex items-center justify-center gap-2 transition-colors">
+              <HeartPulse size={16} className="text-slate-500 shrink-0" />
+              <span className="text-xs font-semibold text-orange-300">{t("tracker.hr.offChipCta")}</span>
+            </button>
+          )}
         </div>
 
         {/* No zone claim off a reading we no longer trust. */}
@@ -353,59 +305,19 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
       </div>
 
       {confirmDiscard && (
-        <ModalOverlay>
-          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
-            <p className="text-sm text-slate-200">{t("tracker.indoor.discardConfirm")}</p>
-            <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={t("tracker.controls.discard")}
-              onCancel={() => setConfirmDiscard(false)} onAccept={discardSession} />
-          </div>
-        </ModalOverlay>
+        <DiscardConfirm message={t("tracker.indoor.discardConfirm")}
+          onCancel={() => setConfirmDiscard(false)} onAccept={discardSession} />
       )}
 
-      {showHrNudge && (
-        <ModalOverlay>
-          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <HeartPulse size={16} className="text-orange-400" />
-              <p className="font-semibold text-sm">{hrNudge?.title || t("tracker.hrNudge.setupTitle")}</p>
-              <BetaBadge label={t("tracker.hrNudge.newBeta")} />
-            </div>
-            <p className="text-sm text-slate-300">{hrNudge?.body || t("tracker.hrNudge.setupBody")}</p>
-            <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-snug text-amber-100">
-              {t("tracker.hrNudge.betaWarning")}
-            </p>
-            <ConfirmButtons cancelLabel={t("common.notNow")} acceptLabel={hrNudge?.acceptLabel || t("tracker.hrNudge.setupAccept")}
-              onCancel={() => dismissHrNudge(true)}
-              onAccept={() => { dismissHrNudge(false); onConfigureHr?.(); }} />
-            {hrNudge?.allowOptOut && (
-              <button onClick={() => { dismissHrNudge(true); onDeclineHr?.(); }}
-                className="w-full text-center text-xs text-slate-500 hover:text-slate-300">
-                {t("tracker.hrNudge.optOut")}
-              </button>
-            )}
-          </div>
-        </ModalOverlay>
+      {showHrNudge && hr.nudge && (
+        <HrNudgeSheet choice={hr.nudge} onDismiss={dismissHrNudge}
+          onConfigure={() => onConfigureHr?.()} onDecline={onDeclineHr} />
       )}
 
       {countdown.count !== null && (
-        <button type="button" onClick={countdown.cancel} aria-label={t("common.cancel")}
-          className="absolute inset-0 z-[1100] flex items-center justify-center bg-slate-900/85">
-          <span key={countdown.count} aria-live="assertive"
-            className="text-8xl font-extrabold text-orange-400 tabular-nums animate-countdown">
-            {countdown.count > 0 ? countdown.count : t("tracker.countdown.go")}
-          </span>
-        </button>
+        <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
       )}
     </div>
   );
 }
 
-// Large, glove-friendly control button — the same shape as the run tracker's.
-function Ctrl({ onClick, color, children, disabled = false }: { onClick: () => void; color: string; children: ReactNode; disabled?: boolean }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      className={"flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-base font-semibold transition-[background-color,transform] active:scale-95 disabled:opacity-50 disabled:active:scale-100 " + color}>
-      {children}
-    </button>
-  );
-}

@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { HR_HEALTH_CONNECT_AUTH_KEY } from "../constants";
-import { flushPendingHr, hasHealthConnectAuthorization, healthConnectSource, HR_PENDING_MAX_AGE_MS } from "./healthconnect";
+import { flushPendingHr, hasHealthConnectAuthorization, healthConnectSource } from "./healthconnect";
+import { HR_PENDING_MAX_AGE_MS } from "./pending";
 
 const hc = vi.hoisted(() => ({
   checkAvailability: vi.fn<() => Promise<{ availability: string }>>(),

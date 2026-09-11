@@ -1,5 +1,6 @@
 import { BleClient, numberToUUID } from "@capacitor-community/bluetooth-le";
 import { parseHrMeasurement } from "../utils/hr";
+import { lastNativeHrBeatAt } from "./hrJournal";
 
 // Live heart-rate source: a standard Bluetooth LE Heart Rate sensor (chest strap,
 // optical armband, or a watch broadcasting over the Heart Rate Profile — e.g.
@@ -22,6 +23,8 @@ const SCAN_MIN_INTERVAL_MS = 30000;
 // A GATT link can sit nominally "connected" while notifications stop arriving.
 // The sensor notifies at ~1-2Hz, so this much silence is a dead link, not a
 // gap — drop it and reconnect instead of recording nothing for the rest of a run.
+// Silence here means the NATIVE callback went quiet, not that this JS stopped
+// hearing about it: see onStall.
 const STALL_MS = 20000;
 // How late the watchdog may fire and still be believed. A backgrounded Android
 // WebView freezes its timers and its notification callbacks alike, so on resume
@@ -173,7 +176,15 @@ const bleSourceImpl = {
       // link. Give it one clean window instead: a healthy sensor lands a sample
       // within ~1s of the WebView waking and disarms this before it fires again.
       if (Date.now() - stallArmedAt > STALL_MS + STALL_GRACE_MS) { armStall(); return; }
-      forceReconnect();
+      // Silence in THIS stream is not silence on the link: the GATT callback
+      // keeps firing while delivery to the WebView stalls, so ask it before
+      // tearing anything down (docs/health-integrations.md). Null — iOS, an
+      // unpatched shell, no beat yet — keeps the original behaviour.
+      void lastNativeHrBeatAt().then(beatAt => {
+        if (handle.stopped || stallTimer) return; // a sample landed meanwhile
+        if (beatAt != null && Date.now() - beatAt < STALL_MS) { armStall(); return; }
+        forceReconnect();
+      });
     };
 
     // Tear the link down and reconnect. The sensor is still notifying into a

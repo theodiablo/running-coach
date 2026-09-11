@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
   tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
-  hrMeasuredSec, hrCoverage, mergeHrSamples, isHrStale, HR_STALE_MS,
+  hrMeasuredSec, hrCoverage, mergeHrSamples, isHrStale, HR_STALE_MS, liveHrStatusLine,
 } from "./hr";
 
 type HrSample = { bpm: number; t: number };
@@ -324,5 +324,27 @@ describe("isHrStale", () => {
   it("sits between a sensor's cadence and the stall watchdog", () => {
     expect(HR_STALE_MS).toBeGreaterThan(2000);
     expect(HR_STALE_MS).toBeLessThan(20000);
+  });
+});
+
+describe("liveHrStatusLine", () => {
+  it("puts staleness above a recorded average", () => {
+    // avg/max is non-null for the rest of a session once one sample lands, so
+    // without this the line could never say the strap stopped.
+    expect(liveHrStatusLine({ stale: true, status: "connected", hrAvg: 150, hrMax: 170, hr: 150 }).key)
+      .toBe("tracker.hr.reconnecting");
+    expect(liveHrStatusLine({ stale: true, status: "unreachable", hrAvg: 150, hrMax: 170, hr: 150 }).key)
+      .toBe("tracker.hr.cantReach");
+  });
+
+  it("reads avg/max, then a live reading, then the connection state", () => {
+    expect(liveHrStatusLine({ stale: false, status: "connected", hrAvg: 150, hrMax: 170, hr: 148 }))
+      .toEqual({ key: "tracker.hr.avgMax", params: { avg: 150, max: 170 } });
+    expect(liveHrStatusLine({ stale: false, status: "connected", hrAvg: null, hr: 148 }).key)
+      .toBe("tracker.hr.connected");
+    expect(liveHrStatusLine({ stale: false, status: "unreachable", hrAvg: null, hr: null }).key)
+      .toBe("tracker.hr.cantReach");
+    expect(liveHrStatusLine({ stale: false, status: null, hrAvg: null, hr: null }).key)
+      .toBe("tracker.hr.connecting");
   });
 });

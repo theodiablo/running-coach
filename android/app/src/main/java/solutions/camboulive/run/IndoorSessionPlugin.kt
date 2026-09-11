@@ -22,10 +22,10 @@ class IndoorSessionPlugin : Plugin() {
         // getDouble, not getLong: an epoch-ms value crossing the bridge is a
         // Number, and PluginCall.getLong returns its default for one — the same
         // trap the live-run notification hit (docs/live-tracking.md).
-        val startedAt = call.getDouble("startedAtMs") ?: 0.0
+        val chronometerStart = call.getDouble("chronometerStartMs") ?: 0.0
         val intent = Intent(context, IndoorSessionService::class.java)
             .setAction(IndoorSessionService.ACTION_START)
-            .putExtra(IndoorSessionService.EXTRA_STARTED_AT_MS, startedAt.toLong())
+            .putExtra(IndoorSessionService.EXTRA_CHRONOMETER_START_MS, chronometerStart.toLong())
             .putExtra(IndoorSessionService.EXTRA_TITLE, call.getString("title") ?: "Indoor session")
             .putExtra(IndoorSessionService.EXTRA_TEXT, call.getString("text") ?: "")
         try {
