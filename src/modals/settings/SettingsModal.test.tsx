@@ -13,6 +13,7 @@ const baseProps = {
   saveUserContext: () => {},
   onBackup: () => {},
   onRestore: () => {},
+  onFeedback: () => {},
   onClose: () => {},
 };
 

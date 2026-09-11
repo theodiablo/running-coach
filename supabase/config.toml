@@ -252,6 +252,16 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Password reset ("Forgot your password?" on the login screen). Ours sends the
+# ?token_hash=&type=recovery shape the app can classify with certainty on both
+# the web and the native deep link; the stock template's /verify redirect can
+# land as a bare ?code= that reads as an ordinary sign-in. Applies locally on
+# `supabase start`; the hosted project's copy is dashboard config — keep the two
+# in sync by hand (docs/release.md).
+[auth.email.template.recovery]
+subject = "Reset your Running Coach password"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
@@ -277,11 +287,12 @@ enabled = true
 subject = "The email address on your Running Coach account was changed"
 content_path = "./templates/email_changed_notification.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+# The twin of email_changed above, and the only thing that would tell the owner
+# of a hijacked inbox that their password was replaced. Stock copy: it carries
+# no link, so there is nothing template-specific to say.
+[auth.email.notification.password_changed]
+enabled = true
+subject = "The password on your Running Coach account was changed"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

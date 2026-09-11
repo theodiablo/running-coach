@@ -37,7 +37,8 @@
     "importAll": "Tout importer",
     "emailChangeDone": "Adresse e-mail mise à jour vers {{email}}.",
     "emailChangeFailed": "Ce lien de confirmation a expiré ou a déjà été utilisé. Relance le changement depuis les réglages.",
-    "emailChangePending": "Toujours en attente de la confirmation de ta nouvelle adresse."
+    "emailChangePending": "Toujours en attente de la confirmation de ta nouvelle adresse.",
+    "resetLinkFailed": "Ce lien de réinitialisation a expiré ou a déjà été utilisé."
   },
   "consent": {
     "title": "Nous aider à améliorer l'app ?",

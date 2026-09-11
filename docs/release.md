@@ -194,6 +194,74 @@ a post-deploy `curl` smoke test isn't possible there — confirm via the deploy
 call's returned `status: "ACTIVE"` and, for request-level confirmation,
 `mcp__Supabase__get_logs` with `service: "edge-function"`.
 
+## Supabase Auth email (SES SMTP)
+
+**Supabase's built-in SMTP sends 2 emails per hour, project-wide.** It is a
+development convenience, not a mail service — the cap is not per user, so on the
+free plan two password resets in an hour is the whole allowance and everyone
+else gets a 429 (`authErrorMessage` renders it as the amber cooldown). The fix
+is not a paid plan: **it is our own SMTP**, which is free-plan-compatible and
+also what makes the limit configurable.
+
+Sending goes through SES on a dedicated identity, `mail.camboulive.solutions`
+(`infra/ses_sending.tf`), separate from the apex — which receives inbound mail
+and sends the contribution notifier, and which any future marketing sending
+would otherwise share. **Auth mail gets its own reputation on purpose**: a
+campaign's complaint rate must never be able to take password resets down with
+it. Marketing mail is a separate identity and a separate sender when it exists;
+it never goes through GoTrue, whose mailer is for user-triggered transactional
+links only.
+
+**Check the account is out of the SES sandbox before pointing Supabase at it.**
+Production access is granted per AWS account and region, not per domain, so it
+covers `eu-west-1` as a whole; in the sandbox SES delivers only to verified
+addresses at 200/day, and every real signup fails silently. Console → SES →
+Account dashboard says which.
+
+### Setting it up
+
+1. **`terraform apply` from a workstation, from the branch, BEFORE merging.**
+   A change that widens the CI policy cannot be applied by CI itself
+   (`infra/README.md`), and applying first leaves the merge with nothing to do
+   — the workflow skips apply on a zero-change plan, so `main` stays green.
+   Merging first gets a half-applied plan and a red default branch. Until that
+   apply runs, the PR's own `terraform` check is red too: the Route 53 zone
+   lookup needs a read the deployed plan role does not have yet
+   (`infra/README.md`).
+2. Wait for verification. The same apply writes the DNS records (DKIM CNAMEs,
+   MAIL FROM MX and SPF, DMARC and the `_report._dmarc` record authorising its
+   off-domain `rua` mailbox) into Route 53, so there is nothing to copy — but
+   SES will not send until it sees them, usually minutes. SES → Verified
+   identities → `mail.camboulive.solutions` says **Verified** when it is ready;
+   configure Supabase before that and every auth email fails.
+3. Dashboard → Authentication → Emails → **SMTP Settings**:
+   host `email-smtp.eu-west-1.amazonaws.com`, port 587, sender
+   `noreply@mail.camboulive.solutions`, username/password from
+   `terraform output -raw auth_smtp_username` / `auth_smtp_password` (the
+   password is the access-key secret run through the SES SigV4 transform — the
+   provider computes it; the raw secret will not authenticate).
+4. Dashboard → Authentication → **Rate Limits** → "Emails sent per hour". With
+   custom SMTP the default becomes 30/hour and the field unlocks; raise it to
+   whatever the signup volume needs. `[auth.rate_limit] email_sent` in
+   `supabase/config.toml` is the **local stack only** and does not drive the
+   hosted project — same manual-sync rule as the templates below.
+5. Send a real password reset and check the headers: `dkim=pass` and
+   `spf=pass` both aligned to `mail.camboulive.solutions`.
+
+**When auth mail stops sending, the auth logs name the cause verbatim** —
+Supabase → Logs → Auth, `/recover` or `/signup` at status 500. The client only
+ever shows `authErrors.emailSendFailed` (GoTrue reports every mailer failure as
+one `unexpected_failure`), so the log is the only place the reason exists. A 554
+"Access denied" naming a resource ARN is an IAM gap in the SMTP user, not a
+verification or sandbox problem: SES authorises a send against the identity
+**and** the identity's default configuration set, so both belong in
+`data.aws_iam_policy_document.ses_smtp_auth` — which is the boundary as well as
+the grant, and editing it is a local apply (`infra/README.md`).
+
+Rotating the credentials is `terraform taint aws_iam_access_key.ses_smtp_auth`
+plus a new apply, then pasting the new pair into the dashboard. Nothing reads
+them automatically.
+
 ## Supabase Auth email templates (manual sync)
 
 The transactional emails Supabase Auth sends (confirm signup, reset password,
@@ -238,6 +306,52 @@ app copy in `src/i18n/locales/*/settings.json` (`emailConfirmNote`,
 running the real flow: Settings → Account → Change, open the link in the new
 inbox, and confirm the notification arrives at the old one.
 
+### The password-reset pair
+
+| File | Dashboard template | Sent to |
+|---|---|---|
+| `recovery.html` | Reset Password | the account's address — the link that opens the new-password screen |
+| — (stock copy) | Password Changed Notification (needs its toggle **on**) | the account's address — after the fact, no link |
+
+`recovery.html` builds its own link rather than using `{{ .ConfirmationURL }}`:
+GoTrue's redirect through `/verify` can land as a bare `?code=`, which
+`classifyAuthUrl` would have to read as an ordinary sign-in — dropping the user
+into the app with no way to set the password they came to replace. The
+`?token_hash=&type=recovery` shape it sends instead is unambiguous on the web
+and on the native deep link alike. The app still recognises the stock shape
+(`?code=&type=recovery`, and supabase-js's `PASSWORD_RECOVERY` event), so a
+dashboard that has drifted back to the default template degrades rather than
+breaking — but it degrades to a shape whose classification depends on which
+flow GoTrue picked, so keep them in sync.
+
+Test a change by running the real flow: **Forgot your password?** on the login
+screen, open the link on a *different* device from the one that asked (the
+common case, and the one where a PKCE `?code=` would be unexchangeable), set a
+new password, and confirm the notification arrives.
+
+### The password-reset pair
+
+| File | Dashboard template | Sent to |
+|---|---|---|
+| `recovery.html` | Reset Password | the account's address — the link that opens the new-password screen |
+| — (stock copy) | Password Changed Notification (needs its toggle **on**) | the account's address — after the fact, no link |
+
+`recovery.html` builds its own link rather than using `{{ .ConfirmationURL }}`:
+GoTrue's redirect through `/verify` can land as a bare `?code=`, which
+`classifyAuthUrl` would otherwise have to read as an ordinary sign-in — dropping
+the user into the app with no way to set the password they came to replace. The
+`?token_hash=&type=recovery` shape it sends instead is unambiguous on the web
+and on the native deep link alike. The app still recognises the stock shapes
+(`?code=&type=recovery`, and supabase-js's `PASSWORD_RECOVERY` event), so a
+dashboard still on the default template degrades rather than breaking — but it
+degrades to a shape whose classification depends on which flow GoTrue picked,
+so keep the two in sync.
+
+Test a change by running the real flow: **Forgot your password?** on the login
+screen, open the link on a *different* device from the one that asked (the
+common case, and the one where a PKCE `?code=` is unexchangeable), set a new
+password, and confirm the notification arrives.
+
 ## CI caching & budget
 
 - **All workflows use Node 22** (Capacitor 8 CLI floor) — keep new workflows on
@@ -253,9 +367,18 @@ inbox, and confirm the notification arrives at the old one.
   the PR/release jobs — that makes each PR/tag write its own private cache
   instead of sharing main's. A brand-new PR before main has seeded is cold
   once, then warm. `android/gradle.properties` enables `caching`/`parallel`
-  with a 4 GB heap but **not** `configuration-cache`: setup-gradle only
-  persists config-cache state with a `cache-encryption-key`, so it was pure
-  overhead in CI (opt in locally instead).
+  with a 4 GB heap but **not** `configuration-cache`: setup-gradle v6 dropped
+  config-cache persistence entirely, so it was pure overhead in CI (opt in
+  locally instead).
+- **setup-gradle runs v6's default `cache-provider: enhanced`** — the
+  fine-grained, deduplicating cache v4 had built in, which Gradle extracted
+  into the proprietary `gradle-actions-caching` component at v6. Deliberate:
+  it is free in perpetuity for public repos, the cache itself still lives in
+  GitHub's Actions cache (only cache-key metadata reaches Gradle, under its
+  Terms of Use safe harbour), and the component is vendored in
+  gradle/actions so the SHA pin still covers everything that runs. `basic` is
+  NOT the v4 behaviour — it is a plain `@actions/cache` path cache with no
+  restore-key matching, which is exactly what lets PRs read main's seed above.
 - **iOS:** SPM clones are pinned to `ios/SourcePackages`
   (`-clonedSourcePackagesDirPath`, gitignored) and cached via `actions/cache`
   keyed on the repo name + the *synced* `CapApp-SPM/Package.swift` — the cache
@@ -267,9 +390,10 @@ inbox, and confirm the notification arrives at the old one.
   iOS seed (macOS minutes bill ×10, and `ios-pr.yml` is path-filtered to
   `ios/**`), so the SPM cache is same-ref only. Deliberately no DerivedData
   caching (unreliable invalidation, big caches, small win).
-- Repo is private → free tier: 2,000 min/mo (macOS ×10), 10 GB Actions cache
-  (LRU-evicted), 500 MB artifact storage — PR APKs use `retention-days: 14` to
-  stay clear of the storage cap.
+- Repo is public → standard runners are free and unmetered, but the 10 GB
+  Actions cache (LRU-evicted) still applies, so keep an eye on what the Android
+  and SPM caches hold. PR APKs use `retention-days: 14` to keep artifact
+  storage tidy.
 - **PR APK builds are opt-in via the `apk` label** (`android-pr.yml`): the job
   is skipped unless the PR carries the label (it was ~34% of all billable
   Actions minutes when it ran on every push). Add the label to get a

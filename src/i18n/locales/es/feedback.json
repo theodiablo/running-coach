@@ -1,0 +1,34 @@
+{
+  "button": "Comentarios",
+  "aria": "Enviar comentarios",
+  "badge": "Beta",
+  "intro": {
+    "title": "Cuéntanos qué no funciona",
+    "body": "Running Coach está en beta y eres una de las pocas personas que lo usa con un entrenamiento real. Si algo falla, confunde o simplemente molesta, este botón llega directamente a nosotros.",
+    "start": "Entendido"
+  },
+  "compose": {
+    "title": "¿Algo que corregir antes de enviar?",
+    "placeholder": "¿Qué pasó y qué esperabas en su lugar?",
+    "contextTitle": "Se envía con tu nota",
+    "contextAccount": "Tu cuenta, para poder responderte",
+    "send": "Enviar comentarios"
+  },
+  "source": {
+    "dash": "Inicio",
+    "plan": "Plan",
+    "races": "Carreras",
+    "progress": "Progreso",
+    "log": "Registrar carrera",
+    "coach": "Chat con el entrenador",
+    "settings": "Ajustes"
+  },
+  "coachmark": {
+    "title": "¿Viste algo raro?",
+    "body": "Este botón está aquí por la beta. Púlsalo cuando quieras para contarnos qué no funciona."
+  },
+  "settingsRow": "Enviar comentarios",
+  "settingsHint": "Running Coach está en beta. Cuéntanos qué no funciona.",
+  "sent": "Gracias, lo recibimos.",
+  "error": "No se pudo enviar. Inténtalo de nuevo en un momento."
+}

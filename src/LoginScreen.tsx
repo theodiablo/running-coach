@@ -4,11 +4,16 @@ import { Loader, Mail, MailCheck, Lock } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { Browser } from "@capacitor/browser";
 import { supabase, authRedirectTo } from "./supabase";
-import { authErrorMessage } from "./utils/authErrors";
+import { authErrorMessage, isInvalidCredentials, isEmailTaken } from "./utils/authErrors";
+import { passwordProblem } from "./utils/account";
 import { isNative, isAndroid } from "./native";
 import { PRIVACY_URL, PASSWORD_MIN_LENGTH } from "./constants";
 
-type LoginMode = "signin" | "signup";
+// What the visitor came here to do. It picks the copy and which call the one
+// submit button makes first — NOT a mode the user has to choose: there are no
+// tabs, because "do you already have an account?" is the question people are
+// worst at answering quickly and the screen can answer it for them by trying.
+type LoginIntent = "signin" | "signup";
 // "info" is amber: nothing failed and nothing succeeded — an email is already
 // on its way, or a limiter wants a moment.
 type LoginMessage = { type: "err" | "ok" | "info"; text: string };
@@ -17,29 +22,55 @@ const MSG_CLS: Record<LoginMessage["type"], string> = {
   ok: "text-emerald-400",
   info: "text-amber-400",
 };
+// The two dead ends the one form can hit, each with both ways out offered
+// inline. Cleared as soon as the email or password changes — a fork is about
+// the exact pair that was just tried.
+type Fork = "signin-failed" | "email-taken";
+// An email is out. Which one decides the copy; both replace the form.
+type Sent = { kind: "signup" | "reset"; email: string };
 
 type LoginScreenProps = {
   authError?: string | null;
   onClearAuthError?: () => void;
-  // Which tab to open on. Defaults to "signin"; the marketing "Get started"
-  // CTAs pass "signup" so they land on account creation.
-  initialMode?: LoginMode;
+  // Defaults to signing in; the marketing "Get started" CTAs pass "signup".
+  intent?: LoginIntent;
+  // A password-reset link that GoTrue refused (expired, or already used). Opens
+  // on the reset form with the failure shown, so asking for a fresh link is the
+  // next tap rather than a hunt.
+  resetLinkFailed?: boolean;
 };
 
-// `authError` is a native deep-link sign-in failure surfaced by App.jsx (e.g. the
+// `authError` is a native deep-link sign-in failure surfaced by App.tsx (e.g. the
 // user cancels Google consent); shown until the user takes another action.
-export default function LoginScreen({ authError, onClearAuthError, initialMode = "signin" }: LoginScreenProps) {
+export default function LoginScreen({ authError, onClearAuthError, intent = "signin", resetLinkFailed = false }: LoginScreenProps) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<LoginMode>(initialMode); // signin | signup
+  const [askingReset, setAskingReset] = useState(resetLinkFailed);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<LoginMessage | null>(null); // { type: "err"|"ok", text }
-  // The address a confirmation link was just sent to. While it's set the form
-  // is replaced by "check your inbox": leaving a live Create-account button
-  // under a one-line note is what made one user press it six more times and
-  // collect a 429 each time, ending on "email rate limit exceeded".
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [msg, setMsg] = useState<LoginMessage | null>(
+    resetLinkFailed ? { type: "err", text: t("login.reset.linkFailed") } : null,
+  );
+  const [fork, setFork] = useState<Fork | null>(null);
+  // The address an email was just sent to. While it's set the form is replaced:
+  // leaving a live send button under a one-line note is what made one user
+  // press it six more times and collect a 429 each time.
+  const [sent, setSent] = useState<Sent | null>(null);
+
+  // Reconciled during render, not in an effect: on the native shell this screen
+  // is already mounted when the deep link is judged dead, so seeding the state
+  // at mount would leave the failure invisible on the one platform that reaches
+  // it that way.
+  const [failedShown, setFailedShown] = useState(resetLinkFailed);
+  if (resetLinkFailed !== failedShown) {
+    setFailedShown(resetLinkFailed);
+    if (resetLinkFailed) {
+      setAskingReset(true);
+      setSent(null);
+      setFork(null);
+      setMsg({ type: "err", text: t("login.reset.linkFailed") });
+    }
+  }
 
   const note = (type: LoginMessage["type"], text: string) => { onClearAuthError?.(); setMsg({ type, text }); };
   // Prefer copy the user can act on; keep the server's own message when nothing
@@ -51,12 +82,19 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
   };
   // Local form messages take precedence; otherwise fall back to a deep-link error.
   const shownMsg: LoginMessage | null = msg || (authError ? { type: "err", text: authError } : null);
+  // A fork and a message are both about the exact pair that was just tried;
+  // editing either field makes them stale, so they go together.
+  const edit = (set: (v: string) => void) => (e: { target: { value: string } }) => {
+    setFork(null);
+    setMsg(null);
+    set(e.target.value);
+  };
 
   async function withGoogle() {
     setBusy(true);
     setMsg(null);
     // In the shell, open the provider in the system browser ourselves and let the
-    // deep link bring the result back (App.jsx completes the exchange). On the web
+    // deep link bring the result back (App.tsx completes the exchange). On the web
     // Supabase performs the redirect for us.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -90,51 +128,97 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
       // The external tab handles the rest; the WebView itself is NOT redirected, so
       // re-enable the form. Otherwise dismissing/cancelling the OAuth tab (no
       // appUrlOpen, no auth event) would leave the UI locked until a restart. On
-      // success, App.jsx's deep-link handler drives the transition to the app.
+      // success, App.tsx's deep-link handler drives the transition to the app.
       setBusy(false);
       return;
     }
     // Web: the page itself is redirected to the provider, so leave busy=true.
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    setMsg(null);
+  async function signIn() {
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: authRedirectTo() },
-        });
-        if (error) throw error;
-        onClearAuthError?.();
-        setMsg(null);
-        setSentTo(email.trim());
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        // onAuthStateChange in App handles the transition
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // onAuthStateChange in App handles the transition
     } catch (err) {
-      noteError(err);
-    } finally {
-      setBusy(false);
+      // Neither we nor the user can tell "no account" from "wrong password"
+      // here — but the user knows which they meant, so offer both doors.
+      if (isInvalidCredentials(err)) { onClearAuthError?.(); setMsg(null); setFork("signin-failed"); }
+      else noteError(err);
     }
   }
 
-  const tab = (id: LoginMode, label: string) => (
-    <button
-      type="button"
-      onClick={() => { onClearAuthError?.(); setMode(id); setMsg(null); setSentTo(null); }}
-      className={
-        "flex-1 py-2 text-sm font-medium rounded-lg transition " +
-        (mode === id ? "bg-orange-500 text-white" : "text-slate-400 hover:text-slate-200")
-      }
-    >
-      {label}
-    </button>
+  async function createAccount() {
+    // The server is the authority, but it only gets asked once the password is
+    // worth sending: sign-in has no such rule, so the one field can't enforce
+    // it up front the way the old sign-up tab did.
+    if (passwordProblem(password, password)) {
+      note("err", t("settings.account.passwordRules"));
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: authRedirectTo() },
+      });
+      if (error) throw error;
+      onClearAuthError?.();
+      setMsg(null);
+      setFork(null);
+      setSent({ kind: "signup", email: email.trim() });
+    } catch (err) {
+      noteError(err);
+      if (isEmailTaken(err)) setFork("email-taken");
+    }
+  }
+
+  async function sendResetLink() {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: authRedirectTo() });
+      if (error) throw error;
+      onClearAuthError?.();
+      setMsg(null);
+      setFork(null);
+      setSent({ kind: "reset", email: email.trim() });
+    } catch (err) {
+      noteError(err);
+    }
+  }
+
+  // One busy/clear wrapper for every action, so a form submit and a fork
+  // button behave identically.
+  const run = (action: () => Promise<void>) => async (e?: FormEvent | { preventDefault: () => void }) => {
+    e?.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    await action();
+    setBusy(false);
+  };
+
+  const onSubmit = run(intent === "signup" ? createAccount : signIn);
+  const backToForm = () => { setSent(null); setAskingReset(false); setMsg(null); setFork(null); };
+
+  const emailField = (
+    <label className="block">
+      <span className="text-xs text-slate-400">{t("login.email")}</span>
+      <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
+        <Mail size={16} className="text-slate-500" />
+        <input
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={edit(setEmail)}
+          className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
+          placeholder={t("login.emailPlaceholder")}
+        />
+      </div>
+    </label>
+  );
+
+  const message = shownMsg && (
+    <p className={"mt-4 text-sm text-center " + MSG_CLS[shownMsg.type]}>{shownMsg.text}</p>
   );
 
   return (
@@ -146,100 +230,141 @@ export default function LoginScreen({ authError, onClearAuthError, initialMode =
         </div>
 
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl">
-          <div className="flex gap-1 mb-4 bg-slate-900/60 p-1 rounded-xl">
-            {tab("signin", t("login.signIn"))}
-            {tab("signup", t("login.signUp"))}
-          </div>
-
-          {/* A confirmation link is out. Show where it went and how to get
-              out of here; the tabs above stay live so signing in after
-              confirming is one tap. */}
-          {sentTo ? (
+          {sent ? (
+            /* An email is out. Show where it went and how to get out of here,
+               with nothing left to press. */
             <div className="text-center space-y-3">
               <div className="mx-auto w-12 h-12 rounded-2xl bg-orange-500/15 flex items-center justify-center">
                 <MailCheck className="text-orange-400" size={24} />
               </div>
               <h2 className="text-lg font-bold text-white">{t("login.sent.title")}</h2>
-              <p className="text-sm text-slate-300">{t("login.sent.body", { email: sentTo })}</p>
+              <p className="text-sm text-slate-300">
+                {/* Reset never claims an email was sent: Supabase answers a
+                    reset request the same way for a known and an unknown
+                    address, so "we sent it" would be a claim the server never
+                    made — and a way to check who has an account here. */}
+                {sent.kind === "reset"
+                  ? t("login.reset.sentBody", { email: sent.email })
+                  : t("login.sent.body", { email: sent.email })}
+              </p>
               <p className="text-xs text-slate-500">{t("login.sent.spam")}</p>
-              <button type="button" onClick={() => { setSentTo(null); setMsg(null); }}
+              <button type="button" onClick={backToForm}
                 className="text-sm text-slate-400 hover:text-slate-200 underline">
-                {t("login.sent.back")}
+                {sent.kind === "reset" ? t("login.reset.back") : t("login.sent.back")}
               </button>
             </div>
+          ) : askingReset ? (
+            <>
+              <div className="text-center space-y-1 mb-4">
+                <h2 className="text-lg font-bold text-white">{t("login.reset.title")}</h2>
+                <p className="text-sm text-slate-400">{t("login.reset.intro")}</p>
+              </div>
+              <form onSubmit={run(sendResetLink)} className="space-y-3">
+                {emailField}
+                <button type="submit" disabled={busy}
+                  className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition">
+                  {busy && <Loader size={16} className="animate-spin" />}
+                  {t("login.reset.send")}
+                </button>
+              </form>
+              <button type="button" onClick={backToForm}
+                className="mt-3 w-full text-sm text-slate-400 hover:text-slate-200 underline">
+                {t("login.reset.back")}
+              </button>
+              {message}
+            </>
           ) : (
             <>
-            <form onSubmit={onSubmit} className="space-y-3">
-              <label className="block">
-                <span className="text-xs text-slate-400">{t("login.email")}</span>
-                <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
-                  <Mail size={16} className="text-slate-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
-                    placeholder={t("login.emailPlaceholder")}
-                  />
-                </div>
-              </label>
+              <h2 className="text-lg font-bold text-white text-center mb-4">
+                {intent === "signup" ? t("login.headingSignup") : t("login.heading")}
+              </h2>
 
-              <label className="block">
-                <span className="text-xs text-slate-400">{t("login.password")}</span>
-                <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
-                  <Lock size={16} className="text-slate-500" />
-                  <input
-                    type="password"
-                    required
-                    // Enforce the stronger policy on sign-up only; sign-in must
-                    // still accept existing accounts created under the old rule.
-                    // Sign-up mirrors the server's minimum_password_length so the
-                    // form rejects a weak password instead of the API doing it.
-                    minLength={mode === "signup" ? PASSWORD_MIN_LENGTH : 6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
-                    placeholder={t("login.passwordPlaceholder")}
-                  />
-                </div>
-              </label>
-
+              {/* Google first: the one way in with no password to forget. */}
               <button
-                type="submit"
+                type="button"
+                onClick={withGoogle}
                 disabled={busy}
-                className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition"
+                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-800 font-medium py-2.5 rounded-lg transition"
               >
-                {busy && <Loader size={16} className="animate-spin" />}
-                {mode === "signin" ? t("login.signIn") : t("login.createAccount")}
+                <GoogleIcon />
+                {t("login.continueWithGoogle")}
               </button>
-            </form>
 
-            <div className="flex items-center gap-3 my-4">
-              <div className="h-px flex-1 bg-slate-700" />
-              <span className="text-xs text-slate-500">{t("login.or")}</span>
-              <div className="h-px flex-1 bg-slate-700" />
-            </div>
+              <div className="flex items-center gap-3 my-4">
+                <div className="h-px flex-1 bg-slate-700" />
+                <span className="text-xs text-slate-500">{t("login.orWithEmail")}</span>
+                <div className="h-px flex-1 bg-slate-700" />
+              </div>
 
-            <button
-              type="button"
-              onClick={withGoogle}
-              disabled={busy}
-              className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-800 font-medium py-2.5 rounded-lg transition"
-            >
-              <GoogleIcon />
-              {t("login.continueWithGoogle")}
-            </button>
+              <form onSubmit={onSubmit} className="space-y-3">
+                {emailField}
 
-            {shownMsg && (
-              <p
-                className={
-                  "mt-4 text-sm text-center " + MSG_CLS[shownMsg.type]
-                }
-              >
-                {shownMsg.text}
-              </p>
-            )}
+                <label className="block">
+                  <span className="text-xs text-slate-400">{t("login.password")}</span>
+                  <div className="mt-1 flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3">
+                    <Lock size={16} className="text-slate-500" />
+                    <input
+                      type="password"
+                      required
+                      // Sign-in must still accept accounts made under the old
+                      // rule; the stronger policy is checked in createAccount,
+                      // which is the only path that can create one.
+                      minLength={intent === "signup" ? PASSWORD_MIN_LENGTH : 6}
+                      autoComplete={intent === "signup" ? "new-password" : "current-password"}
+                      value={password}
+                      onChange={edit(setPassword)}
+                      className="flex-1 bg-transparent py-2 text-sm text-white outline-none"
+                      placeholder={t("login.passwordPlaceholder")}
+                    />
+                  </div>
+                </label>
+
+                {intent === "signup" && (
+                  <p className="text-xs text-slate-500">{t("settings.account.passwordRules")}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition"
+                >
+                  {busy && <Loader size={16} className="animate-spin" />}
+                  {intent === "signup" ? t("login.createAccount") : t("login.continue")}
+                </button>
+              </form>
+
+              {fork ? (
+                <div className="mt-4 border border-slate-600 rounded-xl p-3 space-y-2.5 bg-slate-900/50">
+                  <p className="text-sm text-slate-300">
+                    {fork === "email-taken" ? t("login.fork.takenTitle") : t("login.fork.signInFailedTitle")}
+                  </p>
+                  {fork === "signin-failed" ? (
+                    <>
+                      <button type="button" disabled={busy} onClick={run(createAccount)}
+                        className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-sm font-medium py-2.5 rounded-lg transition">
+                        {t("login.fork.create")}
+                      </button>
+                      <p className="text-xs text-slate-500">{t("settings.account.passwordRules")}</p>
+                    </>
+                  ) : (
+                    <button type="button" disabled={busy} onClick={run(signIn)}
+                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-sm font-medium py-2.5 rounded-lg transition">
+                      {t("login.fork.signIn")}
+                    </button>
+                  )}
+                  <button type="button" disabled={busy} onClick={run(sendResetLink)}
+                    className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-slate-200 text-sm font-medium py-2.5 rounded-lg transition">
+                    {t("login.fork.reset")}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => { setAskingReset(true); setMsg(null); onClearAuthError?.(); }}
+                  className="mt-3 w-full text-sm text-slate-400 hover:text-slate-200 underline">
+                  {t("login.forgot")}
+                </button>
+              )}
+
+              {message}
             </>
           )}
         </div>

@@ -1,14 +1,38 @@
 {
   "brand": "Running Coach",
-  "signIn": "Sign in",
-  "signUp": "Sign up",
   "email": "Email",
   "emailPlaceholder": "you@example.com",
   "password": "Password",
   "passwordPlaceholder": "••••••••",
   "createAccount": "Create account",
-  "or": "or",
   "continueWithGoogle": "Continue with Google",
+  "heading": "Sign in or create your account",
+  "headingSignup": "Create your account",
+  "continue": "Continue",
+  "orWithEmail": "or with email",
+  "forgot": "Forgot your password?",
+  "fork": {
+    "signInFailedTitle": "That email and password don't match an account. Which is it?",
+    "create": "Create an account with this email",
+    "takenTitle": "That address already has an account.",
+    "signIn": "Sign in instead",
+    "reset": "Send me a reset link"
+  },
+  "reset": {
+    "title": "Reset your password",
+    "intro": "We'll email you a link to choose a new one.",
+    "send": "Send reset link",
+    "back": "Back to sign in",
+    "sentBody": "If an account uses {{email}}, a reset link is on its way.",
+    "linkFailed": "That reset link has expired or has already been used. Ask for a new one below."
+  },
+  "newPassword": {
+    "title": "Choose a new password",
+    "signedInAs": "Signed in as {{email}}.",
+    "save": "Save and continue",
+    "skip": "Skip for now",
+    "error": "We couldn't update your password. Ask for a new link and try again."
+  },
   "sent": {
     "title": "Check your inbox",
     "body": "We sent a confirmation link to {{email}}. Open it, then come back here and sign in.",

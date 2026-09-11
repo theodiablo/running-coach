@@ -61,7 +61,7 @@ jobs:
       # Default (no cache-read-only): this IS the default branch, so setup-gradle
       # WRITES the cache here — the one place it's seeded for everyone else.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
 
       - name: Install dependencies
         run: npm ci
