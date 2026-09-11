@@ -20,6 +20,9 @@ vi.mock("@capacitor-community/bluetooth-le", () => ({
   BleClient: ble.client,
   numberToUUID: (n: number) => `uuid-${n.toString(16)}`,
 }));
+// The native last-beat probe (Android only; null everywhere else).
+const journal = vi.hoisted(() => ({ lastBeatAt: vi.fn<() => Promise<number | null>>() }));
+vi.mock("./hrJournal", () => ({ lastNativeHrBeatAt: journal.lastBeatAt }));
 
 type Source = typeof import("./ble").bleSource;
 let bleSource: Source;
@@ -34,6 +37,7 @@ beforeEach(async () => {
   vi.useFakeTimers();
   for (const fn of Object.values(ble.client)) fn.mockReset().mockResolvedValue(undefined);
   ble.client.getDevices.mockResolvedValue([]);
+  journal.lastBeatAt.mockReset().mockResolvedValue(null);
   vi.resetModules();
   ({ bleSource } = await import("./ble"));
 });
@@ -193,6 +197,36 @@ describe("bleSource.watch", () => {
     notify!(hrView(151));                                 // link was fine all along
     await vi.advanceTimersByTimeAsync(15000);
     expect(ble.client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("keeps a link the GATT callback still sees, when only JS delivery stalled", async () => {
+    // A backgrounded-but-alive recorder (a GPS run, held up by the location
+    // foreground service) can stop receiving notifications in the WebView while
+    // the native callback keeps firing. Tearing the link down there costs the
+    // beats the healthy link was still delivering.
+    let notify: ((v: DataView) => void) | undefined;
+    ble.client.startNotifications.mockImplementation(async (_id, _s, _c, cb) => { notify = cb; });
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await flush();
+    notify!(hrView(150));
+    journal.lastBeatAt.mockImplementation(async () => Date.now() - 1000);
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(journal.lastBeatAt).toHaveBeenCalled();
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+    // Still nothing delivered, still nothing torn down — the journal covers it.
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(ble.client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("reconnects when the GATT callback has gone quiet too", async () => {
+    let notify: ((v: DataView) => void) | undefined;
+    ble.client.startNotifications.mockImplementation(async (_id, _s, _c, cb) => { notify = cb; });
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await flush();
+    notify!(hrView(150));
+    journal.lastBeatAt.mockImplementation(async () => Date.now() - 60000);
+    await vi.advanceTimersByTimeAsync(STALL_MS + 1000);
+    expect(ble.client.disconnect).toHaveBeenCalledWith("d1");
   });
 
   it("a live stream is never interrupted by the watchdog", async () => {

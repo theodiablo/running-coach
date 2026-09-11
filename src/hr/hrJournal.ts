@@ -23,6 +23,7 @@ const BluetoothLe = registerPlugin<{
   setHrJournal: (options: { enabled: boolean }) => Promise<void>;
   getHrJournal: () => Promise<{ entries?: unknown[] }>;
   clearHrJournal: () => Promise<void>;
+  getHrLastBeat: () => Promise<{ t?: number }>;
 }>("BluetoothLe");
 
 // Clear any leftovers and start journalling — a fresh run starts empty.
@@ -68,4 +69,17 @@ export async function readHrJournal(): Promise<BleHrSample[]> {
     }
     return out.sort((a, b) => a.t - b.t);
   } catch { return []; }
+}
+
+// Epoch ms of the last measurement the GATT callback saw, or null when that
+// answer isn't available (off Android, an unpatched shell, no beat yet). The
+// callback keeps firing in the app process whether or not this WebView is
+// awake to receive the notification, so it — not the JS stream — is what says
+// whether the link is alive. `ble.ts` asks before tearing a quiet link down.
+export async function lastNativeHrBeatAt(): Promise<number | null> {
+  if (!isAndroid) return null;
+  try {
+    const res = await BluetoothLe.getHrLastBeat();
+    return typeof res?.t === "number" && res.t > 0 ? res.t : null;
+  } catch { return null; }
 }

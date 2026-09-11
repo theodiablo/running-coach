@@ -8,11 +8,12 @@ import { useCountdown } from "../hooks/useCountdown";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useDismissable } from "../hooks/useDismissable";
 import { getHrSource } from "../hr/source";
-import { readHrJournal } from "../hr/hrJournal";
-import { HR_MIN_COVERAGE, effectiveMaxHR, hrCoverage, hrSummary, isHrStale, mergeHrSamples } from "../utils/hr";
+import { effectiveHrMethod, resolveRunHr, runHrFields } from "../hr/runHr";
+import { effectiveMaxHR, isHrStale, liveHrStatusLine } from "../utils/hr";
 import { getPairedDevice } from "../hr/device";
 import { hasHealthConnectAuthorization } from "../hr/healthconnect";
 import { hasHealthKitAuthorization } from "../healthkit/import";
+import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { LiveHrZone } from "../components/LiveHrZone";
 import { HRTarget } from "../components/HRTarget";
 import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
@@ -46,15 +47,11 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const pairedHrDevice = getPairedDevice();
   const healthConnectAuthorized = hasHealthConnectAuthorization();
   const healthKitAuthorized = hasHealthKitAuthorization();
-  // Same two-key rule as LiveRunTracker: the synced method is only a preference,
-  // so the per-device pairing/grant must also be present before a bridge is used.
-  const hrReady = !isNative
-    || (hrMethod || "off") === "off"
-    || (hrMethod === "bluetooth" && !!pairedHrDevice)
-    || (hrMethod === "healthconnect" && healthConnectAuthorized)
-    || (hrMethod === "healthkit" && healthKitAuthorized);
-  const effectiveHrMethod = hrReady ? hrMethod : "off";
-  const rt = useRunTracker({ hrMethod: effectiveHrMethod, indoor: true });
+  // Same readiness rule as LiveRunTracker, from the same helper: the synced
+  // method is only a preference, so the per-device pairing/grant must also be
+  // present before a bridge is used.
+  const hrMethodHere = effectiveHrMethod(hrMethod);
+  const rt = useRunTracker({ hrMethod: hrMethodHere, indoor: true });
   const { state, stats, pending } = rt;
   const [busy, setBusy] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
@@ -71,7 +68,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
     try { localStorage.setItem(INDOOR_ACTIVITY_KEY, a); } catch { /* quota — non-fatal */ }
   };
 
-  const hrSrc = getHrSource(effectiveHrMethod);
+  const hrSrc = getHrSource(hrMethodHere);
   const liveHr = !!hrSrc?.live;
   const effMax = effectiveMaxHR(settings);
   const restHR = settings.restHR || 60;
@@ -82,6 +79,8 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   // render time: the 1s clock tick re-renders while tracking, and an hrStatus
   // change re-renders while idle, so this refreshes without a timer of its own.
   const hrStale = liveHr && isHrStale(stats.hrAt);
+  // Same ladder as the run recorder's, from the same helper.
+  const hrLine = liveHrStatusLine({ stale: hrStale, status: rt.hrStatus, hrAvg: stats.hrAvg, hrMax: stats.hrMax, hr: stats.hr });
 
   // Same nudge rules as the run tracker — an indoor session with no HR source is
   // the one case where the whole point of the screen is missing, but it still
@@ -92,15 +91,6 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
     healthConnectAuthorized, healthKitAuthorized,
     pairedHrDevice: !!pairedHrDevice, hrOptOut: !!hrOptOut,
   });
-  const HR_NUDGE_COPY = {
-    auth:   { title: t("tracker.hrNudge.authTitle"),   body: t("tracker.hrNudge.authBody"),   acceptLabel: t("tracker.hrNudge.authAccept") },
-    hkAuth: { title: t("tracker.hrNudge.hkAuthTitle"), body: t("tracker.hrNudge.hkAuthBody"), acceptLabel: t("tracker.hrNudge.authAccept") },
-    pair:   { title: t("tracker.hrNudge.pairTitle"),   body: t("tracker.hrNudge.pairBody"),   acceptLabel: t("tracker.hrNudge.pairAccept") },
-    setup:  { title: t("tracker.hrNudge.setupTitle"),  body: t("tracker.hrNudge.setupBody"),  acceptLabel: t("tracker.hrNudge.setupAccept") },
-  };
-  const hrNudge = hrNudgeChoice
-    ? { ...HR_NUDGE_COPY[hrNudgeChoice.id], allowOptOut: hrNudgeChoice.allowOptOut }
-    : null;
 
   const startSession = () => {
     track("indoor_session_started", { activity });
@@ -110,7 +100,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const startWithCountdown = () => (reducedMotion ? startSession() : countdown.start(3));
   // The nudge replaces this Start; the deferred action runs once it's dismissed.
   const handleStart = () => {
-    if (hrNudge) { setShowHrNudge(true); return; }
+    if (hrNudgeChoice) { setShowHrNudge(true); return; }
     startWithCountdown();
   };
   const dismissHrNudge = (thenStart: boolean) => {
@@ -140,42 +130,21 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
   const handleSave = async () => {
     setBusy(true);
     const { startedAt, stoppedAt } = rt.runWindow();
-    // Heart rate, exactly as LiveRunTracker resolves it: a live source has
-    // already filled hrAvg/hrMax; a post-run source (Health Connect / Apple
-    // Health) is queried now over the session's window, and stamps a pending
-    // marker if the store hasn't synced yet so RunningCoach relinks on the next
-    // load. Without this the "added after you finish" line above is a promise
-    // the save never keeps. Branching on hrSrc, not a method id, so a future
-    // post-run source needs no edit here.
-    //
-    // Fold in the native HR journal first, for the same reason the run tracker
-    // does — and more so here: an indoor session has no location service, so
-    // backgrounding it freezes JS immediately and the journal is the only record
-    // of that stretch. Read it ONLY for a live source, the same condition that
-    // armed it; anything on disk under a post-run source belongs to an earlier
-    // BLE run, and merging it would both invent this session's HR and skip the
-    // store fetch below by producing an average.
-    const hrSamples = mergeHrSamples(rt.hrSamples, hrSrc?.live ? await readHrJournal() : []);
-    const hrStats = hrSummary(hrSamples);
-    const coverage = hrCoverage(hrSamples, stats.movingSec);
-    let hr = null, hrMax = null, hrPending = null;
-    if (hrStats.hrAvg != null) {
-      // Same coverage guard as a run: a strap that dropped halfway leaves the
-      // mean of whatever survived, and on this screen heart rate IS the session,
-      // so quoting a fragment's average would misreport the whole thing. Below
-      // the threshold the samples still save, and run detail recomputes the
-      // coverage from them to say why there is no average.
-      if (coverage >= HR_MIN_COVERAGE) { hr = hrStats.hrAvg; hrMax = hrStats.hrMax; }
-      else showToast?.(t("tracker.hr.partial", { pct: Math.round(coverage * 100) }), "err");
-    }
-    else if (hrSrc && !hrSrc.live) {
-      const startMs = startedAt || Date.now();
-      const endMs = stoppedAt || Date.now();
-      let res = null;
-      try { res = await (hrSrc as { fetchRange: (s: number, e: number) => Promise<{ hrAvg?: number; hrMax?: number }> }).fetchRange(startMs, endMs); } catch { /* unsynced — leave null */ }
-      if (res && res.hrAvg) { hr = res.hrAvg; hrMax = res.hrMax ?? null; }
-      else hrPending = { start: startMs, end: endMs, source: hrSrc.id };
-    }
+    // Heart rate through the one shared resolver (src/hr/runHr.ts) — a live
+    // source's stream folded together with the native journal and coverage-
+    // guarded, a post-run store queried over the session window. The journal
+    // matters more here than on a run: an indoor session has no location
+    // service, so backgrounding it freezes JS immediately and the journal is
+    // the only record of that stretch.
+    const resolved = await resolveRunHr({
+      hrSrc, liveSamples: rt.hrSamples, durationSec: stats.movingSec,
+      startMs: startedAt || Date.now(), endMs: stoppedAt || Date.now(),
+    });
+    // On this screen heart rate IS the session, so a fragment's average would
+    // misreport the whole thing. Run detail recomputes the coverage from the
+    // samples, which save either way, to say why there is no average.
+    if (resolved.partialCoverage != null)
+      showToast?.(t("tracker.hr.partial", { pct: Math.round(resolved.partialCoverage * 100) }), "err");
     // No distance axis at all: km stays 0 so running volume, pace, PBs and the
     // race predictor never see a bike session (docs/indoor-sessions.md).
     // bestEfforts is stamped empty ON PURPOSE — "measured, covers no standard
@@ -194,12 +163,9 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
       activity,
       source: "indoor",
       bestEfforts: {},
-      ...(hr != null ? { hr, hrMax } : {}),
-      // The HealthKit marker rides its own field: shipped Android clients strip
-      // any hrPending whose source isn't "healthconnect" from the synced blob.
-      ...(hrPending ? (hrPending.source === "healthkit" ? { hrPendingHk: hrPending } : { hrPending }) : {}),
+      ...runHrFields(resolved),
       ...(startedAt ? { startedAt: new Date(startedAt).toISOString() } : {}),
-      hrSamples,
+      hrSamples: resolved.samples,
     });
     rt.finalize();
     setBusy(false);
@@ -254,13 +220,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
             {!liveHr ? (hrSrc
               ? t("tracker.hr.postRun", { store: hrSrc.id === "healthkit" ? "Apple Health" : "Health Connect" })
               : t("tracker.indoor.noSensor"))
-              // Staleness outranks avg/max, which is otherwise pinned on for the
-              // rest of the session and leaves nothing to say the strap stopped.
-              : hrStale ? (rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach") : t("tracker.hr.reconnecting"))
-              : stats.hrAvg != null ? t("tracker.hr.avgMax", { avg: stats.hrAvg, max: stats.hrMax })
-              : stats.hr != null ? t("tracker.hr.connected")
-              : rt.hrStatus === "unreachable" ? t("tracker.hr.cantReach")
-              : t("tracker.hr.connecting")}
+              : t(hrLine.key, hrLine.params)}
           </p>
         </div>
 
@@ -362,29 +322,9 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, hrMethod
         </ModalOverlay>
       )}
 
-      {showHrNudge && (
-        <ModalOverlay>
-          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <HeartPulse size={16} className="text-orange-400" />
-              <p className="font-semibold text-sm">{hrNudge?.title || t("tracker.hrNudge.setupTitle")}</p>
-              <BetaBadge label={t("tracker.hrNudge.newBeta")} />
-            </div>
-            <p className="text-sm text-slate-300">{hrNudge?.body || t("tracker.hrNudge.setupBody")}</p>
-            <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-snug text-amber-100">
-              {t("tracker.hrNudge.betaWarning")}
-            </p>
-            <ConfirmButtons cancelLabel={t("common.notNow")} acceptLabel={hrNudge?.acceptLabel || t("tracker.hrNudge.setupAccept")}
-              onCancel={() => dismissHrNudge(true)}
-              onAccept={() => { dismissHrNudge(false); onConfigureHr?.(); }} />
-            {hrNudge?.allowOptOut && (
-              <button onClick={() => { dismissHrNudge(true); onDeclineHr?.(); }}
-                className="w-full text-center text-xs text-slate-500 hover:text-slate-300">
-                {t("tracker.hrNudge.optOut")}
-              </button>
-            )}
-          </div>
-        </ModalOverlay>
+      {showHrNudge && hrNudgeChoice && (
+        <HrNudgeSheet choice={hrNudgeChoice} onDismiss={dismissHrNudge}
+          onConfigure={() => onConfigureHr?.()} onDecline={onDeclineHr} />
       )}
 
       {countdown.count !== null && (

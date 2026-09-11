@@ -243,3 +243,25 @@ export function sessionHR(type: RunType | string, settings: Partial<Pick<Setting
   if (!r) return null;
   return {lo:r.lo, hi:r.hi, label:cfg.label, clr:cfg.clr};
 }
+
+/**
+ * Which line a recorder shows under its live bpm, as an i18n key + params.
+ * Both recorders ask the same question of the same seam, so they get the same
+ * ladder: staleness outranks avg/max, which is otherwise pinned on for the rest
+ * of the session and would leave nothing to say the strap stopped.
+ */
+export function liveHrStatusLine(
+  { stale, status, hrAvg, hrMax, hr }: {
+    stale: boolean;
+    status: "connecting" | "scanning" | "connected" | "unreachable" | null;
+    hrAvg?: number | null;
+    hrMax?: number | null;
+    hr?: number | null;
+  },
+): { key: string; params?: Record<string, unknown> } {
+  if (stale) return { key: status === "unreachable" ? "tracker.hr.cantReach" : "tracker.hr.reconnecting" };
+  if (hrAvg != null) return { key: "tracker.hr.avgMax", params: { avg: hrAvg, max: hrMax } };
+  if (hr != null) return { key: "tracker.hr.connected" };
+  if (status === "unreachable") return { key: "tracker.hr.cantReach" };
+  return { key: "tracker.hr.connecting" };
+}

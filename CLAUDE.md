@@ -283,7 +283,18 @@ Always re-verify a finding before acting on it; agents report false positives.
   `useRunTracker`; all external HR through `getHrSource` (`src/hr/source.ts`);
   all run imports through the provider registry (`src/imports/`). Add sources
   by implementing the interface — never touch `navigator.geolocation` or a
-  native bridge directly from UI code.
+  native bridge directly from UI code. **Both recorders sit either side of the
+  same HR seam and must keep sharing what surrounds it** — `src/hr/runHr.ts`
+  (device readiness, save-time resolution), `HrNudgeSheet`, `liveHrStatusLine`:
+  a rule copied into one screen is a rule that drifts in the other.
+- **A live BLE link is alive when the GATT CALLBACK says so, not when this JS
+  last heard from it.** The callback runs in the app process and keeps firing
+  while delivery to the WebView stalls (a backgrounded run held up by the
+  location service), so it is the one truth source for data (the HR journal),
+  liveness (`getHrLastBeat`, read by `ble.ts`'s stall watchdog) and display (the
+  per-beat relay both foreground services render). Never let a JS-side silence
+  tear a link down on its own: the reconnect loses the beats the healthy link
+  was still delivering and lands in Android's scan throttle.
 - **An exception escaping a plugin's coroutine KILLS THE PROCESS** — the app just
   closes, with no overlay and no rejected promise for a JS `catch` to see. Gate
   every native call on its own availability check (`healthConnectSource`), and

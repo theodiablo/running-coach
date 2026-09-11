@@ -1,9 +1,7 @@
 import { hrSummary } from "../utils/hr";
 import { isAndroid } from "../native";
 import { HR_HEALTH_CONNECT_AUTH_KEY } from "../constants";
-import { flushPendingHrFor, HR_PENDING_MAX_AGE_MS, type PatchHr, type PendingHrRun } from "./pending";
-
-export { HR_PENDING_MAX_AGE_MS };
+import { flushPendingHrFor, type PatchHr, type PendingHrRun } from "./pending";
 
 type HealthConnectAvailability = "Available" | "NotInstalled" | "NotSupported";
 type PermissionResult = { hasAllPermissions?: boolean; grantedPermissions?: unknown[] };

@@ -68,7 +68,19 @@ carries a `live` flag:
   when it fires roughly on time (`STALL_GRACE_MS`): a frozen WebView stops its
   timers and its notification callbacks alike, so an overdue fire means "we were
   backgrounded", not "the sensor died" — acting on it would tear down a healthy
-  link on resume, taking the native journal covering that stretch with it.
+  link on resume, taking the native journal covering that stretch with it. And
+  even an on-time fire only means **this stream** went quiet, which is not the
+  same as the link going quiet: a backgrounded-but-alive recorder — a GPS run,
+  whose location foreground service keeps the WebView executing — can stop
+  receiving notifications while the GATT callback keeps firing in the app
+  process. So before tearing anything down the watchdog asks the callback
+  (`lastNativeHrBeatAt`, the patched plugin's `getHrLastBeat`) and re-arms if a
+  beat landed inside `STALL_MS`. That asymmetry is why HR felt solid on an
+  indoor session (foreground, or frozen and covered by the grace path) and
+  dropped out mid-run: the teardown cost the beats the healthy link was still
+  delivering, and the failed direct connect that followed fell into
+  re-discovery and Android's scan throttle. Null (iOS, an unpatched shell, no
+  beat yet) keeps the original behaviour.
 
 - **Post-run** (`src/hr/healthconnect.ts`, `healthConnectSource`): reads HR
   from Android Health Connect after the run via
@@ -159,6 +171,16 @@ pattern (`HrSensorDisclosure`, `HR_BLE_DISCLOSED_KEY`). A skippable nudge (in
 run until the user sets HR up or taps "Don't record heart rate", which sets the
 synced `settings.hrOptOut`. It never blocks Start.
 
+**Both recorders finish a session through one resolver.** `src/hr/runHr.ts` is
+what `LiveRunTracker` and `IndoorTracker` share either side of the seam:
+`effectiveHrMethod` (the synced preference narrowed by this device's pairing /
+authorization) and `resolveRunHr` (journal merge → coverage guard → post-run
+`fetchRange` → pending marker), with `runHrFields` placing the per-platform
+pending marker. The nudge sheet (`src/components/HrNudgeSheet.tsx`) and the live
+status ladder (`liveHrStatusLine`, `src/utils/hr.ts`) are shared for the same
+reason — the two screens ask the same question of the same seam, so they must
+not answer it in two drifting copies.
+
 HR lands in the **existing** run `hr`/`hrMax` fields (no shape change) via the
 `LogView` prefill — still user-editable — so all HR display (`HRZonesCard`,
 `runZoneIndex`, Stats) works unchanged.
@@ -194,7 +216,11 @@ surface as someone else's heart rate. `handleSave` reads it only for a live
 source, the same condition that armed it: a post-run source that inherited a
 stale journal would both invent HR and, by producing an average, skip its own
 store fetch. Android-only and best-effort: off Android, and on a shell built before the patch, it resolves
-nothing and the JS stream stays the whole story.
+nothing and the JS stream stays the whole story. The same GATT callback also
+stamps a last-beat timestamp (`getHrLastBeat`) that the stall watchdog reads,
+and relays each beat to whichever foreground service is rendering the
+lock-screen notification — the location service for a run, `IndoorSessionService`
+for an indoor session. One callback, three consumers: data, liveness, display.
 
 ## Connections UI (Settings)
 

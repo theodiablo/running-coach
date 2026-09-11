@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
-index c0b0cb0..0666fc4 100644
+index c0b0cb0..b921024 100644
 --- a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
 +++ b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
 @@ -38,6 +38,8 @@ import com.getcapacitor.annotation.ActivityCallback
@@ -41,30 +41,55 @@ index c0b0cb0..0666fc4 100644
      }
  
      private var bluetoothAdapter: BluetoothAdapter? = null
-@@ -94,6 +119,9 @@ class BluetoothLe : Plugin() {
+@@ -94,6 +119,14 @@ class BluetoothLe : Plugin() {
      private var deviceMap = HashMap<String, Device>()
      private var deviceScanner: DeviceScanner? = null
      private var displayStrings: DisplayStrings? = null
 +    private val hrJournalLock = Any()
 +    @Volatile
 +    private var hrJournalArmed = false
++    // Epoch ms of the last Heart Rate Measurement this process saw on the GATT
++    // callback — the one honest answer to "is the link alive?". Kept regardless
++    // of arming, so the idle preview counts too.
++    @Volatile
++    private var hrLastBeatAtMs = 0L
      private var aliases: Array<String> = arrayOf()
  
      override fun load() {
-@@ -769,6 +797,9 @@ class BluetoothLe : Plugin() {
+@@ -769,6 +802,10 @@ class BluetoothLe : Plugin() {
                      "notification|${device.getId()}|${(characteristic.first)}|${(characteristic.second)}"
                  val ret = JSObject()
                  ret.put("value", response.value)
 +                // Before the bridge, so a frozen WebView costs presentation, not data.
++                noteHrBeat(characteristic.second)
 +                journalHrMeasurement(characteristic.second, response.value)
 +                relayHrMeasurement(characteristic.second, response.value)
                  try {
                      notifyListeners(key, ret)
                  } catch (e: ConcurrentModificationException) {
-@@ -804,6 +835,118 @@ class BluetoothLe : Plugin() {
+@@ -804,6 +841,137 @@ class BluetoothLe : Plugin() {
          }
      }
  
++    // ── HR link liveness ─────────────────────────────────────────────────────
++
++    // Liveness, not data: JS delivery of a notification can stall while the link
++    // is perfectly healthy (a backgrounded WebView, a busy main thread), and a
++    // stall watchdog that only counts delivered samples then tears down a good
++    // connection. getHrLastBeat lets it ask the callback instead.
++    private fun noteHrBeat(characteristic: UUID) {
++        if (characteristic != HR_MEASUREMENT_UUID) return
++        hrLastBeatAtMs = System.currentTimeMillis()
++    }
++
++    // Resolves { t }: epoch ms of the last measurement seen, or 0 if none.
++    @PluginMethod
++    fun getHrLastBeat(call: PluginCall) {
++        val ret = JSObject()
++        ret.put("t", hrLastBeatAtMs)
++        call.resolve(ret)
++    }
++
 +    // ── HR journal ───────────────────────────────────────────────────────────
 +
 +    private fun hrJournalFile(): File {

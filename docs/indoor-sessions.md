@@ -199,6 +199,15 @@ on the same condition:
   same contract as the run notification's `chronometerStartMs`), so it ticks
   natively while JS is frozen. Copy is passed in from JS so it follows the app's
   language.
+- **Heart rate reaches it the same way the run notification's does**, and for
+  the same reason: the patched `bluetooth-le` plugin broadcasts every beat
+  straight from its GATT callback (`HR_SAMPLE`, package-scoped), and the service
+  registers for it. Nothing about the lock screen then depends on JS being awake
+  to push a number — which on this screen matters most, since heart rate is the
+  whole session. The suffix (` · ♥ 152`), the 90s staleness rule and the 5s
+  re-render floor mirror `BackgroundGeolocation.java`'s `liveMessage`, so a strap
+  reads identically on either recorder's notification. The relay is armed with
+  the HR journal, so a paused session stops updating it, as a paused run does.
 - Every native call is best-effort: a refused foreground start (no notification
   permission, or an Android 12+ background-start restriction) is logged and
   swallowed — recording continues exactly as it did before the service existed.
