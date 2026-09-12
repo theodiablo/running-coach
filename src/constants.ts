@@ -85,12 +85,6 @@ export const LIVE_PUBLISHED_KEY = "rc_live_published";
 // link would display one that resolves to nothing.
 export const LIVE_SHARE_LINK_KEY = "rc_live_share_link";
 
-// localStorage: whether the CURRENT run is published to the standing link.
-// Per-run twin of LIVE_SHARE_KEY (which is the remembered preference): a
-// recovered run must come back off the air if the runner hid it before the app
-// was killed, rather than inheriting the preference and re-publishing a run
-// they withdrew. Cleared when the broadcast ends.
-export const LIVE_RUN_PUBLIC_KEY = "rc_live_run_public";
 
 // localStorage: the WRITE capability for the current broadcast — what the
 // Android native uploader authenticates with while the WebView is frozen (see

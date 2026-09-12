@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { LIVE_PUBLISHED_KEY, LIVE_PUBLISH_TOKEN_KEY, LIVE_RUN_KEY, LIVE_SHARE_LINK_KEY, RESUME_MAX_AGE_MS } from "../constants";
+import { LIVE_PUBLISHED_KEY, LIVE_PUBLISH_TOKEN_KEY, LIVE_RUN_KEY, LIVE_SHARE_KEY, LIVE_SHARE_LINK_KEY, RESUME_MAX_AGE_MS } from "../constants";
 
 // The publisher's job is deciding WHEN to hit the network and WITH WHICH verb: a
 // run publishes off GPS fixes (never a timer), at most every 30s, with status
@@ -48,8 +48,8 @@ vi.mock("../supabase", () => ({ supabase: { from: h.from } }));
 vi.mock("../db", () => ({ currentUserId: h.currentUserId }));
 
 import {
-  LIVE_PUBLISH_INTERVAL_MS, canPublishNow, clearStaleLiveRun, endLiveRun, markRunPublic,
-  publishLiveRun, readRunPublic, resetLivePublisher, shouldPublish, sweepOwnLiveRun,
+  LIVE_PUBLISH_INTERVAL_MS, canPublishNow, clearStaleLiveRun, endLiveRun,
+  publishLiveRun, resetLivePublisher, shouldPublish, sweepOwnLiveRun,
 } from "./publisher";
 import { storePublishToken } from "./publishToken";
 
@@ -367,28 +367,13 @@ describe("public visibility (share_public)", () => {
     expect(h.del).not.toHaveBeenCalled();
   });
 
-  it("remembers the run's own visibility across a publisher reset", async () => {
-    // The app was killed mid-run: a run the runner HID must come back hidden,
-    // rather than inheriting the remembered "share" preference and
-    // re-publishing something they withdrew.
-    markRunPublic(false);
+  it("comes back at the visibility the runner left, across a publisher reset", async () => {
+    // The app was killed mid-run: a run the runner HID must come back hidden.
+    // The switch persists that to LIVE_SHARE_KEY on every flip, which is what
+    // the tracker reads on remount — there is no second per-run marker.
+    localStorage.setItem(LIVE_SHARE_KEY, "0");
     resetLivePublisher();
-    expect(readRunPublic()).toBe(false);
-  });
-
-  it("spends the run's visibility marker when the run ends", async () => {
-    markRunPublic(true);
-    await publishLiveRun(pubArgs(true));
-    await endLiveRun();
-    expect(readRunPublic()).toBeNull();
-  });
-
-  it("spends it on a sweep as well", async () => {
-    markRunPublic(true);
-    localStorage.setItem(LIVE_PUBLISHED_KEY, STARTED_ISO);
-    h.maybeSingle.mockResolvedValue({ data: { started_at: STARTED_ISO }, error: null });
-    await sweepOwnLiveRun();
-    expect(readRunPublic()).toBeNull();
+    expect(localStorage.getItem(LIVE_SHARE_KEY)).toBe("0");
   });
 
   it("never spends the account's standing share link", async () => {

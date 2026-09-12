@@ -104,16 +104,18 @@ async function serveRun(
   admin: Admin,
   by: { userId: string } | { legacyToken: string },
 ): Promise<Response> {
-  const query = admin
-    .from("live_runs")
-    .select("status, started_at, updated_at, points, stats, share_public");
+  // `share_public` is asked for ONLY on the ledger path. The legacy path must
+  // not name it: in the deploy-before-migration window the column doesn't
+  // exist, and a select that names it fails for BOTH branches — taking down
+  // exactly the pre-v4 links this fallback exists to keep serving.
+  const columns = "status, started_at, updated_at, points, stats";
   const { data, error } = await ("userId" in by
-    ? query.eq("user_id", by.userId)
-    : query.eq("share_token", by.legacyToken)
+    ? admin.from("live_runs").select(`${columns}, share_public`).eq("user_id", by.userId)
+    : admin.from("live_runs").select(columns).eq("share_token", by.legacyToken)
   ).maybeSingle();
 
-  // 42703 = undefined_column: share_public (or, on the legacy path,
-  // share_token) hasn't been migrated yet. Closed direction, as above.
+  // 42703 = undefined_column: share_public (on the ledger path) or share_token
+  // (on the legacy one) hasn't been migrated yet. Closed direction, as above.
   if (error?.code === "42703") {
     console.error("live-watch: live_runs column missing — apply the pending live-sharing migration");
     return notLive();

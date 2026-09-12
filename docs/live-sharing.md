@@ -372,10 +372,11 @@ The mechanics that hold it together:
   token itself (so uniqueness *is* the primary key) with one active row per user
   (a partial unique index) and `user_id` nullable + `on delete set null`, so
   deleting an account cannot free that account's tokens for re-claim.
-- **The client may insert, and nothing else.** `revoke all … from anon,
-  authenticated`, then `grant select, insert (user_id, token)` — no update, no
-  delete, ever. "A tombstone is forever" is structural rather than a policy
-  anyone has to reason about. The explicit revoke is not hygiene:
+- **The client may insert, and retire — nothing else.** `revoke all … from
+  anon, authenticated`, then `grant select, insert (user_id, token)` plus
+  `update (revoked_at)` behind the one-way policy above. No delete, ever, and no
+  write to `token`, `user_id` or `created_at`, so a tombstone stays a tombstone
+  and cannot be un-revoked. The explicit revoke is not hygiene:
   `auto_expose_new_tables` is unset (`supabase/config.toml`), so a new table
   gets no grants on the hosted project and `GRANT ALL` on the local stack, and
   without stating the posture we would test one privilege set and ship another.
@@ -385,7 +386,15 @@ The mechanics that hold it together:
   `set search_path = ''`, fully-qualified references: it exists for atomicity,
   not privilege, and the new token still comes from the phone's CSPRNG. It also
   caps the ledger at 100 rows per account, because tombstones-forever without a
-  ceiling is an unbounded authenticated write primitive.
+  ceiling is an unbounded authenticated write primitive; the cap surfaces as its
+  own copy rather than as a connection error, which is what it is not.
+  **Because it is `invoker`, it can only retire a row the CALLER may retire** —
+  which is why the ledger grants `update (revoked_at)` and carries a one-way
+  UPDATE policy (`using revoked_at is null` / `with check revoked_at is not
+  null`). The first migration granted neither, so the function's own UPDATE
+  raised `42501` and Replace link could not work at all; nothing in CI could see
+  it, because the client test mocks the RPC and there are no database tests.
+  Tombstone immutability is unchanged — one column, one direction.
 - **First creation needs no function** — a single statement is atomic on its
   own. Its two distinct 23505s get different answers: the active-row index means
   another device claimed one first (re-read theirs), the primary key means a
@@ -409,13 +418,17 @@ Accepted costs, so they are not rediscovered as bugs:
   trailhead with no signal. The previous design minted locally and healed on the
   next write; this one trades that for an address that cannot be squatted.
 - **An insert-existence oracle.** A client picks its own token, so a `23505`
-  tells an authenticated prober that one is claimed, where `live-watch` is
-  uniform. Hopeless at 128 bits, and blind to whether a token is active or
-  retired (tombstones answer identically), so it cannot even reveal that someone
-  has rotated.
-- **A timing difference.** A claimed token costs two lookups and an unknown one
-  costs one, which is measurable — so `live-watch`'s "a crawler cannot even
-  learn whether a token exists" is now about the *response*, not the latency.
+  tells an authenticated prober that one is claimed, where `live-watch`'s
+  response is uniform. Hopeless at 128 bits, and blind through that channel to
+  whether a token is active or retired, since tombstones answer identically
+  (the latency above is the one place that leaks).
+- **A timing difference, and it is the retired token that shows.** A claimed
+  token costs two lookups (ledger + row) and so does an unknown one (ledger +
+  the legacy column); a **retired** one returns after a single lookup. So the
+  measurable bit is "this token was rotated away" — not "this token exists",
+  which stays hidden. Narrow, unexploitable, and worth stating rather than
+  leaving the neighbouring oracle bullet to imply the retired case is
+  indistinguishable by every measure: through the *response* it is.
 
 ### The flag rides the normal writes
 

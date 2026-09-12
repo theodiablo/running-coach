@@ -13,7 +13,7 @@
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
-import { LIVE_PUBLISHED_KEY, LIVE_RUN_KEY, LIVE_RUN_PUBLIC_KEY, RESUME_MAX_AGE_MS } from "../constants";
+import { LIVE_PUBLISHED_KEY, LIVE_RUN_KEY, RESUME_MAX_AGE_MS } from "../constants";
 import { mintPublishToken, readPublishToken, storePublishToken } from "./publishToken";
 import type { TrackPointOrGap } from "../utils/geo";
 
@@ -267,12 +267,9 @@ export async function endLiveRun(): Promise<void> {
   // The publish token dies with the broadcast, whether or not the delete below
   // lands: a write capability that outlived its run would be re-used by the
   // NEXT one. The STANDING share link is deliberately untouched — it belongs to
-  // the account, not to this run. What does die with the run is the per-run
-  // public marker: the next run decides its own visibility from the remembered
-  // preference, not from this one's.
+  // the account, not to this run.
   const publishToken = readPublishToken();
   storePublishToken(null);
-  clearRunPublic();
   if (!user_id) {
     // Signed out at save (an expired session must still be able to take the
     // run off the air): teardown by capability through the edge function.
@@ -314,13 +311,12 @@ export async function endLiveRun(): Promise<void> {
 // row still carries the `started_at` that device published.
 export async function sweepOwnLiveRun(): Promise<void> {
   const mine = readPublishedMarker();
-  // A sweep resolves a broadcast this device left behind, so its per-run state
+  // A sweep resolves a broadcast this device left behind, so its publish token
   // is spent too. Done up front and unconditionally: with no marker there is
-  // nothing on the air, and a publish token still sitting here is one minted
-  // for a run that never started — exactly what the NEXT run must not inherit.
-  // The standing share link is account state and is never touched here.
+  // nothing on the air, and a token still sitting here is one minted for a run
+  // that never started — exactly what the NEXT run must not inherit. The
+  // standing share link is account state and is never touched here.
   storePublishToken(null);
-  clearRunPublic();
   if (!mine) return;
   const user_id = currentUserId();
   if (!user_id) return;
@@ -362,22 +358,6 @@ function hasRecoverableRun(): boolean {
   }
 }
 
-// Whether the CURRENT run is published to the standing link. Written here
-// rather than held only in React state so a run recovered after an app kill
-// comes back hidden if that is how the runner left it.
-export const markRunPublic = (on: boolean) => {
-  try { localStorage.setItem(LIVE_RUN_PUBLIC_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
-};
-export const readRunPublic = (): boolean | null => {
-  try {
-    const v = localStorage.getItem(LIVE_RUN_PUBLIC_KEY);
-    return v === null ? null : v === "1";
-  } catch { return null; }
-};
-const clearRunPublic = () => {
-  try { localStorage.removeItem(LIVE_RUN_PUBLIC_KEY); } catch { /* ignore */ }
-};
-
 const markPublished = (startedAtIso: string) => {
   try { localStorage.setItem(LIVE_PUBLISHED_KEY, startedAtIso); } catch { /* quota — non-fatal */ }
 };
@@ -395,9 +375,9 @@ const readPublishedMarker = (): string | null => {
 export function resetLivePublisher(): void {
   lastPublishAt = 0;
   lastStatus = null;
-  // Only the module's memory of what was last written. The per-run PUBLIC
-  // marker is deliberately untouched: a recovered run has to come back at the
-  // visibility the runner left it at, and endLiveRun is what spends it.
+  // Only the module's memory of what was last written. A recovered run comes
+  // back at the visibility the runner left it at because LIVE_SHARE_KEY is
+  // persisted on every flip of the switch, not from anything held here.
   lastSharePublic = null;
   inFlight = false;
   inFlightWrite = null;

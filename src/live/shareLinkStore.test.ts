@@ -11,8 +11,13 @@ const h = vi.hoisted(() => {
   type Row = { token: string } | null;
   const maybeSingle = vi.fn<() => Promise<{ data: Row; error: DbError }>>(
     async () => ({ data: null, error: null }));
-  const is = vi.fn(() => ({ maybeSingle }));
-  const eq = vi.fn(() => ({ is, maybeSingle }));
+  // eq/is RECORD their arguments: the whole point of the ledger is that a
+  // retired token is never handed back as the account's link, and that filter
+  // is invisible to a mock that ignores what it was called with.
+  const is = vi.fn<(col: string, val: unknown) => { maybeSingle: typeof maybeSingle }>(
+    () => ({ maybeSingle }));
+  const eq = vi.fn<(col: string, val: unknown) => { is: typeof is; maybeSingle: typeof maybeSingle }>(
+    () => ({ is, maybeSingle }));
   const select = vi.fn(() => ({ eq }));
   const insert = vi.fn<(row: Record<string, unknown>) => Promise<{ error: DbError }>>(
     async () => ({ error: null }));
@@ -63,6 +68,16 @@ describe("ensureShareLink", () => {
     expect(readCachedShareLink("u1")).toBe(TOKEN);
   });
 
+  it("reads only the caller's ACTIVE row", async () => {
+    // Without the revoked_at filter a tombstone comes back as the account's
+    // link and gets offered for sending — a permanently dead address, and the
+    // exact failure the ledger's retained rows exist to prevent.
+    h.maybeSingle.mockResolvedValue({ data: { token: TOKEN }, error: null });
+    await ensureShareLink();
+    expect(h.eq).toHaveBeenCalledWith("user_id", "u1");
+    expect(h.is).toHaveBeenCalledWith("revoked_at", null);
+  });
+
   it("claims one when the ledger has none", async () => {
     const token = await ensureShareLink();
     expect(h.insert).toHaveBeenCalledTimes(1);
@@ -107,14 +122,14 @@ describe("ensureShareLink", () => {
 
 describe("rotateShareLink", () => {
   it("goes through the one transactional RPC, minting the token here", async () => {
-    const token = await rotateShareLink();
+    const { token } = await rotateShareLink();
     expect(h.rpc).toHaveBeenCalledWith("rotate_share_link", { p_new_token: token });
     expect(readCachedShareLink("u1")).toBe(token);
   });
 
   it("trusts the row the server returns over the token it sent", async () => {
     h.rpc.mockResolvedValue({ data: [{ token: OTHER }], error: null });
-    expect(await rotateShareLink()).toBe(OTHER);
+    expect(await rotateShareLink()).toEqual({ token: OTHER });
     expect(readCachedShareLink("u1")).toBe(OTHER);
   });
 
@@ -123,8 +138,15 @@ describe("rotateShareLink", () => {
     // send, and the ledger still resolves it.
     localStorage.setItem(LIVE_SHARE_LINK_KEY, JSON.stringify({ uid: "u1", token: TOKEN }));
     h.rpc.mockResolvedValue({ data: null, error: { code: "PGRST000" } });
-    expect(await rotateShareLink()).toBeNull();
+    expect(await rotateShareLink()).toEqual({ token: null });
     expect(readCachedShareLink("u1")).toBe(TOKEN);
+  });
+
+  it("reports the ledger's per-account cap as its own thing", async () => {
+    // "Check your connection" is wrong twice over for this: nothing is wrong
+    // with it, and retrying never clears it.
+    h.rpc.mockResolvedValue({ data: null, error: { code: "P0001", message: "share link limit reached" } });
+    expect(await rotateShareLink()).toEqual({ token: null, limit: true });
   });
 });
 

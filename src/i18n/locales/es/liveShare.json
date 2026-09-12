@@ -8,7 +8,7 @@
     "create": "Crear tu enlace",
     "share": "Enviar enlace",
     "copied": "Copiado",
-    "hint": "Cualquiera con este enlace puede seguir este entrenamiento, sin necesidad de cuenta. Es el mismo enlace para todos los entrenamientos que compartas y no muestra nada entre uno y otro. Puedes reemplazarlo cuando quieras para cortar el acceso a todo el mundo.",
+    "hint": "Cualquiera con este enlace puede seguir los entrenamientos que compartas, sin necesidad de cuenta. Es el mismo enlace siempre y no muestra nada entre uno y otro. Puedes reemplazarlo cuando quieras para cortar el acceso a todo el mundo.",
     "working": "Un momento...",
     "replace": "Reemplazar el enlace",
     "createTitle": "¿Crear tu enlace para compartir?",
@@ -17,9 +17,13 @@
     "replaceTitle": "¿Reemplazar tu enlace para compartir?",
     "replaceBody": "Tu enlace actual dejará de funcionar para todas las personas a las que se lo hayas enviado. Recibirás uno nuevo para compartir.",
     "replaceAccept": "Reemplazar",
-    "unconfirmed": "Vuelve a conectarte para enviar tu enlace.",
+    "unconfirmed": "No se pudo verificar tu enlace ahora mismo. Vuelve a conectarte antes de enviarlo.",
     "failed": "No se pudo acceder a tu enlace. Revisa tu conexión e inténtalo de nuevo.",
-    "unavailable": "Compartir por enlace no está disponible ahora mismo. Tu entrenamiento se sigue compartiendo con tus propios dispositivos."
+    "unavailable": "Compartir por enlace no está disponible ahora mismo. Tu entrenamiento se sigue compartiendo con tus propios dispositivos.",
+    "limit": "Ya has reemplazado este enlace muchas veces. Escríbenos si necesitas uno nuevo.",
+    "replaced": "Nuevo enlace listo para compartir",
+    "settingsTitle": "Enlace para compartir en directo",
+    "settingsDesc": "El enlace que usan para seguir tus entrenamientos mientras grabas. Al reemplazarlo, el actual deja de funcionar para todas las personas a las que se lo hayas enviado."
   },
   "banner": {
     "title": "Entrenamiento en curso",

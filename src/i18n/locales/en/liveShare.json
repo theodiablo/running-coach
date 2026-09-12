@@ -8,7 +8,7 @@
     "create": "Create your link",
     "share": "Send link",
     "copied": "Copied",
-    "hint": "Anyone with this link can follow this run, no account needed. It is the same link for every run you share, and shows nothing in between. Replace it any time to cut off everyone who has it.",
+    "hint": "Anyone with this link can follow the runs you share, no account needed. It is the same link every time, and shows nothing in between. Replace it any time to cut off everyone who has it.",
     "working": "Working...",
     "replace": "Replace link",
     "createTitle": "Create your sharing link?",
@@ -17,9 +17,13 @@
     "replaceTitle": "Replace your sharing link?",
     "replaceBody": "Your current link stops working for everyone you have sent it to. You will get a new one to share.",
     "replaceAccept": "Replace",
-    "unconfirmed": "Reconnect to send your link.",
+    "unconfirmed": "Could not check your link just now. Reconnect before sending it.",
     "failed": "Could not reach your link. Check your connection and try again.",
-    "unavailable": "Sharing by link is not available right now. Your run is still shared with your own devices."
+    "unavailable": "Sharing by link is not available right now. Your run is still shared with your own devices.",
+    "limit": "You have replaced this link many times. Get in touch if you need a new one.",
+    "replaced": "New link ready to share",
+    "settingsTitle": "Live-run share link",
+    "settingsDesc": "The link people use to follow your runs while you record. Replacing it stops the current one working for everyone you have sent it to."
   },
   "banner": {
     "title": "Run in progress",

@@ -1,14 +1,14 @@
 {
   "toggle": {
     "label": "Partager cette sortie",
-    "hint": "Ta sortie est visible sur ton lien pendant que tu enregistres, et cesse de l'être dès que tu l'enregistres ou la supprimes. Ce n'est pas un dispositif de sécurité : ne compte jamais sur lui en cas de besoin.",
+    "hint": "Ta sortie est visible sur ton lien pendant que tu enregistres, et cesse de l'être dès que tu la sauvegardes ou la supprimes. Ce n'est pas un dispositif de sécurité : ne compte jamais sur lui en cas de besoin.",
     "on": "Activé"
   },
   "link": {
     "create": "Créer ton lien",
     "share": "Envoyer le lien",
     "copied": "Copié",
-    "hint": "Toute personne disposant de ce lien peut suivre cette sortie, sans compte. C'est le même lien pour toutes les sorties que tu partages, et il n'affiche rien entre deux sorties. Tu peux le remplacer à tout moment pour couper l'accès à tout le monde.",
+    "hint": "Toute personne disposant de ce lien peut suivre les sorties que tu partages, sans compte. C'est le même lien à chaque fois, et il n'affiche rien entre deux sorties. Tu peux le remplacer à tout moment pour couper l'accès à tout le monde.",
     "working": "Un instant...",
     "replace": "Remplacer le lien",
     "createTitle": "Créer ton lien de partage ?",
@@ -17,9 +17,13 @@
     "replaceTitle": "Remplacer ton lien de partage ?",
     "replaceBody": "Ton lien actuel cessera de fonctionner pour toutes les personnes à qui tu l'as envoyé. Tu en recevras un nouveau à partager.",
     "replaceAccept": "Remplacer",
-    "unconfirmed": "Reconnecte-toi pour envoyer ton lien.",
+    "unconfirmed": "Impossible de vérifier ton lien pour le moment. Reconnecte-toi avant de l'envoyer.",
     "failed": "Impossible d'accéder à ton lien. Vérifie ta connexion et réessaie.",
-    "unavailable": "Le partage par lien n'est pas disponible pour le moment. Ta sortie reste partagée avec tes propres appareils."
+    "unavailable": "Le partage par lien n'est pas disponible pour le moment. Ta sortie reste partagée avec tes propres appareils.",
+    "limit": "Tu as déjà remplacé ce lien de nombreuses fois. Contacte-nous s'il t'en faut un nouveau.",
+    "replaced": "Nouveau lien prêt à partager",
+    "settingsTitle": "Lien de partage en direct",
+    "settingsDesc": "Le lien que tes proches utilisent pour suivre tes sorties pendant que tu enregistres. Le remplacer désactive le lien actuel pour toutes les personnes à qui tu l'as envoyé."
   },
   "banner": {
     "title": "Sortie en cours",

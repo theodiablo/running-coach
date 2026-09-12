@@ -117,9 +117,11 @@ export async function ensureShareLink(): Promise<string | null> {
 // gives every request its own transaction, so a client-side revoke-then-insert
 // can leave the account with no link at all. The function is `security
 // invoker`; the token below still comes from this device's CSPRNG.
-export async function rotateShareLink(): Promise<string | null> {
+export type RotateResult = { token: string | null; limit?: boolean };
+
+export async function rotateShareLink(): Promise<RotateResult> {
   const uid = currentUserId();
-  if (!uid) return null;
+  if (!uid) return { token: null };
   for (let attempt = 0; attempt < 3; attempt++) {
     const token = mintShareToken();
     const { data, error } = await supabase.rpc("rotate_share_link", { p_new_token: token });
@@ -127,10 +129,14 @@ export async function rotateShareLink(): Promise<string | null> {
       const row = (Array.isArray(data) ? data[0] : data) as { token?: unknown } | null;
       const claimed = typeof row?.token === "string" && isValidShareToken(row.token) ? row.token : token;
       cacheShareLink(uid, claimed);
-      return claimed;
+      return { token: claimed };
     }
     if (conflict(error) === "token") continue;
-    return null;
+    // The ledger's per-account ceiling. Reported on its own, because "check
+    // your connection" is wrong twice over: nothing is wrong with it, and
+    // retrying never clears this.
+    if (error.code === "P0001") return { token: null, limit: true };
+    return { token: null };
   }
-  return null;
+  return { token: null };
 }

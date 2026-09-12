@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Upload, Trash2, Shield } from "lucide-react";
+import { Download, Upload, Trash2, Shield, Link2, RefreshCw, Loader } from "lucide-react";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../../i18n";
 import { INPUT_CLS, PRIVACY_URL, DISCLAIMER_URL } from "../../constants";
 import { getConsent, setConsent, getCrashConsent, setCrashConsent } from "../../telemetry";
 import { ToggleSwitch } from "../../components/ToggleSwitch";
+import { ShareLinkConfirm } from "../../components/ShareLinkConfirm";
+import { watchUrl } from "../../live/shareLink";
+import { fetchShareLink, readCachedShareLink, rotateShareLink } from "../../live/shareLinkStore";
+import { currentUserId } from "../../db";
 import { EmailSection } from "./EmailSection";
 import { PasswordSection } from "./PasswordSection";
 import type { User } from "@supabase/supabase-js";
@@ -56,6 +60,26 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
     setCrashConsent(next);
     setCrashOn(next);
     if (showToast) showToast(next ? t("settings.privacy.crashOn") : t("settings.privacy.crashOff"));
+  };
+
+  // The standing live-run share link. Read-only here except for Replace: this
+  // is the surface for cutting someone off, which is rarely something you do
+  // while standing at the start of a run (docs/live-sharing.md).
+  const [shareToken, setShareToken] = useState<string | null>(() => readCachedShareLink(currentUserId()));
+  const [replacing, setReplacing] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void fetchShareLink().then((token) => { if (alive && token) setShareToken(token); });
+    return () => { alive = false; };
+  }, []);
+  const replaceLink = async () => {
+    setConfirmReplace(false);
+    setReplacing(true);
+    const { token, limit } = await rotateShareLink();
+    setReplacing(false);
+    if (token) { setShareToken(token); showToast?.(t("liveShare.link.replaced")); return; }
+    showToast?.(t(limit ? "liveShare.link.limit" : "liveShare.link.failed"), "err");
   };
 
   return (
@@ -125,6 +149,28 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
           </a>
         </div>
       </div>
+
+      {/* Live-run share link */}
+      {shareToken && (
+        <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Link2 size={15} className="text-orange-400"/>
+            <p className="text-sm font-semibold text-slate-200">{t("liveShare.link.settingsTitle")}</p>
+          </div>
+          <p className="font-mono text-xs text-sky-200 break-all">{watchUrl(shareToken).replace(/^https?:\/\//, "")}</p>
+          <p className="text-xs text-slate-400 leading-snug">{t("liveShare.link.settingsDesc")}</p>
+          <button onClick={() => setConfirmReplace(true)} disabled={replacing}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-60">
+            {replacing ? <Loader size={15} className="animate-spin"/> : <RefreshCw size={15}/>}
+            {t("liveShare.link.replace")}
+          </button>
+        </div>
+      )}
+      {confirmReplace && (
+        <ShareLinkConfirm title={t("liveShare.link.replaceTitle")} body={t("liveShare.link.replaceBody")}
+          acceptLabel={t("liveShare.link.replaceAccept")}
+          onCancel={() => setConfirmReplace(false)} onAccept={() => { void replaceLink(); }} />
+      )}
 
       {/* Backup & restore */}
       <div className="bg-slate-800 rounded-2xl p-4 space-y-3">

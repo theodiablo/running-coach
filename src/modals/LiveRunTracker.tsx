@@ -26,7 +26,7 @@ import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { Ctrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
 import { ToggleSwitch } from "../components/ToggleSwitch";
-import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
+import { ShareLinkConfirm } from "../components/ShareLinkConfirm";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
 import { RouteFinderSheet } from "./RouteFinderSheet";
@@ -175,6 +175,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // hides a run, so leaning on the once-per-mount leftover sweep below would
   // silently leave the second one published until save.
   const takeOffAir = useCallback(() => {
+    // Claim the sweep before yielding: endLiveRun awaits the write on the wire
+    // before reading the publish token, and the leftover-sweep effect below
+    // spends that token the moment `shareLive` flips — which would leave the
+    // teardown deleting by user_id alone, unscoped from another device's row.
+    sweptRef.current = true;
     disarmLiveUpload();
     void endLiveRun();
   }, [disarmLiveUpload]);
@@ -226,8 +231,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // and sending a replaced address is sending a page that shows nothing.
   const [shareToken, setShareToken] = useState<string | null>(() => readCachedShareLink(currentUserId()));
   const [linkConfirmed, setLinkConfirmed] = useState(false);
+  // Whether a revalidation has SETTLED. Without it the amber "can't verify
+  // your link" line renders on every recorder open, before the first round
+  // trip has had a chance to confirm the cached token.
+  const [linkChecked, setLinkChecked] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
-  const [linkError, setLinkError] = useState(false);
+  const [linkError, setLinkError] = useState<boolean | "limit">(false);
   const [publicUnavailable, setPublicUnavailable] = useState(false);
   const [confirmCreate, setConfirmCreate] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
@@ -244,9 +253,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     const revalidate = () => {
       if (document.visibilityState !== "visible") return;
       void fetchShareLink().then((token) => {
-        if (!alive || token === null) return; // offline: keep the cached copy, unconfirmed
+        if (!alive) return;
+        setLinkChecked(true);
+        if (token === null) return; // offline: keep the cached copy, unconfirmed
         setShareToken(token);
         setLinkConfirmed(true);
+        setLinkError(false);
       });
     };
     revalidate();
@@ -271,9 +283,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     setConfirmReplace(false);
     setLinkBusy(true);
     setLinkError(false);
-    const token = await rotateShareLink();
+    const { token, limit } = await rotateShareLink();
     setLinkBusy(false);
-    if (!token) { setLinkError(true); return; }
+    if (!token) { setLinkError(limit ? "limit" : true); return; }
     setShareToken(token);
     setLinkConfirmed(true);
     setLinkCopied(false);
@@ -673,9 +685,9 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // runs that ARE shared, and Replace has to be reachable for someone cutting
   // a person off outside a run.
   const linkState = shareLinkState({
-    token: shareToken, sharing: shareLive, busy: linkBusy, confirmed: linkConfirmed,
+    token: shareToken, sharing: sharePublic, busy: linkBusy, confirmed: linkConfirmed,
   });
-  const shareLinkRow = publicUnavailable ? null : (
+  const shareLinkRow = (
     <div className="space-y-1.5">
       {linkState.kind === "busy" ? (
         <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm text-slate-300">
@@ -702,13 +714,41 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
             className="p-1 text-slate-400 hover:text-white"><RefreshCw size={15} /></button>
         </div>
       )}
-      {linkError ? (
-        <p className="text-[11px] text-amber-300/90 leading-snug px-1">{t("liveShare.link.failed")}</p>
-      ) : linkState.kind === "link" && !linkState.sendable ? (
+      {publicUnavailable ? (
+        <p className="text-[11px] text-amber-300/90 leading-snug px-1">{t("liveShare.link.unavailable")}</p>
+      ) : linkError ? (
+        <p className="text-[11px] text-amber-300/90 leading-snug px-1">
+          {t(linkError === "limit" ? "liveShare.link.limit" : "liveShare.link.failed")}
+        </p>
+      ) : linkState.kind === "link" && !linkState.sendable && linkChecked ? (
         <p className="text-[11px] text-amber-300/90 leading-snug px-1">{t("liveShare.link.unconfirmed")}</p>
       ) : (
         <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.link.hint")}</p>
       )}
+    </div>
+  );
+
+  // One switch and one link, rendered identically before a run and during one.
+  // The whole row is the hit area — the switch alone is 44x24, which is under
+  // any touch minimum for something operated outdoors mid-stride — so the
+  // switch stops the click it already handles from reaching the row.
+  const shareBlock = (
+    <div className="space-y-1.5">
+      <div onClick={toggleShareLive}
+        className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-colors cursor-pointer "
+          + (shareLive
+            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+            : "bg-slate-800 border-slate-700 text-slate-200")}>
+        <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
+        <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
+        <span onClick={(e) => e.stopPropagation()} className="flex shrink-0">
+          <ToggleSwitch on={shareLive} onToggle={toggleShareLive} label={t("liveShare.toggle.label")} />
+        </span>
+      </div>
+      {shareLive && (
+        <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
+      )}
+      {shareLinkRow}
     </div>
   );
 
@@ -862,24 +902,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
                 <Play size={20} />{t("tracker.controls.start")}
               </Ctrl>
             </div>
-            <div className="space-y-1.5">
-              {/* A real switch, and the app's only one (ToggleSwitch) — the row
-                  used to signal state with a word, which reads as a status
-                  line rather than something you can tap. It is the control, so
-                  the row around it is a label, never a nested button. */}
-              <div className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-colors "
-                + (shareLive
-                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                  : "bg-slate-800 border-slate-700 text-slate-200")}>
-                <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
-                <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
-                <ToggleSwitch on={shareLive} onToggle={toggleShareLive} label={t("liveShare.toggle.label")} />
-              </div>
-              {shareLive && (
-                <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
-              )}
-              {shareLinkRow}
-            </div>
+            {shareBlock}
             {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
               plannedRoute ? (
                 <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
@@ -929,16 +952,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           </div>
         )}
 
-        {/* A broadcast in progress must be visible on the recording device — an
-            invisible one is a privacy problem, not a feature. */}
-        {live && shareLive && (
-          <>
-            <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
-              <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
-            </p>
-            {shareLinkRow}
-          </>
-        )}
+        {/* The SAME control during the run, not a read-only echo of it: a
+            broadcast in progress must be visible on the recording device, and
+            taking a run off the air mid-run is the one thing the switch exists
+            for. */}
+        {live && shareBlock}
 
         {live && !isNative && (
           <p className="text-[11px] text-slate-500 text-center leading-snug">
@@ -996,25 +1014,5 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)} />
       )}
     </div>
-  );
-}
-
-// In-DOM confirm for the two link decisions (never window.confirm — see
-// CLAUDE.md). Registers its own useDismissable so Android back and web Escape
-// close it, and so the header's go-Home reset can clear it.
-function ShareLinkConfirm({ title, body, acceptLabel, onCancel, onAccept }: {
-  title: string; body: string; acceptLabel: string; onCancel: () => void; onAccept: () => void;
-}) {
-  const { t } = useTranslation();
-  useDismissable(true, onCancel);
-  return (
-    <ModalOverlay>
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
-        <p className="text-sm font-semibold text-slate-100">{title}</p>
-        <p className="text-xs text-slate-400 leading-snug">{body}</p>
-        <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={acceptLabel}
-          onCancel={onCancel} onAccept={onAccept} />
-      </div>
-    </ModalOverlay>
   );
 }
