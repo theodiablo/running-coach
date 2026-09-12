@@ -1,9 +1,16 @@
 # Live run sharing
 
-Opt-in, per run, free: while a run is recording, the phone broadcasts the
-route so far so the runner's **own other signed-in sessions** can watch it
-happen — and, if they mint a share link, so can anyone they send it to. Off by
-default; nothing is sent mid-run unless the toggle is on.
+Opt-in, free, one switch: while a run is recording, the phone broadcasts the
+route so far, and anyone holding the runner's **standing share link** can watch
+it happen — as can the runner's own other signed-in sessions. Off by default;
+nothing is sent mid-run unless the switch is on.
+
+**The link is the runner's, not the run's** (2026-09). It is claimed once, kept
+in `live_share_tokens`, and reused by every run they share, so there is nothing
+to send before a run. Replacing it is the revocation. That reverses the original
+"per run, never a standing address" decision on purpose — what makes it safe is
+below, and it is not the UI: it is that the token stopped being a column the
+client writes.
 
 Shipped premium-gated, then unveiled free for every signed-in account
 (2026-08) — see `docs/monetization.md`. Nothing about the transport, cadence,
@@ -20,7 +27,9 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Piece | File |
 |---|---|
 | Table, RLS | `supabase/migrations/20260727135028_live_runs.sql`, premium gate dropped in `20260818184235_live_runs_drop_premium_gate.sql` |
-| Share-token column | `supabase/migrations/20260804190422_live_runs_share_token.sql` |
+| Share-token column (legacy, pre-v4) | `supabase/migrations/20260804190422_live_runs_share_token.sql` |
+| Token ledger, `share_public`, `rotate_share_link` | `supabase/migrations/20260912095101_live_share_tokens.sql` |
+| Claiming / replacing / caching the link | `src/live/shareLinkStore.ts` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
@@ -87,9 +96,9 @@ authority* — with an upload leg:
 - **The publish token is a second per-run capability, the write half.** Minted
   in `startTracking` (never inherited within a mount — a retained native batch
   must not ride into the next run's broadcast), carried on every JS write like
-  `share_token`, stored per-device (`rc_live_publish_token`, adopted on mount
+  `share_public`, stored per-device (`rc_live_publish_token`, adopted on mount
   only alongside a recoverable run), spent by `endLiveRun`/the sweeps. Unlike
-  the share token it is never displayed and never leaves the device except
+  the share link it is never displayed and never leaves the device except
   inside the writes it authorizes. A user JWT can't do this job: it expires
   mid-run in a process that can't refresh it.
 - **`live-publish` (verify_jwt = false) can only continue a broadcast.** All
@@ -191,13 +200,19 @@ something a user relies on for help.
 
 | Event | What happens |
 |---|---|
-| Start (toggle on) | `insert` stamps `started_at` and marks this device the publisher |
+| Start (switch on) | `insert` stamps `started_at`, carries `share_public`, and marks this device the publisher |
 | Pause / resume | status `update`, bypassing the throttle |
+| Switch off mid-run | full teardown (`endLiveRun`) — **not** the leftover sweep, which runs once per mount and would leave an off → on → off run published until save |
+| Switch back on mid-run | a new broadcast: fresh publish token, `resetLivePublisher`, re-opened on the next fix |
 | Finish | status `ended` — the watcher shows the run as over rather than going quiet |
 | Save or discard | row deleted (`endLiveRun`), fire-and-forget so it can never block a save |
 | App killed mid-run | row survives; swept when that device next opens the app |
 | Recovery discarded | swept there and then — the boot sweep already spared it |
 | Start with sharing off | swept once recording begins — nothing will publish over it |
+
+The account's **share link is never spent by any of these** — it belongs to the
+account, not the run. What dies with a broadcast is the publish token and (as of
+the standing link) nothing else on the sharing side.
 
 ### The sweep is scoped to the publishing device, twice over
 
@@ -277,9 +292,10 @@ unchanged. The only new idea is **who may read the row**.
 
 ### The token is the capability, not an identifier
 
-`live_runs.share_token` is 128 bits from `crypto.getRandomValues`, base64url,
-minted on the phone (`mintShareToken`). Whoever holds `/watch/<token>` may
-watch; being signed in grants nothing extra and is not required. That single
+The token is 128 bits from `crypto.getRandomValues`, base64url, minted on the
+phone (`mintShareToken`) and claimed in `live_share_tokens`. Whoever holds
+`/watch/<token>` may watch; being signed in grants nothing extra and is not
+required. That single
 decision answers both of the questions this feature raises:
 
 - **Crawling** is defeated by entropy, not by obscurity or rate limiting. At a
@@ -290,11 +306,11 @@ decision answers both of the questions this feature raises:
   two experiences: the session authorizes nothing, so there is nothing to
   branch on. `PublicWatch` never imports `src/supabase.ts` at all.
 
-The shape is a security parameter, so it is pinned in three places that must
-agree: the minting client, the `live_runs_share_token_shape` CHECK constraint,
-and the edge function's validation. All three read
-`supabase/functions/_shared/liveShare.mjs` or the constraint that mirrors it —
-don't let them drift.
+The shape is a security parameter, so it is pinned in four places that must
+agree: the minting client, the `live_share_tokens.token` CHECK constraint, the
+legacy `live_runs_share_token_shape` CHECK constraint, and the edge function's
+validation. All of them read `supabase/functions/_shared/liveShare.mjs` or a
+constraint that mirrors it — don't let them drift.
 
 ### One uniform response, and what it buys
 
@@ -327,58 +343,111 @@ Both were on the table. The function wins on four counts:
   anon-readable policy at all, by design), so the public page polls — and per
   the cadence rule above, reading at the publisher's own 30s loses nothing.
 
-### Per run, never a standing address
+### One standing address, and what keeps it safe
 
-The token is minted per broadcast and **the row's deletion is the revocation** —
-the existing cleanup does the work with nothing added. A stable "my live link"
-was rejected on purpose: shared once with the wrong person, it becomes a
-standing window onto wherever that person runs, forever.
+A stable "my live link" was rejected when public links shipped, in these words:
+*"shared once with the wrong person, it becomes a standing window onto wherever
+that person runs, forever."* That is still true of the naive version of this
+feature. Two words in it are load-bearing, and each has an answer:
 
-The mechanics that keep that true:
+- **"Forever"** is bought back by **Replace link**, one tap in the pre-run panel
+  (and in Settings → Account, because the moment you want to cut someone off is
+  rarely the moment you are about to run). It is immediate and server-side: the
+  ledger stops resolving the old token for everyone holding it, with no wait for
+  the runner's next publish. The old token is **retired, never freed** — a
+  tombstone kept forever, because a released token could be re-claimed by
+  someone still holding the old link, which is the same spoof through a
+  different door. `live-watch` therefore looks the token up *unfiltered*: a row
+  that exists but is revoked is a terminal "nothing live" and must never fall
+  through to the legacy column.
+- **"Standing window"** is bounded by what the link can ever show: a run, while
+  it is recording, with the switch on. No history, no position at rest, no
+  identity — the function's select list still omits `user_id`, and nothing else
+  on the row names the account. Between runs the link answers the same
+  `{ live: false }` as a token that never existed.
 
-- `LIVE_SHARE_TOKEN_KEY` holds the current run's token per device. `endLiveRun`
-  and `sweepOwnLiveRun` both spend it — a token outliving its run would be
-  republished by the *next* one, silently reopening a link for a run the runner
-  never shared.
-- `resetLivePublisher` deliberately does **not** clear it: a run recovered after
-  the app was killed has to republish under the link already sent out.
-- The tracker adopts a stored token on mount **only when there is a run to
-  recover** — the same condition that spares the row from the boot sweep.
-  Otherwise a fresh tracker starts with no link, so a token left by a run that
-  never started can't be inherited by an unrelated later one.
-- Revoking mid-run writes `share_token = null` without ending the broadcast: the
-  runner's own sessions keep following it, and the public page goes back to
-  saying nothing is live — indistinguishable, again, from a token that never
-  existed.
+The mechanics that hold it together:
 
-### The link names the web origin, not the shell's
+- **The token is claimed, not carried.** `live_share_tokens` keys tokens by the
+  token itself (so uniqueness *is* the primary key) with one active row per user
+  (a partial unique index) and `user_id` nullable + `on delete set null`, so
+  deleting an account cannot free that account's tokens for re-claim.
+- **The client may insert, and nothing else.** `revoke all … from anon,
+  authenticated`, then `grant select, insert (user_id, token)` — no update, no
+  delete, ever. "A tombstone is forever" is structural rather than a policy
+  anyone has to reason about. The explicit revoke is not hygiene:
+  `auto_expose_new_tables` is unset (`supabase/config.toml`), so a new table
+  gets no grants on the hosted project and `GRANT ALL` on the local stack, and
+  without stating the posture we would test one privilege set and ship another.
+- **Rotation is the one function.** PostgREST gives every request its own
+  transaction, so a client-side revoke-then-insert can strand an account with no
+  link at all; `rotate_share_link` does both or neither. `security invoker`,
+  `set search_path = ''`, fully-qualified references: it exists for atomicity,
+  not privilege, and the new token still comes from the phone's CSPRNG. It also
+  caps the ledger at 100 rows per account, because tombstones-forever without a
+  ceiling is an unbounded authenticated write primitive.
+- **First creation needs no function** — a single statement is atomic on its
+  own. Its two distinct 23505s get different answers: the active-row index means
+  another device claimed one first (re-read theirs), the primary key means a
+  128-bit collision (re-mint). Never `Prefer: resolution=ignore-duplicates`,
+  which would swallow either and leave the panel displaying a token it does not
+  own.
+- **The per-device copy is a cache, never the truth.** `LIVE_SHARE_LINK_KEY`
+  holds `{uid, token}` so the panel renders offline; it is keyed by uid (a shared
+  device must not show the previous runner's address) and cleared on sign-out
+  (`App.tsx`), alongside the offline state mirror. A **new** key on purpose:
+  every installed device still holds a spent per-run token under the v2 name.
+  The panel revalidates against the ledger on mount and on every return to the
+  foreground, and will not offer **Send link** for a token it has not confirmed
+  this session — a link replaced on another device would otherwise be handed out
+  as a permanently dead address.
 
-`watchUrl` builds `<origin>/watch/<token>`, and on native the origin can't come
-from `window.location`: the shells serve the bundle locally
-(`https://localhost` on Android, `capacitor://localhost` on iOS), so a link
-minted from it is an address only that phone can open — Android shipped
-`https://localhost/watch/<token>` for exactly this reason. `shareOrigin()`
-returns `WEB_APP_ORIGIN` under `isNative` (the same rule as the Polar
-`redirect_uri`), which is also the only place the page exists: `VITE_NATIVE_BUILD`
-drops the watch chunk from the shells entirely. Web keeps its current origin, so
-a dev build still links to the dev server.
+Accepted costs, so they are not rediscovered as bugs:
 
-### The token rides the normal writes
+- **Minting needs the network.** A link is never displayed before the ledger
+  confirms it, so a runner who has never created one cannot create it at a
+  trailhead with no signal. The previous design minted locally and healed on the
+  next write; this one trades that for an address that cannot be squatted.
+- **An insert-existence oracle.** A client picks its own token, so a `23505`
+  tells an authenticated prober that one is claimed, where `live-watch` is
+  uniform. Hopeless at 128 bits, and blind to whether a token is active or
+  retired (tombstones answer identically), so it cannot even reveal that someone
+  has rotated.
+- **A timing difference.** A claimed token costs two lookups and an unknown one
+  costs one, which is measurable — so `live-watch`'s "a crawler cannot even
+  learn whether a token exists" is now about the *response*, not the latency.
 
-`share_token` is on every insert and every update, and **a change to it bypasses
-the 30s throttle** exactly like a status transition does. Minting is an explicit
-act the runner is about to act on, and revoking has to take effect now rather
-than up to 30s from now; neither is driven by GPS, so nothing else would push it
-out promptly.
+### The flag rides the normal writes
 
-Someone who was handed a link can squat that token on their own row. The unique
-index would then reject the original runner's next write forever, so a token
-conflict (23505 naming `live_runs_share_token_key`) is retried **without** the
-token and reported to the UI. Losing the link is acceptable; losing the
-broadcast is not — the run still records and still reaches the runner's own
-sessions. Note the ordering in `writeRow`: the "delete my leftover row" retry is
-gated on the conflict *not* being a token conflict, or a squat would make the
-publisher delete a perfectly good row of its own.
+`share_public` is on every insert and every update, and **a change to it
+bypasses the 30s throttle** exactly like a status transition does. Hiding a run
+has to take it off the link *now* rather than up to 30s from now, and it is not
+driven by GPS — a runner standing at a crossing emits no fixes to carry it out
+later.
+
+The token itself no longer rides anything: it lives in the ledger, and nothing
+in the run row names it. That is what killed an entire class of failure the
+per-run design lived with — **the squat**. `live_runs.share_token` is
+client-writable under a table-wide unique index, so anyone handed a link could
+claim that token on their own row at any moment the runner's row didn't exist,
+which is most of the day. For a token that died in an hour that cost a
+re-share (the publisher dropped it and kept broadcasting). For a durable address
+it would be a permanent denial *and* a spoof: everyone holding the link would
+watch the squatter's run under an address they trust. With the claim held
+permanently in the ledger, first-come and unique, there is nothing to take —
+and `writeRow` loses the whole 23505-on-`share_token` branch with it.
+
+One piece of that ordering survives, though: a conflict naming
+`live_runs_share_token_key` must still never be read as "my own leftover row".
+An **older bundle on another device of the same account** still writes that
+column, so the index can still reject our insert, and treating it as a leftover
+would delete a perfectly good live row.
+
+Legacy retirement: `live-watch` still resolves a pre-v4 `share_token` when the
+ledger has no row for it at all, so links minted by an older bundle keep working
+for their own run. Retire that branch — and revoke the column's write — in a
+follow-up migration once `min_supported_version` clears the last bundle that
+mints one. Old APKs persist for weeks; a release count is the wrong trigger.
 
 ### The public page
 
@@ -431,13 +500,13 @@ token never leaves in a `Referer` header.
 **The finished run stays on screen.** Stop publishes `ended` with the whole
 trace; Save then deletes the row. The page latches that ended snapshot: once it
 has *seen* `status: "ended"`, a later `{ live: false }` keeps the finished route
-and final stats up instead of dropping to "nothing live", and the polling chain
-stops for good — the token is spent with the row, so nothing can ever appear
-under it again. The latch arms **only on an explicitly seen `ended`**, never on
-a mere live→gone transition: revoking the link mid-run (which never writes
-`ended`) still takes an already-open page dark, and a visitor arriving after
-cleanup still gets the uniform nothing. Deletion remains the revocation; the
-latch is purely client memory. The in-app `LiveWatchModal` holds the same Stop
+and final stats up instead of dropping to "nothing live". It keeps **reading at
+the idle cadence**, though, and does not stop for good: the address is the
+runner's, so the same link lights up again the next time they go out, and a page
+left open must not sit on a finished run forever. The latch arms **only on an
+explicitly seen `ended`**, never on a mere live→gone transition: replacing the
+link mid-run (which never writes `ended`) still takes an already-open page dark,
+and a visitor arriving after cleanup still gets the uniform nothing. The in-app `LiveWatchModal` holds the same Stop
 snapshot while open, so the Realtime DELETE that follows Save doesn't blank it.
 
 Known cost: the watch chunk is small, but a visitor still downloads the main app

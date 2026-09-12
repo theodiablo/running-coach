@@ -184,12 +184,16 @@ choice either way.
   (`src/modals/LiveRunTracker.tsx`). Completes the start→finish funnel with
   `live_run_started`: a start with no stop is the lost-recording signal (app
   killed mid-run). Limited: distance/duration numbers only, never coordinates.
-- Live sharing: `live_share_enabled` `{}` when the runner turns the per-device
-  broadcast toggle on, and `live_share_link_created` /
-  `live_share_link_revoked` `{}` when they mint or withdraw a public
-  `/watch/:token` link (`src/modals/LiveRunTracker.tsx`). No properties at all,
-  and in particular **never the token** — it is the whole authorization for that
-  page, so it must not reach an analytics vendor any more than a password would.
+- Live sharing: `live_share_enabled` / `live_share_disabled` `{}` when the
+  runner turns the per-device sharing switch on or off — since the standing
+  link (2026-09) that switch is also what publishes a run to it, so those two
+  are the per-run visibility signal. `live_share_link_created` `{}` now fires
+  roughly once per account (claiming the address), and
+  `live_share_link_rotated` `{}` when they replace it — it supersedes
+  `live_share_link_revoked`, which meant withdrawing a per-run link and no
+  longer exists (`src/modals/LiveRunTracker.tsx`). No properties at all, and in
+  particular **never the token** — it is the whole authorization for that page,
+  so it must not reach an analytics vendor any more than a password would.
 - Interrupted-run recovery: `live_run_recovery_offered`
   `{surface:"dashboard", points, ageMin}` when a crash-recovery buffer is
   surfaced on the Dashboard banner (`src/RunningCoach.tsx`), and

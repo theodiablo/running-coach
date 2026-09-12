@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Link2Off, Check } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Check, RefreshCw } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
-import { mintShareToken, readShareToken, storeShareToken, watchUrl } from "../live/shareLink";
+import { shareLinkState, watchUrl } from "../live/shareLink";
+import { ensureShareLink, fetchShareLink, readCachedShareLink, rotateShareLink } from "../live/shareLinkStore";
+import { currentUserId } from "../db";
 import { mintPublishToken, readPublishToken, storePublishToken } from "../live/publishToken";
 import { enableLiveUpload, disableLiveUpload } from "../geo/liveUpload";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
@@ -23,6 +25,8 @@ import { RouteMap } from "../components/RouteMap";
 import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { Ctrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
+import { ToggleSwitch } from "../components/ToggleSwitch";
+import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
 import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
 import { RouteFinderSheet } from "./RouteFinderSheet";
@@ -146,9 +150,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     else setPremiumTeaser("routeFinder");
   };
   // ── Live sharing ──────────────────────────────────────────────────────────
-  // Broadcasts the run to the user's OWN other signed-in sessions. Free — no
-  // premium gate (see docs/live-sharing.md). The choice is per-device (see
-  // LIVE_SHARE_KEY): whether this phone goes on the air is not something
+  // ONE switch (docs/live-sharing.md): on means this run is readable at the
+  // runner's standing share link — and, as it always has, by the runner's own
+  // other signed-in sessions. Free, no premium gate. The choice is per-device
+  // (see LIVE_SHARE_KEY): whether this phone goes on the air is not something
   // another device should decide for it.
   const [shareLive, setShareLive] = useState(() => {
     try { return localStorage.getItem(LIVE_SHARE_KEY) === "1"; } catch { return false; }
@@ -158,10 +163,39 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // been deleted can't resurrect it with one last "ended" write.
   const shareEndedRef = useRef(false);
   const sweptRef = useRef(false);
+  const publishTokenRef = useRef<string | null>(pending ? readPublishToken() : null);
+  const uploaderArmedRef = useRef(false);
+  const disarmLiveUpload = useCallback(() => {
+    if (!uploaderArmedRef.current) return;
+    uploaderArmedRef.current = false;
+    disableLiveUpload();
+  }, []);
+  // Turning the switch off MID-RUN has to take the run off the air every time,
+  // including on an off → on → off sequence: this is now the only control that
+  // hides a run, so leaning on the once-per-mount leftover sweep below would
+  // silently leave the second one published until save.
+  const takeOffAir = useCallback(() => {
+    disarmLiveUpload();
+    void endLiveRun();
+  }, [disarmLiveUpload]);
+  // Back on: a new broadcast, so a fresh write capability (the old one was
+  // spent by the teardown) and a publisher that re-opens the row on the next
+  // fix rather than updating one that no longer exists.
+  const putOnAir = useCallback(() => {
+    shareEndedRef.current = false;
+    resetLivePublisher();
+    const token = mintPublishToken();
+    storePublishToken(token);
+    publishTokenRef.current = token;
+  }, []);
   const armShare = (on: boolean) => {
     setShareLive(on);
     try { localStorage.setItem(LIVE_SHARE_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
     if (on) track("live_share_enabled", {});
+    else track("live_share_disabled", {});
+    // Idle: nothing is on the air yet, and startTracking mints the token.
+    if (state === "idle") return;
+    if (on) putOnAir(); else takeOffAir();
   };
   const toggleShareLive = () => armShare(!shareLive);
   const endShare = () => {
@@ -178,26 +212,25 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   // hidden (it is about to be frozen); the moment JS is back it is disarmed and
   // the JS publisher's next full-trace write re-bases everything. The publish
   // token is the run's write capability — minted per run in startTracking,
-  // adopted from storage only alongside a recoverable run (like the share
-  // token, and for the same reason).
-  const publishTokenRef = useRef<string | null>(pending ? readPublishToken() : null);
-  const uploaderArmedRef = useRef(false);
-  const disarmLiveUpload = useCallback(() => {
-    if (!uploaderArmedRef.current) return;
-    uploaderArmedRef.current = false;
-    disableLiveUpload();
-  }, []);
-  // ── Public share link ────────────────────────────────────────────────────
-  // A link anyone can open — signed in or not, account or no account. The token
-  // IS the authorization (src/live/shareLink.ts), so there is no viewer list to
-  // manage and nothing to revoke afterwards: the link dies with the run.
+  // adopted from storage only alongside a recoverable run. (Refs above, next to
+  // the switch that arms and disarms them.)
+  // ── The standing share link ──────────────────────────────────────────────
+  // One address per account, claimed in `live_share_tokens` and reused by every
+  // run the runner shares. Replacing it is the revocation, and it is immediate
+  // and server-side: the ledger stops resolving the old token for everyone
+  // holding it. Detail: docs/live-sharing.md.
   //
-  // Adopted from storage ONLY when there is a run to recover. That is the one
-  // situation where a link already sent out must keep working — the app was
-  // killed mid-run and the recovered run republishes under the same token. A
-  // tracker opening fresh starts with no link, so a token left behind by a run
-  // that never started can never be inherited by an unrelated later run.
-  const [shareToken, setShareToken] = useState<string | null>(() => (pending ? readShareToken() : null));
+  // The cache is only a copy, so the panel can render offline. It is confirmed
+  // against the ledger on mount and on every return to the foreground, because
+  // a link replaced on another device would otherwise still be offered here —
+  // and sending a replaced address is sending a page that shows nothing.
+  const [shareToken, setShareToken] = useState<string | null>(() => readCachedShareLink(currentUserId()));
+  const [linkConfirmed, setLinkConfirmed] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState(false);
+  const [publicUnavailable, setPublicUnavailable] = useState(false);
+  const [confirmCreate, setConfirmCreate] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current); }, []);
@@ -206,18 +239,49 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setLinkCopied(false), 2500);
   };
-  // Mints on first use, then re-shares the same token — a run has ONE link, so
-  // tapping "Send link" twice doesn't strand whoever got the first one. Only
-  // reachable while the broadcast is already on (see shareLinkRow).
+  useEffect(() => {
+    let alive = true;
+    const revalidate = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetchShareLink().then((token) => {
+        if (!alive || token === null) return; // offline: keep the cached copy, unconfirmed
+        setShareToken(token);
+        setLinkConfirmed(true);
+      });
+    };
+    revalidate();
+    document.addEventListener("visibilitychange", revalidate);
+    return () => { alive = false; document.removeEventListener("visibilitychange", revalidate); };
+  }, []);
+  // Creating the link is the one moment a permanent address starts existing, so
+  // it carries the explanation — and it reaches existing runners, which a
+  // seeded-false signpost deliberately would not.
+  const createLink = async () => {
+    setConfirmCreate(false);
+    setLinkBusy(true);
+    setLinkError(false);
+    const token = await ensureShareLink();
+    setLinkBusy(false);
+    if (!token) { setLinkError(true); return; }
+    setShareToken(token);
+    setLinkConfirmed(true);
+    track("live_share_link_created", {});
+  };
+  const replaceLink = async () => {
+    setConfirmReplace(false);
+    setLinkBusy(true);
+    setLinkError(false);
+    const token = await rotateShareLink();
+    setLinkBusy(false);
+    if (!token) { setLinkError(true); return; }
+    setShareToken(token);
+    setLinkConfirmed(true);
+    setLinkCopied(false);
+    track("live_share_link_rotated", {});
+  };
   const shareTheLink = async () => {
-    let token = shareToken;
-    if (!token) {
-      token = mintShareToken();
-      storeShareToken(token);
-      setShareToken(token);
-      track("live_share_link_created", {});
-    }
-    const url = watchUrl(token);
+    if (!shareToken) return;
+    const url = watchUrl(shareToken);
     // Progressive enhancement, no native plugin: the OS share sheet where the
     // WebView offers one, the clipboard otherwise, and the raw URL as a last
     // resort so the runner is never left with a link they can't get at.
@@ -236,17 +300,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       showToast?.(url);
     }
   };
-  // Takes the run off the public link WITHOUT ending the broadcast: the runner's
-  // own sessions keep following it. The next publish writes the null through
-  // (it bypasses the throttle), and the page the link points at goes back to
-  // saying nothing is live — the same thing it says for a token that never
-  // existed, so a viewer learns nothing from the change.
-  const revokeLink = () => {
-    storeShareToken(null);
-    setShareToken(null);
-    setLinkCopied(false);
-    track("live_share_link_revoked", {});
-  };
+
   // Throwing away a recovered run takes it off the air with it. The boot sweep
   // deliberately spared the row while the buffer existed — this is the moment
   // that decision is resolved, and nothing else will resolve it.
@@ -437,6 +491,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   };
 
   // Mirror of the lock-screen notification effect in useRunTracker, and driven by
+  // One switch, so "publishing" and "public" are the same decision — except
+  // while the column is missing, where the broadcast still reaches the runner's
+  // own sessions and nothing reaches the link.
+  const sharePublic = shareLive && !publicUnavailable;
   // the same renders: an accepted GPS fix changes `points`, which re-runs this.
   // Never a timer — those are throttled in the background, which is exactly when
   // a run is being recorded with the screen off. canPublishNow is checked BEFORE
@@ -446,18 +504,21 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     if (!shareLive || shareEndedRef.current) return;
     const status = state === "tracking" ? "live" : state === "paused" ? "paused" : state === "stopped" ? "ended" : null;
     if (!status) return;
-    if (!canPublishNow(status, shareToken)) return;
+    if (!canPublishNow(status, sharePublic)) return;
     void publishLiveRun({
       status,
       points: simplify(points, 5),
       stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
       startedAt: rt.runWindow().startedAt,
-      shareToken,
+      sharePublic,
       publishToken: publishTokenRef.current,
-      // The token was taken (see writeRow): the run is on the air but the link
-      // isn't. Say so rather than leave a "Link shared" row over a page that
-      // will never show anything.
-      onShareTokenRejected: () => { setShareToken(null); showToast?.(t("liveShare.link.rejected"), "err"); },
+      // The column isn't there yet (a deploy ahead of its migration): nothing
+      // will reach the link for the rest of this run, so stop offering one
+      // rather than leave a link row over a page that never fills in.
+      onSharePublicUnavailable: () => {
+        setPublicUnavailable(true);
+        showToast?.(t("liveShare.link.unavailable"), "err");
+      },
       // Astronomically unlikely, but a distinct branch: the publisher re-minted
       // after a collision, and a hidden-armed uploader must follow the new key.
       onPublishTokenChanged: (token) => {
@@ -467,7 +528,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
-  }, [shareLive, state, points, stats, rt, shareToken, showToast, t]);
+  }, [shareLive, state, points, stats, rt, sharePublic, showToast, t]);
 
   // The single-writer handoff. Arm the native uploader when the page goes
   // hidden mid-broadcast (visibilitychange fires before Android freezes the
@@ -606,30 +667,49 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
-  // The public-link control, rendered both before a run and during one (a
-  // runner who forgot to send the link shouldn't have to stop to fix that).
-  // Only offered once the broadcast itself is on: minting a link over a run
-  // that publishes nothing would hand someone a page that never fills in.
-  const shareLinkRow = !shareLive ? null : shareToken ? (
+  // The link block, rendered both before a run and during one (a runner who
+  // forgot to send the link shouldn't have to stop to fix that). It stays put
+  // when the switch is off — dimmed, not hidden: the link still works for the
+  // runs that ARE shared, and Replace has to be reachable for someone cutting
+  // a person off outside a run.
+  const linkState = shareLinkState({
+    token: shareToken, sharing: shareLive, busy: linkBusy, confirmed: linkConfirmed,
+  });
+  const shareLinkRow = publicUnavailable ? null : (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
-        <Link2 size={15} className="text-sky-300 shrink-0" />
-        <span className="flex-1 text-left text-sky-200">{t("liveShare.link.active")}</span>
-        <button onClick={shareTheLink}
-          className="flex items-center gap-1 text-slate-300 hover:text-white underline decoration-slate-600">
-          {linkCopied ? <Check size={14} className="text-emerald-400" /> : null}
-          {t(linkCopied ? "liveShare.link.copied" : "liveShare.link.share")}
+      {linkState.kind === "busy" ? (
+        <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm text-slate-300">
+          <Loader size={15} className="animate-spin" />{t("liveShare.link.working")}
+        </div>
+      ) : linkState.kind === "none" ? (
+        <button onClick={() => setConfirmCreate(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 active:scale-95 transition-[background-color,transform]">
+          <Link2 size={16} className="text-sky-300" />{t("liveShare.link.create")}
         </button>
-        <button onClick={revokeLink} aria-label={t("liveShare.link.stop")}
-          className="p-1 text-slate-400 hover:text-white"><Link2Off size={15} /></button>
-      </div>
-      <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.link.hint")}</p>
+      ) : (
+        <div className={"flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm transition-opacity "
+          + (linkState.active ? "" : "opacity-50")}>
+          <Link2 size={15} className="text-sky-300 shrink-0" />
+          <span className="flex-1 min-w-0 truncate text-left font-mono text-[12px] text-sky-200">
+            {linkState.url.replace(/^https?:\/\//, "")}
+          </span>
+          <button onClick={shareTheLink} disabled={!linkState.sendable}
+            className="flex items-center gap-1 text-slate-300 hover:text-white underline decoration-slate-600 disabled:opacity-50 disabled:no-underline">
+            {linkCopied ? <Check size={14} className="text-emerald-400" /> : null}
+            {t(linkCopied ? "liveShare.link.copied" : "liveShare.link.share")}
+          </button>
+          <button onClick={() => setConfirmReplace(true)} aria-label={t("liveShare.link.replace")}
+            className="p-1 text-slate-400 hover:text-white"><RefreshCw size={15} /></button>
+        </div>
+      )}
+      {linkError ? (
+        <p className="text-[11px] text-amber-300/90 leading-snug px-1">{t("liveShare.link.failed")}</p>
+      ) : linkState.kind === "link" && !linkState.sendable ? (
+        <p className="text-[11px] text-amber-300/90 leading-snug px-1">{t("liveShare.link.unconfirmed")}</p>
+      ) : (
+        <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.link.hint")}</p>
+      )}
     </div>
-  ) : (
-    <button onClick={shareTheLink}
-      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 active:scale-95 transition-[background-color,transform]">
-      <Link2 size={16} className="text-sky-300" />{t("liveShare.link.create")}
-    </button>
   );
 
   return (
@@ -783,17 +863,18 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
               </Ctrl>
             </div>
             <div className="space-y-1.5">
-              <button onClick={toggleShareLive} aria-pressed={shareLive}
-                className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-[background-color,transform] active:scale-95 "
-                  + (shareLive
-                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                    : "bg-slate-800 border-slate-700 text-slate-200")}>
+              {/* A real switch, and the app's only one (ToggleSwitch) — the row
+                  used to signal state with a word, which reads as a status
+                  line rather than something you can tap. It is the control, so
+                  the row around it is a label, never a nested button. */}
+              <div className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-colors "
+                + (shareLive
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+                  : "bg-slate-800 border-slate-700 text-slate-200")}>
                 <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
                 <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
-                <span className={"text-[11px] uppercase tracking-wide " + (shareLive ? "text-emerald-300" : "text-slate-500")}>
-                  {t(shareLive ? "liveShare.toggle.on" : "liveShare.toggle.off")}
-                </span>
-              </button>
+                <ToggleSwitch on={shareLive} onToggle={toggleShareLive} label={t("liveShare.toggle.label")} />
+              </div>
               {shareLive && (
                 <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
               )}
@@ -854,7 +935,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           <>
             <p className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-300/90">
               <Radio size={12} />{t("liveShare.toggle.label")} · {t("liveShare.toggle.on")}
-              {shareToken ? <> · {t("liveShare.link.active")}</> : null}
             </p>
             {shareLinkRow}
           </>
@@ -874,6 +954,20 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       {confirmDiscard && (
         <DiscardConfirm message={t("tracker.discardConfirm")}
           onCancel={() => setConfirmDiscard(false)} onAccept={discardRun} />
+      )}
+
+      {/* Claiming the link is where the explanation lives: it is the moment a
+          permanent address starts existing, and unlike a seeded-false signpost
+          this reaches runners who already had the per-run behaviour. */}
+      {confirmCreate && (
+        <ShareLinkConfirm title={t("liveShare.link.createTitle")} body={t("liveShare.link.createBody")}
+          acceptLabel={t("liveShare.link.createAccept")}
+          onCancel={() => setConfirmCreate(false)} onAccept={() => { void createLink(); }} />
+      )}
+      {confirmReplace && (
+        <ShareLinkConfirm title={t("liveShare.link.replaceTitle")} body={t("liveShare.link.replaceBody")}
+          acceptLabel={t("liveShare.link.replaceAccept")}
+          onCancel={() => setConfirmReplace(false)} onAccept={() => { void replaceLink(); }} />
       )}
 
       {/* Nudge to set up a heart-rate source, offered once per Start tap (never on
@@ -902,5 +996,25 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)} />
       )}
     </div>
+  );
+}
+
+// In-DOM confirm for the two link decisions (never window.confirm — see
+// CLAUDE.md). Registers its own useDismissable so Android back and web Escape
+// close it, and so the header's go-Home reset can clear it.
+function ShareLinkConfirm({ title, body, acceptLabel, onCancel, onAccept }: {
+  title: string; body: string; acceptLabel: string; onCancel: () => void; onAccept: () => void;
+}) {
+  const { t } = useTranslation();
+  useDismissable(true, onCancel);
+  return (
+    <ModalOverlay>
+      <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 p-4 space-y-3">
+        <p className="text-sm font-semibold text-slate-100">{title}</p>
+        <p className="text-xs text-slate-400 leading-snug">{body}</p>
+        <ConfirmButtons cancelLabel={t("common.cancel")} acceptLabel={acceptLabel}
+          onCancel={onCancel} onAccept={onAccept} />
+      </div>
+    </ModalOverlay>
   );
 }

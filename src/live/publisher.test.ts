@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { LIVE_PUBLISHED_KEY, LIVE_PUBLISH_TOKEN_KEY, LIVE_RUN_KEY, LIVE_SHARE_TOKEN_KEY, RESUME_MAX_AGE_MS } from "../constants";
+import { LIVE_PUBLISHED_KEY, LIVE_PUBLISH_TOKEN_KEY, LIVE_RUN_KEY, LIVE_SHARE_LINK_KEY, RESUME_MAX_AGE_MS } from "../constants";
 
 // The publisher's job is deciding WHEN to hit the network and WITH WHICH verb: a
 // run publishes off GPS fixes (never a timer), at most every 30s, with status
@@ -48,10 +48,9 @@ vi.mock("../supabase", () => ({ supabase: { from: h.from } }));
 vi.mock("../db", () => ({ currentUserId: h.currentUserId }));
 
 import {
-  LIVE_PUBLISH_INTERVAL_MS, canPublishNow, clearStaleLiveRun, endLiveRun,
-  publishLiveRun, resetLivePublisher, shouldPublish, sweepOwnLiveRun,
+  LIVE_PUBLISH_INTERVAL_MS, canPublishNow, clearStaleLiveRun, endLiveRun, markRunPublic,
+  publishLiveRun, readRunPublic, resetLivePublisher, shouldPublish, sweepOwnLiveRun,
 } from "./publisher";
-import { storeShareToken } from "./shareLink";
 import { storePublishToken } from "./publishToken";
 
 const START = 1_700_000_000_000;
@@ -279,115 +278,129 @@ describe("sweepOwnLiveRun", () => {
   });
 });
 
-describe("public share link", () => {
-  const TOKEN = "a".repeat(22);
-  const OTHER = "b".repeat(22);
-  const tokenArgs = (shareToken: string | null, onShareTokenRejected?: () => void) =>
-    ({ ...args(), shareToken, onShareTokenRejected });
-  // What PostgREST hands back when the partial unique index on share_token
-  // rejects the write (someone else already holds that token).
-  const tokenConflict = { code: "23505", message: 'duplicate key value violates unique constraint "live_runs_share_token_key"' };
+describe("public visibility (share_public)", () => {
+  const pubArgs = (sharePublic: boolean, onSharePublicUnavailable?: () => void) =>
+    ({ ...args(), sharePublic, onSharePublicUnavailable });
+  // PostgREST's answer when a write names a column the schema cache doesn't
+  // have — i.e. the app deployed ahead of its migration.
+  const columnMissing = {
+    code: "PGRST204",
+    message: "Could not find the 'share_public' column of 'live_runs' in the schema cache",
+  };
 
-  it("carries the token on the opening insert", async () => {
-    await publishLiveRun(tokenArgs(TOKEN));
-    expect(h.insert.mock.calls[0][0]).toMatchObject({ share_token: TOKEN });
+  it("carries the flag on the opening insert", async () => {
+    await publishLiveRun(pubArgs(true));
+    expect(h.insert.mock.calls[0][0]).toMatchObject({ share_public: true });
   });
 
-  it("carries it on every continuing update, so a revoke lands too", async () => {
-    await publishLiveRun(tokenArgs(TOKEN));
+  it("carries it on every continuing update, so hiding a run lands too", async () => {
+    await publishLiveRun(pubArgs(true));
     vi.clearAllMocks();
     vi.setSystemTime(START + LIVE_PUBLISH_INTERVAL_MS);
-    await publishLiveRun(tokenArgs(null));
-    expect(h.update.mock.calls[0][0]).toMatchObject({ share_token: null });
+    await publishLiveRun(pubArgs(false));
+    expect(h.update.mock.calls[0][0]).toMatchObject({ share_public: false });
   });
 
-  it("writes null when no link was ever minted (v1 behaviour is untouched)", async () => {
+  it("writes false when nothing asked for a public run", async () => {
+    // The closed direction: a row this client opens without the flag reaches
+    // the runner's own sessions only.
     await publishLiveRun(args());
-    expect(h.insert.mock.calls[0][0]).toMatchObject({ share_token: null });
+    expect(h.insert.mock.calls[0][0]).toMatchObject({ share_public: false });
   });
 
-  it("lets a token change jump the throttle", async () => {
-    // Minting is an explicit act the runner is about to act on, and REVOKING has
-    // to take the run off the public link now, not up to 30s from now. Neither
-    // is driven by GPS, so nothing else would push it out promptly.
+  it("lets a visibility change jump the throttle", async () => {
+    // HIDING a run has to take it off the link NOW, and a stationary runner
+    // emits no fixes to carry it out later.
     expect(shouldPublish({
       now: START + 1, lastAt: START, status: "live", prevStatus: "live", busy: false,
-      shareToken: TOKEN, prevShareToken: null,
+      sharePublic: false, prevSharePublic: true,
     })).toBe(true);
 
-    await publishLiveRun(tokenArgs(null));
+    await publishLiveRun(pubArgs(true));
     vi.clearAllMocks();
     vi.setSystemTime(START + 1000); // far inside the throttle window
-    await publishLiveRun(tokenArgs(TOKEN));
+    await publishLiveRun(pubArgs(false));
     expect(h.update).toHaveBeenCalledTimes(1);
-    expect(h.update.mock.calls[0][0]).toMatchObject({ share_token: TOKEN });
+    expect(h.update.mock.calls[0][0]).toMatchObject({ share_public: false });
   });
 
-  it("goes on the air without the link when the token is already taken", async () => {
-    // Someone handed a link can squat its token. Losing the link is acceptable;
-    // losing the broadcast is not.
-    const onShareTokenRejected = vi.fn();
-    storeShareToken(TOKEN);
-    h.insert.mockResolvedValueOnce({ error: tokenConflict });
-    await publishLiveRun(tokenArgs(TOKEN, onShareTokenRejected));
+  it("does not confuse a visibility change with a status change", async () => {
+    await publishLiveRun(pubArgs(true));
+    vi.clearAllMocks();
+    vi.setSystemTime(START + 1000);
+    await publishLiveRun(pubArgs(true)); // same flag, same status, inside the window
+    expect(h.update).not.toHaveBeenCalled();
+    await publishLiveRun(pubArgs(false));
+    expect(h.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps broadcasting without the column, and tells the UI", async () => {
+    // A deploy ahead of its migration must not take live sharing off the air —
+    // but the link is dead for the run, so the UI has to stop offering one.
+    const onSharePublicUnavailable = vi.fn();
+    h.insert.mockResolvedValueOnce({ error: columnMissing });
+    await publishLiveRun(pubArgs(true, onSharePublicUnavailable));
 
     expect(h.insert).toHaveBeenCalledTimes(2);
-    expect(h.insert.mock.calls[1][0]).toMatchObject({ share_token: null });
-    // NOT the leftover-own-row path: our row is fine, the token isn't.
+    expect(h.insert.mock.calls[1][0]).not.toHaveProperty("share_public");
+    expect(h.insert.mock.calls[1][0]).toMatchObject({ status: "live" });
+    expect(onSharePublicUnavailable).toHaveBeenCalledOnce();
+    // NOT the leftover-own-row path: our row is fine, the column isn't.
     expect(h.del).not.toHaveBeenCalled();
-    expect(onShareTokenRejected).toHaveBeenCalledOnce();
-    expect(localStorage.getItem(LIVE_SHARE_TOKEN_KEY)).toBeNull();
   });
 
   it("still replaces a leftover row of its own on a plain key conflict", async () => {
     h.insert.mockResolvedValueOnce({ error: { code: "23505", message: "live_runs_pkey" } });
-    await publishLiveRun(tokenArgs(TOKEN));
+    await publishLiveRun(pubArgs(true));
     expect(h.delEq).toHaveBeenCalledWith("user_id", "u1");
-    expect(h.insert.mock.calls[1][0]).toMatchObject({ share_token: TOKEN });
+    expect(h.insert.mock.calls[1][0]).toMatchObject({ share_public: true });
   });
 
-  it("drops a squatted token on the update path too", async () => {
-    await openBroadcast();
-    h.updateSelect.mockResolvedValueOnce({ data: null, error: tokenConflict });
-    vi.setSystemTime(START + LIVE_PUBLISH_INTERVAL_MS);
-    await publishLiveRun(tokenArgs(TOKEN));
-    expect(h.update).toHaveBeenCalledTimes(2);
-    expect(h.update.mock.calls[1][0]).toMatchObject({ share_token: null });
+  it("never deletes its own row over ANOTHER device's legacy token conflict", async () => {
+    // An older bundle on another device of this account still writes
+    // share_token, so that index can still reject our insert. It is not our
+    // leftover row, and deleting one would take a live broadcast down.
+    h.insert.mockResolvedValue({
+      error: { code: "23505", message: 'duplicate key value violates unique constraint "live_runs_share_token_key"' },
+    });
+    await publishLiveRun(pubArgs(true));
+    expect(h.del).not.toHaveBeenCalled();
   });
 
-  it("spends the token when the run ends", async () => {
-    // A token outliving its run would be republished by the NEXT one, silently
-    // reopening a link for a run the runner never shared.
-    storeShareToken(TOKEN);
-    await publishLiveRun(tokenArgs(TOKEN));
+  it("remembers the run's own visibility across a publisher reset", async () => {
+    // The app was killed mid-run: a run the runner HID must come back hidden,
+    // rather than inheriting the remembered "share" preference and
+    // re-publishing something they withdrew.
+    markRunPublic(false);
+    resetLivePublisher();
+    expect(readRunPublic()).toBe(false);
+  });
+
+  it("spends the run's visibility marker when the run ends", async () => {
+    markRunPublic(true);
+    await publishLiveRun(pubArgs(true));
     await endLiveRun();
-    expect(localStorage.getItem(LIVE_SHARE_TOKEN_KEY)).toBeNull();
+    expect(readRunPublic()).toBeNull();
   });
 
   it("spends it on a sweep as well", async () => {
-    storeShareToken(TOKEN);
+    markRunPublic(true);
     localStorage.setItem(LIVE_PUBLISHED_KEY, STARTED_ISO);
     h.maybeSingle.mockResolvedValue({ data: { started_at: STARTED_ISO }, error: null });
     await sweepOwnLiveRun();
-    expect(localStorage.getItem(LIVE_SHARE_TOKEN_KEY)).toBeNull();
+    expect(readRunPublic()).toBeNull();
   });
 
-  it("keeps the stored token across a publisher reset, so a recovered run keeps its link", async () => {
-    // The app was killed mid-run: the resumed run has to republish under the
-    // link that has already been sent to someone.
-    storeShareToken(TOKEN);
-    resetLivePublisher();
-    expect(localStorage.getItem(LIVE_SHARE_TOKEN_KEY)).toBe(TOKEN);
-  });
-
-  it("does not confuse a token change with a status change", async () => {
-    await publishLiveRun(tokenArgs(TOKEN));
-    vi.clearAllMocks();
-    vi.setSystemTime(START + 1000);
-    await publishLiveRun(tokenArgs(TOKEN)); // same token, same status, inside the window
-    expect(h.update).not.toHaveBeenCalled();
-    await publishLiveRun(tokenArgs(OTHER));
-    expect(h.update).toHaveBeenCalledTimes(1);
+  it("never spends the account's standing share link", async () => {
+    // The link belongs to the account, not to this run: ending a broadcast or
+    // sweeping a leftover row must leave it alone, or the next run would find
+    // no link and the one already sent out would be orphaned.
+    localStorage.setItem(LIVE_SHARE_LINK_KEY, JSON.stringify({ uid: "u1", token: "a".repeat(22) }));
+    localStorage.setItem(LIVE_PUBLISHED_KEY, STARTED_ISO);
+    await publishLiveRun(pubArgs(true));
+    await endLiveRun();
+    await sweepOwnLiveRun();
+    expect(localStorage.getItem(LIVE_SHARE_LINK_KEY)).toContain("a".repeat(22));
   });
 });
 

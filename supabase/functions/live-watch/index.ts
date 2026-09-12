@@ -6,6 +6,12 @@
 // run not yet started, a swept row and a finished run all answer an identical
 // `{ live: false }`, so a crawler learns nothing and only the token's 128 bits
 // stand between them and someone's run. Detail: docs/live-sharing.md.
+//
+// The token is DURABLE (v4): it resolves through `live_share_tokens`, whose
+// rows are kept forever. So the ledger is authoritative for EXISTENCE, not
+// just for activity — a retired token is a terminal "nothing live" and must
+// never fall through to the legacy per-run column below, or replacing a link
+// would hand the old address to whoever squatted that token on their own row.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
@@ -77,6 +83,62 @@ async function readToken(req: Request): Promise<string | null> {
   return typeof body?.token === "string" ? body.token : null;
 }
 
+// PostgREST answers a missing table from its schema cache (PGRST205) and the
+// database answers 42P01 — both mean the migration hasn't been applied.
+const isMissingRelation = (err: { code?: string | null } | null) =>
+  err?.code === "PGRST205" || err?.code === "42P01";
+
+// Service role: live_runs and live_share_tokens have no anon-readable policy
+// at all, by design. Built through a factory so `Admin` is inferred from the
+// real call rather than createClient's default generics, which don't match it.
+const makeAdmin = () => createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
+type Admin = ReturnType<typeof makeAdmin>;
+
+// The one place a row becomes a response. Note the select list: user_id is NOT
+// in it. Nothing that identifies the account may cross this boundary, and
+// `share_public` is read to decide and then dropped.
+async function serveRun(
+  admin: Admin,
+  by: { userId: string } | { legacyToken: string },
+): Promise<Response> {
+  const query = admin
+    .from("live_runs")
+    .select("status, started_at, updated_at, points, stats, share_public");
+  const { data, error } = await ("userId" in by
+    ? query.eq("user_id", by.userId)
+    : query.eq("share_token", by.legacyToken)
+  ).maybeSingle();
+
+  // 42703 = undefined_column: share_public (or, on the legacy path,
+  // share_token) hasn't been migrated yet. Closed direction, as above.
+  if (error?.code === "42703") {
+    console.error("live-watch: live_runs column missing — apply the pending live-sharing migration");
+    return notLive();
+  }
+  if (error) throw error;
+  if (!data) return notLive();
+
+  const { share_public, ...run } = data as Record<string, unknown>;
+  // The per-run opt-in. A row opened by a pre-v4 client leaves it false, so an
+  // older bundle's broadcast can never light up a link it knew nothing about.
+  // The legacy path carries its own opt-in: the token is ON that row.
+  if ("userId" in by && share_public !== true) return notLive();
+
+  // Server-side expiry. `updated_at` is trigger-stamped, so this is real
+  // server time on both sides of the comparison.
+  const updated = Date.parse(String(run.updated_at));
+  if (!Number.isFinite(updated) || Date.now() - updated > MAX_AGE_MS) return notLive();
+
+  // An `ended` run IS returned, deliberately: someone watching the finish
+  // should see "this run has ended" rather than the page blinking into
+  // "nothing here". The row is deleted moments later and the link goes dark on
+  // the next poll anyway.
+  return json({ live: true, run });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -94,41 +156,36 @@ Deno.serve(async (req) => {
     // else, so it stays indistinguishable from a well-formed miss.
     if (!isValidShareToken(token)) return notLive();
 
-    // Service role: live_runs has no anon-readable policy at all, by design.
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const admin = makeAdmin();
 
-    // Note the select list: user_id is NOT in it. Nothing that identifies the
-    // account may cross this boundary.
-    const { data, error } = await admin
-      .from("live_runs")
-      .select("status, started_at, updated_at, points, stats")
-      .eq("share_token", token)
+    const claim = await admin
+      .from("live_share_tokens")
+      .select("user_id, revoked_at")
+      .eq("token", token)
       .maybeSingle();
 
-    // 42703 = undefined_column: the share-token migration hasn't been applied
-    // yet (functions auto-deploy on push to main; migrations are applied by
-    // hand). Nothing can be shared in that state, so answer "nothing live"
-    // rather than 500 — the closed direction, and the page's normal empty view.
-    if (error?.code === "42703") {
-      console.error("live-watch: live_runs.share_token missing — apply the share-token migration");
+    // The ledger table may not exist yet: functions auto-deploy on push to
+    // main, migrations are applied by hand. Answer "nothing live" rather than
+    // 500 — the closed direction, and the page's normal empty view. A 500 is
+    // read as "couldn't reach it" and retried forever, which would leave every
+    // shared link stuck in an error state for the whole window.
+    if (isMissingRelation(claim.error)) {
+      console.error("live-watch: live_share_tokens missing — apply the standing-link migration");
       return notLive();
     }
-    if (error) throw error;
-    if (!data) return notLive();
+    if (claim.error) throw claim.error;
 
-    // Server-side expiry. `updated_at` is trigger-stamped, so this is real
-    // server time on both sides of the comparison.
-    const updated = Date.parse(String(data.updated_at));
-    if (!Number.isFinite(updated) || Date.now() - updated > MAX_AGE_MS) return notLive();
+    if (claim.data) {
+      // Retired, or an account since deleted: terminal. NOT a fall-through to
+      // the legacy column — see the header.
+      if (claim.data.revoked_at || !claim.data.user_id) return notLive();
+      return await serveRun(admin, { userId: String(claim.data.user_id) });
+    }
 
-    // An `ended` run IS returned, deliberately: someone watching the finish
-    // should see "this run has ended" rather than the page blinking into
-    // "nothing here". The row is deleted moments later and the link goes dark
-    // on the next poll anyway.
-    return json({ live: true, run: data });
+    // No ledger row at all: a link minted by a pre-v4 bundle, still within its
+    // own run. Retire this branch (and revoke the column's write) once
+    // min_supported_version clears the last bundle that mints one.
+    return await serveRun(admin, { legacyToken: token });
   } catch (err) {
     console.error("live-watch error", err);
     // Never leak the failure shape to an anonymous caller. The page treats a

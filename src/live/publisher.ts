@@ -13,8 +13,7 @@
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
-import { LIVE_PUBLISHED_KEY, LIVE_RUN_KEY, RESUME_MAX_AGE_MS } from "../constants";
-import { storeShareToken } from "./shareLink";
+import { LIVE_PUBLISHED_KEY, LIVE_RUN_KEY, LIVE_RUN_PUBLIC_KEY, RESUME_MAX_AGE_MS } from "../constants";
 import { mintPublishToken, readPublishToken, storePublishToken } from "./publishToken";
 import type { TrackPointOrGap } from "../utils/geo";
 
@@ -32,6 +31,7 @@ export type LiveRunRow = {
   updated_at: string;
   points: TrackPointOrGap[];
   stats: Partial<LiveRunStats>;
+  share_public?: boolean;
 };
 
 type PublishArgs = {
@@ -39,18 +39,19 @@ type PublishArgs = {
   points: TrackPointOrGap[];
   stats: LiveRunStats;
   startedAt?: number | null;
-  // The public share token for this run, or null for same-account-only (v1
-  // behaviour). Carried on every write so minting or revoking a link mid-run
-  // takes effect on the next publish rather than the next run.
-  shareToken?: string | null;
+  // Whether this run is readable at the runner's standing share link. Carried
+  // on every write so hiding or unhiding a run mid-run takes effect on the next
+  // publish rather than the next run. False is the closed direction: a row this
+  // client opens without it reaches the runner's own sessions only.
+  sharePublic?: boolean;
   // The WRITE capability for the native screen-off uploader (v3). Carried on
   // every write like the share token; null only for a run started before the
   // token existed. Scopes the continuing UPDATE to the row THIS device opened.
   publishToken?: string | null;
-  // Called when the token could not be stored because someone else holds it
-  // (see writeRow). The broadcast goes up without a link, so the UI must stop
-  // offering one that resolves to nothing.
-  onShareTokenRejected?: () => void;
+  // Called when `share_public` can't be written at all (the migration hasn't
+  // landed yet). Nothing will reach the public link for the rest of this run,
+  // so the UI must stop offering one.
+  onSharePublicUnavailable?: () => void;
   // Called when the publish token had to be re-minted (a 23505 on ITS index —
   // astronomically unlikely, but a distinct index means a distinct branch).
   // The caller must re-seed the native uploader with the replacement.
@@ -61,7 +62,7 @@ type PublishArgs = {
 // survive every re-render of the tracker, and there is only ever one run.
 let lastPublishAt = 0;
 let lastStatus: LiveRunStatus | null = null;
-let lastShareToken: string | null = null;
+let lastSharePublic: boolean | null = null;
 let inFlight = false;
 let inFlightWrite: Promise<void> | null = null; // so teardown can wait it out
 let rowCreated = false; // this run's row exists — later writes are plain UPDATEs
@@ -72,27 +73,27 @@ let blocked = false; // a policy rejection — stop hammering the API for this r
 // always goes through: those are the updates a watcher most needs promptly, and
 // they can't be re-triggered by a later GPS fix while paused.
 //
-// A share-token change bypasses the throttle for the same reason: minting a
-// link is an explicit act that the runner is about to send to someone, and
-// REVOKING one must take the run off the public link now, not up to 30s from
-// now. Both are unrelated to GPS, so nothing else would push them out promptly.
+// A change to the public flag bypasses the throttle for the same reason:
+// HIDING a run must take it off the link now, not up to 30s from now — and a
+// stationary runner emits no fixes to carry it out later. Unrelated to GPS, so
+// nothing else would push it out promptly.
 export function shouldPublish(
-  { now, lastAt, status, prevStatus, busy, shareToken = null, prevShareToken = null }:
+  { now, lastAt, status, prevStatus, busy, sharePublic = false, prevSharePublic = false }:
   { now: number; lastAt: number; status: LiveRunStatus; prevStatus: LiveRunStatus | null; busy: boolean;
-    shareToken?: string | null; prevShareToken?: string | null },
+    sharePublic?: boolean; prevSharePublic?: boolean | null },
 ): boolean {
   if (busy) return false;
   if (status !== prevStatus) return true;
-  if (shareToken !== prevShareToken) return true;
+  if (sharePublic !== prevSharePublic) return true;
   return now - lastAt >= LIVE_PUBLISH_INTERVAL_MS;
 }
 
 // Would a publish right now actually go out? Lets the caller skip the work of
 // simplifying a long trace on the ~1/s renders that will be throttled anyway.
-export function canPublishNow(status: LiveRunStatus, shareToken: string | null = null): boolean {
+export function canPublishNow(status: LiveRunStatus, sharePublic = false): boolean {
   if (blocked) return false;
   return shouldPublish({ now: Date.now(), lastAt: lastPublishAt, status, prevStatus: lastStatus,
-    busy: inFlight, shareToken, prevShareToken: lastShareToken });
+    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic });
 }
 
 // PostgREST surfaces an RLS refusal as 42501 (and PostgREST's own 401/403
@@ -105,9 +106,9 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   if (blocked) return Promise.resolve();
   const user_id = currentUserId();
   if (!user_id) return Promise.resolve();
-  const shareToken = args.shareToken ?? null;
+  const sharePublic = args.sharePublic ?? false;
   if (!shouldPublish({ now: Date.now(), lastAt: lastPublishAt, status: args.status, prevStatus: lastStatus,
-    busy: inFlight, shareToken, prevShareToken: lastShareToken })) {
+    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic })) {
     return Promise.resolve();
   }
 
@@ -116,7 +117,7 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   // not let the next fix queue a second one the moment it lands.
   lastPublishAt = Date.now();
   lastStatus = args.status;
-  lastShareToken = shareToken;
+  lastSharePublic = sharePublic;
   const write: Promise<void> = writeRow(user_id, args).finally(() => {
     inFlight = false;
     if (inFlightWrite === write) inFlightWrite = null;
@@ -133,63 +134,79 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
 // a swept row surfaces as "update matched nothing", not a write that must be
 // interpreted after the fact.
 //
-// The publish-token column may not exist yet: functions and app code deploy on
-// merge, the migration is applied by hand. PostgREST answers PGRST204 for an
-// unknown column in a write; latch and degrade to v2 writes (no native
-// uploads) rather than taking live sharing off the air for the window.
+// Either new column may not exist yet: functions and app code deploy on merge,
+// the migration is applied by hand. PostgREST answers PGRST204 for an unknown
+// column in a write; latch and degrade (no native uploads / no public link)
+// rather than taking live sharing off the air for the window.
 let publishTokenColumnMissing = false;
-const isColumnMissing = (err: { code?: string | null } | null) => err?.code === "PGRST204";
+let sharePublicColumnMissing = false;
 
 type WriteError = { code?: string | null; message?: string } | null;
 
 async function writeRow(user_id: string, args: PublishArgs): Promise<void> {
-  const { status, points, stats, startedAt, shareToken, onShareTokenRejected, onPublishTokenChanged } = args;
+  const { status, points, stats, startedAt, onPublishTokenChanged, onSharePublicUnavailable } = args;
   const row = { status, points, stats };
-  let share_token = shareToken ?? null;
+  let share_public = sharePublicColumnMissing ? null : (args.sharePublic ?? false);
   let publish_token = publishTokenColumnMissing ? null : (args.publishToken ?? null);
-  // Two partial unique indexes, two distinct 23505s, two different responses.
-  // The share token was HANDED to someone who can squat it (see the migration):
-  // drop it, keep the broadcast. The publish token was handed to no one, so a
-  // collision is pure bad luck: re-mint and retry, and tell the caller so the
-  // native uploader is re-seeded with the replacement.
+  // Two distinct 23505s on this table, two different responses. The legacy
+  // share_token index can still be hit by an OLDER bundle on another device of
+  // the same account (it is no longer written here), so a conflict naming it is
+  // not our leftover row and must never make us delete one. The publish token
+  // was handed to no one, so a collision is pure bad luck: re-mint and retry,
+  // and tell the caller so the native uploader is re-seeded.
   const conflictIndex = (err: WriteError) =>
     err?.code === "23505"
       ? String(err.message || "").includes("live_runs_share_token_key") ? "share"
         : String(err.message || "").includes("live_runs_publish_token_key") ? "publish"
           : "row"
       : null;
-  const dropShareToken = () => {
-    share_token = null;
-    storeShareToken(null);
-    lastShareToken = null;
-    onShareTokenRejected?.();
+  // PGRST204 names the column it couldn't find, which is the only thing that
+  // tells the two pending-migration cases apart. Latching share_public also has
+  // to reach the UI: a link offered over writes that can't carry the flag would
+  // promise something nothing is publishing.
+  const missingColumn = (err: WriteError): "publish_token" | "share_public" | null => {
+    if (err?.code !== "PGRST204") return null;
+    const msg = String(err.message || "");
+    if (msg.includes("share_public")) return "share_public";
+    if (msg.includes("publish_token")) return "publish_token";
+    // Unnamed: assume the newer column, which is the one a deploy is most
+    // likely to be ahead of.
+    return "share_public";
+  };
+  const dropColumn = (which: "publish_token" | "share_public") => {
+    if (which === "share_public") {
+      sharePublicColumnMissing = true;
+      share_public = null;
+      onSharePublicUnavailable?.();
+    } else {
+      publishTokenColumnMissing = true;
+      publish_token = null;
+    }
   };
   const remintPublishToken = () => {
     publish_token = mintPublishToken();
     storePublishToken(publish_token);
     onPublishTokenChanged?.(publish_token);
   };
-  const tokens = () => (publishTokenColumnMissing
-    ? { share_token }
-    : { share_token, publish_token });
+  const extras = () => ({
+    ...(share_public === null ? {} : { share_public }),
+    ...(publish_token === null ? {} : { publish_token }),
+  });
   try {
     if (rowCreated) {
       // Scoped to OUR tokened row: if another device's broadcast replaced it,
       // this must match nothing (and re-open via insert) rather than silently
       // stamping our tokens over their live run.
       const update = () => {
-        let q = supabase.from("live_runs").update({ ...row, ...tokens() }).eq("user_id", user_id);
+        let q = supabase.from("live_runs").update({ ...row, ...extras() }).eq("user_id", user_id);
         if (publish_token) q = q.eq("publish_token", publish_token);
         return q.select("user_id");
       };
       let { data, error } = await update();
-      if (isColumnMissing(error)) {
-        publishTokenColumnMissing = true;
-        publish_token = null;
-        ({ data, error } = await update());
-      }
-      if (conflictIndex(error) === "share") {
-        dropShareToken();
+      for (let retry = 0; retry < 2; retry++) {
+        const missing = missingColumn(error);
+        if (!missing) break;
+        dropColumn(missing);
         ({ data, error } = await update());
       }
       if (error) {
@@ -205,22 +222,19 @@ async function writeRow(user_id: string, args: PublishArgs): Promise<void> {
     // app gets its clock reset rather than inherited.
     const started_at = new Date(startedAt || Date.now()).toISOString();
     const insert = () =>
-      supabase.from("live_runs").insert({ user_id, ...row, started_at, ...tokens() });
+      supabase.from("live_runs").insert({ user_id, ...row, started_at, ...extras() });
     let { error } = await insert();
-    if (isColumnMissing(error)) {
-      publishTokenColumnMissing = true;
-      publish_token = null;
+    for (let retry = 0; retry < 2; retry++) {
+      const missing = missingColumn(error);
+      if (!missing) break;
+      dropColumn(missing);
       ({ error } = await insert());
     }
     // Our OWN leftover row from a killed app is in the way — this run replaces
-    // it wholesale. Checked against the index name so a token conflict isn't
-    // "fixed" by deleting a perfectly good row of ours.
+    // it wholesale. Checked against the index name so another device's token
+    // conflict isn't "fixed" by deleting a perfectly good row of ours.
     if (conflictIndex(error) === "row") {
       await supabase.from("live_runs").delete().eq("user_id", user_id);
-      ({ error } = await insert());
-    }
-    if (conflictIndex(error) === "share") {
-      dropShareToken();
       ({ error } = await insert());
     }
     if (conflictIndex(error) === "publish") {
@@ -250,14 +264,15 @@ export async function endLiveRun(): Promise<void> {
   // page promises can't happen. (writeRow never rejects; this can't throw.)
   await inFlightWrite;
   resetLivePublisher();
-  // Both tokens die with the broadcast, whether or not the delete below lands:
-  // a token that outlived its run would be re-published by the NEXT one —
-  // silently reopening a link (or a write capability) minted for a run the
-  // runner never shared. The row is what a viewer reads, and it is on its way
-  // out either way.
+  // The publish token dies with the broadcast, whether or not the delete below
+  // lands: a write capability that outlived its run would be re-used by the
+  // NEXT one. The STANDING share link is deliberately untouched — it belongs to
+  // the account, not to this run. What does die with the run is the per-run
+  // public marker: the next run decides its own visibility from the remembered
+  // preference, not from this one's.
   const publishToken = readPublishToken();
-  storeShareToken(null);
   storePublishToken(null);
+  clearRunPublic();
   if (!user_id) {
     // Signed out at save (an expired session must still be able to take the
     // run off the air): teardown by capability through the edge function.
@@ -299,12 +314,13 @@ export async function endLiveRun(): Promise<void> {
 // row still carries the `started_at` that device published.
 export async function sweepOwnLiveRun(): Promise<void> {
   const mine = readPublishedMarker();
-  // A sweep resolves a broadcast this device left behind, so its tokens are
-  // spent too. Done up front and unconditionally: with no marker there is
-  // nothing on the air, and a token still sitting here is one minted for a run
-  // that never started — exactly what the NEXT run must not inherit.
-  storeShareToken(null);
+  // A sweep resolves a broadcast this device left behind, so its per-run state
+  // is spent too. Done up front and unconditionally: with no marker there is
+  // nothing on the air, and a publish token still sitting here is one minted
+  // for a run that never started — exactly what the NEXT run must not inherit.
+  // The standing share link is account state and is never touched here.
   storePublishToken(null);
+  clearRunPublic();
   if (!mine) return;
   const user_id = currentUserId();
   if (!user_id) return;
@@ -346,6 +362,22 @@ function hasRecoverableRun(): boolean {
   }
 }
 
+// Whether the CURRENT run is published to the standing link. Written here
+// rather than held only in React state so a run recovered after an app kill
+// comes back hidden if that is how the runner left it.
+export const markRunPublic = (on: boolean) => {
+  try { localStorage.setItem(LIVE_RUN_PUBLIC_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
+};
+export const readRunPublic = (): boolean | null => {
+  try {
+    const v = localStorage.getItem(LIVE_RUN_PUBLIC_KEY);
+    return v === null ? null : v === "1";
+  } catch { return null; }
+};
+const clearRunPublic = () => {
+  try { localStorage.removeItem(LIVE_RUN_PUBLIC_KEY); } catch { /* ignore */ }
+};
+
 const markPublished = (startedAtIso: string) => {
   try { localStorage.setItem(LIVE_PUBLISHED_KEY, startedAtIso); } catch { /* quota — non-fatal */ }
 };
@@ -363,15 +395,16 @@ const readPublishedMarker = (): string | null => {
 export function resetLivePublisher(): void {
   lastPublishAt = 0;
   lastStatus = null;
-  // Only the module's memory of what was last written. The STORED token is
-  // deliberately untouched: a recovered run has to republish under the link
-  // already sent out, and endLiveRun is what actually spends it.
-  lastShareToken = null;
+  // Only the module's memory of what was last written. The per-run PUBLIC
+  // marker is deliberately untouched: a recovered run has to come back at the
+  // visibility the runner left it at, and endLiveRun is what spends it.
+  lastSharePublic = null;
   inFlight = false;
   inFlightWrite = null;
   rowCreated = false;
   blocked = false;
   // Re-probe once per run: if the migration landed mid-session the next run
-  // picks the column back up; if not, the first write re-latches for free.
+  // picks the columns back up; if not, the first write re-latches for free.
   publishTokenColumnMissing = false;
+  sharePublicColumnMissing = false;
 }

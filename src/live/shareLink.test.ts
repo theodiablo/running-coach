@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { LIVE_SHARE_TOKEN_KEY, WEB_APP_ORIGIN } from "../constants";
+import { WEB_APP_ORIGIN } from "../constants";
 
 const native = vi.hoisted(() => ({ isNative: false }));
 vi.mock("../native", () => native);
 
 import {
   SHARE_TOKEN_BYTES, fetchLiveWatch, isValidShareToken, mintShareToken,
-  parseWatchToken, readShareToken, storeShareToken, watchUrl,
+  parseWatchToken, shareLinkState, watchUrl,
 } from "./shareLink";
 
 // The share token is the ENTIRE authorization for a public /watch/:token page,
@@ -103,20 +103,36 @@ describe("watchUrl origin", () => {
   });
 });
 
-describe("token storage", () => {
-  beforeEach(() => localStorage.clear());
+describe("shareLinkState", () => {
+  const TOKEN = "a".repeat(22);
 
-  it("round-trips and clears", () => {
-    const token = mintShareToken();
-    storeShareToken(token);
-    expect(readShareToken()).toBe(token);
-    storeShareToken(null);
-    expect(readShareToken()).toBeNull();
+  it("offers to create a link when the account has none", () => {
+    expect(shareLinkState({ token: null, sharing: true })).toEqual({ kind: "none" });
+    // Sharing being off changes nothing here: the link is the account's, and
+    // claiming one outside a run is legitimate.
+    expect(shareLinkState({ token: null, sharing: false })).toEqual({ kind: "none" });
   });
 
-  it("ignores junk left in storage", () => {
-    localStorage.setItem(LIVE_SHARE_TOKEN_KEY, "not-a-token");
-    expect(readShareToken()).toBeNull();
+  it("reports a claim in flight, whatever else is true", () => {
+    expect(shareLinkState({ token: TOKEN, sharing: true, busy: true, confirmed: true }))
+      .toEqual({ kind: "busy" });
+  });
+
+  it("shows the link as inactive when this run is not being shared", () => {
+    // The state the first draft of this feature had no way to render: the link
+    // exists, so it must stay visible and replaceable, but showing it as live
+    // would tell the runner people can see a run that is not being published.
+    const off = shareLinkState({ token: TOKEN, sharing: false, confirmed: true });
+    expect(off).toMatchObject({ kind: "link", active: false, sendable: true });
+    const on = shareLinkState({ token: TOKEN, sharing: true, confirmed: true });
+    expect(on).toMatchObject({ kind: "link", active: true, url: watchUrl(TOKEN) });
+  });
+
+  it("refuses to offer an unconfirmed token for sending", () => {
+    // A link replaced on another device is still in this one's cache. Sending
+    // it would hand someone an address that resolves to nothing, for good.
+    expect(shareLinkState({ token: TOKEN, sharing: true, confirmed: false }))
+      .toMatchObject({ kind: "link", sendable: false });
   });
 });
 

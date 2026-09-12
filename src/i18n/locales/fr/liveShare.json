@@ -1,18 +1,25 @@
 {
   "toggle": {
-    "label": "Partager en direct",
-    "hint": "Ta position est partagée avec tes autres appareils connectés pendant l'enregistrement, et le partage s'arrête dès que tu enregistres ou annules la sortie. Ce n'est pas un dispositif de sécurité : ne compte jamais dessus pour obtenir de l'aide.",
-    "on": "Activé",
-    "off": "Désactivé"
+    "label": "Partager cette sortie",
+    "hint": "Ta sortie est visible sur ton lien pendant que tu enregistres, et cesse de l'être dès que tu l'enregistres ou la supprimes. Ce n'est pas un dispositif de sécurité : ne compte jamais sur lui en cas de besoin.",
+    "on": "Activé"
   },
   "link": {
-    "create": "Partager un lien",
+    "create": "Créer ton lien",
     "share": "Envoyer le lien",
     "copied": "Copié",
-    "active": "Lien partagé",
-    "stop": "Arrêter de partager le lien",
-    "hint": "Toute personne disposant du lien peut suivre cette sortie, sans compte. Le lien cesse de fonctionner dès que tu enregistres ou annules la sortie.",
-    "rejected": "Ce lien n'a pas pu être créé. Ta sortie reste partagée avec tes propres appareils."
+    "hint": "Toute personne disposant de ce lien peut suivre cette sortie, sans compte. C'est le même lien pour toutes les sorties que tu partages, et il n'affiche rien entre deux sorties. Tu peux le remplacer à tout moment pour couper l'accès à tout le monde.",
+    "working": "Un instant...",
+    "replace": "Remplacer le lien",
+    "createTitle": "Créer ton lien de partage ?",
+    "createBody": "Tu obtiens un seul lien, et il reste le même pour toutes les sorties que tu partages. Les personnes à qui tu l'envoies peuvent suivre ces sorties pendant que tu enregistres, sans compte. Elles ne voient rien entre deux sorties, et rien sur toi. Tu peux remplacer le lien à tout moment pour couper l'accès à tout le monde.",
+    "createAccept": "Créer le lien",
+    "replaceTitle": "Remplacer ton lien de partage ?",
+    "replaceBody": "Ton lien actuel cessera de fonctionner pour toutes les personnes à qui tu l'as envoyé. Tu en recevras un nouveau à partager.",
+    "replaceAccept": "Remplacer",
+    "unconfirmed": "Reconnecte-toi pour envoyer ton lien.",
+    "failed": "Impossible d'accéder à ton lien. Vérifie ta connexion et réessaie.",
+    "unavailable": "Le partage par lien n'est pas disponible pour le moment. Ta sortie reste partagée avec tes propres appareils."
   },
   "banner": {
     "title": "Sortie en cours",
@@ -41,7 +48,7 @@
     "docTitle": "Sortie en direct · Running Coach",
     "openApp": "Running Coach",
     "nothing": "Rien en direct ici pour le moment.",
-    "nothingHint": "Si quelqu'un vous a envoyé ce lien avant sa sortie, gardez cette page ouverte : elle se met à jour toute seule au départ.",
+    "nothingHint": "Rien n'est partagé ici pour le moment. Si quelqu'un vous a envoyé ce lien avant sa sortie, gardez cette page ouverte : elle se met à jour toute seule dès qu'il part.",
     "retry": "Réessayer",
     "madeWith": "Suivi avec Running Coach"
   }

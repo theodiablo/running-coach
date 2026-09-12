@@ -65,10 +65,13 @@ function useWatchedRun(token: string) {
       return LIVE_POLL_MS;
     }
     if (endedRef.current) {
-      // The row is gone and we saw it end: hold the finished run. The token is
-      // spent with the row, so nothing can ever appear under it again — stop.
+      // The row is gone and we saw it end: hold the finished run on screen
+      // rather than blinking to "nothing live". Keep reading at the idle
+      // cadence, though — the link is the RUNNER's, not this run's, so the
+      // same address lights up again the next time they go out, and a page
+      // left open must not sit on a finished run forever.
       setRun(endedRef.current);
-      return null;
+      return IDLE_POLL_MS;
     }
     setRun(null);
     return IDLE_POLL_MS;
@@ -85,9 +88,11 @@ function useWatchedRun(token: string) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
-    // Latched permanently once a load says there is nothing left to read (the
-    // ended run is held on screen) — survives visibility flips, which would
-    // otherwise restart the chain on every return to the tab.
+    // Latched only if a load says to stop for good. Nothing does today: a
+    // finished run keeps polling at the idle cadence because the address is
+    // durable (see load()). Kept as the one way to end the chain, and it
+    // survives visibility flips, which would otherwise restart it on every
+    // return to the tab.
     let done = false;
     const tick = async () => {
       if (stopped || done || document.visibilityState !== "visible") return;
