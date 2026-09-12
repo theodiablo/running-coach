@@ -56,10 +56,12 @@ export const OFFLINE_STATE_KEY = "rc_offline_state";
 // install, mirrors the other one-shot recording prompts above.
 export const BATTERY_NUDGE_KEY = "rc_battery_nudge";
 
-// localStorage flag: last "share this run live" choice (premium). Per-device
-// like the other recording concerns, NOT a synced setting: whether you broadcast
-// a run is a property of the phone in your hand, and a synced "on" would silently
-// put a run on the air from a device the user never armed.
+// localStorage flag: last "share this run" choice. Per-device like the other
+// recording concerns, NOT a synced setting: whether you broadcast a run is a
+// property of the phone in your hand, and a synced "on" would silently put a
+// run on the air from a device the user never armed. Since v4 this is the ONE
+// sharing switch — on means the run is readable at the runner's standing link
+// (docs/live-sharing.md), so it is also what takes a run back off it.
 export const LIVE_SHARE_KEY = "rc_live_share";
 
 // localStorage marker: the `started_at` of a broadcast THIS device put on the
@@ -70,13 +72,19 @@ export const LIVE_SHARE_KEY = "rc_live_share";
 // the latter. Set on the first successful publish, cleared on a confirmed delete.
 export const LIVE_PUBLISHED_KEY = "rc_live_published";
 
-// localStorage: the public share token minted for the CURRENT broadcast, if the
-// runner asked for a link (see src/live/shareLink.ts). Per-device for the same
-// reason as LIVE_SHARE_KEY, and per-run: it is cleared when the run ends, so a
-// link dies with the broadcast it was minted for rather than becoming a standing
-// window onto wherever this person happens to be running. It survives an app
-// kill so a recovered run republishes under the link already sent out.
-export const LIVE_SHARE_TOKEN_KEY = "rc_live_share_token";
+// localStorage: a CONFIRMED copy of the account's standing share link, as
+// {uid, token}, so the panel can render it offline (src/live/shareLinkStore.ts).
+// A cache of server state, never the source of truth — the ledger is — and
+// never a token that hasn't come back from it, or the runner could send an
+// address that never resolves.
+//
+// Account data, so sign-out clears it (App.tsx), and it carries the uid it was
+// written for: the next account on a shared device must never be shown the
+// previous runner's link. Deliberately a NEW key: every installed device still
+// holds a spent per-run token under the v2 name, and reading that as a standing
+// link would display one that resolves to nothing.
+export const LIVE_SHARE_LINK_KEY = "rc_live_share_link";
+
 
 // localStorage: the WRITE capability for the current broadcast — what the
 // Android native uploader authenticates with while the WebView is frozen (see

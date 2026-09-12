@@ -1,18 +1,29 @@
 {
   "toggle": {
-    "label": "Share live",
-    "hint": "Your position is shared with your other signed-in devices while you record, and stops the moment you save or discard. Not a safety device: never rely on it for help.",
-    "on": "On",
-    "off": "Off"
+    "label": "Share this run",
+    "hint": "Your run is visible at your link while you record, and stops the moment you save or discard it. Not a safety device: never rely on it for help.",
+    "on": "On"
   },
   "link": {
-    "create": "Share a link",
+    "create": "Create your link",
     "share": "Send link",
     "copied": "Copied",
-    "active": "Link shared",
-    "stop": "Stop sharing the link",
-    "hint": "Anyone with the link can follow this run, no account needed. The link stops working as soon as you save or discard the run.",
-    "rejected": "That link could not be created. Your run is still shared with your own devices."
+    "hint": "Anyone with this link can follow the runs you share, no account needed. It is the same link every time, and shows nothing in between. Replace it any time to cut off everyone who has it.",
+    "working": "Working...",
+    "replace": "Replace link",
+    "createTitle": "Create your sharing link?",
+    "createBody": "You get one link, and it stays the same for every run you share. Anyone you send it to can follow those runs while you record, with no account. They see nothing between runs, and nothing about you. Replace the link any time to cut off everyone who has it.",
+    "createAccept": "Create link",
+    "replaceTitle": "Replace your sharing link?",
+    "replaceBody": "Your current link stops working for everyone you have sent it to. You will get a new one to share.",
+    "replaceAccept": "Replace",
+    "unconfirmed": "Could not check your link just now. Reconnect before sending it.",
+    "failed": "Could not reach your link. Check your connection and try again.",
+    "unavailable": "Sharing by link is not available right now. Your run is still shared with your own devices.",
+    "limit": "You have replaced this link many times. Get in touch if you need a new one.",
+    "replaced": "New link ready to share",
+    "settingsTitle": "Live-run share link",
+    "settingsDesc": "The link people use to follow your runs while you record. Replacing it stops the current one working for everyone you have sent it to."
   },
   "banner": {
     "title": "Run in progress",
@@ -41,7 +52,7 @@
     "docTitle": "Live run · Running Coach",
     "openApp": "Running Coach",
     "nothing": "Nothing live here right now.",
-    "nothingHint": "If someone sent you this link before their run, keep this page open: it updates on its own once they set off.",
+    "nothingHint": "Nothing is being shared here at the moment. If someone sent you this link before their run, keep this page open: it updates on its own once they set off.",
     "retry": "Try again",
     "madeWith": "Tracked with Running Coach"
   }
