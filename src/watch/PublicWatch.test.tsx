@@ -95,11 +95,12 @@ describe("PublicWatch", () => {
     expect(fetchLiveWatch).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps the finished route after the row is swept, and stops reading", async () => {
+  it("keeps the finished route after the row is swept, and keeps watching", async () => {
     // Stop publishes status "ended" with the whole trace; Save then deletes the
-    // row. A spectator who watched the run keeps the finished route — and with
-    // the token spent alongside the row, nothing can ever appear under it
-    // again, so the page stops polling for good.
+    // row. A spectator who watched the run keeps the finished route rather than
+    // blinking to "nothing live" — and because the link is the RUNNER's rather
+    // than this run's, the page goes on reading at the idle cadence instead of
+    // stopping for good.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run() });
     render(<PublicWatch token={TOKEN} />);
@@ -117,14 +118,28 @@ describe("PublicWatch", () => {
     expect(screen.queryByText(/Nothing live here/i)).toBeNull();
 
     const calls = fetchLiveWatch.mock.calls.length;
-    await act(async () => { await vi.advanceTimersByTimeAsync(600000); });
-    expect(fetchLiveWatch).toHaveBeenCalledTimes(calls);
+    await act(async () => { await vi.advanceTimersByTimeAsync(121000); });
+    expect(fetchLiveWatch.mock.calls.length).toBeGreaterThan(calls);
+  });
+
+  it("picks up the runner's NEXT run under the same link", async () => {
+    // The whole point of a standing address: someone who watched one run
+    // finish must not have to reload to see the next one.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run({ status: "ended" }) });
+    render(<PublicWatch token={TOKEN} />);
+    expect(await screen.findByText(/This run has ended/i)).toBeInTheDocument();
+
+    fetchLiveWatch.mockResolvedValue({ kind: "live", run: run() }); // status: live
+    await act(async () => { await vi.advanceTimersByTimeAsync(61000); });
+    expect(screen.queryByText(/This run has ended/i)).toBeNull();
+    expect(screen.getByTestId("route-map")).toBeInTheDocument();
   });
 
   it("goes dark when a live run vanishes without ending", async () => {
-    // A mid-run revocation (share_token cleared) never writes "ended" — the
-    // page must NOT hold the trace on a mere live-to-gone transition, or
-    // revoking a link would stop working on any page already open.
+    // Replacing the link mid-run never writes "ended" — the page must NOT hold
+    // the trace on a mere live-to-gone transition, or replacing a link would
+    // stop working on any page already open.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run() });
     render(<PublicWatch token={TOKEN} />);

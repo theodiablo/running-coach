@@ -1,8 +1,13 @@
-// Live-run share links — minting, URL shape, and the public read.
+// Live-run share links — minting, URL shape, the public read, and the pure
+// state the panel renders from.
 //
 // The token IS the authorization: whoever holds the link may watch, and a
 // signed-in visitor gets nothing extra. That is what keeps the public watch
 // page a standalone leaf — it never touches the auth session or the store.
+//
+// Everything that talks to the token LEDGER lives in ./shareLinkStore, not
+// here, precisely so this module stays importable by that leaf: it must never
+// pull in src/supabase.ts (see the read below).
 //
 // The read below is a bare `fetch`, deliberately NOT supabase.functions.invoke:
 // importing src/supabase.ts would spin up the auth client (localStorage, token
@@ -11,7 +16,7 @@
 // the only thing that can resolve a token anyway.
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
-import { LIVE_SHARE_TOKEN_KEY, WEB_APP_ORIGIN } from "../constants";
+import { WEB_APP_ORIGIN } from "../constants";
 import { isNative } from "../native";
 import type { LiveRunRow } from "./publisher";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
@@ -36,7 +41,9 @@ export const WATCH_PATH_PREFIX = "/watch/";
 
 // 128 bits from the CSPRNG. Never Math.random(): a predictable token would make
 // the whole design — where entropy, not obscurity, is what defeats crawling —
-// silently worthless while still looking random.
+// silently worthless while still looking random. Minted here and CLAIMED in the
+// ledger (shareLinkStore), which is what makes it durable: the claim is
+// permanent and first-come, so no one who was handed the link can take it.
 export function mintShareToken(): string {
   const bytes = new Uint8Array(SHARE_TOKEN_BYTES);
   crypto.getRandomValues(bytes);
@@ -66,25 +73,30 @@ export function parseWatchToken(pathname: string): string | null {
   return isValidShareToken(token) ? token : null;
 }
 
-// ── Per-device token storage ────────────────────────────────────────────────
-// A minted token has to survive the app being killed mid-run: the recovered run
-// republishes under the SAME token, so a link already sent to someone keeps
-// working. Per-device (like LIVE_SHARE_KEY) because the broadcast is per-device
-// — another phone's link is not this one's to reuse.
+// ── What the panel renders ──────────────────────────────────────────────────
+// Pure, and separate from the tracker, because three inputs make four states
+// and the wrong pairing is a privacy bug rather than a cosmetic one: a link
+// shown as live while the run is private reads as "they can see this", and a
+// link offered for sending before the ledger has confirmed it can hand someone
+// an address that never resolves.
 
-export const readShareToken = (): string | null => {
-  try {
-    const v = localStorage.getItem(LIVE_SHARE_TOKEN_KEY);
-    return isValidShareToken(v) ? v : null;
-  } catch { return null; }
-};
+export type ShareLinkState =
+  // No link claimed yet: offer to create one (which is where the explainer is).
+  | { kind: "none" }
+  // A claim or a replacement is in flight.
+  | { kind: "busy" }
+  // `active` is whether THIS run is published to it; `sendable` is whether the
+  // token has been confirmed against the ledger this session.
+  | { kind: "link"; token: string; url: string; active: boolean; sendable: boolean };
 
-export const storeShareToken = (token: string | null): void => {
-  try {
-    if (token) localStorage.setItem(LIVE_SHARE_TOKEN_KEY, token);
-    else localStorage.removeItem(LIVE_SHARE_TOKEN_KEY);
-  } catch { /* quota — the link just won't survive a restart */ }
-};
+export function shareLinkState(
+  { token, sharing, busy = false, confirmed = false }:
+  { token: string | null; sharing: boolean; busy?: boolean; confirmed?: boolean },
+): ShareLinkState {
+  if (busy) return { kind: "busy" };
+  if (!token) return { kind: "none" };
+  return { kind: "link", token, url: watchUrl(token), active: sharing, sendable: confirmed };
+}
 
 // ── The public read ─────────────────────────────────────────────────────────
 

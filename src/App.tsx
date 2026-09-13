@@ -11,6 +11,7 @@ import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
+import { clearShareLinkCache } from "./live/shareLinkStore";
 import { readOfflineSession } from "./utils/offlineSession";
 import { parkAuthNotice } from "./utils/authNotice";
 import { readRecoveryBuffer } from "./utils/runRecovery";
@@ -184,8 +185,11 @@ export default function App() {
         // The one place account data may leave the device: an explicit
         // sign-out (or a dead refresh token). NOT in clearStore — that runs on
         // transient null-session states too, where wiping the mirror would
-        // destroy the offline boot it exists for.
+        // destroy the offline boot it exists for. The cached share link goes
+        // with it: it is the account's standing address, and the next runner on
+        // this device must never be shown (or able to send) the last one's.
         clearOfflineMirror();
+        clearShareLinkCache();
       } else if (offlineSessionRef.current) {
         return; // offline refresh failure — keep the adopted session
       }

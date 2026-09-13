@@ -1,18 +1,29 @@
 {
   "toggle": {
-    "label": "Compartir en directo",
-    "hint": "Tu posición se comparte con tus otros dispositivos con la sesión iniciada mientras grabas, y deja de compartirse en cuanto guardas o descartas el entrenamiento. No es un dispositivo de seguridad: nunca cuentes con esto para pedir ayuda.",
-    "on": "Activado",
-    "off": "Desactivado"
+    "label": "Compartir este entrenamiento",
+    "hint": "Tu entrenamiento se ve en tu enlace mientras grabas, y deja de verse en cuanto lo guardas o lo descartas. No es un dispositivo de seguridad: nunca cuentes con él si necesitas ayuda.",
+    "on": "Activado"
   },
   "link": {
-    "create": "Compartir un enlace",
+    "create": "Crear tu enlace",
     "share": "Enviar enlace",
     "copied": "Copiado",
-    "active": "Enlace compartido",
-    "stop": "Dejar de compartir el enlace",
-    "hint": "Cualquiera con el enlace puede seguir este entrenamiento, sin necesidad de cuenta. El enlace deja de funcionar en cuanto guardas o descartas el entrenamiento.",
-    "rejected": "No se ha podido crear ese enlace. Tu entrenamiento sigue compartido con tus propios dispositivos."
+    "hint": "Cualquiera con este enlace puede seguir los entrenamientos que compartas, sin necesidad de cuenta. Es el mismo enlace siempre y no muestra nada entre uno y otro. Puedes reemplazarlo cuando quieras para cortar el acceso a todo el mundo.",
+    "working": "Un momento...",
+    "replace": "Reemplazar el enlace",
+    "createTitle": "¿Crear tu enlace para compartir?",
+    "createBody": "Tienes un solo enlace y es el mismo para todos los entrenamientos que compartas. Las personas a las que se lo envíes pueden seguir esos entrenamientos mientras grabas, sin cuenta. No ven nada entre un entrenamiento y otro, ni nada sobre ti. Puedes reemplazar el enlace cuando quieras para cortar el acceso a todo el mundo.",
+    "createAccept": "Crear el enlace",
+    "replaceTitle": "¿Reemplazar tu enlace para compartir?",
+    "replaceBody": "Tu enlace actual dejará de funcionar para todas las personas a las que se lo hayas enviado. Recibirás uno nuevo para compartir.",
+    "replaceAccept": "Reemplazar",
+    "unconfirmed": "No se pudo verificar tu enlace ahora mismo. Vuelve a conectarte antes de enviarlo.",
+    "failed": "No se pudo acceder a tu enlace. Revisa tu conexión e inténtalo de nuevo.",
+    "unavailable": "Compartir por enlace no está disponible ahora mismo. Tu entrenamiento se sigue compartiendo con tus propios dispositivos.",
+    "limit": "Ya has reemplazado este enlace muchas veces. Escríbenos si necesitas uno nuevo.",
+    "replaced": "Nuevo enlace listo para compartir",
+    "settingsTitle": "Enlace para compartir en directo",
+    "settingsDesc": "El enlace que usan para seguir tus entrenamientos mientras grabas. Al reemplazarlo, el actual deja de funcionar para todas las personas a las que se lo hayas enviado."
   },
   "banner": {
     "title": "Entrenamiento en curso",
@@ -41,7 +52,7 @@
     "docTitle": "Entrenamiento en directo · Running Coach",
     "openApp": "Running Coach",
     "nothing": "Aquí no hay nada en directo ahora mismo.",
-    "nothingHint": "Si alguien te ha enviado este enlace antes de salir, deja esta página abierta: se actualiza sola cuando empiece.",
+    "nothingHint": "Aquí no se está compartiendo nada en este momento. Si alguien te envió este enlace antes de su entrenamiento, deja esta página abierta: se actualiza sola en cuanto salga.",
     "retry": "Reintentar",
     "madeWith": "Registrado con Running Coach"
   }
