@@ -437,6 +437,19 @@ is resumable (a new `propose` abandons any other open one, and `critique`/
 `confirm` on a closed one returns `TRAJECTORY_CLOSED`); accepted/abandoned ones
 are read-only transcripts. UI: `src/modals/CoachHistorySheet.tsx`.
 
+Re-opening the chat **resumes the conversation it was closed with**, it does not
+start a new one: the coach's in-app links close the full-screen chat to land the
+runner on the screen they were pointed at, so a fresh greeting on the way back
+would discard a live proposal. `CoachChat` hands its state (bubbles,
+trajectory id, read-only-transcript status, half-typed message, flagged rounds)
+to the hub on unmount — one cleanup, so every exit is covered — and `RunningCoach`
+passes it back as `resume` on the next open. An untouched chat suspends as
+`null`. Opening about a plan session starts fresh unless the retained
+conversation is about that same session (`coachSessionKey`); the header's
+go-Home reset drops it, as does a reload (it is in-memory only). A resumed
+proposal re-checks `plansDiffer` against the live plan, so a plan edited while
+the chat was closed blocks Apply exactly as a history resume does.
+
 Client gotcha — **a `changed:false` round (an informational answer, no plan
 edit) keeps the trajectory OPEN server-side**, so `CoachChat.applyCoachResult`
 must PRESERVE `trajectoryId` in that branch: clearing it made the next message

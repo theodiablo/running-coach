@@ -187,6 +187,12 @@ export type PlanSession = Record<string, unknown> & {
 // display strings and the canonical-English context prefix from it.
 export type CoachSessionContext = { session: PlanSession; weekNumber: number };
 
+// Identity of the session a coach chat was opened about — what decides whether a
+// retained conversation is the same one the runner is re-opening.
+export function coachSessionKey(ctx?: CoachSessionContext | null): string | null {
+  return ctx ? `${ctx.weekNumber}:${ctx.session.id}` : null;
+}
+
 // Which affordance opened the coach chat. Analytics only (`coach_opened`) — it
 // never changes what the coach is told. Pass one at every call site so the
 // entry points stay comparable; "other" is the defensive fallback for a bare
