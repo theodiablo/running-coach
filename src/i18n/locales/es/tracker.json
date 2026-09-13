@@ -65,6 +65,7 @@
     "start": "Iniciar entrenamiento",
     "pause": "Pausar",
     "finish": "Terminar",
+    "holdToFinish": "Mantén pulsado para terminar",
     "resume": "Reanudar",
     "discard": "Descartar",
     "save": "Guardar entrenamiento"

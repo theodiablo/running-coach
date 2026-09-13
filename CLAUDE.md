@@ -288,7 +288,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   (`recorderHrSetup` for device readiness + which setup prompt, `resolveRunHr`
   for save-time resolution), `HrNudgeSheet`, `liveHrStatusLine`, and
   `RecorderChrome` for the controls they render identically: a rule copied into
-  one screen is a rule that drifts in the other.
+  one screen is a rule that drifts in the other. **Finish is hold-to-confirm**
+  (`HoldCtrl`) because one tap tears the recording down with no way back into
+  the run, and **Discard never sits in the slot Pause just occupied** — the live
+  and stopped rows share one geometry, so a thumb reaching for Pause after a
+  slipped Finish would land on the one control that loses the run.
 - **A live BLE link is alive when the GATT CALLBACK says so, not when this JS
   last heard from it.** The callback runs in the app process and keeps firing
   while delivery to the WebView stalls (a backgrounded run held up by the

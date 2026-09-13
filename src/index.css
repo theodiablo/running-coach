@@ -147,7 +147,7 @@
    this one block covers everything added above plus the pre-existing
    `transition-*` utilities and the 700ms plan progress bar. */
 @media (prefers-reduced-motion: reduce) {
-  *:not(.animate-spin),
+  *:not(.animate-spin):not(.hold-fill),
   ::before,
   ::after {
     animation-duration: 0.01ms !important;

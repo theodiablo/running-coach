@@ -55,6 +55,7 @@ vi.mock("../hooks/usePrefersReducedMotion", () => ({ usePrefersReducedMotion: ()
 
 import { IndoorTracker } from "./IndoorTracker";
 import { INDOOR_RUN_KEY } from "../constants";
+import { HOLD_MS } from "../components/RecorderChrome";
 import type { Run, SettingsState } from "../types";
 
 const START = 1_700_000_000_000;
@@ -75,7 +76,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 const start = () => act(() => { fireEvent.click(screen.getByRole("button", { name: /start session/i })); });
-const finish = () => act(() => { fireEvent.click(screen.getByRole("button", { name: /finish/i })); });
+// Finish is hold-to-confirm. The hold costs wall-clock time, so the helper
+// rewinds by the same amount and each test still stops at the time it set.
+const finish = () => act(() => {
+  vi.setSystemTime(Date.now() - HOLD_MS);
+  fireEvent.pointerDown(screen.getByRole("button", { name: /finish/i }));
+  vi.advanceTimersByTime(HOLD_MS);
+});
 
 describe("IndoorTracker", () => {
   it("never asks for a position, before or during a session", () => {

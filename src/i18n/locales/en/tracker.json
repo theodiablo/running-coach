@@ -65,6 +65,7 @@
     "start": "Start run",
     "pause": "Pause",
     "finish": "Finish",
+    "holdToFinish": "Hold to finish",
     "resume": "Resume",
     "discard": "Discard",
     "save": "Save run"

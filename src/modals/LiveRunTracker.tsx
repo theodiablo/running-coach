@@ -24,7 +24,7 @@ import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudge
 import { RouteMap } from "../components/RouteMap";
 import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
-import { Ctrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
+import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
 import { ToggleSwitch } from "../components/ToggleSwitch";
 import { ShareLinkConfirm } from "../components/ShareLinkConfirm";
 import { BetaBadge } from "../components/BetaBadge";
@@ -934,21 +934,27 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         {state === "tracking" && (
           <div className="flex gap-2">
             <Ctrl onClick={rt.pause} color="bg-slate-700 hover:bg-slate-600 text-slate-100"><Pause size={20} />{t("tracker.controls.pause")}</Ctrl>
-            <Ctrl onClick={finishRun} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
+            <HoldCtrl onHold={finishRun} hint={t("tracker.controls.holdToFinish")} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</HoldCtrl>
           </div>
         )}
         {state === "paused" && (
           <div className="flex gap-2">
             <Ctrl onClick={() => guardedStart(rt.resume)} color="bg-orange-500 hover:bg-orange-600 text-white"><Play size={20} />{t("tracker.controls.resume")}</Ctrl>
-            <Ctrl onClick={finishRun} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
+            <HoldCtrl onHold={finishRun} hint={t("tracker.controls.holdToFinish")} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</HoldCtrl>
           </div>
         )}
         {state === "stopped" && (
-          <div className="flex gap-2">
-            <Ctrl onClick={handleClose} color="bg-slate-700 hover:bg-slate-600 text-slate-100" disabled={busy}>{t("tracker.controls.discard")}</Ctrl>
+          <div className="flex flex-col gap-2">
             <Ctrl onClick={handleSave} color="bg-orange-500 hover:bg-orange-600 text-white" disabled={busy}>
               {busy ? <Loader size={18} className="animate-spin" /> : null}{t("tracker.controls.save")}
             </Ctrl>
+            {/* Never beside Save, and never where Pause just was: the two live
+                rows share Ctrl's geometry, so a thumb reaching for Pause after
+                a slipped Finish would land on the one button that loses the run. */}
+            <button onClick={handleClose} disabled={busy}
+              className="self-center px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-50">
+              {t("tracker.controls.discard")}
+            </button>
           </div>
         )}
 
