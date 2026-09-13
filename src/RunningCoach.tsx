@@ -60,6 +60,7 @@ import { LogView } from "./views/LogView";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
+import { coachSessionKey } from "./types";
 import type {
   CatalogueRace,
   CoachSessionContext,
@@ -90,6 +91,7 @@ type PromotableEdition = { name: string; raceId?: string; edition: { id: string;
 // branch) warms it immediately instead — a nearly-instant open with no
 // web-only cost.
 const CoachChat = lazy(() => import("./modals/CoachChat").then(m => ({ default: m.CoachChat })));
+import type { CoachChatSnapshot } from "./modals/CoachChat";
 
 // In-app "review notification" helper (pure, module-level so it isn't a hook
 // dependency): when a maintainer verifies one of the user's OWN catalogue
@@ -305,6 +307,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Set when the coach is opened about a specific plan session (see openCoach) so
   // the chat greets/steers about it and rides its context; null on a plain open.
   const [coachSession, setCoachSession] = useState<CoachSessionContext | null>(null);
+  // The conversation the chat was last closed with (CoachChat's onSuspend).
+  // Re-opening the coach restores it instead of starting over: its own in-app
+  // links close the chat to land the runner on a screen, and coming back should
+  // continue where they left off.
+  const [coachResume, setCoachResume] = useState<CoachChatSnapshot | null>(null);
   // Non-null while the beta feedback sheet is open; the value is the screen it
   // was opened from.
   const [feedbackSource, setFeedbackSource] = useState<FeedbackSource | null>(null);
@@ -1086,7 +1093,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const goHome = () => {
     resumeRecorderRef.current = null;
     dismissAll();
-    setLogPrefill(null); setLogImportOpen(false); setPlanPrefill(null);
+    setLogPrefill(null); setLogImportOpen(false); setPlanPrefill(null); setCoachResume(null);
     setProgressSub("log"); setHighlight(null);
     setTab("dash"); setHomeNonce(n => n + 1);
     window.scrollTo(0, 0);
@@ -1132,6 +1139,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // so the click event never counts as a session. `source` is analytics only.
   const openCoach = (session?: unknown, source?: CoachSource) => {
     const ctx = session && typeof session === "object" && "session" in session ? session as CoachSessionContext : null;
+    // Opening about a specific session is an explicit fresh start — unless the
+    // retained conversation is already about that same session. A bare open
+    // (header pill, dashboard) always resumes what was left.
+    if (ctx) setCoachResume(r => (r && r.sessionKey === coachSessionKey(ctx) ? r : null));
     setCoachSession(ctx); setShowCoach(true);
     // Opening the coach answers the pointer, whatever led here.
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
@@ -1265,7 +1276,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
             <CoachChat plan={plan} onApplyPlan={applyCoachPlan} sessionContext={coachSession}
               appendUserContext={appendUserContext} showToast={showToast}
               onFeedback={() => openFeedback("coach")} onClose={() => setShowCoach(false)}
-              onNavigate={goCoachLink}/>
+              onNavigate={goCoachLink} resume={coachResume} onSuspend={setCoachResume}/>
           </Suspense>
         </ChunkLoadBoundary>
       )}
