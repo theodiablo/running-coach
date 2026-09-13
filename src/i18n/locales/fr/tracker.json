@@ -65,6 +65,7 @@
     "start": "Démarrer la sortie",
     "pause": "Pause",
     "finish": "Terminer",
+    "holdToFinish": "Maintiens pour terminer",
     "resume": "Reprendre",
     "discard": "Abandonner",
     "save": "Enregistrer la sortie"

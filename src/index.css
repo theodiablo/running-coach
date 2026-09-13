@@ -142,12 +142,15 @@
 .leaflet-tooltip.route-guide-tip.leaflet-tooltip-top::before { border-top-color: #334155; }
 
 /* Respect the OS "reduce motion" setting: collapse every animation and
-   transition to near-instant. `animate-spin` is exempt — a frozen loading
-   spinner reads as a hung app. There is no per-animation opt-out to maintain;
-   this one block covers everything added above plus the pre-existing
-   `transition-*` utilities and the 700ms plan progress bar. */
+   transition to near-instant. Two exemptions, both for motion that IS the
+   information rather than decoration: `animate-spin` (a frozen loading spinner
+   reads as a hung app) and `hold-fill` (the hold-to-finish progress bar — the
+   only signal that the press is counting; snapped to full it says nothing).
+   Add to that list only for the same reason. This one block otherwise covers
+   everything added above plus the pre-existing `transition-*` utilities and
+   the 700ms plan progress bar. */
 @media (prefers-reduced-motion: reduce) {
-  *:not(.animate-spin),
+  *:not(.animate-spin):not(.hold-fill),
   ::before,
   ::after {
     animation-duration: 0.01ms !important;

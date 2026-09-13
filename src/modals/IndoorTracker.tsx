@@ -13,7 +13,7 @@ import { effectiveMaxHR, isHrStale, liveHrStatusLine } from "../utils/hr";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { LiveHrZone } from "../components/LiveHrZone";
 import { HRTarget } from "../components/HRTarget";
-import { Ctrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
+import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
 import { BetaBadge } from "../components/BetaBadge";
 import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
@@ -106,7 +106,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
     onClose();
   };
   const handleClose = () => {
-    if ((live || state === "stopped") && stats.movingSec > 0) { setConfirmDiscard(true); return; }
+    if (live || state === "stopped") { setConfirmDiscard(true); return; }
     discardSession();
   };
 
@@ -273,21 +273,25 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
         {state === "tracking" && (
           <div className="flex gap-2">
             <Ctrl onClick={rt.pause} color="bg-slate-700 hover:bg-slate-600 text-slate-100"><Pause size={20} />{t("tracker.controls.pause")}</Ctrl>
-            <Ctrl onClick={finishSession} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
+            <HoldCtrl onHold={finishSession} hint={t("tracker.controls.holdToFinish")} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</HoldCtrl>
           </div>
         )}
         {state === "paused" && (
           <div className="flex gap-2">
             <Ctrl onClick={rt.resume} color="bg-orange-500 hover:bg-orange-600 text-white"><Play size={20} />{t("tracker.controls.resume")}</Ctrl>
-            <Ctrl onClick={finishSession} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</Ctrl>
+            <HoldCtrl onHold={finishSession} hint={t("tracker.controls.holdToFinish")} color="bg-red-500 hover:bg-red-600 text-white"><Square size={18} />{t("tracker.controls.finish")}</HoldCtrl>
           </div>
         )}
         {state === "stopped" && (
-          <div className="flex gap-2">
-            <Ctrl onClick={handleClose} color="bg-slate-700 hover:bg-slate-600 text-slate-100" disabled={busy}>{t("tracker.controls.discard")}</Ctrl>
+          <div className="flex flex-col gap-2">
             <Ctrl onClick={handleSave} color="bg-orange-500 hover:bg-orange-600 text-white" disabled={busy}>
               {busy ? <Loader size={18} className="animate-spin" /> : null}{t("tracker.indoor.save")}
             </Ctrl>
+            <button onClick={handleClose} disabled={busy}
+              style={{ marginBottom: "var(--safe-bottom)" }}
+              className="self-center px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-50">
+              {t("tracker.controls.discard")}
+            </button>
           </div>
         )}
 
