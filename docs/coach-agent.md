@@ -33,8 +33,14 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    other editing tool only reduces or moves load: asked to make a plan harder,
    the coach could do nothing but point at the goal settings, which do not size
    base-phase easy days at all — so a runner whose sessions were too short was
-   told, correctly but uselessly, that nothing could be done. Neither tool may
-   ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
+   told, correctly but uselessly, that nothing could be done. It carries the
+   same two structural bars `add_session` does: nothing inside the taper or the
+   final 14 days, and no result above the plan's longest live training session.
+   Neither bar is redundant, because nothing downstream covers a taper week —
+   the validator's ramp rule skips `TAPER`/`RACE` weeks outright and
+   `TAPER_VOLUME` only inspects the final 14 days, so a taper week further out
+   could be grown past the plan's peak one validator-clean call at a time.
+   Neither tool may ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
    Four tools are **read-only** and can never touch the plan (`READ_ONLY_TOOLS`
@@ -86,8 +92,8 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    round with a NULL rationale — a blank reply bubble. The edge function also
    backstops every success-path rationale, so no route can render an empty one.
    Context-sensitive gates also reject semantically unsafe tool use before the
-   structural validator runs: `add_session` is blocked for current pain, injury,
-   illness, fatigue, missed-week make-up, unsafe "train through pain" memory, or
+   structural validator runs: `add_session` and `increase_session_distance` are
+   both blocked for current pain, injury, illness, fatigue, missed-week make-up, unsafe "train through pain" memory, or
    unresolved pain/injury/illness/fatigue mentioned in Coach memory unless the
    latest user message clearly says it has resolved; harder `swap_session`
    targets (`TEMPO`/`INTERVALS`/`LONG`) are blocked under the same risk.

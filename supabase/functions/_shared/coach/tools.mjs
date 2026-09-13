@@ -131,7 +131,7 @@ export const TOOL_DEFS = [
   {
     name: "increase_session_distance",
     description:
-      "Lengthen ONE session's distance by a factor between 1.05 and 1.5, keeping its date and type. Use when a session is clearly too short for the runner's demonstrated fitness — they say the plan is too easy, or recent runs are consistently longer than what is prescribed. Never to make up missed volume, and never during pain, injury or illness. The weekly volume ramp rule still applies to the result, so a week can only grow so far in one step; lengthen a few sessions across successive weeks rather than forcing one week up.",
+      "Lengthen ONE session's distance by a factor between 1.05 and 1.5, keeping its date and type. Use when a session is clearly too short for the runner's demonstrated fitness — RECENT RUNS show them consistently running longer than what is prescribed. Never to make up missed volume, never during pain, injury or illness, and never inside the taper or the final 14 days. The result cannot exceed the plan's current longest training session, and the weekly volume ramp rule still applies, so a week can only grow so far in one step; lengthen the short days across successive weeks rather than forcing one week up.",
     input_schema: {
       type: "object",
       properties: {
@@ -388,9 +388,23 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       const { session_id, factor } = input;
       if (typeof factor !== "number" || factor < 1.05 || factor > 1.5)
         throw new CoachToolError("BAD_INPUT", "factor must be a number in [1.05, 1.5].");
-      const { session } = findSession(p, session_id);
+      const { session, week } = findSession(p, session_id);
       guardEditable(session, "lengthen", today);
-      session.km = Math.round(session.km * factor * 10) / 10;
+      // The same two bars add_session carries, for the same reason: the taper
+      // sheds load and never gains it, and no edit may smuggle in a new peak.
+      // Neither is covered downstream — the validator's ramp rule skips TAPER
+      // and RACE weeks outright, and TAPER_VOLUME only inspects the final 14
+      // days, so a taper week further out fell through every check and could be
+      // grown past the plan's peak one accepted call at a time.
+      if (week.phase === "TAPER" || week.phase === "RACE" || daysBetween(session.date, p.raceDate) <= 14)
+        throw new CoachToolError("TAPER", "No lengthening inside the taper or the final 14 days — the taper sheds load, it never gains it.");
+      const cap = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today))
+        .flatMap(w => w.sessions)
+        .filter(s => s.type !== "RACE" && !s.skipped && s.id !== session.id).map(s => s.km));
+      const grown = Math.round(session.km * factor * 10) / 10;
+      if (cap > 0 && grown > cap)
+        throw new CoachToolError("TOO_LONG", `Lengthening ${session_id} to ${grown} km would exceed the plan's current longest training session (${cap} km) — lengthen the shorter days instead.`);
+      session.km = grown;
       return p;
     }
     case "cancel_session": {

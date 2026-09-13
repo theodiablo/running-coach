@@ -95,9 +95,6 @@ function baseCredit(recentRuns: RecentRun[], today: Date, weekKmFloor: number) {
   return trainedWeeks >= 3 ? 2 : trainedWeeks >= 2 ? 1 : 0;
 }
 
-// How far a session may be trimmed by the ramp guard. An intervals session's
-// distance is computed FROM its reps and its desc names them, so shrinking it
-// past one rep would leave the two disagreeing — hold it at reps-1.
 const median = (xs: number[]) => {
   if (!xs.length) return 0;
   const v = xs.slice().sort((a, b) => a - b);
@@ -105,6 +102,9 @@ const median = (xs: number[]) => {
   return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
 };
 
+// How far a session may be trimmed by the ramp guard. An intervals session's
+// distance is computed FROM its reps and its desc names them, so shrinking it
+// past one rep would leave the two disagreeing — hold it at reps-1.
 function trimFloor(s: PlanSession, floorKm: number) {
   const sd = s.sd as { kind?: string; reps?: number; repM?: number } | undefined;
   if (sd?.kind === "intervals" && sd.reps && sd.repM)
@@ -190,19 +190,13 @@ export function buildPlan(
   const levelFloor = Math.min(levelStartLongKm(planOpts.level), peakLong);
   // Long run ramps linearly from this start to the peak over the pre-taper weeks.
   const startLong = Math.max(shape.floorKm, fitFloor, levelFloor);
-  // The easy day's twin of fitFloor. Easy days opened at an absolute ~2.5 km
-  // whatever the runner had been doing, so someone already running 9 km easy —
-  // against a 45-minute budget they configured themselves — was prescribed
-  // 15-minute jogs and read the whole plan as useless. Median, not max, so one
-  // big effort doesn't set every easy day, and only from a real habit: one or
-  // two runs in five weeks is a sample, not a routine, and the long run's
-  // single-sample floor is defensible in a way a habitual easy distance is not.
-  // Held under the long run so a week can never invert, and each composer still
-  // caps it by that day's own configured time budget. Too little history → 0 →
-  // the gentle absolute start, unchanged.
+  // Where the easy-day line STARTS, the way fitFloor starts the long run — see
+  // docs/training-plan.md. Median (not max) of a real habit (not one or two
+  // runs); each composer adds its own per-week growth on top and caps the
+  // result by that week's long run and the day's time budget.
   const EASY_FLOOR_MIN_RUNS = 3;
   const easyFloor = runsInWindow.length >= EASY_FLOOR_MIN_RUNS
-    ? Math.min(median(runsInWindow.map(r => r.km ?? 0)) * 0.8, startLong * 0.85)
+    ? median(runsInWindow.map(r => r.km ?? 0)) * 0.8
     : 0;
   const lastBuildW = N - 4; // 0-based index of the final pre-taper week (peak hits here)
   // Phase boundaries. The base block is what the composers actually treat as
@@ -216,9 +210,11 @@ export function buildPlan(
   // re-anchors week 1 on the next Monday, so adding a race mid-block otherwise
   // marched the runner back through a base block they had just run. The credit
   // shortens the on-ramp; only a single-week runway can spend it entirely.
-  // Week 1's prescription is the yardstick for "already training" — the easy
-  // days open at 2.5 km, the long run at the fitness-aware start.
-  const weekKmFloor = startLong + 2.5 * qualSessions.length;
+  // Week 1's prescription is the yardstick for "already training", so it has to
+  // track what week 1 actually asks: the long run at its fitness-aware start,
+  // the easy days at theirs. Left at a flat 2.5 it handed base credit to a
+  // runner logging well under the opening week the same history had just grown.
+  const weekKmFloor = startLong + Math.max(2.5, easyFloor) * qualSessions.length;
   const onRamp = preTaper > 1 ? 1 : 0;
   const baseW  = Math.max(onRamp, fullBase - baseCredit(recentRuns, today, weekKmFloor));
   // At least one BUILD week wherever the runway allows: hansons puts its speed
@@ -401,6 +397,14 @@ export function buildPlan(
     longRunPeakKm: Math.round(peakLong * 10) / 10, planSessions, style, weeks};
 }
 
+// The easy day's distance: each style's own growth line, started at the runner's
+// floor instead of an absolute constant. Capped by the day's configured time
+// budget AND by this week's own long run — a floor derived from the block's
+// starting long run outlives a cutback week (runwalk drops 30% every third),
+// and an easy day at or past the long run makes the long run pointless.
+const easyLine = (c: WeekCtx, budgetKm: number, start: number, step: number) =>
+  Math.min(budgetKm, c.longKm * 0.85, Math.max(start, c.easyFloor) + step * c.w);
+
 // ── Style week composers ─────────────────────────────────────────────────────
 // One function per style fills a week's sessions (long run + the other days).
 // `balanced` is the pre-styles loop body moved verbatim (frozen by snapshot
@@ -419,9 +423,9 @@ function composeBalanced(c: WeekCtx) {
     const maxQ = q.minutes * 60 / easy;
     let type, desc, pace, km, sd: SessionSd;
     if (isBase || isTaper) {
-      const easyKm = isBase ? Math.max(2.5 + w * 0.2, c.easyFloor) : Math.max(2, 4 - (w - (N - 3)) * 0.5);
       type = "EASY"; pace = easy;
-      km   = Math.min(maxQ, easyKm);
+      km   = isBase ? easyLine(c, maxQ, 2.5, 0.2)
+        : Math.min(maxQ, Math.max(2, 4 - (w - (N - 3)) * 0.5));
       desc = "Easy run — relaxed aerobic effort";
       sd   = { kind: "easy", variant: "relaxed" };
     } else {
@@ -467,10 +471,9 @@ function composePolarized(c: WeekCtx) {
       // the same 2.5 start) so the week-5 hard session lands on top of a
       // smooth easy-volume curve instead of a step — the ramp rule's margin
       // is thinnest exactly at that transition.
-      const easyKm = isBase ? Math.max(2.5 + w * 0.2, c.easyFloor)
-        : isTaper ? Math.max(2, 4 - (w - (N - 3)) * 0.5)
-        : Math.max(2.5 + w * 0.3, c.easyFloor);
-      addS(q.dayOffset, "EASY", Math.min(maxQ, easyKm),
+      const easyKm = isTaper ? Math.min(maxQ, Math.max(2, 4 - (w - (N - 3)) * 0.5))
+        : easyLine(c, maxQ, 2.5, isBase ? 0.2 : 0.3);
+      addS(q.dayOffset, "EASY", easyKm,
         "Easy run — relaxed, conversational pace", easy,
         { kind: "easy", variant: "conversational" });
       return;
@@ -506,7 +509,7 @@ function composeRunwalk(c: WeekCtx) {
   c.qualSessions.forEach(q => {
     const km = isTaper
       ? Math.max(2, 4 - (w - (N - 3)) * 0.5)
-      : Math.min(q.minutes * 60 / walk, Math.max(2.5 + w * 0.25, c.easyFloor));
+      : easyLine(c, q.minutes * 60 / walk, 2.5, 0.25);
     addS(q.dayOffset, "WALK", km,
       "Run/walk — run " + runMin + " min / walk 1 min, "
         + (isTaper ? "short and relaxed" : "conversational"), walk,
@@ -545,8 +548,9 @@ function composeLowfreq(c: WeekCtx) {
       return;
     }
     if (isBase || isTaper) {
-      const easyKm = isBase ? Math.max(2.5 + w * 0.2, c.easyFloor) : Math.max(2, 4 - (w - (N - 3)) * 0.5);
-      addS(q.dayOffset, "EASY", Math.min(maxQ, easyKm),
+      const easyKm = isBase ? easyLine(c, maxQ, 2.5, 0.2)
+        : Math.min(maxQ, Math.max(2, 4 - (w - (N - 3)) * 0.5));
+      addS(q.dayOffset, "EASY", easyKm,
         "Easy run — relaxed aerobic effort", easy,
         { kind: "easy", variant: "relaxed" });
       return;
@@ -592,8 +596,12 @@ function composeHansons(c: WeekCtx) {
     // Easy volume ramps from a gentle start toward ~90% of the day's budget,
     // in step with the long-run ramp so weekly growth stays inside the 1.3x
     // ramp rule.
-    const easyStart = Math.max(3, c.easyFloor);
-    const easyFill = Math.min(maxQ * 0.9, easyStart + Math.max(0, maxQ * 0.9 - easyStart) * rampFrac);
+    // The floor raises where the ramp starts, but never so far that there is no
+    // ramp left — cumulative fatigue is built by the climb, not by opening at the
+    // ceiling.
+    const easyStart = Math.max(3, Math.min(c.easyFloor, maxQ * 0.6));
+    const easyFill = Math.min(maxQ * 0.9, c.longKm * 0.85,
+      easyStart + Math.max(0, maxQ * 0.9 - easyStart) * rampFrac);
 
     if (isTaper) {
       // First taper week keeps one short goal-pace tempo (its dates are ≥15
