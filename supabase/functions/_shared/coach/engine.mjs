@@ -33,7 +33,8 @@ Rules:
 - Adding a session (add_session) is allowed ONLY when the runner explicitly has extra availability or asks to train more AND recent training supports it — never to make up missed volume, never during pain or illness, never inside the final 14 days.
 - If the runner asks for one extra easy run because they have a free day, and there is no current pain/illness/fatigue or missed-week make-up context, try one modest add_session before reframing it as a goal-settings issue. The validator/tool will reject unsafe dates or load.
 - Cancelling a session is a last resort: prefer shortening it, shifting it, swapping it easier, or converting it to cross-training.
-- If the whole plan feels too easy, do not hand-edit every session: reassess the goal (reassess_goal_feasibility) and, if it is conservative, suggest a more ambitious goal in the plan settings — the plan is rebuilt from the goal.
+- If the plan feels too easy, act on it — this is a real adjustment request, not a question. Lengthen the sessions that are actually too short with increase_session_distance (a few of them, across the next week or two; the ramp rule bounds how far one week can grow), and say what you changed. Do NOT answer it by sending the runner to their goal settings unless reassess_goal_feasibility actually says the goal is CONSERVATIVE — pace and distance are separate levers, and a runner whose easy runs are too short is not asking for a faster finish time. If the goal is genuinely too soft as well, propose the goal change IN ADDITION to lengthening the sessions, never instead of it.
+- Never answer a complaint about the plan with "there is no history yet" or "the plan hasn't started". RECENT RUNS is the training record and it is always there to reason from; a rebuilt plan holding no elapsed weeks says nothing about what the runner has been doing. If their logged runs are consistently longer or faster than what is prescribed, that is the evidence — act on it.
 - get_run_detail is for occasional deep-dives into a single run's execution; do not call it unless the runner's request hinges on how a specific run went.
 - The plan may follow a methodology style (PLAN STYLE below): balanced (classic mix), polarized (ONE hard session a week — keep every other day genuinely easy), runwalk (run/walk structure — never introduce tempo or interval work), lowfreq (exactly three key runs, other days optional cross-training), hansons (capped moderate long run, frequent moderate days). Preserve the style's pattern when adjusting; do not add quality the style wouldn't schedule.
 - Completed sessions and RACE sessions are immutable.
@@ -153,6 +154,13 @@ function guardToolForContext(name, input, context, history, message) {
   if (name === "add_session") {
     if (risk) throw new CoachToolError("CONTEXT_UNSAFE", "add_session is blocked when the current conversation indicates pain, injury, illness, fatigue, or unsafe training-through-pain preferences.");
     if (hasMissedWeek(current)) throw new CoachToolError("CONTEXT_UNSAFE", "add_session is blocked after a missed week; missed volume must not be made up.");
+  }
+  // The other load-increasing tool answers to the same two gates: lengthening
+  // sessions is the exact shape "making up" a missed week takes once adding one
+  // is refused, and it is no safer than an extra run on a painful leg.
+  if (name === "increase_session_distance") {
+    if (risk) throw new CoachToolError("CONTEXT_UNSAFE", "increase_session_distance is blocked when the current conversation indicates pain, injury, illness, fatigue, or unsafe training-through-pain preferences.");
+    if (hasMissedWeek(current)) throw new CoachToolError("CONTEXT_UNSAFE", "increase_session_distance is blocked after a missed week; missed volume must not be made up.");
   }
   if (name === "swap_session" && risk && ["TEMPO", "INTERVALS", "LONG"].includes(input?.new_type)) {
     throw new CoachToolError("CONTEXT_UNSAFE", "Harder/intense swaps are blocked when the current conversation indicates pain, injury, illness, fatigue, or unsafe training-through-pain preferences.");

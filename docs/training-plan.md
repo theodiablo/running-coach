@@ -38,6 +38,34 @@ week's sessions** and the two are derived from one set of boundaries in
 - **peak** = the last 4 pre-taper weeks (never earlier than the end of base);
   **build** fills any gap between base and peak.
 
+### The easy-day floor
+
+The long run has always had a fitness floor; the easy days did not. They opened
+at an absolute `2.5 + 0.2 x week` km whatever the runner had been doing, so
+someone already running 8-9 km easy — against a 45-minute session budget they
+had configured themselves — was prescribed 15-minute jogs, and read the whole
+plan as not worth following.
+
+`easyFloor` is that missing twin. It is the **median** distance of the running
+runs in the same ~5-week window `fitFloor` uses, with the same `0.8` haircut,
+and it raises the base-phase easy line (`Math.max(constant, easyFloor)`) in
+every style. Three guards keep it honest:
+
+- **Median, not max** — one big Sunday effort is not what the runner does on a
+  Tuesday.
+- **At least 3 runs in the window**, or the floor is 0 and the gentle constant
+  stands. One or two runs in five weeks is a sample, not a habit; the long
+  run's single-sample floor is defensible in a way a habitual easy distance is
+  not. This is also why the balanced output freeze still holds — its fixture
+  logs a single run.
+- **Capped at `0.85 x startLong`**, and each composer still caps it by that
+  day's own `maxQ` time budget, so a week can never invert and the runner's
+  configured minutes remain the ceiling.
+
+Hansons already ramped its easy days toward the time budget rather than sitting
+on a constant; `easyFloor` now sets the start of that ramp too. Taper weeks are
+untouched — shedding volume is what a taper is for.
+
 ### The base credit
 
 The base block is the **phase-block twin of the long run's fitness floor**.

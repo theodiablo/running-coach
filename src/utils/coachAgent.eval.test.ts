@@ -223,6 +223,48 @@ const cases = [
     },
   },
   {
+    name: "increase_session_distance lengthens a session and validates",
+    async check() {
+      const context = makeContext("these easy runs are way too short, I already run 8k easy");
+      const target = allSessions(context.plan).find(s => s.type === "EASY" && !s.done)!;
+      const result = await run(context, [
+        [{ name: "increase_session_distance", input: { session_id: target.id, factor: 1.4 } }],
+        [],
+      ]);
+      expect(result.status).toBe("proposed");
+      expect(result.changed).toBe(true);
+      const after = allSessions(result.plan!).find(s => s.id === target.id)!;
+      expect(after.km).toBeGreaterThan(target.km);
+      expect(validatePlan(result.plan, { baseline: context.plan }).ok).toBe(true);
+    },
+  },
+  {
+    name: "increase_session_distance is blocked when pain context is present",
+    async check() {
+      const context = makeContext("my knee hurts but the easy runs are too short anyway");
+      const target = allSessions(context.plan).find(s => s.type === "EASY" && !s.done)!;
+      const result = await run(context, [
+        [{ name: "increase_session_distance", input: { session_id: target.id, factor: 1.4 } }],
+        [],
+      ]);
+      expect(result.changed).toBe(false);
+      expect(allSessions(result.plan!).find(s => s.id === target.id)!.km).toBe(target.km);
+    },
+  },
+  {
+    name: "increase_session_distance is blocked after a missed week",
+    async check() {
+      const context = makeContext("I missed a whole week, can you make the next runs longer to catch up?");
+      const target = allSessions(context.plan).find(s => s.type === "EASY" && !s.done)!;
+      const result = await run(context, [
+        [{ name: "increase_session_distance", input: { session_id: target.id, factor: 1.4 } }],
+        [],
+      ]);
+      expect(result.changed).toBe(false);
+      expect(allSessions(result.plan!).find(s => s.id === target.id)!.km).toBe(target.km);
+    },
+  },
+  {
     name: "add_session is blocked when Spanish pain context is present",
     async check() {
       // Same add as the "free day" case, but the runner reports knee pain in

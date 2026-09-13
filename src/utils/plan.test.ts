@@ -242,6 +242,49 @@ describe("buildPlan", () => {
       expect(plan.weeks[0].phase).toBe("BASE"); // every plan starts in base
     });
 
+    // Base-phase easy days used an absolute constant, so a runner already
+    // running 8-9 km easy on a 45-minute budget they configured themselves was
+    // prescribed 2.5 km jogs and read the whole plan as useless.
+    describe("base-phase easy days follow demonstrated fitness", () => {
+      const easyKms = (plan: ReturnType<typeof buildPlan>) =>
+        plan.weeks.filter(w => w.phase === "BASE")
+          .flatMap(w => w.sessions.filter(s => s.type === "EASY").map(s => s.km));
+      // Three 45-minute days so maxQ never binds before the floor does.
+      const DAYS = [{dayOffset: 1, minutes: 45}, {dayOffset: 3, minutes: 45}, {dayOffset: 6, minutes: 75}];
+      const habit = (kms: number[]) => kms.map((km, i) => {
+        const d = new Date(); d.setDate(d.getDate() - (i + 1) * 3);
+        return { date: ymd(d), km, type: "EASY" };
+      });
+
+      it("opens easy days near the runner's usual distance, not at 2.5 km", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9]) as never });
+        // Median 8.3 x 0.8, held under the long run — comfortably past the old constant.
+        for (const km of easyKms(plan)) expect(km).toBeGreaterThan(5);
+      });
+
+      it("leaves a runner with no history on the gentle opening", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0);
+        for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
+      });
+
+      it("ignores a sample too small to be a habit", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([14, 12]) as never });
+        for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
+      });
+
+      it("never lets an easy day reach the week's long run", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9]) as never });
+        for (const w of plan.weeks.filter(w => w.phase === "BASE")) {
+          const long = w.sessions.find(s => s.type === "LONG")!;
+          for (const s of w.sessions.filter(s => s.type === "EASY"))
+            expect(s.km).toBeLessThan(long.km);
+        }
+      });
+    });
+
     // A rebuild re-anchors week 1 on the next Monday, so without a fitness
     // signal for the phase block a runner who adds a race mid-training was sent
     // back through a base block they had just run.

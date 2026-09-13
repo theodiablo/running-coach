@@ -23,6 +23,7 @@ type ToolName =
   | "insert_recovery_week"
   | "convert_to_cross_training"
   | "reduce_session_distance"
+  | "increase_session_distance"
   | "cancel_session"
   | "add_session";
 type ToolDef = { name: string };
@@ -156,6 +157,16 @@ describe("applyToolCall", () => {
     expect(() => applyTool(plan(), "reduce_session_distance", { session_id: "race", factor: 0.5 })).toThrow(/race/);
   });
 
+  it("increase_session_distance lengthens only the target session", () => {
+    const out = applyTool(plan(), "increase_session_distance", { session_id: "w1d6", factor: 1.5 });
+    expect(out.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(15);
+    expect(out.weeks[0]!.sessions.find(s => s.id === "w1d2")!.km).toBe(5); // untouched
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1.6 })).toThrow(/factor/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1 })).toThrow(/factor/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w2d2", factor: 1.2 })).toThrow(/completed/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "race", factor: 1.2 })).toThrow(/race/);
+  });
+
   it("cancel_session marks skipped and refuses done/RACE sessions", () => {
     const out = applyTool(plan(), "cancel_session", { session_id: "w1d2" });
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d2")!.skipped).toBe(true);
@@ -272,6 +283,7 @@ describe("applyToolCall", () => {
       insert_recovery_week: { week_number: 1 },
       convert_to_cross_training: { session_id: "w1d6" },
       reduce_session_distance: { session_id: "w1d6", factor: 0.7 },
+      increase_session_distance: { session_id: "w1d6", factor: 1.2 },
       cancel_session: { session_id: "w1d2" },
       add_session: { date: "2026-01-08", type: "EASY", km: 5 },
     };

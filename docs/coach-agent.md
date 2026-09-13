@@ -22,12 +22,19 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    sends a message and renders the proposal.
 2. **Editor, never author** — the model acts only through the bounded tools in
    `supabase/functions/_shared/coach/tools.mjs`. No free-text plan generation.
-   The one load-increasing tool, `add_session`, is bounded three ways: the
-   tool itself refuses dates inside the final 14 days and caps distance at
-   the plan's longest existing training session; the validator's ramp rule
-   gates the resulting week; and the system prompt licenses it only for
-   explicit extra availability — never to make up missed volume, never
-   during pain/illness. `cancel_session` marks a session `skipped` (the
+   The two load-increasing tools are bounded the same three ways — by the tool,
+   by the validator's ramp rule on the resulting week, and by the engine's
+   `guardToolForContext` gates (pain/injury/illness/fatigue, unsafe
+   train-through-pain memory, or a missed week block both). `add_session`
+   refuses dates inside the final 14 days and caps distance at the plan's
+   longest existing training session; the prompt licenses it only for explicit
+   extra availability. `increase_session_distance` lengthens ONE session by a
+   factor in `[1.05, 1.5]`, keeping its date and type. It exists because every
+   other editing tool only reduces or moves load: asked to make a plan harder,
+   the coach could do nothing but point at the goal settings, which do not size
+   base-phase easy days at all — so a runner whose sessions were too short was
+   told, correctly but uselessly, that nothing could be done. Neither tool may
+   ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
    Four tools are **read-only** and can never touch the plan (`READ_ONLY_TOOLS`
