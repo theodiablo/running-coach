@@ -44,11 +44,41 @@ describe("HoldCtrl", () => {
     expect(onHold).toHaveBeenCalledTimes(1);
   });
 
-  it("does not fire on a tap, which browsers also send as a click", () => {
+  // A tap sends pointerdown/up AND a click; only the assistive-tech click
+  // (detail 0, no pointer behind it) may stand in for the hold.
+  it("does not fire on a tap, whose click carries a pointer behind it", () => {
     const { onHold, btn } = setup();
     fireEvent.pointerDown(btn);
     fireEvent.pointerUp(btn);
-    fireEvent.click(btn);
+    fireEvent.click(btn, { detail: 1 });
+    wait(HOLD_MS * 2);
+    expect(onHold).not.toHaveBeenCalled();
+  });
+
+  // Without this the button is inert to a screen reader, leaving the header's
+  // discard as the only way out of a recording.
+  it("fires on an assistive-tech activation, which has no press to hold", () => {
+    const { onHold, btn } = setup();
+    fireEvent.click(btn, { detail: 0 });
+    expect(onHold).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the callback as it is at fire time, not at press time", () => {
+    const first = vi.fn(), second = vi.fn();
+    const { rerender } = render(<HoldCtrl onHold={first} hint="Hold to finish" color="bg-red-500">Finish</HoldCtrl>);
+    fireEvent.pointerDown(screen.getByRole("button"));
+    wait(HOLD_MS - 500);
+    rerender(<HoldCtrl onHold={second} hint="Hold to finish" color="bg-red-500">Finish</HoldCtrl>);
+    wait(500);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires nothing if the screen unmounts mid-press", () => {
+    const { onHold, btn } = setup();
+    fireEvent.pointerDown(btn);
+    wait(HOLD_MS - 100);
+    cleanup();
     wait(HOLD_MS * 2);
     expect(onHold).not.toHaveBeenCalled();
   });

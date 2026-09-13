@@ -106,7 +106,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
     onClose();
   };
   const handleClose = () => {
-    if ((live || state === "stopped") && stats.movingSec > 0) { setConfirmDiscard(true); return; }
+    if (live || state === "stopped") { setConfirmDiscard(true); return; }
     discardSession();
   };
 
@@ -288,6 +288,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
               {busy ? <Loader size={18} className="animate-spin" /> : null}{t("tracker.indoor.save")}
             </Ctrl>
             <button onClick={handleClose} disabled={busy}
+              style={{ marginBottom: "var(--safe-bottom)" }}
               className="self-center px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200 disabled:opacity-50">
               {t("tracker.controls.discard")}
             </button>

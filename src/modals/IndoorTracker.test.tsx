@@ -302,6 +302,19 @@ describe("IndoorTracker", () => {
       confirmSpy.mockRestore();
     });
 
+    // The guard is "a session was started", not "it has recorded something":
+    // the seconds before the first sample are still a session to lose.
+    it("asks even when the session has nothing recorded yet", () => {
+      const onClose = vi.fn();
+      render(<IndoorTracker settings={settings}
+        onFinish={() => {}} onClose={onClose} />);
+      start();
+      act(() => { fireEvent.click(screen.getByRole("button", { name: /close/i })); });
+
+      expect(screen.getByText(/discard this session/i)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
     it("keeps recording when the discard is cancelled", () => {
       const onClose = vi.fn();
       render(<IndoorTracker settings={settings}

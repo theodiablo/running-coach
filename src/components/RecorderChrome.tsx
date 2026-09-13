@@ -35,6 +35,10 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
   const [hinting, setHinting] = useState(false);
   const fire = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintOff = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Read at fire time, not press time: a press outlives a render, and the
+  // callback closes over the stats the telemetry payload quotes.
+  const latest = useRef(onHold);
+  useEffect(() => { latest.current = onHold; });
 
   useEffect(() => () => {
     if (fire.current) clearTimeout(fire.current);
@@ -45,10 +49,11 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
     if (fire.current) return;
     setHolding(true);
     setHinting(false);
+    if (hintOff.current) { clearTimeout(hintOff.current); hintOff.current = null; }
     fire.current = setTimeout(() => {
       fire.current = null;
       setHolding(false);
-      onHold();
+      latest.current();
     }, holdMs);
   };
   // Released early: nothing happens to the run, and the button says why.
@@ -74,20 +79,26 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
   const onKeyUp = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === " " || e.key === "Enter") cancel();
   };
+  // A screen reader activates a button by clicking its accessibility node: no
+  // pointer, no key, `detail` 0. There is no press to hold, so that activation
+  // IS the confirmation — without this the button is simply inert, leaving the
+  // header X (which discards) as the only way out of a recording.
+  const onClick = (e: { detail: number }) => { if (e.detail === 0) latest.current(); };
 
   return (
     <button
       onPointerDown={onPointerDown} onPointerUp={cancel} onPointerCancel={cancel}
-      onKeyDown={onKeyDown} onKeyUp={onKeyUp} onBlur={cancel}
-      className={CTRL_CLS + color + " relative overflow-hidden"}>
+      onKeyDown={onKeyDown} onKeyUp={onKeyUp} onBlur={cancel} onClick={onClick}
+      className={CTRL_CLS + color + " relative overflow-hidden touch-none"}>
       {/* Informative progress, not decoration — so it's exempt from the global
           reduced-motion block (src/index.css), like the spinner. */}
       <span aria-hidden="true"
-        className={"hold-fill absolute inset-y-0 left-0 bg-black/25 " + (holding ? "w-full" : "w-0")}
-        style={{ transitionProperty: "width", transitionTimingFunction: "linear", transitionDuration: holding ? `${holdMs}ms` : "0ms" }} />
-      <span className="relative flex items-center justify-center gap-2">
-        {hinting ? hint : <>{children}<span className="sr-only">{hint}</span></>}
+        className={"hold-fill absolute inset-0 origin-left bg-black/25 " + (holding ? "scale-x-100" : "scale-x-0")}
+        style={{ transitionProperty: "transform", transitionTimingFunction: "linear", transitionDuration: holding ? `${holdMs}ms` : "0ms" }} />
+      <span aria-live="polite" className="relative flex items-center justify-center gap-2">
+        {hinting ? hint : children}
       </span>
+      <span className="sr-only">{hint}</span>
     </button>
   );
 }

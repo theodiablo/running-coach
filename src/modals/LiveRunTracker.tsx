@@ -404,7 +404,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
-  const hasTrack = stats.n > 0;
   const live = state === "tracking" || state === "paused";
 
   // Returning from a locked screen / app background snaps the live map back to the
@@ -596,7 +595,10 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     onClose();
   };
   const handleClose = () => {
-    if ((live || state === "stopped") && hasTrack) { setConfirmDiscard(true); return; }
+    // Any started recording, not just one with accepted fixes: a run under
+    // cover can log 90s on the clock with stats.n still 0, and that is exactly
+    // when a stray X or back gesture used to throw it away without asking.
+    if (live || state === "stopped") { setConfirmDiscard(true); return; }
     discardRun();
   };
 
