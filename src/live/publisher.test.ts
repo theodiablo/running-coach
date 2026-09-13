@@ -58,7 +58,7 @@ const STARTED_ISO = new Date(START).toISOString();
 const args = (status: "live" | "paused" | "ended" = "live") => ({
   status,
   points: [[1, 2, START, null] as const],
-  stats: { km: 1, durationSec: 300, avgPace: 300, curPace: 300 },
+  stats: { km: 1, durationSec: 300, elevation: 12, avgPace: 300, curPace: 300 },
   startedAt: START,
 });
 // Open a broadcast so the module is in its "continuing a run" state.

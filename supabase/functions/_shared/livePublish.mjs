@@ -42,8 +42,8 @@ export function isValidPointBatch(points) {
     points.length <= PUBLISH_MAX_POINTS && points.every(isValidPoint);
 }
 
-// Stats whitelist: exactly the four numbers the watcher renders, everything
-// else dropped, non-finite coerced to null so the RPC keeps the stored value.
+// Stats whitelist: exactly the numbers the watcher renders, everything else
+// dropped, non-finite coerced to null so the RPC keeps the stored value.
 // A free-form stats object would bypass the points cap as unbounded jsonb.
 export function sanitizeStats(stats) {
   const pick = (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
@@ -51,6 +51,7 @@ export function sanitizeStats(stats) {
   return {
     km: pick(s.km),
     durationSec: pick(s.durationSec),
+    elevation: pick(s.elevation),
     avgPace: pick(s.avgPace),
     curPace: pick(s.curPace),
   };

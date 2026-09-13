@@ -23,7 +23,11 @@ import type { TrackPointOrGap } from "../utils/geo";
 export const LIVE_PUBLISH_INTERVAL_MS = 30000;
 
 export type LiveRunStatus = "live" | "paused" | "ended";
-export type LiveRunStats = { km: number; durationSec: number; avgPace: number; curPace: number };
+// `elevation` is the RECORDER's cumulative gain, published rather than left to
+// the watcher: the trace on the wire is Douglas-Peucker simplified on horizontal
+// geometry, which collapses a climb taken in a straight line into its endpoints
+// and loses the ascent with it (a 231m run read as 181m out here).
+export type LiveRunStats = { km: number; durationSec: number; elevation: number; avgPace: number; curPace: number };
 export type LiveRunRow = {
   user_id: string;
   status: LiveRunStatus;

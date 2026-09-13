@@ -519,7 +519,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     void publishLiveRun({
       status,
       points: simplify(points, 5),
-      stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
+      stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, elevation: stats.elevation,
+        avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
       startedAt: rt.runWindow().startedAt,
       sharePublic,
       publishToken: publishTokenRef.current,

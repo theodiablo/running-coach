@@ -30,7 +30,7 @@ vi.mock("../i18n", () => ({ t: (k: string) => k }));
 
 // The `live` seed only matters to the Android backend (asserted in
 // liveNotification.android.test.ts); these iOS-path tests just carry one.
-const live = { km: 5, paceSecPerKm: 300, hr: null, hrAtMs: null, tracking: true };
+const live = { km: 5, elevM: 20, paceSecPerKm: 300, hr: null, hrAtMs: null, tracking: true };
 const tracking = (message: string): RunNotificationContent =>
   ({ titleKey: "title", message, chronometerStartMs: 1000, live });
 const paused: RunNotificationContent =

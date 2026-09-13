@@ -671,6 +671,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     pushRunNotification(buildRunNotificationContent({
       state,
       km: stats.km,
+      elevM: stats.elevation,
       paceSecPerKm: state === "tracking" ? (stats.curPace || stats.avgPace) : stats.avgPace,
       hr: stats.hr,
       hrAt: stats.hrAt,

@@ -13,6 +13,8 @@ export type RunNotificationInput = {
   km: number;
   /** Pace in sec/km — caller passes current pace with average as fallback. */
   paceSecPerKm: number;
+  /** Cumulative elevation gain (m) — seed only; not rendered in the text. */
+  elevM?: number;
   /** Latest live HR bpm, if a live sensor is streaming. */
   hr?: number | null;
   /** Epoch ms of that HR sample — the native renderer drops a stale reading. */
@@ -37,6 +39,13 @@ export type RunNotificationInput = {
  */
 export type RunNotificationLive = {
   km: number;
+  /**
+   * Folded natively exactly like `km` — the service adds each later fix's gain
+   * on top, on the same hysteresis band as elevGainM — so the live-share
+   * watcher's elevation keeps advancing with the screen off instead of freezing
+   * at the last foreground push.
+   */
+  elevM: number;
   paceSecPerKm: number;
   hr: number | null;
   hrAtMs: number | null;
@@ -68,6 +77,7 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
   if (input.hr) parts.push(`♥ ${input.hr}`);
   const live: RunNotificationLive = {
     km: input.km,
+    elevM: input.elevM ?? 0,
     paceSecPerKm: input.paceSecPerKm,
     hr: input.hr || null,
     hrAtMs: input.hrAt || null,
@@ -98,7 +108,9 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
 // exactly; the chronometer anchor tolerates rounding jitter (above). The `live`
 // seed is deliberately not compared — identical text means identical numbers
 // (km is in the text to 2dp), so a skipped push can't leave the km/pace seed
-// stale. HR is the one exception: the native renderer ages an unrefreshed HR
+// stale. Elevation isn't in the text and doesn't need to be: like distance it
+// is a BASE the service accumulates on top of from the same fixes, so a skipped
+// push costs nothing — only a push actually sent re-bases it. HR is the one exception: the native renderer ages an unrefreshed HR
 // reading out on a wall-clock timer independent of the text, so identical text
 // does NOT prove the HR seed is still fresh there — hence the periodic push in
 // liveNotification.ts, behind the native beat relay that carries HR while this
