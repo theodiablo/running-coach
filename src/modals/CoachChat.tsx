@@ -13,11 +13,11 @@ import { fmt } from "../utils/format";
 import { track } from "../telemetry";
 import { PRIVACY_URL, DISCLAIMER_URL, COACH_DETAIL_NOTICE_KEY } from "../constants";
 import { usageLeft, type CoachUsage } from "../utils/coachUsage";
-import { buildSessionCard, type CoachMessage } from "../utils/coachTranscript";
+import { buildSessionCard, plansDiffer, type CoachMessage } from "../utils/coachTranscript";
 import { CoachHistorySheet } from "./CoachHistorySheet";
 import { CoachUsageRing, CoachUsageRingSkeleton } from "./CoachUsageRing";
 import type { CoachTrajectorySummary, CoachTranscript, TrajectoryStatus } from "../coachHistory";
-import type { CoachSessionContext, Plan } from "../types";
+import { coachSessionKey, type CoachSessionContext, type Plan } from "../types";
 
 
 // Tappable starter prompts for the empty chat — teach what the coach can do and
@@ -76,9 +76,30 @@ type CoachChatProps = {
   // session, starter chips steer at it, and its details ride (invisibly) with the
   // user's first message so the model knows exactly which session is meant.
   sessionContext?: CoachSessionContext | null;
+  /** Conversation to restore when the chat is re-opened after being closed
+   *  (following one of the coach's in-app links, most often). */
+  resume?: CoachChatSnapshot | null;
+  /** Handed the conversation as the chat unmounts, so the hub can offer it back
+   *  on the next open; null when there is nothing worth restoring. */
+  onSuspend: (snapshot: CoachChatSnapshot | null) => void;
 };
 
-export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onFeedback, onClose, onNavigate, sessionContext }: CoachChatProps) {
+// What "come back to where I was" needs: the bubbles, which conversation they
+// belong to, how it was being shown, and the half-typed message. `plan` is the
+// live plan as the chat was left, so a plan edited in between can re-block Apply.
+export type CoachChatSnapshot = {
+  msgs: CoachMessage[];
+  trajectoryId: string | null;
+  viewingClosed: TrajectoryStatus | null;
+  applyBlocked: boolean;
+  draft: string;
+  flagged: string[];
+  plan: Plan;
+  /** Which plan session the chat was opened about, if any (`week:sessionId`). */
+  sessionKey: string | null;
+};
+
+export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onFeedback, onClose, onNavigate, sessionContext, resume, onSuspend }: CoachChatProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
 
@@ -105,19 +126,19 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
     return [{ role: "coach", text: greeting, sessionCard: card }];
   };
 
-  const [msgs, setMsgs] = useState<CoachMessage[]>(initialMsgs);
-  const [input, setInput] = useState("");
+  const [msgs, setMsgs] = useState<CoachMessage[]>(() => resume?.msgs ?? initialMsgs());
+  const [input, setInput] = useState(resume?.draft ?? "");
   const [busy, setBusy] = useState(false);
-  const [trajectoryId, setTrajectoryId] = useState<string | null>(null);
+  const [trajectoryId, setTrajectoryId] = useState<string | null>(resume?.trajectoryId ?? null);
   const [flaggingIndex, setFlaggingIndex] = useState(-1);
   const [flagText, setFlagText] = useState("");
   const [flagBusy, setFlagBusy] = useState(false);
-  const [flaggedKeys, setFlaggedKeys] = useState<Set<string>>(() => new Set());
+  const [flaggedKeys, setFlaggedKeys] = useState<Set<string>>(() => new Set(resume?.flagged ?? []));
   // History browsing + usage meter.
   const [showHistory, setShowHistory] = useState(false);
   // Non-null while a CLOSED conversation is shown read-only (no composer);
   // holds its status so the header can label it. null = live/resumed chat.
-  const [viewingClosed, setViewingClosed] = useState<TrajectoryStatus | null>(null);
+  const [viewingClosed, setViewingClosed] = useState<TrajectoryStatus | null>(resume?.viewingClosed ?? null);
   const [usage, setUsage] = useState<CoachUsage | null>(null);
   // True until the mount-time usage fetch settles: the footer shows a skeleton
   // in the ring's slot so the ring doesn't pop out of nowhere seconds later.
@@ -125,7 +146,10 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
   // True after resuming an open trajectory whose baseline drifted from the live
   // plan: Apply would clobber intervening edits, so it is hidden (the user is
   // told to start a new conversation to adjust the current plan).
-  const [applyBlocked, setApplyBlocked] = useState(false);
+  // A resumed conversation re-checks the drift: the plan may have been edited
+  // while the chat was closed, which its proposal would clobber.
+  const [applyBlocked, setApplyBlocked] = useState(() =>
+    !!resume && (resume.applyBlocked || plansDiffer(resume.plan, plan)));
   // One-time (per device) transparency note: the coach can read detailed run
   // data (splits/HR digests) when a question calls for it. Dismissal mirrors
   // the other one-shot disclosure flags (HR_BLE_DISCLOSED_KEY et al.).
@@ -139,6 +163,22 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
+
+  // Closing the chat must not throw the conversation away: following one of the
+  // coach's in-app links closes this modal, and the runner expects to come back
+  // to what they were reading. Latest-ref pattern (this render's state + the
+  // hub's callback), handed over by the unmount cleanup so EVERY exit is
+  // covered — the X, back/Escape, a link, the chunk boundary. An untouched
+  // chat suspends as null so the next open greets normally.
+  const suspendRef = useRef<() => void>(() => {});
+  suspendRef.current = () => {
+    const worth = msgs.length > 1 || trajectoryId !== null || viewingClosed !== null || input.trim() !== "";
+    onSuspend(worth ? {
+      msgs, trajectoryId, viewingClosed, applyBlocked, draft: input,
+      flagged: [...flaggedKeys], plan, sessionKey: coachSessionKey(sessionContext),
+    } : null);
+  };
+  useEffect(() => () => suspendRef.current(), []);
 
   const left = usage ? usageLeft(usage) : null;
   const exhausted = left === 0;
