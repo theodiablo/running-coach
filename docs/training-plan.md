@@ -30,7 +30,13 @@ week's sessions** and the two are derived from one set of boundaries in
 `buildPlan`:
 
 - **taper** = the last 3 weeks before race week (easy only — the validator also
-  forbids tempo/intervals inside 7 days of the race).
+  forbids tempo/intervals inside 7 days of the race). The week's shed
+  multiplier is the style's own `taperMults` ladder, handed to the composers as
+  `WeekCtx.taperMult` so long run and short days shed on one ladder. **Every
+  tapered session scales off its own pre-taper peak, never an absolute km
+  ladder** — an absolute one ignores how small the ramp actually stayed, and on
+  a short or base-credited block `runwalk` raised its short days *above* their
+  peak, making the first taper week the biggest of the plan (`TAPER_VOLUME`).
 - **base** = the first `min(4, ceil((N-3)/2))` weeks *minus the runner's base
   credit* (below): easy running only, no quality. Capping it at *half the
   pre-taper runway* is what keeps a short plan honest — from 11 weeks up it is
