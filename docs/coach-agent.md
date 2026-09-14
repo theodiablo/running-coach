@@ -179,6 +179,58 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
   The response carries an explicit `trajectoryClosed` boolean so the client
   never has to re-derive this rule from `roundIndex`.
 
+## Load policy — when the coach adds load
+
+The coach was built to reduce load and could not add it. Every editing tool
+shortened, moved or cancelled; `add_session` was the one exception and was
+gated to near-uselessness. Production bore this out: across the first 70 logged
+rounds, **69% ended with no plan change at all**, and the split by request type
+was absolute — injury and "too much hard running" requests got real edits
+(16 tool calls, accepted), while every "give me more / longer" request across
+three users and three languages got zero. One runner spent four rounds telling
+the coach their threshold pace was 4:10/km and their VO2max reps 3:50-4:00, and
+the plan never moved. "Safety > consistency > peak performance" is still the
+policy order, but a coach that cannot say yes is not safe, it is useless.
+
+**Evidence that licenses an increase** — any one of these is enough:
+
+- RECENT RUNS are consistently longer or more frequent than what is prescribed.
+- The runner says they can do more, or that the plan is too easy.
+- The runner states a specific capability ("4:00/km for 10K", "I run 15 km on
+  Sundays") — **including when there is no log at all.** A stated capability is
+  weaker evidence than a measurement, and "weaker" means say you are going on
+  their word and will adjust as runs are logged; it never means ignore it. A new
+  account has no log by definition, so a log-only rule is a rule that refuses
+  every new runner — the exact moment the coach most needs to be useful.
+
+**Sizing.** With a log, the log and the ramp rule set the amount. Without one,
+the stated capability sets it, still bounded by the ramp. When the ask exceeds
+what is justified, **give what is justified and name the gap** — "I've taken
+your Tuesday and Thursday runs up to 6 km; doubling in one week is the part I
+won't do, here's why". A flat decline because the ask was too big is the failure
+mode this policy exists to end.
+
+**Proactive.** When the log plainly outruns the plan, the coach proposes the
+increase **unprompted** — the runner still confirms it, so the Confirm button is
+the safety net. The one exception is a turn where the coach is **refusing**
+something (a jailbreak, another user's data, rewriting history, moving a race):
+a refusal travels alone, because a plan edit stapled to it reads as the attempt
+having half-worked.
+
+**Reach.** It may lengthen sessions the runner never named — the short days
+across the next week or two — because "all these 3 km runs are useless" is a
+complaint about the line, not about one day.
+
+**Goal mismatch.** When stated paces or capability outrun what the goal implies
+(threshold 4:10 against a 4:30 goal pace), adjust the sessions **and** flag the
+goal with an `app:goal` link, clearly separated. Sessions are the coach's lever;
+the goal is the runner's, and it is the one the generator sizes everything from.
+
+**Never, whatever the evidence:** inside the taper or the final 14 days; to make
+up missed volume; under any pain, injury or illness signal (including an
+unresolved one in Coach memory); alongside a refusal; or past the plan's longest
+live training session plus a 10% margin.
+
 ## Validator rules (safety > consistency > peak performance)
 
 | Code | Severity | Rule |

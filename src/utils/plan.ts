@@ -402,8 +402,14 @@ export function buildPlan(
 // budget AND by this week's own long run — a floor derived from the block's
 // starting long run outlives a cutback week (runwalk drops 30% every third),
 // and an easy day at or past the long run makes the long run pointless.
-const easyLine = (c: WeekCtx, budgetKm: number, start: number, step: number) =>
-  Math.min(budgetKm, c.longKm * 0.85, Math.max(start, c.easyFloor) + step * c.w);
+const easyLine = (c: WeekCtx, budgetKm: number, start: number, step: number) => {
+  const line = start + step * c.w;
+  // The long-run cap bounds the FLOOR's contribution only. Applied to the whole
+  // line it also shrank plans that had no floor at all (an unfit runner's long
+  // run is small, so 0.85x of it undercut the style's own opening), which left
+  // the taper with nothing to shed and tripped TAPER_VOLUME.
+  return Math.min(budgetKm, Math.max(line, Math.min(c.easyFloor, c.longKm * 0.85)));
+};
 
 // ── Style week composers ─────────────────────────────────────────────────────
 // One function per style fills a week's sessions (long run + the other days).

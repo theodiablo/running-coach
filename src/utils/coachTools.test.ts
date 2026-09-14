@@ -184,12 +184,13 @@ describe("applyToolCall", () => {
       .toThrow(/taper/i);
     expect(() => applyTool(plan(), "increase_session_distance", { session_id: "race", factor: 1.2 }))
       .toThrow(/race/);
-    // w1d6 is 10 km against a plan peak of 11 km — 1.5x would set a new peak.
+    // w1d6 is 10 km against a plan peak of 11 km, so the ceiling is 12.1 —
+    // the peak plus the 10% margin that keeps a progressing runner moving
+    // between rebuilds. 1.5x (15 km) is past it; 1.2x (12 km) is not.
     expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d6", factor: 1.5 }))
       .toThrow(/longest training session/);
-    // ...but growing it up to the existing peak is fine.
-    const ok = applyTool(plan(), "increase_session_distance", { session_id: "w1d6", factor: 1.1 });
-    expect(ok.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(11);
+    const ok = applyTool(plan(), "increase_session_distance", { session_id: "w1d6", factor: 1.2 });
+    expect(ok.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(12);
   });
 
   it("cancel_session marks skipped and refuses done/RACE sessions", () => {
