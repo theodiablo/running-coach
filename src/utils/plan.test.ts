@@ -242,6 +242,91 @@ describe("buildPlan", () => {
       expect(plan.weeks[0].phase).toBe("BASE"); // every plan starts in base
     });
 
+    // Base-phase easy days used an absolute constant, so a runner already
+    // running 8-9 km easy on a 45-minute budget they configured themselves was
+    // prescribed 2.5 km jogs and read the whole plan as useless.
+    describe("base-phase easy days follow demonstrated fitness", () => {
+      const easyKms = (plan: ReturnType<typeof buildPlan>) =>
+        plan.weeks.filter(w => w.phase === "BASE")
+          .flatMap(w => w.sessions.filter(s => s.type === "EASY").map(s => s.km));
+      // Two 45-minute quality days plus a 75-minute long day.
+      const DAYS = [{dayOffset: 1, minutes: 45}, {dayOffset: 3, minutes: 45}, {dayOffset: 6, minutes: 75}];
+      const habit = (kms: number[]) => kms.map((km, i) => {
+        const d = new Date(); d.setDate(d.getDate() - (i + 1) * 3);
+        return { date: ymd(d), km, type: "EASY" };
+      });
+
+      it("opens easy days near the runner's usual distance, not at 2.5 km", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9]) as never });
+        for (const km of easyKms(plan)) expect(km).toBeGreaterThan(5);
+      });
+
+      // The floor is the MEDIAN, not the max: one outlier Sunday effort is not
+      // what the runner does on a Tuesday. A max-based floor would open this
+      // runner's easy days at ~5 km off a single 25 km run.
+      it("is not swayed by one long outlier", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([2, 2.2, 2.1, 2.3, 25]) as never });
+        for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
+      });
+
+      it("ignores cross-training, which carries no running distance", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([40, 38, 42, 39]).map(r => ({ ...r, type: "OTHER" })) as never });
+        for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
+      });
+
+      it("takes the median of an even sample, not either neighbour", () => {
+        // Middle pair 6 and 8 -> median 7 -> x0.8 = 5.6. Taking either
+        // neighbour instead would give 4.8 or 6.4.
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([5, 6, 8, 9]) as never });
+        expect(easyKms(plan)[0]).toBeCloseTo(5.6, 1);
+      });
+
+      it("leaves a runner with no history on the gentle opening", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0);
+        for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
+      });
+
+      it("ignores a sample too small to be a habit", () => {
+        const plan = buildPlan(raceDateInDays(90), 6300, DAYS, 20, 0,
+          { recentRuns: habit([14, 12]) as never });
+        for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
+      });
+
+      // Every style, every week — not just base, and not just balanced. A floor
+      // derived from the block's STARTING long run outlives a cutback week
+      // (runwalk sheds 30% every third), which is how a WALK day overtook the
+      // long run it was supposed to sit under.
+      it("never lets an easy day reach the week's long run, in any style", () => {
+        for (const style of ["balanced", "polarized", "runwalk", "lowfreq", "hansons"] as const) {
+          const plan = buildPlan(raceDateInDays(120), 6300, DAYS, 20, 0,
+            { style, recentRuns: habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9]) as never });
+          for (const w of plan.weeks) {
+            const long = w.sessions.find(s => s.type === "LONG");
+            if (!long) continue;
+            for (const s of w.sessions.filter(s => s.type !== "LONG" && s.type !== "RACE"))
+              expect(`${style} w${w.weekNumber} ${s.type} ${s.km} vs long ${long.km}`)
+                .toBe(s.km < long.km ? `${style} w${w.weekNumber} ${s.type} ${s.km} vs long ${long.km}` : "inverted");
+          }
+        }
+      });
+
+      it("keeps each style's week-over-week progression above the floor", () => {
+        // A flat floor must raise the line's start, not flatten the line: the
+        // budget is the only thing allowed to cap the climb.
+        const plan = buildPlan(raceDateInDays(120), 6300,
+          [{dayOffset: 1, minutes: 90}, {dayOffset: 3, minutes: 90}, {dayOffset: 6, minutes: 120}], 20, 0,
+          { recentRuns: habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9]) as never });
+        const base = plan.weeks.filter(w => w.phase === "BASE");
+        const first = base[0]!.sessions.find(s => s.type === "EASY")!.km;
+        const last = base[base.length - 1]!.sessions.find(s => s.type === "EASY")!.km;
+        expect(last).toBeGreaterThan(first);
+      });
+    });
+
     // A rebuild re-anchors week 1 on the next Monday, so without a fitness
     // signal for the phase block a runner who adds a race mid-training was sent
     // back through a base block they had just run.

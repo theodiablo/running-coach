@@ -1,9 +1,11 @@
 // The coach agent's bounded tool vocabulary: plan transforms over the buildPlan
 // JSON plus one memory-suggestion tool. The model is an EDITOR, never an author
 // — it can only act through these, and there is deliberately no free-form edit
-// tool. The one load-increasing tool (add_session) is capped at the plan's
-// longest training session, barred from the final 14 days, and still gated by
-// the weekly-ramp validator. Every transform returns a NEW plan
+// tool. The two load-increasing tools are the tightly bounded ones: add_session
+// is capped at the plan's longest training session and barred from the final 14
+// days; increase_session_distance is capped at 1.5x one session. Both are gated
+// by the weekly-ramp validator and by the engine's pain/illness/missed-week
+// context gates. Every transform returns a NEW plan
 // (structuredClone), refuses to touch done sessions, and never moves a RACE.
 //
 // Session/phase vocabulary matches the app, NOT generic lowercase names:
@@ -122,6 +124,19 @@ export const TOOL_DEFS = [
       properties: {
         session_id: { type: "string" },
         factor: { type: "number", description: "Multiplier in [0.3, 0.95]." },
+      },
+      required: ["session_id", "factor"],
+    },
+  },
+  {
+    name: "increase_session_distance",
+    description:
+      "Lengthen ONE session's distance by a factor between 1.05 and 1.5, keeping its date and type. Use whenever a session is too short for what the runner can do — RECENT RUNS longer than what is prescribed, or the runner saying the plan is too easy, or a capability they state themselves (which counts even with no runs logged yet). Lengthen several short days rather than one, and prefer giving part of an oversized ask over refusing all of it. Never to make up missed volume, never during pain, injury or illness, and never inside the taper or the final 14 days. The result cannot go past the plan's longest training session plus 10%, and the weekly ramp rule still bounds how far one week can grow.",
+    input_schema: {
+      type: "object",
+      properties: {
+        session_id: { type: "string" },
+        factor: { type: "number", description: "Multiplier in [1.05, 1.5]." },
       },
       required: ["session_id", "factor"],
     },
@@ -369,6 +384,34 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       session.km = Math.max(1.5, Math.round(session.km * factor * 10) / 10);
       return p;
     }
+    case "increase_session_distance": {
+      const { session_id, factor } = input;
+      if (typeof factor !== "number" || factor < 1.05 || factor > 1.5)
+        throw new CoachToolError("BAD_INPUT", "factor must be a number in [1.05, 1.5].");
+      const { session, week } = findSession(p, session_id);
+      guardEditable(session, "lengthen", today);
+      // The same two bars add_session carries, for the same reason: the taper
+      // sheds load and never gains it, and no edit may smuggle in a new peak.
+      // Neither is covered downstream — the validator's ramp rule skips TAPER
+      // and RACE weeks outright, and TAPER_VOLUME only inspects the final 14
+      // days, so a taper week further out fell through every check and could be
+      // grown past the plan's peak one accepted call at a time.
+      if (week.phase === "TAPER" || week.phase === "RACE" || daysBetween(session.date, p.raceDate) <= 14)
+        throw new CoachToolError("TAPER", "No lengthening inside the taper or the final 14 days — the taper sheds load, it never gains it.");
+      // A 10% margin over the current peak, so a genuinely progressing runner
+      // isn't frozen between rebuilds while no single call can invent a new
+      // peak session outright.
+      const PEAK_MARGIN = 1.1;
+      const peak = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today))
+        .flatMap(w => w.sessions)
+        .filter(s => s.type !== "RACE" && !s.skipped && s.id !== session.id).map(s => s.km));
+      const cap = Math.round(peak * PEAK_MARGIN * 10) / 10;
+      const grown = Math.round(session.km * factor * 10) / 10;
+      if (peak > 0 && grown > cap)
+        throw new CoachToolError("TOO_LONG", `Lengthening ${session_id} to ${grown} km would go past the plan's longest training session plus 10% (${cap} km) — lengthen the shorter days instead.`);
+      session.km = grown;
+      return p;
+    }
     case "cancel_session": {
       const { session_id } = input;
       const { session } = findSession(p, session_id);
@@ -476,7 +519,7 @@ export function assessGoalFeasibility(ctx) {
   else if (longest < distanceKm * 0.5 && distanceKm > 15)
     lines.push("Assessment: endurance is the gap (longest run under half the race distance) — the goal is AT RISK; protect the long-run progression above all.");
   else if (bestPace <= racePace * 0.93)
-    lines.push("Assessment: recent paces are comfortably faster than goal pace — the goal looks CONSERVATIVE. If the plan feels too easy, suggest a more ambitious goal in the plan settings (the whole plan is rebuilt from the goal) rather than hand-editing sessions.");
+    lines.push("Assessment: recent paces are comfortably faster than goal pace — the goal looks CONSERVATIVE. A more ambitious goal in the plan settings would rebuild the whole plan around it, so suggest one. Note this is a verdict about PACE only: if the complaint is that sessions are too short, lengthen them with increase_session_distance as well — the goal is not the lever for that.");
   else
     lines.push("Assessment: the goal looks broadly plausible if the remaining plan is executed consistently.");
   return lines.join("\n");

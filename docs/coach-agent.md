@@ -22,12 +22,25 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    sends a message and renders the proposal.
 2. **Editor, never author** — the model acts only through the bounded tools in
    `supabase/functions/_shared/coach/tools.mjs`. No free-text plan generation.
-   The one load-increasing tool, `add_session`, is bounded three ways: the
-   tool itself refuses dates inside the final 14 days and caps distance at
-   the plan's longest existing training session; the validator's ramp rule
-   gates the resulting week; and the system prompt licenses it only for
-   explicit extra availability — never to make up missed volume, never
-   during pain/illness. `cancel_session` marks a session `skipped` (the
+   The two load-increasing tools are bounded the same three ways — by the tool,
+   by the validator's ramp rule on the resulting week, and by the engine's
+   `guardToolForContext` gates (pain/injury/illness/fatigue, unsafe
+   train-through-pain memory, or a missed week block both). `add_session`
+   refuses dates inside the final 14 days and caps distance at the plan's
+   longest existing training session; the prompt licenses it only for explicit
+   extra availability. `increase_session_distance` lengthens ONE session by a
+   factor in `[1.05, 1.5]`, keeping its date and type. It exists because every
+   other editing tool only reduces or moves load: asked to make a plan harder,
+   the coach could do nothing but point at the goal settings, which do not size
+   base-phase easy days at all — so a runner whose sessions were too short was
+   told, correctly but uselessly, that nothing could be done. It carries the
+   same two structural bars `add_session` does: nothing inside the taper or the
+   final 14 days, and no result above the plan's longest live training session.
+   Neither bar is redundant, because nothing downstream covers a taper week —
+   the validator's ramp rule skips `TAPER`/`RACE` weeks outright and
+   `TAPER_VOLUME` only inspects the final 14 days, so a taper week further out
+   could be grown past the plan's peak one validator-clean call at a time.
+   Neither tool may ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
    Four tools are **read-only** and can never touch the plan (`READ_ONLY_TOOLS`
@@ -79,8 +92,8 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    round with a NULL rationale — a blank reply bubble. The edge function also
    backstops every success-path rationale, so no route can render an empty one.
    Context-sensitive gates also reject semantically unsafe tool use before the
-   structural validator runs: `add_session` is blocked for current pain, injury,
-   illness, fatigue, missed-week make-up, unsafe "train through pain" memory, or
+   structural validator runs: `add_session` and `increase_session_distance` are
+   both blocked for current pain, injury, illness, fatigue, missed-week make-up, unsafe "train through pain" memory, or
    unresolved pain/injury/illness/fatigue mentioned in Coach memory unless the
    latest user message clearly says it has resolved; harder `swap_session`
    targets (`TEMPO`/`INTERVALS`/`LONG`) are blocked under the same risk.
@@ -165,6 +178,58 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
   still accept it instead of being dead-ended by one bad follow-up message.
   The response carries an explicit `trajectoryClosed` boolean so the client
   never has to re-derive this rule from `roundIndex`.
+
+## Load policy — when the coach adds load
+
+The coach was built to reduce load and could not add it. Every editing tool
+shortened, moved or cancelled; `add_session` was the one exception and was
+gated to near-uselessness. Production bore this out: across the first 70 logged
+rounds, **69% ended with no plan change at all**, and the split by request type
+was absolute — injury and "too much hard running" requests got real edits
+(16 tool calls, accepted), while every "give me more / longer" request across
+three users and three languages got zero. One runner spent four rounds telling
+the coach their threshold pace was 4:10/km and their VO2max reps 3:50-4:00, and
+the plan never moved. "Safety > consistency > peak performance" is still the
+policy order, but a coach that cannot say yes is not safe, it is useless.
+
+**Evidence that licenses an increase** — any one of these is enough:
+
+- RECENT RUNS are consistently longer or more frequent than what is prescribed.
+- The runner says they can do more, or that the plan is too easy.
+- The runner states a specific capability ("4:00/km for 10K", "I run 15 km on
+  Sundays") — **including when there is no log at all.** A stated capability is
+  weaker evidence than a measurement, and "weaker" means say you are going on
+  their word and will adjust as runs are logged; it never means ignore it. A new
+  account has no log by definition, so a log-only rule is a rule that refuses
+  every new runner — the exact moment the coach most needs to be useful.
+
+**Sizing.** With a log, the log and the ramp rule set the amount. Without one,
+the stated capability sets it, still bounded by the ramp. When the ask exceeds
+what is justified, **give what is justified and name the gap** — "I've taken
+your Tuesday and Thursday runs up to 6 km; doubling in one week is the part I
+won't do, here's why". A flat decline because the ask was too big is the failure
+mode this policy exists to end.
+
+**Proactive.** When the log plainly outruns the plan, the coach proposes the
+increase **unprompted** — the runner still confirms it, so the Confirm button is
+the safety net. The one exception is a turn where the coach is **refusing**
+something (a jailbreak, another user's data, rewriting history, moving a race):
+a refusal travels alone, because a plan edit stapled to it reads as the attempt
+having half-worked.
+
+**Reach.** It may lengthen sessions the runner never named — the short days
+across the next week or two — because "all these 3 km runs are useless" is a
+complaint about the line, not about one day.
+
+**Goal mismatch.** When stated paces or capability outrun what the goal implies
+(threshold 4:10 against a 4:30 goal pace), adjust the sessions **and** flag the
+goal with an `app:goal` link, clearly separated. Sessions are the coach's lever;
+the goal is the runner's, and it is the one the generator sizes everything from.
+
+**Never, whatever the evidence:** inside the taper or the final 14 days; to make
+up missed volume; under any pain, injury or illness signal (including an
+unresolved one in Coach memory); alongside a refusal; or past the plan's longest
+live training session plus a 10% margin.
 
 ## Validator rules (safety > consistency > peak performance)
 

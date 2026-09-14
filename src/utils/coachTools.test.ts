@@ -23,6 +23,7 @@ type ToolName =
   | "insert_recovery_week"
   | "convert_to_cross_training"
   | "reduce_session_distance"
+  | "increase_session_distance"
   | "cancel_session"
   | "add_session";
 type ToolDef = { name: string };
@@ -156,6 +157,42 @@ describe("applyToolCall", () => {
     expect(() => applyTool(plan(), "reduce_session_distance", { session_id: "race", factor: 0.5 })).toThrow(/race/);
   });
 
+  it("increase_session_distance lengthens only the target session", () => {
+    const out = applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1.5 });
+    expect(out.weeks[0]!.sessions.find(s => s.id === "w1d2")!.km).toBe(7.5);
+    expect(out.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(10); // untouched
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1.6 })).toThrow(/factor/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1 })).toThrow(/factor/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w2d2", factor: 1.2 })).toThrow(/completed/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "race", factor: 1.2 })).toThrow(/race/);
+    // A past-dated session is the training record, not a plan to edit.
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1.2 }, "2026-01-20"))
+      .toThrow(/passed/);
+  });
+
+  // The validator cannot backstop this one: its ramp rule skips TAPER and RACE
+  // weeks outright and TAPER_VOLUME only looks at the final 14 days, so a taper
+  // week further out could be grown past the plan's peak, one accepted call at
+  // a time. The refusal has to live in the tool.
+  it("increase_session_distance never lengthens into a taper or past the plan's peak", () => {
+    const taperPlan = () => {
+      const p = plan();
+      p.weeks[0]!.phase = "TAPER";
+      return p;
+    };
+    expect(() => applyTool(taperPlan(), "increase_session_distance", { session_id: "w1d2", factor: 1.2 }))
+      .toThrow(/taper/i);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "race", factor: 1.2 }))
+      .toThrow(/race/);
+    // w1d6 is 10 km against a plan peak of 11 km, so the ceiling is 12.1 —
+    // the peak plus the 10% margin that keeps a progressing runner moving
+    // between rebuilds. 1.5x (15 km) is past it; 1.2x (12 km) is not.
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d6", factor: 1.5 }))
+      .toThrow(/longest training session/);
+    const ok = applyTool(plan(), "increase_session_distance", { session_id: "w1d6", factor: 1.2 });
+    expect(ok.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(12);
+  });
+
   it("cancel_session marks skipped and refuses done/RACE sessions", () => {
     const out = applyTool(plan(), "cancel_session", { session_id: "w1d2" });
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d2")!.skipped).toBe(true);
@@ -272,6 +309,7 @@ describe("applyToolCall", () => {
       insert_recovery_week: { week_number: 1 },
       convert_to_cross_training: { session_id: "w1d6" },
       reduce_session_distance: { session_id: "w1d6", factor: 0.7 },
+      increase_session_distance: { session_id: "w1d2", factor: 1.2 },
       cancel_session: { session_id: "w1d2" },
       add_session: { date: "2026-01-08", type: "EASY", km: 5 },
     };
