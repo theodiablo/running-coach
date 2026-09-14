@@ -17,7 +17,8 @@ type LivePublishExports = {
   isValidPublishToken: (value: unknown) => boolean;
   isValidPointBatch: (points: unknown) => boolean;
   sanitizeStats: (stats: unknown) => {
-    km: number | null; durationSec: number | null; avgPace: number | null; curPace: number | null;
+    km: number | null; durationSec: number | null; elevation: number | null;
+    avgPace: number | null; curPace: number | null;
   };
 };
 const shared = sharedLivePublish as LivePublishExports;

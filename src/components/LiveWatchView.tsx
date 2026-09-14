@@ -89,16 +89,22 @@ export function LiveWatchView(
   // timestamps already ride every upload, so nothing new crosses the wire.
   // flat[i] is the SAME point as series[i] (both walk flattenTrack in order),
   // which is what makes the chart→map cursor link below a plain index.
+  //
+  // The PROFILE is the trace's to draw, but the GAIN TOTAL is not: the trace on
+  // the wire is simplified on horizontal geometry, which drops the intermediate
+  // points a straight climb's ascent is measured across, so recomputing here
+  // under-reports what the recorder shows. Read the recorder's own number and
+  // fall back only for a row published before it carried one.
   const derived = useMemo(() => {
     const series = points.length ? buildRunSeries(points) : [];
     return {
       series,
       flat: points.length ? flattenTrack(points) : [],
       hasElev: series.some(r => r.elevM != null),
-      elevGain: Math.round(elevGainM(points)),
     };
   }, [points]);
-  const { series, flat, hasElev, elevGain } = derived;
+  const { series, flat, hasElev } = derived;
+  const elevGain = Math.round(stats.elevation ?? elevGainM(points));
   // Two rows is the floor for a line worth drawing; a run that just started
   // keeps the compact stats-only panel instead of an empty chart frame.
   const hasChart = series.length >= 2;

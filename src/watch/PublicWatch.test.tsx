@@ -17,7 +17,7 @@ vi.mock("../live/shareLink", async (importOriginal) => ({
 vi.mock("../components/RouteMap", () => ({ RouteMap: () => <div data-testid="route-map" /> }));
 
 const TOKEN = "a".repeat(22);
-const run = (over: Partial<{ status: string; updated_at: string }> = {}) => ({
+const run = (over: Partial<{ status: string; updated_at: string; points: unknown; stats: unknown }> = {}) => ({
   status: "live", started_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   points: [[1, 2, Date.now(), null]], stats: { km: 3.2, durationSec: 900, avgPace: 280 },
   ...over,
@@ -39,6 +39,35 @@ describe("PublicWatch", () => {
     // Nothing identifying: the edge function never returns the account id, and
     // the page never asks who the runner is.
     expect(document.body.textContent).not.toMatch(/@|user_id/i);
+  });
+
+  // The trace on the wire is Douglas-Peucker simplified on HORIZONTAL geometry:
+  // a climb run in a straight line arrives as its two endpoints and its ascent
+  // is not in the points at all. Deriving the total here read 181m for a run the
+  // recorder measured at 231m, so the recorder publishes the number instead.
+  it("shows the recorder's elevation gain, not one re-derived from the simplified trace", async () => {
+    const t0 = Date.now();
+    fetchLiveWatch.mockResolvedValue({ kind: "live", run: run({
+      // Straight line, flat endpoints: everything climbed in between was
+      // simplified away, so a re-derivation over these points is 0 m.
+      points: [[1, 2, t0, 100], [1.01, 2, t0 + 60000, 100]],
+      stats: { km: 9.32, durationSec: 3378, elevation: 231, avgPace: 362 },
+    }) });
+    render(<PublicWatch token={TOKEN} />);
+
+    expect(await screen.findByText("231 m")).toBeInTheDocument();
+    expect(screen.queryByText("0 m")).toBeNull();
+  });
+
+  it("falls back to the trace for a row published before elevation rode along", async () => {
+    const t0 = Date.now();
+    fetchLiveWatch.mockResolvedValue({ kind: "live", run: run({
+      points: [[1, 2, t0, 100], [1.01, 2, t0 + 60000, 140]],
+      stats: { km: 1.1, durationSec: 600, avgPace: 545 },
+    }) });
+    render(<PublicWatch token={TOKEN} />);
+
+    expect(await screen.findByText("40 m")).toBeInTheDocument();
   });
 
   it("gives one answer for every flavour of 'nothing here'", async () => {

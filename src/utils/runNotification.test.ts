@@ -6,6 +6,7 @@ const NOW = 1_700_000_000_000;
 const base = {
   state: "tracking" as const,
   km: 5.234,
+  elevM: 231,
   paceSecPerKm: 342, // 5:42
   hr: null,
   movingMs: 1_800_000, // 30:00
@@ -41,7 +42,10 @@ describe("buildRunNotificationContent", () => {
 
   it("seeds the native renderer with the numbers behind the text", () => {
     expect(buildRunNotificationContent({ ...base, hr: 152, hrAt: NOW - 900 }).live).toEqual({
-      km: 5.234, paceSecPerKm: 342, hr: 152, hrAtMs: NOW - 900, tracking: true,
+      // Elevation rides the seed without being in the text: the service folds
+      // later fixes' gain onto it, so the live-share watcher's total keeps
+      // advancing with the screen off instead of freezing here.
+      km: 5.234, elevM: 231, paceSecPerKm: 342, hr: 152, hrAtMs: NOW - 900, tracking: true,
     });
     // Paused: the service must stop folding fixes into the distance.
     expect(buildRunNotificationContent({ ...base, state: "paused" }).live.tracking).toBe(false);

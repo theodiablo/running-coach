@@ -223,6 +223,11 @@ class LivePublishPlugin : Plugin() {
         // throws on NaN/Infinity, and avgPace at km 0 IS Infinity.
         if (km.isFinite() && km >= 0) stats.put("km", km)
         if (durationSec >= 0) stats.put("durationSec", durationSec)
+        // Omitted rather than zeroed when the relay carries no altitude: the RPC
+        // coalesces a missing key to the stored value, so the watcher keeps the
+        // last real total instead of dropping to 0 for the rest of the run.
+        val elevM = intent.getDoubleExtra("elevM", Double.NaN)
+        if (elevM.isFinite() && elevM >= 0) stats.put("elevation", Math.round(elevM))
         if (curPace.isFinite() && curPace > 0) stats.put("curPace", Math.round(curPace))
         if (km.isFinite() && km > 0.01 && durationSec > 0) {
             val avg = durationSec / km

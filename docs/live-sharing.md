@@ -119,11 +119,29 @@ authority* — with an upload leg:
   a disable can't be stranded by an in-flight push. Foregrounded, the JS
   publisher's full-trace writes re-base everything, which is why a raw native
   tail never survives long and the head marker can never snap backwards.
+- **Elevation gain is PUBLISHED, never re-derived by the watcher.** The trace
+  on the wire is `simplify(points, 5)` — Douglas-Peucker on *horizontal*
+  geometry, which keeps the route's shape and drops the intermediate points a
+  climb's ascent is measured across. A hill run in a straight line therefore
+  arrives as its two endpoints with the ascent nowhere in the array, and
+  recomputing out here read **181m for a run the recorder measured at 231m**.
+  `stats.elevation` carries the recorder's own number (the same one saved on the
+  run), and `LiveWatchView` falls back to `elevGainM(points)` only for a row
+  published before the field existed. The elevation *profile* in the chart is
+  still the trace's to draw — it is a shape, not a total.
 - **The uploader's inputs are the patch's own numbers.** The patched
   geolocation plugin re-broadcasts every fix its fold accepts (`LIVE_FIX`,
-  with km / durationSec / curPace from the same fold that renders the
+  with km / durationSec / elevM / curPace from the same fold that renders the
   notification), so the watcher and the lock screen can't disagree and the
-  acceptance gates exist in exactly one native place. `LivePublishPlugin.kt`
+  acceptance gates exist in exactly one native place. Elevation folds there
+  exactly like distance — a JS-pushed base (`elevM` on the notification seed)
+  plus what the service accumulates from later fixes, on the same 5m hysteresis
+  band as `elevGainM`, so the total keeps advancing with the screen off instead
+  of freezing at the last foreground push. The band MUST match at both ends: a
+  screen-off leg measured on a different one would step the watcher's total the
+  moment the phone goes in a pocket. `live_publish_append` whitelists `stats`
+  key by key, so a new stat needs its key added there (a migration) or the next
+  native publish erases it. `LivePublishPlugin.kt`
   buffers (bounded, thinning past 600 points), POSTs every 30s under a timed
   partial wake lock, and follows the response contract: `{live:true}` drop the
   batch; `{live:false}` soft-latch 5 min, hard-disable after 3 consecutive (a
