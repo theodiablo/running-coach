@@ -191,45 +191,45 @@
         <ul>
           <li><strong>Your account data</strong> — your email address, name, runs,
             GPS routes, heart-rate readings, training plan, race settings, Coach
-            memory and coach logs — is retained <strong>for as long as your account
-            exists</strong>. There is no automatic expiry and no inactivity
-            cut-off: it stays until you delete it, one item at a time or all at
-            once.</li>
-          <li><strong>Deletion is immediate and permanent.</strong> Deleting a run
-            deletes its route and heart-rate data with it. Deleting your account
-            deletes the account and everything attached to it in the same
-            operation. Neither is a "soft delete", and we keep no copy afterwards
-            (other than the time-limited backups below).</li>
-          <li><strong>Live run broadcasts</strong> are transient by design. The
-            shared copy is deleted when you save or discard the run, and in any
-            case stops being served to anyone — your own devices and any link
-            holder alike — <strong>6 hours</strong> after the last update it
-            received.</li>
-          <li><strong>Share links.</strong> Your current link is kept until you
-            replace it. A replaced link is kept indefinitely as a permanently
-            revoked entry: that record is precisely what stops the old link from
-            ever working again. It contains no personal data, and it is detached
-            from your account when you delete the account.</li>
-          <li><strong>Encrypted database backups</strong> are kept for
-            <strong>30 days</strong> (the 7 most recent are always retained) and
-            are then deleted automatically. Data you delete can therefore remain
-            in a backup for up to that window before it ages out. Backups are used
-            only to restore the service after a failure.</li>
+            memory and coach logs. <strong>Kept for as long as your account
+            exists</strong>, then deleted. There is no automatic expiry and no
+            inactivity cut-off: it stays until you delete it, one item at a time
+            or all at once.</li>
+          <li><strong>Anything you delete.</strong> <strong>Kept no longer than the
+            moment you delete it</strong>. Deleting a run deletes its route and
+            heart-rate data with it; deleting your account deletes the account and
+            everything attached to it in the same operation. Neither is a "soft
+            delete", and the only copy that outlives it is the time-limited backup
+            below.</li>
+          <li><strong>Live run broadcasts.</strong> <strong>Kept for at most
+            6 hours</strong>, then deleted. The shared copy goes as soon as you
+            save or discard the run, and in any case stops being served to anyone
+            — your own devices and any link holder alike — 6 hours after the last
+            update it received.</li>
+          <li><strong>Share links.</strong> Your current link is <strong>kept until
+            you replace it</strong>. A replaced link is <strong>kept
+            indefinitely</strong> as a permanently revoked entry: that record is
+            precisely what stops the old link from ever working again. It contains
+            no personal data, and it is detached from your account when you delete
+            the account.</li>
+          <li><strong>Encrypted database backups.</strong> <strong>Kept for at most
+            30 days</strong>, then deleted automatically (the 7 most recent are
+            always retained). Data you delete can therefore remain in a backup for
+            up to that window before it ages out. Backups are used only to restore
+            the service after a failure.</li>
           <li><strong>Feedback and diagnostic reports you choose to send</strong>
             (the feedback button, a coach "This isn't right" report, or a
-            diagnostic report you send from the developer log) are kept only for
-            as long as needed to act on them, and in any case no longer than
-            <strong>24 months</strong>. They are also deleted if you delete your
-            account.</li>
-          <li><strong>Optional analytics and crash diagnostics</strong> — off
-            unless you switch them on — are retained for at most
-            <strong>12 months</strong> and then deleted. Switching them off stops
-            collection straight away.</li>
-          <li><strong>On your own phone.</strong> The app keeps a local copy of
-            your data so it works offline. An unsynced change is held until it
-            reaches the server, and the offline copy is kept for at most
-            <strong>7 days</strong>. Both are erased when you sign out, and all
-            local data is erased when you uninstall the app.</li>
+            diagnostic report you send from the developer log). <strong>Kept for at
+            most 24 months</strong>, then deleted — and sooner if you delete your
+            account, which deletes them with it.</li>
+          <li><strong>Optional analytics and crash diagnostics</strong>, off unless
+            you switch them on. <strong>Kept for at most 12 months</strong>, then
+            deleted. Switching them off stops collection straight away.</li>
+          <li><strong>The copy on your own phone</strong>, which is what lets the
+            app work offline. <strong>Kept for at most 7 days</strong>, then
+            replaced or dropped; a change you make offline is held until it reaches
+            the server. All of it is erased when you sign out, and when you
+            uninstall the app.</li>
         </ul>
       </div>
 
