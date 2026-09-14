@@ -41,7 +41,7 @@
       <h1>🏃 Running Coach — Privacy Policy</h1>
       <p class="lead">A free, open-source running-training app. No ads, no upsells,
         and no selling your data.</p>
-      <p class="updated">Last updated: 10 September 2026</p>
+      <p class="updated">Last updated: 14 September 2026</p>
 
       <h2>Who we are</h2>
       <p>Running Coach is an independent, open-source project. The source code is
@@ -59,6 +59,10 @@
           chats, such as training preferences, schedule constraints, or injury context.</li>
         <li><strong>GPS location and route traces</strong>, when you use live run tracking
           (see below).</li>
+        <li><strong>Feedback you send us</strong> — the text you type in the
+          feedback button, or a coach "This isn't right" report, together with the
+          screen you were on and your app version and platform. Shown to you
+          before it is sent; never a hidden payload.</li>
         <li><strong>Heart-rate data</strong> — measured by a paired Bluetooth heart-rate
           sensor, or read from Android Health Connect, if you turn either on (Android
           only; see below).</li>
@@ -94,14 +98,18 @@
         <ul>
           <li>While it is on, your position and the route so far are sent to our
             server during the run, so that <strong>your own other signed-in
-            devices</strong> can follow along. By default no one else can see
-            it.</li>
-          <li>You can additionally create a <strong>share link</strong> for a
-            run, one run at a time, and send it to people you choose. Anyone
-            holding that link can watch that run as it happens. The link
-            <strong>stops working when the run ends</strong> (and you can cut it
-            off earlier at any time, without stopping the recording). Each run
-            gets a fresh link — an old link never shows a new run.</li>
+            devices</strong> can follow along.</li>
+          <li>Your account has <strong>one standing share link</strong>, which you
+            send to the people you choose. Anyone holding it can watch a run of
+            yours <strong>while it is recording with the switch on</strong>, and
+            nothing else: no history, no position at rest, and no name, email or
+            account identifier — the page shows a run, not a person. Between runs,
+            and with the switch off, the link shows the same "nothing live" as a
+            link that was never issued.</li>
+          <li><strong>Replace link</strong> (in the pre-run panel, and in
+            <strong>Settings → Account</strong>) is how you cut people off. It takes
+            effect immediately and permanently: the old link stops working for
+            everyone holding it, and is never reissued to anyone.</li>
           <li>The shared copy is <strong>deleted</strong> as soon as you save or
             discard the run. If the app is closed by your phone mid-run, it is
             deleted the next time you open the app on that device, and your other
@@ -175,6 +183,56 @@
           message text.</li>
       </ul>
 
+      <h2 class="accent">How long we keep your data (data retention)</h2>
+      <div class="card">
+        <p>We keep your data <strong>only for as long as you keep your
+          account</strong>. Nothing is kept "just in case" once you have deleted
+          it.</p>
+        <ul>
+          <li><strong>Your account data</strong> — your email address, name, runs,
+            GPS routes, heart-rate readings, training plan, race settings, Coach
+            memory and coach logs. <strong>Kept for as long as your account
+            exists</strong>, then deleted. There is no automatic expiry and no
+            inactivity cut-off: it stays until you delete it, one item at a time
+            or all at once.</li>
+          <li><strong>Anything you delete.</strong> <strong>Kept no longer than the
+            moment you delete it</strong>. Deleting a run deletes its route and
+            heart-rate data with it; deleting your account deletes the account and
+            everything attached to it in the same operation. Neither is a "soft
+            delete", and the only copy that outlives it is the time-limited backup
+            below.</li>
+          <li><strong>Live run broadcasts.</strong> <strong>Kept for at most
+            6 hours</strong>, then deleted. The shared copy goes as soon as you
+            save or discard the run, and in any case stops being served to anyone
+            — your own devices and any link holder alike — 6 hours after the last
+            update it received.</li>
+          <li><strong>Share links.</strong> Your current link is <strong>kept until
+            you replace it</strong>. A replaced link is <strong>kept
+            indefinitely</strong> as a permanently revoked entry: that record is
+            precisely what stops the old link from ever working again. It contains
+            no personal data, and it is detached from your account when you delete
+            the account.</li>
+          <li><strong>Encrypted database backups.</strong> <strong>Kept for at most
+            30 days</strong>, then deleted automatically (the 7 most recent are
+            always retained). Data you delete can therefore remain in a backup for
+            up to that window before it ages out. Backups are used only to restore
+            the service after a failure.</li>
+          <li><strong>Feedback and diagnostic reports you choose to send</strong>
+            (the feedback button, a coach "This isn't right" report, or a
+            diagnostic report you send from the developer log). <strong>Kept for at
+            most 24 months</strong>, then deleted — and sooner if you delete your
+            account, which deletes them with it.</li>
+          <li><strong>Optional analytics and crash diagnostics</strong>, off unless
+            you switch them on. <strong>Kept for at most 12 months</strong>, then
+            deleted. Switching them off stops collection straight away.</li>
+          <li><strong>The copy on your own phone</strong>, which is what lets the
+            app work offline. <strong>Kept for at most 7 days</strong>, then
+            replaced or dropped; a change you make offline is held until it reaches
+            the server. All of it is erased when you sign out, and when you
+            uninstall the app.</li>
+        </ul>
+      </div>
+
       <h2>Your rights &amp; deleting your data</h2>
       <p>You can view and delete individual runs (and their routes) at any time inside
         the app. To delete your entire account and all associated data, open the web app
@@ -213,7 +271,7 @@
 
       <footer>
         Running Coach is open source (MIT). You can read exactly what is stored in the
-        project's <code>supabase/migrations/</code> and <code>src/db.js</code>.
+        project's <code>supabase/migrations/</code> and <code>src/db.ts</code>.
       </footer>
     </div>
   </body>
