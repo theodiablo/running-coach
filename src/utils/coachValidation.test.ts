@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { validatePlan, formatValidation } from "./coachValidation";
 import { buildPlan } from "./plan";
 import { ymd } from "./format";
@@ -233,21 +233,40 @@ describe("validatePlan rules", () => {
 });
 
 // ── one validator, two callers: the deterministic generator must pass too ────
-describe("buildPlan output passes the shared validator", () => {
-  const weeksOut = (n: number) => {
-    const d = new Date(); d.setDate(d.getDate() + n * 7);
-    return ymd(d);
-  };
+// buildPlan always anchors week 1 on the next Monday while these fixtures ask
+// for a race `n * 7` days out, so the weekday the suite happens to run on
+// decides whether the race lands in week n or in an extra week n+1. Read off
+// the real clock that made the coverage a lottery: the n+1 shape only ever
+// appeared on Mondays, which is how a runwalk taper that fails TAPER_VOLUME sat
+// on main visible one day in seven. The clock is pinned and BOTH alignments are
+// covered on purpose.
+const dayAfter = (from: string, days: number) =>
+  ymd(new Date(new Date(from + "T00:00:00").getTime() + days * 86400000));
+
+const ANCHORS: [string, string][] = [
+  ["monday anchor", "2026-09-14"],  // race falls in an extra, (n+1)-th week
+  ["midweek anchor", "2026-09-16"], // race falls in the n-th week
+];
+
+describe.each(ANCHORS)("buildPlan output passes the shared validator (%s)", (_anchorLabel, anchor) => {
+  beforeEach(() => { vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  // Generated plans are validated as of the same pinned day they were built on.
+  const validateAt = (plan: unknown, opts: Record<string, unknown> = {}) =>
+    validate(plan, { today: anchor, ...opts });
+
+  const weeksOut = (n: number) => dayAfter(anchor, n * 7);
   const seedRuns = (longest: number) => [
-    { id: "r1", date: ymd(new Date(Date.now() - 5 * 86400000)), type: "LONG", km: longest, durationSec: longest * 360 },
-    { id: "r2", date: ymd(new Date(Date.now() - 12 * 86400000)), type: "EASY", km: longest * 0.6, durationSec: longest * 0.6 * 380 },
+    { id: "r1", date: dayAfter(anchor, -5), type: "LONG", km: longest, durationSec: longest * 360 },
+    { id: "r2", date: dayAfter(anchor, -12), type: "EASY", km: longest * 0.6, durationSec: longest * 0.6 * 380 },
   ];
   // seedRuns holds one run per week, so it earns no base credit. This one does:
   // 3 separate days a week, real volume, for the last 4 weeks — the mid-block
   // rebuild that shortens the base block and lets quality land earlier.
   const trainedRuns = () => Array.from({ length: 4 }, (_, wk) =>
     [1, 3, 5].map(d => ({
-      id: `t${wk}${d}`, date: ymd(new Date(Date.now() - (wk * 7 + d) * 86400000)),
+      id: `t${wk}${d}`, date: dayAfter(anchor, -(wk * 7 + d)),
       type: "EASY", km: 8, durationSec: 8 * 360,
     }))).flat();
   const sessions = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
@@ -262,7 +281,7 @@ describe("buildPlan output passes the shared validator", () => {
 
   it.each(cases)("%s", (_label, raceDate, goalSec, distanceKm, elev, opts) => {
     const plan = buildPlan(raceDate, goalSec, sessions, distanceKm, elev, opts);
-    const r = validate(plan);
+    const r = validateAt(plan);
     expect(r.errors).toEqual([]);
   });
 
@@ -304,7 +323,7 @@ describe("buildPlan output passes the shared validator", () => {
         [`${rLabel}, ${dLabel}`, raceDate, goalSec, distanceKm, layout, opts] as const)))(
       "%s", (_label, raceDate, goalSec, distanceKm, layout, opts) => {
         const plan = buildPlan(raceDate, goalSec, layout, distanceKm, 0, { ...opts, style });
-        expect(validate(plan).errors).toEqual([]);
+        expect(validateAt(plan).errors).toEqual([]);
       });
   });
 
@@ -313,8 +332,34 @@ describe("buildPlan output passes the shared validator", () => {
     // consistency: the agent can still operate on such a plan via the baseline
     // waiver, but may never make it worse.
     const plan = buildPlan(weeksOut(6), 14400, sessions, 42.2, 0, {});
-    const r = validate(plan);
+    const r = validateAt(plan);
     expect(r.ok).toBe(false);
-    expect(validate(plan, { baseline: plan }).ok).toBe(true);
+    expect(validateAt(plan, { baseline: plan }).ok).toBe(true);
+  });
+});
+
+// The regression the anchors above generalise: whatever weekday a runner opens
+// the app on, the same request must build a taper-clean plan. Sweeping 14
+// consecutive days covers every weekday twice, and the week-count wobble with
+// it — the runwalk taper used to raise the short days above their own peak
+// whenever a credited 8-week request spilled into a 9th week.
+describe("generated plans do not depend on the weekday they are built on", () => {
+  afterAll(() => { vi.useRealTimers(); });
+
+  const layout6 = [
+    { dayOffset: 0, minutes: 40 }, { dayOffset: 1, minutes: 45 }, { dayOffset: 2, minutes: 60 },
+    { dayOffset: 3, minutes: 40 }, { dayOffset: 4, minutes: 45 }, { dayOffset: 6, minutes: 110 },
+  ];
+  const sweep = Array.from({ length: 14 }, (_, i) => dayAfter("2026-09-14", i));
+
+  it.each(sweep)("10k, 8 weeks, trained (credit), 6 days, runwalk — built on %s", (day) => {
+    vi.setSystemTime(new Date(day + "T09:00:00"));
+    const recentRuns = Array.from({ length: 4 }, (_, wk) =>
+      [1, 3, 5].map(d => ({
+        id: `t${wk}${d}`, date: dayAfter(day, -(wk * 7 + d)),
+        type: "EASY", km: 8, durationSec: 8 * 360,
+      }))).flat();
+    const plan = buildPlan(dayAfter(day, 56), 3000, layout6, 10, 0, { recentRuns, style: "runwalk" });
+    expect(validate(plan, { today: day }).errors).toEqual([]);
   });
 });

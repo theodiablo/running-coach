@@ -60,6 +60,7 @@ type WeekCtx = {
   isTaper: boolean;
   buildW: number; // 0-based week index within the post-base block
   rampFrac: number; // 0→1 progress through the pre-taper ramp (long-run ramp)
+  taperMult: number | null; // this taper week's shed multiplier; null pre-taper
   longSess: PlanSessionInput;
   qualSessions: PlanSessionInput[];
   longKm: number;
@@ -225,12 +226,16 @@ export function buildPlan(
     };
 
     const rampFrac = lastBuildW > 0 ? Math.min(1, w / lastBuildW) : 1;
+    // The week's shed multiplier: one ladder per style, applied to every
+    // session the taper shrinks, so a taper can never out-volume the peak.
+    const taperIdx = w - (N - 3);
+    const taperMult = isTaper
+      ? shape.taperMults[taperIdx] ?? shape.taperMults[2]
+      : null;
     let longKm;
     if (isTaper) {
       // Taper long runs scale off the peak — shed volume, keep some endurance.
-      const taperIdx = w - (N - 3);
-      const taperMults = shape.taperMults;
-      longKm = peakLong * (taperMults[taperIdx] !== undefined ? taperMults[taperIdx] : taperMults[2]);
+      longKm = peakLong * taperMult!;
     } else {
       // Ramp from the fitness-aware start to the race-scaled peak across the
       // pre-taper weeks (peak reached at the last build/peak week).
@@ -241,7 +246,7 @@ export function buildPlan(
     }
 
     COMPOSERS[style]({
-      w, N, phase, isBase, isTaper, buildW: w - baseW, rampFrac, longSess, qualSessions, longKm,
+      w, N, phase, isBase, isTaper, buildW: w - baseW, rampFrac, taperMult, longSess, qualSessions, longKm,
       addS, paces: { easy, tmpo, intv, long: longP, walk: walkP }, tgt, dist,
     });
 
@@ -481,9 +486,13 @@ function composeRunwalk(c: WeekCtx) {
     { kind: "runwalk", variant: "long", runMin, walkMin: 1 });
 
   c.qualSessions.forEach(q => {
+    // Short days ramp with the block, then shed off the last pre-taper week —
+    // an absolute taper ladder ignores how small the ramp actually stayed, and
+    // on a short/credited block it raised the short days above their own peak.
+    const shortKm = (week: number) => Math.min(q.minutes * 60 / walk, 2.5 + week * 0.25);
     const km = isTaper
-      ? Math.max(2, 4 - (w - (N - 3)) * 0.5)
-      : Math.min(q.minutes * 60 / walk, 2.5 + w * 0.25);
+      ? shortKm(Math.max(0, N - 4)) * c.taperMult!
+      : shortKm(w);
     addS(q.dayOffset, "WALK", km,
       "Run/walk — run " + runMin + " min / walk 1 min, "
         + (isTaper ? "short and relaxed" : "conversational"), walk,
@@ -514,7 +523,7 @@ function composeLowfreq(c: WeekCtx) {
       // figure is an easy-run-equivalent effort, kept flat week to week (only
       // the taper shrinks it, so TAPER_VOLUME still sees a real drop).
       const baseKm = Math.max(1.5, maxQ * 0.5);
-      const km = isTaper ? baseKm * [0.85, 0.65, 0.45][Math.min(w - (N - 3), 2)] : baseKm;
+      const km = isTaper ? baseKm * c.taperMult! : baseKm;
       addS(q.dayOffset, "OTHER", km,
         "Optional cross-training — " + fmt.mins(q.minutes)
           + " easy bike, swim or elliptical (skip if tired)", easy,
