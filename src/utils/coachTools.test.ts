@@ -170,6 +170,24 @@ describe("applyToolCall", () => {
       .toThrow(/passed/);
   });
 
+  // The 10% margin is measured against a peak this tool can itself raise, so
+  // across turns (each a fresh baseline) it compounds — greedily lengthening
+  // every session took a half-marathon plan's long run from 19 km to 39.5.
+  // longRunPeakKm is the plan's own race-scaled peak and does not move.
+  it("increase_session_distance never goes past the plan's race-scaled peak", () => {
+    const capped = () => {
+      const p = plan();
+      (p as unknown as { longRunPeakKm: number }).longRunPeakKm = 10.5;
+      return p;
+    };
+    // w1d6 is 10 km; the current-peak rule alone would allow 11 (10 x 1.1 vs a
+    // peak of 11), but the plan's design peak of 10.5 binds first.
+    expect(() => applyTool(capped(), "increase_session_distance", { session_id: "w1d6", factor: 1.1 }))
+      .toThrow(/ceiling/);
+    const ok = applyTool(capped(), "increase_session_distance", { session_id: "w1d2", factor: 1.5 });
+    expect(ok.weeks[0]!.sessions.find(s => s.id === "w1d2")!.km).toBe(7.5);
+  });
+
   // The validator cannot backstop this one: its ramp rule skips TAPER and RACE
   // weeks outright and TAPER_VOLUME only looks at the final 14 days, so a taper
   // week further out could be grown past the plan's peak, one accepted call at

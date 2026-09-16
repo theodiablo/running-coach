@@ -30,7 +30,13 @@ week's sessions** and the two are derived from one set of boundaries in
 `buildPlan`:
 
 - **taper** = the last 3 weeks before race week (easy only — the validator also
-  forbids tempo/intervals inside 7 days of the race).
+  forbids tempo/intervals inside 7 days of the race). The week's shed
+  multiplier is the style's own `taperMults` ladder, handed to the composers as
+  `WeekCtx.taperMult` so long run and short days shed on one ladder. **Every
+  tapered session scales off its own pre-taper peak, never an absolute km
+  ladder** — an absolute one ignores how small the ramp actually stayed, and on
+  a short or base-credited block `runwalk` raised its short days *above* their
+  peak, making the first taper week the biggest of the plan (`TAPER_VOLUME`).
 - **base** = the first `min(4, ceil((N-3)/2))` weeks *minus the runner's base
   credit* (below): easy running only, no quality. Capping it at *half the
   pre-taper runway* is what keeps a short plan honest — from 11 weeks up it is
@@ -52,7 +58,7 @@ does not replace each style's easy line — it sets where that line **starts**,
 via the shared `easyLine` helper:
 
 ```ts
-Math.min(budgetKm, c.longKm * 0.85, Math.max(start, c.easyFloor) + step * c.w)
+Math.min(budgetKm, Math.max(start + step * week, Math.min(c.easyFloor, longKm * 0.85)))
 ```
 
 so the per-week growth each style already had (`+0.2/wk` in base, `+0.3/wk` for
@@ -66,11 +72,22 @@ guards keep it honest:
   run's single-sample floor is defensible in a way a habitual easy distance is
   not. This is also why the balanced output freeze still holds — its fixture
   logs a single run.
-- **Capped against `longKm` of the week being composed**, not the block's
-  starting long run. A cutback week (runwalk sheds 30% every third) drops below
-  a block-level cap, which is how a WALK day overtook the long run it was meant
-  to sit under. The day's own time budget is the other ceiling, so the runner's
-  configured minutes still win.
+- **The long-run cap bounds the FLOOR, not the whole line.** It is capped
+  against `longKm` of the week being composed — a cutback week (runwalk sheds
+  30% every third) drops below a block-level cap, which is how a WALK day
+  overtook the long run it was meant to sit under. But applying that ceiling to
+  the style's own opening line as well *shrank* plans that have no floor at all:
+  an unfit runner's long run is small, so `0.85x` of it undercut the 2.5 km
+  opening, left the taper nothing to shed, and tripped `TAPER_VOLUME`. Hence
+  `Math.max(line, Math.min(easyFloor, longKm * 0.85))` — with `easyFloor` at 0
+  the whole expression collapses to the style's own line, byte-for-byte.
+  The day's own time budget is the other ceiling, so the runner's configured
+  minutes still win.
+- **`week` and `longKm` are overridable** because runwalk's taper needs them:
+  since #246 the short days shed off the last pre-taper week on the same
+  `taperMult` ladder as the long run, so that branch evaluates the line at week
+  `N-4` against `peakLong` (recoverable in a taper week as `longKm / taperMult`)
+  and then applies the multiplier.
 
 Which weeks it reaches is per style, and follows where each style's easy line
 already lived: base only for balanced and lowfreq; base **and build** for

@@ -398,17 +398,22 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       // grown past the plan's peak one accepted call at a time.
       if (week.phase === "TAPER" || week.phase === "RACE" || daysBetween(session.date, p.raceDate) <= 14)
         throw new CoachToolError("TAPER", "No lengthening inside the taper or the final 14 days — the taper sheds load, it never gains it.");
-      // A 10% margin over the current peak, so a genuinely progressing runner
-      // isn't frozen between rebuilds while no single call can invent a new
-      // peak session outright.
+      // Two ceilings, because one of them ratchets. The 10% margin over the
+      // current peak lets a progressing runner move between rebuilds — but it
+      // is relative to a peak this tool just raised, so across turns (each its
+      // own baseline) it compounds: greedily lengthening every session took a
+      // half-marathon plan from 431 km to 1642 km and a 19 km long run to 39.5,
+      // stopping only at the validator's global MAX_TRAINING_KM. The plan's own
+      // race-scaled peak long run is the fixed point that doesn't move.
       const PEAK_MARGIN = 1.1;
       const peak = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today))
         .flatMap(w => w.sessions)
         .filter(s => s.type !== "RACE" && !s.skipped && s.id !== session.id).map(s => s.km));
-      const cap = Math.round(peak * PEAK_MARGIN * 10) / 10;
+      const designPeak = Number(p.longRunPeakKm) > 0 ? Number(p.longRunPeakKm) : Infinity;
+      const cap = Math.round(Math.min(peak * PEAK_MARGIN, designPeak) * 10) / 10;
       const grown = Math.round(session.km * factor * 10) / 10;
       if (peak > 0 && grown > cap)
-        throw new CoachToolError("TOO_LONG", `Lengthening ${session_id} to ${grown} km would go past the plan's longest training session plus 10% (${cap} km) — lengthen the shorter days instead.`);
+        throw new CoachToolError("TOO_LONG", `Lengthening ${session_id} to ${grown} km would go past this plan's ceiling (${cap} km) — the longest training session plus 10%, and never past the plan's race-scaled peak long run. Lengthen the shorter days instead.`);
       session.km = grown;
       return p;
     }

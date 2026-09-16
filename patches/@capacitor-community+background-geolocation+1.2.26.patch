@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..25edea4 100644
+index a92fcf9..2a82a49 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 @@ -32,8 +32,19 @@ import com.getcapacitor.annotation.PermissionCallback;
@@ -36,7 +36,7 @@ index a92fcf9..25edea4 100644
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +108,572 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +108,622 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -120,7 +120,7 @@ index a92fcf9..25edea4 100644
 +        } catch (Exception e) {
 +            Logger.error("Could not set notification color", e);
 +        }
- 
++
 +        PendingIntent contentIntent = contentIntent();
 +        if (contentIntent != null) {
 +            builder.setContentIntent(contentIntent);
@@ -169,7 +169,7 @@ index a92fcf9..25edea4 100644
 +        );
 +        return contentIntent;
 +    }
-+
+ 
 +    // Replaces the foreground-service notification's content in place (same id,
 +    // same channel, ongoing flags re-asserted by the builder above) so a caller
 +    // can surface live run stats on it. Resolves { updated: boolean } — false
@@ -246,6 +246,9 @@ index a92fcf9..25edea4 100644
 +        boolean tracking;
 +        double baseKm;        // authoritative distance as of the last JS push
 +        double addedM;        // metres accumulated from fixes since that push
++        double baseElevM;     // authoritative elevation gain as of that push
++        double addedElevM;    // gain accumulated from fixes since that push
++        Double elevPrevAlt;   // hysteresis anchor; null = next fix only anchors
 +        double fallbackPaceSecPerKm;
 +        int hrBpm;
 +        long hrAtMs;          // epoch ms of that beat, whichever end supplied it
@@ -289,6 +292,12 @@ index a92fcf9..25edea4 100644
 +    // Interval that opens a GAP marker, mirroring useRunTracker's GAP_MS: the
 +    // relayed stream must not draw a tunnel as a straight bridge.
 +    private static final long LIVE_GAP_MS = 60_000;
++    // Hysteresis band for elevation gain, mirroring elevGainM's minM in
++    // src/utils/geo.ts: GPS vertical error is ~2-3x the horizontal, so a smaller
++    // band lets every noise wiggle through and a flat run accumulates phantom
++    // climb. The two ends MUST agree — a screen-off leg measured on a different
++    // band would step the watcher's total the moment the phone goes in a pocket.
++    private static final double LIVE_ELEV_BAND_M = 5;
 +
 +    // ── Fix journal (crash durability) ───────────────────────────────────────
 +    // Every fix the live renderer accepts is also appended to a file on disk, so
@@ -446,7 +455,7 @@ index a92fcf9..25edea4 100644
 +            }
 +            if (liveStats == null) {
 +                liveStats = new LiveStats();
-             }
++            }
 +            Number pace = optNumber(call, "paceSecPerKm");
 +            Number hr = optNumber(call, "hr");
 +            Number hrAtMs = optNumber(call, "hrAtMs");
@@ -458,6 +467,15 @@ index a92fcf9..25edea4 100644
 +            liveStats.tracking = call.getBoolean("tracking", false);
 +            liveStats.baseKm = km.doubleValue();
 +            liveStats.addedM = 0;
++            // Elevation folds exactly like distance: JS holds the authoritative
++            // total (it sees every point, unsimplified) and each push re-bases
++            // what the screen-off leg accumulates on top. The anchor is dropped
++            // with it — the gain up to this altitude is already inside the seed,
++            // so the next fix must only re-anchor, never re-count.
++            Number elevM = optNumber(call, "elevM");
++            liveStats.baseElevM = elevM == null ? 0 : elevM.doubleValue();
++            liveStats.addedElevM = 0;
++            liveStats.elevPrevAlt = null;
 +            liveStats.fallbackPaceSecPerKm = pace == null ? 0 : pace.doubleValue();
 +            // HR is a seed like the rest, with one difference: it can arrive
 +            // OLDER than what we already hold. JS's beats stop while the WebView
@@ -472,7 +490,7 @@ index a92fcf9..25edea4 100644
 +                liveStats.hrAtMs = seedAtMs;
 +            } else if (seedBpm <= 0 && liveStats.hrAtMs <= 0) {
 +                liveStats.hrBpm = 0;
-+            }
+             }
 +            // Only what actually reached the shade counts as displayed, so a refused
 +            // push is re-rendered by the next fix instead of being deduped away.
 +            liveStats.shown = updated ? message : null;
@@ -538,6 +556,7 @@ index a92fcf9..25edea4 100644
 +            live.lastFixMs = t;
 +            live.paceWindow.clear();
 +            live.paceWindow.addLast(new double[] { t, live.cumM });
++            foldElevation(live, location, true);
 +            journalFix(lat, lng, t, location);
 +            relayLiveFix(live, lat, lng, t, location, false);
 +            return; // an anchor only — no leg to measure yet
@@ -555,6 +574,7 @@ index a92fcf9..25edea4 100644
 +        live.lastFixMs = t;
 +        live.addedM += moved;
 +        live.cumM += moved;
++        foldElevation(live, location, gapBefore);
 +        live.paceWindow.addLast(new double[] { t, live.cumM });
 +        while (live.paceWindow.size() > 1
 +                && t - live.paceWindow.peekFirst()[0] > LIVE_CUR_PACE_WINDOW_MS) {
@@ -563,6 +583,35 @@ index a92fcf9..25edea4 100644
 +        journalFix(lat, lng, t, location);
 +        relayLiveFix(live, lat, lng, t, location, gapBefore);
 +        renderLiveStats(live);
++    }
++
++    // Positive elevation gain over one accepted fix, hysteresis-banded — the
++    // same fold as elevGainM in src/utils/geo.ts, on the same accepted fixes, so
++    // the screen-off total continues JS's rather than restarting a different
++    // measurement. A fix with no altitude is skipped (the anchor is kept, as a
++    // missing reading is not a descent); a gap drops the anchor, since the
++    // altitude either side of a tunnel says nothing about what was climbed in it.
++    private void foldElevation(LiveStats live, Location location, boolean reset) {
++        if (reset) {
++            live.elevPrevAlt = null;
++        }
++        if (!location.hasAltitude()) {
++            return;
++        }
++        double alt = Math.round(location.getAltitude());
++        Double prev = live.elevPrevAlt;
++        if (prev == null) {
++            live.elevPrevAlt = alt;
++            return;
++        }
++        double diff = alt - prev;
++        if (diff >= LIVE_ELEV_BAND_M) {
++            live.addedElevM += diff;
++            live.elevPrevAlt = alt;
++        } else if (diff <= -LIVE_ELEV_BAND_M) {
++            live.elevPrevAlt = alt;
++        }
++        // within the band: keep the anchor (hysteresis)
 +    }
 +
 +    // Broadcast one ACCEPTED fix with the derived stats for the LivePublish
@@ -581,6 +630,7 @@ index a92fcf9..25edea4 100644
 +            }
 +            intent.putExtra("gapBefore", gapBefore);
 +            intent.putExtra("km", live.baseKm + live.addedM / 1000d);
++            intent.putExtra("elevM", live.baseElevM + live.addedElevM);
 +            if (live.chronometerStartMs != null) {
 +                intent.putExtra("durationSec",
 +                        Math.max(0, (System.currentTimeMillis() - live.chronometerStartMs) / 1000));
@@ -662,7 +712,7 @@ index a92fcf9..25edea4 100644
      }
  
      @PermissionCallback
-@@ -188,6 +701,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +751,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -670,7 +720,7 @@ index a92fcf9..25edea4 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -245,20 +759,44 @@ public class BackgroundGeolocation extends Plugin {
+@@ -245,20 +809,44 @@ public class BackgroundGeolocation extends Plugin {
      }
  
      // Receives messages from the service.
@@ -721,7 +771,7 @@ index a92fcf9..25edea4 100644
          }
      }
  
-@@ -315,16 +853,29 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,16 +903,29 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -753,7 +803,7 @@ index a92fcf9..25edea4 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,12 +884,54 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,12 +934,54 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {

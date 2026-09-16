@@ -30,7 +30,7 @@ const content = (over: Partial<RunNotificationContent> = {}): RunNotificationCon
   titleKey: "title",
   message: "5.23 km · 5:42/km",
   chronometerStartMs: 1_700_000_000_000,
-  live: { km: 5.234, paceSecPerKm: 342, hr: null, hrAtMs: null, tracking: true },
+  live: { km: 5.234, elevM: 48, paceSecPerKm: 342, hr: null, hrAtMs: null, tracking: true },
   ...over,
 });
 
@@ -51,6 +51,7 @@ describe("pushRunNotification on Android", () => {
       message: "5.23 km · 5:42/km",
       chronometerStartMs: 1_700_000_000_000,
       km: 5.234,
+      elevM: 48,
       paceSecPerKm: 342,
       tracking: true,
     });
@@ -59,7 +60,7 @@ describe("pushRunNotification on Android", () => {
   it("carries HR with the sample's timestamp, so a stale reading can be dropped", () => {
     seam.pushRunNotification(content({
       message: "5.23 km · 5:42/km · ♥ 152",
-      live: { km: 5.234, paceSecPerKm: 342, hr: 152, hrAtMs: 1_700_000_050_000, tracking: true },
+      live: { km: 5.234, elevM: 48, paceSecPerKm: 342, hr: 152, hrAtMs: 1_700_000_050_000, tracking: true },
     }));
     expect(calls[0].hr).toBe(152);
     expect(calls[0].hrAtMs).toBe(1_700_000_050_000);
@@ -70,7 +71,7 @@ describe("pushRunNotification on Android", () => {
       titleKey: "pausedTitle",
       message: "30:00 · 5.23 km · 5:42/km",
       chronometerStartMs: null,
-      live: { km: 5.234, paceSecPerKm: 342, hr: null, hrAtMs: null, tracking: false },
+      live: { km: 5.234, elevM: 48, paceSecPerKm: 342, hr: null, hrAtMs: null, tracking: false },
     }));
     expect(calls[0].tracking).toBe(false);
     expect(calls[0].chronometerStartMs).toBeUndefined();
@@ -81,7 +82,7 @@ describe("pushRunNotification on Android", () => {
     try {
       const withHr = content({
         message: "5.23 km · 5:42/km · ♥ 152",
-        live: { km: 5.234, paceSecPerKm: 342, hr: 152, hrAtMs: 1_700_000_050_000, tracking: true },
+        live: { km: 5.234, elevM: 48, paceSecPerKm: 342, hr: 152, hrAtMs: 1_700_000_050_000, tracking: true },
       });
       seam.pushRunNotification(withHr);
       expect(calls).toHaveLength(1);

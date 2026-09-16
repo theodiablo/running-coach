@@ -22,6 +22,7 @@ type PushOptions = {
   // Android only (the patched plugin): the seed it re-renders distance/pace from
   // while the WebView is frozen in the background. iOS gets none of these.
   km?: number;
+  elevM?: number;
   paceSecPerKm?: number;
   hr?: number;
   hrAtMs?: number;
@@ -101,6 +102,7 @@ function sendNow(content: RunNotificationContent): void {
     ...(content.chronometerStartMs != null ? { chronometerStartMs: content.chronometerStartMs } : {}),
     ...(isAndroid ? {
       km: content.live.km,
+      elevM: content.live.elevM,
       paceSecPerKm: content.live.paceSecPerKm,
       tracking: content.live.tracking,
       ...(content.live.hr ? { hr: content.live.hr, hrAtMs: content.live.hrAtMs ?? 0 } : {}),

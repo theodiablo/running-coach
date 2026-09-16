@@ -76,17 +76,25 @@ describe("isValidPointBatch", () => {
 });
 
 describe("sanitizeStats", () => {
-  it("whitelists exactly the four watcher numbers", () => {
-    expect(sanitizeStats({ km: 5.2, durationSec: 1800, avgPace: 346, curPace: 330, evil: "x".repeat(999) }))
-      .toEqual({ km: 5.2, durationSec: 1800, avgPace: 346, curPace: 330 });
+  it("whitelists exactly the watcher numbers", () => {
+    expect(sanitizeStats({ km: 5.2, durationSec: 1800, elevation: 231, avgPace: 346, curPace: 330, evil: "x".repeat(999) }))
+      .toEqual({ km: 5.2, durationSec: 1800, elevation: 231, avgPace: 346, curPace: 330 });
+  });
+
+  // The watcher can't derive this one: the published trace is simplified on
+  // horizontal geometry, so a straight climb's ascent isn't in it.
+  it("carries the recorder's elevation through", () => {
+    expect(sanitizeStats({ elevation: 231 }).elevation).toBe(231);
   });
 
   it("coerces junk to null so the RPC keeps the stored value", () => {
     // avgPace at km 0 is Infinity on the native side — must never be stored.
-    expect(sanitizeStats({ km: NaN, durationSec: Infinity, avgPace: -1, curPace: "fast" }))
-      .toEqual({ km: null, durationSec: null, avgPace: null, curPace: null });
-    expect(sanitizeStats(null)).toEqual({ km: null, durationSec: null, avgPace: null, curPace: null });
-    expect(sanitizeStats([1, 2, 3])).toEqual({ km: null, durationSec: null, avgPace: null, curPace: null });
+    expect(sanitizeStats({ km: NaN, durationSec: Infinity, elevation: -3, avgPace: -1, curPace: "fast" }))
+      .toEqual({ km: null, durationSec: null, elevation: null, avgPace: null, curPace: null });
+    expect(sanitizeStats(null))
+      .toEqual({ km: null, durationSec: null, elevation: null, avgPace: null, curPace: null });
+    expect(sanitizeStats([1, 2, 3]))
+      .toEqual({ km: null, durationSec: null, elevation: null, avgPace: null, curPace: null });
   });
 });
 

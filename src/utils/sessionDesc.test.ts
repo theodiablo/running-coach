@@ -79,6 +79,16 @@ describe("renderSd reproduces the English desc for every generated sd", () => {
 // byte-for-byte — otherwise a coach edit shows a stale/mismatched sentence
 // (the app renders `sd` in preference to `desc`). Drives the real tool path.
 describe("renderSd reproduces the English desc for coach-authored sd", () => {
+  // Pinned, like the generator matrix in coachValidation.test.ts: buildPlan
+  // anchors week 1 on the next Monday off the real clock, so the hardcoded
+  // mid-plan add date below drifts out of the plan window as the weeks pass
+  // (it fell before week 1 and failed every style with OUT_OF_PLAN).
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-08T10:00:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   const firstEditable = (plan: ReturnType<typeof buildPlan>) => {
     for (const w of plan.weeks) for (const s of w.sessions)
       if (s.type !== "RACE" && !s.done) return { id: s.id, week: w.weekNumber, date: s.date };

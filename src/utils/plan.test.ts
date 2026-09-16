@@ -300,10 +300,16 @@ describe("buildPlan", () => {
       // derived from the block's STARTING long run outlives a cutback week
       // (runwalk sheds 30% every third), which is how a WALK day overtook the
       // long run it was supposed to sit under.
-      it("never lets an easy day reach the week's long run, in any style", () => {
+      // Both sides of the floor: with one, and with NONE. The no-history case is
+      // the one a floor-shaped test forgets, and it is the whole population the
+      // absolute opening line exists for.
+      it.each([
+        ["with a logged habit", habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9])],
+        ["with no history at all", []],
+      ])("never lets an easy day reach the week's long run, in any style (%s)", (_label, runs) => {
         for (const style of ["balanced", "polarized", "runwalk", "lowfreq", "hansons"] as const) {
           const plan = buildPlan(raceDateInDays(120), 6300, DAYS, 20, 0,
-            { style, recentRuns: habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9]) as never });
+            { style, recentRuns: runs as never });
           for (const w of plan.weeks) {
             const long = w.sessions.find(s => s.type === "LONG");
             if (!long) continue;

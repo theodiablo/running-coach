@@ -128,8 +128,15 @@ Always re-verify a finding before acting on it; agents report false positives.
   the version prefix alone, so two files sharing one are indistinguishable and
   the second silently never runs (cost us an auth trigger);
   `src/migrations.test.ts` fails CI on a collision. Apply with
-  `supabase db push`, never a path that assigns its own version, or the repo and
-  `schema_migrations` drift apart and `db push` stops working.
+  `supabase db push`; what must never survive is a version in the repo that
+  isn't the one in `schema_migrations`, or `db push` stops working. **In a cloud
+  session there is no `db push`** — the project isn't linked and there is no CLI
+  token or DB password — so apply through the Supabase MCP `apply_migration`,
+  which assigns its OWN version, and then **rename the local file to the version
+  it assigned** (keeping the descriptive suffix). The rename is what reconciles
+  the two; it is the one time renaming an applied migration is correct, and it
+  is not the append-only rule above, which is about re-pointing a version other
+  checkouts already have.
 - **New `public` functions are `security invoker` with `set search_path = ''`
   and fully-qualified references.** Reach for `security definer` only when the
   function must touch something the caller can't (the `auth` schema, another
