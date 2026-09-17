@@ -16,7 +16,7 @@
     "ctaSecondary": "Ya tengo una cuenta",
     "freeNote": "Todo lo que necesitas para entrenar es gratis: planes, seguimiento por GPS, carreras y entrenador, con un límite diario de uso responsable para mantener la gratuidad del servicio.",
     "iosBeta": "Únete a la beta de iOS",
-    "androidBeta": "Únete a la beta de Android"
+    "android": "Descargar en Google Play"
   },
   "stats": {
     "plans": {
@@ -66,10 +66,10 @@
   },
   "cta": {
     "heading": "¿Listo para correr tu mejor carrera?",
-    "body": "Crea una cuenta gratis y consigue tu plan de entrenamiento en minutos. Todo lo que necesitas para entrenar está incluido, con un límite diario de uso responsable del entrenador. Las aplicaciones para iOS y Android están en beta.",
+    "body": "Crea una cuenta gratis y consigue tu plan de entrenamiento en minutos. Todo lo que necesitas para entrenar está incluido, con un límite diario de uso responsable del entrenador. La aplicación de Android ya está en Google Play y la de iOS está en beta.",
     "primary": "Empezar gratis",
     "iosBeta": "Únete a la beta de iOS",
-    "androidBeta": "Únete a la beta de Android"
+    "android": "Descargar en Google Play"
   },
   "footer": {
     "support": "Invítame a un café ☕",

@@ -17,7 +17,7 @@ describe("MarketingGate", () => {
     expect(screen.getByPlaceholderText(/you@example.com/i)).toBeInTheDocument();
   });
 
-  it("links to both mobile beta programs", () => {
+  it("links to the Play Store listing and the iOS beta", () => {
     render(<MarketingGate />);
 
     expect(screen.getAllByRole("link", { name: /iOS beta|TestFlight/i })).toHaveLength(2);
@@ -25,11 +25,11 @@ describe("MarketingGate", () => {
       "href",
       "https://testflight.apple.com/join/T73yu15A",
     );
-    const androidBetaLinks = screen.getAllByRole("link", { name: /Android.*beta/i });
-    expect(androidBetaLinks).toHaveLength(2);
-    expect(androidBetaLinks[0]).toHaveAttribute(
+    const androidLinks = screen.getAllByRole("link", { name: /Google Play/i });
+    expect(androidLinks).toHaveLength(2);
+    expect(androidLinks[0]).toHaveAttribute(
       "href",
-      "https://play.google.com/apps/testing/solutions.camboulive.run",
+      "https://play.google.com/store/apps/details?id=solutions.camboulive.run",
     );
   });
 

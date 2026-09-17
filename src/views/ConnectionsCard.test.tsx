@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { ConnectionsCard } from "./ConnectionsCard";
-import { PLAY_STORE_BETA_URL, TESTFLIGHT_BETA_URL } from "../constants";
+import { PLAY_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
 import type { SettingsState } from "../types";
 
 afterEach(cleanup);
@@ -21,7 +21,7 @@ describe("ConnectionsCard (web)", () => {
     expect(screen.queryByText("Heart rate after runs")).toBeNull();
     // …replaced by ONE pointer to the mobile apps.
     const android = screen.getByRole("link", { name: "Get it on Google Play" });
-    expect(android).toHaveAttribute("href", PLAY_STORE_BETA_URL);
+    expect(android).toHaveAttribute("href", PLAY_STORE_URL);
     // APP_STORE_URL is still empty pre-App-Store-listing → TestFlight opt-in.
     const ios = screen.getByRole("link", { name: "Get it for iPhone" });
     expect(ios).toHaveAttribute("href", TESTFLIGHT_BETA_URL);

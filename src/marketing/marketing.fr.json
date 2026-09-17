@@ -16,7 +16,7 @@
     "ctaSecondary": "J'ai déjà un compte",
     "freeNote": "Tout ce qu'il vous faut pour vous entraîner est gratuit : plans, suivi GPS, courses et coach, avec une limite d'usage raisonnable par jour afin de préserver la gratuité du service.",
     "iosBeta": "Rejoindre la bêta iOS",
-    "androidBeta": "Rejoindre la bêta Android"
+    "android": "Télécharger sur Google Play"
   },
   "stats": {
     "plans": {
@@ -66,10 +66,10 @@
   },
   "cta": {
     "heading": "Prêt à réaliser votre meilleure course ?",
-    "body": "Créez un compte gratuit et obtenez votre plan d'entraînement en quelques minutes. Tout ce qu'il vous faut pour vous entraîner est inclus, avec une limite d'usage raisonnable par jour pour le coach. Les applications iOS et Android sont en bêta.",
+    "body": "Créez un compte gratuit et obtenez votre plan d'entraînement en quelques minutes. Tout ce qu'il vous faut pour vous entraîner est inclus, avec une limite d'usage raisonnable par jour pour le coach. L'application Android est disponible sur Google Play et celle pour iOS est en bêta.",
     "primary": "Commencer gratuitement",
     "iosBeta": "Rejoindre la bêta iOS",
-    "androidBeta": "Rejoindre la bêta Android"
+    "android": "Télécharger sur Google Play"
   },
   "footer": {
     "support": "Paye-moi un café ☕",

@@ -45,9 +45,10 @@ ships the code inside the APK.
   when no suitable screenshot exists — screenshots are captured manually
   on-device, no retake tooling. (`BottomNav` is no longer overlaid in the
   marketing mock but stays an extracted shared component.)
-- CTAs open `LoginScreen`; a secondary CTA links to the Play Store closed test
-  (`PLAY_STORE_BETA_URL`); iOS beta CTAs use the public TestFlight opt-in
-  (`TESTFLIGHT_BETA_URL`).
+- CTAs open `LoginScreen`; a secondary CTA links to the public Play Store
+  listing (`PLAY_STORE_URL`, the same constant the in-app update prompt uses);
+  iOS beta CTAs use the public TestFlight opt-in (`TESTFLIGHT_BETA_URL`) until
+  `APP_STORE_URL` is filled in.
 
 ## Copy commitments (keep true)
 
