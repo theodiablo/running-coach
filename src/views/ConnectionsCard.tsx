@@ -16,7 +16,7 @@ import { WatchSyncLog } from "./WatchSyncLog";
 import { TrackDiagLog } from "./TrackDiagLog";
 import { BetaBadge } from "../components/BetaBadge";
 import { ToggleSwitch } from "../components/ToggleSwitch";
-import { PLAY_STORE_BETA_URL, APP_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
+import { PLAY_STORE_URL, APP_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
 import type { ImportProvider } from "../imports/types";
 import type { HrMethod, SettingsState } from "../types";
 
@@ -520,7 +520,7 @@ function MobileAppPointer() {
           Apple Watch via Apple Health) — it's the install pitch, don't cut it. */}
       <p className="text-xs text-slate-500">{t("settings.connections.mobile.desc")}</p>
       <div className="grid grid-cols-2 gap-2">
-        <a href={PLAY_STORE_BETA_URL} target="_blank" rel="noopener noreferrer"
+        <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer"
           className="py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 text-center">
           {t("settings.connections.mobile.android")}
         </a>

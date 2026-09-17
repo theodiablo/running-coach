@@ -201,7 +201,8 @@ export const PASSWORD_MIN_LENGTH = 12;
 // this whenever the disclaimer wording materially changes.
 export const DISCLAIMER_VERSION = "2026-06-1";
 
-// Play Store listing — used by the in-app update prompt (see UpdatePrompt.jsx).
+// Play Store listing — the public production listing, used by the in-app update
+// prompt (see UpdatePrompt.jsx) and by every "get the Android app" CTA.
 export const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=solutions.camboulive.run";
 
@@ -210,11 +211,6 @@ export const PLAY_STORE_URL =
 // "https://apps.apple.com/app/id<APPLE_ID>" once known. While empty, the
 // update prompt on iOS shows without a store button rather than dead-linking.
 export const APP_STORE_URL = "";
-
-// Closed test track for the Android app — the tester opt-in link,
-// surfaced as a secondary CTA on the marketing landing while the app is in beta.
-export const PLAY_STORE_BETA_URL =
-  "https://play.google.com/apps/testing/solutions.camboulive.run";
 
 // Public TestFlight opt-in for the iOS beta, surfaced on the marketing landing.
 export const TESTFLIGHT_BETA_URL = "https://testflight.apple.com/join/T73yu15A";

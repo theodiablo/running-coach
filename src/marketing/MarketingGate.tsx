@@ -15,7 +15,7 @@ import { BrandLogo } from "../components/BrandLogo";
 import {
   PRIVACY_URL,
   DISCLAIMER_URL,
-  PLAY_STORE_BETA_URL,
+  PLAY_STORE_URL,
   TESTFLIGHT_BETA_URL,
   TIP_JAR_URL,
 } from "../constants";
@@ -147,13 +147,13 @@ export default function MarketingGate() {
                 <ArrowRight size={15} />
               </a>
               <a
-                href={PLAY_STORE_BETA_URL}
+                href={PLAY_STORE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-[14px] font-semibold text-[#8B98AC] hover:text-[#FDBA74] transition-colors"
               >
                 <Smartphone size={16} />
-                {t("hero.androidBeta")}
+                {t("hero.android")}
                 <ArrowRight size={15} />
               </a>
             </div>
@@ -269,13 +269,13 @@ export default function MarketingGate() {
               <ArrowRight size={15} />
             </a>
             <a
-              href={PLAY_STORE_BETA_URL}
+              href={PLAY_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[15px] font-bold text-[#3B2107] hover:text-[#0B1220] transition-colors"
             >
               <Smartphone size={16} />
-              {t("cta.androidBeta")}
+              {t("cta.android")}
               <ArrowRight size={15} />
             </a>
           </div>
