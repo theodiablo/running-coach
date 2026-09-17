@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildPlan } from "./plan";
 import { STYLE_IDS } from "./planStyles";
 import { renderSd } from "./sessionDesc";
-import { cleanDesc } from "./format";
+import { cleanDesc, ymd } from "./format";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
 import { applyToolCall } from "../../supabase/functions/_shared/coach/tools.mjs";
 import type { PlanSessionInput } from "./plan";
@@ -78,7 +78,24 @@ describe("renderSd reproduces the English desc for every generated sd", () => {
 // stamp `sd` via sdFor, which must render to the tool's English `desc`
 // byte-for-byte — otherwise a coach edit shows a stale/mismatched sentence
 // (the app renders `sd` in preference to `desc`). Drives the real tool path.
-describe("renderSd reproduces the English desc for coach-authored sd", () => {
+// Anchored both ways, like the generator matrix in coachValidation.test.ts:
+// buildPlan reads the real clock to put week 1 on the next Monday, so an
+// unpinned fixture changes shape with the weekday CI happens to run on. The
+// dates below are derived from the anchor rather than written literally — a
+// hardcoded "mid-plan" date silently drifted before week 1 and failed every
+// style with OUT_OF_PLAN, one day in seven, until it failed every day.
+const ANCHORS: [string, string][] = [
+  ["monday anchor", "2026-09-14"],
+  ["midweek anchor", "2026-09-16"],
+];
+
+describe.each(ANCHORS)("renderSd reproduces the English desc for coach-authored sd (%s)", (_label, anchor) => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(anchor + "T10:00:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   const firstEditable = (plan: ReturnType<typeof buildPlan>) => {
     for (const w of plan.weeks) for (const s of w.sessions)
       if (s.type !== "RACE" && !s.done) return { id: s.id, week: w.weekNumber, date: s.date };
@@ -87,7 +104,8 @@ describe("renderSd reproduces the English desc for coach-authored sd", () => {
 
   for (const style of STYLE_IDS) {
     it(`${style}: swap/add/convert/recovery sd renders to its desc`, () => {
-      const base = buildPlan("2026-11-29", 6340, [
+      const raceDate = ymd(new Date(new Date(anchor + "T00:00:00").getTime() + 112 * 86400000));
+      const base = buildPlan(raceDate, 6340, [
         { dayOffset: 1, minutes: 40 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 6, minutes: 90 },
       ], 21.1, 100, { style });
       const check = (plan: ReturnType<typeof buildPlan>) => {
@@ -107,8 +125,14 @@ describe("renderSd reproduces the English desc for coach-authored sd", () => {
       // convert to cross-training + recovery week
       check(applyToolCall(base, "convert_to_cross_training", { session_id: firstEditable(base).id }));
       check(applyToolCall(base, "insert_recovery_week", { week_number: firstEditable(base).week }));
-      // add a session (mid-plan date, safely before taper)
-      const added = applyToolCall(base, "add_session", { date: "2026-09-16", type: "EASY", km: 5 });
+      // A free day in the plan's own second week, read off the plan rather than
+      // written down: any literal date here decays as the weeks pass.
+      const wk2 = base.weeks[1]!;
+      const taken = new Set(wk2.sessions.map(s => s.date));
+      const freeDay = [0, 1, 2, 3, 4, 5, 6]
+        .map(n => ymd(new Date(new Date(wk2.startDate + "T00:00:00").getTime() + n * 86400000)))
+        .find(d => !taken.has(d))!;
+      const added = applyToolCall(base, "add_session", { date: freeDay, type: "EASY", km: 5 });
       expect(check(added)).toBeGreaterThan(0);
     });
   }

@@ -44,6 +44,61 @@ week's sessions** and the two are derived from one set of boundaries in
 - **peak** = the last 4 pre-taper weeks (never earlier than the end of base);
   **build** fills any gap between base and peak.
 
+### The easy-day floor
+
+The long run has always had a fitness floor; the easy days did not. They opened
+at an absolute `2.5 + 0.2 x week` km whatever the runner had been doing, so
+someone already running 8-9 km easy — against a 45-minute session budget they
+had configured themselves — was prescribed 15-minute jogs, and read the whole
+plan as not worth following.
+
+`easyFloor` is that missing twin. It is the **median** distance of the running
+runs in the same ~5-week window `fitFloor` uses, with the same `0.8` haircut. It
+does not replace each style's easy line — it sets where that line **starts**,
+via the shared `easyLine` helper:
+
+```ts
+Math.min(budgetKm, Math.max(start + step * week, Math.min(c.easyFloor, longKm * 0.85)))
+```
+
+so the per-week growth each style already had (`+0.2/wk` in base, `+0.3/wk` for
+polarized's build days, `+0.25/wk` for runwalk) survives on top of it. Three
+guards keep it honest:
+
+- **Median, not max** — one big Sunday effort is not what the runner does on a
+  Tuesday.
+- **At least 3 runs in the window**, or the floor is 0 and the line is exactly
+  what it was. One or two runs in five weeks is a sample, not a habit; the long
+  run's single-sample floor is defensible in a way a habitual easy distance is
+  not. This is also why the balanced output freeze still holds — its fixture
+  logs a single run.
+- **The long-run cap bounds the FLOOR, not the whole line.** It is capped
+  against `longKm` of the week being composed — a cutback week (runwalk sheds
+  30% every third) drops below a block-level cap, which is how a WALK day
+  overtook the long run it was meant to sit under. But applying that ceiling to
+  the style's own opening line as well *shrank* plans that have no floor at all:
+  an unfit runner's long run is small, so `0.85x` of it undercut the 2.5 km
+  opening, left the taper nothing to shed, and tripped `TAPER_VOLUME`. Hence
+  `Math.max(line, Math.min(easyFloor, longKm * 0.85))` — with `easyFloor` at 0
+  the whole expression collapses to the style's own line, byte-for-byte.
+  The day's own time budget is the other ceiling, so the runner's configured
+  minutes still win.
+- **`week` and `longKm` are overridable** because runwalk's taper needs them:
+  since #246 the short days shed off the last pre-taper week on the same
+  `taperMult` ladder as the long run, so that branch evaluates the line at week
+  `N-4` against `peakLong` (recoverable in a taper week as `longKm / taperMult`)
+  and then applies the multiplier.
+
+Which weeks it reaches is per style, and follows where each style's easy line
+already lived: base only for balanced and lowfreq; base **and build** for
+polarized (whose build-phase non-hard days are on the same growth line); every
+non-taper week for runwalk (which has no quality days to displace). Taper weeks
+keep their own shrinking line untouched in every style — shedding volume is what
+a taper is for. Hansons is the exception in shape: it already ramped toward the
+time budget rather than sitting on a constant, so the floor raises where that
+ramp starts, capped at `0.6 x` the budget so there is always a climb left to
+make — cumulative fatigue is built by the climb, not by opening at the ceiling.
+
 ### The base credit
 
 The base block is the **phase-block twin of the long run's fitness floor**.

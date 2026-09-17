@@ -215,6 +215,17 @@ Always re-verify a finding before acting on it; agents report false positives.
   report against it, and only the trailing 2 weeks of it reach the model.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
   semantics): `docs/training-plan.md`.
+- **A test that builds a plan must pin the clock and derive its dates.**
+  `buildPlan` reads the real clock to anchor week 1 on the next Monday, so an
+  unpinned fixture changes shape with the weekday CI happens to run on, and a
+  date written as a literal drifts out of the plan as real weeks pass. Three
+  bugs of this family shipped to `main` in one week, each red one day in seven
+  until it was red every day. So: pin with `vi.setSystemTime`, and prefer
+  `describe.each` over BOTH alignments (a Monday anchor, where the race falls in
+  an extra n+1-th week, and a midweek one) wherever plan *shape* matters —
+  `ANCHORS` in `coachValidation.test.ts` and `sessionDesc.test.ts` is the
+  pattern. Derive every date from the anchor or read it off the generated plan;
+  never hardcode one. Validate as of the same pinned day the plan was built on.
 - **Best efforts** (fastest 1K/5K/10K/half/marathon in a run) are extracted
   **once at save time** from the trace and stored on the run as `bestEfforts`,
   so every PB comparison is an in-memory scan of `runs` — never refetch traces
