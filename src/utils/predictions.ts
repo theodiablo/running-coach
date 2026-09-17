@@ -2,7 +2,7 @@
 import { VERT_COST } from "../constants";
 import { hrZoneBpm } from "./hr";
 type Point = { x: number; y: number };
-type PredictRun = { km: number; durationSec?: number; elevation?: number | null; hr?: number | null; date?: string };
+type PredictRun = { km: number; durationSec?: number; elevation?: number | null; hr?: number | null; date?: string; type?: string };
 type EffortAnchor = { km: number; durationSec: number; eq: number; raw: PredictRun };
 type HrAnchor = {
   km: number; durationSec: number; r2: number; slope: number; n: number; spread: number;
@@ -69,19 +69,41 @@ export const seAt = (fit: NonNullable<ReturnType<typeof linReg>>, x: number) =>
 // same pace/HR line as running — and sitting 25+ bpm below everything else they
 // dominate a least-squares fit. Excluded, so the line describes actual running.
 const FIT_HR_FLOOR_PCT = 0.60; // bottom of Z2
-// Pace cannot keep buying time indefinitely per extra bpm. Cap the fitted slope
-// at 1% of the runner's mean pace per bpm (~4 s/km/bpm at 7:00/km) — steeper
-// than that is noise or a leverage point, not physiology.
-const MAX_SLOPE_FRAC = 0.01;
+// A run can be accidentally slow — walk breaks, red lights, a dog, a photo stop —
+// but never accidentally fast, so slow-side outliers are trimmed one-sidedly at
+// this many MADs off the median pace. Their HR barely drops while their pace
+// collapses, which is the single biggest source of scatter in a real log.
+const SLOW_TRIM_MAD = 2.5;
+// Prior on the pace/HR slope, as a share of mean pace per full heart-rate
+// reserve: ~5:00/km at 70% HRR and ~4:00/km at 88% is ~1.4 mean-paces per
+// reserve, and it self-scales — the same bpm is a bigger effort step for a
+// runner with a narrow reserve.
+const PRIOR_PACE_PER_RESERVE = 1.4;
+// Prior SD as a share of the prior slope: wide enough that a runner whose data
+// genuinely disagrees is believed, tight enough to carry a base-building log.
+const PRIOR_SLOPE_CV = 0.5;
+// The blended slope may not exceed this multiple of the prior — a backstop
+// against a leverage point in data too clean to shrink, not a tuner.
+const MAX_SLOPE_OVER_PRIOR = 1.5;
 // How far past the hardest effort actually logged the line may be read. Beyond
 // this the answer is the fit's opinion, not the runner's data.
 const MAX_EXTRAP_BPM = 8;
 // The HR model is allowed to outrun the best logged effort — that is the whole
 // point — but not by more than this. A backstop against absurdity, not a tuner.
 const MAX_GAIN_OVER_BEST = 1.25;
+// Fewest runs with an avg HR the fit will speak from, and the bpm spread of
+// efforts it needs across them — below either, one run's terrain sets the line.
+const MIN_FIT_RUNS = 8;
+const MIN_FIT_SPREAD = 15;
 // Predicted-pace uncertainty (1σ) above this share of the predicted pace means
 // the data can't support an extrapolation at all; the caller hides the model.
 const MAX_SE_FRAC = 0.10;
+
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
 
 // Heart-rate model. Across the runs that recorded an avg HR, fit pace (sec/km)
 // against HR — easy low-HR runs anchor the slow end, hard high-HR runs the fast
@@ -91,34 +113,57 @@ const MAX_SE_FRAC = 0.10;
 // a low HR therefore pulls the predicted threshold pace faster ("handled well"),
 // and vice-versa.
 //
-// Reading a straight line off past the end of the data is where this gets
-// dangerous, so the extrapolation is bounded three ways — Z1 points dropped, the
-// slope capped, and the read-off HR held within MAX_EXTRAP_BPM of the hardest
-// effort logged — then sanity-clamped against `best` when one is supplied.
-// Returns the anchor plus fit stats; gate it with `hrModelUsable`.
+// The slope is NOT the least-squares slope. A runner who only logs easy runs has
+// a 15-20 bpm window and pace noise (terrain, stops, GPS) far larger than the HR
+// signal in it, so OLS returns a near-flat line with an SE too wide to print —
+// the model then never shows up at all, however many runs are logged. Instead the
+// fitted slope is blended with a physiological prior, precision-weighted: clean
+// wide-spread data keeps its own slope, scattered narrow data falls back towards
+// the prior applied to the runner's own centroid. That both sharpens the estimate
+// and genuinely narrows its SE, which is what the gate reads.
+//
+// Reading a straight line off past the end of the data is still where this gets
+// dangerous, so the extrapolation stays bounded — Z1 points dropped, slow-side
+// outliers trimmed, the blended slope capped against the prior, and the read-off
+// HR held within MAX_EXTRAP_BPM of the hardest effort logged — then sanity-clamped
+// against `best` when one is supplied. Gate it with `hrModelUsable`.
 export const hrModelAnchor = (runs: PredictRun[], effMax: number, restHR: number, best?: {km: number; durationSec: number} | null): HrAnchor | null => {
   if (!effMax) return null;
+  const hrr = effMax - restHR;
   const thr = hrZoneBpm(0.88, 0.90, effMax, restHR);
   const floor = hrZoneBpm(FIT_HR_FLOOR_PCT, 0.70, effMax, restHR);
-  if (!thr || !floor) return null;
+  if (!thr || !floor || hrr <= 0) return null;
   // y is grade-adjusted pace: a hilly run's slow pace at high HR becomes a fast
   // flat-equivalent pace at high HR, consistent with the rest of the data.
-  const pts = runs
-    .filter(r => r.km >= 2 && r.durationSec && r.hr && (r.hr ?? 0) >= floor.lo)
+  const all = runs
+    .filter(r => r.km >= 2 && r.durationSec && r.hr && (r.hr ?? 0) >= floor.lo && String(r.type ?? "").toUpperCase() !== "WALK")
     .map(r => ({x: r.hr ?? 0, y: (r.durationSec ?? 0) / flatEqKm(r)}));
+  if (!all.length) return null;
+  const mid = median(all.map(p => p.y));
+  const mad = median(all.map(p => Math.abs(p.y - mid))) || 0;
+  const pts = mad > 0 ? all.filter(p => p.y <= mid + SLOW_TRIM_MAD * mad) : all;
   const fit = linReg(pts);
   if (!fit) return null;
   const hrs = pts.map(p => p.x);
   const maxHR = Math.max(...hrs);
   const spread = maxHR - Math.min(...hrs);
 
-  // Cap the slope through the fit's centroid: same data, gentler line.
-  const slope = Math.max(fit.b, -MAX_SLOPE_FRAC * fit.my);
+  // Precision-weighted blend of the fitted slope and the physiological prior,
+  // through the fit's centroid. resSd null (n ≤ 2) means no residual estimate at
+  // all, so the prior stands alone; resSd 0 is a perfect line, which keeps its own.
+  const priorSlope = -PRIOR_PACE_PER_RESERVE * fit.my / hrr;
+  const priorPrec = 1 / (PRIOR_SLOPE_CV * priorSlope) ** 2;
+  const dataPrec = fit.resSd == null ? 0 : fit.resSd > 0 ? fit.sxx / fit.resSd ** 2 : Infinity;
+  const blended = dataPrec === Infinity ? fit.b : (dataPrec * fit.b + priorPrec * priorSlope) / (dataPrec + priorPrec);
+  const slope = Math.max(blended, MAX_SLOPE_OVER_PRIOR * priorSlope);
+  const slopeSd = dataPrec === Infinity ? 0 : Math.sqrt(1 / (dataPrec + priorPrec));
   const atHR = Math.min(thr.lo, maxHR + MAX_EXTRAP_BPM);
   const thrPace = fit.my + slope * (atHR - fit.mx);
   if (thrPace <= 0) return null;
 
-  const se = seAt(fit, atHR);
+  // Same shape as `seAt`, with the blended slope's SD in place of the fit's own.
+  const se = fit.resSd == null ? null
+    : Math.sqrt((fit.resSd ** 2) / fit.n + (slopeSd * (atHR - fit.mx)) ** 2);
   const bestKm = best?.durationSec ? riegelKm(best.durationSec, best.km, 3600) : 0;
   const km = Math.min(3600 / thrPace, bestKm > 0 ? bestKm * MAX_GAIN_OVER_BEST : Infinity);
   return {
@@ -133,5 +178,25 @@ export const hrModelAnchor = (runs: PredictRun[], effMax: number, restHR: number
 // of efforts, pace genuinely improving with HR, and a prediction precise enough
 // to be worth printing.
 export const hrModelUsable = (hr: HrAnchor | null): hr is HrAnchor =>
-  !!hr && hr.n >= 8 && hr.spread >= 15 && hr.slope < 0
+  !!hr && hr.n >= MIN_FIT_RUNS && hr.spread >= MIN_FIT_SPREAD && hr.slope < 0
   && hr.se != null && hr.se <= MAX_SE_FRAC * hr.thrPace;
+
+// Which gate a hidden model is failing, so the locked state can name it. "It
+// needs more data" with no idea which kind reads as broken to a runner who has
+// been logging for months.
+export type HrBlocker = "noData" | "few" | "spread" | "flat" | "scatter";
+export const hrModelBlocker = (hr: HrAnchor | null): HrBlocker | null => {
+  if (!hr) return "noData";
+  if (hr.n < MIN_FIT_RUNS) return "few";
+  if (hr.spread < MIN_FIT_SPREAD) return "spread";
+  if (hr.slope >= 0) return "flat";
+  if (hr.se == null || hr.se > MAX_SE_FRAC * hr.thrPace) return "scatter";
+  return null;
+};
+
+// What a blocked model still needs, for the locked copy: runs short of the
+// minimum, and bpm short of the required spread of efforts.
+export const hrModelGap = (hr: HrAnchor | null) => ({
+  runs: Math.max(0, MIN_FIT_RUNS - (hr?.n ?? 0)),
+  bpm: Math.max(0, MIN_FIT_SPREAD - (hr?.spread ?? 0)),
+});
