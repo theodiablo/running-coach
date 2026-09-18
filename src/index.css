@@ -17,6 +17,25 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* The whole app is a set of controls, not a document: selecting text is never
+   the goal, and on a touch device it actively fights gestures that hold a
+   press (Finish's hold-to-confirm) by triggering the OS's own text-selection
+   UI over the button mid-hold. Disabled by inheritance from the root and
+   re-enabled only where copying text is the point. Unlayered so it beats
+   Tailwind utilities, same as the iOS input font-size rule below. */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* Tailwind v4's preflight resets buttons to `cursor: default`; restore the
    pointer on interactive controls (v3 behaviour) so buttons read as clickable
    on the web. No-op on touch; disabled controls keep the default arrow. */
