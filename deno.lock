@@ -10,7 +10,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@anthropic-ai/sdk@0.125",
+        "npm:@anthropic-ai/sdk@0.126",
         "npm:@capacitor-community/background-geolocation@1.2.26",
         "npm:@capacitor-community/bluetooth-le@^8.3.0",
         "npm:@capacitor/android@^8.5.2",
@@ -27,7 +27,7 @@
         "npm:@resvg/resvg-js@^2.6.2",
         "npm:@supabase/supabase-js@^2.116.0",
         "npm:@tailwindcss/vite@^4.3.0",
-        "npm:@testing-library/dom@^10.4.1",
+        "npm:@testing-library/dom@^10.4.2",
         "npm:@testing-library/jest-dom@^7.0.1",
         "npm:@testing-library/react@^16.3.3",
         "npm:@types/react-dom@^19.3.0",
@@ -35,17 +35,17 @@
         "npm:@vitejs/plugin-react@^6.1.1",
         "npm:@vitest/coverage-v8@^4.1.11",
         "npm:eslint-plugin-react-hooks@^7.1.1",
-        "npm:eslint-plugin-react-refresh@~0.5.6",
+        "npm:eslint-plugin-react-refresh@~0.5.7",
         "npm:eslint@^10.10.0",
         "npm:globals@^17.12.0",
         "npm:i18next@^26.4.2",
-        "npm:jsdom@^30.0.1",
+        "npm:jsdom@^30.1.0",
         "npm:leaflet@^1.9.4",
-        "npm:lucide-react@^1.45.0",
+        "npm:lucide-react@^1.47.0",
         "npm:patch-package@^8.0.1",
-        "npm:posthog-js@^1.430.2",
+        "npm:posthog-js@^1.434.0",
         "npm:react-dom@^19.3.0",
-        "npm:react-i18next@^17.0.13",
+        "npm:react-i18next@^17.0.14",
         "npm:react-markdown@^10.1.0",
         "npm:react@^19.3.0",
         "npm:recharts@^3.8.1",
@@ -63,8 +63,7 @@
         },
         "xcode": {
           "uuid": "^11.1.1"
-        },
-        "nanoid": "^3.3.18"
+        }
       }
     }
   }
