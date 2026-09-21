@@ -263,6 +263,14 @@ Always re-verify a finding before acting on it; agents report false positives.
   degrade when `km` is 0. The recorder is its own screen over
   `useRunTracker({indoor:true})` (no geo watch, own recovery key) — never a
   branch inside `LiveRunTracker`. Detail: `docs/indoor-sessions.md`.
+- **The HR race prediction is a shrunk fit, not a least-squares one** — a real
+  log is all easy runs in a 15-20 bpm window, so OLS there is noise and the model
+  hides itself however many runs are logged. `predictions.ts` blends the fitted
+  pace/HR slope with a physiological prior and trims slow-side outliers one-way
+  (a run is never accidentally fast); a hidden model must name which gate it
+  fails (`hrModelBlocker`), never "needs more data". Never tune the thresholds
+  against a synthetic straight line — it skips the shrinkage.
+  `docs/race-predictions.md`.
 - `raceDate`, `distanceKm`, `goalSec` start **empty** (`""`) — no seeded race
   defaults; guard before reading them.
 - **Derived-state resets happen during render, not in effects** — see the
@@ -623,6 +631,7 @@ changes.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
+- `docs/race-predictions.md` — the two race projections, the HR model's prior, gating.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
 - `docs/feedback.md` — the beta feedback button (and why voice input was removed).

@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { VERT_COST } from "../constants";
 import { fmt, weekKey } from "../utils/format";
 import { effectiveMaxHR } from "../utils/hr";
-import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable } from "../utils/predictions";
+import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable, hrModelBlocker, hrModelGap } from "../utils/predictions";
 import { PredictionsInfo } from "../components/PredictionsInfo";
 import { HRZonesCard } from "../components/HRZonesCard";
 import { isCrossTraining } from "../types";
@@ -190,6 +190,16 @@ function Overview({runs, settings}: StatsViewProps) {
   );
 }
 
+// One locked-state line per gate the HR model can fail, so a runner who has been
+// logging for months is told which kind of data is missing.
+const HR_LOCKED_COPY: Record<NonNullable<ReturnType<typeof hrModelBlocker>>, string> = {
+  noData:  "progress.predictions.hrLockedNoData",
+  few:     "progress.predictions.hrLockedFew",
+  spread:  "progress.predictions.hrLockedSpread",
+  flat:    "progress.predictions.hrLockedFlat",
+  scatter: "progress.predictions.hrLockedScatter",
+};
+
 // Project finish times from logged runs.
 function RacePredictions({runs, settings}: StatsViewProps) {
   const { t } = useTranslation();
@@ -304,7 +314,7 @@ function RacePredictions({runs, settings}: StatsViewProps) {
               </p>
             ) : (
               <p className="text-slate-500 text-xs">
-                {t("progress.predictions.hrLocked")}
+                {t(HR_LOCKED_COPY[hrModelBlocker(hr) ?? "noData"], hrModelGap(hr))}
               </p>
             )}
             <p className="text-slate-400 text-xs">

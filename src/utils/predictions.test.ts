@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { riegel, riegelKm, flatEqKm, bestEffortAnchor, linReg, seAt, hrModelAnchor, hrModelUsable } from "./predictions";
+import { riegel, riegelKm, flatEqKm, bestEffortAnchor, linReg, seAt, hrModelAnchor, hrModelUsable, hrModelBlocker, hrModelGap } from "./predictions";
 
 describe("riegel", () => {
   it("returns the same time for the same distance", () => {
@@ -109,10 +109,27 @@ describe("hrModelAnchor", () => {
       .toBeCloseTo(hrModelAnchor(clean, MAX, REST)!.km, 6);
   });
 
-  it("caps an implausibly steep slope at 1% of mean pace per bpm", () => {
-    // 700 → 200 s/km over 20 bpm is −25 s/km/bpm; mean pace 450 caps it at −4.5.
+  it("caps a slope steeper than 1.5× the physiological prior", () => {
+    // 700 → 200 s/km over 20 bpm is −25 s/km/bpm. A perfect line keeps its own
+    // slope (nothing to shrink towards), so only the cap stands between that and
+    // the prediction: prior = 1.4 × 450 mean pace / 130 reserve = −4.846, ×1.5.
     const steep = Array.from({length: 9}, (_, i) => at(150 + 2.5 * i, 700 - 62.5 * i, i));
-    expect(hrModelAnchor(steep, MAX, REST)!.slope).toBeCloseTo(-4.5, 6);
+    expect(hrModelAnchor(steep, MAX, REST)!.slope).toBeCloseTo(-1.4 * 450 / 130 * 1.5, 6);
+  });
+
+  // A run can be accidentally slow but never accidentally fast, so the trim is
+  // one-sided: the walk-break run goes, the strong run that anchors the fast end
+  // of the line stays.
+  it("trims a slow-side outlier without touching the fastest run", () => {
+    const withStops = [...clean, at(152, 900, 30)];
+    expect(hrModelAnchor(withStops, MAX, REST)!.n).toBe(9);
+    const fast = hrModelAnchor([...clean, at(160, 380, 30)], MAX, REST)!;
+    expect(fast.n).toBe(10);
+  });
+
+  it("leaves WALK sessions out of the fit even when their HR clears Z2", () => {
+    const walk = {...at(150, 780, 30), type: "WALK"};
+    expect(hrModelAnchor([...clean, walk], MAX, REST)!.n).toBe(9);
   });
 
   it("reads no more than 8 bpm past the hardest effort logged", () => {
@@ -160,16 +177,65 @@ describe("hrModelUsable", () => {
     expect(hrModelUsable(hrModelAnchor(flat, MAX, REST))).toBe(false);
   });
 
-  it("rejects a fit too scattered to extrapolate from", () => {
-    // Same pace logged at wildly different HRs and vice-versa: a line can be
-    // drawn, but its prediction at threshold is worth nothing.
+  // A real base-building log: ten runs inside a 20 bpm window, pace scattered by
+  // terrain and stops. Its own least-squares slope is near-flat and its SE too
+  // wide to print, which is what used to hide the model from a runner with months
+  // of data. Shrunk towards the prior it becomes printable — and stays sane.
+  it("carries a noisy narrow-spread log by leaning on the prior", () => {
     const scattered = [
       at(155, 347, 0), at(153, 330, 1), at(146, 377, 2), at(153, 372, 3), at(150, 410, 4),
       at(145, 420, 5), at(155, 434, 6), at(145, 411, 7), at(142, 499, 8), at(162, 393, 9),
     ];
     const r = hrModelAnchor(scattered, MAX, REST)!;
-    expect(r.slope).toBeLessThan(0);
-    expect(r.n).toBe(10);
-    expect(hrModelUsable(r)).toBe(false);
+    expect(r.n).toBe(9);                                 // the 8:19/km stop-heavy run trimmed
+    expect(hrModelUsable(r)).toBe(true);
+    const kept = scattered.filter(x => x.durationSec / x.km < 499);
+    const ols = linReg(kept.map(x => ({x: x.hr, y: x.durationSec / x.km})))!;
+    expect(r.slope).toBeLessThan(ols.b);                 // steeper than the noise-driven line
+    expect(r.slope).toBeGreaterThan(-1.4 * r.thrPace / (MAX - REST) * 1.5);
+    expect(r.thrPace).toBeGreaterThan(250);              // and nowhere near elite
+  });
+
+  it("still rejects a fit too scattered for even the prior to rescue", () => {
+    // The same pace at every HR and every pace at one HR: no centroid worth
+    // projecting from, whatever slope is used to leave it.
+    const noise = Array.from({length: 10}, (_, i) => at(145 + 2 * i, i % 2 ? 650 : 250, i));
+    expect(hrModelUsable(hrModelAnchor(noise, MAX, REST))).toBe(false);
+  });
+});
+
+describe("hrModelBlocker", () => {
+  const MAX = 190, REST = 60;
+  const at = (hr: number, pace: number, i = 0) => ({date: `2026-01-${String(i + 1).padStart(2, "0")}`, km: 10, durationSec: pace * 10, hr});
+
+  it("names no data at all", () => {
+    expect(hrModelBlocker(null)).toBe("noData");
+    expect(hrModelGap(null)).toEqual({runs: 8, bpm: 15});
+  });
+
+  it("names the missing runs and how many", () => {
+    const few = Array.from({length: 5}, (_, i) => at(150 + 3 * i, 500 - 6 * i, i));
+    const hr = hrModelAnchor(few, MAX, REST);
+    expect(hrModelBlocker(hr)).toBe("few");
+    expect(hrModelGap(hr).runs).toBe(3);
+  });
+
+  it("names a narrow spread and how much more is needed", () => {
+    const narrow = Array.from({length: 9}, (_, i) => at(150 + i, 500 - 2 * i, i)); // 8 bpm
+    const hr = hrModelAnchor(narrow, MAX, REST);
+    expect(hrModelBlocker(hr)).toBe("spread");
+    expect(hrModelGap(hr).bpm).toBe(7);
+  });
+
+  it("names a fit where pace doesn't improve with HR", () => {
+    const flat = Array.from({length: 9}, (_, i) => at(150 + 3 * i, 500 + 6 * i, i));
+    expect(hrModelBlocker(hrModelAnchor(flat, MAX, REST))).toBe("flat");
+  });
+
+  it("names scatter, and nothing at all once the model is usable", () => {
+    const noise = Array.from({length: 10}, (_, i) => at(145 + 2 * i, i % 2 ? 650 : 250, i));
+    expect(hrModelBlocker(hrModelAnchor(noise, MAX, REST))).toBe("scatter");
+    const clean = Array.from({length: 9}, (_, i) => at(150 + 3 * i, 500 - 6 * i, i));
+    expect(hrModelBlocker(hrModelAnchor(clean, MAX, REST))).toBeNull();
   });
 });
