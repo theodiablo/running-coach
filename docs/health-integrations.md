@@ -59,6 +59,30 @@ carries a `live` flag:
   do what the connect would have done for free. The first attempt keeps the
   default: it runs during the idle preview, where the sensor is in the runner's
   hands and quick "can't reach sensor" feedback beats patience.
+  **Reconnect cycles alternate between two routes, and neither may be dropped.**
+  The *auto* cycle uses Android's background-connection mode
+  (`connectGatt(autoConnect=true)`, plumbed through our plugin patch): the OS
+  holds the request and completes it the moment the strap advertises again, with
+  **no app-side scan** — the one recovery Android's scan throttle cannot take
+  away. The *direct* cycle is the re-discovery scan above. They alternate
+  because each is blind to the other's failure: autoConnect aims at a saved
+  address, so a rotated one would wait forever on an address that never
+  advertises again, and only the name-matching scan gets it back; while a scan
+  spends the allowance that a temporarily-absent strap does not need spent. An
+  autoConnect **must always carry a deadline** (`AUTO_CONNECT_TIMEOUT_MS`) and
+  must never become unbounded: it delivers no callback when it never completes,
+  so the timeout is its only cancel, and because every `BleClient` call shares
+  one JS queue, a connect left in flight blocks our own teardown, the next
+  watch's connect and the pairing screen's scan. That timeout is therefore three
+  things at once — how patient we are, how long an address rotation takes to
+  recover, and how long after Finish a stopped watch can still hold the radio.
+  The save path is immune by construction: `hrJournal.ts` talks to the plugin
+  through its **own** `registerPlugin` proxy, not `BleClient`, so reading the
+  journal never queues behind the radio — don't "consolidate" it.
+  Because a patient cycle outlasts two failures' worth of wall clock, the
+  "can't reach sensor" verdict is time-based as well as count-based
+  (`UNREACHABLE_AFTER_MS`); otherwise a dead strap reads "connecting" for
+  minutes.
   **When HR fails on a real run, read the diagnostic log before changing
   anything** — `hr-beat` / `hr-stall` / `hr-connect` / `hr-scan` / `hr-save`
   in `docs/live-tracking.md` separate a dead link from a delivery stall from a

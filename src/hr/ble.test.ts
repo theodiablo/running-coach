@@ -32,9 +32,12 @@ const hrView = (bpm: number) => new DataView(new Uint8Array([0, bpm]).buffer);
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 const STALL_MS = 20000;
-// Every attempt after the first asks for the full window Android's own direct
-// connect uses, instead of the plugin's 10s default (see RECONNECT_TIMEOUT_MS).
+// Reconnect cycles alternate. The direct cycle asks for the full window
+// Android's own direct connect uses, instead of the plugin's 10s default
+// (RECONNECT_TIMEOUT_MS); the auto cycle asks the OS to hold the request until
+// the strap advertises, scan-free (AUTO_CONNECT_TIMEOUT_MS).
 const RECONNECT_OPTS = { timeout: 30000 };
+const AUTO_OPTS = { timeout: 45000, autoConnect: true };
 
 beforeEach(async () => {
   vi.useFakeTimers();
@@ -79,7 +82,13 @@ describe("bleSource.watch", () => {
   });
 
   it("re-discovers a rotated address by name and persists it", async () => {
-    ble.client.connect.mockRejectedValueOnce(new Error("connection timeout"));
+    // The rotated address is a black hole — nothing reaches it, by either route.
+    // This is the case autoConnect CANNOT fix (it would wait on an address that
+    // never advertises again), so it is the one that proves the scan cycle still
+    // runs even though reconnects now alternate through a scan-free one.
+    ble.client.connect.mockImplementation(async (id: string) => {
+      if (id === "OLD") throw new Error("connection timeout");
+    });
     ble.client.requestLEScan.mockImplementation(async (_opts, cb) => {
       cb({ device: { deviceId: "NEW", name: "Polar H10" } });
     });
@@ -88,6 +97,36 @@ describe("bleSource.watch", () => {
     await vi.advanceTimersByTimeAsync(30000);
     expect(onDeviceChange).toHaveBeenCalledWith({ id: "NEW", name: "Polar H10" });
     expect(ble.client.connect).toHaveBeenLastCalledWith("NEW", expect.any(Function), RECONNECT_OPTS);
+  });
+
+  it("alternates a scan-free autoConnect cycle with a scanning direct one", async () => {
+    ble.client.connect.mockRejectedValue(new Error("133"));
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1", deviceName: "Polar H10" });
+    await vi.advanceTimersByTimeAsync(120000);
+    const opts = ble.client.connect.mock.calls.map(c => c[2]);
+    expect(opts[0]).toBeUndefined();               // idle preview keeps the plugin default
+    const reconnects = opts.slice(1);
+    // Alternating, so neither recovery can starve the other.
+    expect(reconnects.slice(0, 4)).toEqual([AUTO_OPTS, RECONNECT_OPTS, AUTO_OPTS, RECONNECT_OPTS]);
+    // Scans are spent only on the direct cycles — the auto ones cost nothing
+    // from Android's scan allowance, which is the whole point of them.
+    const directCycles = reconnects.filter(o => o && !("autoConnect" in o)).length;
+    expect(directCycles).toBeGreaterThan(0);
+    expect(ble.client.requestLEScan.mock.calls.length).toBeLessThanOrEqual(directCycles);
+  });
+
+  it("says unreachable once the link has simply been down long enough", async () => {
+    // A patient autoConnect cycle can outlast two failures' worth of wall clock,
+    // so the count alone would leave a dead strap reading "connecting" for
+    // minutes. One slow attempt must still reach the verdict.
+    ble.client.connect.mockImplementation((_id: string, _cb: unknown, opts?: { timeout?: number }) =>
+      new Promise((_res, rej) => setTimeout(() => rej(new Error("Connection timeout.")), opts?.timeout ?? 10000)));
+    const onStatus = vi.fn();
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1", onStatus });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onStatus).not.toHaveBeenCalledWith("unreachable");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(onStatus).toHaveBeenCalledWith("unreachable");
   });
 
   it("ignores scan results for other sensors", async () => {
@@ -99,10 +138,11 @@ describe("bleSource.watch", () => {
     bleSource.watch(vi.fn(), undefined, { deviceId: "OLD", deviceName: "Polar H10", onDeviceChange });
     await vi.advanceTimersByTimeAsync(60000);
     expect(onDeviceChange).not.toHaveBeenCalled();
-    expect(ble.client.connect).toHaveBeenLastCalledWith("OLD", expect.any(Function), RECONNECT_OPTS);
+    // Whichever cycle it lands on, it is still aiming at the saved address.
+    expect(ble.client.connect.mock.calls.at(-1)?.[0]).toBe("OLD");
   });
 
-  it("gives a reconnect longer than the plugin default, but not the first connect", async () => {
+  it("keeps the plugin default for the first connect only", async () => {
     ble.client.connect.mockRejectedValueOnce(new Error("133"));
     bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
     await flush();
@@ -110,7 +150,7 @@ describe("bleSource.watch", () => {
     // patience when the sensor is in the runner's hands.
     expect(ble.client.connect).toHaveBeenNthCalledWith(1, "d1", expect.any(Function));
     await vi.advanceTimersByTimeAsync(40000);
-    expect(ble.client.connect).toHaveBeenLastCalledWith("d1", expect.any(Function), RECONNECT_OPTS);
+    expect(ble.client.connect.mock.calls[1]?.[2]).toEqual(AUTO_OPTS);
   });
 
   it("reports unreachable only after repeated failed cycles, and keeps retrying", async () => {
