@@ -1,5 +1,6 @@
 import { BleClient, numberToUUID } from "@capacitor-community/bluetooth-le";
 import { parseHrMeasurement } from "../utils/hr";
+import { logTrack } from "../geo/trackLog";
 import { lastNativeHrBeatAt } from "./hrJournal";
 
 // Live heart-rate source: a standard Bluetooth LE Heart Rate sensor (chest strap,
@@ -32,6 +33,20 @@ const STALL_MS = 20000;
 // on it would tear down a healthy link (and with it the native journal that was
 // covering us). Past this much lateness the watchdog re-arms instead.
 const STALL_GRACE_MS = 5000;
+// How long a RECONNECT may take before we call it failed. The plugin defaults to
+// 10s, which is shorter than the window Android's own direct connect uses to
+// look for the peripheral (~30s) — so a strap that dropped and is advertising
+// again on its slow interval was being given up on while the platform was still
+// finding it. Each of those premature failures then set scanFirst, spending a
+// re-discovery scan out of Android's small allowance to do what the connect
+// would have done for free. The first attempt keeps the plugin default: it runs
+// during the idle preview, where the sensor is in the runner's hands and quick
+// "can't reach sensor" feedback is worth more than patience.
+const RECONNECT_TIMEOUT_MS = 30000;
+// Notifications land at ~1-2Hz; one diagnostic row each would fill the ring
+// buffer with a few minutes of a run. Roll them up instead — what the log has to
+// answer is whether beats were arriving at all across a stretch, not their values.
+const BEAT_LOG_MS = 15000;
 
 export type BleDevice = { id: string; name: string };
 export type BleHrSample = { bpm: number; t: number };
@@ -50,6 +65,16 @@ type BleWatchOptions = {
   // caller can persist it and the next session connects directly again.
   onDeviceChange?: (device: BleDevice) => void;
   onStatus?: (status: BleWatchStatus) => void;
+};
+
+// A plugin rejection is sometimes an Error, sometimes a bare string, sometimes a
+// {message} bag — and the distinction between "Connection timeout." and a GATT
+// 133 is the whole point of logging it, so don't flatten it to "failed".
+const errText = (error: unknown): string => {
+  if (!error) return "failed";
+  if (typeof error === "string") return error;
+  const msg = (error as { message?: unknown }).message;
+  return typeof msg === "string" && msg ? msg : "failed";
 };
 
 let initialized = false;
@@ -125,7 +150,19 @@ const bleSourceImpl = {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
     let stallArmedAt = 0;  // when the watchdog was set, to tell lateness from silence
-    const status = (s: BleWatchStatus) => { if (!handle.stopped) onStatus?.(s); };
+    let lastStatus: BleWatchStatus | null = null; // log a status only when it changes
+    let attempts = 0;      // connect attempts made by this watch (1 = the first)
+    // Beat roll-up for the diagnostic log (see BEAT_LOG_MS).
+    let beatsSinceLog = 0;
+    let beatLogAt = 0;
+    // True while forceReconnect is tearing the link down, so the disconnect it
+    // causes is logged as ours rather than as the sensor dropping out.
+    let selfDisconnecting = false;
+    const status = (s: BleWatchStatus) => {
+      if (handle.stopped) return;
+      if (s !== lastStatus) { lastStatus = s; logTrack("hr-status", { msg: s }); }
+      onStatus?.(s);
+    };
 
     // Direct connect only reaches a peripheral Android has recently seen
     // advertise, and a sensor using resolvable private addresses invalidates the
@@ -135,12 +172,15 @@ const bleSourceImpl = {
     // onDeviceChange so the caller can persist it.
     const rediscover = () => new Promise<void>((resolve) => {
       status("scanning");
+      logTrack("hr-scan", { msg: "start" });
       let settled = false;
+      let found = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = () => {
         if (settled) return;
         settled = true;
         if (timer) clearTimeout(timer);
+        logTrack("hr-scan", { msg: found ? "found" : "none", ok: found });
         BleClient.stopLEScan().catch(() => { /* not scanning — ignore */ });
         resolve();
       };
@@ -153,6 +193,7 @@ const bleSourceImpl = {
           handle.deviceId = id;
           onDeviceChange?.({ id, name: name || deviceName || "Heart-rate sensor" });
         }
+        found = true;
         finish();
       }).then(() => { timer = setTimeout(finish, REDISCOVER_SCAN_MS); })
         .catch(finish);
@@ -175,14 +216,25 @@ const bleSourceImpl = {
       // silences the notification callback too, so this proves nothing about the
       // link. Give it one clean window instead: a healthy sensor lands a sample
       // within ~1s of the WebView waking and disarms this before it fires again.
-      if (Date.now() - stallArmedAt > STALL_MS + STALL_GRACE_MS) { armStall(); return; }
+      if (Date.now() - stallArmedAt > STALL_MS + STALL_GRACE_MS) {
+        logTrack("hr-stall", { msg: "late-fire", sinceMs: Date.now() - stallArmedAt });
+        armStall();
+        return;
+      }
       // Silence in THIS stream is not silence on the link: the GATT callback
       // keeps firing while delivery to the WebView stalls, so ask it before
       // tearing anything down (docs/health-integrations.md). Null — iOS, an
       // unpatched shell, no beat yet — keeps the original behaviour.
       void lastNativeHrBeatAt().then(beatAt => {
         if (handle.stopped || stallTimer) return; // a sample landed meanwhile
-        if (beatAt != null && Date.now() - beatAt < STALL_MS) { armStall(); return; }
+        const nativeAge = beatAt != null ? Date.now() - beatAt : undefined;
+        if (beatAt != null && Date.now() - beatAt < STALL_MS) {
+          // The link is fine and it is delivery to this WebView that stopped.
+          logTrack("hr-stall", { msg: "delivery-stall", sinceMs: nativeAge });
+          armStall();
+          return;
+        }
+        logTrack("hr-stall", { msg: beatAt == null ? "silent (no native beat)" : "link-dead", sinceMs: nativeAge });
         forceReconnect();
       });
     };
@@ -195,10 +247,11 @@ const bleSourceImpl = {
       if (stallTimer) clearTimeout(stallTimer);
       stallTimer = undefined;
       status("connecting");
+      selfDisconnecting = true;
       const id = handle.deviceId;
       // Our own disconnect may fire onDisconnected, which schedules a retry too;
       // scheduleRetry is single-flight, so whichever lands first wins.
-      const done = () => scheduleRetry();
+      const done = () => { selfDisconnecting = false; scheduleRetry(); };
       if (!id) { done(); return; }
       (async () => {
         try { await BleClient.stopNotifications(id, HR_SERVICE, HR_MEASUREMENT); } catch { /* ignore */ }
@@ -208,6 +261,7 @@ const bleSourceImpl = {
 
     const onDisconnected = () => {
       if (handle.stopped) return;
+      logTrack("hr-connect", { ok: false, msg: selfDisconnecting ? "disconnected (watchdog teardown)" : "disconnected by peer" });
       if (stallTimer) clearTimeout(stallTimer);
       stallTimer = undefined;
       status("connecting");
@@ -221,10 +275,14 @@ const bleSourceImpl = {
       // Only re-discover when the scan allowance has recovered; otherwise fall
       // through to a direct connect, which costs nothing and often works once
       // the sensor has advertised again.
-      if (scanFirst && Date.now() - lastScanAt >= SCAN_MIN_INTERVAL_MS) {
-        lastScanAt = Date.now();
-        await rediscover();
-        scanFirst = false;
+      if (scanFirst) {
+        if (Date.now() - lastScanAt >= SCAN_MIN_INTERVAL_MS) {
+          lastScanAt = Date.now();
+          await rediscover();
+          scanFirst = false;
+        } else {
+          logTrack("hr-scan", { msg: "throttled", sinceMs: Date.now() - lastScanAt });
+        }
       }
       if (handle.stopped) return;
       status("connecting");
@@ -235,7 +293,9 @@ const bleSourceImpl = {
       // rejects with "device not found". No-op when the device is already
       // known (post-scan, or Android); real failures still surface in connect.
       try { await BleClient.getDevices([id]); } catch { /* connect() reports the actionable error */ }
-      await BleClient.connect(id, onDisconnected);
+      attempts += 1;
+      if (attempts > 1) await BleClient.connect(id, onDisconnected, { timeout: RECONNECT_TIMEOUT_MS });
+      else await BleClient.connect(id, onDisconnected);
       // clearWatch may have run while connect() was in flight (e.g. the run was
       // discarded/finished before a slow/out-of-range sensor finished connecting).
       // Don't subscribe to a device we were told to stop watching — disconnect
@@ -255,14 +315,26 @@ const bleSourceImpl = {
         armStall();
         const parsed = parseHrMeasurement(value);
         if (parsed) onSample({ bpm: parsed.bpm, t: Date.now() });
+        // Roll-up, not per-beat: the question the log answers is whether beats
+        // were being DELIVERED here across a stretch, not what they read.
+        beatsSinceLog += 1;
+        const now = Date.now();
+        if (!beatLogAt) beatLogAt = now; // first beat of the watch — start the window
+        else if (now - beatLogAt >= BEAT_LOG_MS) {
+          logTrack("hr-beat", { n: beatsSinceLog, bpm: parsed?.bpm, sinceMs: now - beatLogAt });
+          beatsSinceLog = 0;
+          beatLogAt = now;
+        }
       });
       backoff = 1000; failures = 0; // reset after a clean (re)connect
+      logTrack("hr-connect", { ok: true, msg: `attempt ${attempts}` });
       status("connected");
       armStall(); // subscribed but not yet notifying — the watchdog owns it from here
     };
-    const onFail = () => {
+    const onFail = (error?: unknown) => {
       attempting = false;
       if (handle.stopped) return;
+      logTrack("hr-connect", { ok: false, msg: `attempt ${attempts}: ${errText(error)}` });
       scanFirst = true;
       failures += 1;
       if (failures >= 2) status("unreachable"); // one slow strap isn't a verdict; two full cycles are
@@ -292,7 +364,7 @@ const bleSourceImpl = {
       await teardownChain.catch(() => { /* previous teardown failed — proceed */ });
       if (handle.stopped) { attempting = false; return; }
       try { await start(); attempting = false; }
-      catch (e) { onErr?.(e); onFail(); }
+      catch (e) { onErr?.(e); onFail(e); }
     })();
     return handle;
   },

@@ -431,20 +431,39 @@ the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
   nag. Don't drop this gate back to "start and hope" — the silent blank-map run
   was the bug.
 
-## GPS tracking diagnostics (dev-only, native)
+## Sensor diagnostics — GPS + HR (dev-only, native)
 
 A hidden per-device ring buffer (`src/geo/trackLog.ts`, `GEO_DIAG_LOG_KEY`,
-**never synced**, capped at `GEO_DIAG_LOG_MAX`) records the live tracker's
-event stream — each raw `native-fix` arrival at the JS boundary, whether it was
+**never synced**, capped at `GEO_DIAG_LOG_MAX`) records what a run's sensor
+streams actually did. One buffer for both streams on purpose: they fail
+together and the question is always which stopped first.
+
+**GPS** — each raw `native-fix` arrival at the JS boundary, whether it was
 kept (`fix`) or dropped (`drop`, with reason) or opened a `gap`, plus
 permission/watch/foreground-background transitions. Instrumented in
-`useRunTracker.ts` and `geo/native.ts`. Logging is a **no-op until enabled**
-(`isGeoDebugEnabled`, cached in-module so the per-fix cost is nil when off).
-Viewer is `src/views/TrackDiagLog.tsx` — revealed by the SAME Settings →
-Connections title 5-tap as the watch sync log (`revealTap` flips `setGeoDebug`
-too); its summary reports max fix-gap **while hidden vs visible**, the direct
-read on "do fixes stop when the screen is off". Raw + English-only (a debug
-surface, not wired through i18n), mirroring `WatchSyncLog`.
+`useRunTracker.ts` and `geo/native.ts`. Summary: max fix-gap **while hidden vs
+visible**, the direct read on "do fixes stop when the screen is off".
+
+**HR** — instrumented in `src/hr/ble.ts`, `hrJournal.ts` and `runHr.ts`,
+because "it connects and then stops reading" can be any of four layers and they
+are indistinguishable from the screen. Read the kinds in this order and the
+failing layer names itself:
+
+| kind | answers |
+|---|---|
+| `hr-beat` | are notifications still being **delivered to this JS**? (rolled up every 15s — one row per beat would fill the buffer in minutes) |
+| `hr-stall` | the watchdog fired: `delivery-stall` = the **native GATT callback still sees beats**, so only delivery stopped; `link-dead` = the callback is quiet too; `late-fire` = the WebView was frozen and the verdict is worthless. `sinceMs` is the native beat's age |
+| `hr-connect` | did the reconnect get back in? `disconnected by peer` vs `(watchdog teardown)` separates the strap dropping from our own teardown; a failure carries the plugin's real error, so a GATT 133 never reads as a timeout |
+| `hr-scan` | re-discovery: `found` / `none`, and **`throttled`** = Android's scan allowance is why we couldn't get back |
+| `hr-journal` | was the native journal armed for this stretch? |
+| `hr-save` | what survived: `live=` / `journal=` / `merged=` counts and coverage vs the gate. **`journal` >> `live` means the link was healthy and JS was not being fed** |
+
+Logging is a **no-op until enabled** (`isGeoDebugEnabled`, cached in-module so
+the per-fix and per-beat cost is nil when off). Viewer is
+`src/views/TrackDiagLog.tsx` — revealed by the SAME Settings → Connections
+title 5-tap as the watch sync log (`revealTap` flips `setGeoDebug` too). Raw +
+English-only (a debug surface, not wired through i18n), mirroring
+`WatchSyncLog`.
 
 ## npm dependency patches (`patches/`)
 

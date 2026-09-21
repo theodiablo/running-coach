@@ -2,6 +2,7 @@ import { registerPlugin } from "@capacitor/core";
 import { hexStringToDataView } from "@capacitor-community/bluetooth-le";
 import { parseHrMeasurement } from "../utils/hr";
 import { isAndroid } from "../native";
+import { logTrack } from "../geo/trackLog";
 import type { BleHrSample } from "./ble";
 
 // The native HR journal (Android, patched bluetooth-le plugin) — the HR twin of
@@ -29,6 +30,7 @@ const BluetoothLe = registerPlugin<{
 // Clear any leftovers and start journalling — a fresh run starts empty.
 export function resetHrJournal(): void {
   if (!isAndroid) return;
+  logTrack("hr-journal", { msg: "reset+arm" });
   BluetoothLe.clearHrJournal()
     .then(() => BluetoothLe.setHrJournal({ enabled: true }))
     .catch(() => { /* unpatched shell / best-effort */ });
@@ -37,12 +39,14 @@ export function resetHrJournal(): void {
 // Journal from here on, keeping whatever is already there — a resumed run.
 export function armHrJournal(): void {
   if (!isAndroid) return;
+  logTrack("hr-journal", { msg: "arm" });
   BluetoothLe.setHrJournal({ enabled: true }).catch(() => { /* best-effort */ });
 }
 
 // Stop journalling but KEEP the contents — the save that follows still reads them.
 export function disarmHrJournal(): void {
   if (!isAndroid) return;
+  logTrack("hr-journal", { msg: "disarm" });
   BluetoothLe.setHrJournal({ enabled: false }).catch(() => { /* best-effort */ });
 }
 
