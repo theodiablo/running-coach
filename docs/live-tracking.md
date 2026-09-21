@@ -471,7 +471,7 @@ Applied by `postinstall` → `patch-package`; native plugin modules compile
 straight out of `node_modules` (`android/capacitor.settings.gradle`), so a
 committed patch reaches every local and CI build. Three packages are patched.
 
-### `@capacitor-community/bluetooth-le` (HR journal + live relay)
+### `@capacitor-community/bluetooth-le` (HR journal + live relay + autoConnect)
 
 Adds `setHrJournal` / `getHrJournal` / `clearHrJournal` and, in
 `startNotifications`' notify callback, one line that appends a Heart Rate
@@ -482,6 +482,15 @@ backgrounded run recorded no heart rate at all. Guarded on an armed flag and on
 the `0x2A37` characteristic, so nothing else in the app is ever journalled, and
 wrapped so a write failure can never cost the sample itself. Consumed by
 `src/hr/hrJournal.ts` — `docs/health-integrations.md`.
+
+The patch also plumbs an **`autoConnect`** option through `BluetoothLe.connect`
+into `Device.connect` (upstream hardcodes `connectGatt(context, false, …)` in all
+three SDK branches and exposes no option). It is Android-only — CoreBluetooth
+already retries until cancelled, and iOS/web ignore the unknown option — and the
+connection timeout stays armed even for an autoConnect call, deliberately: see
+`docs/health-integrations.md` for why removing it would wedge the client's one
+call queue. Upstream will not make this redundant either, so carry it forward on
+every version bump alongside the journal hunks.
 
 The same callback also **relays** each beat (`relayHrMeasurement`): bpm parsed
 natively — `parseHrBpm` mirrors `parseHrMeasurement` in `src/utils/hr.ts`,

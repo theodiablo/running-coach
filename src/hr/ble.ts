@@ -43,6 +43,14 @@ const STALL_GRACE_MS = 5000;
 // during the idle preview, where the sensor is in the runner's hands and quick
 // "can't reach sensor" feedback is worth more than patience.
 const RECONNECT_TIMEOUT_MS = 30000;
+// Android's background-connection mode (patched into the plugin): the OS holds
+// the request and completes it when the strap next advertises, with no app-side
+// scan to spend. Alternated with, never substituted for, the scan cycle — and
+// its deadline may never become unbounded, because it is the only thing that can
+// cancel it and every BleClient call shares one queue behind it. Keep it short:
+// it is also how long after Finish a stopped watch can hold the radio, and how
+// long the pairing screen's scan can sit blocked (docs/health-integrations.md).
+const AUTO_CONNECT_TIMEOUT_MS = 25000;
 // Notifications land at ~1-2Hz; one diagnostic row each would fill the ring
 // buffer with a few minutes of a run. Roll them up instead — what the log has to
 // answer is whether beats were arriving at all across a stretch, not their values.
@@ -152,6 +160,11 @@ const bleSourceImpl = {
     let stallArmedAt = 0;  // when the watchdog was set, to tell lateness from silence
     let lastStatus: BleWatchStatus | null = null; // log a status only when it changes
     let attempts = 0;      // connect attempts made by this watch (1 = the first)
+    // Alternate an autoConnect cycle with a scan+direct one. Deliberately NOT
+    // reset on a successful connect: the first reconnect after a drop then
+    // repeats the route that last worked.
+    let autoNext = false;
+    let attemptAt = 0;     // epoch ms the current attempt began, for the log
     // Beat roll-up for the diagnostic log (see BEAT_LOG_MS).
     let beatsSinceLog = 0;
     let beatLogAt = 0;
@@ -275,7 +288,7 @@ const bleSourceImpl = {
       // Only re-discover when the scan allowance has recovered; otherwise fall
       // through to a direct connect, which costs nothing and often works once
       // the sensor has advertised again.
-      if (scanFirst) {
+      if (scanFirst && !autoNext) {
         if (Date.now() - lastScanAt >= SCAN_MIN_INTERVAL_MS) {
           lastScanAt = Date.now();
           await rediscover();
@@ -294,8 +307,12 @@ const bleSourceImpl = {
       // known (post-scan, or Android); real failures still surface in connect.
       try { await BleClient.getDevices([id]); } catch { /* connect() reports the actionable error */ }
       attempts += 1;
-      if (attempts > 1) await BleClient.connect(id, onDisconnected, { timeout: RECONNECT_TIMEOUT_MS });
-      else await BleClient.connect(id, onDisconnected);
+      attemptAt = Date.now();
+      logTrack("hr-connect", { msg: `attempt ${attempts}${attempts === 1 ? "" : autoNext ? " (auto)" : " (direct)"}` });
+      if (attempts === 1) await BleClient.connect(id, onDisconnected);
+      else if (autoNext) await BleClient.connect(id, onDisconnected,
+        { timeout: AUTO_CONNECT_TIMEOUT_MS, autoConnect: true });
+      else await BleClient.connect(id, onDisconnected, { timeout: RECONNECT_TIMEOUT_MS });
       // clearWatch may have run while connect() was in flight (e.g. the run was
       // discarded/finished before a slow/out-of-range sensor finished connecting).
       // Don't subscribe to a device we were told to stop watching — disconnect
@@ -334,10 +351,16 @@ const bleSourceImpl = {
     const onFail = (error?: unknown) => {
       attempting = false;
       if (handle.stopped) return;
-      logTrack("hr-connect", { ok: false, msg: `attempt ${attempts}: ${errText(error)}` });
+      // Elapsed time is what says whether the OEM stack honoured an autoConnect:
+      // an honoured one fails at its deadline, an ignored one fails fast.
+      logTrack("hr-connect", {
+        ok: false, sinceMs: attemptAt ? Date.now() - attemptAt : undefined,
+        msg: `attempt ${attempts}: ${errText(error)}`,
+      });
       scanFirst = true;
+      autoNext = !autoNext; // next cycle takes the other route
       failures += 1;
-      if (failures >= 2) status("unreachable"); // one slow strap isn't a verdict; two full cycles are
+      if (failures >= 2) status("unreachable"); // one slow strap isn't a verdict; two cycles are
       backoff = Math.min(backoff * 2, RETRY_MAX_MS);
       scheduleRetry();
     };
