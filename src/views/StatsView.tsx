@@ -3,27 +3,35 @@ import { useTranslation, Trans } from "react-i18next";
 import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, ReferenceLine } from "recharts";
 import { VERT_COST } from "../constants";
-import { fmt, weekKey } from "../utils/format";
+import { fmt, weekKey, ymd } from "../utils/format";
 import { effectiveMaxHR } from "../utils/hr";
 import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable, hrModelBlocker, hrModelGap } from "../utils/predictions";
+import { raceTargets, goalGap } from "../utils/raceTargets";
+import { findEdition } from "../utils/races";
 import { PredictionsInfo } from "../components/PredictionsInfo";
 import { HRZonesCard } from "../components/HRZonesCard";
 import { isCrossTraining } from "../types";
-import type { Run, SettingsState } from "../types";
+import type { RacesState, Run, SettingsState } from "../types";
 
-type StatsViewProps = { runs: Run[]; settings: SettingsState };
+type StatsViewProps = {
+  runs: Run[];
+  settings: SettingsState;
+  races?: RacesState | null;
+  goTab?: (tab: string) => void;
+};
 type StatCard = { l: string; v: string; s: string; c: string };
 type Period = "4w" | "12w" | "all";
 
-export function StatsView({runs, settings}: StatsViewProps) {
+export function StatsView(props: StatsViewProps) {
   const { t } = useTranslation();
+  const { runs, settings } = props;
   return (
     <div className="max-w-lg mx-auto">
       <div className="px-4 pt-6 pb-0">
         <h2 className="text-xl font-bold">{t("progress.stats.title")}</h2>
       </div>
       <Overview runs={runs} settings={settings}/>
-      <RacePredictions runs={runs} settings={settings}/>
+      <RacePredictions {...props}/>
       <HRZonesCard runs={runs} settings={settings}/>
     </div>
   );
@@ -200,10 +208,39 @@ const HR_LOCKED_COPY: Record<NonNullable<ReturnType<typeof hrModelBlocker>>, str
   scatter: "progress.predictions.hrLockedScatter",
 };
 
+// The two estimates side by side — shared by a race card and a ladder row, so
+// the HR column appears or disappears in one place rather than two.
+function EstimatePair({bt, ht, km}: {bt: number; ht: number | null; km: number}) {
+  const { t } = useTranslation();
+  return (
+    <div className={"grid gap-3 " + (ht ? "grid-cols-2" : "grid-cols-1")}>
+      <div>
+        <p className="text-slate-400 text-xs">{t("progress.predictions.bestEffortEstimate")}</p>
+        <p className="text-2xl font-bold mt-0.5 text-orange-400">{fmt.dur(bt)}</p>
+        <p className="text-slate-400 text-xs">{t("progress.predictions.pacePerKm", {pace: fmt.pace(bt / km)})}</p>
+      </div>
+      {ht && (
+        <div>
+          <p className="text-slate-400 text-xs">{t("progress.predictions.hrEstimate")}</p>
+          <p className="text-2xl font-bold mt-0.5 text-sky-400">{fmt.dur(ht)}</p>
+          <p className="text-slate-400 text-xs">{t("progress.predictions.pacePerKm", {pace: fmt.pace(ht / km)})}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "1:01 over" / "3:20 to spare" — the direction stated, never a bare signed number.
+const gapLabel = (diffSec: number, t: (k: string, v?: Record<string, unknown>) => string) =>
+  Math.abs(diffSec) < 30
+    ? t("progress.predictions.gapLevel")
+    : t("progress.predictions." + (diffSec > 0 ? "gapOver" : "gapUnder"), {d: fmt.dur(Math.abs(diffSec))});
+
 // Project finish times from logged runs.
-function RacePredictions({runs, settings}: StatsViewProps) {
+function RacePredictions({runs, settings, races, goTab}: StatsViewProps) {
   const { t } = useTranslation();
   const [period, setPeriod] = useState<Period>("12w");
+  const [showLadder, setShowLadder] = useState(false);
 
   // Same period filter the Overview uses, so both halves of Stats agree.
   const fRuns = period === "all" ? runs : (() => {
@@ -224,16 +261,26 @@ function RacePredictions({runs, settings}: StatsViewProps) {
   const hr   = hrModelAnchor(pRuns, effMax, restHR, best);
   const hrOk = hrModelUsable(hr);
 
-  // 5 / 10 / 20 km, plus the race-day distance when it isn't already one of them.
-  const dists = [5, 10, 20];
-  const raceD = Number(settings.distanceKm) || 0;
-  if (raceD && !dists.includes(raceD)) dists.push(raceD);
-  dists.sort((a, b) => a - b);
+  // The runner's own upcoming races come first; the ladder below is the general
+  // picture, always flat, and collapsed while there are real races to look at.
+  const today = ymd(new Date());
+  const targets = raceTargets(races?.participations, settings, today,
+    id => (findEdition(id)?.edition?.elevation ?? null) as number | null);
+  const LADDER = [5, 10, 20];
 
-  // Climb on the race-day course. Applied only to the race-day row — the other
-  // distances stay flat hypotheticals — by projecting to the flat-equivalent
-  // distance, the same grade-adjustment used on the input runs.
-  const raceGain = settings.raceElevation || 0;
+  // Grade-adjusted target distance: each metre of climb costs VERT_COST flat
+  // metres, the same adjustment applied to the runs feeding both models.
+  const project = (km: number, gain: number) => {
+    const dEq = km + VERT_COST * gain / 1000;
+    return {
+      bt: best ? riegel(best.durationSec, best.km, dEq) : 0,
+      ht: hrOk && best ? riegel(hr.durationSec, hr.km, dEq) : null,
+    };
+  };
+
+  const countdown = (d: number) => d <= 0
+    ? t("progress.predictions.raceToday")
+    : d === 1 ? t("progress.predictions.raceTomorrow") : t("progress.predictions.inDays", {n: d});
 
   if (!runs.length) return null;
 
@@ -263,40 +310,83 @@ function RacePredictions({runs, settings}: StatsViewProps) {
         </div>
       ) : (
         <>
-          <div className="space-y-3">
-            {dists.map(d => {
-              // Race-day row carries its course climb; others are flat.
-              const isRace = d === raceD;
-              const dEq = isRace ? d + VERT_COST * raceGain / 1000 : d;
-              const bt = riegel(best.durationSec, best.km, dEq);
-              const ht = hrOk ? riegel(hr.durationSec, hr.km, dEq) : null;
-              return (
-                <div key={d} className="bg-slate-800 rounded-xl p-4">
-                  <div className="flex items-baseline justify-between mb-3">
-                    <p className="font-semibold">
-                      {t("progress.predictions.distanceKm", {d})}
-                      {isRace && <span className="ml-2 text-xs text-orange-400 font-normal">{t("progress.predictions.raceDay")}</span>}
-                      {isRace && raceGain > 0 && <span className="ml-2 text-xs text-slate-500 font-normal">{t("progress.predictions.inclClimb", {m: Math.round(raceGain)})}</span>}
-                    </p>
-                  </div>
-                  <div className={"grid gap-3 " + (ht ? "grid-cols-2" : "grid-cols-1")}>
-                    <div>
-                      <p className="text-slate-400 text-xs">{t("progress.predictions.bestEffortEstimate")}</p>
-                      <p className="text-2xl font-bold mt-0.5 text-orange-400">{fmt.dur(bt)}</p>
-                      <p className="text-slate-400 text-xs">{t("progress.predictions.pacePerKm", {pace: fmt.pace(bt / d)})}</p>
+          {targets.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">{t("progress.predictions.racesHeading")}</p>
+              {targets.map(target => {
+                const {bt, ht} = project(target.distanceKm, target.elevation);
+                const gap = goalGap(settings, target, bt);
+                const hrGap = ht != null ? goalGap(settings, target, ht) : null;
+                return (
+                  <div key={target.key} className={"bg-slate-800 rounded-xl p-4 space-y-3" + (target.isGoal ? " border border-orange-500/40" : "")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold">{target.label || t("progress.predictions.yourRace")}</p>
+                          {target.isGoal && <span className="text-[10px] font-bold tracking-wide bg-orange-500 text-white rounded px-1.5 py-0.5">{t("progress.predictions.goalRace")}</span>}
+                        </div>
+                        <p className="text-slate-400 text-xs mt-1">
+                          {fmt.sht(target.date)} · {t("progress.predictions.distanceKm", {d: target.distanceKm})}
+                          {target.elevationKnown && target.elevation > 0 && " · +" + Math.round(target.elevation) + " m"}
+                        </p>
+                      </div>
+                      <span className={"flex-shrink-0 text-xs font-semibold rounded-lg px-2 py-1 " + (target.daysAway <= 14 ? "bg-amber-500/15 text-amber-400" : "bg-slate-700/60 text-slate-300")}>
+                        {countdown(target.daysAway)}
+                      </span>
                     </div>
-                    {ht && (
-                      <div>
-                        <p className="text-slate-400 text-xs">{t("progress.predictions.hrEstimate")}</p>
-                        <p className="text-2xl font-bold mt-0.5 text-sky-400">{fmt.dur(ht)}</p>
-                        <p className="text-slate-400 text-xs">{t("progress.predictions.pacePerKm", {pace: fmt.pace(ht / d)})}</p>
+
+                    <EstimatePair bt={bt} ht={ht} km={target.distanceKm}/>
+
+                    {gap && (
+                      <div className="rounded-lg bg-amber-500/10 p-3 space-y-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-amber-400 text-xs">{t("progress.predictions.goalLabel")}</span>
+                          <span className="text-amber-400 font-bold">{fmt.dur(gap.goalSec)}</span>
+                        </div>
+                        <p className="text-amber-400/90 text-xs leading-relaxed">
+                          {t("progress.predictions.goalBest", {gap: gapLabel(gap.diffSec, t)})}
+                          {hrGap && " " + t("progress.predictions.goalHr", {gap: gapLabel(hrGap.diffSec, t)})}
+                        </p>
+                      </div>
+                    )}
+
+                    {!target.elevationKnown && (
+                      <div className="rounded-lg bg-amber-500/10 p-3 flex items-center gap-3">
+                        <p className="text-amber-400 text-xs leading-relaxed flex-1">{t("progress.predictions.climbUnknown")}</p>
+                        {target.isGoal && goTab && (
+                          <button onClick={() => goTab("plan")} className="flex-shrink-0 text-xs font-semibold text-amber-400 border border-amber-500/40 rounded-lg px-2.5 py-1.5">
+                            {t("progress.predictions.addClimb")}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
+
+          {targets.length > 0 ? (
+            <button onClick={() => setShowLadder(v => !v)} aria-expanded={showLadder}
+              className="w-full flex items-center justify-between rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300">
+              <span>{t("progress.predictions.otherDistances")}</span>
+              <span className="text-slate-400 text-lg leading-none">{showLadder ? "−" : "+"}</span>
+            </button>
+          ) : null}
+
+          {(targets.length === 0 || showLadder) && (
+            <div className="space-y-3">
+              {LADDER.map(d => {
+                const {bt, ht} = project(d, 0);
+                return (
+                  <div key={d} className="bg-slate-800 rounded-xl p-4">
+                    <p className="font-semibold mb-3">{t("progress.predictions.distanceKm", {d})}</p>
+                    <EstimatePair bt={bt} ht={ht} km={d}/>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="bg-slate-800/50 rounded-xl p-4 space-y-2">
             <p className="text-slate-400 text-xs">
@@ -317,11 +407,7 @@ function RacePredictions({runs, settings}: StatsViewProps) {
                 {t(HR_LOCKED_COPY[hrModelBlocker(hr) ?? "noData"], hrModelGap(hr))}
               </p>
             )}
-            <p className="text-slate-400 text-xs">
-              {raceGain > 0
-                ? t("progress.predictions.gradeNoteClimb", {m: Math.round(raceGain)})
-                : t("progress.predictions.gradeNoteFlat")}
-            </p>
+            <p className="text-slate-400 text-xs">{t("progress.predictions.gradeNote")}</p>
           </div>
         </>
       )}

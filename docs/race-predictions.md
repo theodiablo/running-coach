@@ -8,8 +8,41 @@ is the user-facing mirror of this file — change one, change the other.
 Inputs are the period-filtered runs with cross-training excluded
 (`isCrossTraining`): a bike's distance and its HR at a different economy anchor
 neither model. Distances are grade-adjusted first (`flatEqKm`, `VERT_COST` per
-metre climbed), so a hilly run doesn't read as unfit; only the race-day row adds
-its own course climb back.
+metre climbed), so a hilly run doesn't read as unfit; only a race card with a
+known climb adds its own course back.
+
+## What it projects to
+
+`raceTargets` (`src/utils/raceTargets.ts`) decides the distances, and the runner's
+own upcoming races decide them: one card per wishlisted race with a future date,
+soonest first, capped at `MAX_RACE_TARGETS`. The fixed 5/10/20 ladder it replaced
+answered a question nobody asked — it printed a 5 km for a runner racing 14.5 km
+that week and had no row for the race itself, while the 20 km row said "race day"
+only because 20 happened to be on the ladder. The ladder survives, flat and
+collapsed, as the general picture; with no races it opens as the fallback so a
+new account loses nothing.
+
+Three things the helper is carrying, each with a test:
+
+- **The goal race.** `targetEditionId` names it; a race typed into Plan setup has
+  no catalogue edition, so date + distance is the fallback handle (the same
+  reasoning as `RacesView`'s `inPlannable`). Its card carries the goal line.
+- **A plan race that was never added to the Races tab** gets a synthetic card from
+  the settings alone. Without it, the one row the old ladder did get right would
+  have been lost.
+- **The cap never drops the goal race.** The A race a block builds to is usually
+  the furthest out, so a plain `slice` is exactly what would drop it.
+
+**`elevationKnown` is not `elevation > 0`.** A trail race with no climb on record
+projects as flat and reads absurdly optimistic, so the card says which it is:
+known-flat is silent, unknown gets an amber note, and the goal race gets a button
+into Plan where the climb can be set. The catalogue supplies the climb
+(`findEdition`), and the runner's own `raceElevation` wins over it — that is the
+number the plan was built against.
+
+`goalGap` puts the plan's goal time beside both estimates, and stays silent unless
+the card is the goal race AND its distance matches the one the goal was set for:
+offering a 20 km goal against a 10 km tune-up compares two different things.
 
 ## Best-effort estimate
 

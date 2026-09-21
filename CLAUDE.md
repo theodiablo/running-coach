@@ -263,6 +263,10 @@ Always re-verify a finding before acting on it; agents report false positives.
   degrade when `km` is 0. The recorder is its own screen over
   `useRunTracker({indoor:true})` (no geo watch, own recovery key) — never a
   branch inside `LiveRunTracker`. Detail: `docs/indoor-sessions.md`.
+- **Race predictions project to the runner's own upcoming races**, not a fixed
+  distance ladder — `raceTargets` (`src/utils/raceTargets.ts`) is the one source
+  of targets, and `elevationKnown` keeps "flat" and "we don't know" apart,
+  because a trail race projected as flat reads absurdly optimistic.
 - **The HR race prediction is a shrunk fit, not a least-squares one** — a real
   log is all easy runs in a 15-20 bpm window, so OLS there is noise and the model
   hides itself however many runs are logged. `predictions.ts` blends the fitted
