@@ -16,6 +16,10 @@ const ble = vi.hoisted(() => ({
     stopLEScan: vi.fn(),
   },
 }));
+// NOTE: unlike the real BleClient, this fake has NO serialising queue — every
+// call resolves independently. Anything about calls blocking behind an in-flight
+// connect is invisible here by construction; don't read a green suite as
+// evidence about it.
 vi.mock("@capacitor-community/bluetooth-le", () => ({
   BleClient: ble.client,
   numberToUUID: (n: number) => `uuid-${n.toString(16)}`,
@@ -37,7 +41,7 @@ const STALL_MS = 20000;
 // (RECONNECT_TIMEOUT_MS); the auto cycle asks the OS to hold the request until
 // the strap advertises, scan-free (AUTO_CONNECT_TIMEOUT_MS).
 const RECONNECT_OPTS = { timeout: 30000 };
-const AUTO_OPTS = { timeout: 45000, autoConnect: true };
+const AUTO_OPTS = { timeout: 25000, autoConnect: true };
 
 beforeEach(async () => {
   vi.useFakeTimers();
@@ -105,28 +109,19 @@ describe("bleSource.watch", () => {
     await vi.advanceTimersByTimeAsync(120000);
     const opts = ble.client.connect.mock.calls.map(c => c[2]);
     expect(opts[0]).toBeUndefined();               // idle preview keeps the plugin default
-    const reconnects = opts.slice(1);
     // Alternating, so neither recovery can starve the other.
-    expect(reconnects.slice(0, 4)).toEqual([AUTO_OPTS, RECONNECT_OPTS, AUTO_OPTS, RECONNECT_OPTS]);
-    // Scans are spent only on the direct cycles — the auto ones cost nothing
-    // from Android's scan allowance, which is the whole point of them.
-    const directCycles = reconnects.filter(o => o && !("autoConnect" in o)).length;
-    expect(directCycles).toBeGreaterThan(0);
-    expect(ble.client.requestLEScan.mock.calls.length).toBeLessThanOrEqual(directCycles);
+    expect(opts.slice(1, 5)).toEqual([AUTO_OPTS, RECONNECT_OPTS, AUTO_OPTS, RECONNECT_OPTS]);
   });
 
-  it("says unreachable once the link has simply been down long enough", async () => {
-    // A patient autoConnect cycle can outlast two failures' worth of wall clock,
-    // so the count alone would leave a dead strap reading "connecting" for
-    // minutes. One slow attempt must still reach the verdict.
-    ble.client.connect.mockImplementation((_id: string, _cb: unknown, opts?: { timeout?: number }) =>
-      new Promise((_res, rej) => setTimeout(() => rej(new Error("Connection timeout.")), opts?.timeout ?? 10000)));
-    const onStatus = vi.fn();
-    bleSource.watch(vi.fn(), undefined, { deviceId: "d1", onStatus });
-    await vi.advanceTimersByTimeAsync(10000);
-    expect(onStatus).not.toHaveBeenCalledWith("unreachable");
-    await vi.advanceTimersByTimeAsync(60000);
-    expect(onStatus).toHaveBeenCalledWith("unreachable");
+  it("spends no scan on the autoConnect cycle", async () => {
+    // The whole point of the auto cycle: it reaches the sensor without touching
+    // Android's scan allowance. Asserted on the first reconnect, where the route
+    // is unambiguous — a later window would let a direct cycle's scan mask it.
+    ble.client.connect.mockRejectedValue(new Error("133"));
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1", deviceName: "Polar H10" });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(ble.client.connect.mock.calls[1]?.[2]).toEqual(AUTO_OPTS);
+    expect(ble.client.requestLEScan).not.toHaveBeenCalled();
   });
 
   it("ignores scan results for other sensors", async () => {

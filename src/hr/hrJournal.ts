@@ -20,11 +20,8 @@ import type { BleHrSample } from "./ble";
 // throws, and an unpatched shell simply resolves nothing — the JS stream stays
 // the whole story.
 
-// Its own bridge proxy, NOT the BleClient wrapper — deliberately. BleClient
-// serializes every call through one JS queue, so folding these onto it would put
-// the save path behind whatever connect happens to be in flight, and a patient
-// autoConnect can hold that queue for AUTO_CONNECT_TIMEOUT_MS. Reading the
-// journal must never wait on the radio.
+// Its own bridge proxy, NOT the BleClient wrapper: BleClient serializes every
+// call through one queue, and reading the journal must never wait on the radio.
 const BluetoothLe = registerPlugin<{
   setHrJournal: (options: { enabled: boolean }) => Promise<void>;
   getHrJournal: () => Promise<{ entries?: unknown[] }>;

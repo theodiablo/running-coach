@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
-index c0b0cb0..aeb3d47 100644
+index c0b0cb0..46a2b4f 100644
 --- a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
 +++ b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/BluetoothLe.kt
 @@ -38,6 +38,8 @@ import com.getcapacitor.annotation.ActivityCallback
@@ -56,21 +56,19 @@ index c0b0cb0..aeb3d47 100644
      private var aliases: Array<String> = arrayOf()
  
      override fun load() {
-@@ -464,7 +497,12 @@ class BluetoothLe : Plugin() {
+@@ -464,7 +497,10 @@ class BluetoothLe : Plugin() {
          val device = getOrCreateDevice(call) ?: return
          val timeout = call.getFloat("timeout", CONNECTION_TIMEOUT)!!.toLong()
          val skipDescriptorDiscovery = call.getBoolean("skipDescriptorDiscovery", false)!!
 -        device.connect(timeout, skipDescriptorDiscovery) { response ->
-+        // Android's background-connection mode: the stack keeps the request
-+        // pending and completes it when the peripheral next advertises, with no
-+        // app-side LE scan — the one recovery path Android's scan throttle
-+        // cannot take away. Android-only; iOS/web ignore the option.
++        // Android's background-connection mode — scan-free reconnects.
++        // Android-only; iOS/web ignore the option.
 +        val autoConnect = call.getBoolean("autoConnect", false)!!
 +        device.connect(timeout, skipDescriptorDiscovery, autoConnect) { response ->
              run {
                  if (response.success) {
                      call.resolve()
-@@ -769,6 +807,10 @@ class BluetoothLe : Plugin() {
+@@ -769,6 +805,10 @@ class BluetoothLe : Plugin() {
                      "notification|${device.getId()}|${(characteristic.first)}|${(characteristic.second)}"
                  val ret = JSObject()
                  ret.put("value", response.value)
@@ -81,7 +79,7 @@ index c0b0cb0..aeb3d47 100644
                  try {
                      notifyListeners(key, ret)
                  } catch (e: ConcurrentModificationException) {
-@@ -804,6 +846,137 @@ class BluetoothLe : Plugin() {
+@@ -804,6 +844,137 @@ class BluetoothLe : Plugin() {
          }
      }
  
@@ -220,7 +218,7 @@ index c0b0cb0..aeb3d47 100644
          if (bluetoothAdapter == null) {
              call.reject("Bluetooth LE not initialized.")
 diff --git a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/Device.kt b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/Device.kt
-index fc7a80e..b106489 100644
+index fc7a80e..6ccb480 100644
 --- a/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/Device.kt
 +++ b/node_modules/@capacitor-community/bluetooth-le/android/src/main/java/com/capacitorjs/community/plugins/bluetoothle/Device.kt
 @@ -338,7 +338,8 @@ class Device(
@@ -242,7 +240,7 @@ index fc7a80e..b106489 100644
                  gattCallback,
                  BluetoothDevice.TRANSPORT_LE,
                  BluetoothDevice.PHY_OPTION_NO_PREFERRED,
-@@ -361,13 +362,18 @@ class Device(
+@@ -361,13 +362,15 @@ class Device(
              )
          } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
              bluetoothGatt = device.connectGatt(
@@ -255,11 +253,8 @@ index fc7a80e..b106489 100644
 +                context, autoConnect, gattCallback
              )
          }
-+        // Armed even for an autoConnect request, deliberately. An autoConnect
-+        // that never completes produces no callback at all, and every BleClient
-+        // call goes through one JS queue — so with no deadline here a pending
-+        // connect would block the app's own disconnect and teardown with no way
-+        // out. The caller passes a long timeout instead of none.
++        // Armed for an autoConnect request too, and must stay so: it is that
++        // request's only cancel. See docs/health-integrations.md.
          setConnectionTimeout(key, "Connection timeout.", bluetoothGatt, timeout)
      }
  

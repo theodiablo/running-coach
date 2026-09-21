@@ -43,27 +43,14 @@ const STALL_GRACE_MS = 5000;
 // during the idle preview, where the sensor is in the runner's hands and quick
 // "can't reach sensor" feedback is worth more than patience.
 const RECONNECT_TIMEOUT_MS = 30000;
-// Android's background-connection mode (patched into the plugin): the stack
-// holds the request and completes it the moment the strap advertises again, with
-// NO app-side scan — the one recovery Android's scan throttle cannot take away.
-// It is alternated with, never substituted for, the scan cycle: autoConnect aims
-// at a saved address, so a sensor whose resolvable private address has rotated
-// would wait on an address that will never advertise again, and only the
-// name-matching re-discovery gets it back.
-//
-// The deadline is NOT optional and must never become "unbounded". An autoConnect
-// that never completes delivers no callback at all, so this timeout is its only
-// cancel; and every BleClient call shares one JS queue, so a connect left in
-// flight blocks our own teardown, the next watch's connect, and the pairing
-// screen's scan. This value is therefore three things at once: how patient we
-// are, how long rotation recovery is delayed, and how long after Finish a
-// stopped watch can still hold the radio.
-const AUTO_CONNECT_TIMEOUT_MS = 45000;
-// How long a down link may stay "connecting…" before the runner is told the
-// truth. Two failed cycles used to be the whole verdict and arrived in under a
-// minute; with a patient autoConnect cycle in the rotation that alone would take
-// minutes, leaving a dead strap reading "connecting" the whole time.
-const UNREACHABLE_AFTER_MS = 45000;
+// Android's background-connection mode (patched into the plugin): the OS holds
+// the request and completes it when the strap next advertises, with no app-side
+// scan to spend. Alternated with, never substituted for, the scan cycle — and
+// its deadline may never become unbounded, because it is the only thing that can
+// cancel it and every BleClient call shares one queue behind it. Keep it short:
+// it is also how long after Finish a stopped watch can hold the radio, and how
+// long the pairing screen's scan can sit blocked (docs/health-integrations.md).
+const AUTO_CONNECT_TIMEOUT_MS = 25000;
 // Notifications land at ~1-2Hz; one diagnostic row each would fill the ring
 // buffer with a few minutes of a run. Roll them up instead — what the log has to
 // answer is whether beats were arriving at all across a stretch, not their values.
@@ -173,19 +160,17 @@ const bleSourceImpl = {
     let stallArmedAt = 0;  // when the watchdog was set, to tell lateness from silence
     let lastStatus: BleWatchStatus | null = null; // log a status only when it changes
     let attempts = 0;      // connect attempts made by this watch (1 = the first)
-    let autoNext = false;  // alternate an autoConnect cycle with a scan+direct one
-    let downSince = 0;     // epoch ms the link was first known down (0 = up)
+    // Alternate an autoConnect cycle with a scan+direct one. Deliberately NOT
+    // reset on a successful connect: the first reconnect after a drop then
+    // repeats the route that last worked.
+    let autoNext = false;
+    let attemptAt = 0;     // epoch ms the current attempt began, for the log
     // Beat roll-up for the diagnostic log (see BEAT_LOG_MS).
     let beatsSinceLog = 0;
     let beatLogAt = 0;
     // True while forceReconnect is tearing the link down, so the disconnect it
     // causes is logged as ours rather than as the sensor dropping out.
     let selfDisconnecting = false;
-    // Either evidence is enough: two full cycles, or simply long enough down.
-    const downStatus = (): BleWatchStatus =>
-      failures >= 2 || (downSince > 0 && Date.now() - downSince >= UNREACHABLE_AFTER_MS)
-        ? "unreachable" : "connecting";
-
     const status = (s: BleWatchStatus) => {
       if (handle.stopped) return;
       if (s !== lastStatus) { lastStatus = s; logTrack("hr-status", { msg: s }); }
@@ -274,7 +259,7 @@ const bleSourceImpl = {
       if (handle.stopped || attempting) return;
       if (stallTimer) clearTimeout(stallTimer);
       stallTimer = undefined;
-      status(downStatus());
+      status("connecting");
       selfDisconnecting = true;
       const id = handle.deviceId;
       // Our own disconnect may fire onDisconnected, which schedules a retry too;
@@ -292,8 +277,7 @@ const bleSourceImpl = {
       logTrack("hr-connect", { ok: false, msg: selfDisconnecting ? "disconnected (watchdog teardown)" : "disconnected by peer" });
       if (stallTimer) clearTimeout(stallTimer);
       stallTimer = undefined;
-      if (!downSince) downSince = Date.now();
-      status(downStatus());
+      status("connecting");
       scheduleRetry();
     };
 
@@ -314,7 +298,7 @@ const bleSourceImpl = {
         }
       }
       if (handle.stopped) return;
-      status(downStatus());
+      status("connecting");
       const id = handle.deviceId!;
       // iOS cold-launch gotcha: CoreBluetooth can only connect to a peripheral
       // this app session has *retrieved* — a deviceId saved on a previous
@@ -323,6 +307,7 @@ const bleSourceImpl = {
       // known (post-scan, or Android); real failures still surface in connect.
       try { await BleClient.getDevices([id]); } catch { /* connect() reports the actionable error */ }
       attempts += 1;
+      attemptAt = Date.now();
       logTrack("hr-connect", { msg: `attempt ${attempts}${attempts === 1 ? "" : autoNext ? " (auto)" : " (direct)"}` });
       if (attempts === 1) await BleClient.connect(id, onDisconnected);
       else if (autoNext) await BleClient.connect(id, onDisconnected,
@@ -358,7 +343,7 @@ const bleSourceImpl = {
           beatLogAt = now;
         }
       });
-      backoff = 1000; failures = 0; downSince = 0; // reset after a clean (re)connect
+      backoff = 1000; failures = 0; // reset after a clean (re)connect
       logTrack("hr-connect", { ok: true, msg: `attempt ${attempts}` });
       status("connected");
       armStall(); // subscribed but not yet notifying — the watchdog owns it from here
@@ -366,12 +351,16 @@ const bleSourceImpl = {
     const onFail = (error?: unknown) => {
       attempting = false;
       if (handle.stopped) return;
-      logTrack("hr-connect", { ok: false, msg: `attempt ${attempts}: ${errText(error)}` });
+      // Elapsed time is what says whether the OEM stack honoured an autoConnect:
+      // an honoured one fails at its deadline, an ignored one fails fast.
+      logTrack("hr-connect", {
+        ok: false, sinceMs: attemptAt ? Date.now() - attemptAt : undefined,
+        msg: `attempt ${attempts}: ${errText(error)}`,
+      });
       scanFirst = true;
       autoNext = !autoNext; // next cycle takes the other route
       failures += 1;
-      if (!downSince) downSince = Date.now();
-      status(downStatus()); // one slow strap isn't a verdict; two cycles or 45s are
+      if (failures >= 2) status("unreachable"); // one slow strap isn't a verdict; two cycles are
       backoff = Math.min(backoff * 2, RETRY_MAX_MS);
       scheduleRetry();
     };

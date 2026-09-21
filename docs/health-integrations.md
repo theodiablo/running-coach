@@ -70,19 +70,21 @@ carries a `live` flag:
   advertises again, and only the name-matching scan gets it back; while a scan
   spends the allowance that a temporarily-absent strap does not need spent. An
   autoConnect **must always carry a deadline** (`AUTO_CONNECT_TIMEOUT_MS`) and
-  must never become unbounded: it delivers no callback when it never completes,
-  so the timeout is its only cancel, and because every `BleClient` call shares
-  one JS queue, a connect left in flight blocks our own teardown, the next
-  watch's connect and the pairing screen's scan. That timeout is therefore three
-  things at once — how patient we are, how long an address rotation takes to
-  recover, and how long after Finish a stopped watch can still hold the radio.
-  The save path is immune by construction: `hrJournal.ts` talks to the plugin
-  through its **own** `registerPlugin` proxy, not `BleClient`, so reading the
-  journal never queues behind the radio — don't "consolidate" it.
-  Because a patient cycle outlasts two failures' worth of wall clock, the
-  "can't reach sensor" verdict is time-based as well as count-based
-  (`UNREACHABLE_AFTER_MS`); otherwise a dead strap reads "connecting" for
-  minutes.
+  must never become unbounded. Android delivers **no callback at all** for a
+  pending background connection — not even a failure — so unlike a direct
+  connect, which rejects in a second or two with a GATT status, an auto cycle
+  against an absent strap runs its deadline out *every time*; that timeout is
+  its only cancel. And because every `BleClient` call shares one JS queue, a
+  connect in flight blocks our own teardown, the next watch's connect and the
+  pairing screen's scan behind it — a `disconnect` cannot rescue it, since that
+  call queues behind it too. **So keep the deadline short**: it is at once how
+  patient we are, how long an address rotation takes to recover, how long after
+  Finish a stopped watch can hold the radio, and how long a pairing scan can sit
+  dead. The save path is immune by construction: `hrJournal.ts` talks to the
+  plugin through its **own** `registerPlugin` proxy, not `BleClient` — don't
+  "consolidate" it. `autoNext`/`scanFirst` deliberately survive a successful
+  connect, so the first reconnect after a drop repeats the route that last
+  worked.
   **When HR fails on a real run, read the diagnostic log before changing
   anything** — `hr-beat` / `hr-stall` / `hr-connect` / `hr-scan` / `hr-save`
   in `docs/live-tracking.md` separate a dead link from a delivery stall from a
