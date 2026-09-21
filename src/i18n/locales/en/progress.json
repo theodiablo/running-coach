@@ -104,8 +104,6 @@
     "subtitle": "Projected from your strongest run in the selected window",
     "needRun": "Log a run of 3 km or more to estimate your race times.",
     "distanceKm": "{{d}} km",
-    "raceDay": "race day",
-    "inclClimb": "incl. {{m}} m climb",
     "bestEffortEstimate": "Best-effort estimate",
     "hrEstimate": "HR-modelled estimate",
     "pacePerKm": "{{pace}}/km",
@@ -119,8 +117,6 @@
     "hrLockedSpread": "Your HR-logged runs all sit at much the same effort. About {{bpm}} bpm more range between your easiest and hardest run unlocks the HR-based estimate.",
     "hrLockedFlat": "Across these runs your pace doesn't get faster as your heart rate rises, so there is nothing to project to threshold effort yet.",
     "hrLockedScatter": "Your pace at a given heart rate is still too scattered to project from. Runs with walk breaks or long stops are the usual cause.",
-    "gradeNoteClimb": "Runs are grade-adjusted for elevation gain. Times are for a flat course; the race-day row includes its {{m}} m climb.",
-    "gradeNoteFlat": "Runs are grade-adjusted for elevation gain. Times are for a flat course, except the race-day row once you set its climb in the Plan settings.",
     "info": {
       "title": "How predictions work",
       "label": "How does this work?",
@@ -137,7 +133,23 @@
       "elevTitle": "Elevation adjustment",
       "elevBody": "Hills make a run slower than its flat twin, so each metre climbed is credited as ~8 extra flat metres before the maths runs. This stops hilly runs from looking unfit. Listed times are for a flat course; the <0>race-day row</0> adds back your course's climb once you set it in the Plan.",
       "footer": "These are projections from past efforts, not promises — treat them as a fitness gauge that sharpens as you log more runs."
-    }
+    },
+    "racesHeading": "Your next races",
+    "yourRace": "Your race",
+    "goalRace": "GOAL RACE",
+    "raceToday": "today",
+    "raceTomorrow": "tomorrow",
+    "inDays": "in {{n}} days",
+    "otherDistances": "Other distances · 5 · 10 · 20 km",
+    "goalLabel": "Your goal",
+    "goalBest": "Your best day has you {{gap}}.",
+    "goalHr": "Your heart-rate model has you {{gap}}.",
+    "gapOver": "{{d}} over",
+    "gapUnder": "{{d}} to spare",
+    "gapLevel": "right on it",
+    "climbUnknown": "Projected as flat — we have no climb on record for this race.",
+    "addClimb": "Add climb",
+    "gradeNote": "Runs are grade-adjusted for elevation gain. Listed times are for a flat course, except a race card with a climb on record."
   },
   "zones": {
     "title": "Heart Rate Zones",

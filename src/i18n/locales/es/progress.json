@@ -104,8 +104,6 @@
     "subtitle": "Calculadas a partir de tu mejor entrenamiento del periodo seleccionado",
     "needRun": "Registra un entrenamiento de 3 km o más para estimar tus tiempos de carrera.",
     "distanceKm": "{{d}} km",
-    "raceDay": "día de carrera",
-    "inclClimb": "incl. {{m}} m de desnivel",
     "bestEffortEstimate": "Estimación según el mejor esfuerzo",
     "hrEstimate": "Estimación según la FC",
     "pacePerKm": "{{pace}}/km",
@@ -119,8 +117,6 @@
     "hrLockedSpread": "Tus entrenamientos con FC están todos al mismo esfuerzo. Unos {{bpm}} bpm más de diferencia entre el más suave y el más intenso desbloquean la estimación basada en la FC.",
     "hrLockedFlat": "En estos entrenamientos tu ritmo no se acelera cuando sube tu FC, así que aún no hay nada que proyectar al esfuerzo de umbral.",
     "hrLockedScatter": "Tu ritmo a una FC dada sigue siendo demasiado disperso para proyectarlo. Los entrenamientos con caminatas o paradas largas son la causa habitual.",
-    "gradeNoteClimb": "Los entrenamientos se ajustan según el desnivel positivo. Los tiempos corresponden a un recorrido llano; la fila del día de la carrera incluye sus {{m}} m de desnivel.",
-    "gradeNoteFlat": "Los entrenamientos se ajustan según el desnivel positivo. Los tiempos corresponden a un recorrido llano, excepto la fila del día de la carrera cuando configures el desnivel en los ajustes del plan.",
     "info": {
       "title": "Cómo funcionan las predicciones",
       "label": "¿Cómo funciona esto?",
@@ -137,7 +133,23 @@
       "elevTitle": "Ajuste por desnivel",
       "elevBody": "Las cuestas hacen que un entrenamiento sea más lento que su equivalente en llano. Antes del cálculo, cada metro ascendido se convierte en unos 8 metros llanos adicionales para que los recorridos con cuestas no hagan parecer que estás en peor forma. Los tiempos indicados son para un recorrido llano; la <0>fila del día de carrera</0> vuelve a sumar el desnivel cuando lo configuras en el plan.",
       "footer": "Son proyecciones basadas en esfuerzos anteriores, no promesas. Úsalas como un indicador de forma que mejora a medida que registras más entrenamientos."
-    }
+    },
+    "racesHeading": "Tus próximas carreras",
+    "yourRace": "Tu carrera",
+    "goalRace": "CARRERA OBJETIVO",
+    "raceToday": "hoy",
+    "raceTomorrow": "mañana",
+    "inDays": "en {{n}} días",
+    "otherDistances": "Otras distancias · 5 · 10 · 20 km",
+    "goalLabel": "Tu objetivo",
+    "goalBest": "Tu mejor día te deja {{gap}}.",
+    "goalHr": "Tu modelo de FC te deja {{gap}}.",
+    "gapOver": "{{d}} por encima",
+    "gapUnder": "{{d}} de margen",
+    "gapLevel": "justo en el punto",
+    "climbUnknown": "Proyectado en llano: no tenemos ningún desnivel registrado para esta carrera.",
+    "addClimb": "Añadir desnivel",
+    "gradeNote": "Los entrenamientos se ajustan por desnivel. Los tiempos mostrados son para un recorrido llano, salvo en una tarjeta de carrera con desnivel conocido."
   },
   "zones": {
     "title": "Zonas de frecuencia cardíaca",
