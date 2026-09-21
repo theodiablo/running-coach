@@ -6,6 +6,7 @@ import { hasHealthKitAuthorization } from "../healthkit/import";
 import { HR_MIN_COVERAGE, hrCoverage, hrSummary, mergeHrSamples } from "../utils/hr";
 import { hrNudgeFor, type HrNudgeChoice } from "../utils/hrNudge";
 import { isAndroid, isIos, isNative } from "../native";
+import { logTrack } from "../geo/trackLog";
 import type { BleHrSample } from "./ble";
 import type { HrMethod, HrPending, Run } from "../types";
 
@@ -91,7 +92,8 @@ export async function resolveRunHr({ hrSrc, liveSamples, durationSec, startMs, e
   startMs: number;
   endMs: number;
 }): Promise<ResolvedRunHr> {
-  const samples = mergeHrSamples(liveSamples, hrSrc?.live ? await readHrJournal() : []);
+  const journalled = hrSrc?.live ? await readHrJournal() : [];
+  const samples = mergeHrSamples(liveSamples, journalled);
   const { hrAvg, hrMax } = hrSummary(samples);
   const out: ResolvedRunHr = { samples, hr: null, hrMax: null, hrPending: null, partialCoverage: null };
 
@@ -99,8 +101,19 @@ export async function resolveRunHr({ hrSrc, liveSamples, durationSec, startMs, e
     const coverage = hrCoverage(samples, durationSec);
     if (coverage >= HR_MIN_COVERAGE) { out.hr = hrAvg; out.hrMax = hrMax; }
     else out.partialCoverage = coverage;
+    // The last line of the diagnostic story: how much of the run each layer
+    // actually contributed, and whether the coverage gate kept the average.
+    // `journal >> live` means the link was healthy and JS was not being fed.
+    logTrack("hr-save", {
+      ok: out.hr != null,
+      n: samples.length,
+      msg: `live=${liveSamples.length} journal=${journalled.length} merged=${samples.length} `
+        + `coverage=${Math.round(coverage * 100)}% of ${Math.round(durationSec)}s`
+        + (out.hr == null ? " → no run average (below gate)" : ` → ${hrAvg}bpm`),
+    });
     return out;
   }
+  if (hrSrc?.live) logTrack("hr-save", { ok: false, n: 0, msg: "no samples at all (live source)" });
   if (hrSrc && !hrSrc.live) {
     let res = null;
     try { res = await hrSrc.fetchRange(startMs, endMs); }

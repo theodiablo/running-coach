@@ -32,6 +32,9 @@ const hrView = (bpm: number) => new DataView(new Uint8Array([0, bpm]).buffer);
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 const STALL_MS = 20000;
+// Every attempt after the first asks for the full window Android's own direct
+// connect uses, instead of the plugin's 10s default (see RECONNECT_TIMEOUT_MS).
+const RECONNECT_OPTS = { timeout: 30000 };
 
 beforeEach(async () => {
   vi.useFakeTimers();
@@ -84,7 +87,7 @@ describe("bleSource.watch", () => {
     bleSource.watch(vi.fn(), undefined, { deviceId: "OLD", deviceName: "Polar H10", onDeviceChange });
     await vi.advanceTimersByTimeAsync(30000);
     expect(onDeviceChange).toHaveBeenCalledWith({ id: "NEW", name: "Polar H10" });
-    expect(ble.client.connect).toHaveBeenLastCalledWith("NEW", expect.any(Function));
+    expect(ble.client.connect).toHaveBeenLastCalledWith("NEW", expect.any(Function), RECONNECT_OPTS);
   });
 
   it("ignores scan results for other sensors", async () => {
@@ -96,7 +99,18 @@ describe("bleSource.watch", () => {
     bleSource.watch(vi.fn(), undefined, { deviceId: "OLD", deviceName: "Polar H10", onDeviceChange });
     await vi.advanceTimersByTimeAsync(60000);
     expect(onDeviceChange).not.toHaveBeenCalled();
-    expect(ble.client.connect).toHaveBeenLastCalledWith("OLD", expect.any(Function));
+    expect(ble.client.connect).toHaveBeenLastCalledWith("OLD", expect.any(Function), RECONNECT_OPTS);
+  });
+
+  it("gives a reconnect longer than the plugin default, but not the first connect", async () => {
+    ble.client.connect.mockRejectedValueOnce(new Error("133"));
+    bleSource.watch(vi.fn(), undefined, { deviceId: "d1" });
+    await flush();
+    // The idle preview's first connect keeps the default: quick feedback beats
+    // patience when the sensor is in the runner's hands.
+    expect(ble.client.connect).toHaveBeenNthCalledWith(1, "d1", expect.any(Function));
+    await vi.advanceTimersByTimeAsync(40000);
+    expect(ble.client.connect).toHaveBeenLastCalledWith("d1", expect.any(Function), RECONNECT_OPTS);
   });
 
   it("reports unreachable only after repeated failed cycles, and keeps retrying", async () => {

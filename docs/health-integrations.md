@@ -50,6 +50,19 @@ carries a `live` flag:
   private addresses invalidates the saved id when it rotates (pairing works,
   then "stuck connecting" forever) — the scan matches the saved *name* and a
   changed id is persisted via `onDeviceChange` → `setPairedDevice`.
+  **A reconnect gets a longer deadline than the first connect**
+  (`RECONNECT_TIMEOUT_MS`): the plugin's 10s default is shorter than the window
+  Android's own direct connect uses to look for the peripheral, so a strap that
+  had dropped and was re-advertising on its slow interval was given up on while
+  the platform was still finding it — and each premature failure then set
+  `scanFirst`, spending a re-discovery scan out of the small allowance below to
+  do what the connect would have done for free. The first attempt keeps the
+  default: it runs during the idle preview, where the sensor is in the runner's
+  hands and quick "can't reach sensor" feedback beats patience.
+  **When HR fails on a real run, read the diagnostic log before changing
+  anything** — `hr-beat` / `hr-stall` / `hr-connect` / `hr-scan` / `hr-save`
+  in `docs/live-tracking.md` separate a dead link from a delivery stall from a
+  throttled re-discovery, and those are fixed in three different places.
   `useRunTracker` keeps the source object with the watch handle (teardown must
   reach the source that opened it, whatever `hrMethod` says now) and exposes
   `hrStatus` (`onStatus`: connecting / scanning / connected / unreachable);
