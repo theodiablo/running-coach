@@ -5,7 +5,7 @@ import { hrSummary } from "../utils/hr";
 import { geoSource } from "../geo/source";
 import { pushRunNotification, resetRunNotification } from "../geo/liveNotification";
 import { buildRunNotificationContent } from "../utils/runNotification";
-import { logTrack } from "../geo/trackLog";
+import { logTrack, isGeoDebugEnabled } from "../geo/trackLog";
 import { powerStateSummary } from "../geo/battery";
 import { clearNativeFixJournal, readNativeFixJournal } from "../geo/fixJournal";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveredRun } from "../utils/runRecovery";
@@ -269,9 +269,15 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     setHrStatus(null);
   }, []);
 
-  // Fire-and-forget: a bridge round-trip must never sit in front of Start.
+  // Fire-and-forget: a bridge round-trip must never sit in front of Start. Gated
+  // like logTrack itself, or every Android install pays two IPC round-trips per
+  // Start and per backgrounding for a row that is then discarded. `t` is the
+  // moment asked about: backgrounded, the reply may not run until the next
+  // foreground.
   const logPower = useCallback(() => {
-    void powerStateSummary().then(msg => { if (msg) logTrack("power", { msg }); });
+    if (!isGeoDebugEnabled()) return;
+    const at = Date.now();
+    void powerStateSummary().then(msg => { if (msg) logTrack("power", { msg, t: at }); });
   }, []);
 
   const onErr = useCallback((err: GeoError) => {
@@ -527,8 +533,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
         if (tracking) setMovingSec(computeMoving());
         if (stateRef.current === "tracking") acquireWake();
       } else {
-        // Anchored to backgrounding, like the shell log's own snapshot: this is
-        // the moment the regime starts to matter, and foreground is never in doubt.
+        // Anchored to backgrounding: that is when the regime starts to matter.
         if (tracking) { logTrack("hidden"); logPower(); }
         persist();
       }

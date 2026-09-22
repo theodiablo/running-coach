@@ -133,7 +133,8 @@ export const BG_LOC_ASKED_KEY = "rc_bg_loc_asked";
 export const GEO_DIAG_LOG_KEY = "rc_geo_diag_log";   // JSON ring buffer of per-FIX rows (FIFO)
 export const GEO_DIAG_LOG_MAX = 2000;                // cap on stored fix rows
 export const RUN_DIAG_LOG_KEY = "rc_run_diag_log";   // everything else: run markers, HR, power
-export const RUN_DIAG_LOG_MAX = 1000;                // cap on stored event rows
+export const RUN_DIAG_LOG_MAX = 1500;                // cap on stored event rows (a reconnect storm writes ~1500/h)
+export const DIAG_LOG_HEAD = 50;                     // oldest rows a full buffer never evicts
 export const GEO_DEBUG_KEY = "rc_geo_debug";         // "1" enables logging + reveals the panel
 
 // ── Heart-rate sensor (native) — all PER-DEVICE, never in the synced blob ──

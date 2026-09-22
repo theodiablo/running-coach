@@ -74,7 +74,7 @@ function summarize(events: GeoDiagEvent[]) {
 // counts are reported apart rather than added up into "HR dropouts".
 function summarizeHr(events: GeoDiagEvent[]) {
   let beats = 0, deliveryStalls = 0, deadLink = 0, peerDrops = 0, connectFails = 0, scansThrottled = 0;
-  let save = "", power = "";
+  let save = "", powerFirst = "", powerLast = "";
   for (const e of events) {
     if (e.kind === "hr-beat") beats += e.n ?? 1;
     else if (e.kind === "hr-stall") {
@@ -87,8 +87,11 @@ function summarizeHr(events: GeoDiagEvent[]) {
     }
     else if (e.kind === "hr-scan" && e.msg === "throttled") scansThrottled++;
     else if (e.kind === "hr-save") save = e.msg || "";
-    else if (e.kind === "power") power = e.msg || "";
+    else if (e.kind === "power") { powerLast = e.msg || ""; if (!powerFirst) powerFirst = powerLast; }
   }
+  // Battery Saver is exactly the thing that flips on mid-run, so report the
+  // change rather than whichever end of it happened to be sampled last.
+  const power = powerFirst === powerLast ? powerFirst : `${powerFirst} → ${powerLast}`;
   return { beats, deliveryStalls, deadLink, peerDrops, connectFails, scansThrottled, save, power };
 }
 

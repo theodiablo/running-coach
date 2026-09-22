@@ -16,7 +16,6 @@ type RunPermissionsBattery = {
   checkBatteryOptimization: () => Promise<{ ignoringOptimizations?: boolean }>;
   openBatteryOptimizationSettings: () => Promise<void>;
   checkPowerSaveMode: () => Promise<{ powerSaveMode?: boolean }>;
-  openBatterySaverSettings: () => Promise<void>;
 };
 
 let cached: RunPermissionsBattery | null = null;
@@ -44,31 +43,10 @@ export function openBatteryOptimizationSettings(): void {
   plugin().openBatteryOptimizationSettings().catch(() => { /* best-effort */ });
 }
 
-// Whether Battery Saver is on RIGHT NOW. Unlike the optimization exemption
-// above there is no per-install flag to remember and none to set: Battery Saver
-// is device-wide, the OS turns it on by itself at a low-battery threshold and
-// off again on charge, so the answer is only true for this moment and every
-// caller re-asks. Failure reads as "off" — a warning the runner can't act on is
-// worse than none.
-export async function isPowerSaveMode(): Promise<boolean> {
-  if (!isAndroid) return false;
-  try {
-    const res = await plugin().checkPowerSaveMode();
-    return res?.powerSaveMode === true;
-  } catch { return false; }
-}
-
-export function openBatterySaverSettings(): void {
-  plugin().openBatterySaverSettings().catch(() => { /* best-effort */ });
-}
-
 // The power regime as one log line, or null when there is nothing to say (web,
 // iOS, or the bridge failing). Both halves matter and they are different
 // settings: Battery Saver is device-wide and flips itself at a low-battery
-// threshold, while the optimization exemption is per-app and sticky. A run that
-// loses its link under one is a different bug from a run that loses it under
-// the other, and until this landed the answer lived only in the native shell
-// log, on a separate panel, to be correlated by timestamp.
+// threshold, while the optimization exemption is per-app and sticky.
 export async function powerStateSummary(): Promise<string | null> {
   if (!isAndroid) return null;
   try {

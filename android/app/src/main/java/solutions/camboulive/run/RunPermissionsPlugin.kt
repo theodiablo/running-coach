@@ -127,12 +127,8 @@ class RunPermissionsPlugin : Plugin() {
         call.resolve(JSObject().put("ignoringOptimizations", ignoring))
     }
 
-    // Battery Saver is a DEVICE-wide mode, not a per-app setting, so unlike the
-    // optimization exemption above there is nothing to request — only something
-    // to report. It flips itself on at a low-battery threshold and off again on
-    // charge, so the answer is only ever true for right now; callers must re-ask
-    // rather than remember. Reports false on any failure, so an unknowable
-    // answer never raises a warning the runner cannot act on.
+    // Battery Saver is DEVICE-wide, so unlike the exemption above there is
+    // nothing to request — only something to report, and only for right now.
     @PluginMethod
     fun checkPowerSaveMode(call: PluginCall) {
         val saving = try {
@@ -140,18 +136,6 @@ class RunPermissionsPlugin : Plugin() {
             pm.isPowerSaveMode
         } catch (e: Exception) { false }
         call.resolve(JSObject().put("powerSaveMode", saving))
-    }
-
-    @PluginMethod
-    fun openBatterySaverSettings(call: PluginCall) {
-        try {
-            val intent = Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            call.resolve()
-        } catch (e: Exception) {
-            call.reject("Could not open battery saver settings")
-        }
     }
 
     // Opens the OS battery-optimization LIST screen (the user picks the app
