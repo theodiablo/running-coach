@@ -1,4 +1,6 @@
-import { GEO_DIAG_LOG_KEY, GEO_DIAG_LOG_MAX, GEO_DEBUG_KEY } from "../constants";
+import {
+  GEO_DIAG_LOG_KEY, GEO_DIAG_LOG_MAX, RUN_DIAG_LOG_KEY, RUN_DIAG_LOG_MAX, GEO_DEBUG_KEY,
+} from "../constants";
 
 // Developer diagnostics for what a run's sensor streams actually did — GPS and
 // the live heart-rate link, on one timeline because they fail together and the
@@ -21,6 +23,13 @@ import { GEO_DIAG_LOG_KEY, GEO_DIAG_LOG_MAX, GEO_DEBUG_KEY } from "../constants"
 // `hr-scan throttled` says Android's scan allowance is why it couldn't);
 // `hr-save` closes the run with what actually survived to the run. Read them in
 // that order and the failing layer names itself.
+//
+// Power: `power` rows say which regime the run was recorded under. Battery
+// Saver makes Android freeze and kill background processes far more readily —
+// 20 renderer kills with 3GB free on one device — and that reaches the BLE link
+// and the fix stream alike. It lived only in the native shell log, so reading a
+// bad run meant correlating two panels by timestamp; it belongs on the timeline
+// it explains.
 //
 // Per-device only (like the watch scan log and the auth markers) — never in the
 // synced blob — and bounded to a small ring buffer. Guarded like getScanLog:
@@ -49,7 +58,9 @@ export type GeoDiagKind =
   | "hr-stall"     // the silence watchdog fired (msg = verdict, sinceMs = native beat age)
   | "hr-scan"      // re-discovery scan (msg = start / found / none / throttled)
   | "hr-journal"   // native HR journal armed/disarmed (msg = which)
-  | "hr-save";     // save-time resolution (msg = live/journal/merged counts + coverage)
+  | "hr-save"      // save-time resolution (msg = live/journal/merged counts + coverage)
+  // ── power regime (src/geo/battery.ts) ────────────────────────────────────
+  | "power";       // what the OS was allowing at this moment (msg = saver=…)
 
 export type GeoDiagEvent = {
   at: number;               // epoch ms the event was logged (wall clock)
@@ -61,6 +72,11 @@ export type GeoDiagEvent = {
   msg?: string;             // freeform detail (drop reason, error text, watch mode)
   bpm?: number;             // last heart rate in the roll-up (for "hr-beat")
   n?: number;               // how many events this row stands for (for "hr-beat")
+  // Write order within this app session. `at` is millisecond-resolution and the
+  // two buffers are merged by it, so rows written in the same millisecond would
+  // otherwise sort by which buffer they landed in rather than when they
+  // happened — a fix and the `start` that preceded it, inverted.
+  seq?: number;
 };
 
 // Cache the reveal flag in-module so the per-fix instrumentation doesn't hit
@@ -83,11 +99,32 @@ export function setGeoDebug(on: boolean) {
   } catch { /* non-fatal */ }
 }
 
-export function getTrackLog(): GeoDiagEvent[] {
+// TWO ring buffers, not one, because the streams arrive at rates ~15x apart: GPS
+// writes two rows per fix (~1/s), while an HR roll-up writes one per 15s and a
+// run marker writes one per run. Sharing a single cap meant a long run's fixes
+// evicted the very rows that explain it — `start`, the journal arming, every
+// hr-* row — so the log kept the stream that was working and dropped the one
+// being diagnosed. The split is per-fix spam vs everything else, NOT GPS vs HR:
+// `visible`/`hidden` and the run markers are context for both streams and were
+// being crowded out just as badly.
+//
+// One timeline is still what you read — getTrackLog merges them by time.
+const FIX_KINDS: ReadonlySet<string> = new Set(["native-fix", "fix", "drop", "gap"]);
+
+let seq = 0;
+
+function read(key: string): GeoDiagEvent[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(GEO_DIAG_LOG_KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(raw) ? (raw as GeoDiagEvent[]) : [];
   } catch { return []; }
+}
+
+// Merged, oldest-first. Rows written before the split (one mixed buffer) still
+// read correctly: they are simply all in the fix buffer.
+export function getTrackLog(): GeoDiagEvent[] {
+  return [...read(GEO_DIAG_LOG_KEY), ...read(RUN_DIAG_LOG_KEY)]
+    .sort((a, b) => (a.at || 0) - (b.at || 0) || (a.seq || 0) - (b.seq || 0));
 }
 
 // Append one event, newest-last, keeping the most recent GEO_DIAG_LOG_MAX. A no-op
@@ -96,14 +133,19 @@ export function getTrackLog(): GeoDiagEvent[] {
 // stamped here so call sites stay terse.
 export function logTrack(kind: GeoDiagKind, extra: Omit<GeoDiagEvent, "at" | "kind"> = {}) {
   if (!isGeoDebugEnabled()) return;
+  const fix = FIX_KINDS.has(kind);
+  const key = fix ? GEO_DIAG_LOG_KEY : RUN_DIAG_LOG_KEY;
+  const max = fix ? GEO_DIAG_LOG_MAX : RUN_DIAG_LOG_MAX;
   try {
-    const next = getTrackLog();
-    next.push({ at: Date.now(), kind, ...extra });
-    localStorage.setItem(GEO_DIAG_LOG_KEY, JSON.stringify(next.slice(-GEO_DIAG_LOG_MAX)));
+    const next = read(key);
+    next.push({ at: Date.now(), seq: seq++, kind, ...extra });
+    localStorage.setItem(key, JSON.stringify(next.slice(-max)));
   } catch { /* storage unavailable / quota — non-fatal */ }
 }
 
 export function clearTrackLog() {
-  try { localStorage.removeItem(GEO_DIAG_LOG_KEY); }
-  catch { /* non-fatal */ }
+  try {
+    localStorage.removeItem(GEO_DIAG_LOG_KEY);
+    localStorage.removeItem(RUN_DIAG_LOG_KEY);
+  } catch { /* non-fatal */ }
 }

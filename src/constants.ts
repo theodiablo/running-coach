@@ -130,8 +130,10 @@ export const BG_LOC_ASKED_KEY = "rc_bg_loc_asked";
 // insertions, permission results, and app foreground/background transitions, so a
 // screen-off run can be inspected to see exactly when and why fixes stop. Off by
 // default (nothing recorded until the reveal flag is on); bounded ring buffer.
-export const GEO_DIAG_LOG_KEY = "rc_geo_diag_log";   // JSON ring buffer of tracker events
-export const GEO_DIAG_LOG_MAX = 2000;                // cap on stored events (FIFO)
+export const GEO_DIAG_LOG_KEY = "rc_geo_diag_log";   // JSON ring buffer of per-FIX rows (FIFO)
+export const GEO_DIAG_LOG_MAX = 2000;                // cap on stored fix rows
+export const RUN_DIAG_LOG_KEY = "rc_run_diag_log";   // everything else: run markers, HR, power
+export const RUN_DIAG_LOG_MAX = 1000;                // cap on stored event rows
 export const GEO_DEBUG_KEY = "rc_geo_debug";         // "1" enables logging + reveals the panel
 
 // ── Heart-rate sensor (native) — all PER-DEVICE, never in the synced blob ──
