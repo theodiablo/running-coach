@@ -5,7 +5,8 @@ import { hrSummary } from "../utils/hr";
 import { geoSource } from "../geo/source";
 import { pushRunNotification, resetRunNotification } from "../geo/liveNotification";
 import { buildRunNotificationContent } from "../utils/runNotification";
-import { logTrack } from "../geo/trackLog";
+import { logTrack, isGeoDebugEnabled } from "../geo/trackLog";
+import { powerStateSummary } from "../geo/battery";
 import { clearNativeFixJournal, readNativeFixJournal } from "../geo/fixJournal";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveredRun } from "../utils/runRecovery";
 import { getHrSource } from "../hr/source";
@@ -268,6 +269,17 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     setHrStatus(null);
   }, []);
 
+  // Fire-and-forget: a bridge round-trip must never sit in front of Start. Gated
+  // like logTrack itself, or every Android install pays two IPC round-trips per
+  // Start and per backgrounding for a row that is then discarded. `t` is the
+  // moment asked about: backgrounded, the reply may not run until the next
+  // foreground.
+  const logPower = useCallback(() => {
+    if (!isGeoDebugEnabled()) return;
+    const at = Date.now();
+    void powerStateSummary().then(msg => { if (msg) logTrack("power", { msg, t: at }); });
+  }, []);
+
   const onErr = useCallback((err: GeoError) => {
     logTrack("error", { msg: `code=${err.code} ${err.message || ""}`.trim() });
     if (err.code === err.PERMISSION_DENIED)
@@ -336,6 +348,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     stateRef.current = "tracking";
     setState("tracking");
     logTrack("start", { msg: isNative ? "native" : "web" });
+    logPower();
     setMovingSec(0);
     startHrWatch();
     // Journal natively only when a live sensor is actually streaming — the
@@ -350,7 +363,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     if (indoor && hrWatchRef.current) startIndoorSessionService(Date.now() - accRef.current * 1000);
     acquireWake();
     persist();
-  }, [startWatch, startHrWatch, acquireWake, persist, indoor]);
+  }, [startWatch, startHrWatch, acquireWake, persist, indoor, logPower]);
 
   const pause = useCallback(() => {
     if (stateRef.current !== "tracking") return;
@@ -520,13 +533,14 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
         if (tracking) setMovingSec(computeMoving());
         if (stateRef.current === "tracking") acquireWake();
       } else {
-        if (tracking) logTrack("hidden");
+        // Anchored to backgrounding: that is when the regime starts to matter.
+        if (tracking) { logTrack("hidden"); logPower(); }
         persist();
       }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [acquireWake, persist, computeMoving]);
+  }, [acquireWake, persist, computeMoving, logPower]);
 
   // Tear down on unmount. The indoor service goes too — it holds the process,
   // so leaking it would pin a notification to a session that no longer exists.

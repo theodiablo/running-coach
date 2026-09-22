@@ -15,6 +15,7 @@ import { BATTERY_NUDGE_KEY } from "../constants";
 type RunPermissionsBattery = {
   checkBatteryOptimization: () => Promise<{ ignoringOptimizations?: boolean }>;
   openBatteryOptimizationSettings: () => Promise<void>;
+  checkPowerSaveMode: () => Promise<{ powerSaveMode?: boolean }>;
 };
 
 let cached: RunPermissionsBattery | null = null;
@@ -40,4 +41,19 @@ export function markBatteryNudgeDismissed(): void {
 
 export function openBatteryOptimizationSettings(): void {
   plugin().openBatteryOptimizationSettings().catch(() => { /* best-effort */ });
+}
+
+// The power regime as one log line, or null when there is nothing to say (web,
+// iOS, or the bridge failing). Both halves matter and they are different
+// settings: Battery Saver is device-wide and flips itself at a low-battery
+// threshold, while the optimization exemption is per-app and sticky.
+export async function powerStateSummary(): Promise<string | null> {
+  if (!isAndroid) return null;
+  try {
+    const [saver, battery] = await Promise.all([
+      plugin().checkPowerSaveMode(),
+      plugin().checkBatteryOptimization(),
+    ]);
+    return `saver=${saver?.powerSaveMode === true} unrestricted=${battery?.ignoringOptimizations === true}`;
+  } catch { return null; }
 }

@@ -127,6 +127,17 @@ class RunPermissionsPlugin : Plugin() {
         call.resolve(JSObject().put("ignoringOptimizations", ignoring))
     }
 
+    // Battery Saver is DEVICE-wide, so unlike the exemption above there is
+    // nothing to request — only something to report, and only for right now.
+    @PluginMethod
+    fun checkPowerSaveMode(call: PluginCall) {
+        val saving = try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            pm.isPowerSaveMode
+        } catch (e: Exception) { false }
+        call.resolve(JSObject().put("powerSaveMode", saving))
+    }
+
     // Opens the OS battery-optimization LIST screen (the user picks the app
     // there). Deliberately not the direct per-app request dialog, which needs
     // the Play-restricted REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission.

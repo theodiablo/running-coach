@@ -433,10 +433,24 @@ the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
 
 ## Sensor diagnostics — GPS + HR (dev-only, native)
 
-A hidden per-device ring buffer (`src/geo/trackLog.ts`, `GEO_DIAG_LOG_KEY`,
-**never synced**, capped at `GEO_DIAG_LOG_MAX`) records what a run's sensor
-streams actually did. One buffer for both streams on purpose: they fail
-together and the question is always which stopped first.
+Hidden per-device ring buffers (`src/geo/trackLog.ts`, **never synced**) record
+what a run's sensor streams actually did, merged into one timeline by
+`getTrackLog` — they fail together and the question is always which stopped
+first.
+
+**Two buffers, not one**, because the streams arrive at rates ~15x apart: the
+per-fix rows (`native-fix` / `fix` / `drop` / `gap`) go to `GEO_DIAG_LOG_KEY`
+(cap `GEO_DIAG_LOG_MAX`) and everything else to `RUN_DIAG_LOG_KEY` (cap
+`RUN_DIAG_LOG_MAX`). Sharing one cap meant ~33 minutes of GPS evicted the rows
+that explain a run — `start`, the journal arming, every `hr-*` row — so the log
+kept the stream that was working and dropped the one being diagnosed; a real
+run came back with nothing but fixes. The split is **per-fix spam vs everything
+else, not GPS vs HR**: `visible`/`hidden` and the run markers are context for
+both streams and were crowded out just as badly. Size the event cap against a
+**reconnect storm** (~1500 rows/h at `RETRY_MAX_MS`), not a healthy run
+(~250/h) — the storm is the session worth reading. Rows carry a `seq`, seeded
+past what is already stored so a restart can't rewind it, and `getTrackLog`
+merges on it rather than on the wall clock, which can step backwards mid-run.
 
 **GPS** — each raw `native-fix` arrival at the JS boundary, whether it was
 kept (`fix`) or dropped (`drop`, with reason) or opened a `gap`, plus
@@ -457,6 +471,7 @@ failing layer names itself:
 | `hr-scan` | re-discovery: `found` / `none`, and **`throttled`** = Android's scan allowance is why we couldn't get back |
 | `hr-journal` | was the native journal armed for this stretch? |
 | `hr-save` | what survived: `live=` / `journal=` / `merged=` counts and coverage vs the gate. **`journal` >> `live` means the link was healthy and JS was not being fed** |
+| `power` | which regime the run recorded under (`saver=` / `unrestricted=`), at Start and on each backgrounding. Battery Saver makes Android freeze and kill background processes far more readily, and that reaches the BLE link and the fix stream alike. Stamped with the moment described, not the bridge reply — backgrounded, the reply may not run until the next foreground. The summary reports `first → last`, because Saver is exactly what flips on mid-run |
 
 Logging is a **no-op until enabled** (`isGeoDebugEnabled`, cached in-module so
 the per-fix and per-beat cost is nil when off). Viewer is

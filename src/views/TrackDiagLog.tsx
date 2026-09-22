@@ -33,6 +33,7 @@ const KIND_CLS: Record<string, string> = {
   "hr-scan": "bg-violet-500/15 text-violet-300 border-violet-500/30",
   "hr-journal": "bg-slate-600/30 text-slate-400 border-slate-500/40",
   "hr-save": "bg-pink-600/20 text-pink-200 border-pink-600/40",
+  power: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
 };
 
 const clock = (ms: number) => {
@@ -73,7 +74,7 @@ function summarize(events: GeoDiagEvent[]) {
 // counts are reported apart rather than added up into "HR dropouts".
 function summarizeHr(events: GeoDiagEvent[]) {
   let beats = 0, deliveryStalls = 0, deadLink = 0, peerDrops = 0, connectFails = 0, scansThrottled = 0;
-  let save = "";
+  let save = "", powerFirst = "", powerLast = "";
   for (const e of events) {
     if (e.kind === "hr-beat") beats += e.n ?? 1;
     else if (e.kind === "hr-stall") {
@@ -86,8 +87,12 @@ function summarizeHr(events: GeoDiagEvent[]) {
     }
     else if (e.kind === "hr-scan" && e.msg === "throttled") scansThrottled++;
     else if (e.kind === "hr-save") save = e.msg || "";
+    else if (e.kind === "power") { powerLast = e.msg || ""; if (!powerFirst) powerFirst = powerLast; }
   }
-  return { beats, deliveryStalls, deadLink, peerDrops, connectFails, scansThrottled, save };
+  // Battery Saver is exactly the thing that flips on mid-run, so report the
+  // change rather than whichever end of it happened to be sampled last.
+  const power = powerFirst === powerLast ? powerFirst : `${powerFirst} → ${powerLast}`;
+  return { beats, deliveryStalls, deadLink, peerDrops, connectFails, scansThrottled, save, power };
 }
 
 function EventRow({ e }: { e: GeoDiagEvent }) {
@@ -230,6 +235,7 @@ export function TrackDiagLog({ onHide }: { onHide: () => void }) {
         <span>reconnect fails: <b className={hr.connectFails ? "text-rose-400" : "text-slate-200"}>{hr.connectFails}</b></span>
         <span>scans throttled: <b className={hr.scansThrottled ? "text-rose-400" : "text-slate-200"}>{hr.scansThrottled}</b></span>
       </div>
+      {hr.power && <p className="text-[11px] text-slate-300">power regime: <b className="text-cyan-300">{hr.power}</b></p>}
       {hr.save && <p className="text-[11px] leading-snug rounded-lg bg-slate-900/60 border border-slate-700 px-2.5 py-2 text-slate-200">HR at save: {hr.save}</p>}
       {rows.length === 0
         ? <p className="text-xs text-slate-500 py-2">No events yet. Logging is on — start a run (ideally with the screen off partway), then Refresh.</p>
