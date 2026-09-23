@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail } = vi.hoisted(() => ({
+const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, signInWithApple } = vi.hoisted(() => ({
+  signInWithApple: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
   signInWithOAuth: vi.fn(),
@@ -11,7 +12,8 @@ vi.mock("./supabase", () => ({
   supabase: { auth: { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail } },
   authRedirectTo: () => "http://localhost/",
 }));
-vi.mock("./native", () => ({ isNative: false, isAndroid: false }));
+vi.mock("./native", () => ({ isNative: false, isAndroid: false, isIos: false }));
+vi.mock("./auth/appleSignIn", () => ({ signInWithApple }));
 
 import LoginScreen from "./LoginScreen";
 
@@ -31,6 +33,7 @@ beforeEach(() => {
   signUp.mockResolvedValue({ error: null });
   signInWithPassword.mockResolvedValue({ error: null });
   resetPasswordForEmail.mockResolvedValue({ error: null });
+  signInWithApple.mockResolvedValue("redirecting");
 });
 
 describe("LoginScreen — one form", () => {
@@ -270,5 +273,31 @@ describe("LoginScreen — sign-up", () => {
     fireEvent.click(submitButton());
 
     await screen.findByText("Too many attempts just now. Wait a moment and try again.");
+  });
+});
+
+describe("Sign in with Apple", () => {
+  it("offers Apple alongside Google — the 4.8 equivalent option", async () => {
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Apple" }));
+    expect(signInWithApple).toHaveBeenCalled();
+  });
+
+  it("says nothing when the user dismisses the sheet", async () => {
+    signInWithApple.mockResolvedValue("cancelled");
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Apple" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Continue with Apple" })).not.toBeDisabled(),
+    );
+    expect(document.querySelector(".text-red-400")).toBeNull();
+  });
+
+  it("shows a real failure and re-enables the form", async () => {
+    signInWithApple.mockRejectedValue(new Error("Apple is unavailable"));
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Apple" }));
+    expect(await screen.findByText("Apple is unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue with Apple" })).not.toBeDisabled();
   });
 });
