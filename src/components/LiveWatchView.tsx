@@ -8,7 +8,7 @@
 // Layout is container-queried, not viewport-queried: the same component renders
 // full-screen and inside a modal. Detail: docs/live-sharing.md.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Pause, Radio } from "lucide-react";
 import { fmt } from "../utils/format";
@@ -55,10 +55,11 @@ export function LiveWatchDot({ ended, paused }: { ended: boolean; paused: boolea
 // it (the modal's close button, the public page's masthead), because that is
 // the only part the two surfaces legitimately disagree about.
 export function LiveWatchView(
-  { run, onStatus, bottomInset = true }:
+  { run, onStatus, bottomInset = true, panelFooter }:
   // `bottomInset` false when the caller renders its own chrome below this (the
   // public page's footer), so the iOS home-indicator gap is padded once.
-  { run: PublicLiveRun | null; onStatus?: (s: LiveWatchStatus) => void; bottomInset?: boolean },
+  // `panelFooter` closes the stats panel (the public page's app promo).
+  { run: PublicLiveRun | null; onStatus?: (s: LiveWatchStatus) => void; bottomInset?: boolean; panelFooter?: ReactNode },
 ) {
   const { t } = useTranslation();
 
@@ -144,7 +145,10 @@ export function LiveWatchView(
   );
 
   return (
-    <div className="flex-1 min-h-0 @container flex flex-col @3xl:flex-row">
+    // The query container must be an ancestor: an element's own @-variants never
+    // match itself, which left the wide layout stacked with the map squashed.
+    <div className="flex-1 min-h-0 @container flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col @3xl:flex-row">
       <div className="flex-1 min-h-0 relative">
         <RouteMap points={points} follow={!ended} endpoints={ended && hasTrack} highlight={highlight}
           interactive className="h-full w-full" style={{}} />
@@ -186,8 +190,10 @@ export function LiveWatchView(
           )}
 
           {statusLine}
+          {panelFooter}
         </div>
       </div>
+    </div>
     </div>
   );
 }

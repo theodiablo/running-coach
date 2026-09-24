@@ -11,11 +11,15 @@
 // It deliberately reveals nothing about the runner: no name, no avatar, no
 // account hint. The edge function doesn't even return the user id.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader, Radio } from "lucide-react";
+import { Flag, Loader, Radio } from "lucide-react";
+import { BrandLogo } from "../components/BrandLogo";
 import { LiveWatchDot, LiveWatchView, type LiveWatchStatus } from "../components/LiveWatchView";
 import { fetchLiveWatch, type PublicLiveRun } from "../live/shareLink";
+import { dismissTop } from "../utils/backDismiss";
+import { AboutSheet, AppFeatures, EndedPromo, LivePromo, PinnedPromo, SiteLink, StoreButtons } from "./AppPromo";
+import { siteLink, visitorPlatform } from "./storeLinks";
 
 // Matches the publisher's cadence: reading faster than the phone writes can
 // only return what we already have.
@@ -154,62 +158,121 @@ function useUnlistedPage(title: string) {
   }, [title]);
 }
 
+// RunningCoach owns the app's Escape dispatcher, and it never mounts here.
+function useEscapeDismiss() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && dismissTop()) e.preventDefault(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
+
 export default function PublicWatch({ token }: { token: string }) {
   const { t } = useTranslation();
   const { run, settled, unreachable, refresh } = useWatchedRun(token);
   const [status, setStatus] = useState<LiveWatchStatus | null>(null);
   const onStatus = useCallback((s: LiveWatchStatus) => setStatus(s), []);
+  const [about, setAbout] = useState(false);
+  const platform = useMemo(() => visitorPlatform(navigator.userAgent, navigator.maxTouchPoints), []);
   useUnlistedPage(t("liveShare.public.docTitle"));
+  useEscapeDismiss();
+
+  const ended = run?.status === "ended";
+  const getApp = (
+    <button onClick={() => setAbout(true)}
+      className="shrink-0 inline-flex items-center gap-1.5 min-h-9 px-3 rounded-full border border-orange-500/50 text-orange-400 hover:text-orange-300 text-[13px] font-bold">
+      <BrandLogo size={9} />{t("liveShare.public.getApp")}
+    </button>
+  );
 
   return (
     <div className="fixed inset-0 bg-slate-900 text-slate-100 flex flex-col">
       <header className="flex items-center justify-between gap-3 px-4 border-b border-slate-800"
         style={{ height: "calc(52px + var(--safe-top))", paddingTop: "var(--safe-top)" }}>
-        <div className="flex items-center gap-1.5 min-w-0">
-          {run ? <LiveWatchDot ended={status?.ended ?? false} paused={status?.paused ?? false} />
-            : <Radio size={15} className="text-slate-500" />}
-          {/* Nothing here names the runner: the link is theirs to hand out, not
-              an introduction. The edge function never returns the account id. */}
-          <span className="text-sm font-semibold truncate">{t("liveShare.public.title")}</span>
-        </div>
-        <a href="/" className="text-[11px] font-semibold uppercase tracking-wide text-orange-400 hover:text-orange-300 shrink-0">
-          {t("liveShare.public.openApp")}
-        </a>
+        {/* Nothing here names the runner: the link is theirs to hand out, not
+            an introduction. The edge function never returns the account id. */}
+        {run ? (
+          <div className="flex items-center gap-2 min-w-0">
+            {ended ? <Flag size={15} className="text-slate-500" />
+              : <LiveWatchDot ended={status?.ended ?? false} paused={status?.paused ?? false} />}
+            <span className="text-[15px] font-bold truncate">
+              {t(ended ? "liveShare.public.finished" : "liveShare.public.title")}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 min-w-0 text-orange-500">
+            <BrandLogo size={16} />
+            <span className="text-[15px] font-bold text-slate-100 truncate">Running Coach</span>
+          </div>
+        )}
+        {run ? getApp : settled && (
+          <span className="shrink-0 flex items-center gap-1.5 text-xs text-slate-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-500" aria-hidden />{t("liveShare.public.notLive")}
+          </span>
+        )}
       </header>
 
       {run ? (
-        <LiveWatchView run={run} onStatus={onStatus} bottomInset={false} />
+        <>
+          <LiveWatchView run={run} onStatus={onStatus} bottomInset={false}
+            panelFooter={<div className="hidden @3xl:block">
+              {ended ? <EndedPromo platform={platform} /> : <LivePromo platform={platform} />}
+            </div>} />
+          <div className="md:hidden">
+            <PinnedPromo ended={ended} onAbout={() => setAbout(true)} />
+          </div>
+        </>
+      ) : !settled ? (
+        <div className="flex-1 grid place-items-center">
+          <Loader className="text-orange-400 animate-spin" size={28} />
+        </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
-          {!settled ? (
-            <Loader className="text-orange-400 animate-spin" size={28} />
-          ) : (
-            <>
-              <Radio size={28} className="text-slate-600" />
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto px-4 py-5 md:px-12 md:py-16 grid gap-6 md:grid-cols-2 md:gap-12 md:items-center">
+            <section className="rounded-[20px] md:rounded-3xl border border-slate-800 bg-[#111c33] px-5 py-7 md:px-10 md:py-12 text-center flex flex-col items-center gap-2.5">
+              <div className="grid place-items-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-slate-800 text-slate-400">
+                <Radio size={28} aria-hidden />
+              </div>
               {/* The SAME message for a bad link, a run that hasn't started, and
                   one that is over. That indistinguishability is what makes
                   guessing URLs pointless — and it is also the honest answer for
                   a link shared the night before a race. */}
-              <p className="text-sm text-slate-300 max-w-xs leading-snug">{t("liveShare.public.nothing")}</p>
-              <p className="text-xs text-slate-500 max-w-xs leading-snug">{t("liveShare.public.nothingHint")}</p>
-              {unreachable && (
+              <h1 className="mt-1.5 text-[22px] md:text-3xl font-extrabold tracking-tight">{t("liveShare.public.nothing")}</h1>
+              <p className="text-sm md:text-base leading-relaxed text-slate-300 max-w-sm">{t("liveShare.public.nothingHint")}</p>
+              {unreachable ? (
                 <button onClick={() => { void refresh(); }}
-                  className="mt-1 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700">
+                  className="mt-1.5 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700">
                   {t("liveShare.public.retry")}
                 </button>
+              ) : (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500" aria-hidden />{t("liveShare.public.checking")}
+                </p>
               )}
-            </>
-          )}
-        </div>
+            </section>
+            <section className="flex flex-col gap-4 px-1 md:gap-5">
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold uppercase tracking-widest text-orange-400">{t("liveShare.public.eyebrow")}</p>
+                <h2 className="text-xl md:text-[32px] font-extrabold leading-tight">{t("liveShare.public.headline")}</h2>
+              </div>
+              <AppFeatures />
+              <div className="md:max-w-sm"><StoreButtons platform={platform} placement="idle" /></div>
+              <SiteLink placement="idle" label={t("liveShare.public.learnMore")} />
+            </section>
+          </div>
+        </main>
       )}
 
-      <footer className="px-4 py-3 border-t border-slate-800 text-center"
+      {/* A phone watching a run has the pinned promo down here instead. */}
+      <footer className={`px-4 py-3 border-t border-slate-800 text-center ${run ? "hidden md:block" : ""}`}
         style={{ paddingBottom: "calc(0.75rem + var(--safe-bottom))" }}>
-        {/* This page is the first thing a stranger ever sees of the app. */}
-        <a href="/" className="text-[11px] text-slate-500 hover:text-slate-300">
-          {t("liveShare.public.madeWith")}
+        <a href={siteLink("footer")} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200">
+          <BrandLogo size={10} />{t("liveShare.public.madeWith")}
         </a>
       </footer>
+
+      {about && <AboutSheet platform={platform} onClose={() => setAbout(false)} />}
     </div>
   );
 }

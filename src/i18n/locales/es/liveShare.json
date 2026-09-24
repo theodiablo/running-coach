@@ -50,10 +50,37 @@
   "public": {
     "title": "Entrenamiento en directo",
     "docTitle": "Entrenamiento en directo · Running Coach",
-    "openApp": "Running Coach",
-    "nothing": "Aquí no hay nada en directo ahora mismo.",
-    "nothingHint": "Aquí no se está compartiendo nada en este momento. Si alguien te envió este enlace antes de su entrenamiento, deja esta página abierta: se actualiza sola en cuanto salga.",
+    "finished": "Entrenamiento terminado",
+    "notLive": "Sin directo",
+    "nothing": "Nada en directo ahora mismo",
+    "nothingHint": "¿Te han pasado este enlace antes de un entrenamiento o una carrera? Deja esta página abierta: el mapa y las estadísticas en directo aparecerán aquí solos en cuanto empiece.",
+    "checking": "Se comprueba cada minuto, no hace falta recargar",
     "retry": "Reintentar",
-    "madeWith": "Registrado con Running Coach"
+    "madeWith": "Registrado con Running Coach",
+    "eyebrow": "Mientras esperas",
+    "headline": "Este enlace viene de Running Coach, una app de entrenamiento para corredores.",
+    "features": {
+      "plan": "Un plan de entrenamiento pensado para la fecha de tu carrera",
+      "gps": "Seguimiento GPS, con directo como esta página",
+      "coach": "Un coach con IA que ajusta el plan contigo"
+    },
+    "learnMore": "Más información sobre la app",
+    "website": "Visitar la web",
+    "getApp": "Consigue la app",
+    "rowBody": "Planes, seguimiento GPS y directo, gratis.",
+    "rowCta": "Conseguir",
+    "aboutTitle": "Sobre Running Coach",
+    "sheetSubtitle": "La app que registra este entrenamiento",
+    "sheetBody": "¿Preparas tu propia carrera? Running Coach crea tu plan, registra tus entrenamientos y deja que tus amigos te sigan en directo, como aquí. Todo lo que necesitas para entrenar es gratis.",
+    "endedTitle": "¿Tienes una carrera a la vista?",
+    "endedBody": "Consigue un plan para prepararla, registra tus entrenamientos y compártelos en directo, gratis.",
+    "close": "Cerrar",
+    "store": {
+      "getItOn": "Disponible en",
+      "betaSticker": "Prueba la beta",
+      "playAria": "Disponible en Google Play",
+      "iosAria": "Disponible en iPhone, beta gratuita",
+      "iosNote": "Beta gratuita con la app TestFlight de Apple. Pronto en la App Store."
+    }
   }
 }

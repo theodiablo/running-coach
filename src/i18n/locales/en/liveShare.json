@@ -50,10 +50,37 @@
   "public": {
     "title": "Live run",
     "docTitle": "Live run · Running Coach",
-    "openApp": "Running Coach",
-    "nothing": "Nothing live here right now.",
-    "nothingHint": "Nothing is being shared here at the moment. If someone sent you this link before their run, keep this page open: it updates on its own once they set off.",
+    "finished": "Run finished",
+    "notLive": "Not live",
+    "nothing": "Nothing live right now",
+    "nothingHint": "Got this link ahead of a run or a race? Keep this page open. The map and live stats appear here on their own as soon as the runner sets off.",
+    "checking": "Checking every minute, no need to refresh",
     "retry": "Try again",
-    "madeWith": "Tracked with Running Coach"
+    "madeWith": "Tracked with Running Coach",
+    "eyebrow": "While you wait",
+    "headline": "This link comes from Running Coach, a training app for runners.",
+    "features": {
+      "plan": "A training plan built around your race date",
+      "gps": "GPS tracking, with live sharing like this page",
+      "coach": "An AI coach that adjusts the plan with you"
+    },
+    "learnMore": "Learn more about the app",
+    "website": "Visit the website",
+    "getApp": "Get the app",
+    "rowBody": "Plans, GPS tracking and live sharing, free.",
+    "rowCta": "Get it",
+    "aboutTitle": "About Running Coach",
+    "sheetSubtitle": "The app tracking this run",
+    "sheetBody": "Training for your own race? Running Coach builds your plan, records your runs and lets friends follow along live, just like this. Everything you need to train is free.",
+    "endedTitle": "Got a race of your own coming up?",
+    "endedBody": "Get a plan for it, track your runs and share them live, for free.",
+    "close": "Close",
+    "store": {
+      "getItOn": "Get it on",
+      "betaSticker": "Be a beta tester",
+      "playAria": "Get it on Google Play",
+      "iosAria": "Get it on iPhone, free beta",
+      "iosNote": "Free beta through Apple's TestFlight app. App Store release coming."
+    }
   }
 }
