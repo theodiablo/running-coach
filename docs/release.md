@@ -86,6 +86,54 @@ Other iOS signing gotchas, all hit in practice:
   though the app never writes to Health — HealthKit framework presence alone
   triggers it, so keep that key when touching Info.plist.
 
+## Sign in with Apple
+
+Guideline 4.8 wants an equivalent privacy-preserving option next to Google, so
+the login screen offers both. `src/auth/appleSignIn.ts` is the one entry point:
+**native sheet first on iOS** (`@capacitor-community/apple-sign-in` →
+`supabase.auth.signInWithIdToken`), browser OAuth everywhere else and as the
+fallback when the shell has no plugin or the WebView origin has no
+`crypto.subtle`. The nonce is the part to keep straight: Apple is handed the
+**SHA-256 hash** and embeds it in the identity token, Supabase is handed the
+**raw** value and hashes it to compare — swapping them fails with an opaque
+"invalid nonce".
+
+The entitlement (`App.entitlements`) only works if the App ID grants the
+capability, and a profile minted without it fails the archive with a bare
+"doesn't match the entitlements file", so `ios-appstore-profile.mjs` preflights
+the App ID's capabilities and names the missing one instead.
+
+### One-time setup (all of it outside this repo)
+
+1. **Developer portal → Identifiers → `solutions.camboulive.run` →** enable
+   **Sign In with Apple** ("Enable as a primary App ID").
+2. **A Services ID** for the browser flow (Android + web), configured against
+   that primary App ID, with return URL
+   `https://<SUPABASE_PROJECT_REF>.supabase.co/auth/v1/callback`.
+3. **Keys → a Sign in with Apple key**, attached to the primary App ID. The
+   `.p8` downloads once.
+4. **Supabase → Authentication → Providers → Apple.** Client IDs must list
+   **both** the Services ID (browser flow) and the bundle id
+   `solutions.camboulive.run` — the native identity token's `aud` is the bundle
+   id, and a provider that doesn't accept it rejects every native sign-in. The
+   secret is a JWT built from team id + key id + `.p8`.
+   **Apple caps that secret at 6 months**, so it is a recurring chore: when
+   native and web Apple sign-in both start failing at once, this expired.
+5. **Sign in with Apple for Email Communication** (Developer portal → Services):
+   register `mail.camboulive.solutions`. Users who pick **Hide My Email** get an
+   `@privaterelay.appleid.com` address, and Apple drops mail from any sender
+   domain not registered there — password resets to those users would fail
+   silently, which is the same class of bug as the SES sandbox.
+
+### Known gap — token revocation on account deletion
+
+Apple requires an app offering Sign in with Apple to revoke the Apple token when
+the user deletes their account (5.1.1(v)); `delete_my_account` only deletes the
+Supabase user. Closing it means keeping Apple's refresh token at sign-in and
+calling `https://appleid.apple.com/auth/revoke` from the deletion function.
+Not shipped — in-app deletion itself works, which is what the guideline's
+headline requirement is, and review checks the revocation inconsistently.
+
 ## Build numbers & the update gate
 
 Build version is NOT in the DB — versionCode/CFBundleVersion is

@@ -109,11 +109,15 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { fetch: fetchWithTimeout },
 });
 
+// The bundle id, which doubles as the custom URL scheme below and as the client
+// id the native Sign in with Apple sheet reports (src/auth/appleSignIn.ts).
+export const NATIVE_BUNDLE_ID = "solutions.camboulive.run";
+
 // Where Supabase sends the user back after an OAuth / magic-link sign-in. In the
 // browser that's the app's own origin. Inside the Capacitor shell the origin is
 // http://localhost (not reachable externally), so we return a registered deep
 // link instead; App.jsx listens for it via @capacitor/app and completes the PKCE
 // exchange. This scheme must be added to the Supabase Auth redirect allow-list.
-export const AUTH_DEEP_LINK = "solutions.camboulive.run://auth-callback";
+export const AUTH_DEEP_LINK = `${NATIVE_BUNDLE_ID}://auth-callback`;
 export const authRedirectTo = () =>
   isNative ? AUTH_DEEP_LINK : `${window.location.origin}/`;

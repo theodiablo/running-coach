@@ -7,6 +7,7 @@ import { supabase, authRedirectTo } from "./supabase";
 import { authErrorMessage, isInvalidCredentials, isEmailTaken } from "./utils/authErrors";
 import { passwordProblem } from "./utils/account";
 import { isNative, isAndroid } from "./native";
+import { signInWithApple } from "./auth/appleSignIn";
 import { PRIVACY_URL, PASSWORD_MIN_LENGTH } from "./constants";
 
 // What the visitor came here to do. It picks the copy and which call the one
@@ -133,6 +134,22 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       return;
     }
     // Web: the page itself is redirected to the provider, so leave busy=true.
+  }
+
+  async function withApple() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const outcome = await signInWithApple();
+      // A web redirect takes the page with it, so leave the form disabled.
+      // Everything else lands back here: the native sheet resolves in place
+      // (App.tsx's auth listener swaps the screen), and a cancelled or
+      // dismissed sheet must not leave the UI locked until a restart.
+      if (isNative || outcome !== "redirecting") setBusy(false);
+    } catch (err) {
+      noteError(err);
+      setBusy(false);
+    }
   }
 
   async function signIn() {
@@ -290,6 +307,16 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
                 {t("login.continueWithGoogle")}
               </button>
 
+              <button
+                type="button"
+                onClick={withApple}
+                disabled={busy}
+                className="mt-3 w-full flex items-center justify-center gap-2 bg-black hover:bg-slate-950 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg border border-slate-700 transition"
+              >
+                <AppleIcon />
+                {t("login.continueWithApple")}
+              </button>
+
               <div className="flex items-center gap-3 my-4">
                 <div className="h-px flex-1 bg-slate-700" />
                 <span className="text-xs text-slate-500">{t("login.orWithEmail")}</span>
@@ -376,6 +403,14 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
         </p>
       </div>
     </div>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M16.4 12.8c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.7.8-3.3.8-.7 0-1.7-.8-2.8-.8-1.5 0-2.8.8-3.6 2.1-1.5 2.6-.4 6.5 1.1 8.6.7 1 1.6 2.2 2.7 2.2 1.1 0 1.5-.7 2.8-.7s1.7.7 2.8.7c1.2 0 1.9-1 2.6-2.1.8-1.2 1.2-2.4 1.2-2.4s-2.2-.9-2.2-3.3zM14.2 5.9c.6-.7 1-1.7.9-2.7-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.7-.9 2.6 1 .1 2-.5 2.6-1.2z"/>
+    </svg>
   );
 }
 
