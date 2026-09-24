@@ -1,8 +1,22 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..2a82a49 100644
+index a92fcf9..50a594b 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-@@ -32,8 +32,19 @@ import com.getcapacitor.annotation.PermissionCallback;
+@@ -18,7 +18,13 @@ import android.location.LocationManager;
+ import android.net.Uri;
+ import android.os.Build;
+ import android.os.IBinder;
++import android.os.SystemClock;
+ import android.provider.Settings;
++import android.text.SpannableString;
++import android.text.Spanned;
++import android.text.style.RelativeSizeSpan;
++import android.view.View;
++import android.widget.RemoteViews;
+ 
+ import com.getcapacitor.JSObject;
+ import com.getcapacitor.Logger;
+@@ -32,8 +38,19 @@ import com.getcapacitor.annotation.PermissionCallback;
  import com.google.android.gms.location.LocationServices;
  import com.google.android.gms.tasks.OnSuccessListener;
  
@@ -22,7 +36,7 @@ index a92fcf9..2a82a49 100644
  import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  
  @CapacitorPlugin(
-@@ -50,6 +61,13 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+@@ -50,6 +67,13 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
  )
  public class BackgroundGeolocation extends Plugin {
      private BackgroundGeolocationService.LocalBinder service = null;
@@ -36,7 +50,7 @@ index a92fcf9..2a82a49 100644
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +108,622 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +114,689 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -59,7 +73,8 @@ index a92fcf9..2a82a49 100644
 +            backgroundNotification = buildNotification(
 +                    call.getString("backgroundTitle", "Using your location"),
 +                    backgroundMessage,
-+                    null
++                    null,
++                    false
 +            );
 +        }
 +        service.addWatcher(
@@ -68,13 +83,17 @@ index a92fcf9..2a82a49 100644
 +                call.getFloat("distanceFilter", 0f)
 +        );
 +    }
-+
+ 
 +    // Builds the foreground-service notification. When chronometerStartMs is
 +    // non-null the notification renders a live elapsed-time chronometer ticked
 +    // by the OS itself — it keeps counting even when the app's WebView is
 +    // throttled or suspended in the background, which is what makes a
 +    // lock-screen run clock viable without any process pushing updates.
-+    private Notification buildNotification(String title, String message, Long chronometerStartMs) {
++    //
++    // runStats lays the message out in large type (runStatsView) so it can be
++    // read at arm's length — a phone in an armband; the initial notice stays
++    // plain text.
++    private Notification buildNotification(String title, String message, Long chronometerStartMs, boolean runStats) {
 +        Notification.Builder builder = new Notification.Builder(getContext())
 +                .setContentTitle(title)
 +                .setContentText(message)
@@ -131,9 +150,82 @@ index a92fcf9..2a82a49 100644
 +            builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
 +        }
 +
++        if (runStats) {
+             try {
+-                String name = getAppString(
+-                        "capacitor_background_geolocation_notification_icon",
+-                        "mipmap/ic_launcher"
+-                );
+-                String[] parts = name.split("/");
+-                // It is actually necessary to set a valid icon for the notification to behave
+-                // correctly when tapped. If there is no icon specified, tapping it will open the
+-                // app's settings, rather than bringing the application to the foreground.
+-                builder.setSmallIcon(
+-                        getAppResourceIdentifier(parts[1], parts[0])
+-                );
++                builder.setStyle(new Notification.DecoratedCustomViewStyle())
++                        .setCustomContentView(runStatsView(R.layout.run_notification_collapsed, title, message, chronometerStartMs))
++                        .setCustomBigContentView(runStatsView(R.layout.run_notification_expanded, title, message, chronometerStartMs));
+             } catch (Exception e) {
+-                Logger.error("Could not set notification icon", e);
++                Logger.error("Could not build large run notification", e);
++            }
++        }
++
 +        return builder.build();
 +    }
 +
++    private static final int[] RUN_STAT_CELLS = {
++            R.id.run_notif_cell0, R.id.run_notif_cell1, R.id.run_notif_cell2, R.id.run_notif_cell3
++    };
++
++    // One cell per " · " segment of the message (buildRunNotificationContent),
++    // so the large layout shows exactly the numbers the text would.
++    private RemoteViews runStatsView(int layout, String title, String message, Long chronometerStartMs) {
++        RemoteViews views = new RemoteViews(getContext().getPackageName(), layout);
++        views.setTextViewText(R.id.run_notif_title, title);
++        if (chronometerStartMs != null) {
++            long base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - chronometerStartMs.longValue());
++            views.setChronometer(R.id.run_notif_chrono, base, null, true);
++            views.setViewVisibility(R.id.run_notif_chrono, View.VISIBLE);
++        } else {
++            views.setChronometer(R.id.run_notif_chrono, SystemClock.elapsedRealtime(), null, false);
++            views.setViewVisibility(R.id.run_notif_chrono, View.GONE);
++        }
++        String[] segments = message.split(" \u00b7 ");
++        for (int i = 0; i < RUN_STAT_CELLS.length; i++) {
++            if (i < segments.length) {
++                views.setTextViewText(RUN_STAT_CELLS[i], statCell(segments[i]));
++                views.setViewVisibility(RUN_STAT_CELLS[i], View.VISIBLE);
++            } else {
++                views.setViewVisibility(RUN_STAT_CELLS[i], View.GONE);
++            }
++        }
++        return views;
++    }
++
++    // Numbers at full size, units and the heart glyph shrunk: "5.23 km" reads as a big 5.23.
++    private static CharSequence statCell(String segment) {
++        SpannableString text = new SpannableString(segment);
++        int i = 0;
++        while (i < segment.length()) {
++            if (isStatDigit(segment.charAt(i))) {
++                i++;
++                continue;
++            }
++            int start = i;
++            while (i < segment.length() && !isStatDigit(segment.charAt(i))) {
++                i++;
+             }
++            text.setSpan(new RelativeSizeSpan(0.5f), start, i, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
++        }
++        return text;
++    }
++
++    private static boolean isStatDigit(char c) {
++        return (c >= '0' && c <= '9') || c == ':' || c == '.' || c == '-';
++    }
+ 
 +    // The notification's tap target, built ONCE and reused by every rebuild.
 +    // Upstream built it inline with FLAG_CANCEL_CURRENT, which was harmless when
 +    // the notification was posted once per run — but the live renderer below
@@ -169,7 +261,7 @@ index a92fcf9..2a82a49 100644
 +        );
 +        return contentIntent;
 +    }
- 
++
 +    // Replaces the foreground-service notification's content in place (same id,
 +    // same channel, ongoing flags re-asserted by the builder above) so a caller
 +    // can surface live run stats on it. Resolves { updated: boolean } — false
@@ -197,7 +289,8 @@ index a92fcf9..2a82a49 100644
 +        Notification notification = buildNotification(
 +                call.getString("title", "Using your location"),
 +                message,
-+                chronometerStartMs == null ? null : Long.valueOf(chronometerStartMs.longValue())
++                chronometerStartMs == null ? null : Long.valueOf(chronometerStartMs.longValue()),
++                true
 +        );
 +        boolean updated = service.updateNotification(notification);
 +        seedLiveStats(call, message, updated);
@@ -344,23 +437,18 @@ index a92fcf9..2a82a49 100644
 +    private void appendJournalLine(String line) {
 +        synchronized (journalLock) {
              try {
--                String name = getAppString(
--                        "capacitor_background_geolocation_notification_icon",
--                        "mipmap/ic_launcher"
+-                String color = getAppString(
+-                        "capacitor_background_geolocation_notification_color",
+-                        null
 -                );
--                String[] parts = name.split("/");
--                // It is actually necessary to set a valid icon for the notification to behave
--                // correctly when tapped. If there is no icon specified, tapping it will open the
--                // app's settings, rather than bringing the application to the foreground.
--                builder.setSmallIcon(
--                        getAppResourceIdentifier(parts[1], parts[0])
--                );
--            } catch (Exception e) {
--                Logger.error("Could not set notification icon", e);
+-                if (color != null) {
+-                    builder.setColor(Color.parseColor(color));
 +                File file = journalFile();
 +                if (file.length() > FIX_JOURNAL_MAX_BYTES) {
 +                    return;
-+                }
+                 }
+-            } catch (Exception e) {
+-                Logger.error("Could not set notification color", e);
 +                FileWriter writer = new FileWriter(file, true);
 +                try {
 +                    writer.write(line);
@@ -373,6 +461,19 @@ index a92fcf9..2a82a49 100644
 +        }
 +    }
  
+-            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
+-                    getContext().getPackageName()
+-            );
+-            if (launchIntent != null) {
+-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+-                builder.setContentIntent(
+-                        PendingIntent.getActivity(
+-                                getContext(),
+-                                0,
+-                                launchIntent,
+-                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
+-                        )
+-                );
 +    // Resolves { points: [[lat,lng,tMs,alt|null], ...] }. Each line parses on
 +    // its own so a torn last line (process killed mid-write) costs one point,
 +    // not the whole journal.
@@ -380,13 +481,7 @@ index a92fcf9..2a82a49 100644
 +    public void getFixJournal(PluginCall call) {
 +        JSArray points = new JSArray();
 +        synchronized (journalLock) {
-             try {
--                String color = getAppString(
--                        "capacitor_background_geolocation_notification_color",
--                        null
--                );
--                if (color != null) {
--                    builder.setColor(Color.parseColor(color));
++            try {
 +                File file = journalFile();
 +                if (file.exists()) {
 +                    BufferedReader reader = new BufferedReader(new FileReader(file));
@@ -406,9 +501,7 @@ index a92fcf9..2a82a49 100644
 +                    } finally {
 +                        reader.close();
 +                    }
-                 }
--            } catch (Exception e) {
--                Logger.error("Could not set notification color", e);
++                }
 +            } catch (Exception exception) {
 +                Logger.error("Failed to read fix journal", exception);
              }
@@ -418,19 +511,9 @@ index a92fcf9..2a82a49 100644
 +        call.resolve(ret);
 +    }
  
--            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
--                    getContext().getPackageName()
--            );
--            if (launchIntent != null) {
--                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
--                builder.setContentIntent(
--                        PendingIntent.getActivity(
--                                getContext(),
--                                0,
--                                launchIntent,
--                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
--                        )
--                );
+-            // Set the Channel ID for Android O.
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
 +    @PluginMethod()
 +    public void clearFixJournal(PluginCall call) {
 +        synchronized (journalLock) {
@@ -443,9 +526,7 @@ index a92fcf9..2a82a49 100644
 +        call.resolve();
 +    }
  
--            // Set the Channel ID for Android O.
--            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
--                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
+-            backgroundNotification = builder.build();
 +    private void seedLiveStats(PluginCall call, String message, boolean updated) {
 +        synchronized (liveLock) {
 +            Number km = optNumber(call, "km");
@@ -490,14 +571,17 @@ index a92fcf9..2a82a49 100644
 +                liveStats.hrAtMs = seedAtMs;
 +            } else if (seedBpm <= 0 && liveStats.hrAtMs <= 0) {
 +                liveStats.hrBpm = 0;
-             }
++            }
 +            // Only what actually reached the shade counts as displayed, so a refused
 +            // push is re-rendered by the next fix instead of being deduped away.
 +            liveStats.shown = updated ? message : null;
-+        }
+         }
+-        service.addWatcher(
+-                call.getCallbackId(),
+-                backgroundNotification,
+-                call.getFloat("distanceFilter", 0f)
 +    }
- 
--            backgroundNotification = builder.build();
++
 +    // Folds one broadcast fix into the live stats and refreshes the notification.
 +    // Called for every location the service reports, foreground or not.
 +    private void onLiveLocation(Location location) {
@@ -507,11 +591,7 @@ index a92fcf9..2a82a49 100644
 +                foldLiveLocation(live, location);
 +            }
 +            // no live stats, or paused — onPos ignores fixes then too
-         }
--        service.addWatcher(
--                call.getCallbackId(),
--                backgroundNotification,
--                call.getFloat("distanceFilter", 0f)
++        }
 +    }
 +
 +    // Folds one relayed beat into the live stats. Never trusts a beat older than
@@ -656,7 +736,7 @@ index a92fcf9..2a82a49 100644
 +        if (message.equals(live.shown)) {
 +            return;
 +        }
-+        if (service.updateNotification(buildNotification(live.title, message, live.chronometerStartMs))) {
++        if (service.updateNotification(buildNotification(live.title, message, live.chronometerStartMs, true))) {
 +            live.shown = message;
 +        }
 +    }
@@ -712,7 +792,7 @@ index a92fcf9..2a82a49 100644
      }
  
      @PermissionCallback
-@@ -188,6 +751,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +824,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -720,7 +800,7 @@ index a92fcf9..2a82a49 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -245,20 +809,44 @@ public class BackgroundGeolocation extends Plugin {
+@@ -245,20 +882,44 @@ public class BackgroundGeolocation extends Plugin {
      }
  
      // Receives messages from the service.
@@ -771,7 +851,7 @@ index a92fcf9..2a82a49 100644
          }
      }
  
-@@ -315,16 +903,29 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,16 +976,29 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -803,7 +883,7 @@ index a92fcf9..2a82a49 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,12 +934,54 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,12 +1007,54 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {
@@ -910,3 +990,133 @@ index fafbb86..e95e748 100644
          void onPermissionsGranted() {
              // If permissions were granted while the app was in the background, for example in
              // the Settings app, the watchers need restarting.
+diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_collapsed.xml b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_collapsed.xml
+new file mode 100644
+index 0000000..41582f5
+--- /dev/null
++++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_collapsed.xml
+@@ -0,0 +1,42 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Lock screen shows this collapsed view; Android 12+ caps it at 48dp tall. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:orientation="vertical">
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:orientation="horizontal">
++
++        <TextView
++            android:id="@+id/run_notif_title"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:textAppearance="@android:style/TextAppearance.Material.Notification.Info"
++            android:textSize="11sp"
++            android:maxLines="1" />
++
++        <Chronometer
++            android:id="@+id/run_notif_chrono"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_marginStart="6dp"
++            android:textAppearance="@android:style/TextAppearance.Material.Notification.Info"
++            android:textSize="11sp"
++            android:textStyle="bold"
++            android:maxLines="1" />
++    </LinearLayout>
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="32dp"
++        android:orientation="horizontal">
++
++        <TextView android:id="@+id/run_notif_cell0" style="@style/RunNotifCell" />
++        <TextView android:id="@+id/run_notif_cell1" style="@style/RunNotifCell" />
++        <TextView android:id="@+id/run_notif_cell2" style="@style/RunNotifCell" />
++        <TextView android:id="@+id/run_notif_cell3" style="@style/RunNotifCell" />
++    </LinearLayout>
++</LinearLayout>
+diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_expanded.xml b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_expanded.xml
+new file mode 100644
+index 0000000..d0850e8
+--- /dev/null
++++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_expanded.xml
+@@ -0,0 +1,49 @@
++<?xml version="1.0" encoding="utf-8"?>
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:orientation="vertical">
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:gravity="center_vertical"
++        android:orientation="horizontal">
++
++        <TextView
++            android:id="@+id/run_notif_title"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:textAppearance="@android:style/TextAppearance.Material.Notification.Info"
++            android:textSize="14sp"
++            android:maxLines="1" />
++
++        <Chronometer
++            android:id="@+id/run_notif_chrono"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_marginStart="8dp"
++            android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
++            android:textSize="28sp"
++            android:textStyle="bold"
++            android:maxLines="1" />
++    </LinearLayout>
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="56dp"
++        android:orientation="horizontal">
++
++        <TextView android:id="@+id/run_notif_cell0" style="@style/RunNotifCell.Large" />
++        <TextView android:id="@+id/run_notif_cell1" style="@style/RunNotifCell.Large" />
++    </LinearLayout>
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="56dp"
++        android:orientation="horizontal">
++
++        <TextView android:id="@+id/run_notif_cell2" style="@style/RunNotifCell.Large" />
++        <TextView android:id="@+id/run_notif_cell3" style="@style/RunNotifCell.Large" />
++    </LinearLayout>
++</LinearLayout>
+diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/res/values/run_notification_styles.xml b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/values/run_notification_styles.xml
+new file mode 100644
+index 0000000..ccb2b18
+--- /dev/null
++++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/values/run_notification_styles.xml
+@@ -0,0 +1,21 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <style name="RunNotifCell">
++        <item name="android:layout_width">0dp</item>
++        <item name="android:layout_height">match_parent</item>
++        <item name="android:layout_weight">1</item>
++        <item name="android:gravity">start|center_vertical</item>
++        <item name="android:maxLines">1</item>
++        <item name="android:includeFontPadding">false</item>
++        <item name="android:textAppearance">@android:style/TextAppearance.Material.Notification.Title</item>
++        <item name="android:textStyle">bold</item>
++        <item name="android:autoSizeTextType">uniform</item>
++        <item name="android:autoSizeMinTextSize">12sp</item>
++        <item name="android:autoSizeMaxTextSize">30sp</item>
++        <item name="android:autoSizeStepGranularity">1sp</item>
++    </style>
++
++    <style name="RunNotifCell.Large">
++        <item name="android:autoSizeMaxTextSize">46sp</item>
++    </style>
++</resources>

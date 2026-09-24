@@ -73,6 +73,7 @@ export type RunNotificationContent = {
 const CHRONO_TOLERANCE_MS = 3000;
 
 export function buildRunNotificationContent(input: RunNotificationInput): RunNotificationContent {
+  // Android lays each " · " segment out as its own large cell (docs/live-tracking.md).
   const parts = [`${input.km.toFixed(2)} km`, `${fmt.pace(input.paceSecPerKm)}/km`];
   if (input.hr) parts.push(`♥ ${input.hr}`);
   const live: RunNotificationLive = {

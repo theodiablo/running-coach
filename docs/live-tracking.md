@@ -574,7 +574,7 @@ compiler:
 
 ### `@capacitor-community/background-geolocation`
 
-Seven independent changes.
+Eight independent changes.
 (1) Lifecycle NPE fix: it crashed in production ("Unable to pause activity" →
 NPE at `Bridge.getPermissionStates`, Bridge.java:1217) because its
 `handleOnPause`/`handleOnResume` call `getPermissionState("location")` — the
@@ -666,6 +666,17 @@ issue tracker was silent as of 1.2.26 and the plugin lags on Capacitor majors �
 see its issue #156), then regenerate
 (`npx patch-package @capacitor-community/background-geolocation`) or delete the
 patch.
+
+(8) **Large-type run stats**, for a phone read at arm's length in an armband:
+the run-stats notification (every `updateNotification` / native re-render, not
+the initial "recording" notice) uses `DecoratedCustomViewStyle` with the
+library's own `run_notification_collapsed` / `_expanded` layouts. Each
+` · ` segment of the message becomes one auto-sized cell (numbers full size,
+units shrunk), so the separator in `buildRunNotificationContent` is a layout
+contract. The lock screen shows the **collapsed** view (Android only
+system-expands in the unlocked shade), capped at 48dp on Android 12+: a small
+title + chronometer line over one row of cells. The expanded view has a large
+chronometer over a 2x2 grid. Any failure building them falls back to plain text.
 
 ## Android release builds & R8
 
