@@ -40,6 +40,7 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Token contract (Deno + browser) | `supabase/functions/_shared/liveShare.mjs` |
 | Public read endpoint | `supabase/functions/live-watch/index.ts` |
 | Public `/watch/:token` page | `src/watch/PublicWatch.tsx` |
+| App promo + store links on that page | `src/watch/AppPromo.tsx`, `src/watch/storeLinks.ts` |
 | Publish token (write capability) | `src/live/publishToken.ts`, `supabase/functions/_shared/livePublish.mjs` |
 | Native upload endpoint | `supabase/functions/live-publish/index.ts` + RPCs in migration `20260805062612` |
 | Native uploader (Android) | `android/.../LivePublishPlugin.kt`, seam `src/geo/liveUpload.ts` |
@@ -562,3 +563,23 @@ French on purpose, because both surfaces render it.
 - **No native deep link.** If the shells ever claim the domain with universal
   links, tapping `/watch/...` would open an app that has no route for it. Nothing
   to do until then; note it in `docs/live-tracking.md` when that day comes.
+
+## The public page promotes the app
+
+The watch page is the first thing a stranger ever sees of the app, so every
+state carries the pitch: the idle screen pairs the "nothing live" card with the
+feature list and store buttons, a live run keeps a pinned row on phones (a
+side-panel card on desktop) for the whole run, and a finished run gets a full
+card. The visitor's own store comes first (`visitorPlatform`, which also
+catches iPadOS behind its Mac user agent); desktop gets both.
+
+- **The iOS button says "iPhone", never "App Store".** It leads to TestFlight,
+  and Apple reserves its store name and badge for real listings. Swap in the
+  official badge (and `APP_STORE_URL`) once the listing exists.
+- **UTMs, never the token.** Play links carry `utm_source=live_share`,
+  `utm_medium=watch_page`, `utm_campaign=race_link` and the placement as
+  `utm_content` (`idle` | `live` | `ended` | `sheet` | `footer`); Play Console
+  reads these. TestFlight ignores query strings, so iPhone taps are
+  unmeasured. The share token must never ride out in any outbound link.
+- **No app Escape dispatcher here.** `RunningCoach` owns it and never mounts, so
+  the page installs its own `dismissTop` listener for the About sheet.

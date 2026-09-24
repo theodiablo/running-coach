@@ -50,10 +50,37 @@
   "public": {
     "title": "Sortie en direct",
     "docTitle": "Sortie en direct · Running Coach",
-    "openApp": "Running Coach",
-    "nothing": "Rien en direct ici pour le moment.",
-    "nothingHint": "Rien n'est partagé ici pour le moment. Si quelqu'un vous a envoyé ce lien avant sa sortie, gardez cette page ouverte : elle se met à jour toute seule dès qu'il part.",
+    "finished": "Sortie terminée",
+    "notLive": "Pas en direct",
+    "nothing": "Rien en direct pour le moment",
+    "nothingHint": "Vous avez reçu ce lien avant une sortie ou une course ? Gardez cette page ouverte : la carte et les stats en direct s'afficheront ici d'elles-mêmes dès le départ.",
+    "checking": "Vérification chaque minute, inutile de rafraîchir",
     "retry": "Réessayer",
-    "madeWith": "Suivi avec Running Coach"
+    "madeWith": "Suivi avec Running Coach",
+    "eyebrow": "En attendant",
+    "headline": "Ce lien vient de Running Coach, une app d'entraînement pour la course à pied.",
+    "features": {
+      "plan": "Un plan d'entraînement construit autour de la date de votre course",
+      "gps": "Suivi GPS, avec partage en direct comme sur cette page",
+      "coach": "Un coach IA qui ajuste le plan avec vous"
+    },
+    "learnMore": "En savoir plus sur l'app",
+    "website": "Voir le site",
+    "getApp": "Obtenir l'app",
+    "rowBody": "Plans, suivi GPS et partage en direct, gratuitement.",
+    "rowCta": "L'obtenir",
+    "aboutTitle": "À propos de Running Coach",
+    "sheetSubtitle": "L'app qui suit cette sortie",
+    "sheetBody": "Vous préparez votre propre course ? Running Coach construit votre plan, enregistre vos sorties et permet à vos proches de vous suivre en direct, comme ici. Tout ce qu'il faut pour s'entraîner est gratuit.",
+    "endedTitle": "Une course en vue ?",
+    "endedBody": "Obtenez un plan pour la préparer, enregistrez vos sorties et partagez-les en direct, gratuitement.",
+    "close": "Fermer",
+    "store": {
+      "getItOn": "Disponible sur",
+      "betaSticker": "Testez la bêta",
+      "playAria": "Disponible sur Google Play",
+      "iosAria": "Disponible sur iPhone, bêta gratuite",
+      "iosNote": "Bêta gratuite via l'app TestFlight d'Apple. Sortie sur l'App Store à venir."
+    }
   }
 }

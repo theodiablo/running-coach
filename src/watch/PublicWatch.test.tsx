@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, act, waitFor } from "@testing-library/react";
+import { render, screen, act, waitFor, fireEvent } from "@testing-library/react";
 import PublicWatch from "./PublicWatch";
 import type { WatchResult } from "../live/shareLink";
+import { PLAY_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
 
 // The public watch page is the one surface a stranger sees, and it has two jobs
 // it must not get wrong: say the SAME thing for every kind of "no run here" (so
@@ -75,7 +76,7 @@ describe("PublicWatch", () => {
     // { kind: "none" } — the page must not add a distinction of its own.
     fetchLiveWatch.mockResolvedValue({ kind: "none" });
     render(<PublicWatch token={TOKEN} />);
-    expect(await screen.findByText(/Nothing live here right now/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing live right now/i)).toBeInTheDocument();
     // ...and it explains the legitimate case rather than reading as an error.
     expect(screen.getByText(/keep this page open/i)).toBeInTheDocument();
     expect(screen.queryByTestId("route-map")).toBeNull();
@@ -92,7 +93,7 @@ describe("PublicWatch", () => {
     fetchLiveWatch.mockResolvedValue({ kind: "error" });
     await act(async () => { await vi.advanceTimersByTimeAsync(31000); });
     expect(screen.getByTestId("route-map")).toBeInTheDocument();
-    expect(screen.queryByText(/Nothing live here/i)).toBeNull();
+    expect(screen.queryByText(/Nothing live right now/i)).toBeNull();
   });
 
   it("polls at the publisher's cadence while a run is live", async () => {
@@ -144,7 +145,7 @@ describe("PublicWatch", () => {
     expect(screen.getByTestId("route-map")).toBeInTheDocument();
     expect(screen.getByText("3.20")).toBeInTheDocument();
     expect(screen.getByText(/This run has ended/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Nothing live here/i)).toBeNull();
+    expect(screen.queryByText(/Nothing live right now/i)).toBeNull();
 
     const calls = fetchLiveWatch.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(121000); });
@@ -177,7 +178,7 @@ describe("PublicWatch", () => {
     fetchLiveWatch.mockResolvedValue({ kind: "none" });
     await act(async () => { await vi.advanceTimersByTimeAsync(31000); });
     expect(screen.queryByTestId("route-map")).toBeNull();
-    expect(screen.getByText(/Nothing live here right now/i)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing live right now/i)).toBeInTheDocument();
   });
 
   it("keeps itself out of search results while it is up", async () => {
@@ -185,7 +186,7 @@ describe("PublicWatch", () => {
     // no-referrer keeps the token out of any outbound Referer header.
     fetchLiveWatch.mockResolvedValue({ kind: "none" });
     const { unmount } = render(<PublicWatch token={TOKEN} />);
-    await screen.findByText(/Nothing live here right now/i);
+    await screen.findByText(/Nothing live right now/i);
 
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute("content", "noindex, nofollow");
     expect(document.querySelector('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
@@ -194,12 +195,40 @@ describe("PublicWatch", () => {
     expect(document.querySelector('meta[name="referrer"]')).toBeNull();
   });
 
-  it("offers a way into the app without needing one to watch", async () => {
+  it("offers the app without needing it to watch, and never leaks the token", async () => {
     fetchLiveWatch.mockResolvedValue({ kind: "none" });
     render(<PublicWatch token={TOKEN} />);
-    await screen.findByText(/Nothing live here right now/i);
-    // Same page whether or not the viewer is signed in: the token authorizes the
-    // view, the session authorizes nothing here.
-    expect(screen.getAllByRole("link").every(a => a.getAttribute("href") === "/")).toBe(true);
+    await screen.findByText(/Nothing live right now/i);
+
+    const play = screen.getByRole("link", { name: "Get it on Google Play" });
+    expect(play.getAttribute("href")).toBe(`${PLAY_STORE_URL}&utm_source=live_share&utm_medium=watch_page&utm_campaign=race_link&utm_content=idle`);
+    expect(screen.getByRole("link", { name: /Get it on iPhone/ })).toHaveAttribute("href", TESTFLIGHT_BETA_URL);
+    expect(screen.getByText("Be a beta tester")).toBeInTheDocument();
+    // Same page whether or not the viewer is signed in, and the token is the
+    // run's only guard: it must not ride out in any link.
+    for (const a of screen.getAllByRole("link")) expect(a.getAttribute("href")).not.toContain(TOKEN);
+  });
+
+  it("keeps the app one tap away for the whole run, in a sheet that Escape closes", async () => {
+    fetchLiveWatch.mockResolvedValue({ kind: "live", run: run() });
+    render(<PublicWatch token={TOKEN} />);
+    // Pinned row on phones, side-panel card on desktop; jsdom renders both.
+    expect((await screen.findAllByText(/Plans, GPS tracking and live sharing/)).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Get the app/ }));
+    const sheet = screen.getByRole("dialog", { name: "About Running Coach" });
+    expect(sheet).toHaveTextContent("The app tracking this run");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("gives the pitch a full card once the run has ended", async () => {
+    fetchLiveWatch.mockResolvedValue({ kind: "live", run: run({ status: "ended" }) });
+    render(<PublicWatch token={TOKEN} />);
+    expect((await screen.findAllByText(/Got a race of your own coming up/)).length).toBeGreaterThan(0);
+    expect(screen.getByText("Run finished")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Get it on Google Play" }).getAttribute("href")).toContain("utm_content=ended");
   });
 });
