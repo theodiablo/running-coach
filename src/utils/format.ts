@@ -8,12 +8,14 @@ export const p2 = (n: string | number) => String(n).padStart(2, "0");
 
 export const fmt = {
   pace: (s: string | number | null | undefined) => {
-    const sec = Number(s);
-    return (!sec || sec <= 0) ? "--:--" : Math.floor(sec/60) + ":" + p2(Math.round(sec%60));
+    const sec = Math.round(Number(s));
+    return (!sec || sec <= 0) ? "--:--" : Math.floor(sec/60) + ":" + p2(sec%60);
   },
   dur: (s: number | null | undefined) => {
     if (!s) return "--";
-    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sc = Math.round(s%60);
+    // Round the total, not the seconds field: 299.6 must carry to 5:00, not print 4:60.
+    s = Math.round(s);
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sc = s%60;
     return h ? (h + ":" + p2(m) + ":" + p2(sc)) : (m + ":" + p2(sc));
   },
   date: (s: string) => s ? new Date(s+"T12:00:00").toLocaleDateString(currentLocaleTag(),{day:"numeric",month:"short",year:"numeric"}) : "",

@@ -8,6 +8,10 @@ describe("fmt.pace", () => {
     expect(fmt.pace(330)).toBe("5:30");
     expect(fmt.pace(65)).toBe("1:05");
   });
+  it("carries a rounded-up second into the minute instead of printing :60", () => {
+    expect(fmt.pace(299.6)).toBe("5:00");
+    expect(fmt.pace(299.4)).toBe("4:59");
+  });
   it("returns placeholder for missing/zero", () => {
     expect(fmt.pace(0)).toBe("--:--");
     expect(pace(null)).toBe("--:--");
@@ -21,6 +25,10 @@ describe("fmt.dur", () => {
   it("formats over an hour as h:mm:ss", () => {
     expect(fmt.dur(3661)).toBe("1:01:01");
     expect(fmt.dur(7200)).toBe("2:00:00");
+  });
+  it("carries rounded-up seconds through minutes and hours", () => {
+    expect(fmt.dur(59.7)).toBe("1:00");
+    expect(fmt.dur(3599.6)).toBe("1:00:00");
   });
   it("returns placeholder for falsy", () => {
     expect(fmt.dur(0)).toBe("--");

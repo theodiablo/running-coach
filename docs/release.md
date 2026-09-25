@@ -86,6 +86,15 @@ Other iOS signing gotchas, all hit in practice:
   though the app never writes to Health — HealthKit framework presence alone
   triggers it, so keep that key when touching Info.plist.
 
+## iPhone-only (no iPad build)
+
+Both iOS targets (`App` and the `LiveActivityWidget` extension, which must match
+its host) set `TARGETED_DEVICE_FAMILY = 1`. The UI has no tablet layout, and
+declaring iPad makes App Store Connect require 13" iPad screenshots of it. iPads
+still install the app and run it in iPhone compatibility mode. Adding iPad later
+is allowed; removing it after an App Store release is not, so only add it back
+with a real tablet layout.
+
 ## Build numbers & the update gate
 
 Build version is NOT in the DB — versionCode/CFBundleVersion is
