@@ -4,54 +4,44 @@
 <meta charset="utf-8" />
 <style>
   /*
-    Source for public/og-image.png (1200x630 social share card). Rendered by
-    scripts/og-image/generate.mjs with headless Chromium; the {{PLACEHOLDERS}}
-    are filled from src/marketing/copy.json so this card never drifts from the
-    marketing page. Do not edit the committed PNG by hand — change copy.json (or
-    this template) and regenerate with `npm run og:image`.
+    Source for public/og-image.png (1200x630 social share card for the site and
+    app links). Rendered by scripts/og-image/generate.mjs with headless
+    Chromium; {{PLACEHOLDERS}} come from src/marketing/copy.json so the card
+    never drifts from the marketing page. Do not edit the committed PNG by hand:
+    change copy.json (or this template) and run `npm run og:image`.
   */
+  @font-face { font-family: Archivo; font-weight: 500; src: url("{{ASSETS}}/fonts/archivo-latin-500-normal.woff2") format("woff2"); }
+  @font-face { font-family: Archivo; font-weight: 800; src: url("{{ASSETS}}/fonts/archivo-latin-800-normal.woff2") format("woff2"); }
+  @font-face { font-family: Archivo; font-weight: 900; src: url("{{ASSETS}}/fonts/archivo-latin-900-normal.woff2") format("woff2"); }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 1200px; height: 630px; overflow: hidden; }
-  html { background: #0f172a; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: radial-gradient(1200px 700px at 78% -10%, #1e293b 0%, #0f172a 55%), #0f172a;
-    color: #f1f5f9;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 84px 96px;
+    font-family: Archivo, sans-serif;
+    background: radial-gradient(70% 110% at 85% 30%, #3a2414 0%, #131c2e 50%, #0b1220 100%);
+    color: #f8fafc;
     position: relative;
-    overflow: hidden;
   }
-  .glow {
-    position: absolute;
-    top: -220px; right: -160px;
-    width: 640px; height: 640px;
-    background: radial-gradient(circle, rgba(249,115,22,0.28) 0%, rgba(249,115,22,0) 70%);
-  }
-  .brand { display: flex; align-items: center; gap: 16px; margin-bottom: 40px; }
-  .brand svg { width: 44px; height: 44px; }
-  .brand span { font-size: 30px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
-  h1 { font-size: 68px; line-height: 1.08; font-weight: 800; letter-spacing: -1.5px; color: #fff; max-width: 940px; }
+  .copy { position: absolute; left: 84px; top: 0; bottom: 0; width: 640px; display: flex; flex-direction: column; justify-content: center; gap: 26px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand svg { width: 58px; height: 32px; }
+  .brand span { font-size: 28px; font-weight: 800; }
+  h1 { font-size: 64px; line-height: 1.03; font-weight: 900; letter-spacing: -1.3px; }
   h1 .accent { color: #fb923c; }
-  p { margin-top: 30px; font-size: 30px; line-height: 1.4; color: #94a3b8; max-width: 860px; }
-  .pills { margin-top: 46px; display: flex; gap: 14px; flex-wrap: wrap; }
-  .pill {
-    font-size: 22px; font-weight: 600; color: #e2e8f0;
-    background: #1e293b; border: 1px solid #334155;
-    padding: 12px 22px; border-radius: 999px;
-  }
+  p { font-size: 25px; line-height: 1.4; font-weight: 500; color: #b7c2d2; }
+  .phone { position: absolute; right: 90px; top: 64px; width: 330px; padding: 11px; border-radius: 46px; background: #1b2740; box-shadow: 0 30px 70px rgba(0,0,0,0.6), inset 0 0 0 2px #2b3a57; }
+  .screen { border-radius: 36px; overflow: hidden; height: 700px; }
+  .screen img { display: block; width: 100%; }
 </style>
 </head>
 <body>
-  <div class="glow"></div>
-  <div class="brand">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-    <span>{{BRAND}}</span>
+  <div class="copy">
+    <div class="brand">
+      <svg viewBox="0 0 220 120" fill="none"><polyline points="10,80 60,80 78,44 96,96 114,60 132,80 160,80 200,28" stroke="#f97316" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><circle cx="200" cy="28" r="12" fill="#f97316"/></svg>
+      <span>{{BRAND}}</span>
+    </div>
+    <h1>{{HERO1}} <span class="accent">{{HERO2}}</span></h1>
+    <p>{{TAGLINE}}</p>
   </div>
-  <h1>{{HERO1}}<br /><span class="accent">{{HERO2}}</span></h1>
-  <p>{{TAGLINE}}</p>
-  <div class="pills">{{PILLS}}</div>
+  <div class="phone"><div class="screen"><img src="{{ASSETS}}/home-screen.png" alt="" /></div></div>
 </body>
 </html>

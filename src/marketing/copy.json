@@ -2,6 +2,8 @@
   "brand": "Running Coach",
   "heroLine1": "Train for your race,",
   "heroLine2": "one honest week at a time.",
-  "ogTagline": "Adaptive training plans, GPS run tracking, and an AI coach that keeps you on track.",
-  "ogPills": ["Training plans", "GPS tracking", "AI coach", "Races & badges"]
+  "ogTagline": "Adaptive plans, GPS and live sharing, and an AI coach you can talk to. Everything you need to train is free.",
+  "ogWatchTitle": "Follow this run live",
+  "ogWatchLine": "Live map, distance and pace. Opens in any browser, no app needed.",
+  "ogWatchDescription": "Live map, distance and pace, updated every 30 seconds. Opens in any browser, no app or account needed."
 }

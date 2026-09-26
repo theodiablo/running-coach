@@ -1,13 +1,14 @@
 name: Regenerate OG image
 
-# Keeps public/og-image.png (the social-share card) in sync with the marketing
-# hero copy. Triggers only when the copy or the card template changes, renders a
-# fresh 1200x630 PNG with headless Chrome, and commits it back to the branch.
+# Keeps the social-share cards (public/og-image.png for site links,
+# public/og-watch.png for /watch/ run links) in sync with the marketing copy.
+# Triggers only when the copy or a card template changes, renders fresh 1200x630
+# PNGs with headless Chrome, and commits them back to the branch.
 #
 # It runs on feature branches (not main), so by the time a copy change reaches
 # main the refreshed image is already committed and the normal S3/CloudFront
-# deploy uploads it. The commit it pushes only touches public/og-image.png, which
-# is NOT in the paths filter below, so it can never retrigger this workflow.
+# deploy uploads them. The commit it pushes only touches the two PNGs, which are
+# NOT in the paths filter below, so it can never retrigger this workflow.
 on:
   push:
     branches-ignore: [main]
@@ -46,18 +47,18 @@ jobs:
           fi
           echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
 
-      - name: Regenerate og-image.png
+      - name: Regenerate social cards
         run: node scripts/og-image/generate.mjs
 
       - name: Commit if changed
         run: |
-          if [ -n "$(git status --porcelain public/og-image.png)" ]; then
+          if [ -n "$(git status --porcelain public/og-image.png public/og-watch.png)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add public/og-image.png
-            git commit -m "chore: regenerate og-image from marketing copy"
+            git add public/og-image.png public/og-watch.png
+            git commit -m "chore: regenerate social cards from marketing copy"
             git push
-            echo "og-image.png updated and pushed."
+            echo "Social cards updated and pushed."
           else
-            echo "og-image.png already up to date."
+            echo "Social cards already up to date."
           fi

@@ -182,7 +182,7 @@ jobs:
       # never crawled) and would just bloat the download — strip them before the
       # per-platform Capacitor syncs copy dist/ into the shells.
       - name: Drop web-only SEO assets from the native bundle
-        run: rm -f dist/og-image.png dist/robots.txt dist/sitemap.xml
+        run: rm -f dist/og-image.png dist/og-watch.png dist/watch.html dist/robots.txt dist/sitemap.xml
 
       # overwrite: artifacts are immutable per (run, name) since upload-artifact
       # v4 — without it, "re-run all jobs" 409s here before either store job can
