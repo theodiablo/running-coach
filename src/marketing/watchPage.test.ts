@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 // @ts-expect-error Build script ESM has no TypeScript declaration file.
 import * as watchPage from "../../scripts/watch-page.mjs";
 import copy from "./copy.json";
@@ -45,7 +46,9 @@ describe("watch.html", () => {
 // The CloudFront Function that routes run links to watch.html (infra/site.tf).
 // Evaluated from its real source: the edge runtime has no module system.
 const edgeSource = readFileSync(resolve(__dirname, "../../infra/functions/watch-page.js"), "utf8");
-const handler = new Function(`${edgeSource}; return handler;`)() as
+const edgeContext: Record<string, unknown> = {};
+runInNewContext(edgeSource, edgeContext);
+const handler = edgeContext.handler as
   (e: { request: { uri: string; querystring?: object } }) => { uri: string };
 
 describe("watch-page CloudFront Function", () => {
