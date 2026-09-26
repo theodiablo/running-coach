@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /*
+    Source for public/og-watch.png, the card every /watch/:token link shares.
+    One static image for every runner, so the map is drawn, never a real place.
+    Rendered by scripts/og-image/generate.mjs; text from src/marketing/copy.json.
+  */
+  @font-face { font-family: Archivo; font-weight: 500; src: url("{{ASSETS}}/fonts/archivo-latin-500-normal.woff2") format("woff2"); }
+  @font-face { font-family: Archivo; font-weight: 800; src: url("{{ASSETS}}/fonts/archivo-latin-800-normal.woff2") format("woff2"); }
+  @font-face { font-family: Archivo; font-weight: 900; src: url("{{ASSETS}}/fonts/archivo-latin-900-normal.woff2") format("woff2"); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { font-family: Archivo, sans-serif; background: #0b1220; color: #f8fafc; position: relative; }
+  .map { position: absolute; right: 0; top: 0; }
+  .fade { position: absolute; right: 0; top: 0; width: 620px; height: 630px; background: linear-gradient(90deg, #0b1220 0%, rgba(11,18,32,0) 22%); }
+  .copy { position: absolute; left: 84px; top: 0; bottom: 0; width: 560px; display: flex; flex-direction: column; justify-content: center; gap: 26px; }
+  .live { align-self: flex-start; display: inline-flex; align-items: center; gap: 12px; padding: 10px 20px; border-radius: 999px; background: rgba(239,68,68,0.14); border: 1px solid rgba(239,68,68,0.5); color: #fecaca; font-size: 24px; font-weight: 800; letter-spacing: 3px; }
+  .dot { width: 14px; height: 14px; border-radius: 999px; background: #ef4444; box-shadow: 0 0 0 6px rgba(239,68,68,0.25); }
+  h1 { font-size: 76px; line-height: 1.0; font-weight: 900; letter-spacing: -1.5px; }
+  p { font-size: 27px; line-height: 1.4; font-weight: 500; color: #b7c2d2; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+  .brand svg { width: 50px; height: 27px; }
+  .brand span { font-size: 24px; font-weight: 800; color: #e2e8f0; }
+</style>
+</head>
+<body>
+  <svg class="map" width="620" height="630" viewBox="0 0 620 630">
+    <rect width="620" height="630" fill="#e9e4da"/>
+    <path d="M-20,210 C120,250 240,170 380,200 S560,280 640,250 L640,330 C560,350 420,290 300,310 S80,340 -20,320 Z" fill="#9fcbe0"/>
+    <rect x="400" y="420" width="170" height="130" rx="18" fill="#c8e3b0"/>
+    <rect x="60" y="40" width="150" height="110" rx="14" fill="#c8e3b0"/>
+    <g stroke="#ffffff" stroke-width="14" fill="none" stroke-linecap="round"><path d="M-20,430 L640,390"/><path d="M230,-20 L270,650"/><path d="M500,-20 C480,200 520,420 490,650"/></g>
+    <g stroke="#d9d2c4" stroke-width="5" fill="none"><path d="M-20,90 L640,120"/><path d="M110,-20 L140,650"/><path d="M-20,560 L640,530"/><path d="M380,-20 L400,650"/></g>
+    <path d="M70,590 C120,540 150,470 210,450 S300,420 330,360 S380,250 440,230 S520,200 540,150" stroke="#ffffff" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <path d="M70,590 C120,540 150,470 210,450 S300,420 330,360 S380,250 440,230 S520,200 540,150" stroke="#f97316" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <circle cx="540" cy="150" r="30" fill="#f97316" opacity="0.25"/>
+    <circle cx="540" cy="150" r="14" fill="#f97316" stroke="#ffffff" stroke-width="5"/>
+  </svg>
+  <div class="fade"></div>
+  <div class="copy">
+    <span class="live"><span class="dot"></span>LIVE</span>
+    <h1>{{TITLE}}</h1>
+    <p>{{LINE}}</p>
+    <div class="brand">
+      <svg viewBox="0 0 220 120" fill="none"><polyline points="10,80 60,80 78,44 96,96 114,60 132,80 160,80 200,28" stroke="#f97316" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><circle cx="200" cy="28" r="12" fill="#f97316"/></svg>
+      <span>{{BRAND}}</span>
+    </div>
+  </div>
+</body>
+</html>
