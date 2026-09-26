@@ -91,7 +91,11 @@ Distributions are the exception and are treated as one: `UpdateDistribution`
 and `DeleteDistribution` — the two that can break or delete a live site — are
 pinned to this project's distribution (`ManageSiteDistribution`). Adding a
 second distribution therefore means widening that statement first, from a
-workstation, because of `DenySelfModification`.
+workstation, because of `DenySelfModification`. CloudFront Functions follow the
+same line: `CreateFunction` takes no resource ARN and sits in
+`ManageCloudFront`, but update, publish and delete are pinned to the one
+function this configuration owns (`ManageWatchPageFunction`), because a
+function runs on every request it is attached to.
 
 Route 53 sits in between. `ChangeResourceRecordSets` is pinned to the one
 hosted zone (`ManageAuthMailDns`), but Route 53 has no record-level resource
@@ -175,6 +179,7 @@ maintain them now.
 | IAM role | `GitHub-Actions-RunApp-tf-apply` | Scoped read/write role for `terraform apply` on `main`. |
 | S3 bucket | `run.camboulive.solutions` | CloudFront origin for the built SPA. Private (OAC), world-readable only through CloudFront. Adopted. |
 | CloudFront distribution | `E42OGU5IVYJ14` | Serves `run.camboulive.solutions`. Adopted. |
+| CloudFront Function | `run-app-watch-page` | Viewer request on the `/watch/*` behavior only: serves every run link the static `watch.html`, so chat apps preview it as a live run (`docs/marketing.md`). Runs on run-link page loads, never on assets; the page itself is cached. |
 | IAM role | `GitHub-Actions-RunApp-deploy` | Assumed by the deploy workflow to push the build and invalidate CloudFront. Adopted. |
 | SES domain identity | `camboulive.solutions` | Verified sending/receiving identity, DKIM enabled. Adopted. |
 | SES receipt rule set | `camboulive-solutions-inbound` | Active; the one rule (`forward-all`) writes inbound mail to S3 and invokes the forwarder Lambda. Adopted. |
@@ -202,7 +207,9 @@ Three deliberate non-decisions worth knowing before you change them:
   field is the failure mode to avoid, so
   `default_cache_behavior[0].response_headers_policy_id` is under
   `ignore_changes` here and the ID in `site.tf` is only a from-scratch initial
-  value — it is **not** the AWS-managed `SecurityHeadersPolicy`. Adopting the
+  value — it is **not** the AWS-managed `SecurityHeadersPolicy`. The
+  `/watch/*` behavior reads the same policy by name (a `data` source), so it
+  carries the same headers without becoming a second writer. Adopting the
   policy as an `aws_cloudfront_response_headers_policy` and dropping the
   workflow step would be a real improvement; it needs the deploy role's
   `CloudFrontFullAccess` narrowed in the same change, not before it.

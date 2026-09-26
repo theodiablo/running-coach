@@ -1,8 +1,8 @@
 // Writes dist/watch.html: the built index.html with the /watch/:token link
 // preview (title, description, og-watch.png) and a static noindex. Chat apps
 // never run JavaScript, so without it every shared run link previews as the
-// homepage. Meant to be served by CloudFront for /watch/*; the app itself is
-// the same bundle and still routes on the URL. Usage: node scripts/watch-page.mjs [dist]
+// homepage. CloudFront serves it for /watch/* (infra/functions/watch-page.js);
+// the app itself is the same bundle and still routes on the URL. Usage: node scripts/watch-page.mjs [dist]
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
