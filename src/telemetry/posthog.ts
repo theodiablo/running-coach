@@ -39,6 +39,22 @@ type PostHogLike = {
 let analyticsAllowed = false;
 const webEvents = () => ({ capture_pageview: analyticsAllowed, capture_pageleave: analyticsAllowed });
 
+// Public-page audience measurement (docs/telemetry.md#cookieless-public-pages):
+// nothing stored on the device, no identity, counted by PostHog's daily-salted
+// server hash. Set before the SDK loads; a page load is one mode or the other.
+let cookieless = false;
+const modeConfig = () =>
+  cookieless
+    ? {
+        cookieless_mode: "always" as const,
+        persistence: "memory" as const,
+        capture_pageview: true,
+        capture_pageleave: true,
+        advanced_disable_flags: true,
+        disable_surveys: true,
+      }
+    : { ...webEvents(), opt_out_capturing_by_default: true };
+
 let ph: PostHogLike | null = null; // resolved posthog instance, once loaded + init'd
 let loading: Promise<void> | null = null; // in-flight dynamic import; null again if it fails (retryable)
 const queue: ((posthog: PostHogLike) => void)[] = []; // calls deferred until the SDK is ready
@@ -52,9 +68,9 @@ function ensureLoaded() {
         // visitor/session counts and populate PostHog's Web Analytics; both are
         // part of the core bundle (no remote fetch), so they work under our CSP,
         // on web AND inside the native WebView (one pageview per app open, since
-        // there's no router). They follow the ANALYTICS channel — see webEvents.
+        // there's no router). They follow the ANALYTICS channel (webEvents), except on
+        // a cookieless public page (modeConfig).
         api_host: HOST,
-        ...webEvents(),
         // Autocapture stays OFF *by design*: it records the visible text of
         // clicked elements ($el_text), which in this app can include race names
         // and run details — exactly the free text the telemetry policy never
@@ -80,7 +96,7 @@ function ensureLoaded() {
         // capture + manual captureException are bundled, so they're unaffected.
         disable_external_dependency_loading: true,
         person_profiles: "identified_only",
-        opt_out_capturing_by_default: true,
+        ...modeConfig(),
       });
       // Super properties — merged into every event, including $exception, so
       // crashes carry the environment/platform too.
@@ -119,6 +135,14 @@ export const posthogProvider = {
       p.set_config(webEvents());
       p.opt_in_capturing({ captureEventName: false });
     });
+  },
+
+  // Anonymous pageview/pageleave only, independent of the consent flags: this
+  // mode stores nothing and identifies no one. Never call it from the app.
+  startCookieless() {
+    if (ph || loading) return;
+    cookieless = true;
+    ensureLoaded();
   },
 
   identify(id: string) {

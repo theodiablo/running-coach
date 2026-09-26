@@ -10,7 +10,7 @@ import './native'
 // src/cloudOauthPreinit.ts.
 import './cloudOauthPreinit'
 import { initI18n, detectInitialLocale } from './i18n'
-import { initTelemetry, installGlobalErrorHandlers } from './telemetry'
+import { initTelemetry, initPublicPageTelemetry, installGlobalErrorHandlers } from './telemetry'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ChunkLoadBoundary } from './components/ChunkLoadBoundary'
 import { parseWatchToken } from './live/shareLink'
@@ -31,7 +31,9 @@ const watchToken = PublicWatch ? parseWatchToken(window.location.pathname) : nul
 
 // Start telemetry (no-op until a provider is wired in and the user consents)
 // and catch foreground errors that escape React. Both honour the consent flag.
-initTelemetry()
+// The public watch page instead counts anonymous, storage-free pageviews.
+if (watchToken) initPublicPageTelemetry()
+else initTelemetry()
 installGlobalErrorHandlers()
 
 const root = document.getElementById('root')

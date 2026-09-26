@@ -34,6 +34,7 @@ export const CRASH_CONSENT_KEY = "rc_crash_consent_v1";
 //   reset(): void
 //   track(event, props): void
 //   captureError(error, context): void
+//   startCookieless(): void              anonymous, storage-free pageviews
 //
 const provider = posthogProvider;
 export type TelemetryProps = Record<string, unknown>;
@@ -108,6 +109,15 @@ function syncProvider() {
 // Called once at app start (main.tsx) and again whenever consent changes.
 export function initTelemetry() {
   syncProvider();
+}
+
+// Public pages (`/watch/:token`) only, in place of initTelemetry: anonymous
+// audience measurement that stores nothing on the device, so it needs no banner.
+// An explicit "Decline" in this browser is still honoured. Crash reports keep
+// their own consent gate at the call sites. docs/telemetry.md.
+export function initPublicPageTelemetry() {
+  if (!provider.isConfigured() || getConsentDecision() === "denied") return;
+  provider.startCookieless();
 }
 
 // Persist the user's choice and bring the provider in line. Called from the

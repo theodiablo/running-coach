@@ -237,6 +237,35 @@ choice either way.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 
+## Cookieless public pages
+
+The public live-run page (`/watch/:token`, `docs/live-sharing.md`) is read by
+people who have no account and never see the consent banner, so opt-in analytics
+would count nobody there. It measures its audience **cookieless** instead:
+`main.tsx` calls `initPublicPageTelemetry()` *instead of* `initTelemetry()`, and
+the adapter inits PostHog with `cookieless_mode: "always"` + `persistence:
+"memory"`.
+
+- **No consent is needed because nothing touches the device** (ePrivacy art.
+  5(3) is about storage/access on the terminal). The SDK writes no cookie and no
+  local/session storage; unique visitors come from PostHog's server-side hash of
+  IP + user agent with a daily-rotating salt, so a visitor is never linkable
+  across days. The project's **Discard client IP data** (`anonymize_ips`) is on,
+  so the IP is not stored either.
+- **It emits `$pageview` / `$pageleave` and nothing else.** `track()` and
+  `identifyUser()` stay dead there (the consent-driven `started` flag is never
+  set), flags and surveys are off, and autocapture/recording keep the global
+  config. Crash reports still go through their own crash-consent gate.
+- **An explicit "Decline" in that browser is honoured** — the page sends nothing.
+- **Never use it inside the app.** It is not a way around the opt-in: the app's
+  own surfaces stay consent-gated, and PostHog's `on_reject` mode (cookieless
+  tracking of people who said no) is deliberately unused.
+- Requires **Cookieless server hash mode** enabled in the PostHog project
+  (Settings → Web analytics); without it PostHog drops these events with an
+  ingestion warning. Disclosed in `public/privacy.html` (*Sharing a run live*).
+- Referrers from LinkedIn and other apps are often stripped by their in-app
+  browsers; add `?utm_source=…` to a posted link to attribute it reliably.
+
 ## How the PostHog adapter maps to the seam
 
 `src/telemetry/posthog.ts` implements:
@@ -248,6 +277,7 @@ identify(id): void                   // posthog.identify(supabaseUserId)
 reset(): void                        // posthog.reset()
 track(event, props): void            // posthog.capture(event, { ...props, native })
 captureError(error, context): void   // posthog.captureException; context: { kind, componentStack }
+startCookieless(): void              // cookieless_mode "always" + memory persistence (public pages only)
 ```
 
 Consent is driven from `opt_in_capturing` / `opt_out_capturing` (the SDK loads in
