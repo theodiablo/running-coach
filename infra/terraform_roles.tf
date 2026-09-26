@@ -182,6 +182,8 @@ data "aws_iam_policy_document" "tf_read" {
     actions = [
       "cloudfront:Get*",
       "cloudfront:List*",
+      # Refreshing a CloudFront Function; not covered by Get*/List*.
+      "cloudfront:DescribeFunction",
       "route53:GetChange",
       "route53:GetHostedZone",
       "route53:ListHostedZones",
@@ -277,6 +279,20 @@ data "aws_iam_policy_document" "tf_apply" {
     resources = [aws_cloudfront_distribution.site.arn]
   }
 
+  # Everything but the create takes a function ARN, so it is pinned to the one
+  # function site.tf manages. CreateFunction has no resource type (ManageCloudFront).
+  statement {
+    sid    = "ManageWatchPageFunction"
+    effect = "Allow"
+    actions = [
+      "cloudfront:UpdateFunction",
+      "cloudfront:PublishFunction",
+      "cloudfront:DeleteFunction",
+      "cloudfront:DescribeFunction",
+    ]
+    resources = ["arn:aws:cloudfront::${local.account_id}:function/${local.watch_function_name}"]
+  }
+
   # The rest genuinely cannot be scoped: a create has no ARN yet, and origin
   # access controls have no IAM resource type at all. Tagging stays on "*"
   # because default_tags applies it to every CloudFront resource kind, and it
@@ -286,6 +302,7 @@ data "aws_iam_policy_document" "tf_apply" {
     effect = "Allow"
     actions = [
       "cloudfront:CreateDistribution",
+      "cloudfront:CreateFunction",
       "cloudfront:CreateOriginAccessControl",
       "cloudfront:UpdateOriginAccessControl",
       "cloudfront:DeleteOriginAccessControl",

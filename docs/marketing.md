@@ -115,9 +115,12 @@ preview as a run: `npm run build` ends with `scripts/watch-page.mjs`, which writ
 `dist/watch.html` (the built `index.html` with the run-link title, description,
 `og-watch.png`, a static `noindex` and `no-referrer`, and no canonical/`og:url`,
 which would point crawlers back at the homepage card). Every tag it swaps must
-match exactly once or the build fails. It is uploaded but unused until
-CloudFront routes `/watch/*` to it; the app is the same bundle and still routes
-on the URL.
+match exactly once or the build fails. CloudFront serves it for `/watch/*`
+(the `watch-page` CloudFront Function, `infra/functions/watch-page.js`, on its
+own cache behavior so it never runs for assets); the browser keeps its
+`/watch/<token>` URL and the app, the same bundle, still routes on it. Without a
+`watch.html` in the bucket the SPA fallback serves `index.html`, so a gap only
+costs the run-link preview.
 
 All the web-only SEO assets (both cards, `watch.html`, `robots.txt`, `sitemap.xml`) are `rm`'d in `release.yml`'s web-build job
 before the per-platform `cap sync`s so they don't bloat the native packages.

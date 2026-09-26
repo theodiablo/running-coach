@@ -41,3 +41,23 @@ describe("watch.html", () => {
       .toThrow(/og:image/);
   });
 });
+
+// The CloudFront Function that routes run links to watch.html (infra/site.tf).
+// Evaluated from its real source: the edge runtime has no module system.
+const edgeSource = readFileSync(resolve(__dirname, "../../infra/functions/watch-page.js"), "utf8");
+const handler = new Function(`${edgeSource}; return handler;`)() as
+  (e: { request: { uri: string; querystring?: object } }) => { uri: string };
+
+describe("watch-page CloudFront Function", () => {
+  it("serves every run link the one cached watch.html", () => {
+    expect(handler({ request: { uri: "/watch/abcdefghijklmnopqrstuv" } }).uri).toBe("/watch.html");
+    expect(handler({ request: { uri: "/watch/x/y" } }).uri).toBe("/watch.html");
+  });
+
+  it("leaves every other path alone", () => {
+    for (const uri of ["/", "/index.html", "/assets/index-abc.js", "/watchlist", "/pr/259/watch/abc"]) {
+      expect(handler({ request: { uri } }).uri).toBe(uri);
+    }
+  });
+});
+

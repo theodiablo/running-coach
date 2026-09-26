@@ -6,7 +6,25 @@
 # classification; see backup.tf.
 
 locals {
-  site_bucket_name = "run.camboulive.solutions"
+  site_bucket_name    = "run.camboulive.solutions"
+  watch_function_name = "run-app-watch-page"
+}
+
+# Serves /watch/* the static watch.html so shared run links preview as a live
+# run (docs/marketing.md). Runs only on run-link page loads, never on assets;
+# the page it points at is cached like any other file.
+resource "aws_cloudfront_function" "watch_page" {
+  name    = local.watch_function_name
+  runtime = "cloudfront-js-2.0"
+  comment = "Rewrite /watch/* to /watch.html for run-link previews"
+  publish = true
+  code    = file("${path.module}/functions/watch-page.js")
+}
+
+# Owned by deploy.yml (see default_cache_behavior below); read by name so the
+# /watch/* behavior carries the same clickjacking headers as every other path.
+data "aws_cloudfront_response_headers_policy" "security" {
+  name = "run-app-security-headers"
 }
 
 resource "aws_s3_bucket" "site" {
@@ -131,6 +149,24 @@ resource "aws_cloudfront_distribution" "site" {
     # cleanup; see infra/README.md.
     cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
     response_headers_policy_id = "d2b8c523-04e4-43fe-8ccb-ebb5692fb6c7"
+  }
+
+  # Same origin and caching as the default; the function only swaps the object
+  # key, so every run link shares one cached watch.html.
+  ordered_cache_behavior {
+    path_pattern               = "/watch/*"
+    target_origin_id           = aws_s3_bucket.site.bucket_regional_domain_name
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.watch_page.arn
+    }
   }
 
   # A single-page app: any path not found in the bucket is the router's job,

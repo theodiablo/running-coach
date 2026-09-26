@@ -48,6 +48,8 @@ MAIL_ZONE_ID="$(aws route53 list-hosted-zones-by-name --dns-name camboulive.solu
   --query 'HostedZones[0].Id' --output text 2>/dev/null | sed 's#/hostedzone/##')"
 OTHER_ZONE="arn:aws:route53:::hostedzone/Z00000000000000000000"
 OTHER_DISTRIBUTION="arn:aws:cloudfront::${ACCOUNT}:distribution/E00000000000X"
+WATCH_FUNCTION="arn:aws:cloudfront::${ACCOUNT}:function/run-app-watch-page"
+OTHER_FUNCTION="arn:aws:cloudfront::${ACCOUNT}:function/some-other-function"
 
 pass=0
 fail=0
@@ -133,6 +135,8 @@ check "drop the site website config" "$APPLY_ROLE" s3:DeleteBucketWebsite "$SITE
 check "configure the SES bucket"     "$APPLY_ROLE" s3:PutLifecycleConfiguration "$SES_BUCKET" allowed
 check "update the site distribution" "$APPLY_ROLE" cloudfront:UpdateDistribution "$SITE_DISTRIBUTION" allowed
 check "create a distribution"        "$APPLY_ROLE" cloudfront:CreateDistribution "*" allowed
+check "create a function"            "$APPLY_ROLE" cloudfront:CreateFunction  "*" allowed
+check "publish the watch function"   "$APPLY_ROLE" cloudfront:PublishFunction "$WATCH_FUNCTION" allowed
 check "manage the receipt rule"      "$APPLY_ROLE" ses:UpdateReceiptRule  "*" allowed
 check "manage the email identity"    "$APPLY_ROLE" ses:CreateEmailIdentity "*" allowed
 check "manage the config set"        "$APPLY_ROLE" ses:PutConfigurationSetSuppressionOptions "*" allowed
@@ -230,6 +234,9 @@ check "attach a policy to the user" "$APPLY_ROLE" iam:AttachUserPolicy "$SMTP_US
 # actions are pinned to this project's one rather than granted account-wide.
 check "break another distribution" "$APPLY_ROLE" cloudfront:UpdateDistribution "$OTHER_DISTRIBUTION" denied
 check "delete another distribution" "$APPLY_ROLE" cloudfront:DeleteDistribution "$OTHER_DISTRIBUTION" denied
+# Functions run on every request they are attached to, so writes are pinned to
+# the one function this configuration owns.
+check "change another function"    "$APPLY_ROLE" cloudfront:UpdateFunction "$OTHER_FUNCTION" denied
 
 echo
 echo "tf-plan: read-only"
@@ -241,6 +248,8 @@ check "create a role"              "$PLAN_ROLE" iam:CreateRole "arn:aws:iam::${A
 check "read a backup tarball"      "$PLAN_ROLE" s3:GetObject "$BACKUP_OBJECT" denied
 # The adoption widened the apply role, not this one.
 check "update the distribution"    "$PLAN_ROLE" cloudfront:UpdateDistribution "$SITE_DISTRIBUTION" denied
+check "read the watch function"    "$PLAN_ROLE" cloudfront:DescribeFunction "$WATCH_FUNCTION" allowed
+check "change the watch function"  "$PLAN_ROLE" cloudfront:UpdateFunction "$WATCH_FUNCTION" denied
 check "delete a receipt rule"      "$PLAN_ROLE" ses:DeleteReceiptRule "*" denied
 check "rotate the SMTP key"        "$PLAN_ROLE" iam:CreateAccessKey "$SMTP_USER" denied
 check "create the SMTP user"       "$PLAN_ROLE" iam:CreateUser "$SMTP_USER" denied "$SMTP_BOUNDARY"

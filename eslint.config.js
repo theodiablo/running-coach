@@ -16,7 +16,7 @@ export default defineConfig([
   },
   {
     files: ['**/*.{ts,tsx}'],
-    ignores: ['evals/**', 'supabase/**'],
+    ignores: ['evals/**', 'supabase/**', 'infra/functions/**'],
     extends: [
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
