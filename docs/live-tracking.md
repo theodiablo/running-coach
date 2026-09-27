@@ -189,9 +189,17 @@ on next load via `flushPendingRoutes` (run carries a temp
 `routeTmp`/`routePending`).
 
 The `run_routes.stats` JSONB is a free-form sidecar: besides the summary
-`{km,durationSec,elevation,avgPace}`, a run also stores its **raw ~1Hz HR
-stream** there as `stats.hrSamples: {bpm,t}[]` (kept raw, NOT projected onto
-GPS points, so HR fidelity is decoupled from `simplify()`'s point thinning).
+`{km,durationSec,elevation,avgPace}`, a run also stores its **HR
+stream** there as `stats.hrSamples: {bpm,t}[]` (NOT projected onto GPS points,
+so HR fidelity is decoupled from `simplify()`'s point thinning), stored
+**compacted** (`compactHrSamples`): folded to ~1Hz, then a stretch at one bpm
+keeps only its first sample plus a keep-alive every `HR_KEEPALIVE_MS` (5 s), so
+a longer silence is a real dropout. It is a step function, and every reader
+calls `expandHrSamples` first (`RunDetailModal`, the coach's `runDigest.mjs`)
+so analytics see an even 1Hz stream; dense legacy rows pass through unchanged.
+`hr`/`hrMax` are taken from the full stream before compaction. Stored routes
+are simplified at `ROUTE_SIMPLIFY_M` (3 m), close enough to the full trace that
+splits land near the distance measured live.
 Sources: a BLE-strap run (`LiveRunTracker.handleSave` from `rt.hrSamples`), a
 HealthKit import (Apple Watch route + HR series), a Health Connect import (HR
 series, no route), and file imports (GPX/TCX/FIT HR). All imports funnel
@@ -226,8 +234,9 @@ chart/table data is derived at render by **pure, tested helpers**:
 `buildRunSeries` (`src/utils/runSeries.ts`, cumulative distance + smoothed pace
 + timestamp-aligned HR), `buildSplits` (`src/utils/runSplits.ts`), and
 `timeInZones` (`src/utils/hr.ts`, reuses `runZoneIndex`/`HR_ZONES`). Both
-series helpers share ONE gap-aware cumulative-distance walk, `flattenTrack`
-(`src/utils/geo.ts`) — don't re-roll a third.
+series helpers read `flattenTrack`'s `cumKm`, which is the same walk as
+`distanceKm` (`walkTrack` in `src/utils/geo.ts`): the chart axis and splits end
+at exactly the run's distance. Don't re-roll another.
 
 **Pace smoothing uses a rolling ~200m DISTANCE window, not a time window:**
 stored points are Douglas-Peucker-thinned so they're sparse/uneven in time, and
@@ -262,8 +271,10 @@ tap back to the nearest `flat` point.
 
 `src/utils/geo.ts` (haversine, jitter-gated `distanceKm`, hysteresis
 `elevGainM`, Douglas–Peucker `simplify`, `segments`). A point is the tuple
-`[lat, lng, tEpochMs, alt|null]`; a `null` entry is a GAP marker (don't bridge
-it). Phone GPS altitude glitches by 100-400m for a few fixes and back, and
+`[lat, lng, tEpochMs, alt|null]`; a `null` entry is a GAP marker: distance
+bridges it with the straight line to the next fix (the minimum actually
+covered), but nothing *drawn or windowed* crosses it (map lines, pace smoothing,
+best efforts cut at `segStart`). Phone GPS altitude glitches by 100-400m for a few fixes and back, and
 the hysteresis band can't tell a glitch's recovery from a climb (a real ~800m
 race logged 1618m). So altitudes first pass `altitudeGate`: a reading further
 than 15m + 1 m/s × elapsed time from the last accepted one is dropped (nulled

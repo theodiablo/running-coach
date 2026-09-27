@@ -169,6 +169,9 @@ choice either way.
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
+- `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
+  swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
+  `warnings` is how many validator heads-ups the runner saved through.
 - `session_reconciled` `{moved, gap}` — a run already in the log was named as
   the one that settled a plan session ("I already ran this", `ReconcileSheet`).
   `gap` is the whole-day distance between the run and the session (0-3, see

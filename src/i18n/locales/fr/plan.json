@@ -91,7 +91,8 @@
     "skippedReassure": "Pas de stress, le plan s'adapte.",
     "skip": "Ignorer cette séance",
     "startRun": "Démarrer",
-    "logIt": "Saisir"
+    "logIt": "Saisir",
+    "edit": "Modifier la séance"
   },
   "promote": {
     "newTarget": "Nouvel objectif d'entraînement",
@@ -260,5 +261,46 @@
     "apply": "Appliquer les changements",
     "applySettings": "Enregistrer les réglages",
     "keep": "Garder mon plan actuel"
+  },
+  "editor": {
+    "editTitle": "Modifier la séance",
+    "addTitle": "Ajouter une séance",
+    "addButton": "Ajouter une séance",
+    "day": "Jour",
+    "prevWeek": "Semaine précédente",
+    "nextWeek": "Semaine suivante",
+    "type": "Type",
+    "distance": "Distance",
+    "shorter": "Plus court",
+    "longer": "Plus long",
+    "kmRange": "Entre {{min}} et {{max}} km.",
+    "swap": "Échanger avec la séance {{type}} (elle passe au {{date}})",
+    "save": "Enregistrer",
+    "add": "Ajouter",
+    "saveAnyway": "Enregistrer quand même",
+    "delete": "Supprimer cette séance",
+    "deleteConfirm": "Supprimer cette séance de ton plan ?",
+    "deleteHint": "Tu préfères garder une trace de la séance manquée ? Utilise plutôt Ignorer.",
+    "headsUp": "Attention",
+    "yourCall": "C'est ton plan, c'est toi qui décides.",
+    "askCoach": "Demander au coach",
+    "warn": {
+      "ramp": "La semaine {{week}} augmente le volume plus vite que les précédentes. Les hausses brutales sont souvent à l'origine des blessures de surmenage.",
+      "backToBack": "{{a}} le {{dateA}} et {{b}} le {{dateB}} se suivent. Les séances dures se récupèrent mieux avec un jour facile entre les deux.",
+      "taperIntervals_one": "Du fractionné {{count}} jour avant la course peut te laisser fatigué au départ.",
+      "taperIntervals_other": "Du fractionné {{count}} jours avant la course peut te laisser fatigué au départ.",
+      "taperTempo_one": "Un tempo {{count}} jour avant la course peut te laisser fatigué au départ.",
+      "taperTempo_other": "Un tempo {{count}} jours avant la course peut te laisser fatigué au départ.",
+      "taperVolume": "La semaine {{week}} devrait être plus légère. C'est l'affûtage qui te permet d'arriver frais le jour J.",
+      "sameDay": "Deux séances le {{date}}.",
+      "raceAdjacent": "Une séance dure juste à côté d'une course.",
+      "generic": "Ce changement va à l'encontre d'une des règles d'entraînement du plan."
+    },
+    "toast": {
+      "update": "Séance modifiée",
+      "add": "Séance ajoutée",
+      "delete": "Séance supprimée",
+      "failed": "Ce changement n'a pas pu être appliqué."
+    }
   }
 }

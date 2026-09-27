@@ -26,44 +26,49 @@ export function haversineM(a: TrackPoint | Coord, b: TrackPoint | Coord) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
-// Total distance (km) along a point array. Legs shorter than `minM` are treated
-// as GPS jitter and skipped, so a near-stationary runner doesn't accumulate
-// phantom distance. Gap markers (null) are bridged with the straight-line
-// distance to the next real fix: that geodesic is the *minimum* the runner could
-// have covered between the two fixes, so counting it gets closer to the truth
-// than dropping the stretch — and can't overestimate.
-export function distanceKm(points: TrackPointOrGap[], minM = 3) {
-  let m = 0, prev: TrackPoint | null = null;
+// THE distance definition — every distance the app shows (run total, splits,
+// chart axis) is this walk. Legs shorter than `minM` are GPS jitter and skipped,
+// so a near-stationary runner doesn't accumulate phantom distance. A gap marker
+// (null) is bridged with the straight line to the next real fix: the minimum the
+// runner could have covered, so it gets closer to the truth than dropping the
+// stretch and can't overestimate. `visit` sees each real point with the
+// cumulative metres up to it and whether it opens a gap-free segment.
+function walkTrack(
+  points: TrackPointOrGap[],
+  minM: number,
+  visit?: (p: TrackPoint, cumM: number, segStart: boolean) => void,
+) {
+  let m = 0, prev: TrackPoint | null = null, newSeg = true;
   for (const p of points) {
-    if (!p) continue; // gap marker: bridge to the next real fix
+    if (!p) { newSeg = true; continue; }
     if (prev) {
       const d = haversineM(prev, p);
       if (d >= minM) m += d;
     }
-    prev = p;
+    visit?.(p, m, newSeg);
+    prev = p; newSeg = false;
   }
-  return m / 1000;
+  return m;
+}
+
+export function distanceKm(points: TrackPointOrGap[], minM = 3) {
+  return walkTrack(points, minM) / 1000;
 }
 
 // One real point of a track, flattened for per-point analytics: coordinates,
-// timestamp, altitude, the running cumulative distance from the start (km, NOT
-// bridged across gaps — a per-point chart shouldn't invent a straight jump), and
-// `segStart` marking the first point of each gap-free segment. The ONE shared
-// jitter-gated, gap-aware distance walk — buildRunSeries and buildSplits both
-// consume this so their distance axes can't drift.
+// timestamp, altitude, the cumulative distance from the start (km, from the same
+// walk as distanceKm, so the last point's cumKm IS the run's distance), and
+// `segStart` marking the first point after a gap — consumers that must not reach
+// across a gap (pace smoothing, best efforts, map lines) cut there.
 export type FlatPoint = { lat: number; lng: number; t: number; alt: number | null; cumKm: number; segStart: boolean };
 
 export function flattenTrack(points: TrackPointOrGap[], jitterM = 3): FlatPoint[] {
   const out: FlatPoint[] = [];
   const altOk = altitudeGate();
-  let cumM = 0, prev: TrackPoint | null = null, newSeg = true;
-  for (const p of points) {
-    if (!p) { prev = null; newSeg = true; continue; } // gap: break segment, don't add distance
-    if (prev) { const d = haversineM(prev, p); if (d >= jitterM) cumM += d; }
+  walkTrack(points, jitterM, (p, cumM, segStart) => {
     const t = Number(p[2]), alt = p[3] == null ? null : Number(p[3]);
-    out.push({ lat: Number(p[0]), lng: Number(p[1]), t, alt: alt != null && altOk(alt, t) ? alt : null, cumKm: cumM / 1000, segStart: newSeg });
-    prev = p; newSeg = false;
-  }
+    out.push({ lat: Number(p[0]), lng: Number(p[1]), t, alt: alt != null && altOk(alt, t) ? alt : null, cumKm: cumM / 1000, segStart });
+  });
   return out;
 }
 
@@ -142,6 +147,10 @@ function simplifyOne(seg: TrackPoint[], epsilonM: number): TrackPoint[] {
   }
   return [a, b];
 }
+
+// Tolerance for stored routes: tight enough that the thinned trace keeps the
+// distance measured live on the full one (5 m cut ~2% off a twisty trail).
+export const ROUTE_SIMPLIFY_M = 3;
 
 // Simplify a point array for storage, preserving gap markers between segments.
 export function simplify(points: TrackPointOrGap[], epsilonM = 5): TrackPointOrGap[] {

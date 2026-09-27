@@ -14,6 +14,7 @@ import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from 
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress } from "./utils/plan";
+import { applySessionEdit, findSession, type SessionEdit } from "./utils/planEdit";
 import type { CoachLinkTarget } from "./utils/coachLinks";
 import { bestSessionForRun, canMoveSessionTo, releaseRun } from "./utils/sessionMatch";
 import type { SessionWithWeek } from "./utils/overdue";
@@ -916,6 +917,32 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const skipSess = (wNum: number, sId: string) =>
     patchSess(wNum, sId, s => ({...s, skipped: !s.skipped, done: false, runId: null}));
 
+  // The runner's own plan edit (src/utils/planEdit.ts). Warnings were already
+  // shown and accepted in the sheet; the toast's Undo restores the plan as it
+  // was, unless something else has changed it since.
+  const editSession = (edit: SessionEdit, warnings: number) => {
+    const before = planRef.current;
+    const next = before ? applySessionEdit(before, edit, ymd(new Date()), { runWalk: settings }) : null;
+    if (!before || !next) { showToast(t("plan.editor.toast.failed"), "err"); return; }
+    setPlan(next);
+    db.set(STORAGE_KEYS.PLAN, next);
+    planRef.current = next;
+    const orig = edit.kind !== "add" ? findSession(before, edit.sessionId)?.session : null;
+    track("plan_session_edited", {
+      action: edit.kind, warnings,
+      ...(edit.kind === "update" && orig ? {
+        moved: edit.date !== orig.date, swapped: !!edit.swapWith,
+        retyped: edit.type !== orig.type, resized: edit.km !== Number(orig.km),
+      } : {}),
+    });
+    showToast(t("plan.editor.toast." + edit.kind), "ok", { label: t("common.undo"), onClick: () => {
+      if (planRef.current !== next) return;
+      restorePlan(before);
+      planRef.current = before;
+      showToast(t("plan.toast.restored"));
+    } });
+  };
+
   const deleteRun = (id: string) => {
     setRuns(prev => {
       const r = prev.find(x => x.id === id);
@@ -1158,7 +1185,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {openFeedback, isPremium, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.

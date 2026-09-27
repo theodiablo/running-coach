@@ -1,4 +1,5 @@
-import { simplify } from "../utils/geo";
+import { ROUTE_SIMPLIFY_M, simplify } from "../utils/geo";
+import { compactHrSamples } from "../utils/hr";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { saveRoute, queuePendingRoute } from "../routes";
 import type { ImportedRun } from "./types";
@@ -17,7 +18,7 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
   const hasRoute = !!points?.length;
   const hasHr = !!hrSamples?.length;
   if (!hasRoute && !hasHr) return run;
-  const pts = hasRoute ? simplify(points!, 5) : [];
+  const pts = hasRoute ? simplify(points!, ROUTE_SIMPLIFY_M) : [];
   // Same measurement a live-tracked run gets, off the same simplified points, so
   // an imported GPS run ranks against phone-tracked ones on equal terms. An
   // HR-only import has no distance axis and keeps the whole-run estimate.
@@ -27,7 +28,7 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
     durationSec: run.durationSec || 0,
     elevation: run.elevation || 0,
     avgPace: run.km ? Math.round((run.durationSec || 0) / run.km) : 0,
-    ...(hasHr ? { hrSamples } : {}),
+    ...(hasHr ? { hrSamples: compactHrSamples(hrSamples!) } : {}),
   };
   try {
     const id = await saveRoute({ points: pts, stats });

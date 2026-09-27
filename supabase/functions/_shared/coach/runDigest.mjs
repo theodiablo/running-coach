@@ -30,15 +30,14 @@ function altitudeGate() {
   };
 }
 
-// Port of geo.ts flattenTrack — the ONE jitter-gated, gap-aware cumulative
-// distance walk — minus the coordinates: output rows are { t, alt, cumKm,
-// segStart } only.
+// Port of geo.ts flattenTrack (walkTrack: jitter-gated, gaps bridged by the
+// straight line) minus the coordinates: rows are { t, alt, cumKm, segStart }.
 export function flattenTrack(points, jitterM = 3) {
   const out = [];
   const altOk = altitudeGate();
   let cumM = 0, prev = null, newSeg = true;
   for (const p of points) {
-    if (!p) { prev = null; newSeg = true; continue; } // gap: break segment, no distance
+    if (!p) { newSeg = true; continue; } // gap: new segment, distance bridged
     if (prev) { const d = haversineM(prev, p); if (d >= jitterM) cumM += d; }
     const t = Number(p[2]), alt = p[3] == null ? null : Number(p[3]);
     out.push({ t, alt: alt != null && altOk(alt, t) ? alt : null, cumKm: cumM / 1000, segStart: newSeg });
@@ -84,6 +83,21 @@ function avgBpmIn(samples, from, to) {
   let sum = 0, n = 0;
   for (let i = lo; i < samples.length && samples[i].t <= to; i++) { sum += samples[i].bpm; n++; }
   return n ? Math.round(sum / n) : null;
+}
+
+// Port of hr.ts expandHrSamples: refill a stored (change-point + keep-alive)
+// stream to 1Hz; gaps past the keep-alive stay dropouts.
+const HR_KEEPALIVE_MS = 5000;
+export function expandHrSamples(samples, stepMs = 1000) {
+  if (!samples || samples.length < 2) return samples ? samples.slice() : [];
+  const out = [];
+  for (let i = 0; i < samples.length; i++) {
+    const a = samples[i], b = samples[i + 1];
+    out.push(a);
+    if (!b || b.t - a.t > HR_KEEPALIVE_MS) continue;
+    for (let t = a.t + stepMs; t < b.t - stepMs / 2; t += stepMs) out.push({ bpm: a.bpm, t });
+  }
+  return out;
 }
 
 // Port of runSeries.ts buildRunSeries: one row per real point with cumulative
@@ -299,7 +313,7 @@ const round2 = (x) => Math.round(x * 100) / 100;
 // `today` is optional (tests inject it for deterministic Tanaka age fallback).
 export function buildRunDigest({ run, points, stats, settings, today = undefined }) {
   const pts = Array.isArray(points) ? points : [];
-  const hrSamples = Array.isArray(stats?.hrSamples) ? stats.hrSamples : [];
+  const hrSamples = expandHrSamples(Array.isArray(stats?.hrSamples) ? stats.hrSamples : []);
   const maxHR = effectiveMaxHR(settings ?? {}, today);
   const restHR = (settings?.restHR) || 60; // match every other zone call site's fallback
 
