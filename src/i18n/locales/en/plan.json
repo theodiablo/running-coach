@@ -79,7 +79,8 @@
     "skippedReassure": "No stress — the plan adapts.",
     "skip": "Skip this session",
     "startRun": "Start run",
-    "logIt": "Log it"
+    "logIt": "Log it",
+    "edit": "Edit session"
   },
   "promote": {
     "newTarget": "New training target",
@@ -226,5 +227,46 @@
     }
   },
   "crosswalk": "Cross-training / brisk walk — no impact, easy effort",
-  "recovery": "Recovery run — very easy effort, walk breaks welcome"
+  "recovery": "Recovery run — very easy effort, walk breaks welcome",
+  "editor": {
+    "editTitle": "Edit session",
+    "addTitle": "Add a session",
+    "addButton": "Add a session",
+    "day": "Day",
+    "prevWeek": "Previous week",
+    "nextWeek": "Next week",
+    "type": "Type",
+    "distance": "Distance",
+    "shorter": "Shorter",
+    "longer": "Longer",
+    "kmRange": "Between {{min}} and {{max}} km.",
+    "swap": "Swap with the {{type}} session (it moves to {{date}})",
+    "save": "Save",
+    "add": "Add",
+    "saveAnyway": "Save anyway",
+    "delete": "Delete this session",
+    "deleteConfirm": "Delete this session from your plan?",
+    "deleteHint": "Rather keep it as a record that you missed it? Use Skip instead.",
+    "headsUp": "Heads-up",
+    "yourCall": "It's your plan, so it's your call.",
+    "askCoach": "Ask the coach",
+    "warn": {
+      "ramp": "Week {{week}} jumps up in volume faster than the weeks before it. Sudden jumps are how overuse injuries start.",
+      "backToBack": "{{a}} on {{dateA}} and {{b}} on {{dateB}} are back to back. Hard days recover best with an easy day between them.",
+      "taperIntervals_one": "Intervals {{count}} day before the race can leave you tired at the start line.",
+      "taperIntervals_other": "Intervals {{count}} days before the race can leave you tired at the start line.",
+      "taperTempo_one": "A tempo {{count}} day before the race can leave you tired at the start line.",
+      "taperTempo_other": "A tempo {{count}} days before the race can leave you tired at the start line.",
+      "taperVolume": "Week {{week}} should be easing off. Tapering is what lets you race fresh.",
+      "sameDay": "Two sessions on {{date}}.",
+      "raceAdjacent": "A hard session right next to a race.",
+      "generic": "This goes against one of the plan's training rules."
+    },
+    "toast": {
+      "update": "Session updated",
+      "add": "Session added",
+      "delete": "Session deleted",
+      "failed": "That change couldn't be applied."
+    }
+  }
 }

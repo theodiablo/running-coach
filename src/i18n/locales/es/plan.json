@@ -91,7 +91,8 @@
     "skippedReassure": "Sin estrés, el plan se adapta.",
     "skip": "Omitir esta sesión",
     "startRun": "Empezar",
-    "logIt": "Registrar"
+    "logIt": "Registrar",
+    "edit": "Editar sesión"
   },
   "promote": {
     "newTarget": "Nuevo objetivo de entrenamiento",
@@ -238,5 +239,46 @@
     }
   },
   "crosswalk": "Entrenamiento cruzado o caminata a paso ligero, sin impacto y a esfuerzo suave",
-  "recovery": "Rodaje de recuperación a esfuerzo muy suave; puedes hacer pausas para caminar"
+  "recovery": "Rodaje de recuperación a esfuerzo muy suave; puedes hacer pausas para caminar",
+  "editor": {
+    "editTitle": "Editar sesión",
+    "addTitle": "Añadir una sesión",
+    "addButton": "Añadir una sesión",
+    "day": "Día",
+    "prevWeek": "Semana anterior",
+    "nextWeek": "Semana siguiente",
+    "type": "Tipo",
+    "distance": "Distancia",
+    "shorter": "Más corta",
+    "longer": "Más larga",
+    "kmRange": "Entre {{min}} y {{max}} km.",
+    "swap": "Intercambiar con la sesión {{type}} (pasa al {{date}})",
+    "save": "Guardar",
+    "add": "Añadir",
+    "saveAnyway": "Guardar de todos modos",
+    "delete": "Eliminar esta sesión",
+    "deleteConfirm": "¿Eliminar esta sesión de tu plan?",
+    "deleteHint": "¿Prefieres dejar constancia de que no la hiciste? Usa Omitir.",
+    "headsUp": "Atención",
+    "yourCall": "Es tu plan, así que tú decides.",
+    "askCoach": "Preguntar al entrenador",
+    "warn": {
+      "ramp": "La semana {{week}} sube el volumen más rápido que las anteriores. Los saltos bruscos son el origen de muchas lesiones por sobrecarga.",
+      "backToBack": "{{a}} el {{dateA}} y {{b}} el {{dateB}} van seguidas. Los días duros se recuperan mejor con un día suave entre ellos.",
+      "taperIntervals_one": "Series {{count}} día antes de la carrera pueden hacer que llegues cansado a la salida.",
+      "taperIntervals_other": "Series {{count}} días antes de la carrera pueden hacer que llegues cansado a la salida.",
+      "taperTempo_one": "Un tempo {{count}} día antes de la carrera puede hacer que llegues cansado a la salida.",
+      "taperTempo_other": "Un tempo {{count}} días antes de la carrera puede hacer que llegues cansado a la salida.",
+      "taperVolume": "La semana {{week}} debería ser más suave. La puesta a punto es lo que te permite llegar fresco a la carrera.",
+      "sameDay": "Dos sesiones el {{date}}.",
+      "raceAdjacent": "Una sesión dura justo al lado de una carrera.",
+      "generic": "Este cambio va en contra de una de las reglas de entrenamiento del plan."
+    },
+    "toast": {
+      "update": "Sesión actualizada",
+      "add": "Sesión añadida",
+      "delete": "Sesión eliminada",
+      "failed": "No se pudo aplicar ese cambio."
+    }
+  }
 }

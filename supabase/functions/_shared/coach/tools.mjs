@@ -295,6 +295,13 @@ const sdFor = (type, pace, style) => {
   return { kind: "easy", variant: "relaxed" };
 };
 
+// pace/desc/sd for a session retyped or added to `plan` — also the app's manual
+// session editor (src/utils/planEdit.ts), so both editors write the same shape.
+export function sessionShapeFor(plan, type) {
+  const pace = paceFor(plan, type);
+  return { pace, desc: descFor(type, pace, plan.style), sd: sdFor(type, pace, plan.style) };
+}
+
 // Apply one tool call, returning a NEW plan. Throws CoachToolError on refusal;
 // the caller reports it back to the model as an is_error tool_result.
 // reassess_goal_feasibility is handled by the caller (it reads context, not

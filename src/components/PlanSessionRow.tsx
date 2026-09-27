@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, MessageCircle, MoreHorizontal, PenLine, Play, RotateCcw, Route, SkipForward } from "lucide-react";
+import { Check, ChevronDown, MessageCircle, MoreHorizontal, PenLine, Pencil, Play, RotateCcw, Route, SkipForward } from "lucide-react";
 import { TCLR } from "../constants";
 import { fmt, estMin } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
@@ -21,6 +21,7 @@ type PlanSessionRowProps = {
   onToggleDone: () => void;
   onSkip: () => void;
   onAskCoach: () => void;
+  onEdit?: () => void;        // absent where the session is read-only (elapsed weeks)
   onFindRoute?: () => void;   // optional (route finder feature-gated); opens the finder for this distance
   openSettings: (page?: SettingsPage) => void;
 };
@@ -32,7 +33,7 @@ type PlanSessionRowProps = {
 // wired to the same handlers — they used to disagree on what "Record" meant.
 export function PlanSessionRow({
   session: s, settings, notesOpen, onToggleNotes,
-  onRecord, onDone, onToggleDone, onSkip, onAskCoach, onFindRoute, openSettings,
+  onRecord, onDone, onToggleDone, onSkip, onAskCoach, onEdit, onFindRoute, openSettings,
 }: PlanSessionRowProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -139,6 +140,12 @@ export function PlanSessionRow({
         {menuOpen && (
           <div
             className="absolute right-4 bottom-[calc(100%+6px)] z-20 w-56 rounded-xl bg-slate-800 border border-slate-600 shadow-2xl overflow-hidden animate-expand">
+            {onEdit && (
+              <button onClick={() => { setMenuOpen(false); onEdit(); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
+                <Pencil size={14} className="text-slate-300"/>{t("plan.session.edit")}
+              </button>
+            )}
             <button onClick={() => { setMenuOpen(false); onAskCoach(); }}
               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
               <MessageCircle size={14} className="text-orange-400"/>{t("plan.session.askCoach")}

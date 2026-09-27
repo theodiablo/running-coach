@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown, Plus } from "lucide-react";
 import { dayName } from "../i18n";
-import { fmt } from "../utils/format";
+import { fmt, ymd } from "../utils/format";
 import { runnerAge } from "../utils/hr";
 import { secondaryRaces } from "../utils/races";
 import { routeSuggestEnabled } from "../constants";
@@ -12,6 +12,8 @@ import { PlanInfo } from "../components/PlanInfo";
 import { StylePicker } from "../components/StylePicker";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { PlanSessionRow } from "../components/PlanSessionRow";
+import { SessionEditSheet, type SessionEditTarget } from "../modals/SessionEditSheet";
+import { addSlot, isEditableSession, type SessionEdit } from "../utils/planEdit";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsPage, SettingsState } from "../types";
@@ -29,6 +31,10 @@ const splitWeeks = (plan: Plan | null) => {
     past:     weeks.filter(w => isElapsedWeek(w, today)),
   };
 };
+
+const sameWeekGrid = (a: Plan | null, b: Plan | null) =>
+  !!a && !!b && a.weeks.length === b.weeks.length &&
+  a.weeks.every((w, i) => w.weekNumber === b.weeks[i].weekNumber && w.startDate === b.weeks[i].startDate);
 
 // The week we auto-expand and label "week n of m": the current one, else the
 // next one up (plan not started yet), else the last (race already run).
@@ -54,6 +60,7 @@ type PlanViewProps = {
   ) => Plan;
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
+  editSession: (edit: SessionEdit, warnings: number) => void;
   openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
@@ -73,7 +80,7 @@ type PlanViewProps = {
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 
-export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -122,11 +129,15 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   // The concrete sessions the current draft resolves to (Simple mode synthesises them).
   const resolvedSessions = draftMode === "simple" ? sessionsFromSimple(draftDays, draftBand) : draft;
 
-  // Re-expand the current week whenever the plan changes (e.g. rebuild).
+  // The runner's own session editor (add or edit), when open.
+  const [editTarget,   setEditTarget]  = useState<SessionEditTarget | null>(null);
+
+  // Re-expand the current week when the plan is replaced (e.g. rebuild) — but
+  // not on an edit inside the same week grid, which would fold the week away.
   const [prevPlan, setPrevPlan] = useState<Plan | null>(plan);
   if (plan !== prevPlan) {
     setPrevPlan(plan);
-    setExp(focusWeek(plan));
+    if (!sameWeekGrid(prevPlan, plan)) setExp(focusWeek(plan));
   }
 
   // A promote ("Set as target") prefills the edit screen with a catalogue edition.
@@ -299,6 +310,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const done = all.filter(s => s.done).length;
   const pct  = Math.round((done / all.length) * 100);
   const today = startOfToday();
+  const todayStr = ymd(today);
   // Same definition of "overdue" the Dashboard card uses, so the two surfaces
   // can never disagree about what is still open (src/utils/overdue.ts).
   const overdueCounts = overdueByWeek(plan, today);
@@ -346,6 +358,7 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const wkNumCls = isCurr ? "text-orange-400" : isPast ? "text-slate-600" : "text-slate-200";
     const wkCardCls = isCurr ? "border-orange-500/50 bg-orange-500/5" : "border-slate-700/60 bg-slate-800/50";
     const phaseLabel = t("common.phases." + wk.phase, { defaultValue: wk.phase });
+    const addDate = isExp && !isPast ? addSlot(plan, wk, todayStr) : null;
 
     return (
       <div key={wk.weekNumber} className={"rounded-xl border " + wkCardCls}>
@@ -377,11 +390,18 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
                 onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                 onSkip={() => skipSess(wk.weekNumber, s.id)}
                 onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}
+                onEdit={isEditableSession(plan, s.id, todayStr) ? () => setEditTarget({ kind: "edit", session: s, weekNumber: wk.weekNumber }) : undefined}
                 onFindRoute={routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && Number(s.km) > 0
                   ? () => openTracker({ wNum: wk.weekNumber, sId: s.id, findRouteKm: Number(s.km) })
                   : undefined}
                 openSettings={openSettings}/>
             ))}
+            {addDate && (
+              <button onClick={() => setEditTarget({ kind: "add", weekNumber: wk.weekNumber, date: addDate })}
+                className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-600 py-2.5 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                <Plus size={13}/>{t("plan.editor.addButton")}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -393,6 +413,16 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
       {/* No coach button here: it moved to the app header (RunningCoach.tsx) so
           it's reachable from every tab. The per-session "Ask coach" below stays. */}
       <h2 className="text-xl font-bold mt-4 mb-4">{t("plan.title")}</h2>
+
+      {editTarget && (
+        <SessionEditSheet plan={plan} target={editTarget} today={todayStr}
+          onSave={(edit, warnings) => { editSession(edit, warnings); setEditTarget(null); }}
+          onAskCoach={() => {
+            setEditTarget(null);
+            openCoach(editTarget.kind === "edit" ? { session: editTarget.session, weekNumber: editTarget.weekNumber } : null, "plan_session");
+          }}
+          onClose={() => setEditTarget(null)}/>
+      )}
 
       {/* Plan card */}
       <div className="rounded-2xl bg-slate-800/70 border border-slate-700/50 divide-y divide-slate-700/40 mb-2.5">

@@ -215,6 +215,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   report against it, and only the trailing 2 weeks of it reach the model.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
   semantics): `docs/training-plan.md`.
+- **The runner's own plan edits warn, never block.** Move/swap, retype,
+  resize, add and delete go through `src/utils/planEdit.ts` (free for
+  everyone); `editIssues` runs the shared validator and the sheet shows what an
+  edit breaks as a heads-up. Only structural soundness is enforced. Detail:
+  `docs/training-plan.md` ("Manual edits").
 - **A test that builds a plan must pin the clock and derive its dates.**
   `buildPlan` reads the real clock to anchor week 1 on the next Monday, so an
   unpinned fixture changes shape with the weekday CI happens to run on, and a

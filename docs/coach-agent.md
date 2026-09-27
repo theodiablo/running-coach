@@ -149,7 +149,8 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
   `EASY|TEMPO|INTERVALS|LONG|RACE|WALK|OTHER`, phases
   `BASE|BUILD|PEAK|TAPER|RACE`. "Cross-training" = `WALK`.
 - **Baseline waiver**: a user's *existing* plan can violate a rule (aggressive
-  short-horizon generator output, user-chosen adjacent hard days). Errors that
+  short-horizon generator output, user-chosen adjacent hard days, a manual
+  edit saved through its warning — `docs/training-plan.md`). Errors that
   exist identically in the baseline are reported as warnings, so the agent can
   still help — it just can't make the plan worse.
 - The server reads the plan/runs/Coach memory from `app_state` (source of
