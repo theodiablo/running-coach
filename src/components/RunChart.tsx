@@ -63,7 +63,7 @@ export const RunChart = memo(function RunChart({ series, show, hasElev, hasHr, o
             return [String(value), String(name)];
           }} />
         {hasElev && show.elev &&
-          <Area yAxisId="elev" type="monotone" dataKey="elevM" stroke={ELEV_CLR} fill={ELEV_CLR} fillOpacity={0.15} strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} />}
+          <Area yAxisId="elev" type="monotone" dataKey="elevM" stroke={ELEV_CLR} fill={ELEV_CLR} fillOpacity={0.15} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
         {show.pace &&
           <Line yAxisId="pace" type="monotone" dataKey="paceSecPerKm" stroke={PACE_CLR} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />}
         {hasHr && show.hr &&

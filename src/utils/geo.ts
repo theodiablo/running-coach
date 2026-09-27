@@ -55,14 +55,32 @@ export type FlatPoint = { lat: number; lng: number; t: number; alt: number | nul
 
 export function flattenTrack(points: TrackPointOrGap[], jitterM = 3): FlatPoint[] {
   const out: FlatPoint[] = [];
+  const altOk = altitudeGate();
   let cumM = 0, prev: TrackPoint | null = null, newSeg = true;
   for (const p of points) {
     if (!p) { prev = null; newSeg = true; continue; } // gap: break segment, don't add distance
     if (prev) { const d = haversineM(prev, p); if (d >= jitterM) cumM += d; }
-    out.push({ lat: Number(p[0]), lng: Number(p[1]), t: Number(p[2]), alt: p[3] == null ? null : Number(p[3]), cumKm: cumM / 1000, segStart: newSeg });
+    const t = Number(p[2]), alt = p[3] == null ? null : Number(p[3]);
+    out.push({ lat: Number(p[0]), lng: Number(p[1]), t, alt: alt != null && altOk(alt, t) ? alt : null, cumKm: cumM / 1000, segStart: newSeg });
     prev = p; newSeg = false;
   }
   return out;
+}
+
+// GPS altitude can jump 100-300m for a few fixes and back; each recovery would
+// count as climb. Rejects readings further from the last accepted one than a
+// runner can move vertically in the elapsed time; the allowance grows with that
+// time, so a bad anchor can't lock the gate out.
+export const ALT_MAX_RATE_MPS = 1;
+export const ALT_SLACK_M = 15;
+export function altitudeGate() {
+  let lastAlt: number | null = null, lastT = 0;
+  return (alt: number, t: number) => {
+    if (lastAlt != null && Number.isFinite(t) &&
+        Math.abs(alt - lastAlt) > ALT_SLACK_M + ALT_MAX_RATE_MPS * Math.max(0, t - lastT) / 1000) return false;
+    lastAlt = alt; lastT = t;
+    return true;
+  };
 }
 
 // Cumulative positive elevation gain (metres). Counts only ascents above `minM`
@@ -71,13 +89,17 @@ export function flattenTrack(points: TrackPointOrGap[], jitterM = 3): FlatPoint[
 // GPS vertical error is ~2-3x the horizontal and phones quantise altitude to
 // whole metres, so a small band (e.g. 1m) lets every noise wiggle through and a
 // flat run accumulates phantom climb — keep the band at ~5m, the usual floor for
-// GPS-only (barometer-less) elevation.
+// GPS-only (barometer-less) elevation. Timestamped tuples also go through
+// altitudeGate; plain coords carry no time and are assumed already gated
+// (flattenTrack's output).
 export function elevGainM(points: (TrackPointOrGap | Coord)[], minM = 5) {
   let gain = 0, prev: number | null = null;
+  const altOk = altitudeGate();
   for (const p of points) {
     if (!p) { prev = null; continue; }
     const alt = isArrayPoint(p) ? p[3] : p.alt;
     if (alt == null) continue;
+    if (isArrayPoint(p) && !altOk(alt, Number(p[2]))) continue;
     if (prev != null) {
       const diff = alt - prev;
       if (diff >= minM) { gain += diff; prev = alt; }
