@@ -13,6 +13,7 @@ vi.mock("./healthconnect", () => ({ hasHealthConnectAuthorization: dev.hc }));
 vi.mock("../healthkit/import", () => ({ hasHealthKitAuthorization: dev.hk }));
 
 import { recorderHrSetup, resolveRunHr, runHrFields } from "./runHr";
+import { expandHrSamples } from "../utils/hr";
 
 const stream = (from: number, sec: number, bpm = 150) =>
   Array.from({ length: sec }, (_, i) => ({ bpm, t: from + i * 1000 }));
@@ -30,8 +31,19 @@ describe("resolveRunHr", () => {
     const res = await resolveRunHr({
       hrSrc: liveSrc, liveSamples: stream(t0, 60, 150), durationSec: 600, startMs: t0, endMs: t0 + 600_000,
     });
-    expect(res.samples).toHaveLength(600); // not 660 — the first minute is one stream
+    expect(expandHrSamples(res.samples)).toHaveLength(600); // not 660 — the first minute is one stream
     expect(res.hr).toBe(150);
+    expect(res.partialCoverage).toBeNull();
+  });
+
+  it("stores a 2Hz strap compacted but keeps a one-beat peak in hrMax", async () => {
+    const t0 = 1_700_000_000_000;
+    const twoHz = Array.from({ length: 1200 }, (_, i) => ({ bpm: i === 501 ? 190 : 150, t: t0 + i * 500 }));
+    const res = await resolveRunHr({
+      hrSrc: liveSrc, liveSamples: twoHz, durationSec: 600, startMs: t0, endMs: t0 + 600_000,
+    });
+    expect(res.samples.length).toBeLessThan(200);
+    expect(res.hrMax).toBe(190);
     expect(res.partialCoverage).toBeNull();
   });
 
@@ -41,7 +53,7 @@ describe("resolveRunHr", () => {
       hrSrc: liveSrc, liveSamples: stream(t0, 60, 85), durationSec: 4200, startMs: t0, endMs: t0 + 4_200_000,
     });
     expect(res.hr).toBeNull();
-    expect(res.samples).toHaveLength(60); // kept — run detail explains the gap
+    expect(expandHrSamples(res.samples)).toHaveLength(60); // kept — run detail explains the gap
     expect(res.partialCoverage).toBeLessThan(0.5);
   });
 

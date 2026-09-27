@@ -10,6 +10,7 @@ import * as digest from "../../supabase/functions/_shared/coach/runDigest.mjs";
 import { flattenTrack, elevGainM, distanceKm } from "./geo";
 import type { TrackPointOrGap } from "./geo";
 import { buildRunSeries } from "./runSeries";
+import { compactHrSamples, expandHrSamples } from "./hr";
 import { buildSplits } from "./runSplits";
 import { timeInZones, effectiveMaxHR } from "./hr";
 
@@ -44,12 +45,15 @@ describe("runDigest.mjs parity with the TS originals", () => {
     });
   });
 
+  it("expandHrSamples parity on a compacted stream", () => {
+    const stored = compactHrSamples(hrStream);
+    expect(digest.expandHrSamples(stored)).toEqual(expandHrSamples(stored));
+  });
+
   it("haversineM parity via total distance", () => {
     const flat = digest.flattenTrack(track);
     expect(flat[flat.length - 1].cumKm).toBeGreaterThan(0);
-    // distanceKm bridges gaps, flattenTrack doesn't — compare on a gap-free track.
-    const gapFree = track.filter(Boolean);
-    expect(digest.flattenTrack(gapFree).pop().cumKm).toBeCloseTo(distanceKm(gapFree), 6);
+    expect(flat[flat.length - 1].cumKm).toBeCloseTo(distanceKm(track), 6);
   });
 
   it("elevGainM parity (hysteresis band, null altitudes, gap resets)", () => {

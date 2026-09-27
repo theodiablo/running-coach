@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildSplits } from "./runSplits";
+import { distanceKm } from "./geo";
 import type { TrackPointOrGap } from "./geo";
 
 const T0 = 1_700_000_000_000;
@@ -27,6 +28,16 @@ describe("buildSplits", () => {
     expect(splits[1].distKm).toBeCloseTo(1, 2);
     expect(splits[2].distKm).toBeLessThan(1);      // partial tail
     expect(splits[2].distKm).toBeGreaterThan(0);
+  });
+
+  it("splits add up to distanceKm when the track has a GPS gap", () => {
+    // Signal lost for ~0.45 km mid-run: the gap still counts toward the km marks.
+    const run = equatorRun(0.02, 60, 600);
+    const gapped = [...run.slice(0, 20), null, ...run.slice(32)];
+    const splits = buildSplits(gapped);
+    const sum = splits.reduce((a, s) => a + s.distKm, 0);
+    expect(sum).toBeCloseTo(distanceKm(gapped), 6);
+    expect(sum).toBeCloseTo(distanceKm(run), 6);
   });
 
   it("computes a plausible pace per split", () => {

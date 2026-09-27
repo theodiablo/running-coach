@@ -234,6 +234,9 @@ Always re-verify a finding before acting on it; agents report false positives.
   `ANCHORS` in `coachValidation.test.ts` and `sessionDesc.test.ts` is the
   pattern. Derive every date from the anchor or read it off the generated plan;
   never hardcode one. Validate as of the same pinned day the plan was built on.
+- **Distance has one definition**: `walkTrack` in `src/utils/geo.ts`, exposed as
+  `distanceKm` and `flattenTrack`'s `cumKm` (gaps bridged by the straight line).
+  Never sum `haversineM` legs anywhere else; ports (`runDigest.mjs`) mirror it.
 - **Best efforts** (fastest 1K/5K/10K/half/marathon in a run) are extracted
   **once at save time** from the trace and stored on the run as `bestEfforts`,
   so every PB comparison is an in-memory scan of `runs` — never refetch traces
@@ -472,7 +475,8 @@ changes.
 - **Route:** `run_routes` row `{id, user_id, points, stats, created_at}`;
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form
-  sidecar (e.g. `hrSamples`).
+  sidecar (e.g. `hrSamples`, stored compacted: read it through
+  `expandHrSamples`, never raw).
 - **Plan:** `buildPlan(...)` → `{..., weeks:[{weekNumber, startDate, phase,
   sessions:[{id, date, type, desc, km, pace, done}]}]}`. Session types: EASY,
   TEMPO, INTERVALS, LONG, RACE, WALK, OTHER.

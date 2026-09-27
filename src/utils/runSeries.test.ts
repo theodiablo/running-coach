@@ -22,14 +22,11 @@ describe("buildRunSeries", () => {
     expect(rows[rows.length - 1].distKm).toBeCloseTo(distanceKm(pts), 5);
   });
 
-  it("does not bridge a gap on the x-axis (distance frozen across the gap)", () => {
-    // Two points, then a gap, then a far-away point: the gap leg must NOT add
-    // distance, unlike distanceKm's summary bridging.
-    const rows = buildRunSeries([p(0, 0, 0), p(0, 0.01, 20), null, p(0, 5, 40), p(0, 5.01, 60)]);
-    // Row index 2 is the first point after the gap; its distKm equals row 1's
-    // (no jump added for the gap leg), then it grows again.
-    expect(rows[2].distKm).toBeCloseTo(rows[1].distKm, 5);
-    expect(rows[3].distKm).toBeGreaterThan(rows[2].distKm);
+  it("bridges a gap on the x-axis exactly as distanceKm does", () => {
+    const pts = [p(0, 0, 0), p(0, 0.01, 20), null, p(0, 0.02, 40), p(0, 0.03, 60)];
+    const rows = buildRunSeries(pts);
+    expect(rows[2].distKm - rows[1].distKm).toBeCloseTo(rows[1].distKm, 5);
+    expect(rows[rows.length - 1].distKm).toBeCloseTo(distanceKm(pts), 9);
   });
 
   it("does not compute pace across a gap", () => {

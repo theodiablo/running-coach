@@ -85,9 +85,9 @@ function fastestWindowSec(seg: FlatPoint[], km: number): number | null {
 // The gap-free, plausibly-run stretches of a track. A window may only be
 // measured inside one of these.
 //
-// Two things break a segment. A GAP marker: cumKm deliberately doesn't accrue
-// across one (flattenTrack won't invent a straight jump) while wall-clock time
-// does, so a window crossing a gap would price real distance against dead time.
+// Two things break a segment. A GAP marker: cumKm bridges it with a straight
+// line, which is fine for a total but not for pricing an effort over ground
+// nobody recorded.
 // And an impossibly fast leg, which is the same problem wearing a disguise —
 // a drive with the watch paused leaves no marker in an imported file, and
 // interpolating across it yields a 30-second kilometre that then poisons every

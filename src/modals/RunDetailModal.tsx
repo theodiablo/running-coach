@@ -10,7 +10,7 @@ import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
 import { runWalkBreakdown } from "../utils/runSegments";
 import { rankRunEfforts } from "../utils/bestEfforts";
-import { timeInZones, effectiveMaxHR, hrCoverage, HR_ZONES } from "../utils/hr";
+import { timeInZones, effectiveMaxHR, hrCoverage, expandHrSamples, HR_ZONES } from "../utils/hr";
 import { flattenTrack, haversineM } from "../utils/geo";
 import { fmt } from "../utils/format";
 import type { HrSample } from "../utils/runSeries";
@@ -54,7 +54,8 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
   // multi-hour run has thousands of each.
   const derived = useMemo(() => {
     const points = (route?.points ?? []) as unknown as TrackPointOrGap[];
-    const hrSamples = (route?.stats?.hrSamples as HrSample[] | undefined) || null;
+    const stored = route?.stats?.hrSamples as HrSample[] | undefined;
+    const hrSamples = stored?.length ? expandHrSamples(stored) : null;
     const series = points.length ? buildRunSeries(points, hrSamples) : [];
     return {
       hasPoints: points.length > 0,
