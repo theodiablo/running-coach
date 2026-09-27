@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..50a594b 100644
+index a92fcf9..19b5a8d 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 @@ -18,7 +18,13 @@ import android.location.LocationManager;
@@ -50,7 +50,7 @@ index a92fcf9..50a594b 100644
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +114,689 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +114,701 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -225,7 +225,7 @@ index a92fcf9..50a594b 100644
 +    private static boolean isStatDigit(char c) {
 +        return (c >= '0' && c <= '9') || c == ':' || c == '.' || c == '-';
 +    }
- 
++
 +    // The notification's tap target, built ONCE and reused by every rebuild.
 +    // Upstream built it inline with FLAG_CANCEL_CURRENT, which was harmless when
 +    // the notification was posted once per run — but the live renderer below
@@ -342,6 +342,8 @@ index a92fcf9..50a594b 100644
 +        double baseElevM;     // authoritative elevation gain as of that push
 +        double addedElevM;    // gain accumulated from fixes since that push
 +        Double elevPrevAlt;   // hysteresis anchor; null = next fix only anchors
++        Double elevGateAlt;   // altitude-gate anchor (last plausible reading)
++        long elevGateMs;
 +        double fallbackPaceSecPerKm;
 +        int hrBpm;
 +        long hrAtMs;          // epoch ms of that beat, whichever end supplied it
@@ -391,6 +393,10 @@ index a92fcf9..50a594b 100644
 +    // climb. The two ends MUST agree — a screen-off leg measured on a different
 +    // band would step the watcher's total the moment the phone goes in a pocket.
 +    private static final double LIVE_ELEV_BAND_M = 5;
++    // Altitude gate, mirroring altitudeGate in src/utils/geo.ts: a reading
++    // further from the last plausible one than a runner can climb is a glitch.
++    private static final double LIVE_ALT_MAX_RATE_MPS = 1;
++    private static final double LIVE_ALT_SLACK_M = 15;
 +
 +    // ── Fix journal (crash durability) ───────────────────────────────────────
 +    // Every fix the live renderer accepts is also appended to a file on disk, so
@@ -419,7 +425,7 @@ index a92fcf9..50a594b 100644
 +    private File journalFile() {
 +        return new File(getContext().getFilesDir(), FIX_JOURNAL_FILE);
 +    }
-+
+ 
 +    private void journalFix(double lat, double lng, long t, Location location) {
 +        // Formatted on the calling thread (Location is not safe to hold across
 +        // threads), written on the journal thread.
@@ -636,7 +642,7 @@ index a92fcf9..50a594b 100644
 +            live.lastFixMs = t;
 +            live.paceWindow.clear();
 +            live.paceWindow.addLast(new double[] { t, live.cumM });
-+            foldElevation(live, location, true);
++            foldElevation(live, location, t, true);
 +            journalFix(lat, lng, t, location);
 +            relayLiveFix(live, lat, lng, t, location, false);
 +            return; // an anchor only — no leg to measure yet
@@ -654,7 +660,7 @@ index a92fcf9..50a594b 100644
 +        live.lastFixMs = t;
 +        live.addedM += moved;
 +        live.cumM += moved;
-+        foldElevation(live, location, gapBefore);
++        foldElevation(live, location, t, gapBefore);
 +        live.paceWindow.addLast(new double[] { t, live.cumM });
 +        while (live.paceWindow.size() > 1
 +                && t - live.paceWindow.peekFirst()[0] > LIVE_CUR_PACE_WINDOW_MS) {
@@ -671,7 +677,7 @@ index a92fcf9..50a594b 100644
 +    // measurement. A fix with no altitude is skipped (the anchor is kept, as a
 +    // missing reading is not a descent); a gap drops the anchor, since the
 +    // altitude either side of a tunnel says nothing about what was climbed in it.
-+    private void foldElevation(LiveStats live, Location location, boolean reset) {
++    private void foldElevation(LiveStats live, Location location, long t, boolean reset) {
 +        if (reset) {
 +            live.elevPrevAlt = null;
 +        }
@@ -679,6 +685,12 @@ index a92fcf9..50a594b 100644
 +            return;
 +        }
 +        double alt = Math.round(location.getAltitude());
++        if (live.elevGateAlt != null && Math.abs(alt - live.elevGateAlt)
++                > LIVE_ALT_SLACK_M + LIVE_ALT_MAX_RATE_MPS * Math.max(0, t - live.elevGateMs) / 1000d) {
++            return;
++        }
++        live.elevGateAlt = alt;
++        live.elevGateMs = t;
 +        Double prev = live.elevPrevAlt;
 +        if (prev == null) {
 +            live.elevPrevAlt = alt;
@@ -792,7 +804,7 @@ index a92fcf9..50a594b 100644
      }
  
      @PermissionCallback
-@@ -188,6 +824,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +836,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -800,7 +812,7 @@ index a92fcf9..50a594b 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -245,20 +882,44 @@ public class BackgroundGeolocation extends Plugin {
+@@ -245,20 +894,44 @@ public class BackgroundGeolocation extends Plugin {
      }
  
      // Receives messages from the service.
@@ -851,7 +863,7 @@ index a92fcf9..50a594b 100644
          }
      }
  
-@@ -315,16 +976,29 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,16 +988,29 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -883,7 +895,7 @@ index a92fcf9..50a594b 100644
                  service.onPermissionsGranted();
              }
          }
-@@ -333,12 +1007,54 @@ public class BackgroundGeolocation extends Plugin {
+@@ -333,12 +1019,54 @@ public class BackgroundGeolocation extends Plugin {
  
      @Override
      protected void handleOnPause() {

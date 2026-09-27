@@ -137,7 +137,7 @@ authority* — with an upload leg:
   acceptance gates exist in exactly one native place. Elevation folds there
   exactly like distance — a JS-pushed base (`elevM` on the notification seed)
   plus what the service accumulates from later fixes, on the same 5m hysteresis
-  band as `elevGainM`, so the total keeps advancing with the screen off instead
+  band and altitude gate as `elevGainM`, so the total keeps advancing with the screen off instead
   of freezing at the last foreground push. The band MUST match at both ends: a
   screen-off leg measured on a different one would step the watcher's total the
   moment the phone goes in a pocket. `live_publish_append` whitelists `stats`

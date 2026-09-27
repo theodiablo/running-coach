@@ -30,6 +30,7 @@
     "go": "Partez !"
   },
   "discardConfirm": "Abandonner cette sortie ? Ton parcours enregistré sera perdu.",
+  "idleTrimmed": "Hors {{dur}} passées à l'arrêt avant le départ et après l'arrivée.",
   "routeUploadFailed": "Impossible d'envoyer le parcours. Il est enregistré sur cet appareil et la synchronisation sera retentée.",
   "resume": {
     "title": "Reprendre ta sortie précédente ?",

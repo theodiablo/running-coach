@@ -93,12 +93,27 @@ describe("RunFields", () => {
     expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length]);
   });
 
-  it("never shows a duration it would not save", () => {
+  it("settles a duration it would not save once the field is left", () => {
     const onChange = vi.fn();
-    render(<RunFields form={emptyRunForm("2026-08-15")} onChange={onChange} phScope="log.fields"/>);
+    render(<RunFields form={{ ...emptyRunForm("2026-08-15"), dur: "75" }} onChange={onChange} phScope="log.fields"/>);
     // "75" reads as 0:75, which is not a time — it settles to 1:15.
-    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "75" } });
+    fireEvent.blur(screen.getByLabelText("Duration"));
     expect(onChange).toHaveBeenCalledWith("dur", "115");
+  });
+
+  // Mid-entry "1571" is the first four digits of 1:57:13; settling it to 16:11
+  // on that keystroke made the time impossible to type (it ended up 2:01:13).
+  it("takes a time digit by digit even when a partial reads as over 59", () => {
+    function Harness() {
+      const [f, setF] = useState(emptyRunForm("2026-08-15"));
+      return <RunFields form={f} onChange={(k, v) => setF(p => ({ ...p, [k]: v }))} phScope="log.fields"/>;
+    }
+    render(<Harness/>);
+    const field = screen.getByLabelText("Duration") as HTMLInputElement;
+    for (const d of "15713") fireEvent.change(field, { target: { value: field.value + d } });
+    expect(field.value).toBe("1:57:13");
+    fireEvent.blur(field);
+    expect(field.value).toBe("1:57:13");
   });
 
   it("shows no pace until it means something", () => {

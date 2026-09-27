@@ -58,6 +58,12 @@ describe("runDigest.mjs parity with the TS originals", () => {
     expect(digest.elevGainM(digest.flattenTrack(track))).toBe(elevGainM(track));
   });
 
+  it("elevGainM parity with altitude glitches (altitudeGate)", () => {
+    const glitchy: TrackPointOrGap[] = [p(0, 0, 0, 300), p(0, 0.001, 2, 150), p(0, 0.002, 4, 150), null, p(0, 0.003, 6, 300), p(0, 0.004, 8, 320)];
+    expect(digest.elevGainM(digest.flattenTrack(glitchy))).toBe(elevGainM(glitchy));
+    expect(elevGainM(glitchy)).toBe(0);
+  });
+
   it("series rows match buildRunSeries (distance, pace, elevation, HR alignment)", () => {
     const ours = digest.buildSeriesRows(track, hrStream);
     const ref = buildRunSeries(track, hrStream);
