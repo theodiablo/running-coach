@@ -39,5 +39,11 @@
       "sub": "Entraînement assidu"
     }
   },
-  "recommended": "Recommandé"
+  "recommended": "Recommandé",
+  "runWalk": {
+    "title": "Ton alternance course/marche",
+    "runLabel": "Intervalle de course le plus long",
+    "walkLabel": "Pause marche",
+    "note": "Le plan démarre plus doucement et monte jusqu'à cette valeur, jamais au-delà. Tu peux la changer à tout moment et régénérer le plan."
+  }
 }

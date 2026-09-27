@@ -97,7 +97,15 @@
       "avgHr": "Avg HR",
       "maxHr": "Max HR"
     },
-    "hrPartial": "Sensor dropped out: heart rate covers only {{pct}}% of this run."
+    "hrPartial": "Sensor dropped out: heart rate covers only {{pct}}% of this run.",
+    "runWalk": {
+      "title": "Running only",
+      "running": "Running",
+      "walking": "Walking",
+      "segments_one": "{{count}} segment",
+      "segments_other": "{{count}} segments",
+      "note": "Estimated from your own pace, so the boundaries are approximate. Whole-run figures are above."
+    }
   },
   "predictions": {
     "title": "Race predictions",

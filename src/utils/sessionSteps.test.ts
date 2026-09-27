@@ -47,6 +47,15 @@ describe("sessionSteps", () => {
     expect(step(walk, "Main")).toContain("run 3 min / walk 1 min");
   });
 
+  it("reads a sub-minute ratio, in sd or in the desc", () => {
+    const sd = { type: "WALK", km: 4, pace: 520, desc: "",
+      sd: { kind: "runwalk" as const, variant: "short", runSec: 90, walkSec: 45 } };
+    expect(step(sd, "Main")).toContain("run 1 min 30 s / walk 45 s");
+    const parsed = { type: "LONG", km: 8, pace: 520,
+      desc: "Long run/walk — run 1 min 30 s / walk 45 s, conversational" };
+    expect(step(parsed, "Main")).toContain("run 1 min 30 s / walk 45 s");
+  });
+
   it("treats a ratio-less WALK as easy cross-training", () => {
     const s = { type: "WALK", desc: "Cross-training / brisk walk — no impact, easy effort", km: 3, pace: null };
     expect(step(s, "Activity")).toContain("cross-training");

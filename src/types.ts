@@ -79,6 +79,11 @@ export type SettingsState = Record<string, unknown> & {
   targetEditionId?: string | null;
   // Training methodology style (see src/utils/planStyles.ts); absent = balanced.
   planStyle?: string;
+  // Run/Walk style only: the LONGEST run interval the runner wants (seconds) and
+  // the walk break beside it. The plan ramps up to runWalkRunSec and never past
+  // it; absent = the 3 min / 1 min default. See docs/training-plan.md.
+  runWalkRunSec?: number;
+  runWalkWalkSec?: number;
   // UI language (synced preference; see src/i18n). Absent = device/browser
   // locale. The per-device rc_lang localStorage key covers pre-auth screens.
   language?: "en" | "es" | "fr";
@@ -104,7 +109,13 @@ export type SessionSd = {
   repM?: number;         // rep length in metres (400 | 600 | 800 | 1000 | 3000)
   recover?: "90s" | "90sJog" | "1kmJog" | "jogs";
   offsetSec?: number;    // Hansons strength: "goal pace minus 10s"
-  runMin?: number;       // Galloway ratio
+  // Galloway ratio. Seconds are the live form (a ratio can be sub-minute);
+  // runMin/walkMin are the pre-seconds fields, still written when the ratio is
+  // whole minutes so an older client renders it, and still read for plans built
+  // before runSec existed. Read through runwalkRatio (utils/sessionSteps.ts).
+  runSec?: number;
+  walkSec?: number;
+  runMin?: number;
   walkMin?: number;
   minutes?: number;      // lowfreq cross-training day budget
   km?: number;           // race / raceday sentence figures

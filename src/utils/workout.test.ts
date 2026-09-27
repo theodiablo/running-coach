@@ -90,6 +90,16 @@ describe("compileWorkout", () => {
     expect(w.loopFrom).toBe(0);
   });
 
+  it("compiles a sub-minute ratio from sd seconds", () => {
+    const w = compileWorkout({ type: "WALK", desc: "Run/walk — run 1 min 30 s / walk 45 s", km: 4, pace: 0,
+      sd: { kind: "runwalk", runSec: 90, walkSec: 45 } })!;
+    expect(w.steps).toEqual([
+      { kind: "warmup", sec: WALK_WARMUP_SEC },
+      { kind: "run", sec: 90 },
+      { kind: "walk", sec: 45 },
+    ]);
+  });
+
   it("has nothing to guide on unstructured sessions", () => {
     expect(compileWorkout({ type: "EASY", desc: "Easy run", km: 5, pace: 360 })).toBeNull();
     expect(compileWorkout({ type: "LONG", desc: "Long run — easy effort", km: 14, pace: 380 })).toBeNull();

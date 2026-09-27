@@ -163,9 +163,9 @@
     "full": "+ récupération complète"
   },
   "runwalk": {
-    "long": "Sortie longue course/marche : cours {{runMin}} min, puis marche {{walkMin}} min ; reste en aisance respiratoire",
-    "short": "Course/marche : cours {{runMin}} min, puis marche {{walkMin}} min ; reste en aisance respiratoire",
-    "shortTaper": "Course/marche : cours {{runMin}} min, puis marche {{walkMin}} min ; séance courte et détendue",
+    "long": "Sortie longue course/marche : cours {{run}}, puis marche {{walk}} ; reste en aisance respiratoire",
+    "short": "Course/marche : cours {{run}}, puis marche {{walk}} ; reste en aisance respiratoire",
+    "shortTaper": "Course/marche : cours {{run}}, puis marche {{walk}} ; séance courte et détendue",
     "coachLong": "Sortie longue avec des intervalles doux de course et de marche, en aisance respiratoire",
     "coachShort": "Intervalles doux de course et de marche, en aisance respiratoire"
   },
@@ -216,14 +216,14 @@
     },
     "long": {
       "start": "Mets-toi en route progressivement. Les 10 premières minutes doivent sembler presque trop lentes.",
-      "mainRatio": "Adopte le rythme suivant sur toute la distance : {{run}} min de course / {{walk}} min de marche, en restant capable de parler.",
+      "mainRatio": "Adopte le rythme suivant sur toute la distance : {{run}} de course / {{walk}} de marche, en restant capable de parler.",
       "mainPace": "Tiens un effort relâché et conversationnel autour de {{pace}} tout du long.",
       "mainNoPace": "Tiens un effort relâché et conversationnel tout du long.",
       "fuel": "Bois régulièrement et prends des glucides toutes les 30–40 min ; répète ta stratégie nutritionnelle du jour de course."
     },
     "walk": {
       "warmup": "5 min de marche rapide.",
-      "mainRatio": "Alterne {{run}} min de course et {{walk}} min de marche ; garde une allure qui te permet de parler.",
+      "mainRatio": "Alterne {{run}} de course et {{walk}} de marche ; garde une allure qui te permet de parler.",
       "cooldown": "5 min de marche tranquille.",
       "activity": "Marche rapide ou entraînement croisé à faible impact, à effort léger et sans à-coups."
     },

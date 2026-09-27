@@ -163,9 +163,9 @@
     "full": "+ recuperación completa"
   },
   "runwalk": {
-    "long": "Tirada larga corriendo y caminando: corre {{runMin}} min y camina {{walkMin}} min, a un ritmo que te permita conversar",
-    "short": "Correr/caminar: corre {{runMin}} min y camina {{walkMin}} min, a un ritmo que te permita conversar",
-    "shortTaper": "Correr/caminar: corre {{runMin}} min y camina {{walkMin}} min; sesión corta y relajada",
+    "long": "Tirada larga corriendo y caminando: corre {{run}} y camina {{walk}}, a un ritmo que te permita conversar",
+    "short": "Correr/caminar: corre {{run}} y camina {{walk}}, a un ritmo que te permita conversar",
+    "shortTaper": "Correr/caminar: corre {{run}} y camina {{walk}}; sesión corta y relajada",
     "coachLong": "Tirada larga con intervalos suaves de carrera y caminata, a ritmo conversacional",
     "coachShort": "Intervalos suaves de carrera y caminata, a ritmo conversacional"
   },
@@ -216,14 +216,14 @@
     },
     "long": {
       "start": "Empieza poco a poco. Los primeros 10 min deben parecer casi demasiado lentos.",
-      "mainRatio": "Alterna {{run}} min corriendo y {{walk}} min caminando durante todo el recorrido, siempre a un ritmo que te permita conversar.",
+      "mainRatio": "Alterna {{run}} corriendo y {{walk}} caminando durante todo el recorrido, siempre a un ritmo que te permita conversar.",
       "mainPace": "Mantén un esfuerzo relajado y conversacional cerca de {{pace}} durante todo el recorrido.",
       "mainNoPace": "Mantén un esfuerzo relajado y conversacional durante todo el recorrido.",
       "fuel": "Bebe con regularidad y toma carbohidratos cada 30–40 min; practica la estrategia nutricional del día de la carrera."
     },
     "walk": {
       "warmup": "5 min de caminata enérgica.",
-      "mainRatio": "Alterna {{run}} min corriendo y {{walk}} min caminando; corre cada tramo a un ritmo que te permita conversar.",
+      "mainRatio": "Alterna {{run}} corriendo y {{walk}} caminando; corre cada tramo a un ritmo que te permita conversar.",
       "cooldown": "5 min de caminata suave.",
       "activity": "Caminata a paso ligero o entrenamiento cruzado de bajo impacto, a intensidad suave."
     },

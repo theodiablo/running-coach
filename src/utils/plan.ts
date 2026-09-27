@@ -5,6 +5,7 @@ import {
   DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
 } from "./planStyles";
+import { runWalkConfig, runwalkRunSec, type RunWalkConfig } from "./runwalk";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
@@ -36,6 +37,9 @@ export type BuildPlanOptions = {
   // Self-reported training level — a fitness floor for the starting long run
   // when there's no recent run history (typically the very first plan).
   level?: string | null;
+  // Run/Walk style only: the runner's ratio ceiling (settings.runWalkRunSec /
+  // runWalkWalkSec). Absent = the 3 min / 1 min default.
+  runWalk?: { runWalkRunSec?: number; runWalkWalkSec?: number } | null;
 };
 type BuiltPlan = {
   raceDate: unknown;
@@ -69,6 +73,7 @@ type WeekCtx = {
   paces: { easy: number; tmpo: number; intv: number; long: number; walk: number };
   tgt: number;
   dist: number;
+  runWalk: RunWalkConfig;
 };
 
 // Weeks of the standard base block the runner has already effectively done —
@@ -151,6 +156,7 @@ export function buildPlan(
   // algorithm, byte-identical (its multipliers are the old hardcoded ratios).
   const style: StyleId = isStyleId(planOpts.style) ? planOpts.style : DEFAULT_STYLE;
   const pacing = stylePacing(style);
+  const runWalk = runWalkConfig(planOpts.runWalk);
   const shape = STYLE_SHAPE[style];
   const easy  = Math.round(tgt * pacing.easy);
   const tmpo  = Math.round(tgt * pacing.tempo);
@@ -267,7 +273,7 @@ export function buildPlan(
     COMPOSERS[style]({
       w, N, phase, isBase, isTaper, buildW: w - baseW, rampFrac, easyFloor, taperMult,
       longSess, qualSessions, longKm,
-      addS, paces: { easy, tmpo, intv, long: longP, walk: walkP }, tgt, dist,
+      addS, paces: { easy, tmpo, intv, long: longP, walk: walkP }, tgt, dist, runWalk,
     });
 
     ss.sort((a, b) => a.date.localeCompare(b.date));
@@ -508,16 +514,24 @@ function composePolarized(c: WeekCtx) {
 
 // Galloway run/walk: scheduled walk breaks from day one, no speedwork, gentle
 // ramp with regular cutback weeks. Non-long days are WALK-typed (not "hard")
-// so any day layout is valid.
+// so any day layout is valid. The ratio ramps to the runner's own ceiling
+// (c.runWalk) and never past it — being handed a 3 min run interval you can't
+// hold is the plan being wrong, not the runner (src/utils/runwalk.ts).
 function composeRunwalk(c: WeekCtx) {
   const { N, phase, isTaper, addS } = c;
   const { long, walk } = c.paces;
-  // Ratio progresses with fitness, then BACKS OFF for the taper — its job is
-  // shedding fatigue, so it must never be the plan's hardest ratio.
-  const runMin = phase === "BASE" ? 1 : phase === "TAPER" ? 2 : phase === "BUILD" ? 2 : 3;
+  const runSec = runwalkRunSec(c.runWalk, phase);
+  const walkSec = c.runWalk.walkSec;
+  const ratio = "run " + fmt.interval(runSec) + " / walk " + fmt.interval(walkSec);
+  // Whole-minute ratios also carry the pre-seconds fields so a client built
+  // before runSec still renders the sentence (see SessionSd).
+  const sd = {
+    runSec, walkSec,
+    ...(runSec % 60 === 0 && walkSec % 60 === 0 ? { runMin: runSec / 60, walkMin: walkSec / 60 } : {}),
+  };
   addS(c.longSess.dayOffset, "LONG", c.longKm,
-    "Long run/walk — run " + runMin + " min / walk 1 min, conversational", long,
-    { kind: "runwalk", variant: "long", runMin, walkMin: 1 });
+    "Long run/walk — " + ratio + ", conversational", long,
+    { kind: "runwalk", variant: "long", ...sd });
 
   c.qualSessions.forEach(q => {
     // Short days ramp with the block, then shed off the last pre-taper week —
@@ -530,9 +544,9 @@ function composeRunwalk(c: WeekCtx) {
       ? easyLine(c, budget, 2.5, 0.25, Math.max(0, N - 4), c.longKm / c.taperMult!) * c.taperMult!
       : easyLine(c, budget, 2.5, 0.25);
     addS(q.dayOffset, "WALK", km,
-      "Run/walk — run " + runMin + " min / walk 1 min, "
+      "Run/walk — " + ratio + ", "
         + (isTaper ? "short and relaxed" : "conversational"), walk,
-      { kind: "runwalk", variant: isTaper ? "shortTaper" : "short", runMin, walkMin: 1 });
+      { kind: "runwalk", variant: isTaper ? "shortTaper" : "short", ...sd });
   });
 }
 

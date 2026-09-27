@@ -8,6 +8,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import { useRouteTrace } from "../hooks/useRouteTrace";
 import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
+import { runWalkBreakdown } from "../utils/runSegments";
 import { rankRunEfforts } from "../utils/bestEfforts";
 import { timeInZones, effectiveMaxHR, hrCoverage, HR_ZONES } from "../utils/hr";
 import { flattenTrack, haversineM } from "../utils/geo";
@@ -62,6 +63,9 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
       // in order, one row per real point) — the backbone of the chart↔map link.
       flat: points.length ? flattenTrack(points) : [],
       splits: points.length ? buildSplits(points, hrSamples) : [],
+      // Running-only figures, when the trace reads as run/walk at all (null on a
+      // steady run — src/utils/runSegments.ts).
+      runWalk: points.length ? runWalkBreakdown(points, hrSamples) : null,
       zones: timeInZones(hrSamples, maxHR, restHR),
       // HR presence is the RAW stream, not per-point alignment — so the chart HR
       // series and the time-in-zone card agree (a sparse GPS trace could otherwise
@@ -72,7 +76,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
       hasElev: series.some(r => r.elevM != null),
     };
   }, [route, run.durationSec, maxHR, restHR]);
-  const { hasPoints, series, flat, splits, zones, hasHr, hasElev, coverage } = derived;
+  const { hasPoints, series, flat, splits, zones, hasHr, hasElev, coverage, runWalk } = derived;
   const zoneTotal = zones.reduce((s, z) => s + z.sec, 0);
 
   // Shared chart↔map cursor: the active series/flat index (a single nullable
@@ -191,6 +195,30 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Run/walk breakdown: what the RUNNING was, with the walk breaks taken
+            out. Only for a trace that actually reads as two modes, and always
+            labelled an estimate — nothing on the run records which seconds were
+            walked. */}
+        {runWalk && (
+          <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
+            <p className="text-slate-400 text-sm font-medium">{t("progress.detail.runWalk.title")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              {([["running", runWalk.run, "text-emerald-400"], ["walking", runWalk.walk, "text-slate-300"]] as const).map(([key, part, clr]) => (
+                <div key={key} className="rounded-xl bg-slate-900/60 p-3">
+                  <p className="text-slate-400 text-xs">{t("progress.detail.runWalk." + key)}</p>
+                  <p className={"text-xl font-bold mt-1 tabular-nums " + clr}>{fmt.pace(part.paceSecPerKm)}<span className="text-xs font-medium text-slate-500">/km</span></p>
+                  <p className="text-slate-400 text-xs mt-1 tabular-nums">
+                    {part.km.toFixed(2)} km · {fmt.dur(part.durationSec)}
+                    {part.avgHr != null && " · " + t("progress.detail.tooltip.hr", { bpm: part.avgHr })}
+                  </p>
+                  <p className="text-slate-500 text-xs">{t("progress.detail.runWalk.segments", { count: part.bouts })}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-slate-500 text-xs leading-snug">{t("progress.detail.runWalk.note")}</p>
           </div>
         )}
 

@@ -404,6 +404,45 @@ describe("buildPlan", () => {
   });
 });
 
+// The Run/Walk ratio ceiling: the whole point of the setting is that no week
+// asks for a longer run interval than the runner said they can hold, and that
+// the plan still ramps up to it rather than sitting flat at the gentlest step.
+describe("buildPlan · run/walk ratio ceiling", () => {
+  const ratios = (plan: ReturnType<typeof buildPlan>) => plan.weeks
+    .flatMap(w => w.sessions)
+    .map(s => s.sd as { kind?: string; runSec?: number; walkSec?: number } | undefined)
+    .filter(sd => sd?.kind === "runwalk")
+    .map(sd => ({ runSec: sd!.runSec!, walkSec: sd!.walkSec! }));
+
+  it("never prescribes a run interval past the configured ceiling, and reaches it", () => {
+    const plan = buildPlan(raceDateInDays(84), 3600, SESSIONS, 10, 0,
+      { style: "runwalk", runWalk: { runWalkRunSec: 90, runWalkWalkSec: 45 } });
+    const rs = ratios(plan);
+    expect(rs.length).toBeGreaterThan(0);
+    expect(Math.max(...rs.map(r => r.runSec))).toBe(90);
+    expect(rs.every(r => r.walkSec === 45)).toBe(true);
+    // Ramped, not flat: the opening week is gentler than the ceiling.
+    expect(rs[0].runSec).toBeLessThan(90);
+  });
+
+  it("writes the ratio into the sentence the coach model reads", () => {
+    const plan = buildPlan(raceDateInDays(84), 3600, SESSIONS, 10, 0,
+      { style: "runwalk", runWalk: { runWalkRunSec: 90, runWalkWalkSec: 45 } });
+    const descs = plan.weeks.flatMap(w => w.sessions)
+      .filter(s => (s.sd as { kind?: string } | undefined)?.kind === "runwalk")
+      .map(s => s.desc);
+    expect(descs.some(d => d.includes("run 1 min 30 s / walk 45 s"))).toBe(true);
+    expect(descs.some(d => /run [23] min/.test(d))).toBe(false);
+  });
+
+  it("falls back to the 3 min / 1 min ceiling when nothing is configured", () => {
+    const plan = buildPlan(raceDateInDays(84), 3600, SESSIONS, 10, 0, { style: "runwalk" });
+    const rs = ratios(plan);
+    expect(Math.max(...rs.map(r => r.runSec))).toBe(180);
+    expect(rs.every(r => r.walkSec === 60)).toBe(true);
+  });
+});
+
 // Frozen-clock snapshots of the default ("balanced") output, committed BEFORE
 // the multi-style refactor: any later restructuring of buildPlan must reproduce
 // these byte-for-byte, so a snapshot diff here means the default plan changed

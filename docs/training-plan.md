@@ -300,6 +300,36 @@ recommendation"; a tap pins it. All buildPlan call sites must pass
 `style: settings.planStyle` (or the draft) — a missed site silently rebuilds
 as balanced.
 
+### Run/Walk ratio (the one style knob a runner sets)
+
+`settings.runWalkRunSec` / `runWalkWalkSec`, read through `runWalkConfig`
+(`src/utils/runwalk.ts`) — defaulted to **180 / 60** and clamped, because the
+pair rides the user-writable blob. The run figure is a **ceiling, not a starting
+point**: `runwalkRunSec(cfg, phase)` ramps thirds of it (BASE ⅓, BUILD/TAPER ⅔,
+PEAK the ceiling itself), rounded to 15 s with a 30 s floor, so no week ever
+prescribes a longer run interval than the runner said they can hold. At the
+default that reproduces the original fixed 1 / 2 / 3 min ladder to the second,
+which is why the snapshots didn't move; the taper steps back down with BUILD
+(shedding fatigue, not setting a record).
+
+The control lives **inside `StylePicker`**, revealed under the Run/Walk card when
+that style is selected — one component, so PlanView's edit screen and both
+onboarding branches get it without a second copy. Changing it takes effect on the
+next build/rebuild (`genPlan`), like every other plan input. `buildPlan` takes it
+as `opts.runWalk` in its *settings* shape (`{runWalkRunSec, runWalkWalkSec}`), so
+a call site can pass the settings object straight through.
+
+**Ratios are seconds, and the sd fields are the source of truth.**
+`sd.runSec`/`walkSec` carry the ratio; a whole-minute ratio also writes the
+pre-seconds `runMin`/`walkMin` so an older client still renders the sentence.
+`runwalkRatio(session, desc)` (`src/utils/sessionSteps.ts`) is the ONE reader —
+sd seconds, then sd minutes, then a parse of the canonical English desc — and
+both the prose (`sessionSteps`) and the guided schedule (`compileWorkout`) go
+through it, so they can never quote different figures. Sentence figures are
+composed by `fmt.interval` ("3 min", "1 min 30 s", "45 s" — language-neutral
+tokens, like rep distances), which is why the locale templates interpolate
+`{{run}}`/`{{walk}}` complete with their units.
+
 ## Fitness signal & suggested days
 
 `settings.trainingLevel` (`"none"|"occasional"|"regular"|"frequent"`, synced)

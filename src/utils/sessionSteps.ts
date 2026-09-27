@@ -12,6 +12,8 @@ import type { SessionSd } from "../types";
 
 export type SessionStep = { label: string; detail: string };
 
+export type RunWalkRatio = { runSec: number; walkSec: number };
+
 type SessionLike = {
   type?: string;
   desc?: string;
@@ -61,18 +63,39 @@ const recoveryFor = (s: SessionLike, desc: string): string => {
 };
 
 // "run 2 min / walk 1 min" parsed off the desc — the Galloway ratio's fallback
-// form, shared with compileWorkout (utils/workout.ts).
-export const parseRatio = (desc: string): { run: number; walk: number } | null => {
-  const m = desc.match(/run\s+(\d+)\s*min\s*\/\s*walk\s+(\d+)\s*min/i);
-  return m ? { run: Number(m[1]), walk: Number(m[2]) } : null;
+// form, shared with compileWorkout (utils/workout.ts). Seconds out, because a
+// ratio can be sub-minute ("run 1 min 30 s / walk 1 min").
+const DUR = "(\\d+\\s*min(?:\\s*\\d+\\s*s)?|\\d+\\s*s)";
+const RATIO_RE = new RegExp("run\\s+" + DUR + "\\s*\\/\\s*walk\\s+" + DUR, "i");
+
+const durSec = (tok: string): number => {
+  const min = tok.match(/(\d+)\s*min/i);
+  const sec = tok.match(/(\d+)\s*s\b/i);
+  return (min ? Number(min[1]) * 60 : 0) + (sec ? Number(sec[1]) : 0);
 };
 
-// The Galloway ratio, from sd or parsed from desc.
-const ratioFor = (s: SessionLike, desc: string): { run: number; walk: number } | null => {
-  if (s.sd?.kind === "runwalk" && s.sd.runMin != null && s.sd.walkMin != null)
-    return { run: s.sd.runMin, walk: s.sd.walkMin };
+export const parseRatio = (desc: string): RunWalkRatio | null => {
+  const m = desc.match(RATIO_RE);
+  if (!m) return null;
+  const runSec = durSec(m[1]), walkSec = durSec(m[2]);
+  return runSec > 0 && walkSec > 0 ? { runSec, walkSec } : null;
+};
+
+// The Galloway ratio in seconds, from sd (seconds first, then the pre-seconds
+// whole-minute fields) else parsed from the English desc. The one reader — also
+// used by compileWorkout, so prose and guided schedule can't quote different
+// figures.
+export const runwalkRatio = (s: SessionLike, desc: string): RunWalkRatio | null => {
+  const sd = s.sd;
+  if (sd?.kind === "runwalk") {
+    if (sd.runSec != null && sd.walkSec != null) return { runSec: sd.runSec, walkSec: sd.walkSec };
+    if (sd.runMin != null && sd.walkMin != null) return { runSec: sd.runMin * 60, walkSec: sd.walkMin * 60 };
+  }
   return parseRatio(desc);
 };
+
+// The localized sentence figures for a ratio.
+const ratioTokens = (r: RunWalkRatio) => ({ run: fmt.interval(r.runSec), walk: fmt.interval(r.walkSec) });
 
 export function sessionSteps(s: SessionLike): SessionStep[] {
   const type = String(s.type || "");
@@ -109,11 +132,11 @@ export function sessionSteps(s: SessionLike): SessionStep[] {
   }
 
   if (type === "LONG") {
-    const ratio = ratioFor(s, desc);
+    const ratio = runwalkRatio(s, desc);
     const steps: SessionStep[] = [
       { label: L("start"), detail: t("plan.steps.long.start") },
       { label: L("main"), detail: ratio
-        ? t("plan.steps.long.mainRatio", { run: ratio.run, walk: ratio.walk })
+        ? t("plan.steps.long.mainRatio", ratioTokens(ratio))
         : t(paceTxt ? "plan.steps.long.mainPace" : "plan.steps.long.mainNoPace", { pace: paceTxt }) },
     ];
     if (km >= 15) steps.push({ label: L("fuel"), detail: t("plan.steps.long.fuel") });
@@ -122,10 +145,10 @@ export function sessionSteps(s: SessionLike): SessionStep[] {
   }
 
   if (type === "WALK") {
-    const ratio = ratioFor(s, desc);
+    const ratio = runwalkRatio(s, desc);
     if (ratio) return [
       { label: L("warmup"), detail: t("plan.steps.walk.warmup") },
-      { label: L("main"), detail: t("plan.steps.walk.mainRatio", { run: ratio.run, walk: ratio.walk }) },
+      { label: L("main"), detail: t("plan.steps.walk.mainRatio", ratioTokens(ratio)) },
       { label: L("cooldown"), detail: t("plan.steps.walk.cooldown") },
       stretchStep(),
     ];
