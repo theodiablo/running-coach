@@ -3,6 +3,8 @@ import { buildPlan } from "./plan";
 import { ymd } from "./format";
 import { applySessionEdit, addSlot, canPlaceOn, defaultKm, editIssues, findSession, isEditableSession } from "./planEdit";
 import { stylePacing } from "./planStyles";
+import { runwalkRatio } from "./sessionSteps";
+import { compileWorkout } from "./workout";
 import type { Plan, PlanSession } from "../types";
 
 const dayAfter = (s: string, n: number) => {
@@ -20,9 +22,10 @@ describe.each(ANCHORS)("planEdit (%s)", (_label, anchor) => {
   beforeEach(() => { vi.setSystemTime(new Date(anchor + "T09:00:00")); });
   afterAll(() => { vi.useRealTimers(); });
 
+  const RW = { runWalkRunSec: 90, runWalkWalkSec: 45 };
   const build = (style = "balanced"): Plan => buildPlan(dayAfter(anchor, 12 * 7), 6000, [
     { dayOffset: 1, minutes: 45 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 6, minutes: 90 },
-  ], 21.1, 0, { style }) as unknown as Plan;
+  ], 21.1, 0, { style, runWalk: RW }) as unknown as Plan;
 
   const sessions = (p: Plan) => p.weeks.flatMap(w => w.sessions);
   const weekOf = (p: Plan, id: string) => p.weeks.find(w => w.sessions.some(s => s.id === id))!;
@@ -165,5 +168,42 @@ describe.each(ANCHORS)("planEdit (%s)", (_label, anchor) => {
     const easy = w.sessions.filter(s => s.type === "EASY").map(s => Number(s.km));
     if (easy.length) expect(easy).toContain(defaultKm(w, "EASY"));
     expect(defaultKm(null, "EASY")).toBe(5);
+  });
+
+  describe("on a Run/Walk plan", () => {
+    const ratio = (s: PlanSession) => runwalkRatio(s, String(s.desc));
+
+    it("keeps a session's own ratio when it is retyped", () => {
+      const p = build("runwalk");
+      const walk = p.weeks[2].sessions.find(x => x.type === "WALK")!;
+      const next = applySessionEdit(p, { kind: "update", sessionId: walk.id, date: walk.date, type: "LONG", km: 8 }, anchor, { runWalk: RW })!;
+      const long = findSession(next, walk.id)!.session;
+      expect(ratio(long)).toEqual(ratio(walk));
+      expect(long.sd).toMatchObject({ kind: "runwalk", variant: "long" });
+      expect(compileWorkout(long)?.steps.some(st => st.kind === "run" && st.sec === ratio(walk)!.runSec)).toBe(true);
+    });
+
+    it("gives an added session its week's ratio, so it still guides", () => {
+      const p = build("runwalk");
+      const w = p.weeks[2];
+      const day = freeDay(p, 2);
+      const theirs = ratio(w.sessions.find(x => x.type === "WALK")!);
+      const walk = findSession(applySessionEdit(p, { kind: "add", date: day, type: "WALK", km: 4 }, anchor, { runWalk: RW })!, `user-add-${day}`)!.session;
+      expect(ratio(walk)).toEqual(theirs);
+      expect(compileWorkout(walk)).not.toBeNull();
+      const easy = findSession(applySessionEdit(p, { kind: "add", date: day, type: "EASY", km: 4 }, anchor, { runWalk: RW })!, `user-add-${day}`)!.session;
+      expect(ratio(easy)).toEqual(theirs);
+    });
+
+    it("falls back to the runner's ceiling at that week's phase", () => {
+      const p = build("runwalk");
+      const w = p.weeks[0];
+      for (const s of w.sessions) { s.sd = undefined; s.desc = "Run/walk"; }
+      const next = applySessionEdit(p, { kind: "add", date: freeDay(p, 0), type: "WALK", km: 3 }, anchor, { runWalk: RW })!;
+      const added = findSession(next, `user-add-${freeDay(p, 0)}`)!.session;
+      expect(w.phase).toBe("BASE");
+      expect(ratio(added)).toEqual({ runSec: 30, walkSec: 45 });
+      expect(added.sd).not.toHaveProperty("runMin");
+    });
   });
 });

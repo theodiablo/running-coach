@@ -7,6 +7,9 @@ import * as sharedTools from "../../supabase/functions/_shared/coach/tools.mjs";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { validatePlan } from "./coachValidation";
+import { fmt } from "./format";
+import { runWalkConfig, runwalkRunSec } from "./runwalk";
+import { runwalkRatio, type RunWalkRatio } from "./sessionSteps";
 import type { Plan, PlanSession, PlanWeek, SessionSd } from "../types";
 
 type Shape = { pace: number | null; desc: string; sd: SessionSd };
@@ -103,8 +106,34 @@ const relocate = (plan: Plan, id: string, date: string) => {
   target.sessions.sort((a, b) => a.date.localeCompare(b.date));
 };
 
+type EditOpts = { runWalk?: { runWalkRunSec?: number; runWalkWalkSec?: number } | null };
+
+const ratioOf = (s: PlanSession | null | undefined): RunWalkRatio | null =>
+  s ? runwalkRatio(s, String(s.desc || "")) : null;
+
+// A run/walk session keeps real figures (its own ratio, else its week's, else the
+// runner's ceiling at that phase) or it loses its sentence and guided schedule.
+function shapeFor(p: Plan, type: string, week: PlanWeek, prior: PlanSession | null, opts: EditOpts): Shape {
+  const shape = sessionShapeFor(p, type);
+  if (shape.sd?.kind !== "runwalk") return shape;
+  const cfg = runWalkConfig(opts.runWalk);
+  const r = ratioOf(prior) ?? week.sessions.map(ratioOf).find(Boolean)
+    ?? { runSec: runwalkRunSec(cfg, String(week.phase || "")), walkSec: cfg.walkSec };
+  const long = type === "LONG";
+  const variant = long ? "long" : week.phase === "TAPER" ? "shortTaper" : "short";
+  const ratio = "run " + fmt.interval(r.runSec) + " / walk " + fmt.interval(r.walkSec);
+  const whole = r.runSec % 60 === 0 && r.walkSec % 60 === 0;
+  return {
+    ...shape,
+    desc: long ? "Long run/walk — " + ratio + ", conversational"
+      : "Run/walk — " + ratio + ", " + (variant === "shortTaper" ? "short and relaxed" : "conversational"),
+    sd: { kind: "runwalk", variant, runSec: r.runSec, walkSec: r.walkSec, ...(whole ? { runMin: r.runSec / 60, walkMin: r.walkSec / 60 } : {}) },
+  };
+}
+
 // Returns a NEW plan, or null when the edit isn't one the plan can hold.
-export function applySessionEdit(plan: Plan, edit: SessionEdit, today: string): Plan | null {
+// opts.runWalk: the runner's run/walk settings, for a session with no ratio to copy.
+export function applySessionEdit(plan: Plan, edit: SessionEdit, today: string, opts: EditOpts = {}): Plan | null {
   const p = structuredClone(plan);
   switch (edit.kind) {
     case "delete": {
@@ -115,11 +144,11 @@ export function applySessionEdit(plan: Plan, edit: SessionEdit, today: string): 
     }
     case "update": {
       if (!isEditableSession(p, edit.sessionId, today) || !kmOk(edit.km)) return null;
-      const { session: s } = findSession(p, edit.sessionId)!;
+      const { week: home, session: s } = findSession(p, edit.sessionId)!;
       const from = s.date;
       if (edit.type !== s.type) {
         if (!(EDIT_TYPES as readonly string[]).includes(edit.type)) return null;
-        Object.assign(s, sessionShapeFor(p, edit.type), { type: edit.type });
+        Object.assign(s, shapeFor(p, edit.type, weekOfDate(p, edit.date) ?? home, s, opts), { type: edit.type });
       }
       s.km = round1(edit.km);
       if (edit.date === from) return edit.swapWith ? null : p;
@@ -138,7 +167,7 @@ export function applySessionEdit(plan: Plan, edit: SessionEdit, today: string): 
       const ids = new Set(p.weeks.flatMap(w => w.sessions.map(s => s.id)));
       let id = `user-add-${edit.date}`;
       for (let n = 2; ids.has(id); n++) id = `user-add-${edit.date}-${n}`;
-      const shape = sessionShapeFor(p, edit.type);
+      const shape = shapeFor(p, edit.type, week, null, opts);
       week.sessions.push({ id, date: edit.date, type: edit.type, km: round1(edit.km), ...shape, pace: shape.pace as number, done: false, runId: null });
       week.sessions.sort((a, b) => a.date.localeCompare(b.date));
       return p;

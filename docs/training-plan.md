@@ -303,7 +303,11 @@ session ⋯ menu, and "Add a session" under each live week); `editSession` in
   first), and RACE sessions (the goal and the Races tab own them).
 - **Shape:** a retyped or added session takes pace/`desc`/`sd` from
   `sessionShapeFor` (`_shared/coach/tools.mjs`), the same derivation the
-  coach's `swap_session`/`add_session` use, so `sd` is never stale. A moved
+  coach's `swap_session`/`add_session` use, so `sd` is never stale. On a
+  Run/Walk plan the result carries real figures, since a figure-less run/walk
+  session has no sentence ratio and no guided schedule: the session's own
+  ratio, else one from its week, else the runner's ceiling at that week's phase
+  (`runwalkRunSec`). A moved
   session keeps its id; an added one is `user-add-{date}[-n]`. Delete removes the
   session; Skip stays the way to record a missed one.
 - **Rebuilds replace edits.** A rebuild is a new plan: moved slot sessions

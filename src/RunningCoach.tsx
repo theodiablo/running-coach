@@ -920,7 +920,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // was, unless something else has changed it since.
   const editSession = (edit: SessionEdit, warnings: number) => {
     const before = planRef.current;
-    const next = before ? applySessionEdit(before, edit, ymd(new Date())) : null;
+    const next = before ? applySessionEdit(before, edit, ymd(new Date()), { runWalk: settings }) : null;
     if (!before || !next) { showToast(t("plan.editor.toast.failed"), "err"); return; }
     setPlan(next);
     db.set(STORAGE_KEYS.PLAN, next);
