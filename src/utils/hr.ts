@@ -173,19 +173,44 @@ export function isHrStale(hrAt: number | null | undefined, now: number = Date.no
   return hrAt != null && now - hrAt > HR_STALE_MS;
 }
 
-// At most ~1 sample per second for storage (rounded mean bpm, first timestamp):
-// a sample within `minGapMs` of its group's first joins the group. Straps notify
-// at up to 2Hz and nothing downstream resolves finer than a second; the margin
-// keeps a jittery 1Hz stream intact.
-export function thinHrSamples(samples: HrSample[], minGapMs = 750): HrSample[] {
-  const out: HrSample[] = [];
+// A stored stream is a step function: each sample holds until the next, and a
+// stretch at one bpm keeps only its first sample plus one every HR_KEEPALIVE_MS.
+// A longer silence is a real dropout. Readers must expandHrSamples first.
+export const HR_KEEPALIVE_MS = 5000;
+
+// First folds a stream to at most ~1Hz (samples within `minGapMs` of their
+// group's first are averaged in; straps notify at up to 2Hz, and the margin
+// keeps a jittery 1Hz stream whole), then drops the repeats in between.
+export function compactHrSamples(samples: HrSample[], minGapMs = 750): HrSample[] {
+  const thin: HrSample[] = [];
   let t = 0, sum = 0, n = 0;
   for (const s of samples) {
     if (n && s.t - t < minGapMs) { sum += s.bpm; n++; continue; }
-    if (n) out.push({ bpm: Math.round(sum / n), t });
+    if (n) thin.push({ bpm: Math.round(sum / n), t });
     t = s.t; sum = s.bpm; n = 1;
   }
-  if (n) out.push({ bpm: Math.round(sum / n), t });
+  if (n) thin.push({ bpm: Math.round(sum / n), t });
+
+  const out: HrSample[] = [];
+  for (let i = 0; i < thin.length; i++) {
+    const s = thin[i], last = out[out.length - 1], next = thin[i + 1];
+    if (!last || !next || s.bpm !== last.bpm || next.t - last.t > HR_KEEPALIVE_MS) out.push(s);
+  }
+  return out;
+}
+
+// Inverse of compactHrSamples: refills each held stretch at `stepMs` so every
+// reader sees an evenly sampled stream. Gaps longer than the keep-alive are
+// dropouts and stay gaps; dense legacy streams pass through unchanged.
+export function expandHrSamples(samples: HrSample[] | null | undefined, stepMs = 1000): HrSample[] {
+  if (!samples || samples.length < 2) return samples ? samples.slice() : [];
+  const out: HrSample[] = [];
+  for (let i = 0; i < samples.length; i++) {
+    const a = samples[i], b = samples[i + 1];
+    out.push(a);
+    if (!b || b.t - a.t > HR_KEEPALIVE_MS) continue;
+    for (let t = a.t + stepMs; t < b.t - stepMs / 2; t += stepMs) out.push({ bpm: a.bpm, t });
+  }
   return out;
 }
 

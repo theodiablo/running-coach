@@ -56,7 +56,7 @@ Three rules that matter:
   covered distance is exactly the target rather than quantised to whole fixes.
   Pinning the end errs **slow**. The interpolated start assumes an even pace
   across its leg, so it can land a second or two either side of the truth — and
-  note that stored traces are **simplified** (`ROUTE_SIMPLIFY_M`, 2 m Douglas-Peucker), so a straight
+  note that stored traces are **simplified** (`ROUTE_SIMPLIFY_M`, 3 m Douglas-Peucker), so a straight
   stretch collapses into one long leg and "at most one sample" does not hold. The
   bound is sub-leg pace variation, not zero; don't write copy that promises more.
 

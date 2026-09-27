@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
   tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
-  hrMeasuredSec, hrCoverage, mergeHrSamples, thinHrSamples, isHrStale, HR_STALE_MS, liveHrStatusLine,
+  hrMeasuredSec, hrCoverage, mergeHrSamples, compactHrSamples, expandHrSamples, HR_KEEPALIVE_MS, isHrStale, HR_STALE_MS, liveHrStatusLine,
 } from "./hr";
 
 type HrSample = { bpm: number; t: number };
@@ -349,18 +349,51 @@ describe("liveHrStatusLine", () => {
   });
 });
 
-describe("thinHrSamples", () => {
+describe("compactHrSamples / expandHrSamples", () => {
   const T0 = 1_700_000_000_000;
+  const MAX = 190, REST = 50;
+  // A 2Hz strap: slow drift with ±1 bpm jitter and a flat stretch.
+  const strap = Array.from({ length: 2400 }, (_, i) =>
+    ({ bpm: i < 600 ? 140 : 140 + Math.round(i / 120) + (i % 7 === 0 ? 1 : 0), t: T0 + i * 500 }));
+
   it("averages a 2Hz stream into one sample per second", () => {
-    const out = thinHrSamples([{ bpm: 150, t: T0 }, { bpm: 153, t: T0 + 500 }, { bpm: 160, t: T0 + 1000 }]);
+    const out = compactHrSamples([{ bpm: 150, t: T0 }, { bpm: 153, t: T0 + 500 }, { bpm: 160, t: T0 + 1000 }]);
     expect(out).toEqual([{ bpm: 152, t: T0 }, { bpm: 160, t: T0 + 1000 }]);
   });
-  it("leaves a jittery 1Hz stream intact", () => {
-    const oneHz = Array.from({ length: 100 }, (_, i) => ({ bpm: 140, t: T0 + i * 1000 + (i % 2 ? 20 : -20) }));
-    expect(thinHrSamples(oneHz)).toHaveLength(100);
+
+  it("keeps a jittery 1Hz stream at 1Hz before dropping repeats", () => {
+    const oneHz = Array.from({ length: 100 }, (_, i) => ({ bpm: 140 + (i % 2), t: T0 + i * 1000 + (i % 2 ? 20 : -20) }));
+    expect(compactHrSamples(oneHz)).toHaveLength(100);
   });
-  it("keeps coverage and zones on a thinned 2Hz stream", () => {
-    const twoHz = Array.from({ length: 1200 }, (_, i) => ({ bpm: 150, t: T0 + i * 500 }));
-    expect(hrCoverage(thinHrSamples(twoHz), 600)).toBeCloseTo(hrCoverage(twoHz, 600), 2);
+
+  it("stores a flat stretch as its first sample plus keep-alives", () => {
+    const flat = Array.from({ length: 60 }, (_, i) => ({ bpm: 150, t: T0 + i * 1000 }));
+    const out = compactHrSamples(flat);
+    expect(out.length).toBeLessThanOrEqual(14);
+    for (let i = 1; i < out.length; i++) expect(out[i].t - out[i - 1].t).toBeLessThanOrEqual(HR_KEEPALIVE_MS);
+    expect(out[out.length - 1].t).toBe(T0 + 59_000);
+  });
+
+  it("round-trips: coverage, zones and average survive compact → expand", () => {
+    const stored = compactHrSamples(strap);
+    expect(stored.length).toBeLessThan(strap.length / 4);
+    const back = expandHrSamples(stored);
+    expect(hrCoverage(back, 1200)).toBeCloseTo(hrCoverage(strap, 1200), 2);
+    const z0 = timeInZones(strap, MAX, REST), z1 = timeInZones(back, MAX, REST);
+    z0.forEach((z, i) => expect(Math.abs(z1[i].sec - z.sec)).toBeLessThanOrEqual(12)); // 1% of the run
+    expect(Math.abs((summarize(back).hrAvg ?? 0) - (summarize(strap).hrAvg ?? 0))).toBeLessThanOrEqual(1);
+  });
+
+  it("is lossless on an evenly spaced 1Hz stream", () => {
+    const oneHz = strap.filter((_, i) => i % 2 === 0).map((s, i) => ({ bpm: s.bpm, t: T0 + i * 1000 }));
+    expect(expandHrSamples(compactHrSamples(oneHz))).toEqual(oneHz);
+  });
+
+  it("leaves a dropout as a gap, and a dense legacy stream untouched", () => {
+    const run = (from: number) => Array.from({ length: 30 }, (_, i) => ({ bpm: 150, t: from + i * 1000 }));
+    const dropped = [...run(T0), ...run(T0 + 90_000)];
+    expect(hrCoverage(expandHrSamples(compactHrSamples(dropped)), 120)).toBeCloseTo(hrCoverage(dropped, 120), 5);
+    expect(hrCoverage(dropped, 120)).toBeLessThan(0.6);
+    expect(expandHrSamples(strap)).toEqual(strap);
   });
 });

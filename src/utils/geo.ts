@@ -150,7 +150,7 @@ function simplifyOne(seg: TrackPoint[], epsilonM: number): TrackPoint[] {
 
 // Tolerance for stored routes: tight enough that the thinned trace keeps the
 // distance measured live on the full one (5 m cut ~2% off a twisty trail).
-export const ROUTE_SIMPLIFY_M = 2;
+export const ROUTE_SIMPLIFY_M = 3;
 
 // Simplify a point array for storage, preserving gap markers between segments.
 export function simplify(points: TrackPointOrGap[], epsilonM = 5): TrackPointOrGap[] {

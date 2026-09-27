@@ -460,7 +460,8 @@ changes.
 - **Route:** `run_routes` row `{id, user_id, points, stats, created_at}`;
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form
-  sidecar (e.g. `hrSamples`).
+  sidecar (e.g. `hrSamples`, stored compacted: read it through
+  `expandHrSamples`, never raw).
 - **Plan:** `buildPlan(...)` → `{..., weeks:[{weekNumber, startDate, phase,
   sessions:[{id, date, type, desc, km, pace, done}]}]}`. Session types: EASY,
   TEMPO, INTERVALS, LONG, RACE, WALK, OTHER.

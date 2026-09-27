@@ -10,6 +10,7 @@ import * as digest from "../../supabase/functions/_shared/coach/runDigest.mjs";
 import { flattenTrack, elevGainM, distanceKm } from "./geo";
 import type { TrackPointOrGap } from "./geo";
 import { buildRunSeries } from "./runSeries";
+import { compactHrSamples, expandHrSamples } from "./hr";
 import { buildSplits } from "./runSplits";
 import { timeInZones, effectiveMaxHR } from "./hr";
 
@@ -42,6 +43,11 @@ describe("runDigest.mjs parity with the TS originals", () => {
       expect(f).not.toHaveProperty("lat");
       expect(f).not.toHaveProperty("lng");
     });
+  });
+
+  it("expandHrSamples parity on a compacted stream", () => {
+    const stored = compactHrSamples(hrStream);
+    expect(digest.expandHrSamples(stored)).toEqual(expandHrSamples(stored));
   });
 
   it("haversineM parity via total distance", () => {

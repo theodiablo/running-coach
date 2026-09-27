@@ -1,5 +1,5 @@
 import { ROUTE_SIMPLIFY_M, simplify } from "../utils/geo";
-import { thinHrSamples } from "../utils/hr";
+import { compactHrSamples } from "../utils/hr";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
 import { saveRoute, queuePendingRoute } from "../routes";
 import type { ImportedRun } from "./types";
@@ -28,7 +28,7 @@ export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>
     durationSec: run.durationSec || 0,
     elevation: run.elevation || 0,
     avgPace: run.km ? Math.round((run.durationSec || 0) / run.km) : 0,
-    ...(hasHr ? { hrSamples: thinHrSamples(hrSamples!) } : {}),
+    ...(hasHr ? { hrSamples: compactHrSamples(hrSamples!) } : {}),
   };
   try {
     const id = await saveRoute({ points: pts, stats });

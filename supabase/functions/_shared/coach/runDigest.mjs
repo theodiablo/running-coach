@@ -85,6 +85,21 @@ function avgBpmIn(samples, from, to) {
   return n ? Math.round(sum / n) : null;
 }
 
+// Port of hr.ts expandHrSamples: refill a stored (change-point + keep-alive)
+// stream to 1Hz; gaps past the keep-alive stay dropouts.
+const HR_KEEPALIVE_MS = 5000;
+export function expandHrSamples(samples, stepMs = 1000) {
+  if (!samples || samples.length < 2) return samples ? samples.slice() : [];
+  const out = [];
+  for (let i = 0; i < samples.length; i++) {
+    const a = samples[i], b = samples[i + 1];
+    out.push(a);
+    if (!b || b.t - a.t > HR_KEEPALIVE_MS) continue;
+    for (let t = a.t + stepMs; t < b.t - stepMs / 2; t += stepMs) out.push({ bpm: a.bpm, t });
+  }
+  return out;
+}
+
 // Port of runSeries.ts buildRunSeries: one row per real point with cumulative
 // distance, rolling ~200m distance-window pace, altitude, and HR averaged over
 // the point's own time slice. Rows are { distKm, tSec, elevM, paceSecPerKm, hr }.
@@ -298,7 +313,7 @@ const round2 = (x) => Math.round(x * 100) / 100;
 // `today` is optional (tests inject it for deterministic Tanaka age fallback).
 export function buildRunDigest({ run, points, stats, settings, today = undefined }) {
   const pts = Array.isArray(points) ? points : [];
-  const hrSamples = Array.isArray(stats?.hrSamples) ? stats.hrSamples : [];
+  const hrSamples = expandHrSamples(Array.isArray(stats?.hrSamples) ? stats.hrSamples : []);
   const maxHR = effectiveMaxHR(settings ?? {}, today);
   const restHR = (settings?.restHR) || 60; // match every other zone call site's fallback
 

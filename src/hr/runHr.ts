@@ -3,7 +3,7 @@ import { readHrJournal } from "./hrJournal";
 import { getPairedDevice } from "./device";
 import { hasHealthConnectAuthorization } from "./healthconnect";
 import { hasHealthKitAuthorization } from "../healthkit/import";
-import { HR_MIN_COVERAGE, hrCoverage, hrSummary, mergeHrSamples, thinHrSamples } from "../utils/hr";
+import { HR_MIN_COVERAGE, hrCoverage, hrSummary, mergeHrSamples, compactHrSamples } from "../utils/hr";
 import { hrNudgeFor, type HrNudgeChoice } from "../utils/hrNudge";
 import { isAndroid, isIos, isNative } from "../native";
 import { logTrack } from "../geo/trackLog";
@@ -96,7 +96,7 @@ export async function resolveRunHr({ hrSrc, liveSamples, durationSec, startMs, e
   const samples = mergeHrSamples(liveSamples, journalled);
   // Summary off the full stream so a one-beat peak still counts toward hrMax.
   const { hrAvg, hrMax } = hrSummary(samples);
-  const out: ResolvedRunHr = { samples: thinHrSamples(samples), hr: null, hrMax: null, hrPending: null, partialCoverage: null };
+  const out: ResolvedRunHr = { samples: compactHrSamples(samples), hr: null, hrMax: null, hrPending: null, partialCoverage: null };
 
   if (hrAvg != null) {
     const coverage = hrCoverage(samples, durationSec);
