@@ -59,6 +59,13 @@ describe("renderSd reproduces the English desc for every generated sd", () => {
       ]);
     }
   }
+  // A sub-minute run/walk ratio: the sentence carries "1 min 30 s"/"45 s" tokens
+  // rather than whole minutes, in the template as well as the generator.
+  cases.push([
+    "runwalk sub-minute ratio",
+    buildPlan("2026-11-29", 3600, DAYS_3, 10, 0,
+      { style: "runwalk", runWalk: { runWalkRunSec: 90, runWalkWalkSec: 45 } }),
+  ]);
 
   it.each(cases)("%s: every sd renders to its desc", (_label, plan) => {
     let checked = 0;

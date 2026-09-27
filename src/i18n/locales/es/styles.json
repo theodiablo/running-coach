@@ -39,5 +39,11 @@
       "sub": "Entrenando con constancia"
     }
   },
-  "recommended": "Recomendado"
+  "recommended": "Recomendado",
+  "runWalk": {
+    "title": "Tu alternancia correr/caminar",
+    "runLabel": "Intervalo de carrera más largo",
+    "walkLabel": "Pausa caminando",
+    "note": "El plan empieza más suave y sube hasta este valor, nunca por encima. Puedes cambiarlo cuando quieras y regenerar el plan."
+  }
 }

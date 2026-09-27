@@ -152,9 +152,9 @@
     "full": "+ full recovery"
   },
   "runwalk": {
-    "long": "Long run/walk — run {{runMin}} min / walk {{walkMin}} min, conversational",
-    "short": "Run/walk — run {{runMin}} min / walk {{walkMin}} min, conversational",
-    "shortTaper": "Run/walk — run {{runMin}} min / walk {{walkMin}} min, short and relaxed",
+    "long": "Long run/walk — run {{run}} / walk {{walk}}, conversational",
+    "short": "Run/walk — run {{run}} / walk {{walk}}, conversational",
+    "shortTaper": "Run/walk — run {{run}} / walk {{walk}}, short and relaxed",
     "coachLong": "Long run/walk — gentle run/walk intervals, conversational",
     "coachShort": "Run/walk — gentle intervals, conversational"
   },
@@ -205,14 +205,14 @@
     },
     "long": {
       "start": "Ease into it — the first 10 min should feel almost too slow.",
-      "mainRatio": "Settle into run {{run}} min / walk {{walk}} min for the full distance, conversational throughout.",
+      "mainRatio": "Settle into run {{run}} / walk {{walk}} for the full distance, conversational throughout.",
       "mainPace": "Hold a relaxed, conversational effort around {{pace}} the whole way.",
       "mainNoPace": "Hold a relaxed, conversational effort the whole way.",
       "fuel": "Drink regularly and take carbs every 30–40 min — practice your race-day fuelling."
     },
     "walk": {
       "warmup": "5 min of brisk walking.",
-      "mainRatio": "Alternate run {{run}} min / walk {{walk}} min — keep every run segment conversational.",
+      "mainRatio": "Alternate run {{run}} / walk {{walk}} — keep every run segment conversational.",
       "cooldown": "5 min of easy walking.",
       "activity": "Brisk walk or low-impact cross-training — easy effort, no pounding."
     },

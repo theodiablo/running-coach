@@ -97,7 +97,15 @@
       "avgHr": "FC media",
       "maxHr": "FC máx"
     },
-    "hrPartial": "El sensor se desconectó: la frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento."
+    "hrPartial": "El sensor se desconectó: la frecuencia cardíaca solo cubre el {{pct}}% de este entrenamiento.",
+    "runWalk": {
+      "title": "Solo corriendo",
+      "running": "Corriendo",
+      "walking": "Caminando",
+      "segments_one": "{{count}} bloque",
+      "segments_other": "{{count}} bloques",
+      "note": "Estimación a partir de tu propio ritmo, así que los límites son aproximados. Los datos completos están arriba."
+    }
   },
   "predictions": {
     "title": "Predicciones de carrera",

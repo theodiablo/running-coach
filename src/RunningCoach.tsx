@@ -771,7 +771,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       const np = buildPlan(settings.raceDate, settings.goalSec, settings.planSessions,
         settings.distanceKm, settings.raceElevation,
         { recentRuns: runs, races: secRaces, mainEditionId: settings.targetEditionId ?? null,
-          style: settings.planStyle, level: settings.trainingLevel });
+          style: settings.planStyle, level: settings.trainingLevel, runWalk: settings });
       savePlan(carryProgress(plan, np, "rebuild"));
       const prevPlan = plan;
       showToast(t(inPlan ? "plan.toast.raceAdded" : "plan.toast.raceRemoved"), "ok", { label: t("common.undo"), onClick: () => {
@@ -1243,7 +1243,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           // Only build a plan if the race was actually set up (the user may have
           // skipped straight to the health gate) — buildPlan needs date+distance.
           if (next.raceDate && next.distanceKm)
-            savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel}));
+            savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next}));
           // A catalogue race picked in onboarding is the training target — also
           // surface it in the Races tab as a wishlist participation (the tab lists
           // participations, not the settings target). Skip if already present.

@@ -9,7 +9,7 @@
 // frozen exactly when a run is being recorded (CLAUDE.md). i18n-free: callers
 // render step/cue copy themselves.
 
-import { parseRepsRaw, parseRatio } from "./sessionSteps";
+import { parseRepsRaw, runwalkRatio } from "./sessionSteps";
 import type { SessionSd } from "../types";
 
 export type WorkoutStepKind = "warmup" | "work" | "recover" | "run" | "walk" | "cooldown";
@@ -74,12 +74,6 @@ const repsFor = (s: SessionLike, desc: string): { count: number; m: number } | n
   return parseRepsRaw(desc);
 };
 
-const ratioFor = (s: SessionLike, desc: string): { run: number; walk: number } | null => {
-  if (s.sd?.kind === "runwalk" && s.sd.runMin != null && s.sd.walkMin != null)
-    return { run: s.sd.runMin, walk: s.sd.walkMin };
-  return parseRatio(desc);
-};
-
 /**
  * Compile a plan session into a guided step schedule, or null when the session
  * has no structure to guide (easy/long/race/cross days, or a rep/tempo session
@@ -122,11 +116,11 @@ export function compileWorkout(s: SessionLike): Workout | null {
   }
 
   if (type === "WALK" || type === "LONG") {
-    const ratio = ratioFor(s, desc);
-    if (!ratio || ratio.run <= 0 || ratio.walk <= 0) return null;
+    const ratio = runwalkRatio(s, desc);
+    if (!ratio) return null;
     const cycle: WorkoutStep[] = [
-      { kind: "run", sec: ratio.run * 60 },
-      { kind: "walk", sec: ratio.walk * 60 },
+      { kind: "run", sec: ratio.runSec },
+      { kind: "walk", sec: ratio.walkSec },
     ];
     // Walk sessions warm up first ("5 min of brisk walking"); a run/walk long
     // run settles straight into the ratio.

@@ -39,5 +39,11 @@
       "sub": "Training consistently"
     }
   },
-  "recommended": "Recommended"
+  "recommended": "Recommended",
+  "runWalk": {
+    "title": "Your run/walk ratio",
+    "runLabel": "Longest run interval",
+    "walkLabel": "Walk break",
+    "note": "The plan starts easier and works up to this, never past it. Change it any time and rebuild."
+  }
 }

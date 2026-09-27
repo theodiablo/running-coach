@@ -7,6 +7,7 @@
 
 import i18n, { t } from "../i18n";
 import { fmt, cleanDesc } from "./format";
+import { runwalkRatio } from "./sessionSteps";
 import type { PlanSession, SessionSd } from "../types";
 
 // Rep-distance label: 1000/3000 m → "1km"/"3km", otherwise "800m". Language-
@@ -44,7 +45,9 @@ export function renderSd(
     }
     case "runwalk": {
       const key = `plan.runwalk.${sd.variant}`;
-      return has(key) ? t(key, { runMin: sd.runMin, walkMin: sd.walkMin }) : null;
+      if (!has(key)) return null;
+      const r = runwalkRatio({ sd }, "");
+      return t(key, r ? { run: fmt.interval(r.runSec), walk: fmt.interval(r.walkSec) } : {});
     }
     case "cross":
       return t("plan.cross", { mins: fmt.mins(sd.minutes) });
