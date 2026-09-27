@@ -4,7 +4,7 @@ import { ChevronDown, Plus } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { RUN_ACTIVITIES } from "../types";
 import { fmt } from "../utils/format";
-import { EFFORT_UNSET, canonicalDur, durToSec, formatDur, type RunFormErrors, type RunFormValues } from "../utils/runForm";
+import { EFFORT_UNSET, canonicalDur, durToSec, formatDur, normalizeDur, type RunFormErrors, type RunFormValues } from "../utils/runForm";
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
 
@@ -108,7 +108,9 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
           placeholder={t("log.fields.durationPh")} value={formatDur(f.dur)}
           aria-invalid={errors?.duration || undefined}
           aria-describedby={errors?.duration ? durId + "-err" : durId + "-hint"}
-          onChange={e => { set("dur", canonicalDur(e.target.value)); pinEnd(); }}
+          // Settled on blur, not per digit: mid-entry "1571" is half of 1:57:13, not 15:71.
+          onChange={e => { set("dur", normalizeDur(e.target.value)); pinEnd(); }}
+          onBlur={() => { const c = canonicalDur(f.dur); if (c !== f.dur) set("dur", c); }}
           onKeyDown={e => {
             // Only intercept when the caret is a point. Over a selection the
             // browser's own delete is what makes select-all-then-retype work,
