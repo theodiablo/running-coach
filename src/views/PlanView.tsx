@@ -10,6 +10,7 @@ import { canShowPremiumTeaser } from "../premium";
 import { GoalConfigurator } from "../components/GoalConfigurator";
 import { PlanInfo } from "../components/PlanInfo";
 import { StylePicker } from "../components/StylePicker";
+import { runWalkConfig, type RunWalkConfig } from "../utils/runwalk";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { PlanSessionRow } from "../components/PlanSessionRow";
 import { RebuildPreview } from "../components/RebuildPreview";
@@ -116,6 +117,9 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const [draftDist,    setDraftDist]   = useState<PlanDraftValue>(planPrefill?.distanceKm ?? (settings.distanceKm || ""));
   const [draftElev,    setDraftElev]   = useState<PlanDraftValue>(planPrefill?.raceElevation ?? (settings.raceElevation || 0));
   const [draftStyle,   setDraftStyle]  = useState<StyleId | null>(isStyleId(settings.planStyle) ? settings.planStyle : null);
+  // Run/Walk ratio ceiling — only reaches the plan (and settings) when the
+  // Run/Walk style is the one being built.
+  const [draftRatio,   setDraftRatio]  = useState<RunWalkConfig>(() => runWalkConfig(settings));
   // Availability mode drafts: metadata only, resolved to concrete sessions on save.
   const [draftMode,    setDraftMode]   = useState<AvailabilityMode>(settings.availabilityMode === "simple" ? "simple" : "custom");
   const [draftDays,    setDraftDays]   = useState<number>(clampDays(Number(settings.availDays) || (settings.planSessions?.length ?? 3)));
@@ -164,6 +168,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     setDraftDist(settings.distanceKm || "");
     setDraftElev(settings.raceElevation || 0);
     setDraftStyle(isStyleId(settings.planStyle) ? settings.planStyle : null);
+    setDraftRatio(runWalkConfig(settings));
     setDraftMode(settings.availabilityMode === "simple" ? "simple" : "custom");
     setDraftDays(clampDays(Number(settings.availDays) || ps.length || 3));
     setDraftBand(isBand(settings.availTime) ? settings.availTime : "med");
@@ -187,9 +192,11 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     const availMeta = draftMode === "simple"
       ? { availabilityMode: "simple" as const, availDays: clampDays(draftDays), availTime: draftBand }
       : { availabilityMode: "custom" as const, availDays: ps.length, availTime: draftBand };
-    const nextSettings: SettingsState = {...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style, ...availMeta};
+    const nextSettings: SettingsState = {...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style,
+      runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec, ...availMeta};
     const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
-    const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel});
+    const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel,
+      runWalk: {runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec}});
     // A rebuild re-anchors progress on the calendar date and keeps the weeks
     // buildPlan's next-Monday start can't reach, so the completed count really
     // does survive. A promote is deliberately fresh ("Builds a fresh plan for
@@ -296,9 +303,11 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
 
           {/* 3 · Training style */}
           <AccordionSection num={3} title={t("plan.edit.styleTitle")}
-            summary={styleMeta(effectiveStyle).label}
+            summary={styleMeta(effectiveStyle).label + (effectiveStyle === "runwalk"
+              ? " · " + fmt.interval(draftRatio.runSec) + " / " + fmt.interval(draftRatio.walkSec) : "")}
             expanded={editSection === "style"} onToggle={() => setEditSection(editSection === "style" ? null : "style")}>
-            <StylePicker value={effectiveStyle} onChange={setDraftStyle} recommended={recommendedStyle}/>
+            <StylePicker value={effectiveStyle} onChange={setDraftStyle} recommended={recommendedStyle}
+              runWalk={draftRatio} onRunWalkChange={setDraftRatio}/>
           </AccordionSection>
         </div>
 

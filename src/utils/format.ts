@@ -18,6 +18,16 @@ export const fmt = {
     const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sc = s%60;
     return h ? (h + ":" + p2(m) + ":" + p2(sc)) : (m + ":" + p2(sc));
   },
+  // A run/walk interval as a language-neutral label: "3 min", "1 min 30 s",
+  // "45 s". The "min"/"s" tokens are the standard abbreviations in all three
+  // locales, so this is composed rather than translated (like repDist).
+  interval: (sec: number | null | undefined) => {
+    const s = Math.round(Number(sec) || 0);
+    if (s <= 0) return "";
+    if (s < 60) return s + " s";
+    const m = Math.floor(s / 60), r = s % 60;
+    return r ? m + " min " + r + " s" : m + " min";
+  },
   date: (s: string) => s ? new Date(s+"T12:00:00").toLocaleDateString(currentLocaleTag(),{day:"numeric",month:"short",year:"numeric"}) : "",
   sht:  (s: string) => s ? new Date(s+"T12:00:00").toLocaleDateString(currentLocaleTag(),{day:"numeric",month:"short"}) : "",
   // A whole-minute duration as a compact label: 30min, 1h, 1h15, 1h50. Avoids

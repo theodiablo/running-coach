@@ -97,7 +97,15 @@
       "avgHr": "FC moy.",
       "maxHr": "FC max"
     },
-    "hrPartial": "Le capteur a décroché : la fréquence cardiaque ne couvre que {{pct}} % de cette sortie."
+    "hrPartial": "Le capteur a décroché : la fréquence cardiaque ne couvre que {{pct}} % de cette sortie.",
+    "runWalk": {
+      "title": "Course seule",
+      "running": "Course",
+      "walking": "Marche",
+      "segments_one": "{{count}} bloc",
+      "segments_other": "{{count}} blocs",
+      "note": "Estimation basée sur ton allure : les limites sont approximatives. Les chiffres de la sortie complète sont au-dessus."
+    }
   },
   "predictions": {
     "title": "Prévisions de course",

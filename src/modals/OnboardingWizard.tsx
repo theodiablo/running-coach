@@ -6,6 +6,7 @@ import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../i18n";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { GoalConfigurator } from "../components/GoalConfigurator";
 import { StylePicker } from "../components/StylePicker";
+import { runWalkConfig, type RunWalkConfig } from "../utils/runwalk";
 import { Chip } from "../components/RaceFilterChips";
 import { BANDS, RADII, useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
 import { haversineM } from "../utils/geo";
@@ -46,6 +47,8 @@ type OnboardingCompletePayload = {
     planSessions: PlanSessionInput[];
     targetEditionId: string | null;
     planStyle: StyleId;
+    runWalkRunSec: number;
+    runWalkWalkSec: number;
     trainingLevel: TrainingLevel | null;
     availabilityMode: AvailabilityMode;
     availDays: number;
@@ -120,6 +123,8 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // Methodology style: null = untouched, so the pre-selection tracks the live
   // recommendation while the user edits days/distance; a tap pins the choice.
   const [planStyle,     setPlanStyle] = useState<StyleId | null>(isStyleId(settings.planStyle) ? settings.planStyle : null);
+  // Run/Walk ratio ceiling (the style's own control, so it rides the same step).
+  const [ratio, setRatio] = useState<RunWalkConfig>(() => runWalkConfig(settings));
   // Self-reported current running volume — the one-question fitness signal
   // that stands in for run history (there is none on a first run).
   const [level, setLevel] = useState<TrainingLevel | null>(
@@ -198,6 +203,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     age: deriveAge(parseInt(birthYear) || 0) ?? runnerAge(settings),
   });
   const effectiveStyle = planStyle ?? recommendedStyle;
+  const ratioMeta = { runWalkRunSec: ratio.runSec, runWalkWalkSec: ratio.walkSec };
 
   const trimmedName = name.trim();
   const byN = parseInt(birthYear) || 0;
@@ -262,7 +268,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     const g = suggestedGoalSec(fitDist) || "";
     const rd = addWeeks(horizon);
     setRaceDate(rd); setDist(fitDist); setGoal(g); setElev(0); setTargetEditionId(undefined); setPickedLabel("");
-    go("hr", {raceDate: rd, distanceKm: fitDist, goalSec: g, raceElevation: 0, targetEditionId: null, planSessions, planStyle: effectiveStyle, trainingLevel: level, ...availMeta});
+    go("hr", {raceDate: rd, distanceKm: fitDist, goalSec: g, raceElevation: 0, targetEditionId: null, planSessions, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta});
   };
 
   // Complete from the summary. HR is included only if the user entered any.
@@ -271,7 +277,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     const mhrN = parseInt(maxHR) || 0;
     const hasHR = ageN != null || mhrN > 0;
     const hr = hasHR ? {birthYear: byN, age: ageN ?? 0, maxHR: mhrN || tanakaMax || 0, restHR: parseInt(restHR) || 60} : null;
-    const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, trainingLevel: level, ...availMeta};
+    const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta};
     onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck: {v: DISCLAIMER_VERSION, at: new Date().toISOString()}});
   };
 
@@ -546,9 +552,10 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 onDaysChange={n => setAvailDays(clampDays(n))} onBandChange={setAvailBand} onSessionsChange={setSess}/>
               <div>
                 <label className="text-xs text-slate-400 block mb-2">{t("onboarding.styleLabel")}</label>
-                <StylePicker value={effectiveStyle} onChange={setPlanStyle} recommended={recommendedStyle}/>
+                <StylePicker value={effectiveStyle} onChange={setPlanStyle} recommended={recommendedStyle}
+                  runWalk={ratio} onRunWalkChange={setRatio}/>
               </div>
-              <button onClick={() => go("hr", {goalSec, planSessions, planStyle: effectiveStyle, trainingLevel: level, ...availMeta})}
+              <button onClick={() => go("hr", {goalSec, planSessions, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta})}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
                 {t("onboarding.continue")}
               </button>
@@ -598,7 +605,8 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 onDaysChange={n => setAvailDays(clampDays(n))} onBandChange={setAvailBand} onSessionsChange={setSess}/>
               <div>
                 <label className="text-xs text-slate-400 block mb-2">{t("onboarding.styleLabel")}</label>
-                <StylePicker value={effectiveStyle} onChange={setPlanStyle} recommended={recommendedStyle}/>
+                <StylePicker value={effectiveStyle} onChange={setPlanStyle} recommended={recommendedStyle}
+                  runWalk={ratio} onRunWalkChange={setRatio}/>
               </div>
               <button onClick={finishTraining}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
@@ -734,7 +742,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
           )}
 
           {cur === "summary" && (() => {
-            const preview = buildPlan(raceDate, goalSec, planSessions, distanceKm, raceElevation, {style: effectiveStyle, level});
+            const preview = buildPlan(raceDate, goalSec, planSessions, distanceKm, raceElevation, {style: effectiveStyle, level, runWalk: ratioMeta});
             const weeks = preview?.weeks?.length || 0;
             const label = pickedLabel || (intent === "fitness" ? t("onboarding.summary.fallbackFitness") : t("onboarding.summary.fallbackRace"));
             return (

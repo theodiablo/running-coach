@@ -213,8 +213,16 @@ Always re-verify a finding before acting on it; agents report false positives.
   Date-taking callers by `src/utils/plan.ts`) is the one definition, and the past is read-only
   everywhere downstream: the coach's tools refuse it, its load rules never
   report against it, and only the trailing 2 weeks of it reach the model.
+  The Run/Walk style's ratio is the runner's own ceiling, not a constant:
+  `settings.runWalkRunSec`/`runWalkWalkSec` → `opts.runWalk`, ramped by
+  `runwalkRunSec` (`src/utils/runwalk.ts`) and never exceeded — a 3 min interval
+  handed to someone who caps at 1min30 is the plan being wrong, not the runner.
+  **Ratios are seconds** (`sd.runSec`/`walkSec`; `runMin`/`walkMin` stay written
+  for whole minutes and still read) and `runwalkRatio`
+  (`src/utils/sessionSteps.ts`) is the one reader, shared by the prose and the
+  guided schedule; sentence figures come from `fmt.interval`.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
-  semantics): `docs/training-plan.md`.
+  semantics, the ratio): `docs/training-plan.md`.
 - **A test that builds a plan must pin the clock and derive its dates.**
   `buildPlan` reads the real clock to anchor week 1 on the next Monday, so an
   unpinned fixture changes shape with the weekday CI happens to run on, and a
@@ -235,6 +243,13 @@ Always re-verify a finding before acting on it; agents report false positives.
   `OTHER` entries are kept out of the pool. No surface may claim more than the
   log supports (`isFirstEffort` vs `isPersonalBest`, and `EffortRank.estimated`
   per distance). Detail: `docs/best-efforts.md`.
+- **Which seconds of a run were walked is nowhere on the run** — the trace is the
+  only record — so the running-only breakdown is derived at display time by
+  `runWalkBreakdown` (`src/utils/runSegments.ts`), never stored, and split against
+  the run's OWN pace distribution (no absolute walking threshold exists: a
+  beginner runs at 9:00/km and a fit runner walks at 8:00/km). It returns null
+  unless the run really reads as two modes, and the card says "estimate".
+  Detail: `docs/run-analysis.md`.
 - **A run and the session it settled are linked by `runId`, never guessed
   silently.** `src/utils/sessionMatch.ts` is the one matcher (±3 days, the
   `isCrossTraining` line, one run settles one session) and it only *proposes* —
@@ -635,6 +650,7 @@ changes.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
+- `docs/run-analysis.md` — the running-only (run/walk) breakdown on a run's detail screen.
 - `docs/race-predictions.md` — the two race projections, the HR model's prior, gating.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
