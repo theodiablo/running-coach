@@ -634,6 +634,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   }, [loading]);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
+  const restorePlan  = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); };
   // Complete a cloud provider's OAuth return (a no-op on every normal load and
   // when the provider is unconfigured — gated on the state marker inside). On
   // success, flip the provider's enable flag on and scan straight away for
@@ -760,6 +761,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // flag and, if there's an active plan, rebuilds it preserving progress — so
   // adding a race shows up immediately without nuking completed sessions.
   const setRaceInPlan = (editionId: string, inPlan: boolean) => {
+    const prevRaces = races;
     const parts = (races.participations || []).map(p => p.editionId === editionId ? { ...p, inPlan } : p);
     saveRaces({ ...races, participations: parts });
     if (inPlan) track("plan_race_added", {});
@@ -770,6 +772,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         { recentRuns: runs, races: secRaces, mainEditionId: settings.targetEditionId ?? null,
           style: settings.planStyle, level: settings.trainingLevel });
       savePlan(carryProgress(plan, np, "rebuild"));
+      const prevPlan = plan;
+      showToast(t(inPlan ? "plan.toast.raceAdded" : "plan.toast.raceRemoved"), "ok", { label: t("common.undo"), onClick: () => {
+        commitRaces(prevRaces);
+        restorePlan(prevPlan);
+        showToast(t("plan.toast.restored"));
+      } });
     }
   };
 
@@ -1148,7 +1156,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {openFeedback, isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.

@@ -105,7 +105,10 @@
     "raceIn": "Carrera en {{days}} días"
   },
   "toast": {
-    "rebuilt": "Plan actualizado: {{n}} sesiones reconstruidas según tus cambios."
+    "rebuilt": "Plan actualizado",
+    "restored": "Plan anterior restaurado",
+    "raceAdded": "Carrera añadida a tu plan",
+    "raceRemoved": "Carrera quitada de tu plan"
   },
   "setup": {
     "intro": "Configura tu objetivo y los días que puedes entrenar.",
@@ -121,8 +124,8 @@
     "hrNudge": "Añade tu perfil de FC en Ajustes para desbloquear objetivos de frecuencia cardíaca en cada sesión.",
     "generate": "Generar mi plan de entrenamiento",
     "buildMyPlan": "Crear mi plan",
-    "rebuildMyPlan": "Reconstruir mi plan",
-    "rebuildNote": "Reconstruye tus próximas sesiones. Las semanas completadas siguen en tu plan.",
+    "previewChanges": "Ver los cambios",
+    "rebuildNote": "Verás qué cambia antes de guardar nada.",
     "promoteNote": "Crea un plan nuevo para esta carrera."
   },
   "long": {
@@ -238,5 +241,24 @@
     }
   },
   "crosswalk": "Entrenamiento cruzado o caminata a paso ligero, sin impacto y a esfuerzo suave",
-  "recovery": "Rodaje de recuperación a esfuerzo muy suave; puedes hacer pausas para caminar"
+  "recovery": "Rodaje de recuperación a esfuerzo muy suave; puedes hacer pausas para caminar",
+  "preview": {
+    "title": "Revisa los cambios",
+    "intro": "No se guarda nada hasta que lo apliques.",
+    "changed_one": "Cambia {{count}} sesión",
+    "changed_other": "Cambian {{count}} sesiones",
+    "noChanges": "Tus sesiones no cambian",
+    "kept_one": "Se mantiene {{count}} sesión hecha",
+    "kept_other": "Se mantienen {{count}} sesiones hechas",
+    "raceSame": "Día de carrera sin cambios",
+    "raceMoved": "La carrera pasa al {{date}}",
+    "weekOf": "Semana del {{date}}",
+    "range": "{{from}} → {{to}}",
+    "noChange": "Sin cambios",
+    "added": "Nueva",
+    "removed": "Eliminada",
+    "apply": "Aplicar cambios",
+    "applySettings": "Guardar ajustes",
+    "keep": "Mantener mi plan actual"
+  }
 }
