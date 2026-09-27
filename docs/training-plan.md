@@ -192,6 +192,18 @@ derived from the live plan, so ids *are* identity there.
 A **promote** (switching the plan to a different race) deliberately carries
 nothing at all — it is a fresh plan for a new goal.
 
+**A rebuild that replaces an existing plan is never one tap.** A rebuild also
+wipes every coach edit to the sessions ahead, which the runner can't see from
+the edit screen. So PlanView's CTA is "Preview changes": it holds the built
+plan and its settings in `pending` and renders `RebuildPreview`, which diffs
+the sessions from today on by **calendar date** (`diffPlans`,
+`src/utils/planDiff.ts`; ids are grid slots) and collapses unchanged weeks.
+Nothing is written until Apply, and Keep/Back discard it. Apply, and the race
+toggle's silent rebuild (`setRaceInPlan`), both toast an Undo that puts the
+previous plan back through `restorePlan`, which, unlike `savePlan`, doesn't
+count as a `plan_generated`. First-time setup builds straight away, since
+there is nothing to lose.
+
 Elapsed weeks are a real distinction downstream: `isElapsedWeek`
 (`src/utils/plan.ts`, with a date-string twin in
 `supabase/functions/_shared/coach/weeks.mjs`) is the single definition, read by
