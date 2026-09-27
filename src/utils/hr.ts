@@ -173,6 +173,22 @@ export function isHrStale(hrAt: number | null | undefined, now: number = Date.no
   return hrAt != null && now - hrAt > HR_STALE_MS;
 }
 
+// At most ~1 sample per second for storage (rounded mean bpm, first timestamp):
+// a sample within `minGapMs` of its group's first joins the group. Straps notify
+// at up to 2Hz and nothing downstream resolves finer than a second; the margin
+// keeps a jittery 1Hz stream intact.
+export function thinHrSamples(samples: HrSample[], minGapMs = 750): HrSample[] {
+  const out: HrSample[] = [];
+  let t = 0, sum = 0, n = 0;
+  for (const s of samples) {
+    if (n && s.t - t < minGapMs) { sum += s.bpm; n++; continue; }
+    if (n) out.push({ bpm: Math.round(sum / n), t });
+    t = s.t; sum = s.bpm; n = 1;
+  }
+  if (n) out.push({ bpm: Math.round(sum / n), t });
+  return out;
+}
+
 // Union of two { bpm, t } streams, sorted ascending, dropping entries from `b`
 // that duplicate one already in `a`. Used to fold the native HR journal into
 // what JS saw live: the two record the same notification a few ms apart, so the

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Check, RefreshCw } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
-import { simplify } from "../utils/geo";
+import { ROUTE_SIMPLIFY_M, simplify } from "../utils/geo";
 import { trimmedMovingSec } from "../utils/idleEdges";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
@@ -619,7 +619,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     // way, and a failed delete must never stand between the runner and a saved
     // run (the boot sweep clears an orphan row).
     endShare();
-    const simplified = simplify(points, 5);
+    const simplified = simplify(points, ROUTE_SIMPLIFY_M);
     const km = +stats.km.toFixed(2);
     // Heart rate through the one shared resolver (src/hr/runHr.ts), the same
     // call the indoor recorder makes: a live source's stream folded together

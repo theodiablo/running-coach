@@ -56,7 +56,7 @@ Three rules that matter:
   covered distance is exactly the target rather than quantised to whole fixes.
   Pinning the end errs **slow**. The interpolated start assumes an even pace
   across its leg, so it can land a second or two either side of the truth — and
-  note that stored traces are **simplified** (5 m Douglas-Peucker), so a straight
+  note that stored traces are **simplified** (`ROUTE_SIMPLIFY_M`, 2 m Douglas-Peucker), so a straight
   stretch collapses into one long leg and "at most one sample" does not hold. The
   bound is sub-leg pace variation, not zero; don't write copy that promises more.
 
@@ -84,7 +84,7 @@ race performance — which then poisons every future PB comparison.
 `effortsFor(run)` is the single reader, and it merges **per distance, not per
 run**: measured values win, and the estimate fills only the distances the trace
 didn't yield. That gap-filling is not a nicety. A GPS 5K measures a few tens of
-metres short once jitter gating and 5 m simplification have had their way, so it
+metres short once jitter gating and simplification have had their way, so it
 stores `{1k}` — and an all-or-nothing fallback then left it with no 5K at all,
 permanently, because a non-empty stored map also keeps the backfill away, while
 the very same run typed in by hand ranked fine. `measuredEfforts(run)` is the

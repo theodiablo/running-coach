@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
   tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
-  hrMeasuredSec, hrCoverage, mergeHrSamples, isHrStale, HR_STALE_MS, liveHrStatusLine,
+  hrMeasuredSec, hrCoverage, mergeHrSamples, thinHrSamples, isHrStale, HR_STALE_MS, liveHrStatusLine,
 } from "./hr";
 
 type HrSample = { bpm: number; t: number };
@@ -346,5 +346,21 @@ describe("liveHrStatusLine", () => {
       .toBe("tracker.hr.cantReach");
     expect(liveHrStatusLine({ stale: false, status: null, hrAvg: null, hr: null }).key)
       .toBe("tracker.hr.connecting");
+  });
+});
+
+describe("thinHrSamples", () => {
+  const T0 = 1_700_000_000_000;
+  it("averages a 2Hz stream into one sample per second", () => {
+    const out = thinHrSamples([{ bpm: 150, t: T0 }, { bpm: 153, t: T0 + 500 }, { bpm: 160, t: T0 + 1000 }]);
+    expect(out).toEqual([{ bpm: 152, t: T0 }, { bpm: 160, t: T0 + 1000 }]);
+  });
+  it("leaves a jittery 1Hz stream intact", () => {
+    const oneHz = Array.from({ length: 100 }, (_, i) => ({ bpm: 140, t: T0 + i * 1000 + (i % 2 ? 20 : -20) }));
+    expect(thinHrSamples(oneHz)).toHaveLength(100);
+  });
+  it("keeps coverage and zones on a thinned 2Hz stream", () => {
+    const twoHz = Array.from({ length: 1200 }, (_, i) => ({ bpm: 150, t: T0 + i * 500 }));
+    expect(hrCoverage(thinHrSamples(twoHz), 600)).toBeCloseTo(hrCoverage(twoHz, 600), 2);
   });
 });

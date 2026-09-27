@@ -189,9 +189,13 @@ on next load via `flushPendingRoutes` (run carries a temp
 `routeTmp`/`routePending`).
 
 The `run_routes.stats` JSONB is a free-form sidecar: besides the summary
-`{km,durationSec,elevation,avgPace}`, a run also stores its **raw ~1Hz HR
-stream** there as `stats.hrSamples: {bpm,t}[]` (kept raw, NOT projected onto
-GPS points, so HR fidelity is decoupled from `simplify()`'s point thinning).
+`{km,durationSec,elevation,avgPace}`, a run also stores its **HR
+stream** there as `stats.hrSamples: {bpm,t}[]` (NOT projected onto GPS points,
+so HR fidelity is decoupled from `simplify()`'s point thinning), thinned to at
+most ~1Hz by `thinHrSamples` at save: a 2Hz strap doubled the row for no
+resolution anything reads. `hrMax`/`hr` come from the full stream first.
+Stored routes are simplified at `ROUTE_SIMPLIFY_M` (2 m), close enough to the
+full trace that splits reach the distance measured live.
 Sources: a BLE-strap run (`LiveRunTracker.handleSave` from `rt.hrSamples`), a
 HealthKit import (Apple Watch route + HR series), a Health Connect import (HR
 series, no route), and file imports (GPX/TCX/FIT HR). All imports funnel

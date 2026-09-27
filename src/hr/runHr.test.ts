@@ -35,6 +35,17 @@ describe("resolveRunHr", () => {
     expect(res.partialCoverage).toBeNull();
   });
 
+  it("stores a 2Hz strap at 1Hz but keeps a one-beat peak in hrMax", async () => {
+    const t0 = 1_700_000_000_000;
+    const twoHz = Array.from({ length: 1200 }, (_, i) => ({ bpm: i === 501 ? 190 : 150, t: t0 + i * 500 }));
+    const res = await resolveRunHr({
+      hrSrc: liveSrc, liveSamples: twoHz, durationSec: 600, startMs: t0, endMs: t0 + 600_000,
+    });
+    expect(res.samples).toHaveLength(600);
+    expect(res.hrMax).toBe(190);
+    expect(res.partialCoverage).toBeNull();
+  });
+
   it("reports partial coverage instead of averaging a fragment", async () => {
     const t0 = 1_700_000_000_000;
     const res = await resolveRunHr({
