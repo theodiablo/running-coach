@@ -35,8 +35,8 @@ route rows. Don't. If a surface needs efforts, read `effortsFor(run)`.
 ## Extraction
 
 `bestEffortsFromTrack(points)` walks the shared `flattenTrack` (the same
-gap-aware, jitter-gated distance walk `buildSplits` and `buildRunSeries` use, so
-splits and efforts can't disagree) and runs a two-pointer sweep per distance.
+jitter-gated distance walk as `distanceKm`, `buildSplits` and `buildRunSeries`,
+so splits and efforts can't disagree; windows never cross a gap's `segStart`) and runs a two-pointer sweep per distance.
 
 Three rules that matter:
 

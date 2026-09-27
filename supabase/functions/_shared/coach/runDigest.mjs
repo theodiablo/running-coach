@@ -30,15 +30,14 @@ function altitudeGate() {
   };
 }
 
-// Port of geo.ts flattenTrack — the ONE jitter-gated, gap-aware cumulative
-// distance walk — minus the coordinates: output rows are { t, alt, cumKm,
-// segStart } only.
+// Port of geo.ts flattenTrack (walkTrack: jitter-gated, gaps bridged by the
+// straight line) minus the coordinates: rows are { t, alt, cumKm, segStart }.
 export function flattenTrack(points, jitterM = 3) {
   const out = [];
   const altOk = altitudeGate();
   let cumM = 0, prev = null, newSeg = true;
   for (const p of points) {
-    if (!p) { prev = null; newSeg = true; continue; } // gap: break segment, no distance
+    if (!p) { newSeg = true; continue; } // gap: new segment, distance bridged
     if (prev) { const d = haversineM(prev, p); if (d >= jitterM) cumM += d; }
     const t = Number(p[2]), alt = p[3] == null ? null : Number(p[3]);
     out.push({ t, alt: alt != null && altOk(alt, t) ? alt : null, cumKm: cumM / 1000, segStart: newSeg });

@@ -4,8 +4,8 @@
 //
 // A point is the stored tuple [lat, lng, tEpochMs, altMeters|null]; a `null`
 // entry is a GAP marker (lost GPS). We emit one row per REAL point and use gaps
-// only to break continuity (pace never bridges a gap; the x-axis never invents a
-// straight jump across one). HR is aligned to each point by timestamp at render,
+// only to break continuity (pace never reaches across a gap); the x-axis is
+// flattenTrack's cumKm, so it ends at the run's distance. HR is aligned to each point by timestamp at render,
 // so HR fidelity is decoupled from how aggressively simplify() thinned the track.
 //
 // Each row averages the samples inside the point's OWN time slice (halfway to

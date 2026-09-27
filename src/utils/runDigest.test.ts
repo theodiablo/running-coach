@@ -47,9 +47,7 @@ describe("runDigest.mjs parity with the TS originals", () => {
   it("haversineM parity via total distance", () => {
     const flat = digest.flattenTrack(track);
     expect(flat[flat.length - 1].cumKm).toBeGreaterThan(0);
-    // distanceKm bridges gaps, flattenTrack doesn't — compare on a gap-free track.
-    const gapFree = track.filter(Boolean);
-    expect(digest.flattenTrack(gapFree).pop().cumKm).toBeCloseTo(distanceKm(gapFree), 6);
+    expect(flat[flat.length - 1].cumKm).toBeCloseTo(distanceKm(track), 6);
   });
 
   it("elevGainM parity (hysteresis band, null altitudes, gap resets)", () => {

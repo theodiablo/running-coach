@@ -1,6 +1,6 @@
 // Per-kilometre splits for RunDetailModal's split table. Derived from the SAME
-// gap-aware cumulative-distance walk as buildRunSeries (the shared flattenTrack),
-// so the table and the chart agree on where each km lands. Pure and unit-tested.
+// distance walk as distanceKm and buildRunSeries (flattenTrack), so the table,
+// the chart and the run total agree on where each km lands. Pure and unit-tested.
 //
 // Time at each exact km mark is linearly interpolated along the track, so a
 // split's duration isn't quantised to whole GPS fixes.
@@ -30,7 +30,7 @@ function timeAtKm(pts: FlatPoint[], km: number): number {
     if (pts[i].cumKm >= km) {
       const a = pts[i - 1], b = pts[i];
       const span = b.cumKm - a.cumKm;
-      if (span <= 0) return b.t; // frozen distance across a gap/jitter — take the later time
+      if (span <= 0) return b.t; // frozen distance (jitter) — take the later time
       return a.t + ((km - a.cumKm) / span) * (b.t - a.t);
     }
   }
