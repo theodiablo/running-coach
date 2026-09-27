@@ -269,7 +269,15 @@ race logged 1618m). So altitudes first pass `altitudeGate`: a reading further
 than 15m + 1 m/s × elapsed time from the last accepted one is dropped (nulled
 in `flattenTrack`, so the chart and splits skip it too). It is ported to
 `runDigest.mjs` and the native fold (`foldElevation` in the
-background-geolocation patch); keep all three in step. Map basemap is MapTiler — needs `VITE_MAPTILER_KEY` (records fine without
+background-geolocation patch); keep all three in step.
+
+A GPS run saves its moving clock minus the idle ENDS only: `idleEdgesSec`
+(`src/utils/idleEdges.ts`) finds where the runner set off and arrived (≥0.5 m/s
+held over 60s; stationary fixes are jitter-dropped, so idling reads as one slow
+leg) and the stopped screen shows the trimmed time. Mid-run stops stay counted,
+like an official race time; an end already moving at its first/last fix trims
+nothing, so GPS warm-up while running is never cut. Manual pauses aren't located
+in time, so their total is credited against the trim. Map basemap is MapTiler — needs `VITE_MAPTILER_KEY` (records fine without
 it, just no tiles). The style is a custom map (`MAP_STYLE_ID` in
 `src/constants.ts`) forked from `outdoor-v4` and decluttered for running;
 edited at cloud.maptiler.com and shared by every map surface via that one

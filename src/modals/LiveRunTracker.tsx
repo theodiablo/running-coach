@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Check, RefreshCw } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { simplify } from "../utils/geo";
+import { trimmedMovingSec } from "../utils/idleEdges";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
 import { shareLinkState, watchUrl } from "../live/shareLink";
@@ -406,6 +407,15 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
   const live = state === "tracking" || state === "paused";
 
+  // Once stopped, the time that saves: standing at the start/finish trimmed off.
+  const trim = useMemo(() => {
+    if (state !== "stopped") return null;
+    const { startedAt, stoppedAt } = rt.runWindow();
+    return trimmedMovingSec(stats.movingSec, points, startedAt, stoppedAt);
+  }, [state, stats.movingSec, points, rt]);
+  const runSec = trim?.durationSec ?? stats.movingSec;
+  const avgPace = trim && stats.km > 0 ? runSec / stats.km : stats.avgPace;
+
   // Returning from a locked screen / app background snaps the live map back to the
   // current position at the default zoom (the requested reset). visibilitychange
   // fires in the native WebView on screen lock/unlock and app foreground, and on
@@ -519,8 +529,8 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     void publishLiveRun({
       status,
       points: simplify(points, 5),
-      stats: { km: +stats.km.toFixed(2), durationSec: stats.movingSec, elevation: stats.elevation,
-        avgPace: Math.round(stats.avgPace), curPace: Math.round(stats.curPace) },
+      stats: { km: +stats.km.toFixed(2), durationSec: runSec, elevation: stats.elevation,
+        avgPace: Math.round(avgPace), curPace: Math.round(stats.curPace) },
       startedAt: rt.runWindow().startedAt,
       sharePublic,
       publishToken: publishTokenRef.current,
@@ -540,7 +550,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
-  }, [shareLive, state, points, stats, rt, sharePublic, showToast, t]);
+  }, [shareLive, state, points, stats, runSec, avgPace, rt, sharePublic, showToast, t]);
 
   // The single-writer handoff. Arm the native uploader when the page goes
   // hidden mid-broadcast (visibilitychange fires before Android freezes the
@@ -627,7 +637,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
       startMs: startedAt || points.find(Boolean)?.[2] || Date.now(), endMs,
     });
     const hrSamples = resolved.samples;
-    const statObj = { km, durationSec: stats.movingSec, elevation: stats.elevation, avgPace: Math.round(stats.avgPace),
+    const statObj = { km, durationSec: runSec, elevation: stats.elevation, avgPace: Math.round(avgPace),
       ...(hrSamples.length ? { hrSamples } : {}) };
     const date = ymd(new Date(points.find(Boolean)?.[2] || Date.now()));
     let routeId = null, routeTmp = null;
@@ -660,7 +670,7 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     setBusy(false);
     onFinish({
       date, type: "EASY", km,
-      durationSec: stats.movingSec,
+      durationSec: runSec,
       elevation: stats.elevation || undefined,
       source: "gps",
       // Always stamped, even when empty ("measured, covers no standard
@@ -833,10 +843,15 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
 
         <div className="grid grid-cols-4 gap-2">
           <Stat label={t("tracker.stats.km")} value={stats.km.toFixed(2)} pulseKey={live ? Math.floor(stats.km) : undefined} />
-          <Stat label={t("tracker.stats.time")} value={fmt.dur(stats.movingSec) === "--" ? "0:00" : fmt.dur(stats.movingSec)} />
-          <Stat label={t("tracker.stats.pace")} value={fmt.pace(state === "tracking" ? stats.curPace : stats.avgPace)} />
+          <Stat label={t("tracker.stats.time")} value={fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)} />
+          <Stat label={t("tracker.stats.pace")} value={fmt.pace(state === "tracking" ? stats.curPace : avgPace)} />
           <Stat label={t("tracker.stats.elev")} value={stats.elevation + "m"} />
         </div>
+        {trim && trim.trimmedSec >= 60 && (
+          <p className="text-xs text-slate-400 text-center">
+            {t("tracker.idleTrimmed", { dur: fmt.mins(Math.round(trim.trimmedSec / 60)) })}
+          </p>
+        )}
 
         {liveHr && (
           <div className="bg-slate-800 rounded-xl px-3 py-2 flex items-center justify-center gap-2">

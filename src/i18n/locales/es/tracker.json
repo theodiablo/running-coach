@@ -30,6 +30,7 @@
     "go": "¡Ya!"
   },
   "discardConfirm": "¿Descartar este entrenamiento? La ruta registrada se perderá.",
+  "idleTrimmed": "Sin contar {{dur}} parado antes de salir y después de terminar.",
   "routeUploadFailed": "No se pudo subir la ruta. Se ha guardado en este dispositivo y se volverá a intentar la sincronización.",
   "resume": {
     "title": "¿Reanudar el entrenamiento anterior?",

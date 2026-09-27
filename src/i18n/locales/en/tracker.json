@@ -30,6 +30,7 @@
     "go": "Go!"
   },
   "discardConfirm": "Discard this run? Your tracked route will be lost.",
+  "idleTrimmed": "Excludes {{dur}} standing still before the start and after the finish.",
   "routeUploadFailed": "Couldn't upload the route — saved on this device, will retry syncing.",
   "resume": {
     "title": "Resume your previous run?",
