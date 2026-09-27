@@ -94,7 +94,10 @@
     "raceIn": "Race in {{days}} days"
   },
   "toast": {
-    "rebuilt": "Plan updated — {{n}} sessions rebuilt around your changes."
+    "rebuilt": "Plan updated",
+    "restored": "Previous plan restored",
+    "raceAdded": "Race added to your plan",
+    "raceRemoved": "Race removed from your plan"
   },
   "setup": {
     "intro": "Configure your goal and available training days.",
@@ -110,8 +113,8 @@
     "hrNudge": "Add your HR profile in Settings to unlock heart rate targets on every session.",
     "generate": "Generate My Training Plan",
     "buildMyPlan": "Build my plan",
-    "rebuildMyPlan": "Rebuild my plan",
-    "rebuildNote": "Rebuilds your upcoming sessions. Completed weeks stay in your plan.",
+    "previewChanges": "Preview changes",
+    "rebuildNote": "You will see what changes before anything is saved.",
     "promoteNote": "Builds a fresh plan for this race."
   },
   "long": {
@@ -228,6 +231,25 @@
   },
   "crosswalk": "Cross-training / brisk walk — no impact, easy effort",
   "recovery": "Recovery run — very easy effort, walk breaks welcome",
+  "preview": {
+    "title": "Review changes",
+    "intro": "Nothing is saved until you apply it.",
+    "changed_one": "{{count}} session changes",
+    "changed_other": "{{count}} sessions change",
+    "noChanges": "Your sessions stay the same",
+    "kept_one": "{{count}} completed session kept",
+    "kept_other": "{{count}} completed sessions kept",
+    "raceSame": "Race day unchanged",
+    "raceMoved": "Race day moves to {{date}}",
+    "weekOf": "Week of {{date}}",
+    "range": "{{from}} → {{to}}",
+    "noChange": "No change",
+    "added": "New",
+    "removed": "Removed",
+    "apply": "Apply changes",
+    "applySettings": "Save settings",
+    "keep": "Keep current plan"
+  },
   "editor": {
     "editTitle": "Edit session",
     "addTitle": "Add a session",

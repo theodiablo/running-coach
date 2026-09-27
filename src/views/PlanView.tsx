@@ -14,11 +14,13 @@ import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { PlanSessionRow } from "../components/PlanSessionRow";
 import { SessionEditSheet, type SessionEditTarget } from "../modals/SessionEditSheet";
 import { addSlot, isEditableSession, type SessionEdit } from "../utils/planEdit";
+import { RebuildPreview } from "../components/RebuildPreview";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsPage, SettingsState } from "../types";
+import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsPage, SettingsState, ToastAction } from "../types";
 import { carryProgress, isElapsedWeek, planSessionPrefill, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
+import { diffPlans } from "../utils/planDiff";
 
 // The plan list shows weeks still ahead first and pushes finished ones to the
 // bottom, so "now" is always at the top without having to scroll to it. A
@@ -49,6 +51,8 @@ type PlanViewProps = {
   runs: Run[];
   races: RacesState | null;
   savePlan: (plan: Plan) => void;
+  // Puts back a plan the runner already had (undo) — not a new generation.
+  restorePlan: (plan: Plan) => void;
   saveSettings: (settings: SettingsState) => void;
   buildPlan: (
     raceDate: string,
@@ -66,7 +70,7 @@ type PlanViewProps = {
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
   openIndoor: (link?: { wNum: number; sId: string }) => void;
   goLog: (prefill: Partial<Run>) => void;
-  showToast: (msg: string, type?: string) => void;
+  showToast: (msg: string, type?: string, action?: ToastAction) => void;
   planPrefill?: PlanPrefill | null;
   clearPlanPrefill?: () => void;
   // Bumped when the coach's "change your goal" link is followed: the view opens
@@ -79,8 +83,9 @@ type PlanViewProps = {
 
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
+type PendingBuild = { plan: Plan; settings: SettingsState };
 
-export function PlanView({plan, settings, runs, races, savePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -107,6 +112,9 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
   const [editing,      setEditing]     = useState(!!planPrefill || !!openEditNonce);
   // Which accordion section is expanded on the edit screen (one at a time).
   const [editSection,  setEditSection] = useState<EditSection>("goal");
+  // A build that would replace an existing plan waits here until the runner
+  // has seen what it changes (RebuildPreview).
+  const [pending,      setPending]     = useState<PendingBuild | null>(null);
 
   // ── Edit drafts ─────────────────────────────────────────────────────────
   const [draft,        setDraft]       = useState<PlanSessionInput[]>(settings.planSessions || [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}]);
@@ -174,7 +182,8 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     setEditing(true);
   };
 
-  // Build (or rebuild) the plan from the current drafts and persist everything.
+  // Build (or rebuild) the plan from the current drafts. Replacing a plan goes
+  // through the preview first; nothing is persisted until it is applied.
   const genPlan = () => {
     const ps   = resolvedSessions;
     const date = draftDate    || settings.raceDate;
@@ -189,27 +198,45 @@ export function PlanView({plan, settings, runs, races, savePlan, saveSettings, b
     const availMeta = draftMode === "simple"
       ? { availabilityMode: "simple" as const, availDays: clampDays(draftDays), availTime: draftBand }
       : { availabilityMode: "custom" as const, availDays: ps.length, availTime: draftBand };
-    saveSettings({...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style, ...availMeta});
+    const nextSettings: SettingsState = {...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style, ...availMeta};
     const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
     const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel});
-    const hadPlan = !!plan;
     // A rebuild re-anchors progress on the calendar date and keeps the weeks
     // buildPlan's next-Monday start can't reach, so the completed count really
-    // does survive — which is what rebuildNote promises. A promote is
-    // deliberately fresh ("Builds a fresh plan for this race"): a new goal
-    // starts a new block, so it carries nothing at all.
-    savePlan(promoting ? built : carryProgress(plan, built, "rebuild"));
+    // does survive. A promote is deliberately fresh ("Builds a fresh plan for
+    // this race"): a new goal starts a new block, so it carries nothing at all.
+    const next = { plan: promoting ? built : carryProgress(plan, built, "rebuild"), settings: nextSettings };
+    if (!plan) { commitBuild(next); return; }
+    setPending(next);
+    window.scrollTo(0, 0);
+  };
+
+  const commitBuild = (next: PendingBuild) => {
+    const prev = plan ? { plan, settings } : null;
+    saveSettings(next.settings);
+    savePlan(next.plan);
+    setPending(null);
     setEditing(false);
     clearPlanPrefill?.();
-    if (hadPlan) showToast(t("plan.toast.rebuilt", { n: built.weeks.flatMap(w => w.sessions).length }), "ok");
+    if (prev) showToast(t("plan.toast.rebuilt"), "ok", { label: t("common.undo"), onClick: () => {
+      saveSettings(prev.settings);
+      restorePlan(prev.plan);
+      showToast(t("plan.toast.restored"));
+    } });
   };
 
   const canBuild = !!draftDate && !!draftDist;
 
+  if (plan && pending) {
+    return <RebuildPreview diff={diffPlans(plan, pending.plan, startOfToday())} raceDate={String(pending.settings.raceDate)}
+      onApply={() => commitBuild(pending)} onBack={() => setPending(null)}
+      onKeep={() => { setPending(null); if (promoting) cancelPromote(); else setEditing(false); }}/>;
+  }
+
   // ── Edit / setup screen ───────────────────────────────────────────────────
   if (!plan || editing || promoting) {
     const isSetup = !plan && !promoting;
-    const ctaLabel = isSetup ? t("plan.setup.generate") : promoting ? t("plan.setup.buildMyPlan") : t("plan.setup.rebuildMyPlan");
+    const ctaLabel = isSetup ? t("plan.setup.generate") : promoting ? t("plan.setup.buildMyPlan") : t("plan.setup.previewChanges");
     const modeToggle = (
       <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
         {(["simple", "custom"] as AvailabilityMode[]).map(m => (

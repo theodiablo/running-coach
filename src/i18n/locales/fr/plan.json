@@ -106,7 +106,10 @@
     "raceIn": "Course dans {{days}} jours"
   },
   "toast": {
-    "rebuilt": "Plan mis à jour : {{n}} séances reconstruites selon tes changements."
+    "rebuilt": "Plan mis à jour",
+    "restored": "Plan précédent restauré",
+    "raceAdded": "Course ajoutée à ton plan",
+    "raceRemoved": "Course retirée de ton plan"
   },
   "setup": {
     "intro": "Configure ton objectif et les jours où tu peux t'entraîner.",
@@ -122,8 +125,8 @@
     "hrNudge": "Ajoute ton profil de FC dans les Paramètres pour afficher une zone cible à chaque séance.",
     "generate": "Générer mon plan d'entraînement",
     "buildMyPlan": "Créer mon plan",
-    "rebuildMyPlan": "Reconstruire mon plan",
-    "rebuildNote": "Reconstruit tes séances à venir. Les semaines déjà faites restent dans ton plan.",
+    "previewChanges": "Voir les changements",
+    "rebuildNote": "Tu verras ce qui change avant que quoi que ce soit ne soit enregistré.",
     "promoteNote": "Crée un nouveau plan pour cette course."
   },
   "long": {
@@ -240,6 +243,25 @@
   },
   "crosswalk": "Entraînement croisé ou marche rapide, sans impact et à effort léger",
   "recovery": "Footing de récupération à effort très facile ; les pauses de marche sont les bienvenues",
+  "preview": {
+    "title": "Vérifie les changements",
+    "intro": "Rien n’est enregistré tant que tu n’appliques pas.",
+    "changed_one": "{{count}} séance change",
+    "changed_other": "{{count}} séances changent",
+    "noChanges": "Tes séances restent les mêmes",
+    "kept_one": "{{count}} séance faite conservée",
+    "kept_other": "{{count}} séances faites conservées",
+    "raceSame": "Jour de course inchangé",
+    "raceMoved": "La course passe au {{date}}",
+    "weekOf": "Semaine du {{date}}",
+    "range": "{{from}} → {{to}}",
+    "noChange": "Aucun changement",
+    "added": "Nouvelle",
+    "removed": "Retirée",
+    "apply": "Appliquer les changements",
+    "applySettings": "Enregistrer les réglages",
+    "keep": "Garder mon plan actuel"
+  },
   "editor": {
     "editTitle": "Modifier la séance",
     "addTitle": "Ajouter une séance",
