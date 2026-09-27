@@ -212,15 +212,16 @@ tag (one tag ships both stores). Two ways to cut one:
 The app compares its installed `versionName` against the `app_config` row
 (`supabase/migrations/20260623120000_app_config.sql`) on launch:
 
-- `latest_version` / `latest_version_ios` — what the update banner compares
-  against: users on an older version see a dismissible "update available"
-  banner. **Not set automatically.** The release workflow only *stages* the
+- `latest_version` / `latest_version_ios` — what the update prompt compares
+  against: users on an older version see a "Version X is ready" card on Home,
+  dismissible per device and per version (a newer `latest_version` brings it
+  back). **Not set automatically.** The release workflow only *stages* the
   uploaded version (below); you promote it when the store publishes.
 - `pending_version` / `pending_version_ios` — set **automatically** by the
   release workflow after each store's *upload* succeeds (per-platform, so a
   partial release never stages a version a store didn't get). Uploading is not
   publishing — Play promotion/rollout and App Store review happen later — so
-  staging alone never shows the banner. These two columns are excluded from the
+  staging alone never shows the card. These two columns are excluded from the
   client SELECT grant (column-level privileges), so an unreleased version
   number is never readable by app clients.
 - `min_supported_version` / `min_supported_version_ios` — **you bump these by
@@ -231,7 +232,7 @@ When a store actually publishes the build, run **Actions → "Publish app
 version"** (`publish-version.yml`, phone-friendly like the release dispatch):
 pick the platform (`android` / `ios` / `both`) and it promotes the staged
 pending version to `latest_version(_ios)` — that's the moment outdated clients
-start seeing the banner. A platform with nothing staged fails loudly (with
+start seeing the card. A platform with nothing staged fails loudly (with
 `both`, each platform is attempted independently, so a partial release still
 publishes the store that shipped), every run ends by printing the resulting
 `app_config` row, and an optional `version` input overrides the staged value

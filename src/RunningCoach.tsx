@@ -116,7 +116,7 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null }: {
+export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null, availableUpdate = null }: {
   onSignOut?: () => void;
   // The auth user, owned by App — refreshed via onAuthStateChange (USER_UPDATED
   // after an email/password change), so Settings -> Account stays current.
@@ -126,6 +126,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // can act on this read rather than on pre-refresh state.
   premiumUntil?: string | null;
   onRefreshPremium?: () => Promise<string | null>;
+  // Store version newer than the installed one (native only), for the Home card.
+  availableUpdate?: string | null;
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
@@ -1156,7 +1158,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {openFeedback, isPremium, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.

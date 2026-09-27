@@ -81,9 +81,12 @@
     "requiredTitle": "Update required",
     "requiredBody": "This version of Running Coach is no longer supported. Please update to the latest version to keep using the app.",
     "updateNow": "Update now",
-    "available": "A new version of Running Coach is available.",
+    "title": "Version {{version}} is ready",
+    "bodyAndroid": "Update from Google Play to get the latest fixes and features.",
+    "bodyIos": "Update from the App Store to get the latest fixes and features.",
     "update": "Update",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "later": "Later"
   },
   "coachmark": {
     "title": "Your coach lives here",
