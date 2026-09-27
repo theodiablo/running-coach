@@ -277,6 +277,44 @@ the run it removes; and `carryProgress` nulls `runId` on any session whose
 for a re-date lives in `linkSess` itself, not only in the sheet that offers the
 move.
 
+## Manual edits
+
+The runner can edit their own plan: move a session (or swap it with the one on
+the day they pick), change its type or distance, delete it, or add one. It is
+free for everyone: the coach is for judgment, not calendar shuffling, and a
+change of day should not cost a coach round. `src/utils/planEdit.ts` is the one
+set of operations and `SessionEditSheet` the one surface (the Plan tab's
+session ⋯ menu, and "Add a session" under each live week); `editSession` in
+`RunningCoach.tsx` applies them, with an Undo toast.
+
+- **Warn, never block, on training rules.** `editIssues` runs the shared
+  `validatePlan` against the pre-edit plan as baseline and returns what the edit
+  newly breaks. The sheet shows it live as a heads-up (Save becomes "Save
+  anyway") with a way into the coach. Only *structural* codes (`MALFORMED`,
+  `DUPLICATE_ID`, `OUT_OF_WEEK`, `AFTER_RACE`, `SESSION_TOO_LONG`) block, and
+  the operations can't produce them: distance is held to 1-40 km, dates to a
+  day that is not yet lived, before race day, inside a week.
+- **The coach's rules, not the coach's refusals.** The coach tools refuse what
+  a model shouldn't do unasked (lengthening in the taper, adding past the plan's
+  peak); a runner may do those, with the warning. Because the validator waives
+  baseline errors, a rule the runner broke on purpose never bricks a later coach
+  proposal, and the coach may not make it worse.
+- **What stays read-only:** elapsed weeks, done and skipped sessions (undo
+  first), and RACE sessions (the goal and the Races tab own them).
+- **Shape:** a retyped or added session takes pace/`desc`/`sd` from
+  `sessionShapeFor` (`_shared/coach/tools.mjs`), the same derivation the
+  coach's `swap_session`/`add_session` use, so `sd` is never stale. On a
+  Run/Walk plan the result carries real figures, since a figure-less run/walk
+  session has no sentence ratio and no guided schedule: the session's own
+  ratio, else one from its week, else the runner's ceiling at that week's phase
+  (`runwalkRunSec`). A moved
+  session keeps its id; an added one is `user-add-{date}[-n]`. Delete removes the
+  session; Skip stays the way to record a missed one.
+- **Rebuilds replace edits.** A rebuild is a new plan: moved slot sessions
+  carry their `done` by date like any other, but added sessions (not slot ids)
+  and deletions don't survive it. The rebuild preview diffs by date, so what a
+  rebuild would undo shows there before anything is applied.
+
 ## Methodology styles
 
 `opts.style` / `settings.planStyle` / `plan.style`: buildPlan composes weeks
