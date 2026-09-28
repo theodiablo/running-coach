@@ -29,6 +29,29 @@ Keep ALL catalogue lookups going through `src/utils/races.ts` (`findEdition`,
 renders (My Races falls back to participation snapshots); the boot load is
 fired **unawaited** so a slow/down Supabase never blocks the splash.
 
+## Curating the verified set
+
+Curated rows (`created_by = null`, `verified = true`) change through data
+migrations (`*_race_catalogue_*.sql`), so each pass is reviewable. Rules:
+
+- **Only officially announced dates.** Never add a next edition by bumping the
+  year: that is how most bad dates got in (a guessed date lands on a weekday, or
+  a week off). A race with no announced date shows "no upcoming date", which
+  is honest. Check the weekday: road races are Sat/Sun (Boston is a Monday,
+  ultras start any day, New Year's Eve races on the 31st).
+- **Keep past editions**: they are what a completed participation points at.
+- **Referenced editions are corrected in place.** A participation links by
+  `editionId` (plus a snapshot of date/distance), so before deleting a wrong
+  edition, check whether any `app_state.data->'rc_races'->'participations'`
+  (or `rc_settings.targetEditionId`) references it; if so, keep the id and
+  update `date` / `race_slug`. The user's snapshot and plan keep the old date,
+  so tell them.
+- Edition inserts join `public.races`: most curated races were added outside
+  migrations, so a fresh database simply skips them.
+- The 2026-09-28 pass used official organiser sites wherever they resolved.
+  Aggregators were used only where noted in the PR. Coordinates of added races
+  are hand-placed near the named start (±300 m). An `elevation` of 0 means unknown.
+
 ## Contributions & Discover
 
 Contributions are instant + global + unverified. "Add a race"
