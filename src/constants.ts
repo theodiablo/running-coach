@@ -205,7 +205,10 @@ export const PASSWORD_MIN_LENGTH = 12;
 export const DISCLAIMER_VERSION = "2026-06-1";
 
 // Play Store listing — the public production listing, used by the in-app update
-// prompt (see UpdatePrompt.jsx) and by every "get the Android app" CTA.
+// prompt (see UpdatePrompt.tsx) and by every "get the Android app" CTA.
+// Per-device: the latest_version whose in-app update card was dismissed.
+export const UPDATE_DISMISSED_KEY = "rc_update_dismissed";
+
 export const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=solutions.camboulive.run";
 

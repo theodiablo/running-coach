@@ -14,6 +14,7 @@ import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
+import { UpdateCard } from "../components/UpdatePrompt";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
@@ -52,6 +53,8 @@ type DashboardProps = {
   // session ticks that session off (the shared bag's openTracker/openIndoor).
   openTracker?: (link?: { wNum: number; sId: string }) => void;
   openIndoor?: (link?: { wNum: number; sId: string }) => void;
+  // Store version newer than the installed one; null when current or unknown.
+  availableUpdate?: string | null;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
@@ -66,7 +69,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -222,6 +225,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           <span className="text-xs font-semibold text-orange-200 flex-shrink-0">{t("dashboard.recovery.action")}</span>
         </button>
       )}
+
+      {availableUpdate && <UpdateCard version={availableUpdate}/>}
 
       {liveRun && openLiveWatch && (
         <button onClick={openLiveWatch}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, X } from "lucide-react";
-import { PLAY_STORE_URL, APP_STORE_URL } from "../constants";
+import { PLAY_STORE_URL, APP_STORE_URL, UPDATE_DISMISSED_KEY } from "../constants";
 import { isIos, isAndroid } from "../native";
 
 // The platform's own store listing; empty when unknown (APP_STORE_URL is blank
@@ -62,24 +62,49 @@ export function UpdateRequired() {
   );
 }
 
-// Soft nudge: a newer version is available but the current one still works.
-// Dismissible top bar.
-export function UpdateBanner() {
+// Soft nudge: a newer version is available but the current one still works. A
+// Home card, never an overlay, so it can't cover the header or a recording.
+// Dismissal is per device and per version: the card returns only for a newer one.
+export function UpdateCard({ version }: { version: string }) {
   const { t } = useTranslation();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => readDismissed() === version);
   if (dismissed) return null;
+  const dismiss = () => { writeDismissed(version); setDismissed(true); };
   return (
-    <div className="fixed top-0 inset-x-0 z-[2500] bg-orange-500 text-white text-sm px-4 py-2 flex items-center gap-3 shadow-lg"
-      // Pin below the iOS status bar / Dynamic Island — without this the banner
-      // renders under the clock and battery (0 inset on web/Android).
-      style={{ paddingTop: "calc(0.5rem + var(--safe-top))" }}>
-      <span className="flex-1">{t("app.update.available")}</span>
-      {storeUrl() && (
-        <button onClick={openStore} className="font-semibold underline whitespace-nowrap">{t("app.update.update")}</button>
-      )}
-      <button onClick={() => setDismissed(true)} aria-label={t("app.update.dismiss")} className="p-1 -mr-1 hover:opacity-80">
-        <X size={16} />
-      </button>
+    <div role="status" className="rounded-xl p-3.5 border border-orange-500/35 bg-slate-800 space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-xl bg-orange-500/15 flex items-center justify-center flex-shrink-0">
+          <Download className="text-orange-400" size={18}/>
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{t("app.update.title", { version })}</p>
+          <p className="text-xs text-slate-400">{t(isIos ? "app.update.bodyIos" : "app.update.bodyAndroid")}</p>
+        </div>
+        <button onClick={dismiss} aria-label={t("app.update.dismiss")}
+          className="p-1 -mr-1 -mt-1 text-slate-500 hover:text-slate-300 flex-shrink-0">
+          <X size={16}/>
+        </button>
+      </div>
+      <div className="flex gap-2 pl-12">
+        {storeUrl() && (
+          <button onClick={openStore}
+            className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+            {t("app.update.update")}
+          </button>
+        )}
+        <button onClick={dismiss}
+          className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+          {t("app.update.later")}
+        </button>
+      </div>
     </div>
   );
+}
+
+function readDismissed() {
+  try { return localStorage.getItem(UPDATE_DISMISSED_KEY); } catch { return null; }
+}
+
+function writeDismissed(version: string) {
+  try { localStorage.setItem(UPDATE_DISMISSED_KEY, version); } catch { /* the card just returns next launch */ }
 }

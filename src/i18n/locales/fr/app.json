@@ -81,9 +81,12 @@
     "requiredTitle": "Mise à jour requise",
     "requiredBody": "Cette version de Running Coach n'est plus prise en charge. Mets-la à jour vers la dernière version pour continuer à utiliser l'app.",
     "updateNow": "Mettre à jour maintenant",
-    "available": "Une nouvelle version de Running Coach est disponible.",
+    "title": "La version {{version}} est prête",
+    "bodyAndroid": "Mets à jour depuis Google Play pour profiter des dernières nouveautés.",
+    "bodyIos": "Mets à jour depuis l'App Store pour profiter des dernières nouveautés.",
     "update": "Mettre à jour",
-    "dismiss": "Ignorer"
+    "dismiss": "Ignorer",
+    "later": "Plus tard"
   },
   "coachmark": {
     "title": "Ton coach est ici",

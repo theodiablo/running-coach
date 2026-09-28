@@ -9,7 +9,7 @@ import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
-import { UpdateRequired, UpdateBanner } from "./components/UpdatePrompt";
+import { UpdateRequired } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
 import { clearShareLinkCache } from "./live/shareLinkStore";
 import { readOfflineSession } from "./utils/offlineSession";
@@ -132,6 +132,7 @@ export default function App() {
   const [recovering, setRecovering] = useState(false);
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
+  const [latestVersion, setLatestVersion] = useState<string | null>(null); // shown on the Home update card
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
@@ -426,7 +427,10 @@ export default function App() {
         const config = data && (isIos
           ? { min_supported_version: data.min_supported_version_ios, latest_version: data.latest_version_ios }
           : data);
-        if (!cancelled && config) setUpdateState(versionStatus(info.version, config));
+        if (!cancelled && config) {
+          setUpdateState(versionStatus(info.version, config));
+          setLatestVersion(config.latest_version ?? null);
+        }
       } catch { /* never block the app on a failed version check */ }
     })();
     return () => { cancelled = true; };
@@ -582,9 +586,9 @@ export default function App() {
   if (!storeReady) return <Splash />;
   return (
     <>
-      {updateState === "update-available" && <UpdateBanner />}
       <RunningCoach key={storeNonce} onSignOut={signOutFlushed} user={session.user}
-        premiumUntil={premiumUntil} onRefreshPremium={refreshPremium} />
+        premiumUntil={premiumUntil} onRefreshPremium={refreshPremium}
+        availableUpdate={updateState === "update-available" ? latestVersion : null} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>
   );

@@ -120,7 +120,7 @@ both stores already had the build. Keep new `app_config` writes on the script.
 A release whose staging step failed is repaired by running "Publish app version"
 with the explicit `version` input once the store publishes.
 
-**Upload ≠ publish:** staging never shows the in-app update banner (Play
+**Upload ≠ publish:** staging never shows the in-app update card (Play
 promotion/rollout and App Store review come after upload). The maintainer runs
 the manual **"Publish app version"** workflow (`publish-version.yml`,
 `workflow_dispatch`, phone-friendly) per platform once the store actually

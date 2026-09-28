@@ -13,16 +13,18 @@ vi.mock("../native", () => ({
 const { browserOpen } = vi.hoisted(() => ({ browserOpen: vi.fn() }));
 vi.mock("@capacitor/browser", () => ({ Browser: { open: browserOpen } }));
 
-import { UpdateBanner, UpdateRequired } from "./UpdatePrompt";
+import { UpdateCard, UpdateRequired } from "./UpdatePrompt";
+import { UPDATE_DISMISSED_KEY } from "../constants";
 
 beforeEach(() => {
   vi.clearAllMocks();
   browserOpen.mockResolvedValue(undefined);
   platform.isAndroid = false;
   platform.isIos = false;
+  localStorage.clear();
 });
 
-describe("UpdateBanner", () => {
+describe("UpdateCard", () => {
   it("Android: opens the Play Store via plain navigation, never @capacitor/browser", async () => {
     // Regression: routing the store link through @capacitor/browser (Chrome
     // Custom Tabs) crashed the app on-device. Android must use a top-frame
@@ -31,7 +33,7 @@ describe("UpdateBanner", () => {
     const assign = vi.fn();
     vi.spyOn(window, "location", "get").mockReturnValue({ ...window.location, assign } as unknown as Location);
 
-    render(<UpdateBanner />);
+    render(<UpdateCard version="1.16.1" />);
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith(PLAY_STORE_URL));
@@ -39,23 +41,41 @@ describe("UpdateBanner", () => {
   });
 
   it("non-Android: opens the store via the Browser plugin", async () => {
-    render(<UpdateBanner />);
+    render(<UpdateCard version="1.16.1" />);
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
     await waitFor(() => expect(browserOpen).toHaveBeenCalledWith({ url: PLAY_STORE_URL }));
   });
 
-  it("iOS: hides the store button while APP_STORE_URL is unset", () => {
-    platform.isIos = true;
-    render(<UpdateBanner />);
-    expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
-    // The copy (and the dismiss control) still tell the user to update.
-    expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
+  it("names the version and the platform's store", () => {
+    render(<UpdateCard version="1.16.1" />);
+    expect(screen.getByText("Version 1.16.1 is ready")).toBeInTheDocument();
+    expect(screen.getByText(/Google Play/)).toBeInTheDocument();
   });
 
-  it("dismisses", () => {
-    render(<UpdateBanner />);
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(screen.queryByText("A new version of Running Coach is available.")).toBeNull();
+  it("iOS: hides the store button while APP_STORE_URL is unset", () => {
+    platform.isIos = true;
+    render(<UpdateCard version="1.16.1" />);
+    expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+    // The copy (and the dismiss controls) still tell the user to update.
+    expect(screen.getByText(/App Store/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Later" })).toBeInTheDocument();
+  });
+
+  it.each(["Dismiss", "Later"])("%s hides it for that version, across launches", (name) => {
+    const { unmount } = render(<UpdateCard version="1.16.1" />);
+    fireEvent.click(screen.getByRole("button", { name }));
+    expect(screen.queryByText("Version 1.16.1 is ready")).toBeNull();
+    expect(localStorage.getItem(UPDATE_DISMISSED_KEY)).toBe("1.16.1");
+
+    unmount();
+    render(<UpdateCard version="1.16.1" />);
+    expect(screen.queryByText("Version 1.16.1 is ready")).toBeNull();
+  });
+
+  it("comes back for a newer version", () => {
+    localStorage.setItem(UPDATE_DISMISSED_KEY, "1.16.1");
+    render(<UpdateCard version="1.17.0" />);
+    expect(screen.getByText("Version 1.17.0 is ready")).toBeInTheDocument();
   });
 });
 
