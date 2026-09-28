@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { KeyRound, Loader } from "lucide-react";
 import { supabase } from "../../supabase";
 import { INPUT_CLS } from "../../constants";
-import { passwordProblem, hasEmailIdentity } from "../../utils/account";
+import { passwordProblem, hasEmailIdentity, socialProviderName } from "../../utils/account";
 import type { User } from "@supabase/supabase-js";
 
 export function PasswordSection({ user, showToast }: { user: User; showToast?: (msg: string, type?: string) => void }) {
@@ -40,7 +40,7 @@ export function PasswordSection({ user, showToast }: { user: User; showToast?: (
           <KeyRound size={16} className="text-orange-400 shrink-0"/>
           <div className="min-w-0">
             <p className="text-sm text-slate-200">{t("settings.account.passwordLabel")}</p>
-            {!hasPassword && <p className="text-xs text-slate-500">{t("settings.account.passwordSetDesc")}</p>}
+            {!hasPassword && <p className="text-xs text-slate-500">{t("settings.account.passwordSetDesc", { provider: socialProviderName(user) })}</p>}
           </div>
         </div>
         {/* See the matching note in EmailSection: "Change" appears twice on

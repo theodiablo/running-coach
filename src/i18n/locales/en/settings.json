@@ -84,7 +84,7 @@
     "passwordChangeAria": "Change password",
     "passwordCancelAria": "Cancel password change",
     "passwordSet": "Set a password",
-    "passwordSetDesc": "You sign in with Google. Add a password to also sign in with your email.",
+    "passwordSetDesc": "You sign in with {{provider}}. Add a password to also sign in with your email.",
     "passwordNew": "New password",
     "passwordConfirm": "Confirm new password",
     "passwordRules": "At least 12 characters, with an uppercase letter, a lowercase letter and a digit.",

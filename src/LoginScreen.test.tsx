@@ -272,3 +272,15 @@ describe("LoginScreen — sign-up", () => {
     await screen.findByText("Too many attempts just now. Wait a moment and try again.");
   });
 });
+
+describe("LoginScreen — social sign-in", () => {
+  it.each([["Google", "google"], ["Apple", "apple"]])("%s goes through the shared OAuth redirect", async (label, provider) => {
+    signInWithOAuth.mockResolvedValue({ data: { url: null }, error: null });
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: `Continue with ${label}` }));
+    await vi.waitFor(() => expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider,
+      options: { redirectTo: "http://localhost/", skipBrowserRedirect: false },
+    }));
+  });
+});

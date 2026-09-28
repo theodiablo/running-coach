@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { passwordProblem, hasEmailIdentity } from "./account";
+import { passwordProblem, hasEmailIdentity, socialProviderName } from "./account";
 import type { User, UserIdentity } from "@supabase/supabase-js";
 
 const userWith = (providers: string[]) => ({
@@ -38,5 +38,17 @@ describe("hasEmailIdentity", () => {
 
   it("degrades to false when identities are missing from the session", () => {
     expect(hasEmailIdentity({} as User)).toBe(false);
+  });
+});
+
+describe("socialProviderName", () => {
+  it("names Apple for an Apple-only account", () => {
+    expect(socialProviderName(userWith(["apple"]))).toBe("Apple");
+  });
+
+  it("names Google otherwise, including when both are linked", () => {
+    expect(socialProviderName(userWith(["google"]))).toBe("Google");
+    expect(socialProviderName(userWith(["apple", "google"]))).toBe("Google");
+    expect(socialProviderName({} as User)).toBe("Google");
   });
 });
