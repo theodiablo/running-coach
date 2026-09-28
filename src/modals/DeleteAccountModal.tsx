@@ -3,6 +3,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { Trash2, AlertTriangle } from "lucide-react";
 import { supabase } from "../supabase";
+import { revokeAppleGrants } from "../auth/appleSignIn";
 
 type DeleteAccountModalProps = { onSignOut: () => void; onClose: () => void };
 
@@ -16,6 +17,8 @@ export function DeleteAccountModal({ onSignOut, onClose }: DeleteAccountModalPro
   const handleDelete = async () => {
     setBusy(true);
     setError(null);
+    // Before the delete: the stored grants cascade away with the user row.
+    await revokeAppleGrants((await supabase.auth.getSession()).data.session);
     const { error: rpcError } = await supabase.rpc("delete_my_account");
     if (rpcError) {
       setError(t("settings.deleteAccount.error"));

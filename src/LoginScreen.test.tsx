@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail } = vi.hoisted(() => ({
+const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn } = vi.hoisted(() => ({
+  nativeAppleSignIn: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
   signInWithOAuth: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock("./supabase", () => ({
   authRedirectTo: () => "http://localhost/",
 }));
 vi.mock("./native", () => ({ isNative: false, isAndroid: false }));
+vi.mock("./auth/appleSignIn", () => ({ nativeAppleSignIn }));
 
 import LoginScreen from "./LoginScreen";
 
@@ -31,6 +33,7 @@ beforeEach(() => {
   signUp.mockResolvedValue({ error: null });
   signInWithPassword.mockResolvedValue({ error: null });
   resetPasswordForEmail.mockResolvedValue({ error: null });
+  nativeAppleSignIn.mockResolvedValue(null);
 });
 
 describe("LoginScreen — one form", () => {
@@ -282,5 +285,35 @@ describe("LoginScreen — social sign-in", () => {
       provider,
       options: { redirectTo: "http://localhost/", skipBrowserRedirect: false },
     }));
+  });
+});
+
+describe("LoginScreen — Apple's native sheet", () => {
+  const apple = () => screen.getByRole("button", { name: "Continue with Apple" });
+
+  it("says nothing and frees the form when the sheet is dismissed", async () => {
+    nativeAppleSignIn.mockResolvedValue("cancelled");
+    render(<LoginScreen />);
+    fireEvent.click(apple());
+    await vi.waitFor(() => expect(apple()).not.toBeDisabled());
+    expect(signInWithOAuth).not.toHaveBeenCalled();
+    expect(document.querySelector(".text-red-400")).toBeNull();
+  });
+
+  it("shows a real failure and frees the form", async () => {
+    nativeAppleSignIn.mockRejectedValue(new Error("Apple is unavailable"));
+    render(<LoginScreen />);
+    fireEvent.click(apple());
+    expect(await screen.findByText("Apple is unavailable")).toBeInTheDocument();
+    expect(apple()).not.toBeDisabled();
+    expect(signInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it("leaves a native sign-in to the auth listener, without the browser flow", async () => {
+    nativeAppleSignIn.mockResolvedValue("signed-in");
+    render(<LoginScreen />);
+    fireEvent.click(apple());
+    await vi.waitFor(() => expect(apple()).not.toBeDisabled());
+    expect(signInWithOAuth).not.toHaveBeenCalled();
   });
 });
