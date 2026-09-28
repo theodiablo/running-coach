@@ -127,5 +127,15 @@
   "addCard": {
     "dontSee": "¿No ves tu carrera?",
     "addIt": "Añádela al catálogo"
+  },
+  "dateChange": {
+    "title": "Cambió la fecha de la carrera",
+    "body": "{{label}} ahora figura para el {{newDate}}. Tenías el {{oldDate}}.",
+    "planNote": "Tu plan se moverá con ella. Los entrenamientos que ya hiciste siguen marcados.",
+    "updatePlan": "Actualizar mi plan",
+    "useNewDate": "Usar la nueva fecha",
+    "keep": "Mantener mi fecha",
+    "updated": "Fecha de la carrera actualizada.",
+    "planUpdated": "Fecha de la carrera y plan actualizados."
   }
 }

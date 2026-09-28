@@ -119,6 +119,21 @@ RACE session is stamped with its `editionId`; race-day auto-detect
 (`detectAnyRace` in `src/utils/races.ts`) matches a logged run against **all**
 plan races, not just the target.
 
+## Catalogue date changes
+
+A participation snapshots its date, and the training target lives on in
+`settings.raceDate` and the plan, so a corrected catalogue date never reaches
+them on its own. `raceDateChanges` (`src/utils/races.ts`) is the one detector:
+pure over the fetched catalogue, it lists wishlisted races (and the target,
+compared against `settings.raceDate`) whose edition date differs, skipping
+done races, races past on both dates, and dates in `RacesState.dateAcks`.
+`RaceDateChangeCard` shows each on Home and My Races with two answers:
+**Update** (`applyRaceDateChange`: moves the participation and, for the target,
+`settings.raceDate`; rebuilds the plan through `carryProgress` when the race is
+the target or `inPlan`; undoable) or **Keep my date** (`keepRaceDate` records
+the catalogue date in `dateAcks`, so only a *further* move asks again). Never
+move a user's date silently: the catalogue is community-editable.
+
 ## Completion
 
 Two ways to complete: manual "log result" (RacesView, optionally also adds a

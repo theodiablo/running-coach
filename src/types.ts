@@ -283,6 +283,8 @@ export type RacesState = Record<string, unknown> & {
   participations: Participation[];
   seenBadges: string[] | null;
   ackVerified?: string[];
+  // editionId → catalogue date the user chose to keep their own date over.
+  dateAcks?: Record<string, string>;
 };
 
 export type CatalogueEdition = Record<string, unknown> & {

@@ -127,5 +127,15 @@
   "addCard": {
     "dontSee": "Don't see your race?",
     "addIt": "Add it to the catalogue"
+  },
+  "dateChange": {
+    "title": "Race date changed",
+    "body": "{{label}} is now listed for {{newDate}}. You had {{oldDate}}.",
+    "planNote": "Your plan will move with it. Sessions you've done stay done.",
+    "updatePlan": "Update my plan",
+    "useNewDate": "Use new date",
+    "keep": "Keep my date",
+    "updated": "Race date updated.",
+    "planUpdated": "Race date and plan updated."
   }
 }

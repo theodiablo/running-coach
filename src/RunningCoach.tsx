@@ -26,7 +26,8 @@ import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEf
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
 import { syncSessionReminders, clearSessionReminders } from "./notify/sessionReminders";
 import { prefsFrom } from "./utils/sessionReminders";
-import { detectAnyRace, findEdition, editionLabel, loadCatalogue, secondaryRaces } from "./utils/races";
+import { detectAnyRace, findEdition, editionLabel, loadCatalogue, raceDateChanges, secondaryRaces } from "./utils/races";
+import type { RaceDateChange } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
 import { clearStaleLiveRun } from "./live/publisher";
@@ -70,6 +71,7 @@ import type {
   Plan,
   PlanPrefill,
   PlanSession,
+  Participation,
   RacesState,
   RouteBackup,
   Run,
@@ -232,8 +234,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [userContext, setUserContext] = useState<UserContextState>({ notes: "" });
   // Always-fresh mirror of `races` so async callbacks (the boot catalogue load)
   // merge onto the latest state, not a stale snapshot captured before the user
-  // could touch their races mid-load. Synced in an effect (the catalogue resolves
-  // well after any concurrent change has committed).
+  // could touch their races mid-load. Synced in an effect, and seeded by the boot
+  // load itself.
   const racesRef = useRef(races);
   useEffect(() => { racesRef.current = races; }, [races]);
   // Native only: warm the lazy CoachChat chunk right after boot so opening the
@@ -411,6 +413,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         db.set(STORAGE_KEYS.RACES, loaded);
       }
       setRaces(loaded);
+      // The catalogue can resolve before the ref-sync effect commits `loaded`.
+      racesRef.current = loaded;
       // First-time user, or onboarding started but not finished — resume it.
       // In-progress is marked by `onboardStep`; existing users who already have a
       // name (but no onboarding marker) are treated as onboarded.
@@ -763,19 +767,24 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Toggle whether a wishlisted race is folded into the current plan. Persists the
   // flag and, if there's an active plan, rebuilds it preserving progress — so
   // adding a race shows up immediately without nuking completed sessions.
+  // Rebuild the active plan around `s` + `parts`, keeping done/skipped. False
+  // when there's no plan (or race) to rebuild.
+  const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
+    if (!plan || !s.raceDate || !s.distanceKm) return false;
+    const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
+      { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
+        style: s.planStyle, level: s.trainingLevel, runWalk: s });
+    savePlan(carryProgress(plan, np, "rebuild"));
+    return true;
+  };
+
   const setRaceInPlan = (editionId: string, inPlan: boolean) => {
     const prevRaces = races;
     const parts = (races.participations || []).map(p => p.editionId === editionId ? { ...p, inPlan } : p);
     saveRaces({ ...races, participations: parts });
     if (inPlan) track("plan_race_added", {});
-    if (plan && settings.raceDate && settings.distanceKm) {
-      const secRaces = secondaryRaces(parts, settings.targetEditionId);
-      const np = buildPlan(settings.raceDate, settings.goalSec, settings.planSessions,
-        settings.distanceKm, settings.raceElevation,
-        { recentRuns: runs, races: secRaces, mainEditionId: settings.targetEditionId ?? null,
-          style: settings.planStyle, level: settings.trainingLevel, runWalk: settings });
-      savePlan(carryProgress(plan, np, "rebuild"));
-      const prevPlan = plan;
+    const prevPlan = plan;
+    if (prevPlan && rebuildPlanWith(settings, parts)) {
       showToast(t(inPlan ? "plan.toast.raceAdded" : "plan.toast.raceRemoved"), "ok", { label: t("common.undo"), onClick: () => {
         commitRaces(prevRaces);
         restorePlan(prevPlan);
@@ -783,6 +792,30 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       } });
     }
   };
+
+  // A race's catalogue date moved after the user planned around it: adopt the
+  // new date on their list and, when the plan uses the race, rebuild around it.
+  const applyRaceDateChange = (c: RaceDateChange) => {
+    const prevRaces = races, prevSettings = settings, prevPlan = plan;
+    const joined = findEdition(c.editionId);
+    const label = joined ? editionLabel({ name: String(joined.name) }, joined.edition) : null;
+    const parts = (races.participations || []).map(p => p.editionId === c.editionId
+      ? { ...p, raceDate: c.newDate, ...(label ? { label } : {}) } : p);
+    saveRaces({ ...races, participations: parts });
+    const nextSettings = c.isTarget ? { ...settings, raceDate: c.newDate } : settings;
+    if (c.isTarget) saveSettings(nextSettings);
+    const inPlan = c.isTarget || parts.some(p => p.editionId === c.editionId && p.inPlan);
+    const rebuilt = inPlan && rebuildPlanWith(nextSettings, parts);
+    showToast(t(rebuilt ? "races.dateChange.planUpdated" : "races.dateChange.updated"), "ok", { label: t("common.undo"), onClick: () => {
+      commitRaces(prevRaces);
+      if (c.isTarget) saveSettings(prevSettings);
+      if (rebuilt && prevPlan) restorePlan(prevPlan);
+    } });
+  };
+  const keepRaceDate = (c: RaceDateChange) =>
+    saveRaces({ ...races, dateAcks: { ...(races.dateAcks || {}), [c.editionId]: c.newDate } });
+  const dateChanges = raceDateChanges(races.participations, catalogue,
+    { editionId: settings.targetEditionId, raceDate: settings.raceDate }, races.dateAcks, ymd(new Date()));
 
   // Re-fetch + re-hydrate the catalogue (after a user contributes), so the new
   // entry shows immediately — contributions are instant + global.
@@ -1185,7 +1218,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {openFeedback, isPremium, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
