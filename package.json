@@ -23,6 +23,7 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor-community/background-geolocation": "1.2.26",
     "@capacitor-community/bluetooth-le": "^8.3.0",
     "@capacitor/app": "^8.1.0",

@@ -187,6 +187,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   ways out with the typed credentials carried over. `intent` picks the copy and
   which call goes first; it is not a mode the user sets. Reset copy never claims
   an email was sent, for the same enumeration reason.
+- **Google and Apple sit side by side above the form**, on every platform, and
+  Apple is not optional: it is what satisfies App Store guideline 4.8. iOS gets
+  the native sheet (`src/auth/appleSignIn.ts`), everything else the browser
+  flow. An Apple grant is stored so account deletion can revoke it
+  (`apple-auth`, 5.1.1(v)); setup and the nonce rule: `docs/release.md`.
 - **Email change is one link + one notification, decided by server truth.**
   `double_confirm_changes` is **off**, so the confirmation goes to the new
   address only and the `email_changed` notification tells the old one — keep

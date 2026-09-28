@@ -361,25 +361,62 @@ screen, open the link on a *different* device from the one that asked (the
 common case, and the one where a PKCE `?code=` is unexchangeable), set a new
 password, and confirm the notification arrives.
 
-## Sign in with Apple (Supabase provider)
+## Sign in with Apple
 
-The login screen calls `signInWithOAuth({ provider: "apple" })` through the same
-browser + deep-link path as Google, on every platform (an Apple-created account
-has no password, so the button must stay reachable from Android and the web).
-Hosted-project config, done by hand in the Supabase dashboard:
+`LoginScreen`'s Apple button shows **Apple's native sheet on iOS**
+(`src/auth/appleSignIn.ts`: `@capacitor-community/apple-sign-in` →
+`supabase.auth.signInWithIdToken`) and the same browser + deep-link OAuth path as
+Google everywhere else, including as the fallback on a shell without the plugin.
+It shows on every platform: an Apple-created account has no password, so the
+button must stay reachable from Android and the web. The nonce is the part to
+keep straight: Apple is handed the **SHA-256 hash** and embeds it in the identity
+token, Supabase the **raw** value it hashes to compare. Swapping them fails with
+an opaque "invalid nonce".
+
+The `com.apple.developer.applesignin` entitlement only works if the App ID grants
+the capability; `ios-appstore-profile.mjs` preflights that, since a profile
+minted without it fails the archive with a bare "doesn't match the entitlements
+file".
+
+### One-time setup (outside this repo)
 
 - Apple Developer → Identifiers: the App ID `solutions.camboulive.run` with
-  **Sign in with Apple** enabled; a **Services ID** (its identifier is the
-  Supabase "Client ID"), configured with the domain `<ref>.supabase.co` and the
-  return URL `https://<ref>.supabase.co/auth/v1/callback`.
+  **Sign in with Apple** enabled as a **primary** App ID; a **Services ID** for
+  the browser flow, configured against it with the domain `<ref>.supabase.co`
+  and the return URL `https://<ref>.supabase.co/auth/v1/callback`.
 - Apple Developer → Keys: a key with Sign in with Apple, bound to that App ID.
   The `.p8` downloads **once**; keep it in the password manager with its Key ID.
-- The secret Supabase stores is a JWT signed with that key, and **Apple caps it
-  at 6 months** — regenerate it (Supabase's generator in the Apple provider
-  docs) before it expires, or every Apple sign-in fails.
+- Supabase → Authentication → Providers → Apple. **Client IDs lists both** the
+  Services ID and the bundle id `solutions.camboulive.run`: the native token's
+  `aud` is the bundle id, and a provider that doesn't accept it rejects every
+  native sign-in. The secret is a JWT signed with the key, and **Apple caps it at
+  6 months**: regenerate it before it expires, or every Apple sign-in fails.
 - Apple → Services → Sign in with Apple for Email Communication: register
   `mail.camboulive.solutions` as a sender domain, or mail to Hide-My-Email
   (`@privaterelay.appleid.com`) addresses is dropped.
+- Edge-function secrets for `apple-auth` (below): `supabase secrets set
+  APPLE_TEAM_ID=… APPLE_KEY_ID=… APPLE_SERVICES_ID=… APPLE_PRIVATE_KEY="$(cat
+  AuthKey_XXXX.p8)"`. Unset, the function answers `{skipped}` and nothing breaks.
+
+### Token revocation on account deletion (guideline 5.1.1(v))
+
+Deleting an account must also revoke its Apple grant. GoTrue doesn't keep Apple's
+tokens, so `apple-auth` does, in the service-role-only `apple_auth_grants`
+(one row per client the grant was issued to — a token can only be exchanged or
+revoked under its own client):
+
+- **Native**: the sheet's one-time `authorizationCode` is exchanged under the
+  bundle id for a refresh token.
+- **Browser**: GoTrue hands Apple's refresh token back once, on the session the
+  OAuth exchange mints (`provider_refresh_token`); App.tsx's auth listener
+  forwards it and the function validates it under the Services ID.
+- Either way the token's `sub` must match the caller's Apple identity before it
+  is stored. `DeleteAccountModal` calls `revoke` **before** `delete_my_account`
+  (the rows cascade away with the user) and never lets a failure block deletion.
+
+The function mints its own 5-minute client secrets from the same key, so it has
+no 6-month expiry of its own. Accounts that signed in with Apple before this
+shipped have no stored grant until their next Apple sign-in.
 
 ## CI caching & budget
 

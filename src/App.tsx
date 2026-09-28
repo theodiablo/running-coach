@@ -4,6 +4,7 @@ import { App as CapApp } from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { rememberAppleGrant } from "./auth/appleSignIn";
 import { isNative, isIos } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
@@ -195,6 +196,7 @@ export default function App() {
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === "PASSWORD_RECOVERY" && s) setRecovering(s.user.id);
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") rememberAppleGrant(s);
       if (s) {
         offlineSessionRef.current = null; // a real session supersedes the adopted one
       } else if (event === "SIGNED_OUT") {

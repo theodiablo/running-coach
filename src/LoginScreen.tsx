@@ -7,6 +7,7 @@ import { supabase, authRedirectTo } from "./supabase";
 import { authErrorMessage, isInvalidCredentials, isEmailTaken } from "./utils/authErrors";
 import { passwordProblem } from "./utils/account";
 import { isNative, isAndroid } from "./native";
+import { nativeAppleSignIn } from "./auth/appleSignIn";
 import { PRIVACY_URL, PASSWORD_MIN_LENGTH } from "./constants";
 
 // What the visitor came here to do. It picks the copy and which call the one
@@ -133,6 +134,24 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       return;
     }
     // Web: the page itself is redirected to the provider, so leave busy=true.
+  }
+
+  // The native sheet on iOS; everywhere else (and on a shell that can't show
+  // it) the same browser flow as Google.
+  async function withApple() {
+    setBusy(true);
+    setMsg(null);
+    let outcome;
+    try {
+      outcome = await nativeAppleSignIn();
+    } catch (err) {
+      noteError(err);
+      setBusy(false);
+      return;
+    }
+    if (outcome === null) return withOAuth("apple");
+    // Signed in: App.tsx's auth listener swaps the screen. Cancelled: say nothing.
+    setBusy(false);
   }
 
   async function signIn() {
@@ -292,7 +311,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
               {/* Black on the dark card, per Apple's button guidelines. */}
               <button
                 type="button"
-                onClick={() => withOAuth("apple")}
+                onClick={withApple}
                 disabled={busy}
                 className="mt-2 w-full flex items-center justify-center gap-2 bg-black hover:bg-slate-950 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg border border-slate-600 transition"
               >

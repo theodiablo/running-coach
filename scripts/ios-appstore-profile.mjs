@@ -208,7 +208,25 @@ const ensureProfile = async (bundleResource, name) => {
   return uuid;
 };
 
+// A profile carries whatever capabilities the App ID has; an entitlement the
+// App ID doesn't grant fails the archive much later with a bare "provisioning
+// profile doesn't match the entitlements file". Check the ones App/App.entitlements
+// claims here, where the message can name the fix.
+const REQUIRED_CAPABILITIES = { HEALTHKIT: "HealthKit", APPLE_ID_AUTH: "Sign In with Apple" };
+const assertCapabilities = async (bundleResource) => {
+  const res = await asc("GET", `/bundleIds/${bundleResource.id}/bundleIdCapabilities?limit=200`);
+  const enabled = new Set((res.data ?? []).map((c) => c.attributes?.capabilityType));
+  const missing = Object.entries(REQUIRED_CAPABILITIES).filter(([type]) => !enabled.has(type));
+  if (missing.length)
+    fail(
+      `App ID '${bundleId}' is missing ${missing.map(([, label]) => label).join(", ")}. ` +
+        "Enable it in the Developer portal (Identifiers → the App ID → Capabilities), then re-run."
+    );
+  console.log(`App ID capabilities present: ${Object.values(REQUIRED_CAPABILITIES).join(", ")}.`);
+};
+
 const appBundle = await resolveBundleId(bundleId, { registerIfMissing: false });
+await assertCapabilities(appBundle);
 const appUuid = await ensureProfile(appBundle, profileName);
 
 const widgetBundle = await resolveBundleId(widgetBundleId, {
