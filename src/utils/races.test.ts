@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { detectAnyRace, bestTimesByDistance, isPersonalBest, findEdition, searchEditions, hydrateCatalogue } from "./races";
+import { detectAnyRace, bestTimesByDistance, isPersonalBest, findEdition, searchEditions, hydrateCatalogue, raceDateChanges } from "./races";
+import type { CatalogueRace, Participation } from "../types";
 
 type TestRaceCandidate = { editionId?: string; date: string; distanceKm: number };
 type TestRun = { date?: string; km?: number } | null;
@@ -113,5 +114,52 @@ describe("searchEditions", () => {
   });
   it("returns all upcoming editions for an empty query", () => {
     expect(search("", past).length).toBeGreaterThan(1);
+  });
+});
+
+describe("raceDateChanges", () => {
+  const TODAY = "2026-09-28";
+  const cat: CatalogueRace[] = [
+    { id: "paris", name: "ASICS Marathon de Paris", editions: [{ id: "paris-2027-04-11", date: "2027-04-04", distanceKm: 42.2 }] },
+    { id: "bcn", name: "Mitja Barcelona", editions: [{ id: "bcn-2027-02-21", date: "2027-02-14", distanceKm: 21.1 }] },
+    { id: "lyon", name: "Run in Lyon", editions: [{ id: "lyon-2026-11-29", date: "2026-10-04", distanceKm: 42.2 }] },
+    { id: "old", name: "Old race", editions: [{ id: "old-2026-03-14", date: "2026-03-15", distanceKm: 21.1 }] },
+  ];
+  const wish = (editionId: string, raceDate: string, extra: Partial<Participation> = {}): Participation =>
+    ({ editionId, raceDate, label: editionId, status: "wishlist", distanceKm: 42.2, ...extra });
+
+  it("flags a wishlisted race whose catalogue date moved", () => {
+    expect(raceDateChanges([wish("bcn-2027-02-21", "2027-02-21")], cat, {}, {}, TODAY)).toEqual([
+      { editionId: "bcn-2027-02-21", label: "bcn-2027-02-21", oldDate: "2027-02-21", newDate: "2027-02-14", isTarget: false },
+    ]);
+  });
+
+  it("compares the training target against the date the plan was built on", () => {
+    const parts = [wish("paris-2027-04-11", "2027-04-04")];
+    const [c] = raceDateChanges(parts, cat, { editionId: "paris-2027-04-11", raceDate: "2027-04-11" }, {}, TODAY);
+    expect(c).toMatchObject({ oldDate: "2027-04-11", newDate: "2027-04-04", isTarget: true });
+  });
+
+  it("reports a target that has no participation, labelled from the catalogue", () => {
+    const [c] = raceDateChanges([], cat, { editionId: "paris-2027-04-11", raceDate: "2027-04-11" }, {}, TODAY);
+    expect(c).toMatchObject({ label: "ASICS Marathon de Paris 2027", isTarget: true });
+  });
+
+  it("still flags a race whose new date is already past but the planned one isn't", () => {
+    expect(raceDateChanges([wish("lyon-2026-11-29", "2026-11-29")], cat, {}, {}, TODAY)).toHaveLength(1);
+  });
+
+  it("stays quiet when matching, acknowledged, done, fully past, or not in the catalogue", () => {
+    expect(raceDateChanges([wish("bcn-2027-02-21", "2027-02-14")], cat, {}, {}, TODAY)).toEqual([]);
+    expect(raceDateChanges([wish("bcn-2027-02-21", "2027-02-21")], cat, {}, { "bcn-2027-02-21": "2027-02-14" }, TODAY)).toEqual([]);
+    expect(raceDateChanges([wish("bcn-2027-02-21", "2027-02-21", { status: "done" })], cat,
+      { editionId: "bcn-2027-02-21", raceDate: "2027-02-21" }, {}, TODAY)).toEqual([]);
+    expect(raceDateChanges([wish("old-2026-03-14", "2026-03-14")], cat, {}, {}, TODAY)).toEqual([]);
+    expect(raceDateChanges([wish("gone-2027-01-01", "2027-01-01")], cat, {}, {}, TODAY)).toEqual([]);
+    expect(raceDateChanges([wish("bcn-2027-02-21", "2027-02-21")], [], {}, {}, TODAY)).toEqual([]);
+  });
+
+  it("re-flags when the catalogue moves again after an acknowledgement", () => {
+    expect(raceDateChanges([wish("bcn-2027-02-21", "2027-02-21")], cat, {}, { "bcn-2027-02-21": "2027-02-07" }, TODAY)).toHaveLength(1);
   });
 });

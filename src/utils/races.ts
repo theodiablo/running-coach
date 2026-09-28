@@ -118,3 +118,46 @@ export function secondaryRaces(
            elevation: findEdition(p.editionId)?.edition?.elevation || 0 }]
       : []);
 }
+
+export type RaceDateChange = {
+  editionId: string;
+  label: string;
+  oldDate: string;
+  newDate: string;
+  isTarget: boolean;
+};
+
+// Races on the user's list whose catalogue date no longer matches the date they
+// planned around (a participation snapshots its date, and the training target
+// its `settings.raceDate`). Pure over the fetched catalogue, so an empty or
+// failed load reports nothing. `acks` holds catalogue dates the user chose to
+// ignore; a race that has fully passed on both dates is left alone.
+export function raceDateChanges(
+  participations: Participation[] = [],
+  catalogue: CatalogueRace[] = [],
+  target: { editionId?: string | null; raceDate?: string | null } = {},
+  acks: Record<string, string> = {},
+  today: string,
+): RaceDateChange[] {
+  const byId = new Map<string, { name: string; date: string }>();
+  for (const r of catalogue) for (const e of r.editions || []) byId.set(e.id, { name: r.name, date: e.date });
+  const planned = new Map<string, { date: string; label?: string }>();
+  for (const p of participations) {
+    if (p.status === "wishlist" && p.editionId && p.raceDate) planned.set(p.editionId, { date: p.raceDate, label: p.label });
+  }
+  const done = new Set(participations.filter(p => p.status === "done").map(p => p.editionId));
+  if (target.editionId && target.raceDate && !done.has(target.editionId)) {
+    planned.set(target.editionId, { ...planned.get(target.editionId), date: target.raceDate });
+  }
+  const out: RaceDateChange[] = [];
+  for (const [editionId, p] of planned) {
+    const ed = byId.get(editionId);
+    if (!ed || ed.date === p.date || acks[editionId] === ed.date) continue;
+    if (ed.date < today && p.date < today) continue;
+    out.push({
+      editionId, oldDate: p.date, newDate: ed.date, isTarget: editionId === target.editionId,
+      label: p.label || editionLabel({ name: ed.name }, { date: ed.date }),
+    });
+  }
+  return out.sort((a, b) => a.newDate.localeCompare(b.newDate));
+}

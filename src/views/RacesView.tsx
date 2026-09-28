@@ -13,6 +13,8 @@ import { Chip } from "../components/RaceFilterChips";
 import { BANDS, RADII, useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
 import { haversineM } from "../utils/geo";
 import { reportRace } from "../races";
+import { RaceDateChanges } from "../components/RaceDateChangeCard";
+import type { RaceDateChange } from "../utils/races";
 import type { CatalogueEdition, CatalogueRace, JoinedEdition, Participation, RacesState, Run, SettingsState } from "../types";
 
 const SEGMENTS = [["mine", "races.segments.mine"], ["find", "races.segments.find"]];
@@ -26,6 +28,9 @@ type JoinedRace = Omit<Partial<CatalogueRace>, "editions"> & {
 };
 type RacesViewProps = {
   races: RacesState | null;
+  dateChanges?: RaceDateChange[];
+  applyRaceDateChange?: (c: RaceDateChange) => void;
+  keepRaceDate?: (c: RaceDateChange) => void;
   saveRaces: (races: RacesState) => void;
   settings: SettingsState;
   promoteEdition: (joined: JoinedRace | JoinedEdition) => void;
@@ -57,7 +62,7 @@ function UnverifiedTag() {
   );
 }
 
-export function RacesView({ races, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, catalogue, openRaceForm }: RacesViewProps) {
+export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, catalogue, openRaceForm }: RacesViewProps) {
   const { t } = useTranslation();
   const [seg, setSeg] = useState<Segment>("mine");
   const [logFor, setLogFor] = useState<string | null>(null); // editionId being logged
@@ -132,6 +137,11 @@ export function RacesView({ races, saveRaces, settings, promoteEdition, setRaceI
 
       {seg === "mine" && (
         <div className="space-y-6">
+          {!!dateChanges?.length && (
+            <div className="space-y-3">
+              <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>
+            </div>
+          )}
           {!parts.length && (
             <div className="bg-slate-800 rounded-2xl p-6 text-center space-y-3">
               <Trophy size={32} className="mx-auto text-slate-700"/>

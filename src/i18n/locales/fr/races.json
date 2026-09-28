@@ -127,5 +127,15 @@
   "addCard": {
     "dontSee": "Tu ne vois pas ta course ?",
     "addIt": "Ajoute-la au catalogue"
+  },
+  "dateChange": {
+    "title": "Date de course modifiée",
+    "body": "{{label}} est maintenant prévue le {{newDate}}. Tu avais le {{oldDate}}.",
+    "planNote": "Ton plan suivra la nouvelle date. Les séances déjà faites restent cochées.",
+    "updatePlan": "Mettre à jour mon plan",
+    "useNewDate": "Prendre la nouvelle date",
+    "keep": "Garder ma date",
+    "updated": "Date de course mise à jour.",
+    "planUpdated": "Date de course et plan mis à jour."
   }
 }

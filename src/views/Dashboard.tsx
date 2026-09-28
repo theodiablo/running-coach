@@ -15,6 +15,8 @@ import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import { UpdateCard } from "../components/UpdatePrompt";
+import { RaceDateChanges } from "../components/RaceDateChangeCard";
+import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
@@ -55,6 +57,10 @@ type DashboardProps = {
   openIndoor?: (link?: { wNum: number; sId: string }) => void;
   // Store version newer than the installed one; null when current or unknown.
   availableUpdate?: string | null;
+  // Races whose calendar date moved after the user planned around them.
+  dateChanges?: RaceDateChange[];
+  applyRaceDateChange?: (c: RaceDateChange) => void;
+  keepRaceDate?: (c: RaceDateChange) => void;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
@@ -69,7 +75,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -227,6 +233,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       )}
 
       {availableUpdate && <UpdateCard version={availableUpdate}/>}
+
+      <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>
 
       {liveRun && openLiveWatch && (
         <button onClick={openLiveWatch}
