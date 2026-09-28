@@ -80,7 +80,9 @@ Always re-verify a finding before acting on it; agents report false positives.
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
   a center FAB (an action, not a destination) opening `RecordSheet`, which asks
   the one question that separates the recorders — how did this run happen? — and
-  each answer leads somewhere single-purpose; the four row tabs are Home ·
+  each answer leads somewhere single-purpose. A started recorder *minimizes*
+  (hidden, never unmounted — unmounting stops the recording) so the runner can
+  browse mid-run; `docs/live-tracking.md`. The four row tabs are Home ·
   Plan · Races · Progress. The header brand mark is `goHome`: a full reset
   (`dismissAll` + drop pending prefills/highlights + remount the view via
   `homeNonce`), not just `setTab("dash")` — new navigation intent state added to

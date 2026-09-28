@@ -25,7 +25,7 @@ import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudge
 import { RouteMap } from "../components/RouteMap";
 import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
-import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
+import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm, MinimizeBtn, MinimizedRecorderBar } from "../components/RecorderChrome";
 import { ToggleSwitch } from "../components/ToggleSwitch";
 import { ShareLinkConfirm } from "../components/ShareLinkConfirm";
 import { BetaBadge } from "../components/BetaBadge";
@@ -42,6 +42,11 @@ import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SuggestedRout
 type LiveRunTrackerProps = {
   onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
   onClose: () => void;
+  // Hidden behind the rest of the app while a recording carries on: the screen
+  // stays mounted (see MinimizedRecorderBar), so nothing about the run stops.
+  minimized?: boolean;
+  onMinimize?: () => void;
+  onRestore?: () => void;
   showToast?: (msg: string, type?: string) => void;
   hrMethod: HrMethod;
   hrOptOut?: boolean;
@@ -75,7 +80,7 @@ function Stat({ label, value, pulseKey }: { label: string; value: ReactNode; pul
 }
 
 
-export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
   // Same pre-start read as the indoor recorder, from the same helper
   // (src/hr/runHr.ts).
   const hr = recorderHrSetup(hrMethod, hrOptOut);
@@ -429,6 +434,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [state]);
+  const [prevMinimized, setPrevMinimized] = useState(minimized);
+  if (minimized !== prevMinimized) {
+    setPrevMinimized(minimized);
+    if (!minimized && live) setRecenterSignal(n => n + 1);
+  }
   // Offer the HR nudge in place of `fn`, deferring it the same way the
   // disclosure does. Returns whether the nudge took over (caller must not also
   // call fn in that case).
@@ -684,11 +694,12 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   };
 
   // Back/Escape dismissal, innermost first: countdown → discard confirm → the
-  // tracker itself (routed through handleClose so an in-progress run raises the
-  // discard confirm, never a silent teardown). Each registers only while shown,
-  // so the stack order matches what's visually on top. The HR nudge and the
-  // bg-location disclosure self-register in their own components.
-  useDismissable(true, handleClose);
+  // tracker itself, which MINIMIZES a started recording (leaving the screen must
+  // never cost the run) and otherwise closes through handleClose. Each registers
+  // only while shown, so the stack order matches what's visually on top. The HR
+  // nudge and the bg-location disclosure self-register in their own components.
+  const canMinimize = !!onMinimize && (live || state === "stopped");
+  useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
@@ -766,7 +777,13 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
   );
 
   return (
-    <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col animate-slide-up">
+    <>
+    {minimized && (
+      <MinimizedRecorderBar state={state} onOpen={() => onRestore?.()}
+        title={t(state === "stopped" ? "tracker.minimize.stopped" : state === "paused" ? "tracker.minimize.paused" : "tracker.minimize.tracking")}
+        detail={`${stats.km.toFixed(2)} km · ${fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)}`} />
+    )}
+    <div className={"fixed inset-0 bg-slate-900 z-50 flex-col animate-slide-up " + (minimized ? "hidden" : "flex")}>
       <header className="flex items-center justify-between px-4 border-b border-slate-800"
         style={{ height: "calc(44px + var(--safe-top))", paddingTop: "var(--safe-top)" }}>
         <div className="flex items-center gap-1.5">
@@ -782,8 +799,11 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
           )}
           <span className="text-sm font-semibold">{state === "stopped" ? t("tracker.header.complete") : t("tracker.header.live")}</span>
         </div>
-        <button onClick={handleClose} aria-label={t("common.close")}
-          className="text-slate-400 hover:text-white p-1.5"><X size={18} /></button>
+        <div className="flex items-center gap-1">
+          {canMinimize && <MinimizeBtn onClick={() => onMinimize?.()} />}
+          <button onClick={handleClose} aria-label={t("common.close")}
+            className="text-slate-400 hover:text-white p-1.5"><X size={18} /></button>
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 relative">
@@ -1038,5 +1058,6 @@ export function LiveRunTracker({ onFinish, onClose, showToast, hrMethod, hrOptOu
         <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)} />
       )}
     </div>
+    </>
   );
 }

@@ -26,6 +26,13 @@
     "serviceTitle": "Sesión en interior",
     "serviceText": "Registrando la frecuencia cardiaca. Toca para volver."
   },
+  "minimize": {
+    "label": "Volver a la app, la grabación continúa",
+    "open": "Abrir",
+    "tracking": "Entrenamiento en curso",
+    "paused": "En pausa",
+    "stopped": "Entrenamiento terminado, sin guardar"
+  },
   "countdown": {
     "go": "¡Ya!"
   },

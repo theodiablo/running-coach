@@ -173,6 +173,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // an indoor session must never appear in the GPS recovery flow below.
   const [showIndoor, setShowIndoor] = useState(false);
   const [indoorLink, setIndoorLink] = useState<{ wNum: number; sId: string } | null>(null);
+  // A started recording can be minimized to browse the app: the recorder stays
+  // mounted (hidden), so the run keeps recording, and a bar above the nav leads
+  // back. Any way into a recorder while one is open returns to that one.
+  const [recorderMinimized, setRecorderMinimized] = useState(false);
+  const recorderOpen = showTracker || showIndoor;
   // The center FAB's chooser (GPS / indoor / by hand). The FAB used to navigate
   // straight to the Log tab, which then had to offer every way of recording at
   // once; the sheet asks first so each destination does one thing.
@@ -577,12 +582,17 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // unskippable gate.
   const tabRef = useRef(tab);
   useEffect(() => { tabRef.current = tab; }, [tab]);
+  const recorderMinimizedRef = useRef(recorderMinimized);
+  useEffect(() => { recorderMinimizedRef.current = recorderMinimized; }, [recorderMinimized]);
   useEffect(() => {
     const goBack = (): boolean => {
       if (dismissTop()) return true;
       // Raw setter: this listener is registered once, and going TO Home is the
       // one tab change with nothing to spend (see `setTab`).
       if (tabRef.current !== "dash") { setTabState("dash"); return true; }
+      // Never exit over a minimized recording: finishing the activity stops the
+      // services recording it. Back returns to the recorder instead.
+      if (recorderMinimizedRef.current) { setRecorderMinimized(false); return true; }
       return false;
     };
     const onKey = (e: KeyboardEvent) => {
@@ -1223,6 +1233,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
     openTracker: (link?: unknown) => {
+      if (recorderOpen) { setRecorderMinimized(false); return; }
       const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string; findRouteKm?: number } : null;
       setTrackerLink(l ? { wNum: l.wNum, sId: l.sId } : null);
       setTrackerFindKm(l && typeof l.findRouteKm === "number" && l.findRouteKm > 0 ? l.findRouteKm : undefined);
@@ -1231,6 +1242,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Same {wNum, sId} link contract as openTracker, for the indoor recorder —
     // a plan's cross-training day records here rather than through GPS.
     openIndoor: (link?: unknown) => {
+      if (recorderOpen) { setRecorderMinimized(false); return; }
       const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string } : null;
       setIndoorLink(l ? { wNum: l.wNum, sId: l.sId } : null);
       setShowIndoor(true);
@@ -1305,17 +1317,19 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRecordSheet(false)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
-        onFinish={prefill => { setShowTracker(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
-        onClose={() => { setShowTracker(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
+        onFinish={prefill => { setShowTracker(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
+        onClose={() => { setShowTracker(false); setRecorderMinimized(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
       {showIndoor && <IndoorTracker showToast={showToast} settings={settings}
+        minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         // An indoor save can only tick a cross-training day, never that day's
         // easy run — and the GPS tracker above is filtered the other way.
-        onFinish={prefill => { setShowIndoor(false); goLog({ ...prefill, ...chosenOrOffered(indoorLink, prefill) }); setIndoorLink(null); }}
-        onClose={() => { setShowIndoor(false); setIndoorLink(null); }}/>}
+        onFinish={prefill => { setShowIndoor(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(indoorLink, prefill) }); setIndoorLink(null); }}
+        onClose={() => { setShowIndoor(false); setRecorderMinimized(false); setIndoorLink(null); }}/>}
       {showLiveWatch && <LiveWatchModal row={liveRun.row} onClose={() => setShowLiveWatch(false)}/>}
       {showBackup && <BackupModal
         data={{runs, plan, settings, races, userContext, ...(backupRoutes.length ? {routes: backupRoutes} : {})}}
@@ -1417,7 +1431,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </div>
       </header>
 
-      <div key={`${tab}:${homeNonce}`} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:"calc(64px + var(--safe-bottom))"}}>
+      <div key={`${tab}:${homeNonce}`} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:`calc(64px + var(--safe-bottom)${recorderMinimized ? " + 80px" : ""})`}}>
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}
           openEditNonce={planEditNonce}/>}
@@ -1444,7 +1458,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         active={tab}
         className="fixed bottom-0 inset-x-0 z-20"
         onTab={setTab}
-        onRecord={() => setShowRecordSheet(true)}
+        onRecord={() => (recorderOpen ? setRecorderMinimized(false) : setShowRecordSheet(true))}
         onProgress={() => goProgress("stats")}
       />
     </div>

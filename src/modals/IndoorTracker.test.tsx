@@ -53,7 +53,9 @@ vi.mock("../routes", () => routes);
 // exact. The countdown itself is covered by useCountdown's own tests.
 vi.mock("../hooks/usePrefersReducedMotion", () => ({ usePrefersReducedMotion: () => true }));
 
+import { useState } from "react";
 import { IndoorTracker } from "./IndoorTracker";
+import { dismissTop } from "../utils/backDismiss";
 import { INDOOR_RUN_KEY } from "../constants";
 import { HOLD_MS } from "../components/RecorderChrome";
 import type { Run, SettingsState } from "../types";
@@ -365,5 +367,48 @@ describe("IndoorTracker", () => {
     // No sensor, no invented numbers.
     expect(saved.hr).toBeUndefined();
     expect(saved.hrMax).toBeUndefined();
+  });
+});
+
+// Leaving the recorder to browse the app must not stop it: the screen hides but
+// stays mounted, so the session keeps counting behind the rest of the app.
+describe("minimizing an in-progress session", () => {
+  const onClose = vi.fn();
+  function Host() {
+    const [minimized, setMinimized] = useState(false);
+    return <IndoorTracker settings={settings} onFinish={() => {}} onClose={onClose}
+      minimized={minimized} onMinimize={() => setMinimized(true)} onRestore={() => setMinimized(false)} />;
+  }
+  const bar = () => screen.queryByRole("button", { name: /open/i });
+
+  it("offers no minimize before a session has started", () => {
+    render(<Host />);
+    expect(screen.queryByRole("button", { name: /recording continues/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps recording while minimized and comes back to the live screen", () => {
+    render(<Host />);
+    start();
+    act(() => { fireEvent.click(screen.getByRole("button", { name: /recording continues/i })); });
+    expect(bar()).toBeInTheDocument();
+
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(bar()).toHaveTextContent("1:00");
+    expect(onClose).not.toHaveBeenCalled();
+
+    act(() => { fireEvent.click(bar()!); });
+    expect(bar()).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /finish/i })).toBeInTheDocument();
+  });
+
+  // Back is how a runner leaves a screen, so it minimizes rather than asking
+  // to discard, and a minimized recorder no longer answers it.
+  it("minimizes on back instead of raising the discard confirm", () => {
+    render(<Host />);
+    start();
+    act(() => { dismissTop(); });
+    expect(bar()).toBeInTheDocument();
+    expect(screen.queryByText(/discard this session/i)).not.toBeInTheDocument();
+    expect(dismissTop()).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { ModalOverlay, ConfirmButtons } from "./ModalPrimitives";
 
@@ -134,5 +135,43 @@ export function DiscardConfirm({ message, onCancel, onAccept }: {
           onCancel={onCancel} onAccept={onAccept} />
       </div>
     </ModalOverlay>
+  );
+}
+
+// Leaves the recorder for the rest of the app without stopping it: the screen
+// hides but stays mounted, so its hook (and everything it drives) keeps running.
+export function MinimizeBtn({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button onClick={onClick} aria-label={t("tracker.minimize.label")}
+      className="text-slate-400 hover:text-white p-1.5"><ChevronDown size={20} /></button>
+  );
+}
+
+// The way back into a minimized recording, pinned just above the bottom nav.
+export function MinimizedRecorderBar({ state, title, detail, onOpen }: {
+  state: "idle" | "tracking" | "paused" | "stopped"; title: string; detail: string; onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button type="button" onClick={onOpen}
+      className="fixed inset-x-3 z-30 flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-slate-800 border border-orange-500/50 shadow-lg text-left active:scale-[0.98] transition-transform animate-slide-up"
+      style={{ bottom: "calc(64px + var(--safe-bottom) + 0.75rem)" }}>
+      {state === "tracking" ? (
+        <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+          <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+        </span>
+      ) : (
+        <span className={"h-2.5 w-2.5 rounded-full shrink-0 " + (state === "paused" ? "bg-amber-400" : "bg-emerald-400")} aria-hidden />
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-semibold text-white truncate">{title}</span>
+        <span className="block text-xs text-slate-400 tabular-nums truncate">{detail}</span>
+      </span>
+      <span className="flex items-center gap-1 text-xs font-semibold text-orange-300 shrink-0">
+        {t("tracker.minimize.open")}<ChevronUp size={16} />
+      </span>
+    </button>
   );
 }

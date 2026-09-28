@@ -26,6 +26,13 @@
     "serviceTitle": "Séance en salle",
     "serviceText": "Fréquence cardiaque en cours d'enregistrement. Touche pour revenir."
   },
+  "minimize": {
+    "label": "Revenir à l'app, l'enregistrement continue",
+    "open": "Ouvrir",
+    "tracking": "Sortie en cours",
+    "paused": "En pause",
+    "stopped": "Sortie terminée, pas encore enregistrée"
+  },
   "countdown": {
     "go": "Partez !"
   },

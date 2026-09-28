@@ -26,6 +26,13 @@
     "serviceTitle": "Indoor session",
     "serviceText": "Recording heart rate. Tap to return."
   },
+  "minimize": {
+    "label": "Back to the app, recording continues",
+    "open": "Open",
+    "tracking": "Recording run",
+    "paused": "Paused",
+    "stopped": "Run finished, not saved yet"
+  },
   "countdown": {
     "go": "Go!"
   },

@@ -13,7 +13,7 @@ import { effectiveMaxHR, isHrStale, liveHrStatusLine } from "../utils/hr";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { LiveHrZone } from "../components/LiveHrZone";
 import { HRTarget } from "../components/HRTarget";
-import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm } from "../components/RecorderChrome";
+import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm, MinimizeBtn, MinimizedRecorderBar } from "../components/RecorderChrome";
 import { BetaBadge } from "../components/BetaBadge";
 import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
@@ -23,6 +23,10 @@ import { RUN_ACTIVITIES, type Run, type RunActivity, type SettingsPage, type Set
 type IndoorTrackerProps = {
   onFinish: (prefill: Partial<Run>) => void;
   onClose: () => void;
+  // Same contract as LiveRunTracker's: hidden, never unmounted, while minimized.
+  minimized?: boolean;
+  onMinimize?: () => void;
+  onRestore?: () => void;
   showToast?: (msg: string, type?: string) => void;
   settings: SettingsState;
   onConfigureHr?: (page?: SettingsPage) => void;
@@ -36,7 +40,7 @@ type IndoorTrackerProps = {
 // background-location consent apply with no GPS, and threading an `indoor`
 // branch through all of it would leave two half-features. See
 // docs/indoor-sessions.md.
-export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfigureHr, onDeclineHr }: IndoorTrackerProps) {
+export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr }: IndoorTrackerProps) {
   const { t } = useTranslation();
   // Same pre-start read as LiveRunTracker, from the same helper.
   const hr = recorderHrSetup(settings.hrMethod, settings.hrOptOut);
@@ -156,16 +160,23 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
   };
 
   // Back/Escape, innermost first: countdown → discard confirm → the screen
-  // itself (through handleClose, so an in-progress session raises the discard
-  // confirm rather than closing). The HR nudge self-registers.
-  useDismissable(true, handleClose);
+  // itself, which minimizes a started session and otherwise closes through
+  // handleClose. The HR nudge self-registers.
+  const canMinimize = !!onMinimize && (live || state === "stopped");
+  useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
   useDismissable(countdown.count !== null, countdown.cancel);
 
   const clock = fmt.dur(stats.movingSec) === "--" ? "0:00" : fmt.dur(stats.movingSec);
 
   return (
-    <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col animate-slide-up">
+    <>
+    {minimized && (
+      <MinimizedRecorderBar state={state} onOpen={() => onRestore?.()}
+        title={t(state === "stopped" ? "tracker.indoor.complete" : state === "paused" ? "tracker.minimize.paused" : "tracker.indoor.title")}
+        detail={clock + (liveHr && stats.hr != null && !hrStale ? ` · ${stats.hr} ${t("tracker.hr.bpm")}` : "")} />
+    )}
+    <div className={"fixed inset-0 bg-slate-900 z-50 flex-col animate-slide-up " + (minimized ? "hidden" : "flex")}>
       <header className="flex items-center justify-between px-4 border-b border-slate-800"
         style={{ height: "calc(44px + var(--safe-top))", paddingTop: "var(--safe-top)" }}>
         <div className="flex items-center gap-1.5">
@@ -183,8 +194,11 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
             {state === "stopped" ? t("tracker.indoor.complete") : t("tracker.indoor.title")}
           </span>
         </div>
-        <button onClick={handleClose} aria-label={t("common.close")}
-          className="text-slate-400 hover:text-white p-1.5"><X size={18} /></button>
+        <div className="flex items-center gap-1">
+          {canMinimize && <MinimizeBtn onClick={() => onMinimize?.()} />}
+          <button onClick={handleClose} aria-label={t("common.close")}
+            className="text-slate-400 hover:text-white p-1.5"><X size={18} /></button>
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-center p-4 gap-5">
@@ -322,6 +336,7 @@ export function IndoorTracker({ onFinish, onClose, showToast, settings, onConfig
         <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
       )}
     </div>
+    </>
   );
 }
 
