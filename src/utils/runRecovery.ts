@@ -1,4 +1,5 @@
 import { LIVE_RUN_KEY } from "../constants";
+import { currentUserId } from "../db";
 import type { StoredTrackPoint } from "./geo";
 
 // The live-run recovery buffer (localStorage, see useRunTracker's persist) read
@@ -25,6 +26,7 @@ export type RecoveryBuffer = {
   stoppedAt?: number | null;
   state?: string;
   savedAt?: number;
+  userId?: string | null;
 };
 
 // The normalized shape the resume flow consumes: moving time already includes
@@ -55,6 +57,10 @@ export function readRecoveryBuffer(
   if (!raw) return null;
   try {
     const buf = JSON.parse(raw) as RecoveryBuffer;
+    // Another account's run on a shared device: hidden, not deleted, so its
+    // owner still gets it back after signing in again.
+    const me = currentUserId();
+    if (buf?.userId && me && buf.userId !== me) return null;
     const hasPoints = Array.isArray(buf?.points) && buf.points.some(Boolean);
     // Anything recorded at all: samples, completed moving time, or a segment
     // that was still open when the app died (a strapless session's only trace).

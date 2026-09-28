@@ -30,9 +30,8 @@ ships the code inside the APK.
 
 ## Landing content
 
-- Visual design is ported from the committed reference in
-  `Marketing Page Design/` (a design-tool `.dc.html` export + screenshots —
-  reference only, not built).
+- The visual design was ported from a design-tool export, since removed: it
+  embedded real-account screenshots (still in git history).
 - **Self-hosted Archivo** font (`@fontsource/archivo`, imported inside
   `MarketingGate` so the woff2s live in the web-only chunk and never hit the
   APK or need a Google-Fonts CSP entry) and real app **screenshots** in

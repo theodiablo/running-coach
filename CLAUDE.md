@@ -23,7 +23,7 @@ Always re-verify a finding before acting on it; agents report false positives.
 ## Setup & commands
 - `./scripts/setup-env.sh` first in a fresh checkout — npm deps (via `npm ci`,
   so patch-package starts from pristine packages) plus Deno, which
-  `typecheck:supabase` needs. A SessionStart hook runs it in web sessions, and
+  `typecheck:supabase` needs, and Terraform at `terraform.yml`'s pinned version. A SessionStart hook runs it in web sessions, and
   it is what a cloud environment's setup script should point at. Idempotent.
   The cloud sandbox's egress allows the npm registry and jsr.io but not
   deno.land, esm.sh or GitHub downloads — so Deno comes from npm, and edge
@@ -40,6 +40,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   for edge functions; `npm run typecheck:all` — both (CI runs this).
 - `npm run build` — production build (runs `typecheck` first) → `dist` for
   S3/CloudFront.
+- `npm run infra:validate` — `terraform fmt -check` + `validate` on `infra/`
+  (no AWS credentials needed); run it before pushing an `infra/` change.
 
 ## TypeScript
 - App source and tests live in `src/**/*.{ts,tsx}`; no new `.js`/`.jsx` in

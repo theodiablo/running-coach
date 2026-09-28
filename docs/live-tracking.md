@@ -27,7 +27,9 @@ logic is `src/utils/runRecovery.ts`:
   every accepted fix) is **never expired silently** — an old buffer is still
   offered; `RESUME_MAX_AGE_MS` only bounds the live-sharing sweep/watcher.
   `normalizeRecovery` also closes the moving-time segment left open by the
-  crash (`accSec` alone undercounts a never-paused run to 0:00).
+  crash (`accSec` alone undercounts a never-paused run to 0:00). It carries
+  the recording account's `userId`, and another account on the same device is
+  never offered it (hidden, not deleted, so its owner still recovers it).
 - **The native fix journal** (Android): the patched plugin appends every fix
   its live renderer accepts to `run_fix_journal.jsonl` in app files, so points
   recorded after the WebView froze survive process death — JS can never have
