@@ -84,7 +84,7 @@
     "passwordChangeAria": "Cambiar la contraseña",
     "passwordCancelAria": "Cancelar el cambio de contraseña",
     "passwordSet": "Crear una contraseña",
-    "passwordSetDesc": "Accedes con Google. Añade una contraseña para entrar también con tu correo.",
+    "passwordSetDesc": "Accedes con {{provider}}. Añade una contraseña para entrar también con tu correo.",
     "passwordNew": "Nueva contraseña",
     "passwordConfirm": "Confirma la nueva contraseña",
     "passwordRules": "Al menos 12 caracteres, con una mayúscula, una minúscula y un número.",

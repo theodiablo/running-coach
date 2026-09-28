@@ -84,7 +84,7 @@
     "passwordChangeAria": "Modifier le mot de passe",
     "passwordCancelAria": "Annuler le changement de mot de passe",
     "passwordSet": "Définir un mot de passe",
-    "passwordSetDesc": "Tu te connectes avec Google. Ajoute un mot de passe pour te connecter aussi avec ton e-mail.",
+    "passwordSetDesc": "Tu te connectes avec {{provider}}. Ajoute un mot de passe pour te connecter aussi avec ton e-mail.",
     "passwordNew": "Nouveau mot de passe",
     "passwordConfirm": "Confirme le nouveau mot de passe",
     "passwordRules": "Au moins 12 caractères, avec une majuscule, une minuscule et un chiffre.",

@@ -20,6 +20,12 @@ export function passwordProblem(pw: string, confirm: string): PasswordProblem | 
 // password at all. For those, updateUser({password}) SETS a first one (and
 // thereby enables email+password sign-in alongside Google) — so the UI says
 // "Set a password", not "Change".
+// Display name of the social identity a password-less account signs in with.
+export function socialProviderName(user: User): string {
+  return user.identities?.some(i => i.provider === "apple") && !user.identities.some(i => i.provider === "google")
+    ? "Apple" : "Google";
+}
+
 export function hasEmailIdentity(user: User): boolean {
   return !!user.identities?.some(i => i.provider === "email");
 }

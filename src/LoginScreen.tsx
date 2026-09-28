@@ -41,7 +41,7 @@ type LoginScreenProps = {
 };
 
 // `authError` is a native deep-link sign-in failure surfaced by App.tsx (e.g. the
-// user cancels Google consent); shown until the user takes another action.
+// user cancels Google/Apple consent); shown until the user takes another action.
 export default function LoginScreen({ authError, onClearAuthError, intent = "signin", resetLinkFailed = false }: LoginScreenProps) {
   const { t } = useTranslation();
   const [askingReset, setAskingReset] = useState(resetLinkFailed);
@@ -90,14 +90,14 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
     set(e.target.value);
   };
 
-  async function withGoogle() {
+  async function withOAuth(provider: "google" | "apple") {
     setBusy(true);
     setMsg(null);
     // In the shell, open the provider in the system browser ourselves and let the
     // deep link bring the result back (App.tsx completes the exchange). On the web
     // Supabase performs the redirect for us.
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider,
       options: { redirectTo: authRedirectTo(), skipBrowserRedirect: isNative },
     });
     if (error) {
@@ -113,7 +113,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       // plain top-frame navigation is intercepted by Capacitor's WebViewClient
       // (Bridge.launchIntent): the external OAuth host never loads in the WebView,
       // it's handed to the OS as an ACTION_VIEW intent that opens in the default
-      // browser, and Google redirects back to the deep link (App.tsx completes the
+      // browser, and the provider redirects back to the deep link (App.tsx completes the
       // PKCE exchange). The WebView stays on localhost, so re-enabling the form
       // below is still correct.
       if (isAndroid) {
@@ -279,15 +279,25 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
                 {intent === "signup" ? t("login.headingSignup") : t("login.heading")}
               </h2>
 
-              {/* Google first: the one way in with no password to forget. */}
+              {/* Social first: the ways in with no password to forget. */}
               <button
                 type="button"
-                onClick={withGoogle}
+                onClick={() => withOAuth("google")}
                 disabled={busy}
                 className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-800 font-medium py-2.5 rounded-lg transition"
               >
                 <GoogleIcon />
                 {t("login.continueWithGoogle")}
+              </button>
+              {/* Black on the dark card, per Apple's button guidelines. */}
+              <button
+                type="button"
+                onClick={() => withOAuth("apple")}
+                disabled={busy}
+                className="mt-2 w-full flex items-center justify-center gap-2 bg-black hover:bg-slate-950 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg border border-slate-600 transition"
+              >
+                <AppleIcon />
+                {t("login.continueWithApple")}
               </button>
 
               <div className="flex items-center gap-3 my-4">
@@ -386,6 +396,14 @@ function GoogleIcon() {
       <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
       <path fill="#4CAF50" d="M24 44c5.5 0 10.5-2.1 14.3-5.6l-6.6-5.6c-2.1 1.5-4.8 2.4-7.7 2.4-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.6 39.6 16.2 44 24 44z"/>
       <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.6 5.6C40.9 36.4 44 30.7 44 24c0-1.3-.1-2.3-.4-3.5z"/>
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/>
     </svg>
   );
 }

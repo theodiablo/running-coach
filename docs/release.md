@@ -361,6 +361,26 @@ screen, open the link on a *different* device from the one that asked (the
 common case, and the one where a PKCE `?code=` is unexchangeable), set a new
 password, and confirm the notification arrives.
 
+## Sign in with Apple (Supabase provider)
+
+The login screen calls `signInWithOAuth({ provider: "apple" })` through the same
+browser + deep-link path as Google, on every platform (an Apple-created account
+has no password, so the button must stay reachable from Android and the web).
+Hosted-project config, done by hand in the Supabase dashboard:
+
+- Apple Developer → Identifiers: the App ID `solutions.camboulive.run` with
+  **Sign in with Apple** enabled; a **Services ID** (its identifier is the
+  Supabase "Client ID"), configured with the domain `<ref>.supabase.co` and the
+  return URL `https://<ref>.supabase.co/auth/v1/callback`.
+- Apple Developer → Keys: a key with Sign in with Apple, bound to that App ID.
+  The `.p8` downloads **once**; keep it in the password manager with its Key ID.
+- The secret Supabase stores is a JWT signed with that key, and **Apple caps it
+  at 6 months** — regenerate it (Supabase's generator in the Apple provider
+  docs) before it expires, or every Apple sign-in fails.
+- Apple → Services → Sign in with Apple for Email Communication: register
+  `mail.camboulive.solutions` as a sender domain, or mail to Hide-My-Email
+  (`@privaterelay.appleid.com`) addresses is dropped.
+
 ## CI caching & budget
 
 - **All workflows use Node 22** (Capacitor 8 CLI floor) — keep new workflows on
