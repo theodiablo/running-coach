@@ -15,13 +15,16 @@ import { CLOUD_OAUTH, cloudOauthProviderIds, type CloudOauthProviderId } from ".
 // ?code=&type=recovery — which the code branch would exchange into an ordinary
 // sign-in, dropping the user into the app with the password they can't
 // remember and no way to set a new one.
+export type RecoveryTokens = { accessToken: string; refreshToken: string };
+
 export type AuthCallback =
   | { kind: "cloudOauth"; provider: CloudOauthProviderId; code: string | null; state: string | null }
   | { kind: "error"; message: string }
   // Our own template sends a token_hash to verify; GoTrue's stock one can
-  // arrive as a code to exchange instead (on the web supabase-js does that
-  // itself). Either may be null, never both.
-  | { kind: "recovery"; tokenHash: string | null; code: string | null }
+  // arrive as a code to exchange, or (implicit /verify, e.g. a dashboard-sent
+  // reset) as a session in the fragment that our PKCE client refuses to adopt.
+  // All may be null: a link with nothing to redeem.
+  | { kind: "recovery"; tokenHash: string | null; code: string | null; tokens: RecoveryTokens | null }
   | { kind: "otp"; tokenHash: string; otpType: "email_change" }
   | { kind: "notice"; message: string }
   | { kind: "code"; code: string }
@@ -55,7 +58,10 @@ export function classifyAuthUrl(url: string): AuthCallback {
   if (provErr) return { kind: "error", message: provErr };
   const tokenHash = params.get("token_hash");
   if (params.get("type") === "recovery") {
-    return { kind: "recovery", tokenHash, code: params.get("code") };
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const tokens = accessToken && refreshToken ? { accessToken, refreshToken } : null;
+    return { kind: "recovery", tokenHash, code: params.get("code"), tokens };
   }
   if (tokenHash && params.get("type") === "email_change") {
     return { kind: "otp", tokenHash, otpType: "email_change" };

@@ -155,7 +155,9 @@ Always re-verify a finding before acting on it; agents report false positives.
   **Recovery outranks `?code=`**: exchanged as an ordinary sign-in it drops the
   user into the app with no way to set the password they came to replace, so
   `App.tsx` renders `ResetPasswordScreen` over everything — before the store,
-  which it doesn't need and must not wait on — until a new password is saved. Add new callback shapes there, with a
+  which it doesn't need and must not wait on — until a new password is saved. A recovery link must be redeemed into *its own* session (token_hash, code, or
+  the implicit fragment's tokens via `setSession`) or fail — never fall through
+  to whatever session the device already holds, which is another account's. Add new callback shapes there, with a
   test, not as another branch in `App.tsx`. **Every branch must end in visible
   feedback**: a signed-in user never sees `LoginScreen`, so an auth failure
   reported there is invisible — emit `AUTH_NOTICE_EVENT` (toasted by

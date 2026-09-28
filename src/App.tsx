@@ -6,7 +6,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isNative, isIos } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
-import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
+import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired } from "./components/UpdatePrompt";
@@ -44,19 +44,28 @@ const initialUrl = typeof window !== "undefined" ? window.location.href : "";
 // ?code=) and it fails silently — without this the user waits on the splash.
 const RECOVERY_SETTLE_MS = 8000;
 
-// Redeem a password-reset callback. Our own template sends a token_hash, which
-// only verifyOtp can spend; GoTrue's stock one can arrive as a ?code=, which
-// supabase-js exchanges itself on the web (`exchangeCode` false) but nobody
-// exchanges inside the shell. Either way the user ends up signed in, which is
-// what the new-password screen needs.
-async function redeemRecovery(cb: { tokenHash: string | null; code: string | null }, exchangeCode: boolean): Promise<boolean> {
+// Redeem a password-reset callback into a session for the account the link was
+// sent to. Our own template sends a token_hash (verifyOtp); GoTrue's stock one a
+// ?code= (supabase-js exchanges it itself on the web, `exchangeCode` false) or,
+// through the implicit /verify, a session in the fragment that the PKCE client
+// won't adopt. A link that yields none of these must fail: the device may
+// already be signed in to ANOTHER account, and the new-password screen would
+// set that account's password instead.
+async function redeemRecovery(cb: { tokenHash: string | null; code: string | null; tokens: RecoveryTokens | null }, exchangeCode: boolean): Promise<boolean> {
   try {
     if (cb.tokenHash) {
       const { error } = await supabase.auth.verifyOtp({ token_hash: cb.tokenHash, type: "recovery" });
       if (error) throw error;
-    } else if (cb.code && exchangeCode) {
-      const { error } = await supabase.auth.exchangeCodeForSession(cb.code);
+    } else if (cb.tokens) {
+      const { error } = await supabase.auth.setSession({ access_token: cb.tokens.accessToken, refresh_token: cb.tokens.refreshToken });
       if (error) throw error;
+    } else if (cb.code) {
+      const { error } = exchangeCode
+        ? await supabase.auth.exchangeCodeForSession(cb.code)
+        : await supabase.auth.initialize(); // settles supabase-js's own exchange
+      if (error) throw error;
+    } else {
+      return false;
     }
     return true;
   } catch (err) {
@@ -369,10 +378,11 @@ export default function App() {
     // Only ours to clean up: a ?code= belongs to supabase-js, which reads it
     // asynchronously and strips it once spent. Stripping it here would race
     // that read and leave the link unredeemed.
-    if (cb.tokenHash) {
+    if (cb.tokenHash || cb.tokens) {
       const url = new URL(window.location.href);
       for (const k of ["token_hash", "type"]) url.searchParams.delete(k);
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      const hash = cb.tokens ? "" : url.hash; // a live session must not linger in the URL
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${hash}`);
     }
     redeemRecovery(cb, false).then(ok => { if (ok) setRecovering(true); else setResetLinkFailed(true); });
   }, []);

@@ -38,7 +38,7 @@ describe("classifyAuthUrl", () => {
 
   it("recognises a password-reset link", () => {
     const url = "solutions.camboulive.run://auth-callback?token_hash=abc123&type=recovery";
-    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: "abc123", code: null });
+    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: "abc123", code: null, tokens: null });
   });
 
   // GoTrue's stock template redirects through /verify, which can hand back a
@@ -46,7 +46,22 @@ describe("classifyAuthUrl", () => {
   // app with no way to set the password they came to replace.
   it("reads a recovery redirect that carries a code as a recovery, not a sign-in", () => {
     const url = "solutions.camboulive.run://auth-callback?code=pkce-code&type=recovery";
-    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: null, code: "pkce-code" });
+    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: null, code: "pkce-code", tokens: null });
+  });
+
+  // A dashboard-sent reset goes through the implicit /verify and lands the
+  // session in the fragment. Unread, a device signed in to another account kept
+  // that session and the reset screen changed the wrong account's password.
+  it("carries the session of an implicit recovery redirect", () => {
+    const url = "https://run.example/#access_token=at&expires_in=3600&refresh_token=rt&token_type=bearer&type=recovery";
+    expect(classifyAuthUrl(url)).toEqual({
+      kind: "recovery", tokenHash: null, code: null, tokens: { accessToken: "at", refreshToken: "rt" },
+    });
+  });
+
+  it("reads a recovery with nothing to redeem as an empty recovery", () => {
+    const url = "https://run.example/#type=recovery";
+    expect(classifyAuthUrl(url)).toEqual({ kind: "recovery", tokenHash: null, code: null, tokens: null });
   });
 
   it("recognises a Supabase PKCE return", () => {
