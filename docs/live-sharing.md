@@ -379,6 +379,9 @@ feature. Two words in it are load-bearing, and each has an answer:
   different door. `live-watch` therefore looks the token up *unfiltered*: a row
   that exists but is revoked is a terminal "nothing live" and must never fall
   through to the legacy column.
+  Settings → Account also carries **Copy link** (clipboard only; the URL is
+  toasted where the clipboard is refused), so the link can be handed out
+  between runs without opening the recorder.
 - **"Standing window"** is bounded by what the link can ever show: a run, while
   it is recording, with the switch on. No history, no position at rest, no
   identity — the function's select list still omits `user_id`, and nothing else
