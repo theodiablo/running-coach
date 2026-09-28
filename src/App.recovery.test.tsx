@@ -11,7 +11,7 @@ const h = vi.hoisted(() => {
   window.history.replaceState({}, "", "/?token_hash=reset-token&type=recovery");
   return {
     session: { user: { id: "u1", email: "runner@example.com" } } as { user: { id: string; email: string } } | null,
-    verifyOtp: vi.fn(async () => ({ error: null as unknown })),
+    verifyOtp: vi.fn(async () => ({ data: { user: { id: "u1" } as { id: string } | null }, error: null as unknown })),
     updateUser: vi.fn(async () => ({ error: null as unknown })),
   };
 });
@@ -59,7 +59,7 @@ import App from "./App";
 describe("password-reset callback", () => {
   beforeEach(() => {
     h.session = { user: { id: "u1", email: "runner@example.com" } };
-    h.verifyOtp.mockClear().mockResolvedValue({ error: null });
+    h.verifyOtp.mockClear().mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
     h.updateUser.mockClear().mockResolvedValue({ error: null });
   });
 
@@ -88,7 +88,7 @@ describe("password-reset callback", () => {
 
   it("sends a signed-out user to the reset form when the link is dead", async () => {
     h.session = null;
-    h.verifyOtp.mockResolvedValue({ error: Object.assign(new Error("Token has expired"), { code: "otp_expired" }) });
+    h.verifyOtp.mockResolvedValue({ data: { user: null }, error: Object.assign(new Error("Token has expired"), { code: "otp_expired" }) });
 
     render(<App />);
 
@@ -96,5 +96,18 @@ describe("password-reset callback", () => {
     // Never the marketing page: the way to ask for a fresh link is behind a
     // CTA nobody would know to press.
     expect(screen.queryByText("Marketing landing")).not.toBeInTheDocument();
+  });
+
+  // The device may hold another account's session. The screen sets the password
+  // of whoever is signed in, so it must wait for the link's own account.
+  it("never offers the reset over another account's session", async () => {
+    h.session = { user: { id: "u2", email: "other@example.com" } };
+
+    render(<App />);
+
+    await waitFor(() => expect(h.verifyOtp).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 50));
+    expect(screen.queryByText("Choose a new password")).not.toBeInTheDocument();
+    expect(h.updateUser).not.toHaveBeenCalled();
   });
 });

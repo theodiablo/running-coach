@@ -6,7 +6,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { isNative, isIos } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
-import { classifyAuthUrl, emailChangeOutcome } from "./utils/authCallback";
+import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
 import { versionStatus } from "./utils/version";
 import { UpdateRequired } from "./components/UpdatePrompt";
@@ -44,24 +44,39 @@ const initialUrl = typeof window !== "undefined" ? window.location.href : "";
 // ?code=) and it fails silently — without this the user waits on the splash.
 const RECOVERY_SETTLE_MS = 8000;
 
-// Redeem a password-reset callback. Our own template sends a token_hash, which
-// only verifyOtp can spend; GoTrue's stock one can arrive as a ?code=, which
-// supabase-js exchanges itself on the web (`exchangeCode` false) but nobody
-// exchanges inside the shell. Either way the user ends up signed in, which is
-// what the new-password screen needs.
-async function redeemRecovery(cb: { tokenHash: string | null; code: string | null }, exchangeCode: boolean): Promise<boolean> {
+// Redeem a password-reset callback into a session for the account the link was
+// sent to. Our own template sends a token_hash (verifyOtp); GoTrue's stock one a
+// ?code= (supabase-js exchanges it itself on the web, `exchangeCode` false) or,
+// through the implicit /verify, a session in the fragment that the PKCE client
+// won't adopt. A link that yields none of these must fail: the device may
+// already be signed in to ANOTHER account, and the new-password screen would
+// set that account's password instead.
+// Resolves to the id of the account the link was for, or null when it was
+// rejected.
+async function redeemRecovery(cb: { tokenHash: string | null; code: string | null; tokens: RecoveryTokens | null }, exchangeCode: boolean): Promise<string | null> {
   try {
+    let uid: string | undefined;
     if (cb.tokenHash) {
-      const { error } = await supabase.auth.verifyOtp({ token_hash: cb.tokenHash, type: "recovery" });
+      const { data, error } = await supabase.auth.verifyOtp({ token_hash: cb.tokenHash, type: "recovery" });
       if (error) throw error;
+      uid = data.user?.id;
+    } else if (cb.tokens) {
+      const { data, error } = await supabase.auth.setSession({ access_token: cb.tokens.accessToken, refresh_token: cb.tokens.refreshToken });
+      if (error) throw error;
+      uid = data.user?.id;
     } else if (cb.code && exchangeCode) {
-      const { error } = await supabase.auth.exchangeCodeForSession(cb.code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(cb.code);
       if (error) throw error;
+      uid = data.user?.id;
+    } else if (cb.code) {
+      const { error } = await supabase.auth.initialize(); // settles supabase-js's own exchange
+      if (error) throw error;
+      uid = (await supabase.auth.getSession()).data.session?.user.id;
     }
-    return true;
+    return uid ?? null;
   } catch (err) {
     console.error("Password-reset link rejected", err);
-    return false;
+    return null;
   }
 }
 
@@ -129,7 +144,9 @@ export default function App() {
   // screen owns the app until it's done. Set from the callback we classify
   // ourselves AND from supabase-js's own PASSWORD_RECOVERY event, because which
   // one fires depends on the shape of the link the mail template sent.
-  const [recovering, setRecovering] = useState(false);
+  // Holds the id of the account the link was for: the screen only ever sets
+  // that account's password, never whichever session the device happens to hold.
+  const [recovering, setRecovering] = useState<string | null>(null);
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
   const [latestVersion, setLatestVersion] = useState<string | null>(null); // shown on the Home update card
@@ -177,12 +194,12 @@ export default function App() {
       });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      if (event === "PASSWORD_RECOVERY" && s) setRecovering(s.user.id);
       if (s) {
         offlineSessionRef.current = null; // a real session supersedes the adopted one
       } else if (event === "SIGNED_OUT") {
         offlineSessionRef.current = null;
-        setRecovering(false); // nothing to set a password on any more
+        setRecovering(null); // nothing to set a password on any more
         // The one place account data may leave the device: an explicit
         // sign-out (or a dead refresh token). NOT in clearStore — that runs on
         // transient null-session states too, where wiping the mirror would
@@ -297,12 +314,14 @@ export default function App() {
         // Password-reset link. Ahead of "code" in classifyAuthUrl for a
         // reason: exchanged as an ordinary sign-in it would drop the user into
         // the app with no way to set the password they came here to replace.
-        case "recovery":
+        case "recovery": {
           closeAuthBrowser();
-          if (await redeemRecovery(cb, true)) setRecovering(true);
+          const recoveredUid = await redeemRecovery(cb, true);
+          if (recoveredUid) setRecovering(recoveredUid);
           else if (signedIn) emitAuthNotice("app.toasts.resetLinkFailed", "err");
           else setResetLinkFailed(true);
           return;
+        }
         // Email-change confirmation link (Settings -> Account) in its
         // ?token_hash=&type=email_change shape — sent when the mail template
         // uses {{ .TokenHash }}; these need verifyOtp, not the PKCE exchange.
@@ -369,21 +388,28 @@ export default function App() {
     // Only ours to clean up: a ?code= belongs to supabase-js, which reads it
     // asynchronously and strips it once spent. Stripping it here would race
     // that read and leave the link unredeemed.
-    if (cb.tokenHash) {
+    if (cb.tokenHash || cb.tokens) {
       const url = new URL(window.location.href);
       for (const k of ["token_hash", "type"]) url.searchParams.delete(k);
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      const hash = cb.tokens ? "" : url.hash; // a live session must not linger in the URL
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${hash}`);
     }
-    redeemRecovery(cb, false).then(ok => { if (ok) setRecovering(true); else setResetLinkFailed(true); });
+    redeemRecovery(cb, false).then(uid => { if (uid) setRecovering(uid); else setResetLinkFailed(true); });
   }, []);
 
-  // A reset link that never produces a session (supabase-js failed to exchange
-  // an expired ?code=) must not strand the user on the splash below.
+  // A reset link whose account never becomes the session must not strand the
+  // user on the splash below. Signed in to another account, the login screen's
+  // notice would never render, so that failure is a toast.
+  const sessionUid = session?.user.id;
   useEffect(() => {
-    if (!recovering || session) return;
-    const timer = setTimeout(() => { setRecovering(false); setResetLinkFailed(true); }, RECOVERY_SETTLE_MS);
+    if (!recovering || sessionUid === recovering) return;
+    const timer = setTimeout(() => {
+      setRecovering(null);
+      if (sessionUid) emitAuthNotice("app.toasts.resetLinkFailed", "err");
+      else setResetLinkFailed(true);
+    }, RECOVERY_SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [recovering, session]);
+  }, [recovering, sessionUid]);
 
   // Web twin of the handler above, for email-change links only. In the browser
   // the confirmation redirect lands back on our own origin: supabase-js consumes
@@ -535,8 +561,8 @@ export default function App() {
   // failing) and before the login screen (the link already signed them in —
   // while the session is still landing, this is the splash).
   if (recovering) {
-    return session
-      ? <ResetPasswordScreen email={session.user.email} onDone={() => setRecovering(false)} />
+    return session?.user.id === recovering
+      ? <ResetPasswordScreen email={session.user.email} onDone={() => setRecovering(null)} />
       : <Splash />;
   }
   // First-run telemetry opt-in. Shown over both the login screen and the app so
