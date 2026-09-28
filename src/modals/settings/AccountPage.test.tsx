@@ -14,6 +14,14 @@ vi.mock("../../supabase", () => ({
   authRedirectTo: () => "https://run.example/",
 }));
 
+const TOKEN = "A".repeat(22);
+const cachedLink = vi.fn<() => string | null>(() => null);
+vi.mock("../../live/shareLinkStore", () => ({
+  readCachedShareLink: () => cachedLink(),
+  fetchShareLink: () => Promise.resolve(null),
+  rotateShareLink: () => Promise.resolve({ token: null }),
+}));
+
 afterEach(cleanup);
 beforeEach(() => {
   updateUser.mockReset(); updateUser.mockResolvedValue({ error: null });
@@ -120,5 +128,36 @@ describe("AccountPage email form", () => {
     renderPage(makeUser(["email"]));
     await waitFor(() => expect(screen.getByText("Email")).toBeInTheDocument());
     expect(refreshSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("AccountPage share link", () => {
+  beforeEach(() => { cachedLink.mockReset(); cachedLink.mockReturnValue(null); });
+
+  it("copies the watch URL to the clipboard", async () => {
+    cachedLink.mockReturnValue(TOKEN);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Copy link/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Copied/ })).toBeInTheDocument());
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`/watch/${TOKEN}$`)));
+  });
+
+  it("shows the URL in a toast when the clipboard is unavailable", async () => {
+    cachedLink.mockReturnValue(TOKEN);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) }, configurable: true,
+    });
+    const showToast = vi.fn();
+    render(<AccountPage settings={{} as SettingsState} saveSettings={() => {}}
+      onBackup={() => {}} onRestore={() => {}} showToast={showToast} />);
+    fireEvent.click(screen.getByRole("button", { name: /Copy link/ }));
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining(`/watch/${TOKEN}`)));
+  });
+
+  it("renders no share-link card without a link", () => {
+    renderPage();
+    expect(screen.queryByRole("button", { name: /Copy link/ })).not.toBeInTheDocument();
   });
 });

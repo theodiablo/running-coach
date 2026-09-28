@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Upload, Trash2, Shield, Link2, RefreshCw, Loader } from "lucide-react";
+import { Download, Upload, Trash2, Shield, Link2, RefreshCw, Loader, Copy, Check } from "lucide-react";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../../i18n";
 import { INPUT_CLS, PRIVACY_URL, DISCLAIMER_URL } from "../../constants";
 import { getConsent, setConsent, getCrashConsent, setCrashConsent } from "../../telemetry";
@@ -81,6 +81,23 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
     if (token) { setShareToken(token); showToast?.(t("liveShare.link.replaced")); return; }
     showToast?.(t(limit ? "liveShare.link.limit" : "liveShare.link.failed"), "err");
   };
+  const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current); }, []);
+  const copyLink = async () => {
+    if (!shareToken) return;
+    const url = watchUrl(shareToken);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // No clipboard in this WebView: surface the raw URL rather than nothing.
+      showToast?.(url);
+      return;
+    }
+    setCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopied(false), 2500);
+  };
 
   return (
     <>
@@ -159,11 +176,18 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
           </div>
           <p className="font-mono text-xs text-sky-200 break-all">{watchUrl(shareToken).replace(/^https?:\/\//, "")}</p>
           <p className="text-xs text-slate-400 leading-snug">{t("liveShare.link.settingsDesc")}</p>
-          <button onClick={() => setConfirmReplace(true)} disabled={replacing}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-60">
-            {replacing ? <Loader size={15} className="animate-spin"/> : <RefreshCw size={15}/>}
-            {t("liveShare.link.replace")}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => { void copyLink(); }}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white">
+              {copied ? <Check size={15}/> : <Copy size={15}/>}
+              {t(copied ? "liveShare.link.copied" : "liveShare.link.copy")}
+            </button>
+            <button onClick={() => setConfirmReplace(true)} disabled={replacing}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 disabled:opacity-60">
+              {replacing ? <Loader size={15} className="animate-spin"/> : <RefreshCw size={15}/>}
+              {t("liveShare.link.replace")}
+            </button>
+          </div>
         </div>
       )}
       {confirmReplace && (

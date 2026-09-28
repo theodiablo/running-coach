@@ -8,6 +8,7 @@
     "create": "Créer ton lien",
     "share": "Envoyer le lien",
     "copied": "Copié",
+    "copy": "Copier le lien",
     "hint": "Toute personne disposant de ce lien peut suivre les sorties que tu partages, sans compte. C'est le même lien à chaque fois, et il n'affiche rien entre deux sorties. Tu peux le remplacer à tout moment pour couper l'accès à tout le monde.",
     "working": "Un instant...",
     "replace": "Remplacer le lien",
