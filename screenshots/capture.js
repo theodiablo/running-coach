@@ -1,6 +1,7 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const { launchOptions } = require('./browser');
 
 const BASE = 'https://run.camboulive.solutions';
 const OUT = __dirname;
@@ -103,7 +104,7 @@ async function clickSettings(page) {
 
 async function run(viewportName) {
   const vp = VIEWPORTS[viewportName];
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(launchOptions({ headless: true }));
   const context = await browser.newContext({
     viewport: vp,
     storageState: path.join(__dirname, 'auth.json'),

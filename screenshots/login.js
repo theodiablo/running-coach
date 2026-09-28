@@ -1,8 +1,9 @@
 const { chromium } = require('playwright');
 const path = require('path');
+const { launchOptions } = require('./browser');
 
 (async () => {
-  const browser = await chromium.launch({ headless: false });
+  const browser = await chromium.launch(launchOptions({ headless: false }));
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await page.goto('https://run.camboulive.solutions');

@@ -24,8 +24,8 @@ own test suite or `package.json`.
 
 1. Install Playwright once (from this `screenshots/` folder or anywhere):
    ```
-   npm install playwright
-   npx playwright install chromium
+   npm install
+   npx playwright install chromium   # skip where PLAYWRIGHT_BROWSERS_PATH is set: browser.js uses that Chromium
    ```
 2. Log in once. This opens a real, visible Chromium window against
    `run.camboulive.solutions` — log in there by hand (this script never
