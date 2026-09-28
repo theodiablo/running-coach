@@ -214,7 +214,7 @@ const ensureProfile = async (bundleResource, name) => {
 // claims here, where the message can name the fix.
 const REQUIRED_CAPABILITIES = { HEALTHKIT: "HealthKit", APPLE_ID_AUTH: "Sign In with Apple" };
 const assertCapabilities = async (bundleResource) => {
-  const res = await asc("GET", `/bundleIds/${bundleResource.id}/bundleIdCapabilities?limit=200`);
+  const res = await asc("GET", `/bundleIds/${bundleResource.id}/bundleIdCapabilities`);
   const enabled = new Set((res.data ?? []).map((c) => c.attributes?.capabilityType));
   const missing = Object.entries(REQUIRED_CAPABILITIES).filter(([type]) => !enabled.has(type));
   if (missing.length)
