@@ -6,7 +6,7 @@ name: Deploy PR preview to S3
 # closed.
 #
 # Security: this uses `pull_request` (NOT `pull_request_target`), so PRs opened
-# from forks run with a read-only token and cannot assume the OIDC deploy role.
+# from forks run with a read-only token and cannot assume the OIDC preview role.
 # On top of that, every job is gated on `author_association` so only the code
 # owners — i.e. users with write access to the repo (OWNER/MEMBER/COLLABORATOR)
 # — ever trigger an AWS deploy. Untrusted contributors get CI checks but no
@@ -34,7 +34,7 @@ on:
         type: string
 
 permissions:
-  id-token: write       # OIDC: assume the AWS deploy role
+  id-token: write       # OIDC: assume the AWS preview role (infra/preview_role.tf)
   contents: read
   pull-requests: write  # post the preview URL as a PR comment
 
@@ -127,11 +127,18 @@ jobs:
           VITE_COROS_CLIENT_ID: ${{ vars.VITE_COROS_CLIENT_ID }}
           VITE_APP_ENV: preview
 
+      - name: Resolve preview role
+        id: role
+        env:
+          DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        # Same account as the deploy role, so its ARN is derived, not a second secret.
+        run: echo "arn=${DEPLOY_ROLE_ARN%/*}/GitHub-Actions-RunApp-preview" >> "$GITHUB_OUTPUT"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ steps.role.outputs.arn }}
 
       - name: Sync preview to S3
         env:
@@ -204,11 +211,18 @@ jobs:
        github.event.pull_request.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve preview role
+        id: role
+        env:
+          DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        # Same account as the deploy role, so its ARN is derived, not a second secret.
+        run: echo "arn=${DEPLOY_ROLE_ARN%/*}/GitHub-Actions-RunApp-preview" >> "$GITHUB_OUTPUT"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ steps.role.outputs.arn }}
 
       - name: Remove preview from S3
         env:

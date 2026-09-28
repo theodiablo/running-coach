@@ -391,8 +391,9 @@ own `/pr/<number>/` prefix, so a whole stack can be open at once.
 Only the **code owners** listed in `.github/CODEOWNERS` trigger a preview: the
 job is gated on the PR author having write access (`OWNER`/`MEMBER`/
 `COLLABORATOR`), and because the workflow uses `pull_request` (not
-`pull_request_target`), fork PRs cannot assume the deploy role. It reuses the
-same OIDC role and CloudFront distribution as the production deploy.
+`pull_request_target`), fork PRs cannot assume any AWS role. Previews use their
+own OIDC role, which can only write under `pr/` and invalidate the cache; the
+production deploy role is trusted from `main` alone.
 
 ---
 
