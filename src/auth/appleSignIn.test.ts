@@ -23,9 +23,12 @@ async function load({ isNative = true, isIos = true }: Env = {}) {
   return await import("./appleSignIn");
 }
 
+// Identities listed oldest sign-in first; the last one is what this session used.
 const session = (providers: string[], providerRefreshToken?: string) => ({
   provider_refresh_token: providerRefreshToken,
-  user: { identities: providers.map(provider => ({ provider })) },
+  user: {
+    identities: providers.map((provider, i) => ({ provider, last_sign_in_at: new Date(Date.UTC(2026, 8, 1 + i)).toISOString() })),
+  },
 } as unknown as Session);
 
 beforeEach(() => {
@@ -73,6 +76,21 @@ describe("nativeAppleSignIn", () => {
     expect(signInWithIdToken).not.toHaveBeenCalled();
   });
 
+  it("does not mistake an error that merely mentions cancelling for a dismissed sheet", async () => {
+    authorize.mockRejectedValue(new Error("The request was cancelled by the system"));
+    const { nativeAppleSignIn } = await load();
+    await expect(nativeAppleSignIn()).rejects.toThrow("cancelled by the system");
+  });
+
+  it("falls back to the browser flow when the plugin chunk fails to load", async () => {
+    await load();
+    vi.doMock("@capacitor-community/apple-sign-in", () => { throw new Error("chunk failed"); });
+    vi.resetModules();
+    const { nativeAppleSignIn } = await import("./appleSignIn");
+    expect(await nativeAppleSignIn()).toBeNull();
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
   it("throws a real authorization failure for the caller to show", async () => {
     authorize.mockRejectedValue(new Error("authorization attempt failed"));
     const { nativeAppleSignIn } = await load();
@@ -114,6 +132,7 @@ describe("rememberAppleGrant", () => {
   it("ignores sessions without an Apple identity or a provider refresh token", async () => {
     const { rememberAppleGrant } = await load({ isNative: false, isIos: false });
     rememberAppleGrant(session(["google"], "google-rt"));
+    rememberAppleGrant(session(["apple", "google"], "google-rt"));
     rememberAppleGrant(session(["apple"]));
     rememberAppleGrant(null);
     expect(invoke).not.toHaveBeenCalled();
@@ -125,6 +144,29 @@ describe("revokeAppleGrants", () => {
     const { revokeAppleGrants } = await load();
     await revokeAppleGrants(session(["email", "apple"]));
     expect(invoke).toHaveBeenCalledWith("apple-auth", { body: { action: "revoke" } });
+  });
+
+  it("asks the sheet for a fresh code when no grant was stored", async () => {
+    invoke.mockResolvedValueOnce({ data: { revoked: 0, total: 0 }, error: null });
+    const { revokeAppleGrants } = await load();
+    await revokeAppleGrants(session(["apple"]));
+    expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ nonce: undefined }));
+    expect(invoke).toHaveBeenLastCalledWith("apple-auth", { body: { action: "revoke", authorizationCode: "auth-code" } });
+  });
+
+  it("does not show the sheet when a stored grant was revoked", async () => {
+    invoke.mockResolvedValueOnce({ data: { revoked: 1, total: 1 }, error: null });
+    const { revokeAppleGrants } = await load();
+    await revokeAppleGrants(session(["apple"]));
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it("lets deletion go ahead when the fresh sheet is dismissed", async () => {
+    invoke.mockResolvedValueOnce({ data: { revoked: 0, total: 0 }, error: null });
+    authorize.mockRejectedValue(new Error("AuthorizationError error 1001."));
+    const { revokeAppleGrants } = await load();
+    await expect(revokeAppleGrants(session(["apple"]))).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it("skips accounts that never used Apple", async () => {

@@ -386,10 +386,10 @@ file".
   and the return URL `https://<ref>.supabase.co/auth/v1/callback`.
 - Apple Developer → Keys: a key with Sign in with Apple, bound to that App ID.
   The `.p8` downloads **once**; keep it in the password manager with its Key ID.
-- Supabase → Authentication → Providers → Apple. **Client IDs lists both** the
-  Services ID and the bundle id `solutions.camboulive.run`: the native token's
-  `aud` is the bundle id, and a provider that doesn't accept it rejects every
-  native sign-in. The secret is a JWT signed with the key, and **Apple caps it at
+- Supabase → Authentication → Providers → Apple. **Client IDs lists both, the
+  Services ID first** (the browser flow uses the first entry), then the bundle id
+  `solutions.camboulive.run`: the native token's `aud` is the bundle id, and a
+  provider that doesn't accept it rejects every native sign-in. The secret is a JWT signed with the key, and **Apple caps it at
   6 months**: regenerate it before it expires, or every Apple sign-in fails.
 - Apple → Services → Sign in with Apple for Email Communication: register
   `mail.camboulive.solutions` as a sender domain, or mail to Hide-My-Email
@@ -409,14 +409,21 @@ revoked under its own client):
   bundle id for a refresh token.
 - **Browser**: GoTrue hands Apple's refresh token back once, on the session the
   OAuth exchange mints (`provider_refresh_token`); App.tsx's auth listener
-  forwards it and the function validates it under the Services ID.
+  forwards it when Apple is the identity that just signed in, and the function
+  validates it under the Services ID.
 - Either way the token's `sub` must match the caller's Apple identity before it
   is stored. `DeleteAccountModal` calls `revoke` **before** `delete_my_account`
   (the rows cascade away with the user) and never lets a failure block deletion.
 
+- With no stored grant (an account from before this shipped, or a `store` that
+  never landed), iOS shows the sheet once more at deletion and the function
+  exchanges and revokes that fresh code at once, which is Apple's own
+  recommended deletion flow. Web and Android have no equivalent, so there the
+  revoke is skipped.
+
 The function mints its own 5-minute client secrets from the same key, so it has
-no 6-month expiry of its own. Accounts that signed in with Apple before this
-shipped have no stored grant until their next Apple sign-in.
+no 6-month expiry of its own. Its errors are generic (400 when Apple refused the
+grant, 502 otherwise); the detail is in the function logs only.
 
 ## CI caching & budget
 
