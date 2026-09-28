@@ -5,8 +5,9 @@ import { appleClientSecret, jwtClaims } from "../../supabase/functions/_shared/a
 async function p8Key() {
   const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const der = new Uint8Array(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
-  const b64 = btoa(String.fromCharCode(...der)).replace(/(.{64})/g, "$1\n");
-  return { pem: `-----BEGIN PRIVATE KEY-----\n${b64}\n-----END PRIVATE KEY-----\n`, publicKey: pair.publicKey };
+  // The bare base64 body, wrapped as in a .p8; the armor lines are stripped either way.
+  const pem = btoa(String.fromCharCode(...der)).replace(/(.{64})/g, "$1\n");
+  return { pem, publicKey: pair.publicKey };
 }
 
 const fromB64url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
