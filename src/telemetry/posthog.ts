@@ -7,6 +7,7 @@
 // in order once it lands.
 
 import { isNative } from "../native";
+import { scrubEvent } from "./scrub";
 
 const KEY = import.meta.env.VITE_POSTHOG_KEY || "";
 // Default to PostHog EU Cloud (privacy hosting, per the project's data-handling
@@ -96,6 +97,7 @@ function ensureLoaded() {
         // capture + manual captureException are bundled, so they're unaffected.
         disable_external_dependency_loading: true,
         person_profiles: "identified_only",
+        before_send: scrubEvent,
         ...modeConfig(),
       });
       // Super properties — merged into every event, including $exception, so

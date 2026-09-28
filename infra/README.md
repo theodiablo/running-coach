@@ -60,6 +60,7 @@ bucket, replacement means the data goes away.
 | --- | --- | --- | --- |
 | `GitHub-Actions-RunApp-tf-plan` | `AWS_TF_PLAN_ROLE_ARN` | pull requests + `main` | read only |
 | `GitHub-Actions-RunApp-tf-apply` | `AWS_TF_APPLY_ROLE_ARN` | `main` only | read/write, scoped |
+| `GitHub-Actions-RunApp-preview` | `preview_role_arn` output | pull requests + `main` (dispatch) | write/delete under `pr/` in the site bucket, invalidate |
 
 Neither role can read the *contents* of any S3 object except the state file:
 the read policy grants bucket-level actions against bucket ARNs, never

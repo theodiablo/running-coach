@@ -28,6 +28,14 @@ const MODEL_TIMEOUT_MS = Number(Deno.env.get("COACH_MODEL_TIMEOUT_MS") ?? 60000)
 // idle (JSON.parse ignores leading whitespace).
 const KEEPALIVE_INTERVAL_MS = 2000;
 const USER_CONTEXT_MAX_CHARS = 2000;
+// Every model call re-sends the message and plan, and a round makes several, so
+// both are capped: the rate limit counts requests, not tokens.
+const MESSAGE_MAX_CHARS = 4000;
+const PLAN_MAX_BYTES = 200_000;
+
+// The run fields reach the prompt verbatim, so a non-number or long string is dropped.
+const finite = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+const shortStr = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -222,6 +230,7 @@ async function handle(req: Request): Promise<any> {
   // ── propose / critique: model-calling rounds ─────────────────────────────
   const message = String(body.message ?? "").trim();
   if (!message) return { error: "message is required" };
+  if (message.length > MESSAGE_MAX_CHARS) return { error: "message is too long", code: "MESSAGE_TOO_LONG" };
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -239,10 +248,12 @@ async function handle(req: Request): Promise<any> {
   const settings = blob.rc_settings ?? {};
   const userContext = cleanUserContext(blob.rc_user_context);
   if (!plan?.weeks?.length) return { error: "no training plan to adjust — build one first", code: "NO_PLAN" };
+  if (JSON.stringify(plan).length > PLAN_MAX_BYTES) return { error: "training plan is too large for the coach", code: "PLAN_TOO_LARGE" };
   // `id` + `hasDetail` give the model a handle for get_run_detail (and tell it
   // which runs have any detail to fetch) — no other fields leak into context.
   const recentRuns = (blob.rc_runs ?? []).slice(0, 30).map((r: Record<string, unknown>) => ({
-    id: r.id, date: r.date, type: r.type, km: r.km, durationSec: r.durationSec, hr: r.hr, effort: r.effort,
+    id: shortStr(r.id, 64) ?? finite(r.id), date: shortStr(r.date, 10), type: shortStr(r.type, 16),
+    km: finite(r.km), durationSec: finite(r.durationSec), hr: finite(r.hr), effort: finite(r.effort),
     hasDetail: Boolean(r.routeId || r.hrRouteId),
   }));
   // Per-user daily budget; charge only after cheap request/state validation and

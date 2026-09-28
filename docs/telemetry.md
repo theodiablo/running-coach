@@ -197,6 +197,10 @@ choice either way.
   longer exists (`src/modals/LiveRunTracker.tsx`). No properties at all, and in
   particular **never the token** — it is the whole authorization for that page,
   so it must not reach an analytics vendor any more than a password would.
+  That covers the automatic pageview too: `before_send` (`src/telemetry/scrub.ts`)
+  strips every URL property to origin + path and redacts `/watch/<token>`,
+  because the path is the token and auth callbacks carry codes in the query and
+  fragment.
 - Interrupted-run recovery: `live_run_recovery_offered`
   `{surface:"dashboard", points, ageMin}` when a crash-recovery buffer is
   surfaced on the Dashboard banner (`src/RunningCoach.tsx`), and
