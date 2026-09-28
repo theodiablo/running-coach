@@ -23,8 +23,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
   # Manual re-deploy of a single PR's preview (e.g. to pick up a changed secret
-  # without pushing a commit). workflow_dispatch can only be triggered by users
-  # with write access, so it's safe to skip the author_association gate below.
+  # without pushing a commit). A dispatch runs with main's OIDC identity whatever
+  # it checks out, so the "Resolve PR" step re-applies the same gate: same-repo
+  # head and a trusted author, pinned to the head SHA it checked.
   workflow_dispatch:
     inputs:
       pr_number:
@@ -63,13 +64,28 @@ jobs:
         github.event.pull_request.author_association == 'COLLABORATOR'))
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve PR (dispatch only)
+        id: pr
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            const n = process.env.PR_NUMBER;
+            if (!/^[0-9]+$/.test(n)) throw new Error('pr_number must be numeric');
+            const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: Number(n) });
+            if (pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) throw new Error('Fork PRs get no preview');
+            if (!['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pr.author_association)) throw new Error('Untrusted author: no preview');
+            core.setOutput('sha', pr.head.sha);
+
       - name: Checkout PR head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # For a manual run there's no PR event context, so check out the PR's
-          # head explicitly. On pull_request, github.sha is the synthetic merge
-          # ref, so use the PR head SHA to keep the build and comment aligned.
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.event.pull_request.head.sha }}
+          # On pull_request, github.sha is the synthetic merge ref, so use the PR
+          # head SHA to keep the build and comment aligned.
+          ref: ${{ steps.pr.outputs.sha || github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

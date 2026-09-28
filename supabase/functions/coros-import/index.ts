@@ -250,6 +250,37 @@ function isAllowedFitUrl(raw: string): boolean {
   } catch { return false; }
 }
 
+// Follows redirects by hand so every hop passes the same host allowlist as the
+// client-supplied URL did.
+async function fetchAllowed(url: string, hops = 3): Promise<Response> {
+  const res = await fetch(url, { headers: { "Accept": "application/octet-stream" }, redirect: "manual" });
+  const next = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+  if (!next) return res;
+  const target = new URL(next, url).href;
+  if (hops <= 0 || !isAllowedFitUrl(target)) return new Response(null, { status: 404 });
+  return fetchAllowed(target, hops - 1);
+}
+
+// A run's FIT is well under a megabyte; anything past this is not one.
+const FIT_MAX_BYTES = 20 * 1024 * 1024;
+
+// Null once the body passes `max`, without buffering the rest.
+async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
+  if (Number(res.headers.get("content-length") ?? 0) > max) return null;
+  if (!res.body) return new Uint8Array(0);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > max) return null;
+    chunks.push(chunk);
+  }
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
 function b64(bytes: Uint8Array): string {
   let out = "";
   const CHUNK = 0x8000; // String.fromCharCode arg-count limit
@@ -488,11 +519,18 @@ Deno.serve(async (req) => {
       try {
         // The fitUrl is object storage, already scoped by its own path — it
         // takes no token (§4.2.4).
-        res = await fetch(fitUrl, { headers: { "Accept": "application/octet-stream" } });
+        res = await fetchAllowed(fitUrl);
       } catch {
         return json({ connected: true, transient: true }); // network — retry next scan
       }
-      if (res.ok) return json({ connected: true, file: b64(new Uint8Array(await res.arrayBuffer())) });
+      if (res.ok) {
+        const bytes = await readCapped(res, FIT_MAX_BYTES);
+        if (!bytes) {
+          console.error("coros-import fit too large");
+          return json({ connected: true, gone: true });
+        }
+        return json({ connected: true, file: b64(bytes) });
+      }
       // Only a hard miss is terminal (the client then imports the summary,
       // which for COROS means no HR and no route). Everything else is transient:
       // marking it terminal would permanently import degraded runs, the exact

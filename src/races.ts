@@ -47,6 +47,19 @@ type ReportRaceInput = { raceSlug?: string | null; editionId?: string | null; re
 
 // Map a DB race row + its editions to the joined shape the app already uses
 // (the old CURATED_RACES shape): camelCase, id === slug, editions newest-first.
+// Race URLs are contributed by other users and rendered as links: web links
+// only, never a custom scheme that would reach the app's own deep-link handler.
+export function raceUrl(value: string | null | undefined): string | null {
+  const s = (value || "").trim();
+  if (!s) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function toRace(row: RaceRow, editions: EditionRow[] = []): CatalogueRace {
   return {
     id: row.slug,
@@ -57,7 +70,7 @@ function toRace(row: RaceRow, editions: EditionRow[] = []): CatalogueRace {
     lat: row.lat,
     lng: row.lng,
     distances: row.distances || [],
-    url: row.url,
+    url: raceUrl(row.url),
     verified: row.verified,
     createdBy: row.created_by,
     editions: (editions || [])
@@ -110,7 +123,7 @@ export async function addRace({ name, city, country, lat, lng, distances, url }:
   for (const slug of candidates) {
     const { data, error } = await supabase
       .from("races")
-      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url, verified: false, created_by: user_id })
+      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), verified: false, created_by: user_id })
       .select("slug, name, city, country, lat, lng, distances, url, verified, created_by")
       .single();
     if (!error) return toRace(data, []);

@@ -557,7 +557,7 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
               <p className="max-w-lg mx-auto text-[11px] text-amber-400 mb-2">{t("coach.usage.limitReached")}</p>
             )}
             <div className="max-w-lg mx-auto flex gap-2">
-              <input id="coach-message" name="coach-message" ref={inputRef} aria-label={t("coach.input.aria")} value={input} onChange={e => setInput(e.target.value)}
+              <input id="coach-message" name="coach-message" ref={inputRef} aria-label={t("coach.input.aria")} value={input} onChange={e => setInput(e.target.value)} maxLength={4000}
                 autoFocus={!!sessionContext}
                 disabled={exhausted}
                 onKeyDown={e => { if (e.key === "Enter") send(); }}

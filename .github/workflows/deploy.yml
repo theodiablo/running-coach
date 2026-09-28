@@ -95,10 +95,13 @@ jobs:
           # does not constrain script/connect/etc., so it won't break the app.
           jq -n --arg csp "frame-ancestors 'none'" '{
             Name: env.POLICY_NAME,
-            Comment: "run-app: clickjacking protection (managed by deploy.yml)",
+            Comment: "run-app: security headers (managed by deploy.yml)",
             SecurityHeadersConfig: {
               FrameOptions: { Override: true, FrameOption: "DENY" },
-              ContentSecurityPolicy: { Override: true, ContentSecurityPolicy: $csp }
+              ContentSecurityPolicy: { Override: true, ContentSecurityPolicy: $csp },
+              StrictTransportSecurity: { Override: true, AccessControlMaxAgeSec: 31536000, IncludeSubdomains: false, Preload: false },
+              ContentTypeOptions: { Override: true },
+              ReferrerPolicy: { Override: true, ReferrerPolicy: "strict-origin-when-cross-origin" }
             }
           }' > /tmp/rhp.json
 
