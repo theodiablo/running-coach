@@ -25,10 +25,17 @@ Always re-verify a finding before acting on it; agents report false positives.
   so patch-package starts from pristine packages) plus Deno, which
   `typecheck:supabase` needs. A SessionStart hook runs it in web sessions, and
   it is what a cloud environment's setup script should point at. Idempotent.
+  The cloud sandbox's egress allows the npm registry and jsr.io but not
+  deno.land, esm.sh or GitHub downloads — so Deno comes from npm, and edge
+  functions import with `npm:` specifiers, never an esm.sh URL.
 - `npm run dev` — Vite dev server.
 - `npm test` — Vitest (run mode); `npm run test:watch` for watch. Suite lives
-  in `src/**/*.test.{ts,tsx}`.
+  in `src/**/*.test.{ts,tsx}`. `.ts` suites run in the `node` environment,
+  `.tsx` in jsdom (booting jsdom was most of the suite's wall time); a `.ts`
+  suite that needs `window`/`localStorage` opts in with a first-line
+  `// @vitest-environment jsdom` docblock.
 - `npm run lint` — ESLint (flat config). Catches unused imports/vars; keep it clean.
+  ESLint and `tsc` cache under `node_modules/.cache`, so repeat runs are fast.
 - `npm run typecheck` — app TS check; `npm run typecheck:supabase` — Deno check
   for edge functions; `npm run typecheck:all` — both (CI runs this).
 - `npm run build` — production build (runs `typecheck` first) → `dist` for

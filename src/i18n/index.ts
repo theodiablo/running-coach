@@ -37,7 +37,7 @@ export function initI18n(initial: LangId): Promise<void> {
     interpolation: { escapeValue: false }, // React escapes already
     returnNull: false,
   });
-  document.documentElement.lang = "en";
+  if (typeof document !== "undefined") document.documentElement.lang = "en";
   // Boot detection must not pin the browser language into localStorage — only
   // an explicit user pick (Settings/onboarding) or the synced setting persists.
   // Return the load promise so main.tsx can await the es/fr chunk BEFORE the

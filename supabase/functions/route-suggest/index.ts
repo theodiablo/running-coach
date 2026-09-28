@@ -9,7 +9,7 @@
 // later (GraphHopper/BRouter) never changes the client-facing contract.
 // Request/response shape and deploy/secrets: docs/route-finder.md.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { isPremiumActive } from "../_shared/premium.mjs";
 
 const ORS_API_KEY = Deno.env.get("ORS_API_KEY");

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { WATCH_HC_AUTH_KEY, WATCH_SEEN_MAX } from "../constants";
 

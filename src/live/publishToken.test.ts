@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { LIVE_PUBLISH_TOKEN_KEY } from "../constants";
 import {

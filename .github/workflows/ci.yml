@@ -1,12 +1,19 @@
 name: CI
 
-# Lint + unit tests + the offline coach-agent eval. The eval uses scripted model
-# turns, so CI never calls Anthropic and needs no secrets.
+# Lint + typecheck + unit tests + build. `npm test` includes the offline
+# coach-agent eval, whose scripted model turns mean CI never calls Anthropic.
 
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -30,8 +37,9 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
 
-      - name: Typecheck
-        run: npm run typecheck:all
+      # The app's tsc runs inside `npm run build` below; only the Deno half here.
+      - name: Typecheck edge functions
+        run: npm run typecheck:supabase
 
       - name: Test
         run: npm test
@@ -41,6 +49,3 @@ jobs:
       # by a dependency, so the built bundle is the only place to catch it.
       - name: Build
         run: npm run build
-
-      - name: Offline coach eval
-        run: npm run eval

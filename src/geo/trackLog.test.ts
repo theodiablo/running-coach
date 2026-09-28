@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { GEO_DIAG_LOG_KEY, GEO_DIAG_LOG_MAX, RUN_DIAG_LOG_KEY, RUN_DIAG_LOG_MAX, DIAG_LOG_HEAD, GEO_DEBUG_KEY } from "../constants";
 import { logTrack, getTrackLog, clearTrackLog, setGeoDebug, isGeoDebugEnabled } from "./trackLog";

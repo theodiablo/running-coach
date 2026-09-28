@@ -21,9 +21,3 @@ export const addDays = (ymd, n) =>
 // rules would hide it from them instead.
 export const isElapsedWeek = (w, today = todayYmd()) =>
   YMD.test((w && w.startDate) || "") && addDays(w.startDate, 7) <= today;
-
-export const liveWeeks = (plan, today) =>
-  ((plan && plan.weeks) || []).filter(w => !isElapsedWeek(w, today));
-
-export const elapsedWeeks = (plan, today) =>
-  ((plan && plan.weeks) || []).filter(w => isElapsedWeek(w, today));

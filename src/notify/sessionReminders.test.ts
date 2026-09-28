@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SESSION_NOTIF_AUTH_KEY } from "../constants";
 import type { Plan } from "../types";

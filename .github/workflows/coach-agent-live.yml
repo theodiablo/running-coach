@@ -7,6 +7,9 @@ name: coach-agent live smoke
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest

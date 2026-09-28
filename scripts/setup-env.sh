@@ -13,55 +13,42 @@ log() { printf '\n▸ %s\n' "$1"; }
 
 # ── npm dependencies ────────────────────────────────────────────────────────
 # `npm ci`, not `npm install`: postinstall runs patch-package, and patch-package
-# cannot re-apply a patch to an already-patched tree — it reports "cannot apply"
-# and exits non-zero, which is what a warmed/cached node_modules produces on
-# every later run. A clean install always starts from pristine packages, so the
-# native plugin patches (the GPS fix journal, the BLE HR journal) actually land.
-if [ -f package-lock.json ]; then
-  if [ -d node_modules ] && npm ls --depth=0 >/dev/null 2>&1; then
-    log "npm dependencies already installed"
-  else
-    log "Installing npm dependencies (npm ci)"
-    npm ci --no-audit --no-fund
-  fi
+# cannot re-apply a patch to an already-patched tree. A clean install always
+# starts from pristine packages, so the native plugin patches actually land.
+# Skipped only when node_modules was installed from this exact lockfile AND
+# these exact patches — `npm ls` alone passes a tree whose patch just changed.
+stamp_file=node_modules/.setup-env-stamp
+deps_stamp=$(cat package-lock.json patches/*.patch 2>/dev/null | sha256sum | cut -d' ' -f1)
+if [ -f "$stamp_file" ] && [ "$(cat "$stamp_file")" = "$deps_stamp" ]; then
+  log "npm dependencies up to date"
 else
-  log "Installing npm dependencies (npm install)"
-  npm install --no-audit --no-fund
+  log "Installing npm dependencies (npm ci)"
+  npm ci --no-audit --no-fund
+  echo "$deps_stamp" >"$stamp_file"
 fi
 
 # ── Deno ────────────────────────────────────────────────────────────────────
-# The edge functions are Deno TypeScript; `npm run typecheck:supabase` (part of
-# typecheck:all, which CI runs) is a `deno check` and fails with
-# "deno: not found" without this.
+# `npm run typecheck:supabase` (part of typecheck:all, which CI runs) is a
+# `deno check`. Installed from npm's `deno` package rather than deno.land's
+# install.sh: the cloud sandbox's egress proxy allows the npm registry but
+# refuses deno.land and GitHub release downloads. Only that check needs Deno, so
+# a failure degrades to a warning instead of aborting the SessionStart hook.
 DENO_INSTALL="${DENO_INSTALL:-$HOME/.deno}"
-if [ ! -x "$DENO_INSTALL/bin/deno" ] && ! command -v deno >/dev/null 2>&1; then
-  log "Installing Deno"
-  export DENO_INSTALL
-  # From a temp CWD: the installer runs `deno run jsr:@deno/installer-shell-setup`,
-  # which writes that dependency into the lockfile of whatever directory it starts
-  # in — started at the repo root, every cold container rewrites deno.lock.
-  # Kept out of `set -e`, and its output kept: only typecheck:supabase needs Deno,
-  # so a failure here must degrade to a warning rather than abort the script (and
-  # with it the SessionStart hook that runs it) with nothing printed.
-  deno_log=$(mktemp)
-  if ( cd "$(mktemp -d)" && curl -fsSL https://deno.land/install.sh | sh -s -- -y ) \
-      >"$deno_log" 2>&1; then
-    :
-  else
-    log "Deno install FAILED — npm run typecheck:supabase will not run. Installer said:"
-    tail -n 20 "$deno_log" >&2
+deno_bin="$DENO_INSTALL/lib/node_modules/deno/deno"
+if ! command -v deno >/dev/null 2>&1 && [ ! -x "$deno_bin" ]; then
+  log "Installing Deno (npm: deno@2)"
+  # Warnings go to stdout: a SessionStart hook's stderr never reaches the session.
+  if ! npm install -g --prefix "$DENO_INSTALL" --no-audit --no-fund deno@2 2>&1 | tail -n 5; then
+    log "Deno install FAILED — npm run typecheck:supabase will not run"
   fi
-  rm -f "$deno_log"
 fi
-# Reachable from a NON-INTERACTIVE shell, which is what tool calls and CI use:
-# the installer only edits the shell rc files, and those are not sourced there,
-# so without this every later `npm run typecheck:supabase` still says
-# "deno: not found" — and this script would reinstall Deno on every run.
-if [ -x "$DENO_INSTALL/bin/deno" ] && ! command -v deno >/dev/null 2>&1; then
+# Tool calls and CI run non-interactive shells, which source no rc file, so the
+# binary has to be on the default PATH.
+if ! command -v deno >/dev/null 2>&1 && [ -x "$deno_bin" ]; then
   if [ -w /usr/local/bin ]; then
-    ln -sf "$DENO_INSTALL/bin/deno" /usr/local/bin/deno
+    ln -sf "$deno_bin" /usr/local/bin/deno
   else
-    log "Deno is at $DENO_INSTALL/bin/deno — add it to PATH"
+    log "Deno is at $deno_bin — add its directory to PATH"
   fi
 fi
 command -v deno >/dev/null 2>&1 && log "Deno ready ($(deno --version | head -1))"

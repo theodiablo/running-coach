@@ -37,10 +37,15 @@ export default defineConfig({
   // Syntax only: this lowers what it can, but nothing lowers a regex lookbehind
   // (scripts/check-bundle-regex.mjs catches those) or polyfills a missing API.
   build: { target: ['safari15.4', 'ios15.4', 'chrome111', 'edge111', 'firefox114'] },
+  // jsdom boot dominated the suite's wall time, so only component suites (.tsx)
+  // pay for it; a .ts suite that needs a DOM opts in with a
+  // `// @vitest-environment jsdom` docblock.
   test: {
-    environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    projects: [
+      { extends: true, test: { name: 'unit', environment: 'node', include: ['src/**/*.{test,spec}.ts'] } },
+      { extends: true, test: { name: 'dom', environment: 'jsdom', include: ['src/**/*.{test,spec}.tsx'] } },
+    ],
   },
 })
