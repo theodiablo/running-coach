@@ -29,6 +29,7 @@
   "newPassword": {
     "title": "Elige una contraseña nueva",
     "signedInAs": "Sesión iniciada como {{email}}.",
+    "notYou": "¿No es tu cuenta? Cierra sesión",
     "save": "Guardar y continuar",
     "skip": "Ahora no",
     "error": "No pudimos actualizar tu contraseña. Pide un enlace nuevo e inténtalo otra vez."

@@ -34,6 +34,8 @@ locals {
       plan   = ["pull_request", "ref:refs/heads/main"]
       apply  = ["ref:refs/heads/main"]
       deploy = var.github_deploy_subjects
+      # main too: a workflow_dispatch of deploy-pr.yml carries main's identity.
+      preview = ["pull_request", "ref:refs/heads/main"]
       } : scope => flatten([
         for repo in [var.github_repo, var.github_repo_immutable] : [
           for suffix in suffixes : "repo:${repo}:${suffix}"

@@ -18,6 +18,11 @@ output "backup_role_arn" {
 #   gh secret set AWS_TF_PLAN_ROLE_ARN  --body "$(terraform output -raw tf_plan_role_arn)"
 #   gh secret set AWS_TF_APPLY_ROLE_ARN --body "$(terraform output -raw tf_apply_role_arn)"
 
+output "preview_role_arn" {
+  description = "Role deploy-pr.yml assumes: writes under pr/ only."
+  value       = aws_iam_role.preview.arn
+}
+
 output "tf_plan_role_arn" {
   description = "Read-only role for terraform plan in CI (secret AWS_TF_PLAN_ROLE_ARN)."
   value       = aws_iam_role.tf_plan.arn

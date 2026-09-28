@@ -29,6 +29,7 @@
   "newPassword": {
     "title": "Choisis un nouveau mot de passe",
     "signedInAs": "Connecté avec {{email}}.",
+    "notYou": "Ce n'est pas ton compte ? Déconnecte-toi",
     "save": "Enregistrer et continuer",
     "skip": "Plus tard",
     "error": "On n'a pas pu mettre à jour ton mot de passe. Demande un nouveau lien et réessaie."

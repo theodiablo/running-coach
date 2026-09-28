@@ -29,6 +29,7 @@
   "newPassword": {
     "title": "Choose a new password",
     "signedInAs": "Signed in as {{email}}.",
+    "notYou": "Not your account? Sign out",
     "save": "Save and continue",
     "skip": "Skip for now",
     "error": "We couldn't update your password. Ask for a new link and try again."

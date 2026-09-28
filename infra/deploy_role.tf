@@ -60,6 +60,37 @@ resource "aws_iam_role_policy" "deploy" {
   })
 }
 
+# What deploy.yml's security-headers step calls, granted explicitly so the
+# CloudFrontFullAccess attachment below can be dropped (a destroying plan, so
+# its own change). Headers policies take no resource ARN on create/list.
+resource "aws_iam_role_policy" "deploy_headers" {
+  name = "GitHubAction-RunApp-Deploy-Headers"
+  role = aws_iam_role.deploy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SiteDistribution"
+        Effect   = "Allow"
+        Action   = ["cloudfront:GetDistributionConfig", "cloudfront:UpdateDistribution"]
+        Resource = aws_cloudfront_distribution.site.arn
+      },
+      {
+        Sid    = "ResponseHeadersPolicies"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:ListResponseHeadersPolicies",
+          "cloudfront:CreateResponseHeadersPolicy",
+          "cloudfront:GetResponseHeadersPolicy",
+          "cloudfront:UpdateResponseHeadersPolicy",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
 # Predates Terraform, and adopting means matching what's live, not narrowing it
 # in the same change — see infra/README.md.
 #

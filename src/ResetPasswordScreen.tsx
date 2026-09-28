@@ -45,6 +45,14 @@ export default function ResetPasswordScreen({ email, onDone }: { email?: string 
     onDone();
   };
 
+  // A recovery link signs in whichever account minted it, so a crafted one can
+  // land someone in an account that isn't theirs: give them a way straight out.
+  const notMine = async () => {
+    setBusy(true);
+    await supabase.auth.signOut({ scope: "local" });
+    onDone();
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -59,7 +67,15 @@ export default function ResetPasswordScreen({ email, onDone }: { email?: string 
               <KeyRound className="text-orange-400" size={24} />
             </div>
             <h2 className="text-lg font-bold text-white">{t("login.newPassword.title")}</h2>
-            {email && <p className="text-sm text-slate-400">{t("login.newPassword.signedInAs", { email })}</p>}
+            {email && (
+              <p className="text-sm text-slate-400">
+                {t("login.newPassword.signedInAs", { email })}{" "}
+                <button type="button" onClick={notMine} disabled={busy}
+                  className="text-orange-400 hover:text-orange-300 underline disabled:opacity-60">
+                  {t("login.newPassword.notYou")}
+                </button>
+              </p>
+            )}
           </div>
 
           <form onSubmit={submit} className="space-y-2">
