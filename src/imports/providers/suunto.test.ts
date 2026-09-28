@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 
 // Mock the OAuth factory so suuntoEnabled is true without VITE_SUUNTO_CLIENT_ID

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { REC_NOTIF_ASKED_KEY } from "../constants";
 

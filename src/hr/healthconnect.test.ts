@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { HR_HEALTH_CONNECT_AUTH_KEY } from "../constants";
 import { flushPendingHr, hasHealthConnectAuthorization, healthConnectSource } from "./healthconnect";

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { isDuplicateRun } from "./dedupe";
 import { dataOriginLabel, importedNote } from "./dataOrigin";

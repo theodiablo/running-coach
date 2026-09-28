@@ -28,7 +28,7 @@ staleness model. Public links are **"Sharing with someone else"** below.
 |---|---|
 | Table, RLS | `supabase/migrations/20260727135028_live_runs.sql`, premium gate dropped in `20260818184235_live_runs_drop_premium_gate.sql` |
 | Share-token column (legacy, pre-v4) | `supabase/migrations/20260804190422_live_runs_share_token.sql` |
-| Token ledger, `share_public`, `rotate_share_link` | `supabase/migrations/20260912095101_live_share_tokens.sql` |
+| Token ledger, `share_public`, `rotate_share_link` | `supabase/migrations/20260913100620_live_share_tokens.sql` |
 | Claiming / replacing / caching the link | `src/live/shareLinkStore.ts` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` |

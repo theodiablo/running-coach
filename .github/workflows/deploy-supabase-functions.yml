@@ -115,8 +115,16 @@ jobs:
         if: steps.changed.outputs.functions != ''
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          FUNCS: ${{ steps.changed.outputs.functions }}
         run: |
           set -euo pipefail
+          # FUNCS carries the free-text dispatch input: never splice it into the script.
+          for name in $FUNCS; do
+            if ! [[ "$name" =~ ^[a-z0-9_-]+$ ]] || [ ! -d "supabase/functions/$name" ]; then
+              echo "::error::Not a function directory: $name"
+              exit 1
+            fi
+          done
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN repo secret is not set — add it under Settings → Secrets and variables → Actions (a Supabase personal/service access token with deploy rights on run-app)."
             exit 1
@@ -125,13 +133,13 @@ jobs:
             echo "::error::SUPABASE_PROJECT_REF repo variable is not set."
             exit 1
           fi
-          for name in ${{ steps.changed.outputs.functions }}; do
+          for name in $FUNCS; do
             echo "::group::Deploying $name"
             npx supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_REF"
             echo "::endgroup::"
           done
           echo "### Deployed functions" >> "$GITHUB_STEP_SUMMARY"
-          for name in ${{ steps.changed.outputs.functions }}; do
+          for name in $FUNCS; do
             echo "- \`$name\`" >> "$GITHUB_STEP_SUMMARY"
           done
 

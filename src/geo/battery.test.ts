@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { BATTERY_NUDGE_KEY } from "../constants";
 

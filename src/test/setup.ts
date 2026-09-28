@@ -7,12 +7,13 @@ initI18n("en");
 
 // jsdom has no layout, so window.scrollTo logs "Not implemented" for anything
 // that scrolls the page (the header's back-to-Home). Stub it to a no-op.
-window.scrollTo = () => {};
+// Pure-logic `.ts` suites run in the node environment, which has no window.
+if (typeof window !== "undefined") window.scrollTo = () => {};
 
 // jsdom has no matchMedia; stub a "no reduced motion" default so
 // usePrefersReducedMotion (and anything media-query driven) works under test.
 // Individual tests can override window.matchMedia to exercise the other branch.
-if (typeof window.matchMedia !== "function") {
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
   window.matchMedia = (query: string) =>
     ({
       matches: false,

@@ -26,7 +26,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: android-pr-${{ github.event.pull_request.number }}
+  group: android-pr-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -36,7 +36,8 @@ jobs:
     # dispatch anyway).
     if: >-
       ${{ github.event_name == 'workflow_dispatch'
-      || contains(github.event.pull_request.labels.*.name, 'apk') }}
+      || (contains(github.event.pull_request.labels.*.name, 'apk')
+          && (github.event.action != 'labeled' || github.event.label.name == 'apk')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

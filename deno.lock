@@ -1,12 +1,5 @@
 {
   "version": "5",
-  "redirects": {
-    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.116.0"
-  },
-  "remote": {
-    "https://esm.sh/@supabase/supabase-js@2.116.0": "a38014743786a06c7dbf095a99e9ef3b38c0ec16bff076fc7cd403991192b34e",
-    "https://esm.sh/aws4fetch@1.0.20": "72c2789ab2e7a037ed00c4230574ccc31a0c0cebc7ebd19a2c9da574e3133bc7"
-  },
   "workspace": {
     "packageJson": {
       "dependencies": [
@@ -34,6 +27,7 @@
         "npm:@types/react@^19.3.0",
         "npm:@vitejs/plugin-react@^6.1.1",
         "npm:@vitest/coverage-v8@^4.1.11",
+        "npm:aws4fetch@1.0.20",
         "npm:eslint-plugin-react-hooks@^7.1.1",
         "npm:eslint-plugin-react-refresh@~0.5.7",
         "npm:eslint@^10.10.0",

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
 import { normalizeRecovery, readRecoveryBuffer, type RecoveryBuffer } from "./runRecovery";
