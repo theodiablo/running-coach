@@ -35,6 +35,36 @@ describe("persistImportedRoute", () => {
     expect(saveRoute).toHaveBeenCalledTimes(1); // nothing to persist for the plain run
   });
 
+  // The transient-field stripping is covered above; what this pins is the pair
+  // the health-store path uniquely produces — best efforts measured off the
+  // trace at save time (the single extraction every later PB comparison reads),
+  // and an HR stream riding in the same route row as the points.
+  it("measures best efforts from a route, and keeps the HR stream alongside it", async () => {
+    // ~1.1 km due north at ~5:33/km — long enough for a real 1k window.
+    const points: [number, number, number, number][] = Array.from({ length: 11 }, (_, i) => [
+      48.85 + i * 0.001, // ~111 m per step
+      2.35,
+      i * 33_000,
+      35 + i,
+    ]);
+    const out = await persistImportedRoute({
+      date: "2026-08-17", km: 1.1, durationSec: 330,
+      source: "watch", hcId: "hc-session-1",
+      points,
+      hrSamples: [{ bpm: 148, t: 0 }, { bpm: 155, t: 33_000 }],
+      providerId: "healthconnect",
+    });
+    // A run with GPS rides routeId; the HR-only sidecar is for runs without it.
+    expect(out.routeId).toBe("route-1");
+    expect(out).not.toHaveProperty("hrRouteId");
+    // Extraction ran off the trace, not the whole-run estimate.
+    expect(out.bestEfforts?.["1k"]).toBeGreaterThan(0);
+    // The HR stream rides in the same route row's stats sidecar.
+    const saved = (saveRoute.mock.calls[0] as unknown[])[0] as { points: unknown[]; stats: { hrSamples?: unknown } };
+    expect(saved.stats.hrSamples).toEqual([{ bpm: 148, t: 0 }, { bpm: 155, t: 33_000 }]);
+    expect(saved.points.length).toBeGreaterThan(0);
+  });
+
   it("keeps an HR-only import off routeId and on the hrRouteId sidecar", async () => {
     const out = await persistImportedRoute({
       date: "2026-08-16", km: 8.1, durationSec: 3920,

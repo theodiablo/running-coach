@@ -41,6 +41,27 @@ function SessionRow({ s }: { s: ScanLogSession }) {
   );
 }
 
+// Why the imported runs did or didn't get a map. Exercise routes are a separate
+// Health Connect grant the app can't ask for, so "consent" here is the expected
+// default rather than a fault — this line is what makes that visible on-device.
+const ROUTE_LABEL: Record<string, string> = {
+  data: "route",
+  "consent-required": "no route consent",
+  none: "no route written",
+  unavailable: "route read failed",
+};
+
+function routeSummary(e: ScanLogEntry): string {
+  const statuses = e.routeStatuses;
+  if (!statuses?.length) return e.routesGranted ? "routes allowed" : "";
+  const counts = new Map<string, number>();
+  for (const s of statuses) counts.set(s, (counts.get(s) || 0) + 1);
+  const per = [...counts].map(([s, n]) => `${n} ${ROUTE_LABEL[s] || s}`).join(", ");
+  // Whether the grant exists is the other half of the answer: "no route written"
+  // means something quite different with routes allowed than without.
+  return e.routesGranted ? `${per} · routes allowed` : per;
+}
+
 function EntryCard({ e }: { e: ScanLogEntry }) {
   const [open, setOpen] = useState(false);
   const problem = e.availability !== "Available" || !e.permission || !!e.error;
@@ -52,6 +73,7 @@ function EntryCard({ e }: { e: ScanLogEntry }) {
           <div className="text-xs text-slate-300">{when(e.at)} · <span className="text-slate-400">{e.trigger}</span> · {e.days}d</div>
           <div className="text-[11px] text-slate-400">
             {e.rawCount} session{e.rawCount === 1 ? "" : "s"} → <span className="text-emerald-300">{e.importedCount} imported</span>
+            {routeSummary(e) && <> · <span className="text-slate-400">{routeSummary(e)}</span></>}
           </div>
         </div>
         {problem && (
