@@ -15,6 +15,7 @@ import { startIndoorSessionService, stopIndoorSessionService } from "../indoor/s
 import { getPairedDevice, setPairedDevice } from "../hr/device";
 import { isAndroid, isNative } from "../native";
 import { t } from "../i18n";
+import { currentUserId } from "../db";
 import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
 
@@ -159,7 +160,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
       localStorage.setItem(bufferKey, JSON.stringify({
         points: pointsRef.current, accSec: accRef.current, hrSamples: hrSamplesRef.current,
         startAt: startRef.current, startedAt: runStartRef.current, stoppedAt: runEndRef.current,
-        state: stateRef.current, savedAt: Date.now(),
+        state: stateRef.current, savedAt: Date.now(), userId: currentUserId(),
       }));
     } catch { /* quota — non-fatal */ }
   }, [bufferKey]);

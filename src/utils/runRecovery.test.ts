@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
+
+const me = vi.hoisted(() => ({ id: null as string | null }));
+vi.mock("../db", () => ({ currentUserId: () => me.id }));
 import { normalizeRecovery, readRecoveryBuffer, type RecoveryBuffer } from "./runRecovery";
 import type { StoredTrackPoint } from "./geo";
 
@@ -13,9 +16,24 @@ const buffer = (over: Partial<RecoveryBuffer> = {}): RecoveryBuffer => ({
   ...over,
 });
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => { localStorage.clear(); me.id = null; });
 
 describe("readRecoveryBuffer", () => {
+  it("hides another account's run on a shared device without deleting it", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(buffer({ userId: "a" })));
+    me.id = "b";
+    expect(readRecoveryBuffer()).toBeNull();
+    expect(localStorage.getItem(LIVE_RUN_KEY)).toBeTruthy();
+    me.id = "a";
+    expect(readRecoveryBuffer()?.points?.length).toBe(2);
+  });
+
+  it("still offers a buffer written before runs carried their account", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(buffer()));
+    me.id = "b";
+    expect(readRecoveryBuffer()?.points?.length).toBe(2);
+  });
+
   it("returns a buffer that has points, whatever its age", () => {
     localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(buffer({ savedAt: START - 30 * 86400000 })));
     expect(readRecoveryBuffer()?.points?.length).toBe(2);

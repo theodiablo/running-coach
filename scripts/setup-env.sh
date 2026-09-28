@@ -53,6 +53,32 @@ if ! command -v deno >/dev/null 2>&1 && [ -x "$deno_bin" ]; then
 fi
 command -v deno >/dev/null 2>&1 && log "Deno ready ($(deno --version | head -1))"
 
+# ── Terraform ───────────────────────────────────────────────────────────────
+# For `npm run infra:validate` before pushing an infra/ change. Same pinned
+# version and checksum check as terraform.yml, which is the one place the
+# version is set. Optional like Deno: a failure only warns.
+tf_version=$(sed -n 's/^ *TF_VERSION: *"\([0-9.]*\)".*/\1/p' .github/workflows/terraform.yml | head -1)
+if [ -n "$tf_version" ] && ! terraform version 2>/dev/null | grep -q "v${tf_version}$"; then
+  log "Installing Terraform ${tf_version}"
+  tf_bin=/usr/local/bin
+  [ -w "$tf_bin" ] || { tf_bin="$HOME/.local/bin"; mkdir -p "$tf_bin"; }
+  tf_tmp=$(mktemp -d)
+  base="https://releases.hashicorp.com/terraform/${tf_version}"
+  zip="terraform_${tf_version}_linux_amd64.zip"
+  if ( cd "$tf_tmp" \
+      && curl -fsSL -o "$zip" "$base/$zip" \
+      && curl -fsSL -o SHA256SUMS "$base/terraform_${tf_version}_SHA256SUMS" \
+      && grep " ${zip}$" SHA256SUMS | sha256sum -c - >/dev/null \
+      && unzip -o -q "$zip" -d "$tf_bin" ) 2>&1; then
+    log "Terraform ready ($("$tf_bin/terraform" version | head -1))"
+  else
+    log "Terraform install FAILED — npm run infra:validate will not run"
+  fi
+  rm -rf "$tf_tmp"
+elif command -v terraform >/dev/null 2>&1; then
+  log "Terraform ready ($(terraform version | head -1))"
+fi
+
 # ── Playwright ──────────────────────────────────────────────────────────────
 # Chromium is preinstalled in the cloud image (PLAYWRIGHT_BROWSERS_PATH); never
 # download another copy. Only report what the screenshot tooling will find.
@@ -60,4 +86,4 @@ if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d "${PLAYWRIGHT_BROWSERS_PATH}" 
   log "Playwright browsers: ${PLAYWRIGHT_BROWSERS_PATH} (preinstalled)"
 fi
 
-log "Ready. Checks: npm run lint · npm test · npm run typecheck:all · npm run build"
+log "Ready. Checks: npm run lint · npm test · npm run typecheck:all · npm run build · npm run infra:validate"
