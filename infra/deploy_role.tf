@@ -21,11 +21,8 @@ resource "aws_iam_role" "deploy" {
         }
         StringLike = {
           # Both subject formats — see github_repo_immutable in variables.tf.
-          # Scoped to the events that actually deploy (see
-          # github_deploy_subjects): this role can overwrite the production
-          # site, so a run from an arbitrary ref should not be able to assume
-          # it. Fork PRs get no id-token at all, and deploy-pr.yml additionally
-          # gates on author_association — but that gate is YAML, not IAM.
+          # main only (github_deploy_subjects): this role can overwrite the
+          # production site. PR previews use the preview role.
           "token.actions.githubusercontent.com:sub" = local.oidc_subjects.deploy
         }
       }
@@ -60,9 +57,9 @@ resource "aws_iam_role_policy" "deploy" {
   })
 }
 
-# What deploy.yml's security-headers step calls, granted explicitly so the
-# CloudFrontFullAccess attachment below can be dropped (a destroying plan, so
-# its own change). Headers policies take no resource ARN on create/list.
+# What deploy.yml's security-headers step calls, in place of the
+# CloudFrontFullAccess this role was adopted with. Headers policies take no
+# resource ARN on create/list.
 resource "aws_iam_role_policy" "deploy_headers" {
   name = "GitHubAction-RunApp-Deploy-Headers"
   role = aws_iam_role.deploy.id
@@ -89,17 +86,4 @@ resource "aws_iam_role_policy" "deploy_headers" {
       },
     ]
   })
-}
-
-# Predates Terraform, and adopting means matching what's live, not narrowing it
-# in the same change — see infra/README.md.
-#
-# Broader than the role needs, but NOT redundant with the inline policy above:
-# deploy.yml's security-headers step also calls List/Create/Get/Update
-# ResponseHeadersPolicy, GetDistributionConfig and UpdateDistribution, none of
-# which the inline policy grants. Detaching this without adding those first
-# breaks every production deploy — after the S3 sync has already landed.
-resource "aws_iam_role_policy_attachment" "deploy_cloudfront" {
-  role       = aws_iam_role.deploy.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudFrontFullAccess"
 }

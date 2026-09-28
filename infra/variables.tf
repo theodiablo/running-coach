@@ -44,14 +44,14 @@ variable "github_deploy_subjects" {
     Subject suffixes (everything after `repo:<repo>:`) allowed to assume the
     deploy role.
 
-    Production deploys run on the default branch and PR previews run on
-    `pull_request` (never `pull_request_target`, so forks get no token), which
-    is the whole list. The role can overwrite the live site, so it is not
-    trusted from an arbitrary ref. Widen temporarily if you need to dispatch
-    deploy.yml or deploy-pr.yml from a topic branch.
+    Production deploys run on the default branch, which is the whole list: the
+    role can overwrite the live site, and a PR branch can edit its own copy of
+    any workflow, so pull requests assume the preview role (preview_role.tf)
+    instead. Widen temporarily if you need to dispatch deploy.yml from a topic
+    branch.
   EOT
   type        = list(string)
-  default     = ["pull_request", "ref:refs/heads/main"]
+  default     = ["ref:refs/heads/main"]
 }
 
 variable "backup_bucket_name" {

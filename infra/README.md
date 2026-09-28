@@ -60,7 +60,7 @@ bucket, replacement means the data goes away.
 | --- | --- | --- | --- |
 | `GitHub-Actions-RunApp-tf-plan` | `AWS_TF_PLAN_ROLE_ARN` | pull requests + `main` | read only |
 | `GitHub-Actions-RunApp-tf-apply` | `AWS_TF_APPLY_ROLE_ARN` | `main` only | read/write, scoped |
-| `GitHub-Actions-RunApp-preview` | `preview_role_arn` output | pull requests + `main` (dispatch) | write/delete under `pr/` in the site bucket, invalidate |
+| `GitHub-Actions-RunApp-preview` | derived from `AWS_DEPLOY_ROLE_ARN` | pull requests + `main` (dispatch) | write/delete under `pr/` in the site bucket, invalidate |
 
 Neither role can read the *contents* of any S3 object except the state file:
 the read policy grants bucket-level actions against bucket ARNs, never
@@ -212,8 +212,8 @@ Three deliberate non-decisions worth knowing before you change them:
   `/watch/*` behavior reads the same policy by name (a `data` source), so it
   carries the same headers without becoming a second writer. Adopting the
   policy as an `aws_cloudfront_response_headers_policy` and dropping the
-  workflow step would be a real improvement; it needs the deploy role's
-  `CloudFrontFullAccess` narrowed in the same change, not before it.
+  workflow step would be a real improvement; the deploy role's scoped
+  `GitHubAction-RunApp-Deploy-Headers` policy would then shrink with it.
 
 Also deliberately unmanaged, referenced only by ARN/value where a resource
 needs to point at them: the ACM certificate backing the CloudFront
