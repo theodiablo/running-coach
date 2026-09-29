@@ -14,7 +14,7 @@ describe("isMistralModel", () => {
     for (const m of ["mistral-large-latest", "mistral-medium-latest", "magistral-medium-latest", "ministral-8b-latest", "open-mixtral-8x22b", "Mistral-Large-3"]) {
       expect(isMistralModel(m)).toBe(true);
     }
-    for (const m of ["claude-sonnet-5", "claude-haiku-4-5", "mock", "", undefined]) {
+    for (const m of ["claude-sonnet-5-5", "claude-haiku-4-5", "mock", "", undefined]) {
       expect(isMistralModel(m)).toBe(false);
     }
   });

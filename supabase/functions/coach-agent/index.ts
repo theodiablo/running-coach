@@ -12,7 +12,7 @@ import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
 import { isPremiumActive } from "../_shared/premium.mjs";
 
 const MOCK = Boolean(Deno.env.get("MOCK_LLM"));
-const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5";
+const DEFAULT_MODEL = Deno.env.get("COACH_MODEL") ?? "claude-sonnet-5-5";
 const LIGHT_MODEL = Deno.env.get("COACH_MODEL_LIGHT") ?? "claude-haiku-4-5";
 const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
 // Raises the free allowance for paying users, never lowers anyone's — the

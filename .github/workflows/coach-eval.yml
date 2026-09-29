@@ -10,7 +10,7 @@ on:
       model:
         description: Model to evaluate (COACH_EVAL_MODEL)
         required: false
-        default: claude-sonnet-5
+        default: claude-sonnet-5-5
         type: string
       trials:
         description: Trials per scenario (COACH_EVAL_TRIALS)

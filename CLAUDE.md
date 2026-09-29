@@ -12,11 +12,13 @@ otherwise update the relevant `docs/` file in the same change. Record reusable
 rules, not a changelog; delete anything stale.
 
 ## Sub-agents
-Pick the model per task, don't inherit by default: cheap mechanical sweeps
-(grep-and-verify dead code, comment/lint audits, mass renames) go to `sonnet`
-or `haiku`; work needing architectural or product judgment (what a test is
-really protecting, whether an abstraction earns its keep, security-sensitive
-review) goes to `opus`. Fan out read-only investigators in parallel and apply
+Pick the model per task, don't inherit by default. Sonnet 5.5 is strong enough
+at coding that `sonnet` is the default for implementation, refactors, test
+writing, bug investigation and read-only sweeps; `haiku` for trivial mechanical
+work (grep-and-verify dead code, comment/lint audits, mass renames). Reserve
+`opus` for the few calls where being wrong is costly: security-sensitive review
+(RLS, auth, premium gating), architectural decisions, and adjudicating what a
+test is really protecting. Fan out read-only investigators in parallel and apply
 their findings yourself — parallel agents editing overlapping files conflict.
 Always re-verify a finding before acting on it; agents report false positives.
 
@@ -467,7 +469,7 @@ Always re-verify a finding before acting on it; agents report false positives.
 Propose-and-confirm plan **editor, never author** — `buildPlan` stays the
 author. Model keys, validator, tools, rate limit, and audit log live server-side
 in `supabase/functions/coach-agent`. The provider follows the `COACH_MODEL` name
-(default `claude-sonnet-5` via the Anthropic SDK; Mistral models route through
+(default `claude-sonnet-5-5` via the Anthropic SDK; Mistral models route through
 the `_shared/coach/mistral.mjs` adapter — engine and tools stay
 provider-agnostic); shared logic is plain ESM in
 `supabase/functions/_shared/coach/*.mjs`, imported by both Deno and Vitest.
