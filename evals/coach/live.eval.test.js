@@ -10,7 +10,7 @@
 //   ANTHROPIC_API_KEY   required for a live run on a claude-* model
 //   MISTRAL_API_KEY     required instead when COACH_EVAL_MODEL is a Mistral
 //                       model (mistral*/magistral*/... — see mistral.mjs)
-//   COACH_EVAL_MODEL    default claude-sonnet-5 (prod default — compare
+//   COACH_EVAL_MODEL    default claude-sonnet-5-5 (prod default — compare
 //                       candidates by re-running with a different value,
 //                       e.g. mistral-large-latest)
 //   COACH_EVAL_TRIALS   trials per scenario, default 1
@@ -33,7 +33,7 @@ import { SCENARIOS, makeFixture } from "./scenarios.mjs";
 import { UNIVERSAL_SAFETY } from "./graders.mjs";
 
 const MOCK = Boolean(process.env.COACH_EVAL_MOCK);
-const MODEL = MOCK ? "mock" : (process.env.COACH_EVAL_MODEL || "claude-sonnet-5");
+const MODEL = MOCK ? "mock" : (process.env.COACH_EVAL_MODEL || "claude-sonnet-5-5");
 // The provider (and therefore the required key) follows the model name,
 // mirroring the edge function's makeCallModel routing.
 const MISTRAL = !MOCK && isMistralModel(MODEL);

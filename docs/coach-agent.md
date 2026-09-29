@@ -282,7 +282,7 @@ menu of options, instead of calling the tools that build the proposal.
 
 | Model | Quality (before prompt fix) | Quality (after) |
 | --- | --- | --- |
-| `claude-sonnet-5` (default) | 100% | 100% |
+| `claude-sonnet-5` (2026-07 default) | 100% | 100% |
 | `claude-haiku-4-5` | 82% | 97% |
 | `mistral-large-latest` | 79-81% | 92-94% |
 
@@ -412,7 +412,7 @@ built around, not because Mistral was shown to coach badly.
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | — | required when `COACH_MODEL` is a `claude-*` model (the default), unless `MOCK_LLM=1` |
 | `MISTRAL_API_KEY` | — | required when `COACH_MODEL` is a Mistral model, unless `MOCK_LLM=1` |
-| `COACH_MODEL` | `claude-sonnet-5` | coaching judgment. Switching model/provider is one secret change. |
+| `COACH_MODEL` | `claude-sonnet-5-5` | coaching judgment. Switching model/provider is one secret change. |
 | `COACH_MODEL_LIGHT` | `claude-haiku-4-5` | reserved for the `pickModel` routing seam (Phase 5) — unused until a classifier routes trivial edits |
 | `RATE_LIMIT_PER_DAY` | `5` | model-calling rounds per user per day (confirm/result/usage are free); enforced via the atomic `increment_agent_usage` SQL function. A per-user override lives in `profiles.coach_daily_limit` (nullable; NULL → this default) — the premium seam, service-role-writable only |
 | `MOCK_LLM` | unset | `1` → canned responses from `_shared/coach/mock.mjs`, zero model calls (CI, local dev) |

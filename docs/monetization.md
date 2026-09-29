@@ -26,7 +26,7 @@ summarized in `CLAUDE.md`; this file holds the reasoning.
 
 Measured from production `agent_rounds` (2026-07, ~2 weeks of real usage):
 
-- The coach runs on `claude-sonnet-5` (`COACH_MODEL`, `max_tokens: 4096`,
+- The coach runs on `claude-sonnet-5-5` (was `claude-sonnet-5` when measured; `COACH_MODEL`, `max_tokens: 4096`,
   system prompt cached). Only `propose`/`critique` rounds are charged against
   the daily limit.
 - Average charged round: ~13k input + ~1.75k output tokens (p90 ~21k/3.4k).
