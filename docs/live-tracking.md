@@ -16,6 +16,20 @@ when touching tracking or the shells. Background-location policy detail is in
   in `RunningCoach`, opened via `shared.openTracker`). On finish it funnels
   into the normal save path — `goLog(prefill)` → `LogView` → `addRuns` —
   passing measured `durationSec`/`elevation` and the trace ref.
+- **Minimizing (browsing the app mid-run):** once a recording has started
+  (tracking, paused, or stopped-unsaved) the header's chevron and back/Escape
+  *minimize* the recorder instead of closing it. `RunningCoach`'s
+  `recorderMinimized` keeps the recorder mounted but `hidden`, so
+  `useRunTracker`, live sharing and the guided workout never notice; a
+  `MinimizedRecorderBar` (`RecorderChrome`) above the nav leads back. Unmounting
+  would tear the recording down (the hook's unmount cleanup), so the hide must
+  stay a CSS hide. Every way into a recorder (FAB, a session's Start run) while
+  one is open restores that one, and Android back at the root restores it rather
+  than `exitApp()`, which would finish the activity and the services recording
+  it. The header has one exit in every state, a chevron at the top left
+  (`RecorderExitBtn`): it closes an idle recorder and minimizes a started one.
+  Discarding a started run goes through Finish, whose stopped screen offers
+  Discard with its confirm. Same contract for `IndoorTracker`.
 
 ## Crash recovery (interrupted runs)
 

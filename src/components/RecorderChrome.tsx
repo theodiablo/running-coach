@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { ModalOverlay, ConfirmButtons } from "./ModalPrimitives";
 
@@ -81,8 +82,8 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
   };
   // A screen reader activates a button by clicking its accessibility node: no
   // pointer, no key, `detail` 0. There is no press to hold, so that activation
-  // IS the confirmation — without this the button is simply inert, leaving the
-  // header X (which discards) as the only way out of a recording.
+  // IS the confirmation — without this the button is simply inert, and a
+  // started recording has no other way to end.
   const onClick = (e: { detail: number }) => { if (e.detail === 0) latest.current(); };
 
   return (
@@ -91,10 +92,11 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
       onKeyDown={onKeyDown} onKeyUp={onKeyUp} onBlur={cancel} onClick={onClick}
       className={CTRL_CLS + color + " relative overflow-hidden touch-none"}>
       {/* Informative progress, not decoration — so it's exempt from the global
-          reduced-motion block (src/index.css), like the spinner. */}
-      <span aria-hidden="true"
-        className={"hold-fill absolute inset-0 origin-left bg-black/25 " + (holding ? "scale-x-100" : "scale-x-0")}
-        style={{ transitionProperty: "transform", transitionTimingFunction: "linear", transitionDuration: holding ? `${holdMs}ms` : "0ms" }} />
+          reduced-motion block (src/index.css), like the spinner. Inline transform:
+          Tailwind v4's scale-x-* sets `scale`, which this transition ignores. */}
+      <span aria-hidden="true" data-testid="hold-fill"
+        className="hold-fill absolute inset-0 origin-left bg-black/25"
+        style={{ transform: `scaleX(${holding ? 1 : 0})`, transitionProperty: "transform", transitionTimingFunction: "linear", transitionDuration: holding ? `${holdMs}ms` : "0ms" }} />
       <span aria-live="polite" className="relative flex items-center justify-center gap-2">
         {hinting ? hint : children}
       </span>
@@ -134,5 +136,42 @@ export function DiscardConfirm({ message, onCancel, onAccept }: {
           onCancel={onCancel} onAccept={onAccept} />
       </div>
     </ModalOverlay>
+  );
+}
+
+// The recorder's one header exit, top left in every state: it closes an idle
+// recorder and minimizes a started one, so leaving never costs the run.
+export function RecorderExitBtn({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button onClick={onClick} aria-label={label}
+      className="-ml-1.5 text-slate-400 hover:text-white p-1.5"><ChevronDown size={20} /></button>
+  );
+}
+
+// The way back into a minimized recording, pinned just above the bottom nav.
+export function MinimizedRecorderBar({ state, title, detail, onOpen }: {
+  state: "idle" | "tracking" | "paused" | "stopped"; title: string; detail: string; onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button type="button" onClick={onOpen}
+      className="fixed inset-x-3 z-30 flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-slate-800 border border-orange-500/50 shadow-lg text-left active:scale-[0.98] transition-transform animate-slide-up"
+      style={{ bottom: "calc(64px + var(--safe-bottom) + 0.75rem)" }}>
+      {state === "tracking" ? (
+        <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+          <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+        </span>
+      ) : (
+        <span className={"h-2.5 w-2.5 rounded-full shrink-0 " + (state === "paused" ? "bg-amber-400" : "bg-emerald-400")} aria-hidden />
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-semibold text-white truncate">{title}</span>
+        <span className="block text-xs text-slate-400 tabular-nums truncate">{detail}</span>
+      </span>
+      <span className="flex items-center gap-1 text-xs font-semibold text-orange-300 shrink-0">
+        {t("tracker.minimize.open")}<ChevronUp size={16} />
+      </span>
+    </button>
   );
 }

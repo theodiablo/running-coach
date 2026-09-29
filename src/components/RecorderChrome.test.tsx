@@ -36,6 +36,18 @@ describe("HoldCtrl", () => {
     expect(btn).toHaveTextContent("Hold to finish");
   });
 
+  // The fill must animate the property its transition names: Tailwind v4's
+  // scale-x-* sets `scale`, which a `transform` transition never animates.
+  it("sweeps the fill with the same property its transition animates", () => {
+    const { btn } = setup();
+    const fill = screen.getByTestId("hold-fill");
+    expect(fill.style.transform).toBe("scaleX(0)");
+    fireEvent.pointerDown(btn);
+    expect(fill.style.transform).toBe("scaleX(1)");
+    expect(fill.style.transitionProperty).toBe("transform");
+    expect(fill.style.transitionDuration).toBe(`${HOLD_MS}ms`);
+  });
+
   // The web build is a browser app; Enter/Space must not be a dead button.
   it("holds from the keyboard", () => {
     const { onHold, btn } = setup();
