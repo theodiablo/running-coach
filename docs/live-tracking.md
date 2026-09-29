@@ -26,8 +26,9 @@ when touching tracking or the shells. Background-location policy detail is in
   stay a CSS hide. Every way into a recorder (FAB, a session's Start run) while
   one is open restores that one, and Android back at the root restores it rather
   than `exitApp()`, which would finish the activity and the services recording
-  it. X still means discard (with the confirm). Same contract for
-  `IndoorTracker`.
+  it. A started recorder's header has only that chevron (top left), no X:
+  discarding goes through Finish, whose stopped screen offers Discard with its
+  confirm. Same contract for `IndoorTracker`.
 
 ## Crash recovery (interrupted runs)
 

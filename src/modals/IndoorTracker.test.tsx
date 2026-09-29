@@ -401,6 +401,17 @@ describe("minimizing an in-progress session", () => {
     expect(screen.getByRole("button", { name: /finish/i })).toBeInTheDocument();
   });
 
+  it("drops the X once started, so discarding goes through Finish", () => {
+    render(<Host />);
+    expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
+    start();
+    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
+
+    finish();
+    act(() => { fireEvent.click(screen.getByRole("button", { name: /^discard$/i })); });
+    expect(screen.getByText(/discard this session/i)).toBeInTheDocument();
+  });
+
   // Back is how a runner leaves a screen, so it minimizes rather than asking
   // to discard, and a minimized recorder no longer answers it.
   it("minimizes on back instead of raising the discard confirm", () => {
