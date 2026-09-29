@@ -401,11 +401,12 @@ describe("minimizing an in-progress session", () => {
     expect(screen.getByRole("button", { name: /finish/i })).toBeInTheDocument();
   });
 
-  it("drops the X once started, so discarding goes through Finish", () => {
+  it("turns the header's one exit from close into minimize once started, so discarding goes through Finish", () => {
     render(<Host />);
     expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
     start();
     expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /recording continues/i })).toBeInTheDocument();
 
     finish();
     act(() => { fireEvent.click(screen.getByRole("button", { name: /^discard$/i })); });

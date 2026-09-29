@@ -82,8 +82,8 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
   };
   // A screen reader activates a button by clicking its accessibility node: no
   // pointer, no key, `detail` 0. There is no press to hold, so that activation
-  // IS the confirmation — without this the button is simply inert, leaving the
-  // header X (which discards) as the only way out of a recording.
+  // IS the confirmation — without this the button is simply inert, and a
+  // started recording has no other way to end.
   const onClick = (e: { detail: number }) => { if (e.detail === 0) latest.current(); };
 
   return (
@@ -92,10 +92,11 @@ export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
       onKeyDown={onKeyDown} onKeyUp={onKeyUp} onBlur={cancel} onClick={onClick}
       className={CTRL_CLS + color + " relative overflow-hidden touch-none"}>
       {/* Informative progress, not decoration — so it's exempt from the global
-          reduced-motion block (src/index.css), like the spinner. */}
-      <span aria-hidden="true"
-        className={"hold-fill absolute inset-0 origin-left bg-black/25 " + (holding ? "scale-x-100" : "scale-x-0")}
-        style={{ transitionProperty: "transform", transitionTimingFunction: "linear", transitionDuration: holding ? `${holdMs}ms` : "0ms" }} />
+          reduced-motion block (src/index.css), like the spinner. Inline transform:
+          Tailwind v4's scale-x-* sets `scale`, which this transition ignores. */}
+      <span aria-hidden="true" data-testid="hold-fill"
+        className="hold-fill absolute inset-0 origin-left bg-black/25"
+        style={{ transform: `scaleX(${holding ? 1 : 0})`, transitionProperty: "transform", transitionTimingFunction: "linear", transitionDuration: holding ? `${holdMs}ms` : "0ms" }} />
       <span aria-live="polite" className="relative flex items-center justify-center gap-2">
         {hinting ? hint : children}
       </span>
@@ -138,13 +139,12 @@ export function DiscardConfirm({ message, onCancel, onAccept }: {
   );
 }
 
-// Leaves the recorder for the rest of the app without stopping it: the screen
-// hides but stays mounted, so its hook (and everything it drives) keeps running.
-export function MinimizeBtn({ onClick }: { onClick: () => void }) {
-  const { t } = useTranslation();
+// The recorder's one header exit, top left in every state: it closes an idle
+// recorder and minimizes a started one, so leaving never costs the run.
+export function RecorderExitBtn({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <button onClick={onClick} aria-label={t("tracker.minimize.label")}
-      className="text-slate-400 hover:text-white p-1.5"><ChevronDown size={20} /></button>
+    <button onClick={onClick} aria-label={label}
+      className="-ml-1.5 text-slate-400 hover:text-white p-1.5"><ChevronDown size={20} /></button>
   );
 }
 

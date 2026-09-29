@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, HeartPulse, Bike } from "lucide-react";
+import { Play, Pause, Square, Loader, HeartPulse, Bike } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { persistImportedRoute } from "../imports/persistRoutes";
 import { useRunTracker } from "../hooks/useRunTracker";
@@ -13,7 +13,7 @@ import { effectiveMaxHR, isHrStale, liveHrStatusLine } from "../utils/hr";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { LiveHrZone } from "../components/LiveHrZone";
 import { HRTarget } from "../components/HRTarget";
-import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm, MinimizeBtn, MinimizedRecorderBar } from "../components/RecorderChrome";
+import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm, RecorderExitBtn, MinimizedRecorderBar } from "../components/RecorderChrome";
 import { BetaBadge } from "../components/BetaBadge";
 import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
@@ -179,9 +179,9 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
     <div className={"fixed inset-0 bg-slate-900 z-50 flex-col animate-slide-up " + (minimized ? "hidden" : "flex")}>
       <header className="flex items-center justify-between px-4 border-b border-slate-800"
         style={{ height: "calc(44px + var(--safe-top))", paddingTop: "var(--safe-top)" }}>
-        {/* A started run has one exit, and it keeps the run: discarding goes
-            through Finish, where the stopped screen offers it. */}
-        {canMinimize && <span className="-ml-1.5"><MinimizeBtn onClick={() => onMinimize?.()} /></span>}
+        {/* Discarding a started run goes through Finish, whose stopped screen offers it. */}
+        <RecorderExitBtn onClick={() => (canMinimize ? onMinimize?.() : handleClose())}
+          label={canMinimize ? t("tracker.minimize.label") : t("common.close")} />
         <div className="flex items-center gap-1.5">
           {state === "tracking" ? (
             <span className="relative flex h-2.5 w-2.5" aria-hidden>
@@ -197,10 +197,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
             {state === "stopped" ? t("tracker.indoor.complete") : t("tracker.indoor.title")}
           </span>
         </div>
-        {canMinimize ? <span className="w-8" aria-hidden /> : (
-          <button onClick={handleClose} aria-label={t("common.close")}
-            className="text-slate-400 hover:text-white p-1.5"><X size={18} /></button>
-        )}
+        <span className="w-8" aria-hidden />
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-center p-4 gap-5">
