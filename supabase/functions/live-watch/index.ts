@@ -13,7 +13,7 @@
 // never fall through to the legacy per-run column below, or replacing a link
 // would hand the old address to whoever squatted that token on their own row.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
 
 // Mirrors RESUME_MAX_AGE_MS / useLiveRun's MAX_AGE_MS on the client. Enforced

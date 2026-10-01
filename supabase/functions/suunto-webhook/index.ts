@@ -7,7 +7,7 @@
 // non-2xx for content problems: 4xx/5xx feed Suunto's retry + circuit breaker,
 // which would silently pause ALL notifications. Docs: docs/integrations-suunto.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 
 const WEBHOOK_SECRET = Deno.env.get("SUUNTO_WEBHOOK_SECRET");
 

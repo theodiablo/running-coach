@@ -155,6 +155,14 @@ straight off disk) for whichever function directories changed, redeploying
 `coach-agent` if `_shared/**` changed too. Needs a `SUPABASE_ACCESS_TOKEN` repo
 secret (deploy rights on `run-app`) and a `SUPABASE_PROJECT_REF` repo variable.
 
+The Supabase GitHub integration also bundles every function on each `main`
+push (the **Supabase Preview** check), from a bare checkout with no
+`node_modules`. The root `deno.json`'s `nodeModulesDir: "manual"` (what lets
+`typecheck:supabase` resolve `npm:` imports from our lockfile) would make that
+bundle fail, so **every function directory carries its own `deno.json` with
+`nodeModulesDir: "none"`** — a new function needs one too. `npm:` imports are
+pinned to an exact version matching `package-lock.json`; bump both together.
+
 **Mid-session (before a merge), deploy via the Supabase MCP tools, not the
 CLI.** The project is **`run-app`**; use the project ref from the repo variable
 `SUPABASE_PROJECT_REF` rather than hardcoding it. To redeploy `coach-agent`

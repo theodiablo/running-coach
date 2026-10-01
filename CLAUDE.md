@@ -29,7 +29,9 @@ Always re-verify a finding before acting on it; agents report false positives.
   it is what a cloud environment's setup script should point at. Idempotent.
   The cloud sandbox's egress allows the npm registry and jsr.io but not
   deno.land, esm.sh or GitHub downloads — so Deno comes from npm, and edge
-  functions import with `npm:` specifiers, never an esm.sh URL.
+  functions import with `npm:` specifiers, never an esm.sh URL. Each function
+  directory needs its own `deno.json` (`docs/release.md`) or the Supabase
+  Preview check fails to bundle it.
 - `npm run dev` — Vite dev server.
 - `npm test` — Vitest (run mode); `npm run test:watch` for watch. Suite lives
   in `src/**/*.test.{ts,tsx}`. `.ts` suites run in the `node` environment,
