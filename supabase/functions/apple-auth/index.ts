@@ -1,7 +1,7 @@
 // apple-auth — stores and revokes Sign in with Apple grants (guideline 5.1.1(v)).
 // Actions, flows and secrets: docs/release.md ("Sign in with Apple").
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { appleClientSecret, jwtClaims } from "../_shared/appleAuth.mjs";
 
 const TEAM_ID = Deno.env.get("APPLE_TEAM_ID");
