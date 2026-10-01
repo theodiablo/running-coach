@@ -94,6 +94,15 @@ describe("LogView", () => {
       notes: "Imported from Suunto",
     });
   });
+
+  // The recorder's finish screen already showed this run's best efforts.
+  it("tells the hub a recorded run was already celebrated", () => {
+    const addRuns = vi.fn();
+    setup({ addRuns, prefill: { date: "2026-08-15", type: "EASY", km: 5, durationSec: 1500, source: "gps", celebrated: true } });
+    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
+    expect(addRuns.mock.calls[0][1]).toEqual({ celebrated: true });
+    expect(addRuns.mock.calls[0][0][0]).not.toHaveProperty("celebrated");
+  });
 });
 
 // The review form rebuilds the run from its own fields, so anything the

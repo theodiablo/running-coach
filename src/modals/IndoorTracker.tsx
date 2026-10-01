@@ -15,6 +15,9 @@ import { LiveHrZone } from "../components/LiveHrZone";
 import { HRTarget } from "../components/HRTarget";
 import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm, RecorderExitBtn, MinimizedRecorderBar } from "../components/RecorderChrome";
 import { BetaBadge } from "../components/BetaBadge";
+import { RunCelebration } from "./RunCelebration";
+import { celebrate } from "../utils/celebrationHistory";
+import type { Celebration } from "../utils/runCelebration";
 import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
 import { track } from "../telemetry";
@@ -31,6 +34,8 @@ type IndoorTrackerProps = {
   settings: SettingsState;
   onConfigureHr?: (page?: SettingsPage) => void;
   onDeclineHr?: () => void;
+  // The log before this session, for the finish celebration's comparisons.
+  runs?: Run[];
 };
 
 // Indoor / static cardio recorder — a stationary bike or elliptical, where the
@@ -40,7 +45,7 @@ type IndoorTrackerProps = {
 // background-location consent apply with no GPS, and threading an `indoor`
 // branch through all of it would leave two half-features. See
 // docs/indoor-sessions.md.
-export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr }: IndoorTrackerProps) {
+export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [] }: IndoorTrackerProps) {
   const { t } = useTranslation();
   // Same pre-start read as LiveRunTracker, from the same helper.
   const hr = recorderHrSetup(settings.hrMethod, settings.hrOptOut);
@@ -95,9 +100,14 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
     if (thenStart) startWithCountdown();
   };
 
+  const [celebration, setCelebration] = useState<{ c: Celebration; run: Run } | null>(null);
   const finishSession = () => {
     track("indoor_session_stopped", { activity, durationSec: stats.movingSec });
+    const { startedAt } = rt.runWindow();
     rt.stop();
+    const run: Run = { date: ymd(new Date(startedAt || Date.now())), type: "OTHER", km: 0, durationSec: stats.movingSec, activity, source: "indoor" };
+    const c = celebrate({ run, runs, at: new Date(startedAt || Date.now()) });
+    if (c) setCelebration({ c, run });
   };
 
   // In-DOM confirm, never window.confirm (see CLAUDE.md): the Android back
@@ -320,6 +330,10 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
           </p>
         )}
       </div>
+
+      {celebration && (
+        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)} />
+      )}
 
       {confirmDiscard && (
         <DiscardConfirm message={t("tracker.indoor.discardConfirm")}

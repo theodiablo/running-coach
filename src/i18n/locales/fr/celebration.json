@@ -1,0 +1,155 @@
+{
+  "head": {
+    "run": {
+      "r1": "Bravo !",
+      "r2": "Belle sortie !",
+      "r3": "Quel effort !",
+      "r4": "Une de plus dans la besace",
+      "r5": "Regarde-toi aller !",
+      "r6": "Et voilà, c'est plié",
+      "r7": "Belle fin de sortie !",
+      "r8": "Le plus dur, c'était d'y aller. C'est fait.",
+      "r9": "Jambes : travaillées. Tête : vidée.",
+      "r10": "Une sortie de plus au compteur",
+      "r11": "C'est comme ça qu'on fait",
+      "r12": "Boum. Sortie bouclée.",
+      "r13": "Du beau travail",
+      "r14": "Celle-là, tu l'as méritée",
+      "r15": "Bien couru !",
+      "r16": "Ton toi de demain te remercie",
+      "r17": "Des kilomètres dans les jambes",
+      "r18": "Parfait !",
+      "r19": "Super boulot !",
+      "r20": "Et c'est dans la boîte !",
+      "r21": "Tope là !",
+      "r22": "Sortie : faite. Moral : au top.",
+      "r23": "Tu l'as fait !",
+      "r24": "Celle-là, elle fait du bien !",
+      "r25": "Tu as tout donné !",
+      "r26": "Chaque foulée compte",
+      "r27": "Et une sortie de plus !",
+      "r28": "Bol d'air : récupéré",
+      "r29": "Un pas de plus vers l'avant",
+      "r30": "Regarde qui vient d'aller courir !"
+    },
+    "early": {
+      "e1": "Lève-tôt !",
+      "e2": "Debout et en route !",
+      "e3": "Bouclé avant le café de la plupart des gens",
+      "e4": "Quelle façon de commencer la journée",
+      "e5": "La journée est déjà réussie"
+    },
+    "night": {
+      "n1": "Sortie de noctambule !",
+      "n2": "Finir la journée en beauté",
+      "n3": "Des kilomètres du soir au compteur",
+      "n4": "Dors bien, tu l'as mérité.",
+      "n5": "Journée finie, sortie faite"
+    },
+    "short": {
+      "s1": "Chaque sortie compte",
+      "s2": "Courte mais efficace",
+      "s3": "Un petit peu, c'est déjà beaucoup",
+      "s4": "Bouger, c'est gagner",
+      "s5": "Ça compte !",
+      "s6": "Jolie petite sortie"
+    },
+    "pb": {
+      "p1": "Tu deviens plus rapide !",
+      "p2": "Regarde-moi ce temps !",
+      "p3": "Il vient de se passer quelque chose",
+      "p4": "Du jamais vu !",
+      "p5": "Plus rapide que jamais !",
+      "p6": "Nouveau record personnel !"
+    },
+    "indoor": {
+      "i1": "Belle séance !",
+      "i2": "Bien joué !",
+      "i3": "Sueur : méritée",
+      "i4": "Voilà une bonne séance",
+      "i5": "Et voilà, c'est plié",
+      "i6": "Bravo !",
+      "i7": "Séance solide !",
+      "i8": "Le plus dur, c'était d'y aller. C'est fait.",
+      "i9": "Du beau travail",
+      "i10": "Bien mérité !"
+    },
+    "rare": {
+      "x1": "Tu es une superstar !",
+      "x2": "Légendaire, tout simplement.",
+      "x3": "Ça, c'est digne du panthéon",
+      "x4": "La route a appelé. Tu as répondu.",
+      "x5": "Quelque part, un commentateur vient de perdre sa voix",
+      "x6": "Niveau héroïque : certifié"
+    }
+  },
+  "fact": {
+    "first": {
+      "a": "Ta première sortie avec l'appli. À toutes celles qui suivront !",
+      "b": "La sortie numéro un est au compteur !"
+    },
+    "count": {
+      "a": "C'est ta sortie numéro {{n}} !",
+      "b": "{{n}} sorties enregistrées, et ce n'est pas fini"
+    },
+    "total": {
+      "a": "Tu viens de passer les {{km}} km au total !",
+      "b": "{{km}} km depuis le début. Pas mal du tout."
+    },
+    "longest": {
+      "a": "{{km}} km : ta plus longue sortie à ce jour",
+      "b": "Sortie la plus longue de ta vie : {{km}} km !",
+      "c": "Tu n'avais jamais couru aussi loin. {{km}} km !"
+    },
+    "longestTime": {
+      "a": "{{dur}} sur tes jambes : ta plus longue sortie à ce jour",
+      "b": "Ta plus longue sortie en durée : {{dur}}"
+    },
+    "recentLongest": {
+      "a": "Ta plus longue sortie de ces 8 dernières semaines",
+      "b": "Ta plus longue sortie depuis un bon moment : {{km}} km"
+    },
+    "climb": {
+      "a": "{{m}} m de dénivelé, ton record",
+      "b": "Nouveau record de grimpe : {{m}} m"
+    },
+    "week": {
+      "a": "{{km}} km cette semaine : ta plus grosse semaine",
+      "b": "Plus grosse semaine à ce jour : {{km}} km, et ça continue"
+    },
+    "quicker": {
+      "a": "Plus rapide que ton allure habituelle sur cette distance",
+      "b": "{{pace}}/km, plus vite que d'habitude sur cette distance"
+    },
+    "negSplit": {
+      "a": "Deuxième moitié plus rapide que la première. Du grand art.",
+      "b": "Tu as fini plus fort que tu n'as commencé",
+      "c": "Negative split ! Le meilleur pour la fin."
+    },
+    "comeback": {
+      "a": "Content de te revoir ! Ça fait plaisir.",
+      "b": "La première depuis {{days}} jours. Bon retour !",
+      "c": "De retour. C'est ça qui compte."
+    },
+    "session": {
+      "EASY": "Footing de ton plan : fait",
+      "TEMPO": "Séance tempo : cochée",
+      "INTERVALS": "Fractionné fait. Le plus dur est derrière toi.",
+      "LONG": "Sortie longue dans la poche",
+      "WALK": "Marche prévue : faite",
+      "RACE": "Jour de course : bouclé ! Quelle journée."
+    },
+    "indoorFirst": {
+      "a": "Ta première séance en salle. Joli début !"
+    },
+    "indoorLongest": {
+      "a": "{{dur}} : ta plus longue séance en salle",
+      "b": "Plus longue séance en salle à ce jour : {{dur}}"
+    }
+  },
+  "summary": "{{km}} km · {{dur}} · {{pace}}/km",
+  "summaryIndoor": "{{dur}}",
+  "continue": "Continuer",
+  "tapHint": "Touche pour voir ton résumé",
+  "rareTag": "Message rare : 1 sur 100"
+}
