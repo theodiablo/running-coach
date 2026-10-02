@@ -222,7 +222,7 @@ convenience last.
 | 5 | **Deep analytics** — training load / fitness-fatigue trend, HR-drift and zone distribution over time, race-time predictor, **PB progression / best-effort history** | Zero marginal cost, all computable client-side from existing `runs`; the Strava-premium model | Planned — the *data* shipped free (see below), the *history surface* is the premium half |
 | 6 | **Convenience** — calendar export (.ics), richer multi-race handling | Bundle filler, weak on its own | Planned |
 | 7 | **Higher coach daily budget** (`PREMIUM_RATE_LIMIT_PER_DAY`, 40 vs 5) | Already shipped as a *raise*; never framed as the reason to buy | **Built** |
-| 8 | **Guided workouts** — live step-by-step tempo/interval/run-walk guidance in the tracker with voice/beep cues, screen-off included (`docs/guided-workouts.md`) | The "workout mode" running watches charge for; new value (structured sessions were never guided), landed premium-first | **Built**, hidden behind `canShowPremiumTeaser` |
+| 8 | **Guided workouts** — live step-by-step tempo/interval/run-walk guidance in the tracker with voice/beep cues, screen-off included (`docs/guided-workouts.md`) | Moved to free (2026-10) together with audio guidance: the maintainer's call, and with no server half the client gate was the only gate anyway | **Free** — no longer a premium candidate |
 
 ### Live run sharing: shipped free (2026-08)
 

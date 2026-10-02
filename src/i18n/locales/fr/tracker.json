@@ -51,7 +51,8 @@
     "km": "km",
     "time": "durée",
     "pace": "allure",
-    "elev": "déniv."
+    "elev": "déniv.",
+    "heart": "cardio"
   },
   "hr": {
     "bpm": "bpm",
@@ -64,10 +65,6 @@
     "partial": "La fréquence cardiaque ne couvre que {{pct}} % de cette sortie, elle n'a donc pas été enregistrée comme moyenne.",
     "offChip": "Fréquence cardiaque désactivée",
     "offChipCta": "Connecter un capteur"
-  },
-  "gps": {
-    "accuracyGood": "Précision GPS de ±{{acc}} m. C'est parti",
-    "accuracyWait": "Précision GPS de ±{{acc}} m. Attends qu'elle se stabilise pour mieux enregistrer le départ"
   },
   "controls": {
     "start": "Démarrer la sortie",
@@ -113,14 +110,12 @@
     "exitFullscreen": "Quitter le plein écran"
   },
   "guided": {
-    "title": "Séance guidée",
     "notifTitle": "Séance guidée",
     "left": "restant",
     "next": "Ensuite : {{step}}",
     "mins": "{{mins}} min",
     "done": "Séance terminée, bravo !",
     "doneShort": "Séance terminée",
-    "cuesToggle": "Annonces vocales et bips",
     "label": {
       "warmup": "Échauffement",
       "tempo": "Tempo",
@@ -128,7 +123,8 @@
       "recover": "Récup",
       "cooldown": "Retour au calme",
       "run": "Cours",
-      "walk": "Marche"
+      "walk": "Marche",
+      "steady": "Sortie"
     },
     "pace": {
       "on": "Bonne allure",
@@ -157,14 +153,181 @@
       "metres_other": "{{count}} mètres",
       "pace": "{{min}} {{sec}} au kilomètre",
       "done": "Séance terminée. Bravo !",
-      "fast": "Trop rapide. Ralentis un peu.",
-      "slow": "Un peu lent. Accélère un peu."
-    }
+      "paceShort": "{{min}} {{sec}}",
+      "steadyDist": "Sortie de {{dist}} à {{pace}}.",
+      "steadyDistNoPace": "Sortie de {{dist}}.",
+      "steadyTime_one": "Sortie de {{count}} minute à {{pace}}.",
+      "steadyTime_other": "Sortie de {{count}} minutes à {{pace}}.",
+      "steadyTimeNoPace_one": "Sortie de {{count}} minute.",
+      "steadyTimeNoPace_other": "Sortie de {{count}} minutes.",
+      "steadyTarget": "Guidage audio activé. Cible {{pace}}.",
+      "steadyOpen": "Guidage audio activé.",
+      "seconds_one": "{{count}} seconde",
+      "seconds_other": "{{count}} secondes",
+      "tempoTime_one": "Bloc tempo : {{count}} minute à {{pace}}.",
+      "tempoTime_other": "Bloc tempo : {{count}} minutes à {{pace}}.",
+      "tempoTimeNoPace_one": "Bloc tempo : {{count}} minute, allure soutenue mais contrôlée.",
+      "tempoTimeNoPace_other": "Bloc tempo : {{count}} minutes, allure soutenue mais contrôlée.",
+      "onPace": "Bonne allure, {{pace}}.",
+      "slowBy": "Un peu lent, {{pace}}. Remonte à {{target}}.",
+      "fastBy": "Un peu rapide, {{pace}}. Reviens à {{target}}.",
+      "paceIs": "Allure {{pace}}.",
+      "heart": "Cardio {{bpm}}.",
+      "leftM_one": "Encore {{count}} mètre.",
+      "leftM_other": "Encore {{count}} mètres.",
+      "leftSec_one": "Encore {{count}} seconde.",
+      "leftSec_other": "Encore {{count}} secondes.",
+      "leftMin_one": "Encore {{count}} minute.",
+      "leftMin_other": "Encore {{count}} minutes.",
+      "hrHigh": "Cardio {{bpm}}, au-dessus de ta zone. Ralentis.",
+      "runSec_one": "Cours pendant {{count}} seconde.",
+      "runSec_other": "Cours pendant {{count}} secondes.",
+      "walkSec_one": "Marche pendant {{count}} seconde.",
+      "walkSec_other": "Marche pendant {{count}} secondes.",
+      "distDone_one": "{{km}} kilomètre.",
+      "distDone_other": "{{km}} kilomètres.",
+      "leftKm_one": "Encore {{km}} kilomètre.",
+      "leftKm_other": "Encore {{km}} kilomètres."
+    },
+    "hrHigh": "Cardio haut",
+    "target": "Cible {{targets}}"
   },
   "batteryNudge": {
     "title": "Empêche Android d'arrêter l'enregistrement",
     "body": "Ce téléphone limite l'utilisation de la batterie pour Running Coach, ce qui peut interrompre une sortie en cours. Autorise une utilisation sans restriction pour un suivi fiable avec l'écran éteint.",
     "open": "Ouvrir les réglages",
     "dismiss": "Compris"
+  },
+  "setup": {
+    "todaysRun": "Sortie du jour",
+    "edit": "Modifier la sortie du jour",
+    "editShort": "Modifier",
+    "changed": "modifiée",
+    "decrease": "Diminuer : {{name}}",
+    "increase": "Augmenter : {{name}}",
+    "atPace": "à {{pace}}",
+    "openHint": "Pas de distance ni de cible. Touche pour en fixer une",
+    "badge": {
+      "run": "Sortie"
+    },
+    "title": {
+      "sheet": "Sortie du jour",
+      "tempo": "Tempo · {{block}}",
+      "runwalk": "Cours {{run}} / marche {{walk}}",
+      "open": "Sortie libre",
+      "anyDistance": "Distance libre"
+    },
+    "sub": {
+      "warm": "{{mins}} min d'échauffement",
+      "cool": "{{mins}} min de retour au calme",
+      "rest": "{{rest}} de récup",
+      "noHr": "Pas de cible cardio"
+    },
+    "fromPlan": "Depuis ton plan : {{session}}",
+    "thisRunOnly": "Modifiée pour cette sortie seulement. Ton plan ne change pas.",
+    "usePlan": "Reprendre le plan",
+    "typeLabel": "Type de sortie",
+    "type": {
+      "regular": "Classique",
+      "tempo": "Tempo",
+      "intervals": "Fractionné",
+      "runwalk": "Course/marche"
+    },
+    "typeDesc": {
+      "regular": "Un effort régulier, avec une distance ou une durée et une cible si tu veux.",
+      "tempo": "Échauffement, un bloc soutenu à ton allure cible, puis retour au calme.",
+      "intervals": "Des répétitions rapides avec de la récupération entre chaque.",
+      "runwalk": "Des intervalles de course et de marche, répétés jusqu'à ce que tu t'arrêtes."
+    },
+    "goal": "Objectif",
+    "goalOpt": {
+      "open": "Libre",
+      "km": "Distance",
+      "time": "Durée"
+    },
+    "distance": "Distance",
+    "duration": "Durée",
+    "structure": "Structure",
+    "block": "Bloc tempo",
+    "reps": "Répétitions",
+    "rep": "Chaque répétition",
+    "unitDist": "dist.",
+    "unitTime": "durée",
+    "targets": "Cibles",
+    "pace": "Allure",
+    "workPace": "Allure d'effort",
+    "set": "fixée",
+    "none": "Aucune",
+    "noTarget": "Pas de cible",
+    "heartRate": "Fréquence cardiaque",
+    "noProfile": "Ajoute ta FC max dans Réglages → Profil d'entraînement pour voir cette zone en bpm."
+  },
+  "audio": {
+    "title": "Guidage audio",
+    "offBody": "Le guidage est désactivé pour cette sortie. Active-le pour entendre ton allure et ton cardio pendant que tu cours.",
+    "against": "Te compare à {{targets}}, d'après ta sortie du jour.",
+    "noTargets": "Ta sortie du jour n'a pas de cible d'allure ni de cardio : les annonces donnent tes chiffres sans verdict.",
+    "heartRange": "cardio {{lo}}-{{hi}}",
+    "changeRun": "Modifier la sortie du jour",
+    "addTarget": "Ajouter une cible",
+    "every": "Parler toutes les",
+    "eachKm": "Chaque km",
+    "stepsAlways": "Les changements d'étape sont toujours annoncés tout de suite.",
+    "leeway": "Marge",
+    "leewayName": "Bonne allure à",
+    "noPace": "Pas de cible d'allure",
+    "hrWarn": "Me prévenir pour le cardio",
+    "hrWarnOpt": {
+      "off": "Jamais",
+      "0": "Hors zone",
+      "5": "5 bpm au-dessus"
+    },
+    "hrNeedsSensor": "Il faut un capteur cardio connecté pendant la sortie.",
+    "hrNeedsTarget": "Il faut une cible cardio dans ta sortie du jour.",
+    "hrRightAway": "Les alertes sont annoncées tout de suite, sans attendre l'intervalle.",
+    "readOut": "Annoncer",
+    "part": {
+      "pace": "Allure",
+      "hr": "Cardio",
+      "dist": "Distance",
+      "left": "Ce qu'il reste"
+    },
+    "nothingSelected": "Rien à annoncer.",
+    "hear": "Écouter"
+  },
+  "options": {
+    "off": "Désactivé",
+    "audioOn": "Activé · toutes les {{every}}",
+    "share": "Partage en direct",
+    "shareLive": "En direct sur ton lien pendant l'enregistrement",
+    "shareNoLink": "Activé · crée un lien à envoyer",
+    "routeHint": "Trouve une boucle près de toi",
+    "clearRoute": "Retirer le parcours",
+    "audioOnKm": "Activé · à chaque km"
+  },
+  "ready": {
+    "gpsSearching": "Recherche du GPS…",
+    "gpsGood": "GPS ±{{acc}} m",
+    "gpsWait": "GPS ±{{acc}} m · en cours de stabilisation",
+    "hrLive": "{{bpm}} bpm",
+    "hrAfter": "Cardio depuis {{store}} après la sortie"
+  },
+  "quick": {
+    "audioOn": "Audio activé",
+    "audioOff": "Audio coupé",
+    "sharing": "En direct",
+    "notShared": "Non partagé"
+  },
+  "tour": {
+    "next": "Suivant",
+    "skip": "Passer",
+    "workoutTitle": "La séance de ton plan est chargée",
+    "workoutBody": "L'allure, la zone cardio et la structure viennent de ton plan. Touche la carte pour les changer pour aujourd'hui.",
+    "audioTitle": "Ton coach peut te guider à la voix",
+    "audio1": "Toutes les {{every}}, tu entendras ton allure et ton cardio par rapport à la séance.",
+    "audio2Reps": "Chaque répétition et chaque récup sont annoncées.",
+    "audio2Steps": "L'échauffement, le tempo et le retour au calme sont annoncés.",
+    "audio3": "Touche ici pour régler la fréquence des annonces. Activé pour le tempo et le fractionné, désactivé pour les footings.",
+    "audio1Km": "À chaque kilomètre, tu entendras ton allure et ton cardio par rapport à la séance."
   }
 }

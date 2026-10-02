@@ -31,7 +31,7 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Token ledger, `share_public`, `rotate_share_link` | `supabase/migrations/20260913100620_live_share_tokens.sql` |
 | Claiming / replacing / caching the link | `src/live/shareLinkStore.ts` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
-| Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` |
+| Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` (link UI in `LiveShareSheet`) |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
 | Dashboard banner | `src/views/Dashboard.tsx` |
 | Watch display (shared by both surfaces) | `src/components/LiveWatchView.tsx` |
@@ -168,8 +168,7 @@ the runner can no longer update or clean up — starting a broadcast was the
 privileged act, ending one never was). The asymmetry is gone along with the
 gate: `20260818184235_live_runs_drop_premium_gate.sql` dropped the check from
 the insert policy, leaving all three policies the same shape. `is_premium()`
-itself is untouched — it still backs the premium gates on guided workouts and
-the route finder, both unaffected by this change.
+itself is untouched — it still backs the route finder's premium gate.
 
 **The publisher still opens a broadcast with an `insert` and continues it with
 an `update`, never an upsert** — that predates the premium gate and doesn't
@@ -190,8 +189,9 @@ lint hygiene: with a mutable one, `now()` is resolvable to something other than
 `pg_catalog.now()`, handing back control of the very column the trigger exists
 to make server truth.
 
-Client-side, the toggle (`src/modals/LiveRunTracker.tsx`) is always shown and
-always actionable — `toggleShareLive` just flips `LIVE_SHARE_KEY`, no
+Client-side, the toggle (`src/modals/LiveRunTracker.tsx`: the switch on the
+"Share live" row before a run, the "Sharing live" button and its sheet during
+one) is always shown and always actionable — `toggleShareLive` just flips `LIVE_SHARE_KEY`, no
 entitlement check, no teaser sheet. `useLiveRun` (the watcher half, mounted
 once in `RunningCoach`) subscribes for any signed-in user, not conditionally.
 

@@ -329,8 +329,7 @@ Always re-verify a finding before acting on it; agents report false positives.
   for loyalty history), **service-role-writable only** — never put it in the
   `app_state` blob, which the user can write. `src/premium.ts` reads the caller's
   own row for UI only (`isPremiumActive`); **the gate is always server-side** in
-  the feature's edge function — except a feature with no server half at all
-  (guided workouts), where the client gate is accepted as the only gate. `App.tsx` owns the fetch and threads `isPremium`
+  the feature's edge function. `App.tsx` owns the fetch and threads `isPremium`
   through the `shared` bag. A failed read means free, so premium checks must
   degrade safely. **The tier is not unveiled yet:** `canShowPremiumTeaser` is
   `false` — gate every premium affordance on `isPremium || canShowPremiumTeaser`,
@@ -676,7 +675,7 @@ changes.
   cross-training run shape, the GPS-free recorder, live HR zones.
 - `docs/background-location.md` — Android background-location policy.
 - `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger.
-- `docs/guided-workouts.md` — guided tempo/interval/run-walk sessions (premium): workout compiler+engine, cue seams, native step engines.
+- `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
 - `docs/races.md` — race catalogue, contributions, badges.

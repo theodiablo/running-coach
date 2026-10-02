@@ -402,7 +402,8 @@ phase); the project also carries a second native target,
 with it (e.g. `RunActivityAttributes.swift`) needs a build-file entry in BOTH
 Sources phases; `ios-pr.yml` (no-signing
 Simulator build on PRs touching `ios/**`) is the compile check. Info.plist owns
-the permission strings, `UIBackgroundModes` (`location`, `bluetooth-central`),
+the permission strings, `UIBackgroundModes` (`location`, `bluetooth-central`,
+`audio` — guided-run voice prompts with the screen locked, docs/guided-workouts.md),
 the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
 `App.entitlements` carries the HealthKit capability.
 

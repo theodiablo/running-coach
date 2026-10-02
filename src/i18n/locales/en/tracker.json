@@ -51,7 +51,8 @@
     "km": "km",
     "time": "time",
     "pace": "pace",
-    "elev": "elev"
+    "elev": "elev",
+    "heart": "heart"
   },
   "hr": {
     "bpm": "bpm",
@@ -64,10 +65,6 @@
     "partial": "Heart rate only covered {{pct}}% of this run, so it wasn't saved as the run's average.",
     "offChip": "Heart rate off",
     "offChipCta": "Connect a sensor"
-  },
-  "gps": {
-    "accuracyGood": "GPS accuracy ±{{acc}} m — good to go",
-    "accuracyWait": "GPS accuracy ±{{acc}} m — wait for it to settle for a cleaner start"
   },
   "controls": {
     "start": "Start run",
@@ -113,14 +110,12 @@
     "exitFullscreen": "Leave full screen"
   },
   "guided": {
-    "title": "Guided session",
     "notifTitle": "Guided session",
     "left": "left",
     "next": "Next: {{step}}",
     "mins": "{{mins}} min",
     "done": "Workout complete — nice work.",
     "doneShort": "Workout complete",
-    "cuesToggle": "Voice and beep cues",
     "label": {
       "warmup": "Warm-up",
       "tempo": "Tempo",
@@ -128,7 +123,8 @@
       "recover": "Recover",
       "cooldown": "Cool-down",
       "run": "Run",
-      "walk": "Walk"
+      "walk": "Walk",
+      "steady": "Run"
     },
     "pace": {
       "on": "On pace",
@@ -157,14 +153,181 @@
       "metres_other": "{{count}} metres",
       "pace": "{{min}} {{sec}} per kilometre",
       "done": "Workout complete. Nice work.",
-      "fast": "Too fast. Ease off a touch.",
-      "slow": "Behind pace. Pick it up a touch."
-    }
+      "paceShort": "{{min}} {{sec}}",
+      "steadyDist": "Run {{dist}} at {{pace}}.",
+      "steadyDistNoPace": "Run {{dist}}.",
+      "steadyTime_one": "Run {{count}} minute at {{pace}}.",
+      "steadyTime_other": "Run {{count}} minutes at {{pace}}.",
+      "steadyTimeNoPace_one": "Run {{count}} minute.",
+      "steadyTimeNoPace_other": "Run {{count}} minutes.",
+      "steadyTarget": "Audio guidance on. Target {{pace}}.",
+      "steadyOpen": "Audio guidance on.",
+      "seconds_one": "{{count}} second",
+      "seconds_other": "{{count}} seconds",
+      "tempoTime_one": "Tempo block: {{count}} minute at {{pace}}.",
+      "tempoTime_other": "Tempo block: {{count}} minutes at {{pace}}.",
+      "tempoTimeNoPace_one": "Tempo block: {{count}} minute, comfortably hard.",
+      "tempoTimeNoPace_other": "Tempo block: {{count}} minutes, comfortably hard.",
+      "onPace": "On pace, {{pace}}.",
+      "slowBy": "A bit slow, {{pace}}. Push to {{target}}.",
+      "fastBy": "A bit fast, {{pace}}. Ease to {{target}}.",
+      "paceIs": "Pace {{pace}}.",
+      "heart": "Heart rate {{bpm}}.",
+      "leftM_one": "{{count}} metre left.",
+      "leftM_other": "{{count}} metres left.",
+      "leftSec_one": "{{count}} second left.",
+      "leftSec_other": "{{count}} seconds left.",
+      "leftMin_one": "{{count}} minute left.",
+      "leftMin_other": "{{count}} minutes left.",
+      "hrHigh": "Heart rate {{bpm}}, above your zone. Ease off.",
+      "runSec_one": "Run {{count}} second.",
+      "runSec_other": "Run {{count}} seconds.",
+      "walkSec_one": "Walk {{count}} second.",
+      "walkSec_other": "Walk {{count}} seconds.",
+      "distDone_one": "{{km}} kilometre.",
+      "distDone_other": "{{km}} kilometres.",
+      "leftKm_one": "{{km}} kilometre left.",
+      "leftKm_other": "{{km}} kilometres left."
+    },
+    "hrHigh": "HR high",
+    "target": "Target {{targets}}"
   },
   "batteryNudge": {
     "title": "Keep Android from stopping your recording",
     "body": "This phone limits battery use for Running Coach, which can end a recording mid-run. Allow unrestricted battery use for reliable tracking with the screen off.",
     "open": "Open settings",
     "dismiss": "Got it"
+  },
+  "setup": {
+    "todaysRun": "Today's run",
+    "edit": "Edit today's run",
+    "editShort": "Edit",
+    "changed": "changed",
+    "decrease": "Decrease {{name}}",
+    "increase": "Increase {{name}}",
+    "atPace": "at {{pace}}",
+    "openHint": "No distance or target. Tap to set one",
+    "badge": {
+      "run": "Run"
+    },
+    "title": {
+      "sheet": "Today's run",
+      "tempo": "Tempo · {{block}}",
+      "runwalk": "Run {{run}} / walk {{walk}}",
+      "open": "Just run",
+      "anyDistance": "Any distance"
+    },
+    "sub": {
+      "warm": "{{mins}} min warm-up",
+      "cool": "{{mins}} min cool-down",
+      "rest": "{{rest}} recovery",
+      "noHr": "No heart-rate target"
+    },
+    "fromPlan": "From your plan: {{session}}",
+    "thisRunOnly": "Changed for this run only. Your plan stays as it is.",
+    "usePlan": "Use plan",
+    "typeLabel": "Type of run",
+    "type": {
+      "regular": "Regular",
+      "tempo": "Tempo",
+      "intervals": "Intervals",
+      "runwalk": "Run/walk"
+    },
+    "typeDesc": {
+      "regular": "One steady effort, with an optional distance or time and an optional target.",
+      "tempo": "Warm-up, a sustained block at your target pace, then cool-down.",
+      "intervals": "Fast reps with recovery between them.",
+      "runwalk": "Run and walk intervals, repeated until you stop."
+    },
+    "goal": "Goal",
+    "goalOpt": {
+      "open": "Open",
+      "km": "Distance",
+      "time": "Time"
+    },
+    "distance": "Distance",
+    "duration": "Duration",
+    "structure": "Structure",
+    "block": "Tempo block",
+    "reps": "Reps",
+    "rep": "Each rep",
+    "unitDist": "dist",
+    "unitTime": "time",
+    "targets": "Targets",
+    "pace": "Pace",
+    "workPace": "Work pace",
+    "set": "set",
+    "none": "None",
+    "noTarget": "No target",
+    "heartRate": "Heart rate",
+    "noProfile": "Add your max heart rate in Settings → Training Profile to see this zone in bpm."
+  },
+  "audio": {
+    "title": "Audio guidance",
+    "offBody": "Guidance is off for this run. Turn it on to hear your pace and heart rate while you run.",
+    "against": "Compares you to {{targets}} from today's run.",
+    "noTargets": "Today's run has no pace or heart-rate target, so callouts read your numbers without a verdict.",
+    "heartRange": "heart {{lo}}-{{hi}}",
+    "changeRun": "Change today's run",
+    "addTarget": "Add a target",
+    "every": "Talk every",
+    "eachKm": "Each km",
+    "stepsAlways": "Step changes are always announced right away.",
+    "leeway": "Leeway",
+    "leewayName": "On pace within",
+    "noPace": "No pace target",
+    "hrWarn": "Warn me about heart rate",
+    "hrWarnOpt": {
+      "off": "Never",
+      "0": "Above zone",
+      "5": "5 bpm above"
+    },
+    "hrNeedsSensor": "Needs a heart-rate sensor connected during the run.",
+    "hrNeedsTarget": "Needs a heart-rate target in today's run.",
+    "hrRightAway": "Warnings are spoken right away, not on the timer.",
+    "readOut": "Read out",
+    "part": {
+      "pace": "Pace",
+      "hr": "Heart rate",
+      "dist": "Distance",
+      "left": "What's left"
+    },
+    "nothingSelected": "Nothing selected to read out.",
+    "hear": "Hear it"
+  },
+  "options": {
+    "off": "Off",
+    "audioOn": "On · every {{every}}",
+    "share": "Share live",
+    "shareLive": "Live at your link while you record",
+    "shareNoLink": "On · create a link to send",
+    "routeHint": "Find a loop near you",
+    "clearRoute": "Remove route",
+    "audioOnKm": "On · each km"
+  },
+  "ready": {
+    "gpsSearching": "Finding GPS…",
+    "gpsGood": "GPS ±{{acc}} m",
+    "gpsWait": "GPS ±{{acc}} m · settling",
+    "hrLive": "{{bpm}} bpm",
+    "hrAfter": "Heart rate from {{store}} after the run"
+  },
+  "quick": {
+    "audioOn": "Audio on",
+    "audioOff": "Audio off",
+    "sharing": "Sharing live",
+    "notShared": "Not shared"
+  },
+  "tour": {
+    "next": "Next",
+    "skip": "Skip",
+    "workoutTitle": "Your plan's workout is loaded",
+    "workoutBody": "Pace, heart-rate zone and structure come from your plan. Tap the card to change any of it for today.",
+    "audioTitle": "Your coach can talk you through it",
+    "audio1": "Every {{every}} you'll hear your pace and heart rate against the workout.",
+    "audio2Reps": "Each rep and recovery is announced.",
+    "audio2Steps": "Warm-up, tempo and cool-down are announced.",
+    "audio3": "Tap here to change how often it talks. It's on for tempo and intervals, off for easy runs.",
+    "audio1Km": "Each kilometre you'll hear your pace and heart rate against the workout."
   }
 }

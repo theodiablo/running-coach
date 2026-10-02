@@ -1,4 +1,4 @@
-// Guided workout compilation + live step engine (premium; docs/guided-workouts.md).
+// Guided workout compilation + live step engine (docs/guided-workouts.md).
 //
 // compileWorkout turns a plan session into a machine-readable step schedule —
 // the guided counterpart of sessionSteps' prose, built from the same sd-first /
@@ -12,9 +12,10 @@
 import { parseRepsRaw, runwalkRatio } from "./sessionSteps";
 import type { SessionSd } from "../types";
 
-export type WorkoutStepKind = "warmup" | "work" | "recover" | "run" | "walk" | "cooldown";
+export type WorkoutStepKind = "warmup" | "work" | "steady" | "recover" | "run" | "walk" | "cooldown";
 
-// Exactly one bound per step: distance (`m`) or moving time (`sec`).
+// At most one bound per step: distance (`m`) or moving time (`sec`). A step
+// with neither (an open steady run) never ends.
 export type WorkoutStep = {
   kind: WorkoutStepKind;
   m?: number;
@@ -23,6 +24,9 @@ export type WorkoutStep = {
   pace?: number;
   /** ± tolerance (sec/km) around `pace` for the live verdict. */
   band?: number;
+  /** Heart-rate target (bpm) — guided steps only. */
+  hrLo?: number;
+  hrHi?: number;
   /** 1-based rep position, for "Rep 3 of 6" display/announcements. */
   rep?: number;
   reps?: number;
@@ -174,7 +178,8 @@ export function advanceWorkout(
   const entered: number[] = [];
   let finished = false;
   for (;;) {
-    if (cur.done) break;
+    // A loop of zero-length steps would never stop crossing.
+    if (cur.done || entered.length > w.steps.length * 1000) break;
     const step = stepAt(w, cur.idx);
     if (!step || !stepCrossed(step, cur, now.km, now.movingSec)) break;
     // Boundaries advance by the step's own bound (not to "now"), so a
@@ -205,6 +210,11 @@ export function stepRemaining(
 }
 
 export type PaceVerdict = "slow" | "on" | "fast";
+
+/** Heart rate above the step's target by more than `margin` bpm. */
+export function hrOver(step: WorkoutStep, bpm: number | null | undefined, margin = 0): boolean {
+  return step.hrHi != null && bpm != null && bpm > step.hrHi + margin;
+}
 
 /** Live pace vs the step's band; null when the step has no target or no pace yet. */
 export function paceVerdict(step: WorkoutStep, curPaceSecPerKm: number): PaceVerdict | null {

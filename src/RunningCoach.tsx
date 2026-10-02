@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { isNative } from "./native";
 import { App as CapApp } from "@capacitor/app";
@@ -259,6 +259,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   const saveSettings = (s: SettingsState) => { setSettings(s); db.set(STORAGE_KEYS.SETTINGS, s); };
+  // For long-lived screens (the recorder) whose captured `settings` can be a
+  // few changes behind: merge into whatever is current, never a stale copy.
+  const patchSettings = useCallback((patch: Partial<SettingsState>) => setSettings(prev => {
+    const next = { ...prev, ...patch };
+    db.set(STORAGE_KEYS.SETTINGS, next);
+    return next;
+  }), []);
   // The two one-time coach signposts are strictly "show once": each marks itself
   // seen the moment it actually has been, so neither can come back on the next
   // launch (or on another device — they ride the synced settings blob). The
@@ -1318,6 +1325,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRecordSheet(false)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        settings={settings} onSettingsPatch={patchSettings}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}

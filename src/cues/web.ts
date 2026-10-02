@@ -17,12 +17,14 @@ export function primeWebAudio(): void {
 }
 
 // [frequency Hz, duration s, gap-before s] triplets per tone. Directional by
-// meaning: rising = go/faster, falling = ease off, triple-rise = done.
+// meaning: rising = go/faster, falling = ease off, triple-rise = done, one
+// short blip = a status callout.
 const PATTERNS: Record<CueTone, [number, number, number][]> = {
   step: [[880, 0.15, 0], [1175, 0.22, 0.08]],
   done: [[880, 0.15, 0], [1046, 0.15, 0.06], [1318, 0.3, 0.06]],
   slow: [[660, 0.12, 0], [880, 0.2, 0.06]],
   fast: [[1175, 0.12, 0], [784, 0.2, 0.06]],
+  info: [[988, 0.1, 0]],
 };
 
 export function playWebTone(tone: CueTone): void {

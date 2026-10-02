@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -16,7 +17,9 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.getcapacitor.Logger
 import com.getcapacitor.Plugin
@@ -25,6 +28,8 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONObject
 import java.util.Locale
+import kotlin.math.ceil
+import kotlin.math.floor
 
 // Native guided-workout engine for screen-off runs (docs/guided-workouts.md).
 //
@@ -36,6 +41,8 @@ import java.util.Locale
 // a Handler deadline for time-bound steps (a standing recovery emits no fixes),
 // and on each boundary plays a tone + speaks the seeded announcement (Android
 // TTS), vibrates, and re-posts its own silent "current step" notification.
+// Status callouts and heart-rate warnings mirror src/utils/callout.ts; the
+// live bpm comes from the patched BLE plugin's HR_SAMPLE relay.
 //
 // JS owns the truth (src/geo/workoutGuide.ts): every seed re-bases the full
 // engine state — schedule, step index/anchors, cumulative km / moving sec,
@@ -53,13 +60,19 @@ class WorkoutGuidePlugin : Plugin() {
         private const val LIVE_FIX_ACTION = "solutions.camboulive.run.LIVE_FIX"
         private const val CHANNEL_ID = "workout_guide"
         private const val NOTIFICATION_ID = 20482
-        // Mirrors the JS hook's pace-cue discipline (useGuidedWorkout).
-        private const val PACE_CUE_MIN_INTO_STEP_SEC = 20.0
-        private const val PACE_CUE_EVERY_MS = 25_000L
+        // Mirrors the patched BLE plugin's HR_RELAY_ACTION.
+        private const val HR_SAMPLE_ACTION = "solutions.camboulive.run.HR_SAMPLE"
+        // Mirror src/utils/callout.ts and HR_STALE_MS (src/utils/hr.ts).
+        private const val CALLOUT_MIN_INTO_STEP_SEC = 20.0
+        private const val HR_WARN_EVERY_SEC = 45.0
+        private const val HR_STALE_MS = 12_000L
+        private const val PACE_FRESH_MS = 10_000L
         // Self-expiry: without a fresh seed the guide must not outlive the run
         // that armed it (matches the recovery buffer's live window).
         private const val SEED_MAX_AGE_MS = 6 * 3600_000L
         private const val TONE_MS = 220
+        // Upper bound on holding audio focus if TTS never reports done.
+        private const val FOCUS_MAX_MS = 15_000L
     }
 
     private class Step(
@@ -68,6 +81,8 @@ class WorkoutGuidePlugin : Plugin() {
         val sec: Double?,
         val pace: Double?,
         val band: Double?,
+        val hrLo: Double?,
+        val hrHi: Double?,
         val announce: String,
         val notif: String,
     )
@@ -89,11 +104,25 @@ class WorkoutGuidePlugin : Plugin() {
     private var muted = false
     private var notifTitle = ""
     private var doneText = ""
-    private var fastText = ""
-    private var slowText = ""
+    private var texts: JSONObject = JSONObject()
+    private var decimalSep = "."
+    private var kmOneBelowTwo = false
+    private var freqSec = 60.0
+    private var sayPace = true
+    private var sayHr = true
+    private var sayDist = false
+    private var sayLeft = true
+    private var hrWarn = 0.0
     private var seedAtMs = 0L
-    private var lastPaceCueAt = 0L
     private var lastCurPace = 0.0
+    private var lastFixWall = 0L
+    // Callout clock, native-owned like the announcement dedupe: JS never
+    // speaks on Android, so only a fresh run resets it.
+    private var lastCalloutSec = 0.0
+    private var lastCalloutKm = 0
+    private var lastHrWarnSec = Double.NEGATIVE_INFINITY
+    private var lastBpm = 0
+    private var lastBpmAt = 0L
     // Announcement dedupe is NATIVE state: JS never speaks on Android (its
     // playCue no-ops here), so a seed can't mean "already announced". It
     // survives re-seeds (pause/resume/mute are same-idx) and resets only on
@@ -103,10 +132,20 @@ class WorkoutGuidePlugin : Plugin() {
 
     private val deadline = Runnable { evaluate() }
     private var receiver: BroadcastReceiver? = null
+    private var hrReceiver: BroadcastReceiver? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var ttsLang = ""
+    // Spoken once TTS finishes initializing — a cold engine must not swallow
+    // the run's opening announcement (or a preview).
+    private var pendingSpeech: String? = null
     private var toneGen: ToneGenerator? = null
+    private val speechAttrs: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+    private var focusRequest: AudioFocusRequest? = null
+    private val releaseFocus = Runnable { abandonFocus() }
 
     override fun load() {
         super.load()
@@ -122,6 +161,23 @@ class WorkoutGuidePlugin : Plugin() {
         LocalBroadcastManager.getInstance(context).registerReceiver(
             receiver!!, IntentFilter(LIVE_FIX_ACTION)
         )
+        val hr = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val bpm = intent.getIntExtra("bpm", 0)
+                val t = intent.getLongExtra("t", 0L)
+                if (bpm > 0 && t >= lastBpmAt) {
+                    lastBpm = bpm
+                    lastBpmAt = t
+                }
+            }
+        }
+        try {
+            ContextCompat.registerReceiver(context, hr, IntentFilter(HR_SAMPLE_ACTION),
+                ContextCompat.RECEIVER_NOT_EXPORTED)
+            hrReceiver = hr
+        } catch (e: Exception) {
+            Logger.error("WorkoutGuide: HR relay unavailable", e)
+        }
     }
 
     override fun handleOnDestroy() {
@@ -136,6 +192,10 @@ class WorkoutGuidePlugin : Plugin() {
             }
         }
         receiver = null
+        hrReceiver?.let {
+            try { context.unregisterReceiver(it) } catch (ignored: RuntimeException) {}
+        }
+        hrReceiver = null
         try { tts?.shutdown() } catch (ignored: RuntimeException) {}
         tts = null
         try { toneGen?.release() } catch (ignored: RuntimeException) {}
@@ -161,6 +221,19 @@ class WorkoutGuidePlugin : Plugin() {
         call.resolve()
     }
 
+    // "Hear it" in the audio-guidance sheet: one sample, spoken the way a run's
+    // callouts will be (same TTS, same ducking), whatever the engine state.
+    @PluginMethod
+    fun preview(call: PluginCall) {
+        val text = call.getString("text") ?: ""
+        val lang = call.getString("lang") ?: "en"
+        handler.post {
+            ensureTts(lang)
+            speakNow(text)
+        }
+        call.resolve()
+    }
+
     @PluginMethod
     fun clear(call: PluginCall) {
         handler.post { teardown() }
@@ -178,6 +251,8 @@ class WorkoutGuidePlugin : Plugin() {
                 sec = num(s, "sec"),
                 pace = num(s, "pace"),
                 band = num(s, "band"),
+                hrLo = num(s, "hrLo"),
+                hrHi = num(s, "hrHi"),
                 announce = s.optString("announce"),
                 notif = s.optString("notif"),
             ))
@@ -194,26 +269,35 @@ class WorkoutGuidePlugin : Plugin() {
         tracking = data.optBoolean("tracking", false)
         finished = data.optBoolean("finished", false)
         muted = data.optBoolean("muted", false)
-        val texts = data.optJSONObject("texts")
-        notifTitle = texts?.optString("notifTitle") ?: ""
-        doneText = texts?.optString("done") ?: ""
-        fastText = texts?.optString("fast") ?: ""
-        slowText = texts?.optString("slow") ?: ""
+        texts = data.optJSONObject("texts") ?: JSONObject()
+        notifTitle = texts.optString("notifTitle")
+        doneText = texts.optString("done")
+        decimalSep = data.optString("decimalSep", ".").ifEmpty { "." }
+        kmOneBelowTwo = data.optBoolean("kmOneBelowTwo", false)
+        val callout = data.optJSONObject("callout")
+        freqSec = callout?.let { num(it, "freqSec") } ?: 60.0
+        hrWarn = callout?.let { num(it, "hrWarn") } ?: 0.0
+        val say = callout?.optJSONObject("say")
+        sayPace = say?.optBoolean("pace", true) ?: true
+        sayHr = say?.optBoolean("hr", true) ?: true
+        sayDist = say?.optBoolean("dist", false) ?: false
+        sayLeft = say?.optBoolean("left", true) ?: true
         seedAtMs = System.currentTimeMillis()
+        val wasEnabled = enabled
         enabled = true
-        // A seed that moved the engine backwards is a fresh run — start the
-        // announcement dedupe over. Same-idx re-seeds (pause/resume/mute)
-        // keep it, so they stay silent.
-        if (announcedIdx > idx) announcedIdx = -1
+        // Dedupe and callout clock survive every re-seed (pause/resume, audio
+        // toggle, a JS re-base that trails this fold); only teardown resets them.
+        // First seed of a run (or a recovered one): per-km callouts count from here.
+        if (!wasEnabled) lastCalloutKm = floor(km).toInt()
         if (!finished) doneCued = false
         ensureTts(data.optString("lang", "en"))
         // Announce the step the seed landed on if nothing has voiced it yet —
         // the opening warm-up right after Go, and a foreground transition
         // where the JS re-base beat the LIVE_FIX broadcast to the boundary.
-        if (tracking && !finished && announcedIdx != idx) {
+        if (tracking && !finished && idx > announcedIdx) {
             announcedIdx = idx
             stepAt(idx)?.let { cue(ToneGenerator.TONE_PROP_BEEP2, it.announce) }
-            lastPaceCueAt = System.currentTimeMillis()
+            lastCalloutSec = currentMovingSec()
         }
         if (finished && !doneCued) {
             doneCued = true
@@ -223,12 +307,22 @@ class WorkoutGuidePlugin : Plugin() {
         postNotification()
     }
 
+    private fun resetCalloutClock() {
+        lastCalloutSec = 0.0
+        lastCalloutKm = 0
+        lastHrWarnSec = Double.NEGATIVE_INFINITY
+    }
+
     private fun teardown() {
         enabled = false
         announcedIdx = -1
+        resetCalloutClock()
+        lastCurPace = 0.0
+        lastFixWall = 0L
         doneCued = false
         handler.removeCallbacks(deadline)
         try { tts?.stop() } catch (ignored: RuntimeException) {}
+        abandonFocus()
         try {
             (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .cancel(NOTIFICATION_ID)
@@ -251,6 +345,7 @@ class WorkoutGuidePlugin : Plugin() {
             movingAnchorWall = now
         }
         lastCurPace = intent.getDoubleExtra("curPaceSecPerKm", 0.0)
+        lastFixWall = now
         evaluate()
     }
 
@@ -288,38 +383,111 @@ class WorkoutGuidePlugin : Plugin() {
             if (finished) {
                 doneCued = true
                 cue(ToneGenerator.TONE_PROP_ACK, doneText)
-            } else if (announcedIdx != idx) {
+            } else if (idx > announcedIdx) {
                 announcedIdx = idx
                 stepAt(idx)?.let { cue(ToneGenerator.TONE_PROP_BEEP2, it.announce) }
-                lastPaceCueAt = System.currentTimeMillis()
+                lastCalloutSec = nowMoving
             }
             postNotification()
-        }
-        // Off-pace reminder, same discipline as the JS hook.
-        val step = if (finished) null else stepAt(idx)
-        if (step?.pace != null && step.band != null && lastCurPace > 0
-            && nowMoving - stepStartSec >= PACE_CUE_MIN_INTO_STEP_SEC
-            && System.currentTimeMillis() - lastPaceCueAt >= PACE_CUE_EVERY_MS) {
-            if (lastCurPace > step.pace + step.band) {
-                lastPaceCueAt = System.currentTimeMillis()
-                cue(ToneGenerator.TONE_PROP_BEEP, slowText)
-            } else if (lastCurPace < step.pace - step.band) {
-                lastPaceCueAt = System.currentTimeMillis()
-                cue(ToneGenerator.TONE_PROP_BEEP, fastText)
-            }
+        } else if (!finished) {
+            stepAt(idx)?.let { callouts(it, nowMoving) }
         }
         armDeadline()
     }
 
-    // Time-bound steps must fire with no fix to ride (stationary recovery):
-    // a Handler deadline in the still-running service process. Distance-bound
-    // steps need a fix by definition — nothing to arm.
+    // ── status callouts + HR warning (mirror src/utils/callout.ts) ───────────
+    private fun liveBpm(): Int? =
+        if (lastBpm > 0 && System.currentTimeMillis() - lastBpmAt <= HR_STALE_MS) lastBpm else null
+
+    private fun callouts(step: Step, nowMoving: Double) {
+        if (muted) return
+        val bpm = liveBpm()
+        if (hrWarn >= 0 && step.hrHi != null && bpm != null && bpm > step.hrHi + hrWarn
+            && nowMoving - lastHrWarnSec >= HR_WARN_EVERY_SEC) {
+            lastHrWarnSec = nowMoving
+            lastCalloutSec = nowMoving
+            cue(ToneGenerator.TONE_PROP_BEEP, fill("hrHigh", "bpm" to bpm.toString()))
+            return
+        }
+        val perKm = freqSec <= 0
+        val due = if (perKm) floor(km).toInt() > lastCalloutKm
+            else nowMoving - lastCalloutSec >= freqSec && nowMoving - stepStartSec >= CALLOUT_MIN_INTO_STEP_SEC
+        if (!due) return
+        lastCalloutSec = nowMoving
+        lastCalloutKm = floor(km).toInt()
+        val text = calloutText(step, nowMoving, bpm, perKm)
+        if (text.isNotEmpty()) cue(ToneGenerator.TONE_PROP_ACK, text)
+    }
+
+    private fun calloutText(step: Step, nowMoving: Double, bpm: Int?, perKm: Boolean): String {
+        val parts = ArrayList<String>()
+        if (sayDist || perKm) parts.add(fill(kmKey("distDone", km), "km" to oneDecimal(km)))
+        // A standing runner emits no fixes: their last pace is not their pace now.
+        val freshPace = System.currentTimeMillis() - lastFixWall <= PACE_FRESH_MS
+        if (sayPace && lastCurPace > 0 && freshPace) {
+            val pace = spokenPace(lastCurPace)
+            val p = step.pace
+            val b = step.band
+            parts.add(when {
+                p == null || b == null -> fill("paceIs", "pace" to pace)
+                lastCurPace > p + b -> fill("slowBy", "pace" to pace, "target" to spokenPace(p))
+                lastCurPace < p - b -> fill("fastBy", "pace" to pace, "target" to spokenPace(p))
+                else -> fill("onPace", "pace" to pace)
+            })
+        }
+        if (sayHr && bpm != null) parts.add(fill("heart", "bpm" to bpm.toString()))
+        if (sayLeft) {
+            if (step.m != null) {
+                val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
+                parts.add(if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))
+                    else fill(if (leftM == 1L) "leftMOne" else "leftMOther", "n" to leftM.toString()))
+            } else if (step.sec != null) {
+                val leftSec = maxOf(0L, ceil(step.sec - (nowMoving - stepStartSec)).toLong())
+                parts.add(when {
+                    leftSec > 90 -> fill("leftMinOther", "n" to Math.round(leftSec / 60.0).toString())
+                    leftSec == 1L -> fill("leftSecOne", "n" to "1")
+                    else -> fill("leftSecOther", "n" to leftSec.toString())
+                })
+            }
+        }
+        return parts.joinToString(" ")
+    }
+
+    private fun fill(key: String, vararg values: Pair<String, String>): String {
+        var out = texts.optString(key)
+        for ((k, v) in values) out = out.replace("{$k}", v)
+        return out
+    }
+
+    private fun spokenPace(secPerKm: Double): String {
+        val p = Math.round(secPerKm)
+        return fill("pace", "min" to (p / 60).toString(), "sec" to (p % 60).toString().padStart(2, '0'))
+    }
+
+    // Mirrors i18next's plural pick on the one-decimal figure the hook speaks.
+    private fun kmKey(base: String, km: Double): String {
+        val v = Math.round(km * 10) / 10.0
+        val one = if (kmOneBelowTwo) v < 2.0 else v == 1.0
+        return base + if (one) "One" else "Other"
+    }
+
+    private fun oneDecimal(v: Double): String =
+        String.format(Locale.ROOT, "%.1f", v).replace(".", decimalSep)
+
+    // Time-bound steps and time-based callouts must fire with no fix to ride
+    // (a stationary recovery): a Handler deadline in the still-running service
+    // process. Distance boundaries and per-km callouts need a fix by definition.
     private fun armDeadline() {
         handler.removeCallbacks(deadline)
         if (!enabled || !tracking || finished) return
         val step = stepAt(idx) ?: return
-        if (step.sec == null) return
-        val delayMs = ((stepStartSec + step.sec - currentMovingSec()) * 1000.0).toLong()
+        var nextSec = Double.POSITIVE_INFINITY
+        if (step.sec != null) nextSec = stepStartSec + step.sec
+        if (!muted && freqSec > 0) {
+            nextSec = minOf(nextSec, maxOf(lastCalloutSec + freqSec, stepStartSec + CALLOUT_MIN_INTO_STEP_SEC))
+        }
+        if (nextSec.isInfinite()) return
+        val delayMs = ((nextSec - currentMovingSec()) * 1000.0).toLong()
         handler.postDelayed(deadline, maxOf(0L, delayMs) + 50L)
     }
 
@@ -334,6 +502,8 @@ class WorkoutGuidePlugin : Plugin() {
                     handler.post {
                         ttsReady = status == TextToSpeech.SUCCESS
                         applyTtsLang()
+                        pendingSpeech?.let { speakNow(it) }
+                        pendingSpeech = null
                     }
                 }
             } catch (e: Exception) {
@@ -348,16 +518,21 @@ class WorkoutGuidePlugin : Plugin() {
         if (!ttsReady) return
         try {
             tts?.language = Locale.forLanguageTag(ttsLang.ifEmpty { "en" })
-            tts?.setAudioAttributes(AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build())
+            tts?.setAudioAttributes(speechAttrs)
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) { handler.post { releaseFocusSoon(250L) } }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) { handler.post { releaseFocusSoon(0L) } }
+            })
         } catch (ignored: RuntimeException) {
         }
     }
 
     private fun cue(tone: Int, text: String) {
         if (muted) return
+        duckOthers()
+        if (text.isEmpty()) releaseFocusSoon(TONE_MS + 300L)
         try {
             if (toneGen == null) toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
             toneGen?.startTone(tone, TONE_MS)
@@ -374,11 +549,48 @@ class WorkoutGuidePlugin : Plugin() {
             }
         } catch (ignored: RuntimeException) {
         }
-        if (text.isNotEmpty() && ttsReady) {
-            try {
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "workout-cue")
-            } catch (ignored: RuntimeException) {
-            }
+        speakNow(text)
+    }
+
+    // ── audio focus: duck the runner's music for the cue, then give it back ───
+    // USAGE_ASSISTANCE_NAVIGATION_GUIDANCE alone ducks nothing; the system only
+    // lowers other players for an app holding GAIN_TRANSIENT_MAY_DUCK focus.
+    private fun duckOthers() {
+        handler.removeCallbacks(releaseFocus)
+        try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(speechAttrs)
+                .setOnAudioFocusChangeListener { }
+                .build()
+                .also { focusRequest = it }
+            am.requestAudioFocus(req)
+        } catch (ignored: RuntimeException) {
+        }
+        handler.postDelayed(releaseFocus, FOCUS_MAX_MS)
+    }
+
+    private fun releaseFocusSoon(delayMs: Long) {
+        handler.removeCallbacks(releaseFocus)
+        handler.postDelayed(releaseFocus, delayMs)
+    }
+
+    private fun abandonFocus() {
+        handler.removeCallbacks(releaseFocus)
+        val req = focusRequest ?: return
+        try {
+            (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager).abandonAudioFocusRequest(req)
+        } catch (ignored: RuntimeException) {
+        }
+    }
+
+    private fun speakNow(text: String) {
+        if (text.isEmpty()) return
+        duckOthers()
+        if (!ttsReady) { pendingSpeech = text; return }
+        try {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "workout-cue")
+        } catch (ignored: RuntimeException) {
         }
     }
 

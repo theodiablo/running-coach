@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Check, RefreshCw } from "lucide-react";
+import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Check, RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { ROUTE_SIMPLIFY_M, simplify } from "../utils/geo";
 import { trimmedMovingSec } from "../utils/idleEdges";
@@ -26,6 +26,13 @@ import { requestRunNotificationsOnce } from "../geo/notifications";
 import { markBatteryNudgeDismissed, openBatteryOptimizationSettings, shouldNudgeBatteryOptimization } from "../geo/battery";
 import { RouteMap } from "../components/RouteMap";
 import { GuidedWorkoutPanel } from "../components/GuidedWorkoutPanel";
+import { WorkoutCard } from "../components/WorkoutCard";
+import { workoutTitle } from "../utils/workoutCopy";
+import { RecorderOptionRow } from "../components/RecorderOptionRow";
+import { GuidanceTour, SPOTLIGHT_CLS } from "../components/GuidanceTour";
+import { WorkoutSheet } from "./WorkoutSheet";
+import { AudioGuideSheet } from "./AudioGuideSheet";
+import { LiveShareSheet } from "./LiveShareSheet";
 import { HrNudgeSheet } from "../components/HrNudgeSheet";
 import { Ctrl, HoldCtrl, CountdownOverlay, DiscardConfirm, RecorderExitBtn, MinimizedRecorderBar } from "../components/RecorderChrome";
 import { ToggleSwitch } from "../components/ToggleSwitch";
@@ -38,9 +45,11 @@ import { RunCelebration } from "./RunCelebration";
 import { isNative } from "../native";
 import { BG_LOC_DISCLOSED_KEY, LIVE_SHARE_KEY, routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser, isPremiumActive } from "../premium";
-import { primeCues } from "../cues";
+import { previewCue, primeCues } from "../cues";
+import { compileSpec, isOpenSpec, readSpec, specFromSession, specWantsAudio, zoneBpm, type WorkoutSpec } from "../utils/workoutSpec";
+import { readAudioPrefs, type AudioPrefs } from "../utils/callout";
 import { track } from "../telemetry";
-import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SuggestedRoute } from "../types";
+import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
 
 type LiveRunTrackerProps = {
   onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
@@ -60,9 +69,13 @@ type LiveRunTrackerProps = {
   // When set (e.g. opened from a plan session), auto-open the route finder with
   // this distance pre-filled.
   initialFindKm?: number;
-  // The plan session the tracker was opened from — a guidable one (tempo /
-  // intervals / run-walk) turns on the guided-workout mode (premium).
+  // The plan session the tracker was opened from — it seeds "Today's run"
+  // (docs/guided-workouts.md).
   session?: PlanSession | null;
+  // Read for the recorder's synced preferences (audio guidance, the last free
+  // run's setup, the one-time tour) and the HR profile behind zone targets.
+  settings?: Partial<SettingsState>;
+  onSettingsPatch?: (patch: Partial<SettingsState>) => void;
   // "Find a route" is premium-only. UI affordance only — the route-suggest edge
   // function is the gate that matters. onRefreshPremium resolves with the fresh
   // entitlement so the tap can act on it immediately.
@@ -75,21 +88,23 @@ type LiveRunTrackerProps = {
 // `pulseKey` (optional): when it changes, the value re-mounts (via `key`) and
 // plays a subtle tick. Used only for the km stat, keyed on the whole-kilometre
 // count, so it pulses once per km rather than on every ~1s GPS update.
-function Stat({ label, value, pulseKey }: { label: string; value: ReactNode; pulseKey?: number }) {
+function Stat({ label, value, pulseKey, sub, valueCls = "text-white" }: { label: string; value: ReactNode; pulseKey?: number; sub?: ReactNode; valueCls?: string }) {
   return (
-    <div className="bg-slate-800 rounded-xl px-3 py-2.5 text-center">
-      <p key={pulseKey} className={"text-2xl font-bold text-white leading-tight tabular-nums " + (pulseKey != null ? "animate-tick" : "")}>{value}</p>
+    <div className="bg-slate-800 rounded-xl px-2 py-2.5 text-center">
+      <p key={pulseKey} className={"text-2xl font-bold leading-tight tabular-nums " + valueCls + (pulseKey != null ? " animate-tick" : "")}>{value}</p>
       <p className="text-[11px] text-slate-400 uppercase tracking-wide">{label}</p>
+      {sub != null && <p className="text-[10px] text-slate-500 tabular-nums">{sub}</p>}
     </div>
   );
 }
 
+type RecorderSheetId = "workout" | "audio" | "share";
 
-export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, isPremium = false, onRefreshPremium, runs = [] }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium, runs = [] }: LiveRunTrackerProps) {
   // Same pre-start read as the indoor recorder, from the same helper
   // (src/hr/runHr.ts).
   const hr = recorderHrSetup(hrMethod, hrOptOut);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Guided-workout step line for the lock-screen surfaces. The guide hook
   // needs the tracker's state/stats, so the value feeds BACK into
   // useRunTracker as state, reconciled during render (the derived-state
@@ -99,24 +114,54 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   const rt = useRunTracker({ hrMethod: hr.method, stepText });
   const { state, points, stats, error, pending, location } = rt;
   const [busy, setBusy] = useState(false);
-  // ── Guided workout (premium) ─────────────────────────────────────────────
-  // The sign-in entitlement read can be stale (offline, or predating a grant),
-  // and guidance has no tap to re-check on — it just appears. So with a
-  // guidable session on deck and a free-looking user, re-read once and decide
-  // on that read; a confirmed grant flips guidance on mid-screen.
-  const [premiumFresh, setPremiumFresh] = useState(false);
-  const premiumForGuide = isPremium || premiumFresh;
-  const guide = useGuidedWorkout(session, premiumForGuide, state, stats);
-  const premiumRecheckedRef = useRef(false);
+  // ── Today's run + audio guidance (docs/guided-workouts.md) ───────────────
+  // The plan session seeds the workout; edits are this recording's only. A
+  // free run starts from the last free run's setup (synced).
+  const planSpec = useMemo(() => (session ? specFromSession(session) : null), [session]);
+  const [spec, setSpec] = useState<WorkoutSpec>(() => planSpec ?? readSpec(settings.freeWorkout));
+  const prefs = useMemo(() => readAudioPrefs(settings.audioGuide), [settings.audioGuide]);
+  const [audioOn, setAudioOn] = useState(() => (planSpec ? specWantsAudio(planSpec) : prefs.freeOn));
+  const [sheet, setSheet] = useState<RecorderSheetId | null>(null);
+  const specEdited = !!planSpec && JSON.stringify(spec) !== JSON.stringify(planSpec);
+  const hrTarget = zoneBpm(spec.hrZone, settings);
+  const hrLo = hrTarget?.lo, hrHi = hrTarget?.hi;
+  const specOpen = isOpenSpec(spec);
+  const preview = useMemo(
+    () => compileSpec(spec, { band: prefs.band, hr: hrLo != null && hrHi != null ? { lo: hrLo, hi: hrHi } : null }),
+    [spec, prefs.band, hrLo, hrHi]);
+  // The schedule is fixed once the run starts: a synced prefs or HR-profile
+  // change landing mid-run must not restart it at step one.
+  const [runSchedule, setRunSchedule] = useState<typeof preview | null>(null);
+  if (state === "idle" ? runSchedule !== null : runSchedule === null) setRunSchedule(state === "idle" ? null : preview);
+  // An open run with audio off has nothing to guide: no panel, no engine.
+  const workout = specOpen && !audioOn ? null : runSchedule ?? preview;
+  const guide = useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind: spec.type });
+  const updateSpec = (next: WorkoutSpec) => {
+    setSpec(next);
+    // Picking a structured run turns guidance on, as a plan tempo/intervals would.
+    if (next.type !== spec.type && specWantsAudio(next) && !audioOn) setAudioOn(true);
+    if (!planSpec) onSettingsPatch?.({ freeWorkout: next });
+  };
+  const updatePrefs = (next: AudioPrefs) => onSettingsPatch?.({ audioGuide: next });
+  const toggleAudio = () => {
+    const on = !audioOn;
+    setAudioOn(on);
+    if (on) primeCues();
+    if (!planSpec) updatePrefs({ ...prefs, freeOn: on });
+  };
+  // First tempo/intervals session ever: a two-step tour of the workout and
+  // audio rows. Spent the moment it shows, like every full-screen pointer.
+  const [tourStep, setTourStep] = useState<number | null>(() =>
+    planSpec && (planSpec.type === "tempo" || planSpec.type === "intervals")
+      && settings.guidanceTourSeen !== true && !pending ? 0 : null);
+  const tourSpentRef = useRef(false);
   useEffect(() => {
-    if (!guide.guidable || isPremium || premiumRecheckedRef.current) return;
-    premiumRecheckedRef.current = true;
-    let cancelled = false;
-    onRefreshPremium?.().then(until => {
-      if (!cancelled && isPremiumActive(until)) setPremiumFresh(true);
-    });
-    return () => { cancelled = true; };
-  }, [guide.guidable, isPremium, onRefreshPremium]);
+    if (tourStep == null || tourSpentRef.current) return;
+    tourSpentRef.current = true;
+    onSettingsPatch?.({ guidanceTourSeen: true });
+  }, [tourStep, onSettingsPatch]);
+  const workoutCardRef = useRef<HTMLButtonElement>(null);
+  const audioRowRef = useRef<HTMLDivElement>(null);
   const liveStepText =
     guide.display && (state === "tracking" || state === "paused") ? guide.display.stepText : null;
   if (liveStepText !== stepText) setStepText(liveStepText);
@@ -386,7 +431,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     track("live_run_started", {});
     // Unlock cue audio while we're still in a user gesture (autoplay policy /
     // the iOS audio session). No-op when nothing will ever cue.
-    if (guide.active) primeCues();
+    if (audioOn) primeCues();
     // Fresh broadcast state so this run stamps its own started_at rather than
     // inheriting a previous one, and re-arms after an earlier run was ended.
     resetLivePublisher();
@@ -776,29 +821,26 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     </div>
   );
 
-  // One switch and one link, rendered identically before a run and during one.
-  // The whole row is the hit area — the switch alone is 44x24, which is under
-  // any touch minimum for something operated outdoors mid-stride — so the
-  // switch stops the click it already handles from reaching the row.
-  const shareBlock = (
-    <div className="space-y-1.5">
-      <div onClick={toggleShareLive}
-        className={"w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border transition-colors cursor-pointer "
-          + (shareLive
-            ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-            : "bg-slate-800 border-slate-700 text-slate-200")}>
-        <Radio size={16} className={shareLive ? "text-emerald-300 shrink-0" : "text-slate-400 shrink-0"} />
-        <span className="flex-1 text-left">{t("liveShare.toggle.label")}</span>
-        <span onClick={(e) => e.stopPropagation()} className="flex shrink-0">
-          <ToggleSwitch on={shareLive} onToggle={toggleShareLive} label={t("liveShare.toggle.label")} />
-        </span>
-      </div>
-      {shareLive && (
-        <p className="text-[11px] text-slate-500 leading-snug px-1">{t("liveShare.toggle.hint")}</p>
-      )}
-      {shareLinkRow}
-    </div>
-  );
+  const hrFresh = liveHr && stats.hr != null && !hrStale;
+  const gpsAcc = location?.acc;
+  const routeRowShown = routeSuggestEnabled && (isPremium || canShowPremiumTeaser);
+  const freqLabel = prefs.freq === "km" ? "" : prefs.freq >= 120 ? `${prefs.freq / 60} min` : `${prefs.freq} s`;
+  const perKm = prefs.freq === "km";
+  const audioStatus = audioOn ? t(perKm ? "tracker.options.audioOnKm" : "tracker.options.audioOn", { every: freqLabel }) : t("tracker.options.off");
+  const shareStatus = !shareLive ? t("tracker.options.off")
+    : linkState.kind === "link" ? t("tracker.options.shareLive") : t("tracker.options.shareNoLink");
+  const tourSteps = [
+    { target: workoutCardRef, title: t("tracker.tour.workoutTitle"), body: <p>{t("tracker.tour.workoutBody")}</p> },
+    { target: audioRowRef, title: t("tracker.tour.audioTitle"), body: (
+      <ul className="list-disc pl-4 space-y-0.5">
+        <li>{t(perKm ? "tracker.tour.audio1Km" : "tracker.tour.audio1", { every: freqLabel })}</li>
+        <li>{t(spec.type === "intervals" ? "tracker.tour.audio2Reps" : "tracker.tour.audio2Steps")}</li>
+        <li>{t("tracker.tour.audio3")}</li>
+      </ul>
+    ) },
+  ];
+  const showTour = tourStep != null && state === "idle" && !minimized && !sheet && !pending;
+  const startBlocked = !!pending;
 
   return (
     <>
@@ -829,7 +871,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
         <span className="w-8" aria-hidden />
       </header>
 
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-[96px] relative">
         <RouteMap points={points} follow={state === "tracking"} interactive
           recenterSignal={recenterSignal} onFollowingChange={setFollowing}
           guidePoints={plannedRoute?.points}
@@ -845,7 +887,10 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
         )}
       </div>
 
-      <div className="p-4 space-y-3 border-t border-slate-800" style={{ paddingBottom: "calc(1rem + var(--safe-bottom))" }}>
+      {/* Top to bottom: warnings, "can I go?", today's run, the extras, then the
+          controls pinned under the thumb (docs/guided-workouts.md). */}
+      <div className="flex flex-col max-h-[74%] border-t border-slate-800">
+      <div className="min-h-0 overflow-y-auto px-4 pt-3 space-y-3">
         {error && <div className="bg-red-500/15 text-red-300 text-sm rounded-xl px-3 py-2">{error}</div>}
 
         {state === "idle" && pending && (
@@ -866,131 +911,158 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
           </div>
         )}
 
-        {guide.active && guide.display && state !== "stopped" && (
-          <GuidedWorkoutPanel display={guide.display} muted={guide.muted}
-            onToggleMute={guide.toggleMute} live={state === "tracking"} />
-        )}
-        {/* Free user, guidable session: locked hint → teaser. Gated on
-            canShowPremiumTeaser like every premium affordance, so it stays
-            invisible until the tier unveils. */}
-        {guide.guidable && !premiumForGuide && canShowPremiumTeaser && state === "idle" && (
-          <button onClick={() => setPremiumTeaser("guidedWorkout")}
-            className="w-full flex items-center gap-2.5 py-3 px-3 rounded-xl text-sm font-semibold border bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 active:scale-95 transition-[background-color,transform]">
-            <Lock size={16} className="text-slate-300 shrink-0" />
-            <span className="flex-1 text-left">{t("tracker.guided.title")}</span>
-            <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
-              {t("premium.badge")}
-            </span>
-          </button>
-        )}
-
-        <div className="grid grid-cols-4 gap-2">
-          <Stat label={t("tracker.stats.km")} value={stats.km.toFixed(2)} pulseKey={live ? Math.floor(stats.km) : undefined} />
-          <Stat label={t("tracker.stats.time")} value={fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)} />
-          <Stat label={t("tracker.stats.pace")} value={fmt.pace(state === "tracking" ? stats.curPace : avgPace)} />
-          <Stat label={t("tracker.stats.elev")} value={stats.elevation + "m"} />
-        </div>
-        {trim && trim.trimmedSec >= 60 && (
-          <p className="text-xs text-slate-400 text-center">
-            {t("tracker.idleTrimmed", { dur: fmt.mins(Math.round(trim.trimmedSec / 60)) })}
-          </p>
-        )}
-
-        {liveHr && (
-          <div className="bg-slate-800 rounded-xl px-3 py-2 flex items-center justify-center gap-2">
-            <HeartPulse size={18} className={stats.hr != null && !hrStale ? "text-red-400" : "text-slate-500"} />
-            <span className={"text-2xl font-bold tabular-nums leading-none "
-              + (hrStale ? "text-slate-500" : "text-white")}>{stats.hr ?? "--"}</span>
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide">{t("tracker.hr.bpm")}</span>
-            <BetaBadge />
-            {/* avg/max only once the run has recorded samples; before that the
-                strap is either already reading (idle preview), still connecting,
-                or reported unreachable by the source (kept retrying). A stale
-                reading outranks all of it — avg/max is pinned on for the rest of
-                the run otherwise, leaving nothing to say the strap stopped. */}
-            <span className="text-[11px] text-slate-500 ml-2">
-              {t(hrLine.key, hrLine.params)}
-            </span>
-          </div>
-        )}
-
-        {/* HR has a permanent slot here, not just a prompt on Start: with no
-            source the screen said nothing at all about heart rate, so the one
-            modal a runner dismisses to get going was the whole feature's only
-            surface. Idle only — mid-run this would be noise. */}
-        {isNative && !hrSrc && state === "idle" && (
-          <button onClick={() => onConfigureHr?.()}
-            className="w-full bg-slate-800 hover:bg-slate-700 rounded-xl px-3 py-2 flex items-center justify-center gap-2 transition-colors">
-            <HeartPulse size={16} className="text-slate-500 shrink-0" />
-            <span className="text-xs text-slate-400">{t("tracker.hr.offChip")}</span>
-            <span className="text-xs font-semibold text-orange-300">{t("tracker.hr.offChipCta")}</span>
-          </button>
-        )}
-
-        {hrSrc && !hrSrc.live && (
-          <div className="bg-slate-800 rounded-xl px-3 py-2 flex items-center justify-center gap-2 text-slate-300">
-            <HeartPulse size={16} className="text-red-400 shrink-0" />
-            <BetaBadge />
-            <span className="text-xs">{t("tracker.hr.postRun", { store: hrSrc?.id === "healthkit" ? "Apple Health" : "Health Connect" })}</span>
+        {state === "idle" && showBatteryNudge && (
+          <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-amber-500/30">
+            <div className="flex items-center gap-2">
+              <BatteryCharging size={16} className="text-amber-400 shrink-0" />
+              <p className="text-sm font-semibold text-slate-200">{t("tracker.batteryNudge.title")}</p>
+            </div>
+            <p className="text-xs text-slate-400 leading-snug">{t("tracker.batteryNudge.body")}</p>
+            <div className="flex gap-2">
+              <button onClick={() => dismissBatteryNudge(true)}
+                className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 py-2 rounded-lg text-sm font-semibold">{t("tracker.batteryNudge.open")}</button>
+              <button onClick={() => dismissBatteryNudge(false)}
+                className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-sm font-semibold">{t("tracker.batteryNudge.dismiss")}</button>
+            </div>
           </div>
         )}
 
         {state === "idle" && (
           <>
-            {showBatteryNudge && (
-              <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-amber-500/30">
-                <div className="flex items-center gap-2">
-                  <BatteryCharging size={16} className="text-amber-400 shrink-0" />
-                  <p className="text-sm font-semibold text-slate-200">{t("tracker.batteryNudge.title")}</p>
-                </div>
-                <p className="text-xs text-slate-400 leading-snug">{t("tracker.batteryNudge.body")}</p>
-                <div className="flex gap-2">
-                  <button onClick={() => dismissBatteryNudge(true)}
-                    className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 py-2 rounded-lg text-sm font-semibold">{t("tracker.batteryNudge.open")}</button>
-                  <button onClick={() => dismissBatteryNudge(false)}
-                    className="px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-sm font-semibold">{t("tracker.batteryNudge.dismiss")}</button>
-                </div>
-              </div>
-            )}
-            {location?.acc != null && (
-              <p className={"text-[11px] text-center " + (
-                location.acc <= 15 ? "text-emerald-400" : location.acc <= 30 ? "text-amber-400" : "text-red-400")}>
-                {t(location.acc <= 15 ? "tracker.gps.accuracyGood" : "tracker.gps.accuracyWait", { acc: Math.round(location.acc) })}
-              </p>
-            )}
-            <div className="flex">
-              <Ctrl onClick={() => guardedStart(startWithCountdown, true)} color="bg-orange-500 hover:bg-orange-600 text-white">
-                <Play size={20} />{t("tracker.controls.start")}
-              </Ctrl>
+            {/* Can I go? GPS and heart-rate readiness, one chip each. */}
+            <div className="flex flex-wrap gap-1.5">
+              <span className={"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs "
+                + (gpsAcc == null ? "border-slate-700 text-slate-400"
+                  : gpsAcc <= 15 ? "border-emerald-500/40 text-emerald-300"
+                  : gpsAcc <= 30 ? "border-amber-500/40 text-amber-300" : "border-red-500/40 text-red-300")}>
+                <MapPin size={12} />
+                {gpsAcc == null ? t("tracker.ready.gpsSearching")
+                  : t(gpsAcc <= 15 ? "tracker.ready.gpsGood" : "tracker.ready.gpsWait", { acc: Math.round(gpsAcc) })}
+              </span>
+              {liveHr && (
+                <span className={"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs "
+                  + (hrFresh ? "border-emerald-500/40 text-emerald-300" : "border-slate-700 text-slate-400")}>
+                  <HeartPulse size={12} />
+                  {hrFresh ? t("tracker.ready.hrLive", { bpm: stats.hr }) : t(hrLine.key, hrLine.params)}
+                </span>
+              )}
+              {hrSrc && !hrSrc.live && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300">
+                  <HeartPulse size={12} className="text-red-400" />
+                  {t("tracker.ready.hrAfter", { store: hrSrc.id === "healthkit" ? "Apple Health" : "Health Connect" })}
+                </span>
+              )}
+              {isNative && !hrSrc && (
+                <button onClick={() => onConfigureHr?.()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-slate-600 px-2.5 py-1 text-xs text-orange-300">
+                  <HeartPulse size={12} />{t("tracker.hr.offChipCta")}
+                </button>
+              )}
             </div>
-            {shareBlock}
-            {routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && (
-              plannedRoute ? (
-                <div className="flex items-center gap-2 rounded-xl bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm">
-                  <Search size={15} className="text-sky-300 shrink-0" />
-                  <span className="text-sky-200">{t("routeFinder.card.distance", { km: plannedRoute.km.toFixed(1) })}</span>
-                  <button onClick={() => setShowFinder(true)} className="text-slate-300 hover:text-white underline decoration-slate-600">
-                    {t("routeFinder.button")}
-                  </button>
-                  <button onClick={() => setPlannedRoute(null)} aria-label={t("common.close")}
-                    className="ml-auto p-1 text-slate-400 hover:text-white"><X size={15} /></button>
-                </div>
-              ) : (
-                <button onClick={openFinderOrTeaser} disabled={checkingPremium}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-base font-semibold bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 active:scale-95 transition-[background-color,transform] disabled:opacity-60">
-                  {isPremium ? <Search size={18} />
-                    : checkingPremium ? <Loader size={16} className="animate-spin" />
+
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("tracker.setup.todaysRun")}</p>
+            <WorkoutCard ref={workoutCardRef} spec={spec} workout={preview} hr={hrTarget}
+              planType={planSpec && spec.type === planSpec.type ? String(session?.type || "") : null}
+              edited={specEdited} onEdit={() => { setSheet("workout"); if (tourStep === 0) setTourStep(1); }}
+              className={showTour && tourStep === 0 ? SPOTLIGHT_CLS : ""} />
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800 divide-y divide-slate-700/70">
+              <RecorderOptionRow ref={audioRowRef} onOpen={() => { setSheet("audio"); setTourStep(null); }}
+                className={"rounded-t-xl " + (showTour && tourStep === 1 ? SPOTLIGHT_CLS : "")}
+                icon={audioOn ? <Volume2 size={16} className="text-orange-400" /> : <VolumeX size={16} className="text-slate-400" />}
+                title={t("tracker.audio.title")} status={audioStatus} tone={audioOn ? "on" : "off"} />
+              <RecorderOptionRow onOpen={() => setSheet("share")}
+                className={routeRowShown ? "" : "rounded-b-xl"}
+                icon={<Radio size={16} className={shareLive ? "text-emerald-300" : "text-slate-400"} />}
+                title={t("tracker.options.share")} status={shareStatus} tone={shareLive ? "live" : "off"}
+                trailing={<span onClick={e => e.stopPropagation()} className="flex shrink-0">
+                  <ToggleSwitch on={shareLive} onToggle={toggleShareLive} label={t("liveShare.toggle.label")} />
+                </span>} />
+              {routeRowShown && (
+                <RecorderOptionRow onOpen={() => { void openFinderOrTeaser(); }} className="rounded-b-xl"
+                  icon={isPremium ? <Search size={16} className="text-sky-300" />
+                    : checkingPremium ? <Loader size={16} className="animate-spin text-slate-300" />
                     : <Lock size={16} className="text-slate-300" />}
-                  {t("routeFinder.button")}
-                  {!isPremium && (
+                  title={t("routeFinder.button")} tone={plannedRoute ? "info" : "off"}
+                  status={plannedRoute ? t("routeFinder.card.distance", { km: plannedRoute.km.toFixed(1) }) : t("tracker.options.routeHint")}
+                  trailing={plannedRoute ? (
+                    <button onClick={e => { e.stopPropagation(); setPlannedRoute(null); }} aria-label={t("tracker.options.clearRoute")}
+                      className="p-1 text-slate-400 hover:text-white"><X size={15} /></button>
+                  ) : !isPremium ? (
                     <span className="text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-200">
                       {t("premium.badge")}
                     </span>
-                  )}
-                </button>
-              )
+                  ) : undefined} />
+              )}
+            </div>
+          </>
+        )}
+
+        {guide.display && state !== "idle" && state !== "stopped" && !specOpen && (
+          <GuidedWorkoutPanel display={guide.display} live={state === "tracking"} hr={hrTarget} />
+        )}
+
+        {state !== "idle" && (
+          <>
+            <div className="grid grid-cols-4 gap-2">
+              <Stat label={t("tracker.stats.km")} value={stats.km.toFixed(2)} pulseKey={live ? Math.floor(stats.km) : undefined} />
+              <Stat label={t("tracker.stats.time")} value={fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)} />
+              <Stat label={t("tracker.stats.pace")} value={fmt.pace(state === "tracking" ? stats.curPace : avgPace)}
+                sub={liveHr ? `${stats.elevation} m` : undefined} />
+              {liveHr ? (
+                <Stat label={t("tracker.stats.heart")} value={hrStale || stats.hr == null ? "--" : stats.hr}
+                  valueCls={hrStale ? "text-slate-500" : guide.display?.hrHigh ? "text-red-300" : "text-white"} />
+              ) : (
+                <Stat label={t("tracker.stats.elev")} value={stats.elevation + "m"} />
+              )}
+            </div>
+            {liveHr && (
+              <p className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
+                <BetaBadge />{t(hrLine.key, hrLine.params)}
+              </p>
+            )}
+            {trim && trim.trimmedSec >= 60 && (
+              <p className="text-xs text-slate-400 text-center">
+                {t("tracker.idleTrimmed", { dur: fmt.mins(Math.round(trim.trimmedSec / 60)) })}
+              </p>
             )}
           </>
+        )}
+
+        {live && (
+          <div className="flex gap-2">
+            <button onClick={toggleAudio} aria-pressed={audioOn}
+              className={"flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold "
+                + (audioOn ? "border-orange-500/40 text-orange-300 bg-slate-800" : "border-slate-700 text-slate-400 bg-slate-800")}>
+              {audioOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              {t(audioOn ? "tracker.quick.audioOn" : "tracker.quick.audioOff")}
+            </button>
+            {/* The SAME share control during the run, not a read-only echo: a
+                broadcast in progress must be visible on the recording device,
+                and taking a run off the air mid-run is what the switch is for. */}
+            <button onClick={() => setSheet("share")}
+              className={"flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold "
+                + (shareLive ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10" : "border-slate-700 text-slate-400 bg-slate-800")}>
+              <Radio size={14} />{t(shareLive ? "tracker.quick.sharing" : "tracker.quick.notShared")}
+            </button>
+          </div>
+        )}
+
+        {live && !isNative && (
+          <p className="text-[11px] text-slate-500 text-center leading-snug">
+            {t("tracker.keepScreenOn")}
+          </p>
+        )}
+      </div>
+
+      <div className="px-4 pt-3 space-y-2" style={{ paddingBottom: "calc(1rem + var(--safe-bottom))" }}>
+        {state === "idle" && (
+          <div className="flex">
+            <Ctrl onClick={() => guardedStart(startWithCountdown, true)} disabled={startBlocked}
+              color="bg-orange-500 hover:bg-orange-600 text-white">
+              <Play size={20} />{t("tracker.controls.start")}
+            </Ctrl>
+          </div>
         )}
         {state === "tracking" && (
           <div className="flex gap-2">
@@ -1018,19 +1090,30 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
             </button>
           </div>
         )}
-
-        {/* The SAME control during the run, not a read-only echo of it: a
-            broadcast in progress must be visible on the recording device, and
-            taking a run off the air mid-run is the one thing the switch exists
-            for. */}
-        {live && shareBlock}
-
-        {live && !isNative && (
-          <p className="text-[11px] text-slate-500 text-center leading-snug">
-            {t("tracker.keepScreenOn")}
-          </p>
-        )}
       </div>
+      </div>
+
+      {showTour && (
+        <GuidanceTour steps={tourSteps} index={tourStep} onNext={() => setTourStep(tourStep + 1)}
+          onDone={() => setTourStep(null)} />
+      )}
+
+      {sheet === "workout" && state === "idle" && (
+        <WorkoutSheet spec={spec} fromPlan={planSpec ? workoutTitle(planSpec, t) : null} edited={specEdited}
+          band={prefs.band} zoneBpm={z => zoneBpm(z, settings)}
+          onChange={updateSpec} onRestore={() => planSpec && setSpec(planSpec)} onClose={() => setSheet(null)} />
+      )}
+      {sheet === "audio" && (
+        <AudioGuideSheet on={audioOn} prefs={prefs} pace={spec.type === "runwalk" ? null : spec.pace} hr={hrTarget}
+          hasHrSensor={liveHr} sample={guide.sample(prefs)}
+          onToggle={toggleAudio} onPrefs={updatePrefs} onEditWorkout={() => setSheet("workout")}
+          onHear={() => previewCue(guide.sample(prefs), i18n.language || "en")} onClose={() => setSheet(null)} />
+      )}
+      {sheet === "share" && (
+        <LiveShareSheet on={shareLive} onToggle={toggleShareLive} onClose={() => setSheet(null)}>
+          {shareLinkRow}
+        </LiveShareSheet>
+      )}
 
       {showDisclosure && (
         <BgLocationDisclosure onAccept={acceptDisclosure} onCancel={cancelDisclosure} />
