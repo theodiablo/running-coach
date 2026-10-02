@@ -112,6 +112,23 @@ describe("LoginScreen — one form", () => {
 
     expect(signInWithPassword).toHaveBeenCalledWith({ email: "runner@example.com", password: STRONG });
   });
+
+  it("never says 'check your inbox' for the decoy GoTrue returns on a repeated sign-up", async () => {
+    // A forgotten password on an existing account: sign-in fails, the fork's
+    // "create" hits the existing address, and GoTrue answers 200 with a user
+    // that has no identities — and sends no email.
+    signInWithPassword.mockResolvedValue(invalidCredentials());
+    signUp.mockResolvedValue({ data: { user: { id: "decoy", identities: [] }, session: null }, error: null });
+    render(<LoginScreen />);
+    type();
+    fireEvent.click(submitButton());
+
+    fireEvent.click(await screen.findByRole("button", { name: "Create an account with this email" }));
+
+    await screen.findByText("That address already has an account.");
+    expect(screen.queryByText("Check your inbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send me a reset link" })).toBeInTheDocument();
+  });
 });
 
 describe("LoginScreen — password reset", () => {
