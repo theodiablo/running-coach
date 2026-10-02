@@ -893,7 +893,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // `opts.skipDetect` is set when the run is created by the Races "log result"
   // flow, which already marks the race done — so we don't double-detect it.
-  const addRuns = (rs: Partial<Run>[], opts: { skipDetect?: boolean } = {}) => {
+  // `opts.celebrated`: the recorder's finish screen already showed the efforts.
+  const addRuns = (rs: Partial<Run>[], opts: { skipDetect?: boolean; celebrated?: boolean } = {}) => {
     const added: Run[] = rs.map((r, i) => ({...r, date: r.date || ymd(new Date()), km: Number(r.km) || 0, id: r.id || ("r" + Date.now() + i)} as Run));
     const nextRuns = added.concat(runs).sort((a, b) => b.date.localeCompare(a.date));
     setRuns(nextRuns); db.set(STORAGE_KEYS.RUNS, nextRuns);
@@ -916,7 +917,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
     // import the user is only skimming. Pure and local, so this costs nothing.
-    if (added.length === 1) {
+    if (added.length === 1 && !opts.celebrated) {
       const efforts = runAchievements(added[0], nextRuns);
       // One burst per save: race day already fires its own confetti.
       if (efforts.length) setAchievement({ run: added[0], efforts, confetti: !det?.isMain && efforts.some(isPersonalBest) });
@@ -1323,14 +1324,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onManual={() => goLog()}
         onClose={() => setShowRecordSheet(false)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        initialFindKm={trackerFindKm} session={trackerSession} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         settings={settings} onSettingsPatch={patchSettings}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setRecorderMinimized(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
-      {showIndoor && <IndoorTracker showToast={showToast} settings={settings}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}

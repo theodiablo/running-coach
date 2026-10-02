@@ -680,6 +680,7 @@ changes.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
+- `docs/run-celebration.md` — the finish-screen celebration: headline pools, own-log facts, the rare draw.
 - `docs/run-analysis.md` — the running-only (run/walk) breakdown on a run's detail screen.
 - `docs/race-predictions.md` — the two race projections, the HR model's prior, gating.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.

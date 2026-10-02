@@ -12,6 +12,8 @@ import { currentUserId } from "../db";
 import { mintPublishToken, readPublishToken, storePublishToken } from "../live/publishToken";
 import { enableLiveUpload, disableLiveUpload } from "../geo/liveUpload";
 import { bestEffortsFromTrack } from "../utils/bestEfforts";
+import { celebrate } from "../utils/celebrationHistory";
+import type { Celebration } from "../utils/runCelebration";
 import { useRunTracker } from "../hooks/useRunTracker";
 import { useGuidedWorkout } from "../hooks/useGuidedWorkout";
 import { useCountdown } from "../hooks/useCountdown";
@@ -39,6 +41,7 @@ import { BetaBadge } from "../components/BetaBadge";
 import { BgLocationDisclosure } from "./BgLocationDisclosure";
 import { RouteFinderSheet } from "./RouteFinderSheet";
 import { PremiumTeaserSheet } from "./PremiumTeaserSheet";
+import { RunCelebration } from "./RunCelebration";
 import { isNative } from "../native";
 import { BG_LOC_DISCLOSED_KEY, LIVE_SHARE_KEY, routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser, isPremiumActive } from "../premium";
@@ -78,6 +81,8 @@ type LiveRunTrackerProps = {
   // entitlement so the tap can act on it immediately.
   isPremium?: boolean;
   onRefreshPremium?: () => Promise<string | null>;
+  // The log before this run, for the finish celebration's comparisons.
+  runs?: Run[];
 };
 
 // `pulseKey` (optional): when it changes, the value re-mounts (via `key`) and
@@ -95,8 +100,7 @@ function Stat({ label, value, pulseKey, sub, valueCls = "text-white" }: { label:
 
 type RecorderSheetId = "workout" | "audio" | "share";
 
-
-export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium, runs = [] }: LiveRunTrackerProps) {
   // Same pre-start read as the indoor recorder, from the same helper
   // (src/hr/runHr.ts).
   const hr = recorderHrSetup(hrMethod, hrOptOut);
@@ -376,12 +380,30 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     track("live_run_recovery_resumed", {});
     rt.resumePrevious();
   };
+  const [celebration, setCelebration] = useState<{ c: Celebration; run: Run } | null>(null);
+  // Set once shown, so the post-save best-effort sheet doesn't repeat it.
+  const celebratedRef = useRef(false);
   // Pairs with live_run_started as a start→finish funnel; km/duration only
   // (never location or free text — see docs/telemetry.md).
   const finishRun = () => {
     track("live_run_stopped", { km: +stats.km.toFixed(2), durationSec: stats.movingSec });
+    const { startedAt } = rt.runWindow();
+    const stoppedAt = Date.now();
     rt.stop();
+    // Measured exactly as handleSave will, so its best efforts are the ones saved.
+    const simplified = simplify(points, ROUTE_SIMPLIFY_M);
+    const firstAt = points.find(Boolean)?.[2] || stoppedAt;
+    const run: Run = {
+      date: ymd(new Date(firstAt)), type: "EASY", km: +stats.km.toFixed(2),
+      durationSec: trimmedMovingSec(stats.movingSec, points, startedAt, stoppedAt).durationSec,
+      elevation: stats.elevation, source: "gps", bestEfforts: bestEffortsFromTrack(simplified),
+    };
+    const c = celebrate({ run, runs, points: simplified, session, at: new Date(startedAt || firstAt) });
+    if (!c) return;
+    celebratedRef.current = true;
+    setCelebration({ c, run });
   };
+
   // One-time Android nudge: with battery optimization active the OS can kill the
   // app mid-run — the #1 cause of a lost recording. Shown as an idle-screen card
   // (never a Start gate); either button dismisses it for good.
@@ -734,6 +756,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       ...(routeId ? { routeId } : {}),
       ...(routeTmp ? { routeTmp, routePending: true } : {}),
       ...runHrFields(resolved),
+      ...(celebratedRef.current ? { celebrated: true } : {}),
     });
   };
 
@@ -1137,6 +1160,10 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
 
       {premiumTeaser && (
         <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)} />
+      )}
+
+      {celebration && (
+        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)} />
       )}
     </div>
     </>

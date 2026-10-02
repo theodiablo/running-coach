@@ -175,8 +175,10 @@ coverage, that's the place to do a deeper, user-initiated pass.
 
 ## Surfaces
 
+- **The finish celebration** (`docs/run-celebration.md`): a recorded run's rows
+  show the moment Finish is held, and its save then skips the sheet below.
 - **`RunAchievementSheet`** — fires from `addRuns` when a **single** saved run
-  lands in the top three. A batch (CSV import, multi-run watch sync) never pops
+  lands in the top three (and wasn't already celebrated by a recorder). A batch (CSV import, multi-run watch sync) never pops
   it. Confetti only for a real personal best, and suppressed when race-day
   detection is already firing its own burst, so a save never produces two.
 - **Run detail card** — the same rows, durable. Not gated on a trace: a manually
