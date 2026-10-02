@@ -193,7 +193,10 @@ Always re-verify a finding before acting on it; agents report false positives.
   answers identically for "no account" and "wrong password" — anything that told
   them apart would be an account-enumeration oracle) opens a fork offering both
   ways out with the typed credentials carried over. `intent` picks the copy and
-  which call goes first; it is not a mode the user sets. Reset copy never claims
+  which call goes first; it is not a mode the user sets. A `signUp` 200 is not
+  proof a mail went out: an existing address gets a decoy user with
+  `identities: []` and no email, which routes to the "already has an account"
+  fork, never "check your inbox". Reset copy never claims
   an email was sent, for the same enumeration reason.
 - **Google and Apple sit side by side above the form**, on every platform, and
   Apple is not optional: it is what satisfies App Store guideline 4.8. iOS gets

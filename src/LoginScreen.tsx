@@ -176,13 +176,19 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       return;
     }
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: authRedirectTo() },
       });
       if (error) throw error;
       onClearAuthError?.();
+      // An address that already has an account gets a decoy user with no identities and no email.
+      if (data?.user?.identities?.length === 0) {
+        setMsg(null);
+        setFork("email-taken");
+        return;
+      }
       setMsg(null);
       setFork(null);
       setSent({ kind: "signup", email: email.trim() });
