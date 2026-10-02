@@ -20,7 +20,7 @@ export const RecorderOptionRow = forwardRef<HTMLDivElement, RecorderOptionRowPro
   function RecorderOptionRow({ icon, title, status, tone = "off", onOpen, trailing, className = "" }, ref) {
     return (
       <div ref={ref} role="button" tabIndex={0} onClick={onOpen}
-        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+        onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
         className={"flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-700/40 " + className}>
         <span className="flex w-5 shrink-0 justify-center">{icon}</span>
         <span className="min-w-0 flex-1">

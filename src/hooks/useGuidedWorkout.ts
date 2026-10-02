@@ -108,8 +108,12 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
     switch (step.kind) {
       case "warmup": return t("tracker.guided.speak.warmup", { count: mins });
       case "cooldown": return t("tracker.guided.speak.cooldown", { count: mins });
-      case "run": return t("tracker.guided.speak.run", { count: mins });
-      case "walk": return t("tracker.guided.speak.walk", { count: mins });
+      case "run":
+      case "walk":
+        // Run/walk ratios can be sub-minute (a 30 s walk), so only whole minutes are said as minutes.
+        return step.sec != null && step.sec % 60 !== 0
+          ? t(`tracker.guided.speak.${step.kind}Sec`, { count: step.sec })
+          : t(`tracker.guided.speak.${step.kind}`, { count: mins });
       case "recover": return step.m != null
         ? t("tracker.guided.speak.recoverDist", { dist: spokenDist(step.m) })
         : t("tracker.guided.speak.recoverSec", { count: step.sec });
@@ -227,9 +231,12 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
     // warm-up right after Go; a multi-boundary catch-up lands on where they
     // are now, skipping the steps that flew by while JS was frozen).
     if (lastCuedIdxRef.current !== progress.idx) {
+      // First announcement of this guidance (a fresh start, a recovered run, audio
+      // switched on mid-run): per-km callouts count from where the runner is.
+      const lastKm = lastCuedIdxRef.current == null ? Math.floor(stats.km) : clockRef.current.lastKm;
       lastCuedIdxRef.current = progress.idx;
       if (audioOn) playCue("step", announceFor(step), lang);
-      clockRef.current = { ...clockRef.current, lastAtSec: stats.movingSec };
+      clockRef.current = { lastAtSec: stats.movingSec, lastKm };
     } else if (audioOn) {
       if (hrWarnDue(step, prefs.hrWarn, liveBpm, stats.movingSec, lastHrWarnRef.current)) {
         lastHrWarnRef.current = stats.movingSec;

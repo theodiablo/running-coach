@@ -181,7 +181,11 @@
       "leftSec_other": "Encore {{count}} secondes.",
       "leftMin_one": "Encore {{count}} minute.",
       "leftMin_other": "Encore {{count}} minutes.",
-      "hrHigh": "Cardio {{bpm}}, au-dessus de ta zone. Ralentis."
+      "hrHigh": "Cardio {{bpm}}, au-dessus de ta zone. Ralentis.",
+      "runSec_one": "Cours pendant {{count}} seconde.",
+      "runSec_other": "Cours pendant {{count}} secondes.",
+      "walkSec_one": "Marche pendant {{count}} seconde.",
+      "walkSec_other": "Marche pendant {{count}} secondes."
     },
     "hrHigh": "Cardio haut",
     "target": "Cible {{targets}}"

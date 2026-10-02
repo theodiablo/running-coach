@@ -267,15 +267,17 @@ class WorkoutGuidePlugin : Plugin() {
         sayDist = say?.optBoolean("dist", false) ?: false
         sayLeft = say?.optBoolean("left", true) ?: true
         seedAtMs = System.currentTimeMillis()
+        val wasEnabled = enabled
         enabled = true
         // A seed that moved the engine backwards is a fresh run — start the
         // announcement dedupe and callout clock over. Same-idx re-seeds
         // (pause/resume/audio toggle) keep both, so they stay silent.
-        if (announcedIdx > idx || movingSec < lastCalloutSec) {
+        if (announcedIdx > idx) {
             announcedIdx = -1
             resetCalloutClock()
-            lastCalloutKm = floor(km).toInt()
         }
+        // First seed of a run (or a recovered one): per-km callouts count from here.
+        if (!wasEnabled) lastCalloutKm = floor(km).toInt()
         if (!finished) doneCued = false
         ensureTts(data.optString("lang", "en"))
         // Announce the step the seed landed on if nothing has voiced it yet —
@@ -304,6 +306,7 @@ class WorkoutGuidePlugin : Plugin() {
         enabled = false
         announcedIdx = -1
         resetCalloutClock()
+        lastCurPace = 0.0
         doneCued = false
         handler.removeCallbacks(deadline)
         try { tts?.stop() } catch (ignored: RuntimeException) {}

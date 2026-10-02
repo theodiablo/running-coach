@@ -181,7 +181,11 @@
       "leftSec_other": "Quedan {{count}} segundos.",
       "leftMin_one": "Queda {{count}} minuto.",
       "leftMin_other": "Quedan {{count}} minutos.",
-      "hrHigh": "Pulso {{bpm}}, por encima de tu zona. Baja el ritmo."
+      "hrHigh": "Pulso {{bpm}}, por encima de tu zona. Baja el ritmo.",
+      "runSec_one": "Corre durante {{count}} segundo.",
+      "runSec_other": "Corre durante {{count}} segundos.",
+      "walkSec_one": "Camina durante {{count}} segundo.",
+      "walkSec_other": "Camina durante {{count}} segundos."
     },
     "hrHigh": "Pulso alto",
     "target": "Objetivo {{targets}}"

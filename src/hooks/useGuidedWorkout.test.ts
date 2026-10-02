@@ -74,6 +74,24 @@ describe("useGuidedWorkout callouts", () => {
     expect(spoken("info")).toEqual(["1.0 kilometres."]);
   });
 
+  it("per-km callouts count from where guidance started (a recovered run)", () => {
+    const { rerender } = setup({ ...DEFAULT_AUDIO, freq: "km" });
+    rerender({ state: "tracking", stats: { km: 3.4, movingSec: 1000, curPace: 300 } });
+    rerender({ state: "tracking", stats: { km: 3.5, movingSec: 1030, curPace: 300 } });
+    expect(spoken("info")).toEqual([]);
+    rerender({ state: "tracking", stats: { km: 4.01, movingSec: 1180, curPace: 300 } });
+    expect(spoken("info")).toHaveLength(1);
+  });
+
+  it("says sub-minute run/walk intervals in seconds", () => {
+    const rw = compileSpec({ ...DEFAULT_SPEC, type: "runwalk", warmMin: 0, runSec: 90, walkSec: 30 }, { band: 10 });
+    const { rerender } = renderHook(({ state }: { state: State }) =>
+      useGuidedWorkout({ workout: rw, audioOn: true, prefs: DEFAULT_AUDIO, state, stats: { km: 0, movingSec: 0, curPace: 0 }, kind: "runwalk" }),
+      { initialProps: { state: "idle" as State } });
+    rerender({ state: "tracking" });
+    expect(spoken("step")).toEqual(["Run 90 seconds."]);
+  });
+
   it("builds a sample callout for the settings sheet", () => {
     const { result } = setup();
     expect(result.current.sample(DEFAULT_AUDIO)).toBe("On pace, 5 03. Heart 160. 2.5 kilometres left.");

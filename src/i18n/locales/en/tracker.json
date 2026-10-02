@@ -181,7 +181,11 @@
       "leftSec_other": "{{count}} seconds left.",
       "leftMin_one": "{{count}} minute left.",
       "leftMin_other": "{{count}} minutes left.",
-      "hrHigh": "Heart {{bpm}}, above your zone. Ease off."
+      "hrHigh": "Heart {{bpm}}, above your zone. Ease off.",
+      "runSec_one": "Run {{count}} second.",
+      "runSec_other": "Run {{count}} seconds.",
+      "walkSec_one": "Walk {{count}} second.",
+      "walkSec_other": "Walk {{count}} seconds."
     },
     "hrHigh": "HR high",
     "target": "Target {{targets}}"
