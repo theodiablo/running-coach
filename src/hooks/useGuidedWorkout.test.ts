@@ -40,18 +40,18 @@ describe("useGuidedWorkout callouts", () => {
     rerender({ state: "tracking", stats: { km: 0.15, movingSec: 45, curPace: 302 } });
     expect(spoken("info")).toEqual([]);
     rerender({ state: "tracking", stats: { km: 0.2, movingSec: 60, curPace: 302, hr: 160, hrAt: Date.now() } });
-    expect(spoken("info")).toEqual(["On pace, 5 02. Heart 160. 4.8 kilometres left."]);
+    expect(spoken("info")).toEqual(["On pace, 5 02. Heart rate 160. 4.8 kilometres left."]);
     rerender({ state: "tracking", stats: { km: 0.35, movingSec: 100, curPace: 330, hr: 160, hrAt: Date.now() } });
     expect(spoken("info")).toHaveLength(1);
     rerender({ state: "tracking", stats: { km: 0.4, movingSec: 120, curPace: 330, hr: 160, hrAt: Date.now() } });
-    expect(spoken("info")[1]).toBe("A bit slow, 5 30. Push to 5 00. Heart 160. 4.6 kilometres left.");
+    expect(spoken("info")[1]).toBe("A bit slow, 5 30. Push to 5 00. Heart rate 160. 4.6 kilometres left.");
   });
 
   it("warns at once when heart rate passes the zone top", () => {
     const { rerender } = setup();
     rerender({ state: "tracking", stats: { km: 0, movingSec: 0, curPace: 0 } });
     rerender({ state: "tracking", stats: { km: 0.1, movingSec: 30, curPace: 300, hr: 175, hrAt: Date.now() } });
-    expect(spoken("fast")).toEqual(["Heart 175, above your zone. Ease off."]);
+    expect(spoken("fast")).toEqual(["Heart rate 175, above your zone. Ease off."]);
     rerender({ state: "tracking", stats: { km: 0.12, movingSec: 40, curPace: 300, hr: 176, hrAt: Date.now() } });
     expect(spoken("fast")).toHaveLength(1);
   });
@@ -71,7 +71,7 @@ describe("useGuidedWorkout callouts", () => {
     rerender({ state: "tracking", stats: { km: 0.99, movingSec: 290, curPace: 300 } });
     expect(spoken("info")).toEqual([]);
     rerender({ state: "tracking", stats: { km: 1.01, movingSec: 300, curPace: 300 } });
-    expect(spoken("info")).toEqual(["1.0 kilometres."]);
+    expect(spoken("info")).toEqual(["1.0 kilometre."]);
   });
 
   it("per-km callouts count from where guidance started (a recovered run)", () => {
@@ -94,6 +94,6 @@ describe("useGuidedWorkout callouts", () => {
 
   it("builds a sample callout for the settings sheet", () => {
     const { result } = setup();
-    expect(result.current.sample(DEFAULT_AUDIO)).toBe("On pace, 5 03. Heart 160. 2.5 kilometres left.");
+    expect(result.current.sample(DEFAULT_AUDIO)).toBe("On pace, 5 03. Heart rate 160. 2.5 kilometres left.");
   });
 });

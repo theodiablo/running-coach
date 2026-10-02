@@ -28,6 +28,9 @@ import { track } from "../telemetry";
 // re-arming on every 1s tick would spam the bridge for nothing.
 const SCHEDULE_DRIFT_MS = 2_500;
 
+// The plural follows the one-decimal figure actually spoken ("1,5 kilomètre").
+const kmCount = (km: number) => Math.round(km * 10) / 10;
+
 const paceParts = (pace: number) => {
   const p = Math.round(pace);
   return { min: Math.floor(p / 60), sec: String(p % 60).padStart(2, "0") };
@@ -160,7 +163,7 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
 
   const calloutText = useCallback((c: CalloutContent): string => {
     const parts: string[] = [];
-    if (c.km != null) parts.push(t("tracker.guided.speak.distDone", { km: spokenKm(c.km) }));
+    if (c.km != null) parts.push(t("tracker.guided.speak.distDone", { count: kmCount(c.km), km: spokenKm(c.km) }));
     if (c.pace != null) {
       const pace = shortPace(c.pace);
       if (c.verdict === "on") parts.push(t("tracker.guided.speak.onPace", { pace }));
@@ -169,7 +172,7 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
     }
     if (c.hr != null) parts.push(t("tracker.guided.speak.heart", { bpm: c.hr }));
     if (c.left?.m != null) parts.push(c.left.m >= 1000
-      ? t("tracker.guided.speak.leftKm", { km: spokenKm(c.left.m / 1000) })
+      ? t("tracker.guided.speak.leftKm", { count: kmCount(c.left.m / 1000), km: spokenKm(c.left.m / 1000) })
       : t("tracker.guided.speak.leftM", { count: c.left.m }));
     else if (c.left?.sec != null) parts.push(c.left.sec > 90
       ? t("tracker.guided.speak.leftMin", { count: Math.round(c.left.sec / 60) })
@@ -309,6 +312,8 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
         hrWarn: prefs.hrWarn === "off" ? -1 : prefs.hrWarn,
       },
       decimalSep: (1.5).toLocaleString(lang).charAt(1),
+      // French takes the singular below 2 ("1,5 kilomètre"); en/es only at exactly 1.
+      kmOneBelowTwo: new Intl.PluralRules(lang).select(1.5) === "one",
       texts: {
         notifTitle: t("tracker.guided.notifTitle"),
         done: t("tracker.guided.speak.done"),
@@ -318,8 +323,10 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
         fastBy: t("tracker.guided.speak.fastBy", ph),
         paceIs: t("tracker.guided.speak.paceIs", ph),
         heart: t("tracker.guided.speak.heart", ph),
-        distDone: t("tracker.guided.speak.distDone", ph),
-        leftKm: t("tracker.guided.speak.leftKm", ph),
+        distDoneOne: t("tracker.guided.speak.distDone_one", ph),
+        distDoneOther: t("tracker.guided.speak.distDone_other", ph),
+        leftKmOne: t("tracker.guided.speak.leftKm_one", ph),
+        leftKmOther: t("tracker.guided.speak.leftKm_other", ph),
         leftMOne: t("tracker.guided.speak.leftM_one", { count: "{n}" }),
         leftMOther: t("tracker.guided.speak.leftM_other", { count: "{n}" }),
         leftSecOne: t("tracker.guided.speak.leftSec_one", { count: "{n}" }),

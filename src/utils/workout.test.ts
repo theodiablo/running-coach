@@ -239,3 +239,11 @@ describe("paceVerdict", () => {
     expect(paceVerdict(step, 0)).toBeNull();
   });
 });
+
+describe("advanceWorkout guard", () => {
+  it("stops on a loop of zero-length steps instead of spinning", () => {
+    const w: Workout = { steps: [{ kind: "run", sec: 0 }, { kind: "walk", sec: 0 }], loopFrom: 0 };
+    const res = advanceWorkout(w, initialWorkoutProgress, { km: 0, movingSec: 10 });
+    expect(res.entered.length).toBeLessThanOrEqual(2001);
+  });
+});

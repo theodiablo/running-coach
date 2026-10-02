@@ -173,8 +173,6 @@
       "fastBy": "Un peu rapide, {{pace}}. Reviens à {{target}}.",
       "paceIs": "Allure {{pace}}.",
       "heart": "Cardio {{bpm}}.",
-      "distDone": "{{km}} kilomètres.",
-      "leftKm": "Encore {{km}} kilomètres.",
       "leftM_one": "Encore {{count}} mètre.",
       "leftM_other": "Encore {{count}} mètres.",
       "leftSec_one": "Encore {{count}} seconde.",
@@ -185,7 +183,11 @@
       "runSec_one": "Cours pendant {{count}} seconde.",
       "runSec_other": "Cours pendant {{count}} secondes.",
       "walkSec_one": "Marche pendant {{count}} seconde.",
-      "walkSec_other": "Marche pendant {{count}} secondes."
+      "walkSec_other": "Marche pendant {{count}} secondes.",
+      "distDone_one": "{{km}} kilomètre.",
+      "distDone_other": "{{km}} kilomètres.",
+      "leftKm_one": "Encore {{km}} kilomètre.",
+      "leftKm_other": "Encore {{km}} kilomètres."
     },
     "hrHigh": "Cardio haut",
     "target": "Cible {{targets}}"
@@ -211,7 +213,7 @@
     "title": {
       "sheet": "Sortie du jour",
       "tempo": "Tempo · {{block}}",
-      "runwalk": "Course {{run}} / marche {{walk}}",
+      "runwalk": "Cours {{run}} / marche {{walk}}",
       "open": "Sortie libre",
       "anyDistance": "Distance libre"
     },

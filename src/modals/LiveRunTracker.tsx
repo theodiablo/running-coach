@@ -125,8 +125,12 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   const preview = useMemo(
     () => compileSpec(spec, { band: prefs.band, hr: hrLo != null && hrHi != null ? { lo: hrLo, hi: hrHi } : null }),
     [spec, prefs.band, hrLo, hrHi]);
+  // The schedule is fixed once the run starts: a synced prefs or HR-profile
+  // change landing mid-run must not restart it at step one.
+  const [runSchedule, setRunSchedule] = useState<typeof preview | null>(null);
+  if (state === "idle" ? runSchedule !== null : runSchedule === null) setRunSchedule(state === "idle" ? null : preview);
   // An open run with audio off has nothing to guide: no panel, no engine.
-  const workout = specOpen && !audioOn ? null : preview;
+  const workout = specOpen && !audioOn ? null : runSchedule ?? preview;
   const guide = useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind: spec.type });
   const updateSpec = (next: WorkoutSpec) => {
     setSpec(next);

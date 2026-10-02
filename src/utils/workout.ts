@@ -178,7 +178,8 @@ export function advanceWorkout(
   const entered: number[] = [];
   let finished = false;
   for (;;) {
-    if (cur.done) break;
+    // A loop of zero-length steps would never stop crossing.
+    if (cur.done || entered.length > w.steps.length * 1000) break;
     const step = stepAt(w, cur.idx);
     if (!step || !stepCrossed(step, cur, now.km, now.movingSec)) break;
     // Boundaries advance by the step's own bound (not to "now"), so a

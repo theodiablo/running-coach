@@ -102,6 +102,7 @@ class WorkoutGuidePlugin : Plugin() {
     private var doneText = ""
     private var texts: JSONObject = JSONObject()
     private var decimalSep = "."
+    private var kmOneBelowTwo = false
     private var freqSec = 60.0
     private var sayPace = true
     private var sayHr = true
@@ -262,6 +263,7 @@ class WorkoutGuidePlugin : Plugin() {
         notifTitle = texts.optString("notifTitle")
         doneText = texts.optString("done")
         decimalSep = data.optString("decimalSep", ".").ifEmpty { "." }
+        kmOneBelowTwo = data.optBoolean("kmOneBelowTwo", false)
         val callout = data.optJSONObject("callout")
         freqSec = callout?.let { num(it, "freqSec") } ?: 60.0
         hrWarn = callout?.let { num(it, "hrWarn") } ?: 0.0
@@ -408,7 +410,7 @@ class WorkoutGuidePlugin : Plugin() {
 
     private fun calloutText(step: Step, nowMoving: Double, bpm: Int?, perKm: Boolean): String {
         val parts = ArrayList<String>()
-        if (sayDist || perKm) parts.add(fill("distDone", "km" to oneDecimal(km)))
+        if (sayDist || perKm) parts.add(fill(kmKey("distDone", km), "km" to oneDecimal(km)))
         // A standing runner emits no fixes: their last pace is not their pace now.
         val freshPace = System.currentTimeMillis() - lastFixWall <= PACE_FRESH_MS
         if (sayPace && lastCurPace > 0 && freshPace) {
@@ -426,7 +428,7 @@ class WorkoutGuidePlugin : Plugin() {
         if (sayLeft) {
             if (step.m != null) {
                 val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
-                parts.add(if (leftM >= 1000) fill("leftKm", "km" to oneDecimal(leftM / 1000.0))
+                parts.add(if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))
                     else fill(if (leftM == 1L) "leftMOne" else "leftMOther", "n" to leftM.toString()))
             } else if (step.sec != null) {
                 val leftSec = maxOf(0L, ceil(step.sec - (nowMoving - stepStartSec)).toLong())
@@ -449,6 +451,13 @@ class WorkoutGuidePlugin : Plugin() {
     private fun spokenPace(secPerKm: Double): String {
         val p = Math.round(secPerKm)
         return fill("pace", "min" to (p / 60).toString(), "sec" to (p % 60).toString().padStart(2, '0'))
+    }
+
+    // Mirrors i18next's plural pick on the one-decimal figure the hook speaks.
+    private fun kmKey(base: String, km: Double): String {
+        val v = Math.round(km * 10) / 10.0
+        val one = if (kmOneBelowTwo) v < 2.0 else v == 1.0
+        return base + if (one) "One" else "Other"
     }
 
     private fun oneDecimal(v: Double): String =

@@ -53,6 +53,8 @@ export type GuideSeed = {
     hrWarn: number;
   };
   decimalSep: string;
+  /** Plural rule for spoken km: singular for every value below 2 (French), else only at 1. */
+  kmOneBelowTwo: boolean;
   /** Pre-localized; {pace} {target} {bpm} {km} {n} {min} {sec} are filled natively. */
   texts: {
     notifTitle: string;
@@ -63,8 +65,10 @@ export type GuideSeed = {
     fastBy: string;
     paceIs: string;
     heart: string;
-    distDone: string;
-    leftKm: string;
+    distDoneOne: string;
+    distDoneOther: string;
+    leftKmOne: string;
+    leftKmOther: string;
     leftMOne: string;
     leftMOther: string;
     leftSecOne: string;

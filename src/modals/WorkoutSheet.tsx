@@ -2,21 +2,13 @@ import { useTranslation } from "react-i18next";
 import { RecorderSheet, Segmented, SheetLabel, Stepper } from "../components/RecorderSheet";
 import { WorkoutTimeline } from "../components/WorkoutCard";
 import { fmt } from "../utils/format";
-import { WORKOUT_TYPES, compileSpec, isOpenSpec, type WorkoutSpec } from "../utils/workoutSpec";
+import { SPEC_LIMITS, WORKOUT_TYPES, compileSpec, isOpenSpec, type WorkoutSpec } from "../utils/workoutSpec";
 
 // "Today's run": what this recording is — kind of run, distance or duration,
 // structure, pace and heart-rate targets. Seeded from the plan session when
 // there is one; edits apply to this run only (docs/guided-workouts.md).
 
-type NumKey = "pace" | "warmMin" | "coolMin" | "blockKm" | "blockMin" | "reps" | "repM" | "repSec"
-  | "recSec" | "recM" | "runSec" | "walkSec" | "goalKm" | "goalMin";
-
-const STEP: Record<NumKey, [step: number, min: number, max: number]> = {
-  pace: [5, 150, 600], warmMin: [1, 0, 30], coolMin: [1, 0, 30],
-  blockKm: [0.5, 0.5, 42], blockMin: [5, 5, 120], reps: [1, 1, 30],
-  repM: [100, 100, 5000], repSec: [15, 15, 1200], recSec: [15, 15, 600], recM: [100, 100, 2000],
-  runSec: [15, 15, 1200], walkSec: [15, 15, 600], goalKm: [0.5, 0.5, 100], goalMin: [5, 5, 360],
-};
+type NumKey = keyof typeof SPEC_LIMITS;
 
 const HR_ZONE_OPTIONS: ([number, number] | null)[] = [
   null, [1, 1], [2, 2], [2, 3], [3, 3], [3, 4], [4, 4], [4, 5], [5, 5],
@@ -55,7 +47,7 @@ export function WorkoutSheet({ spec, fromPlan, edited, band, zoneBpm, onChange, 
   const { t } = useTranslation();
   const set = (patch: Partial<WorkoutSpec>) => onChange({ ...spec, ...patch });
   const bump = (key: NumKey) => (dir: 1 | -1) => {
-    const [step, min, max] = STEP[key];
+    const [step, min, max] = SPEC_LIMITS[key];
     const cur = key === "pace" ? spec.pace ?? DEFAULT_PACE : spec[key];
     set({ [key]: Math.min(max, Math.max(min, Math.round((cur + dir * step) * 10) / 10)) });
   };

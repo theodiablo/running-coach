@@ -49,6 +49,17 @@ export const DEFAULT_SPEC: WorkoutSpec = {
 
 export const WORKOUT_TYPES: WorkoutType[] = ["regular", "tempo", "intervals", "runwalk"];
 
+type NumField = "pace" | "warmMin" | "coolMin" | "blockKm" | "blockMin" | "reps" | "repM" | "repSec"
+  | "recSec" | "recM" | "runSec" | "walkSec" | "goalKm" | "goalMin";
+
+/** [step, min, max] per numeric field — the sheet's steppers and readSpec's clamp. */
+export const SPEC_LIMITS: Record<NumField, [step: number, min: number, max: number]> = {
+  pace: [5, 150, 600], warmMin: [1, 0, 30], coolMin: [1, 0, 30],
+  blockKm: [0.5, 0.5, 42], blockMin: [5, 5, 120], reps: [1, 1, 30],
+  repM: [100, 100, 5000], repSec: [15, 15, 1200], recSec: [15, 15, 600], recM: [100, 100, 2000],
+  runSec: [15, 15, 1200], walkSec: [15, 15, 600], goalKm: [0.5, 0.5, 100], goalMin: [5, 5, 360],
+};
+
 /** Nothing to guide: no structure, no goal, no target. */
 export const isOpenSpec = (s: WorkoutSpec) =>
   s.type === "regular" && s.goal === "open" && s.pace == null && s.hrZone == null;
@@ -67,7 +78,8 @@ const zoneSpan = (type: string): [number, number] | null => {
 export function specFromSession(s: SessionLike): WorkoutSpec {
   const type = String(s.type || "");
   const pace = Number(s.pace) > 0 ? Number(s.pace) : null;
-  const hrZone = zoneSpan(type);
+  // Race day runs above its zone by design; warning about it would only nag.
+  const hrZone = type === "RACE" ? null : zoneSpan(type);
   const w = compileWorkout(s);
   const base: WorkoutSpec = { ...DEFAULT_SPEC, pace, hrZone };
   if (!w) {
@@ -127,7 +139,8 @@ export function compileSpec(s: WorkoutSpec, opts: { band: number; hr?: { lo: num
     return { steps: [...steps, ...cool] };
   }
   if (s.type === "runwalk") {
-    return { steps: [...warm, { kind: "run", sec: s.runSec, ...hrTarget }, { kind: "walk", sec: s.walkSec }], loopFrom: warm.length };
+    // No HR target on run/walk: the walk breaks are what keep it in zone.
+    return { steps: [...warm, { kind: "run", sec: s.runSec }, { kind: "walk", sec: s.walkSec }], loopFrom: warm.length };
   }
   const bound = s.goal === "km" ? { m: Math.round(s.goalKm * 1000) } : s.goal === "time" ? { sec: Math.round(s.goalMin * 60) } : {};
   return { steps: [{ kind: "steady", ...bound, ...target }] };
@@ -143,14 +156,21 @@ export function stepWeights(w: Workout, pace: number | null): number[] {
 export function readSpec(raw: unknown): WorkoutSpec {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const out: WorkoutSpec = { ...DEFAULT_SPEC };
-  const num = (k: keyof WorkoutSpec) => { const v = r[k]; if (typeof v === "number" && Number.isFinite(v) && v >= 0) (out as Record<string, unknown>)[k] = v; };
+  // Clamped to what the sheet can produce: a synced blob is user-writable, and
+  // a zero-length loop or a billion reps would hang the engine.
+  const num = (k: Exclude<NumField, "pace">) => {
+    const v = r[k];
+    const [, min, max] = SPEC_LIMITS[k];
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = Math.min(max, Math.max(min, k === "reps" ? Math.round(v) : v));
+  };
   (["goalKm", "goalMin", "warmMin", "coolMin", "blockKm", "blockMin", "reps", "repM", "repSec", "recSec", "recM", "runSec", "walkSec"] as const).forEach(num);
   if (WORKOUT_TYPES.includes(r.type as WorkoutType)) out.type = r.type as WorkoutType;
   if (r.goal === "open" || r.goal === "km" || r.goal === "time") out.goal = r.goal;
   if (r.blockUnit === "km" || r.blockUnit === "min") out.blockUnit = r.blockUnit;
   if (r.repUnit === "m" || r.repUnit === "sec") out.repUnit = r.repUnit;
   if (r.recUnit === "m" || r.recUnit === "sec") out.recUnit = r.recUnit;
-  out.pace = typeof r.pace === "number" && r.pace > 0 ? r.pace : null;
+  out.pace = typeof r.pace === "number" && Number.isFinite(r.pace) && r.pace > 0
+    ? Math.min(SPEC_LIMITS.pace[2], Math.max(SPEC_LIMITS.pace[1], r.pace)) : null;
   const z = r.hrZone;
   out.hrZone = Array.isArray(z) && z.length === 2 && z.every(n => Number.isInteger(n) && n >= 1 && n <= 5) && z[0] <= z[1]
     ? [z[0], z[1]] : null;

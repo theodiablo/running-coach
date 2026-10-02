@@ -173,8 +173,6 @@
       "fastBy": "Un poco rápido, {{pace}}. Baja a {{target}}.",
       "paceIs": "Ritmo {{pace}}.",
       "heart": "Pulso {{bpm}}.",
-      "distDone": "{{km}} kilómetros.",
-      "leftKm": "Quedan {{km}} kilómetros.",
       "leftM_one": "Queda {{count}} metro.",
       "leftM_other": "Quedan {{count}} metros.",
       "leftSec_one": "Queda {{count}} segundo.",
@@ -185,7 +183,11 @@
       "runSec_one": "Corre durante {{count}} segundo.",
       "runSec_other": "Corre durante {{count}} segundos.",
       "walkSec_one": "Camina durante {{count}} segundo.",
-      "walkSec_other": "Camina durante {{count}} segundos."
+      "walkSec_other": "Camina durante {{count}} segundos.",
+      "distDone_one": "{{km}} kilómetro.",
+      "distDone_other": "{{km}} kilómetros.",
+      "leftKm_one": "Queda {{km}} kilómetro.",
+      "leftKm_other": "Quedan {{km}} kilómetros."
     },
     "hrHigh": "Pulso alto",
     "target": "Objetivo {{targets}}"

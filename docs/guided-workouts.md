@@ -63,8 +63,11 @@ distance, what's left), `freeOn`.
   `CALLOUT_MIN_INTO_STEP_SEC` into a step (GPS pace settling); per-km ones fire
   on each whole km and always name the distance. A step announcement resets the
   clock, so a callout never lands on top of one.
-- `hrWarnDue`: work steps only, live (non-stale) bpm over `hrHi + margin`, at
-  most every `HR_WARN_EVERY_SEC`; spoken at once, not on the timer.
+- `hrWarnDue`: steps carrying an HR target — work and steady only (run/walk's
+  breaks keep it in zone, and race day has no zone), live (non-stale) bpm over
+  `hrHi + margin`, at most every `HR_WARN_EVERY_SEC`; spoken at once.
+- The schedule is frozen once the run starts, so a synced prefs or HR-profile
+  change landing mid-run can't restart it.
 - `calloutContent` decides what the sentence holds; the hook words it
   (`tracker.guided.speak.*`). The old 25 s "too fast / too slow" nag is gone —
   the verdict lives inside the callout.

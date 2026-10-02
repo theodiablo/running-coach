@@ -13,8 +13,8 @@ describe("native callout templates", () => {
     const ph = { pace: "{pace}", target: "{target}", bpm: "{bpm}", km: "{km}" };
     expect(t("tracker.guided.speak.slowBy", ph)).toMatch(/\{pace\}.*\{target\}/);
     expect(t("tracker.guided.speak.hrHigh", ph)).toContain("{bpm}");
-    expect(t("tracker.guided.speak.leftKm", ph)).toContain("{km}");
-    expect(t("tracker.guided.speak.heart", ph)).toBe({ en: "Heart {bpm}.", fr: "Cardio {bpm}.", es: "Pulso {bpm}." }[lng]);
+    expect(t("tracker.guided.speak.leftKm_other", ph)).toContain("{km}");
+    expect(t("tracker.guided.speak.heart", ph)).toBe({ en: "Heart rate {bpm}.", fr: "Cardio {bpm}.", es: "Pulso {bpm}." }[lng]);
     expect(t("tracker.guided.speak.paceShort", { min: "{min}", sec: "{sec}" })).toBe("{min} {sec}");
     for (const k of ["leftM_one", "leftM_other", "leftSec_one", "leftSec_other", "leftMin_other"])
       expect(t(`tracker.guided.speak.${k}`, { count: "{n}" })).toContain("{n}");

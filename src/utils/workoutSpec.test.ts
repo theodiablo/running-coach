@@ -27,6 +27,10 @@ describe("specFromSession → compileSpec", () => {
     expect(specFromSession(SESSIONS.walk)).toMatchObject({ type: "runwalk", runSec: 90, walkSec: 60, warmMin: 5, pace: null });
   });
 
+  it("gives race day no HR zone to warn against", () => {
+    expect(specFromSession({ type: "RACE", desc: "", km: 10, pace: 280 }).hrZone).toBeNull();
+  });
+
   it("turns an unstructured session into a regular run with its distance", () => {
     const spec = specFromSession({ type: "EASY", desc: "Easy run", km: 8, pace: 340 });
     expect(spec).toMatchObject({ type: "regular", goal: "km", goalKm: 8, pace: 340, hrZone: [2, 2] });
@@ -63,10 +67,10 @@ describe("compileSpec", () => {
     expect(compileSpec({ ...DEFAULT_SPEC, goal: "time", goalMin: 45 }, { band: 10 }).steps).toEqual([{ kind: "steady", sec: 2700 }]);
   });
 
-  it("loops run/walk after the warm-up, with no pace target", () => {
+  it("loops run/walk after the warm-up, with no pace or HR target", () => {
     const w = compileSpec({ ...DEFAULT_SPEC, type: "runwalk", warmMin: 5, pace: 330 }, { band: 10, hr });
     expect(w.loopFrom).toBe(1);
-    expect(w.steps[1]).toEqual({ kind: "run", sec: 120, hrLo: 150, hrHi: 170 });
+    expect(w.steps[1]).toEqual({ kind: "run", sec: 120 });
     expect(w.steps[2]).toEqual({ kind: "walk", sec: 60 });
   });
 });
@@ -85,6 +89,11 @@ describe("readSpec", () => {
   it("defaults anything missing or malformed", () => {
     expect(readSpec(undefined)).toEqual(DEFAULT_SPEC);
     expect(readSpec({ type: "sprint", goal: "far", pace: -3, hrZone: [5, 2], reps: "6" })).toEqual(DEFAULT_SPEC);
+  });
+
+  it("clamps values the sheet can't produce (a zero-length loop, a billion reps)", () => {
+    const spec = readSpec({ type: "runwalk", runSec: 0, walkSec: -5, reps: 1e9, pace: 1 });
+    expect(spec).toMatchObject({ runSec: 15, walkSec: 15, reps: 30, pace: 150 });
   });
 
   it("keeps a valid stored spec", () => {
