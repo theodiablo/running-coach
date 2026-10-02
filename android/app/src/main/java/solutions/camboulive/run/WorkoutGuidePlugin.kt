@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -16,6 +17,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -69,6 +71,8 @@ class WorkoutGuidePlugin : Plugin() {
         // that armed it (matches the recovery buffer's live window).
         private const val SEED_MAX_AGE_MS = 6 * 3600_000L
         private const val TONE_MS = 220
+        // Upper bound on holding audio focus if TTS never reports done.
+        private const val FOCUS_MAX_MS = 15_000L
     }
 
     private class Step(
@@ -136,6 +140,12 @@ class WorkoutGuidePlugin : Plugin() {
     // the run's opening announcement (or a preview).
     private var pendingSpeech: String? = null
     private var toneGen: ToneGenerator? = null
+    private val speechAttrs: AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+    private var focusRequest: AudioFocusRequest? = null
+    private val releaseFocus = Runnable { abandonFocus() }
 
     override fun load() {
         super.load()
@@ -312,6 +322,7 @@ class WorkoutGuidePlugin : Plugin() {
         doneCued = false
         handler.removeCallbacks(deadline)
         try { tts?.stop() } catch (ignored: RuntimeException) {}
+        abandonFocus()
         try {
             (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                 .cancel(NOTIFICATION_ID)
@@ -507,16 +518,21 @@ class WorkoutGuidePlugin : Plugin() {
         if (!ttsReady) return
         try {
             tts?.language = Locale.forLanguageTag(ttsLang.ifEmpty { "en" })
-            tts?.setAudioAttributes(AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build())
+            tts?.setAudioAttributes(speechAttrs)
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) { handler.post { releaseFocusSoon(250L) } }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) { handler.post { releaseFocusSoon(0L) } }
+            })
         } catch (ignored: RuntimeException) {
         }
     }
 
     private fun cue(tone: Int, text: String) {
         if (muted) return
+        duckOthers()
+        if (text.isEmpty()) releaseFocusSoon(TONE_MS + 300L)
         try {
             if (toneGen == null) toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
             toneGen?.startTone(tone, TONE_MS)
@@ -536,8 +552,41 @@ class WorkoutGuidePlugin : Plugin() {
         speakNow(text)
     }
 
+    // ── audio focus: duck the runner's music for the cue, then give it back ───
+    // USAGE_ASSISTANCE_NAVIGATION_GUIDANCE alone ducks nothing; the system only
+    // lowers other players for an app holding GAIN_TRANSIENT_MAY_DUCK focus.
+    private fun duckOthers() {
+        handler.removeCallbacks(releaseFocus)
+        try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val req = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(speechAttrs)
+                .setOnAudioFocusChangeListener { }
+                .build()
+                .also { focusRequest = it }
+            am.requestAudioFocus(req)
+        } catch (ignored: RuntimeException) {
+        }
+        handler.postDelayed(releaseFocus, FOCUS_MAX_MS)
+    }
+
+    private fun releaseFocusSoon(delayMs: Long) {
+        handler.removeCallbacks(releaseFocus)
+        handler.postDelayed(releaseFocus, delayMs)
+    }
+
+    private fun abandonFocus() {
+        handler.removeCallbacks(releaseFocus)
+        val req = focusRequest ?: return
+        try {
+            (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager).abandonAudioFocusRequest(req)
+        } catch (ignored: RuntimeException) {
+        }
+    }
+
     private fun speakNow(text: String) {
         if (text.isEmpty()) return
+        duckOthers()
         if (!ttsReady) { pendingSpeech = text; return }
         try {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "workout-cue")

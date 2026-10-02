@@ -153,7 +153,9 @@ cumulative `km`, `durationSec` (moving) and `curPaceSecPerKm`. Time-bound
 steps get a Handler deadline (native timers don't freeze), re-armed after
 every evaluation — a standing recovery emits no fixes but still ends on time.
 Boundaries → ToneGenerator + Android TTS (seeded pre-localized strings,
-`USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` so music ducks) + vibration (VIBRATE
+`USAGE_ASSISTANCE_NAVIGATION_GUIDANCE`; music ducks because each cue holds
+`AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` focus until the utterance is done — the
+usage alone ducks nothing; no permission needed) + vibration (VIBRATE
 permission, normal-level) + its own silent, `VISIBILITY_PUBLIC` "current
 step" notification — deliberately a SECOND notification: the recording one is
 owned by the patched service, which rebuilds its message natively and would
