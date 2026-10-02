@@ -138,6 +138,8 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   const guide = useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind: spec.type });
   const updateSpec = (next: WorkoutSpec) => {
     setSpec(next);
+    // Picking a structured run turns guidance on, as a plan tempo/intervals would.
+    if (next.type !== spec.type && specWantsAudio(next) && !audioOn) setAudioOn(true);
     if (!planSpec) onSettingsPatch?.({ freeWorkout: next });
   };
   const updatePrefs = (next: AudioPrefs) => onSettingsPatch?.({ audioGuide: next });
