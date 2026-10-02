@@ -1,7 +1,8 @@
 // Guided-workout native engine — the JS→native seam (Android only).
 //
-// Android runs NO JS once the app is backgrounded, so step boundaries and
-// pace cues must be evaluated natively while the screen is off. The
+// Android runs NO JS once the app is backgrounded, so step boundaries, status
+// callouts and heart-rate warnings must be evaluated natively while the screen
+// is off. The
 // WorkoutGuide plugin consumes the same LIVE_FIX relay as LivePublish (one
 // native fold, shared consumers — docs/live-tracking.md) for distance/pace,
 // runs its own Handler deadline for time-bound steps, and owns ALL cue audio
@@ -21,6 +22,8 @@ export type GuideSeedStep = {
   sec?: number;
   pace?: number;
   band?: number;
+  hrLo?: number;
+  hrHi?: number;
   /** Spoken on entering the step (pre-localized). */
   announce: string;
   /** Short notification line for the step (pre-localized). */
@@ -38,20 +41,50 @@ export type GuideSeed = {
   movingSec: number;
   tracking: boolean;
   finished: boolean;
+  /** Audio guidance off for this run (steps still advance, nothing is voiced). */
   muted: boolean;
   lang: string;
+  /** Mirrors AudioPrefs (src/utils/callout.ts). */
+  callout: {
+    /** Seconds between status callouts; 0 = once per kilometre. */
+    freqSec: number;
+    say: { pace: boolean; hr: boolean; dist: boolean; left: boolean };
+    /** bpm over the zone top before warning; -1 = never. */
+    hrWarn: number;
+  };
+  decimalSep: string;
+  /** Pre-localized; {pace} {target} {bpm} {km} {n} {min} {sec} are filled natively. */
   texts: {
     notifTitle: string;
     done: string;
-    fast: string;
-    slow: string;
+    pace: string;
+    onPace: string;
+    slowBy: string;
+    fastBy: string;
+    paceIs: string;
+    heart: string;
+    distDone: string;
+    leftKm: string;
+    leftMOne: string;
+    leftMOther: string;
+    leftSecOne: string;
+    leftSecOther: string;
+    leftMinOther: string;
+    hrHigh: string;
   };
 };
 
 const WorkoutGuide = registerPlugin<{
   seed: (options: GuideSeed) => Promise<void>;
   clear: () => Promise<void>;
+  preview: (options: { text: string; lang: string }) => Promise<void>;
 }>("WorkoutGuide");
+
+/** Speak one sample callout through the native TTS (the sheet's "Hear it"). */
+export function previewWorkoutGuide(text: string, lang: string): void {
+  if (!isAndroid) return;
+  WorkoutGuide.preview({ text, lang }).catch(() => { /* best effort */ });
+}
 
 export function seedWorkoutGuide(seed: GuideSeed): void {
   if (!isAndroid) return;

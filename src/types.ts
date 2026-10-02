@@ -46,6 +46,15 @@ export type SettingsState = Record<string, unknown> & {
   coachIntroSeen?: boolean;
   coachOverdueIntroSeen?: boolean;
   feedbackIntroSeen?: boolean;
+  // The recorder's audio-guidance preferences (AudioPrefs, read through
+  // readAudioPrefs) and the last free run's "Today's run" setup (read through
+  // readSpec). Both synced; docs/guided-workouts.md.
+  audioGuide?: unknown;
+  freeWorkout?: unknown;
+  // The recorder's first-tempo walk-through. Absent counts as unseen, unlike
+  // the coach signposts: it explains a behaviour change (guidance now talks by
+  // default on tempo/intervals) to the runners who already had the recorder.
+  guidanceTourSeen?: boolean;
   // True once this account has sent beta feedback: the pill drops its
   // label and collapses to an icon, because the word was recruitment.
   feedbackSent?: boolean;

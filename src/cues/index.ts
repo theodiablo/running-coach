@@ -9,16 +9,16 @@
 //   Android     — silent HERE on purpose: the WorkoutGuide plugin evaluates the
 //                 whole schedule natively off the LIVE_FIX relay (fore AND
 //                 background) and owns every sound, so a JS cue would double up.
-// Mute is per-device (WORKOUT_CUES_MUTED_KEY), read at call time so a toggle
-// applies immediately; the Android engine is told via its seed instead.
+// Whether to speak at all is the recorder's per-run audio switch: callers only
+// call in when it's on, and the Android engine is told via its seed.
 // Everything is fire-and-forget and never throws.
 
 import { registerPlugin } from "@capacitor/core";
 import { isAndroid, isIos } from "../native";
-import { WORKOUT_CUES_MUTED_KEY } from "../constants";
 import { playWebTone, primeWebAudio, speakWeb, stopWebSpeech, vibrateWeb } from "./web";
+import { previewWorkoutGuide } from "../geo/workoutGuide";
 
-export type CueTone = "step" | "done" | "fast" | "slow";
+export type CueTone = "step" | "done" | "fast" | "slow" | "info";
 
 type CueOptions = { tone: CueTone; text?: string; lang?: string };
 
@@ -30,14 +30,6 @@ const AudioCue = registerPlugin<{
   release: () => Promise<void>;
 }>("AudioCue");
 
-export function cuesMuted(): boolean {
-  try { return localStorage.getItem(WORKOUT_CUES_MUTED_KEY) === "1"; } catch { return false; }
-}
-
-export function setCuesMuted(muted: boolean): void {
-  try { localStorage.setItem(WORKOUT_CUES_MUTED_KEY, muted ? "1" : "0"); } catch { /* quota — non-fatal */ }
-}
-
 /** Call from the Start tap (a user gesture): unlocks web audio / the iOS session. */
 export function primeCues(): void {
   if (isAndroid) return;
@@ -47,7 +39,7 @@ export function primeCues(): void {
 
 /** Play a cue now: tone + optional spoken text. No-op on Android (native owns). */
 export function playCue(tone: CueTone, text?: string, lang?: string): void {
-  if (isAndroid || cuesMuted()) return;
+  if (isAndroid) return;
   if (isIos) {
     AudioCue.play({ tone, ...(text ? { text, lang } : {}) }).catch(() => {});
     return;
@@ -57,13 +49,22 @@ export function playCue(tone: CueTone, text?: string, lang?: string): void {
   vibrateWeb(tone === "done" ? [180, 90, 180] : [120]);
 }
 
+/** A sample callout from a settings tap (a user gesture), on every platform. */
+export function previewCue(text: string, lang: string): void {
+  if (isAndroid) { previewWorkoutGuide(text, lang); return; }
+  primeCues();
+  if (isIos) { AudioCue.play({ tone: "info", text, lang }).catch(() => {}); return; }
+  playWebTone("info");
+  speakWeb(text, lang);
+}
+
 /**
  * iOS only: arm a native one-shot cue for a time boundary `inMs` from now, so
  * "start again" still sounds when the screen is locked and no fix is waking
  * JS (a standing recovery emits none). Re-arming replaces the previous one.
  */
 export function scheduleCue(inMs: number, tone: CueTone, text?: string, lang?: string): void {
-  if (!isIos || cuesMuted()) return;
+  if (!isIos) return;
   AudioCue.schedule({ inMs, tone, ...(text ? { text, lang } : {}) }).catch(() => {});
 }
 

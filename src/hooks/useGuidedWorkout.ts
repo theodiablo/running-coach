@@ -1,36 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  advanceWorkout, compileWorkout, initialWorkoutProgress, paceVerdict, stepAt, stepRemaining,
+  advanceWorkout, hrOver, initialWorkoutProgress, paceVerdict, stepAt, stepRemaining,
   type PaceVerdict, type Workout, type WorkoutProgress, type WorkoutStep,
 } from "../utils/workout";
-import { cancelScheduledCue, cuesMuted, playCue, releaseCues, scheduleCue, setCuesMuted } from "../cues";
+import { calloutContent, calloutDue, hrWarnDue, type AudioPrefs, type CalloutClock, type CalloutContent } from "../utils/callout";
+import { cancelScheduledCue, playCue, releaseCues, scheduleCue } from "../cues";
 import { clearWorkoutGuide, seedWorkoutGuide } from "../geo/workoutGuide";
 import { isAndroid } from "../native";
 import { fmt } from "../utils/format";
+import { isHrStale } from "../utils/hr";
 import { track } from "../telemetry";
-import type { PlanSession } from "../types";
 
-// Guided-workout orchestration (docs/guided-workouts.md). Compiles the linked
-// plan session, advances the pure engine off the SAME renders the tracker's
-// accepted fixes and foreground 1s tick already produce (never a timer — the
-// repo's background rule), and fans the results out to:
+// Guided-run orchestration (docs/guided-workouts.md). Advances the pure engine
+// off the SAME renders the tracker's accepted fixes and foreground 1s tick
+// already produce (never a timer — the repo's background rule), and fans the
+// results out to:
 //   - the in-tracker panel (returned display state),
-//   - JS cues (web + iOS; Android is silent here — its native engine owns audio),
+//   - JS cues and status callouts (web + iOS; Android is silent here — its
+//     native engine owns audio),
 //   - the iOS native one-shot schedule for time boundaries no fix will wake,
 //   - the Android WorkoutGuide seed (full state re-base on every change).
 // Engine progress is DERIVED DURING RENDER (the PlanView reset pattern — no
 // sync setState in effects); the cue effect below only performs side effects.
 
-// Pace nagging discipline: never inside the first stretch of a step (GPS pace
-// needs to settle), then at most one reminder per interval.
-const PACE_CUE_MIN_INTO_STEP_SEC = 20;
-const PACE_CUE_EVERY_MS = 25_000;
 // Re-arm the iOS scheduled cue only when the deadline drifted meaningfully —
 // re-arming on every 1s tick would spam the bridge for nothing.
 const SCHEDULE_DRIFT_MS = 2_500;
 
-type TrackerStats = { km: number; movingSec: number; curPace: number };
+const paceParts = (pace: number) => {
+  const p = Math.round(pace);
+  return { min: Math.floor(p / 60), sec: String(p % 60).padStart(2, "0") };
+};
+
+type TrackerStats = { km: number; movingSec: number; curPace: number; hr?: number | null; hrAt?: number | null };
 type TrackerState = "idle" | "tracking" | "paused" | "stopped";
 
 export type GuidedDisplay = {
@@ -40,33 +43,30 @@ export type GuidedDisplay = {
   remaining: { m?: number; sec?: number };
   nextLabel: string | null;
   verdict: PaceVerdict | null;
+  hrHigh: boolean;
   finished: boolean;
   /** One-line summary for lock-screen surfaces (iOS Live Activity). */
   stepText: string;
 };
 
-export function useGuidedWorkout(
-  session: PlanSession | null | undefined,
-  enabled: boolean,
-  state: TrackerState,
-  stats: TrackerStats,
-) {
+export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }: {
+  /** Null = nothing to guide (an open run with audio off). */
+  workout: Workout | null;
+  audioOn: boolean;
+  prefs: AudioPrefs;
+  state: TrackerState;
+  stats: TrackerStats;
+  /** Telemetry only: which kind of run is being guided. */
+  kind: string;
+}) {
   const { t, i18n } = useTranslation();
-  // Compiled independently of the premium gate so the caller can tell "this
-  // session is guidable" (drives the stale-entitlement re-read) apart from
-  // "guidance is on"; every behavior below checks `enabled` too.
-  const compiled = useMemo<Workout | null>(
-    () => (session ? compileWorkout(session) : null),
-    [session],
-  );
-  const workout = enabled ? compiled : null;
-
-  const [muted, setMuted] = useState(cuesMuted);
   const lang = i18n.language || "en";
+  const liveBpm = stats.hr != null && !isHrStale(stats.hrAt) ? stats.hr : null;
 
   // ── engine progress, derived during render ────────────────────────────────
   const [progress, setProgress] = useState<WorkoutProgress>(initialWorkoutProgress);
   const [prevState, setPrevState] = useState<TrackerState>(state);
+  const [prevWorkout, setPrevWorkout] = useState<Workout | null>(workout);
   let cur = progress;
   if (state !== prevState) {
     setPrevState(state);
@@ -77,6 +77,13 @@ export function useGuidedWorkout(
       cur = initialWorkoutProgress;
       setProgress(cur);
     }
+  }
+  if (workout !== prevWorkout) {
+    // A different schedule (edited before Start, or audio switched on for an
+    // open run mid-way) starts from where the runner is now.
+    setPrevWorkout(workout);
+    cur = { idx: 0, stepStartKm: stats.km, stepStartSec: stats.movingSec, done: false };
+    setProgress(cur);
   }
   if (workout && state === "tracking") {
     const res = advanceWorkout(workout, cur, { km: stats.km, movingSec: stats.movingSec });
@@ -91,8 +98,10 @@ export function useGuidedWorkout(
     m % 1000 === 0 ? t("tracker.guided.speak.km", { count: m / 1000 }) : t("tracker.guided.speak.metres", { count: m }), [t]);
   // Seconds spoken as "4 35" (two-digit), which TTS reads naturally in every
   // locale — "4:35" is read as a clock time by some voices.
-  const spokenPace = useCallback((pace: number) =>
-    t("tracker.guided.speak.pace", { min: Math.floor(pace / 60), sec: String(Math.round(pace % 60)).padStart(2, "0") }), [t]);
+  const spokenPace = useCallback((pace: number) => t("tracker.guided.speak.pace", paceParts(pace)), [t]);
+  const shortPace = useCallback((pace: number) => t("tracker.guided.speak.paceShort", paceParts(pace)), [t]);
+  const spokenKm = useCallback((km: number) =>
+    km.toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), [lang]);
 
   const announceFor = useCallback((step: WorkoutStep): string => {
     const mins = step.sec != null ? Math.round(step.sec / 60) : 0;
@@ -104,13 +113,29 @@ export function useGuidedWorkout(
       case "recover": return step.m != null
         ? t("tracker.guided.speak.recoverDist", { dist: spokenDist(step.m) })
         : t("tracker.guided.speak.recoverSec", { count: step.sec });
-      default:
-        if (step.rep != null) return step.pace
-          ? t("tracker.guided.speak.rep", { rep: step.rep, reps: step.reps, dist: spokenDist(step.m || 0), pace: spokenPace(step.pace) })
-          : t("tracker.guided.speak.repNoPace", { rep: step.rep, reps: step.reps, dist: spokenDist(step.m || 0) });
+      case "steady": {
+        if (step.m != null) return step.pace
+          ? t("tracker.guided.speak.steadyDist", { dist: spokenDist(step.m), pace: spokenPace(step.pace) })
+          : t("tracker.guided.speak.steadyDistNoPace", { dist: spokenDist(step.m) });
+        if (step.sec != null) return step.pace
+          ? t("tracker.guided.speak.steadyTime", { count: mins, pace: spokenPace(step.pace) })
+          : t("tracker.guided.speak.steadyTimeNoPace", { count: mins });
+        return step.pace ? t("tracker.guided.speak.steadyTarget", { pace: spokenPace(step.pace) }) : t("tracker.guided.speak.steadyOpen");
+      }
+      default: {
+        if (step.rep != null) {
+          const dist = step.m != null ? spokenDist(step.m) : t("tracker.guided.speak.seconds", { count: step.sec });
+          return step.pace
+            ? t("tracker.guided.speak.rep", { rep: step.rep, reps: step.reps, dist, pace: spokenPace(step.pace) })
+            : t("tracker.guided.speak.repNoPace", { rep: step.rep, reps: step.reps, dist });
+        }
+        if (step.sec != null) return step.pace
+          ? t("tracker.guided.speak.tempoTime", { count: mins, pace: spokenPace(step.pace) })
+          : t("tracker.guided.speak.tempoTimeNoPace", { count: mins });
         return step.pace
           ? t("tracker.guided.speak.tempo", { count: (step.m || 0) / 1000, pace: spokenPace(step.pace) })
           : t("tracker.guided.speak.tempoNoPace", { count: (step.m || 0) / 1000 });
+      }
     }
   }, [t, spokenDist, spokenPace]);
 
@@ -129,10 +154,30 @@ export function useGuidedWorkout(
     return parts.join(" · ");
   }, [t]);
 
-  // ── side effects: cues, telemetry, the iOS one-shot schedule ─────────────
+  const calloutText = useCallback((c: CalloutContent): string => {
+    const parts: string[] = [];
+    if (c.km != null) parts.push(t("tracker.guided.speak.distDone", { km: spokenKm(c.km) }));
+    if (c.pace != null) {
+      const pace = shortPace(c.pace);
+      if (c.verdict === "on") parts.push(t("tracker.guided.speak.onPace", { pace }));
+      else if (c.verdict && c.target) parts.push(t(c.verdict === "slow" ? "tracker.guided.speak.slowBy" : "tracker.guided.speak.fastBy", { pace, target: shortPace(c.target) }));
+      else parts.push(t("tracker.guided.speak.paceIs", { pace }));
+    }
+    if (c.hr != null) parts.push(t("tracker.guided.speak.heart", { bpm: c.hr }));
+    if (c.left?.m != null) parts.push(c.left.m >= 1000
+      ? t("tracker.guided.speak.leftKm", { km: spokenKm(c.left.m / 1000) })
+      : t("tracker.guided.speak.leftM", { count: c.left.m }));
+    else if (c.left?.sec != null) parts.push(c.left.sec > 90
+      ? t("tracker.guided.speak.leftMin", { count: Math.round(c.left.sec / 60) })
+      : t("tracker.guided.speak.leftSec", { count: c.left.sec }));
+    return parts.join(" ");
+  }, [t, shortPace, spokenKm]);
+
+  // ── side effects: cues, callouts, telemetry, the iOS one-shot schedule ────
   const lastCuedIdxRef = useRef<number | null>(null); // null = nothing announced yet this run
   const doneCuedRef = useRef(false);
-  const lastPaceCueRef = useRef(0);
+  const clockRef = useRef<CalloutClock>({ lastAtSec: 0, lastKm: 0 });
+  const lastHrWarnRef = useRef(-Infinity);
   const armedDeadlineRef = useRef<number | null>(null);
   const statsRef = useRef(stats);
   useEffect(() => { statsRef.current = stats; }, [stats]);
@@ -144,7 +189,7 @@ export function useGuidedWorkout(
     const prev = prevStateFxRef.current;
     prevStateFxRef.current = state;
     if (workout && state === "tracking" && prev === "idle")
-      track("guided_workout_started", { type: String(session?.type || "") });
+      track("guided_workout_started", { type: kind, audio: audioOn });
     if (state === "stopped" || state === "idle") {
       armedDeadlineRef.current = null;
       cancelScheduledCue();
@@ -152,7 +197,8 @@ export function useGuidedWorkout(
       if (state === "idle") {
         lastCuedIdxRef.current = null;
         doneCuedRef.current = false;
-        lastPaceCueRef.current = 0;
+        clockRef.current = { lastAtSec: 0, lastKm: 0 };
+        lastHrWarnRef.current = -Infinity;
       }
     }
     // Pause freezes the moving clock — a still-armed iOS one-shot would fire
@@ -161,7 +207,7 @@ export function useGuidedWorkout(
       armedDeadlineRef.current = null;
       cancelScheduledCue();
     }
-  }, [state, workout, session]);
+  }, [state, workout, kind, audioOn]);
 
   useEffect(() => {
     if (!workout || state !== "tracking") return;
@@ -170,7 +216,7 @@ export function useGuidedWorkout(
         doneCuedRef.current = true;
         armedDeadlineRef.current = null;
         cancelScheduledCue();
-        playCue("done", t("tracker.guided.speak.done"), lang);
+        if (audioOn) playCue("done", t("tracker.guided.speak.done"), lang);
         track("guided_workout_finished", {});
       }
       return;
@@ -182,24 +228,25 @@ export function useGuidedWorkout(
     // are now, skipping the steps that flew by while JS was frozen).
     if (lastCuedIdxRef.current !== progress.idx) {
       lastCuedIdxRef.current = progress.idx;
-      playCue("step", announceFor(step), lang);
-      lastPaceCueRef.current = Date.now(); // fresh step — let pace settle
-    }
-    // Off-pace reminder, work steps only, throttled.
-    const v = paceVerdict(step, stats.curPace);
-    if ((v === "slow" || v === "fast")
-      && stats.movingSec - progress.stepStartSec >= PACE_CUE_MIN_INTO_STEP_SEC
-      && Date.now() - lastPaceCueRef.current >= PACE_CUE_EVERY_MS) {
-      lastPaceCueRef.current = Date.now();
-      playCue(v, t(v === "slow" ? "tracker.guided.speak.slow" : "tracker.guided.speak.fast"), lang);
+      if (audioOn) playCue("step", announceFor(step), lang);
+      clockRef.current = { ...clockRef.current, lastAtSec: stats.movingSec };
+    } else if (audioOn) {
+      if (hrWarnDue(step, prefs.hrWarn, liveBpm, stats.movingSec, lastHrWarnRef.current)) {
+        lastHrWarnRef.current = stats.movingSec;
+        clockRef.current = { ...clockRef.current, lastAtSec: stats.movingSec };
+        playCue("fast", t("tracker.guided.speak.hrHigh", { bpm: liveBpm }), lang);
+      } else if (calloutDue(prefs.freq, { movingSec: stats.movingSec, km: stats.km, stepElapsedSec: stats.movingSec - progress.stepStartSec }, clockRef.current)) {
+        clockRef.current = { lastAtSec: stats.movingSec, lastKm: Math.floor(stats.km) };
+        const text = calloutText(calloutContent(prefs.say, step,
+          { km: stats.km, curPace: stats.curPace, hr: liveBpm, left: stepRemaining(step, progress, stats) }, prefs.freq === "km"));
+        if (text) playCue("info", text, lang);
+      }
     }
     // iOS: arm the native one-shot for a time boundary (a standing recovery
     // produces no fixes to wake JS). Distance boundaries need a fix by
-    // definition, so nothing is armed for them. Never armed while muted —
-    // scheduleCue would no-op but the drift guard would then block the re-arm
-    // after unmute — and muting mid-step cancels the one already armed (the
-    // `muted` dep re-runs this effect on every toggle).
-    if (step.sec != null && !muted) {
+    // definition, so nothing is armed for them. Never armed with audio off,
+    // and switching it off mid-step cancels the one already armed.
+    if (step.sec != null && audioOn) {
       const remaining = stepRemaining(step, progress, stats);
       const inMs = (remaining.sec ?? 0) * 1000;
       const deadline = Date.now() + inMs;
@@ -213,7 +260,7 @@ export function useGuidedWorkout(
       armedDeadlineRef.current = null;
       cancelScheduledCue();
     }
-  }, [workout, state, progress, stats, muted, announceFor, lang, t]);
+  }, [workout, state, progress, stats, liveBpm, audioOn, prefs, announceFor, calloutText, lang, t]);
 
   // ── Android native engine: full-state re-base on every material change ────
   const seededRef = useRef(false);
@@ -226,12 +273,16 @@ export function useGuidedWorkout(
     }
     seededRef.current = true;
     const s = statsRef.current;
+    // Callout templates keep {placeholders} for the numbers only the native
+    // side knows once JS is frozen.
+    const ph = { pace: "{pace}", target: "{target}", bpm: "{bpm}", km: "{km}" };
     seedWorkoutGuide({
       steps: workout.steps.map(step => ({
         kind: step.kind,
         ...(step.m != null ? { m: step.m } : {}),
         ...(step.sec != null ? { sec: step.sec } : {}),
         ...(step.pace ? { pace: step.pace, band: step.band } : {}),
+        ...(step.hrHi != null ? { hrLo: step.hrLo, hrHi: step.hrHi } : {}),
         announce: announceFor(step),
         notif: [labelFor(step), detailFor(step)].filter(Boolean).join(" · "),
       })),
@@ -243,29 +294,40 @@ export function useGuidedWorkout(
       movingSec: s.movingSec,
       tracking: state === "tracking",
       finished: progress.done,
-      muted,
+      muted: !audioOn,
       lang,
+      callout: {
+        freqSec: prefs.freq === "km" ? 0 : prefs.freq,
+        say: prefs.say,
+        hrWarn: prefs.hrWarn === "off" ? -1 : prefs.hrWarn,
+      },
+      decimalSep: (1.5).toLocaleString(lang).charAt(1),
       texts: {
         notifTitle: t("tracker.guided.notifTitle"),
         done: t("tracker.guided.speak.done"),
-        fast: t("tracker.guided.speak.fast"),
-        slow: t("tracker.guided.speak.slow"),
+        pace: t("tracker.guided.speak.paceShort", { min: "{min}", sec: "{sec}" }),
+        onPace: t("tracker.guided.speak.onPace", ph),
+        slowBy: t("tracker.guided.speak.slowBy", ph),
+        fastBy: t("tracker.guided.speak.fastBy", ph),
+        paceIs: t("tracker.guided.speak.paceIs", ph),
+        heart: t("tracker.guided.speak.heart", ph),
+        distDone: t("tracker.guided.speak.distDone", ph),
+        leftKm: t("tracker.guided.speak.leftKm", ph),
+        leftMOne: t("tracker.guided.speak.leftM_one", { count: "{n}" }),
+        leftMOther: t("tracker.guided.speak.leftM_other", { count: "{n}" }),
+        leftSecOne: t("tracker.guided.speak.leftSec_one", { count: "{n}" }),
+        leftSecOther: t("tracker.guided.speak.leftSec_other", { count: "{n}" }),
+        leftMinOther: t("tracker.guided.speak.leftMin_other", { count: "{n}" }),
+        hrHigh: t("tracker.guided.speak.hrHigh", ph),
       },
     });
-  }, [workout, state, progress, muted, lang, announceFor, labelFor, detailFor, t]);
+  }, [workout, state, progress, audioOn, prefs, lang, announceFor, labelFor, detailFor, t]);
 
   // Tear down everything native on unmount (header go-Home mid-run).
   useEffect(() => () => {
     cancelScheduledCue();
     releaseCues();
     if (seededRef.current) clearWorkoutGuide();
-  }, []);
-
-  const toggleMute = useCallback(() => {
-    setMuted(m => {
-      setCuesMuted(!m);
-      return !m;
-    });
   }, []);
 
   // ── display state (derived at render; cheap) ──────────────────────────────
@@ -279,17 +341,28 @@ export function useGuidedWorkout(
     const next = cur.done ? null : stepAt(workout, cur.idx + 1);
     const label = labelFor(step);
     const detail = detailFor(step);
+    const live = state === "tracking" && !cur.done;
     return {
       step,
       label,
       detail,
       remaining: cur.done ? {} : stepRemaining(step, cur, stats),
       nextLabel: next ? [labelFor(next), detailFor(next)].filter(Boolean).join(" · ") : null,
-      verdict: state === "tracking" && !cur.done ? paceVerdict(step, stats.curPace) : null,
+      verdict: live ? paceVerdict(step, stats.curPace) : null,
+      hrHigh: live && hrOver(step, liveBpm),
       finished: cur.done,
       stepText: cur.done ? t("tracker.guided.doneShort") : [label, detail].filter(Boolean).join(" · "),
     };
-  }, [workout, cur, stats, state, labelFor, detailFor, t]);
+  }, [workout, cur, stats, liveBpm, state, labelFor, detailFor, t]);
 
-  return { guidable: !!compiled, active: !!workout, display, muted, toggleMute };
+  // The audio sheet's "Hear it": a mid-run callout for this workout, with made-up numbers.
+  const sample = useCallback((p: AudioPrefs): string => {
+    const step: WorkoutStep = workout?.steps.find(x => x.kind === "work" || x.kind === "steady" || x.kind === "run") ?? { kind: "steady" };
+    const left = step.m != null ? { m: Math.round(step.m / 2) } : step.sec != null ? { sec: Math.round(step.sec / 2) } : {};
+    const hr = step.hrLo != null && step.hrHi != null ? Math.round((step.hrLo + step.hrHi) / 2) : 148;
+    return calloutText(calloutContent(p.say, step,
+      { km: 4.2, curPace: step.pace ? step.pace + 3 : 338, hr, left }, p.freq === "km"));
+  }, [workout, calloutText]);
+
+  return { active: !!workout, display, sample };
 }
