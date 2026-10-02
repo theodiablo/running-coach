@@ -64,6 +64,7 @@ class WorkoutGuidePlugin : Plugin() {
         private const val CALLOUT_MIN_INTO_STEP_SEC = 20.0
         private const val HR_WARN_EVERY_SEC = 45.0
         private const val HR_STALE_MS = 12_000L
+        private const val PACE_FRESH_MS = 10_000L
         // Self-expiry: without a fresh seed the guide must not outlive the run
         // that armed it (matches the recovery buffer's live window).
         private const val SEED_MAX_AGE_MS = 6 * 3600_000L
@@ -109,6 +110,7 @@ class WorkoutGuidePlugin : Plugin() {
     private var hrWarn = 0.0
     private var seedAtMs = 0L
     private var lastCurPace = 0.0
+    private var lastFixWall = 0L
     // Callout clock, native-owned like the announcement dedupe: JS never
     // speaks on Android, so only a fresh run resets it.
     private var lastCalloutSec = 0.0
@@ -129,7 +131,9 @@ class WorkoutGuidePlugin : Plugin() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var ttsLang = ""
-    private var pendingPreview: String? = null
+    // Spoken once TTS finishes initializing — a cold engine must not swallow
+    // the run's opening announcement (or a preview).
+    private var pendingSpeech: String? = null
     private var toneGen: ToneGenerator? = null
 
     override fun load() {
@@ -214,7 +218,7 @@ class WorkoutGuidePlugin : Plugin() {
         val lang = call.getString("lang") ?: "en"
         handler.post {
             ensureTts(lang)
-            if (ttsReady) speakNow(text) else pendingPreview = text
+            speakNow(text)
         }
         call.resolve()
     }
@@ -269,13 +273,8 @@ class WorkoutGuidePlugin : Plugin() {
         seedAtMs = System.currentTimeMillis()
         val wasEnabled = enabled
         enabled = true
-        // A seed that moved the engine backwards is a fresh run — start the
-        // announcement dedupe and callout clock over. Same-idx re-seeds
-        // (pause/resume/audio toggle) keep both, so they stay silent.
-        if (announcedIdx > idx) {
-            announcedIdx = -1
-            resetCalloutClock()
-        }
+        // Dedupe and callout clock survive every re-seed (pause/resume, audio
+        // toggle, a JS re-base that trails this fold); only teardown resets them.
         // First seed of a run (or a recovered one): per-km callouts count from here.
         if (!wasEnabled) lastCalloutKm = floor(km).toInt()
         if (!finished) doneCued = false
@@ -283,7 +282,7 @@ class WorkoutGuidePlugin : Plugin() {
         // Announce the step the seed landed on if nothing has voiced it yet —
         // the opening warm-up right after Go, and a foreground transition
         // where the JS re-base beat the LIVE_FIX broadcast to the boundary.
-        if (tracking && !finished && announcedIdx != idx) {
+        if (tracking && !finished && idx > announcedIdx) {
             announcedIdx = idx
             stepAt(idx)?.let { cue(ToneGenerator.TONE_PROP_BEEP2, it.announce) }
             lastCalloutSec = currentMovingSec()
@@ -307,6 +306,7 @@ class WorkoutGuidePlugin : Plugin() {
         announcedIdx = -1
         resetCalloutClock()
         lastCurPace = 0.0
+        lastFixWall = 0L
         doneCued = false
         handler.removeCallbacks(deadline)
         try { tts?.stop() } catch (ignored: RuntimeException) {}
@@ -332,6 +332,7 @@ class WorkoutGuidePlugin : Plugin() {
             movingAnchorWall = now
         }
         lastCurPace = intent.getDoubleExtra("curPaceSecPerKm", 0.0)
+        lastFixWall = now
         evaluate()
     }
 
@@ -369,7 +370,7 @@ class WorkoutGuidePlugin : Plugin() {
             if (finished) {
                 doneCued = true
                 cue(ToneGenerator.TONE_PROP_ACK, doneText)
-            } else if (announcedIdx != idx) {
+            } else if (idx > announcedIdx) {
                 announcedIdx = idx
                 stepAt(idx)?.let { cue(ToneGenerator.TONE_PROP_BEEP2, it.announce) }
                 lastCalloutSec = nowMoving
@@ -408,7 +409,9 @@ class WorkoutGuidePlugin : Plugin() {
     private fun calloutText(step: Step, nowMoving: Double, bpm: Int?, perKm: Boolean): String {
         val parts = ArrayList<String>()
         if (sayDist || perKm) parts.add(fill("distDone", "km" to oneDecimal(km)))
-        if (sayPace && lastCurPace > 0) {
+        // A standing runner emits no fixes: their last pace is not their pace now.
+        val freshPace = System.currentTimeMillis() - lastFixWall <= PACE_FRESH_MS
+        if (sayPace && lastCurPace > 0 && freshPace) {
             val pace = spokenPace(lastCurPace)
             val p = step.pace
             val b = step.band
@@ -479,8 +482,8 @@ class WorkoutGuidePlugin : Plugin() {
                     handler.post {
                         ttsReady = status == TextToSpeech.SUCCESS
                         applyTtsLang()
-                        pendingPreview?.let { speakNow(it) }
-                        pendingPreview = null
+                        pendingSpeech?.let { speakNow(it) }
+                        pendingSpeech = null
                     }
                 }
             } catch (e: Exception) {
@@ -521,11 +524,12 @@ class WorkoutGuidePlugin : Plugin() {
             }
         } catch (ignored: RuntimeException) {
         }
-        if (ttsReady) speakNow(text)
+        speakNow(text)
     }
 
     private fun speakNow(text: String) {
         if (text.isEmpty()) return
+        if (!ttsReady) { pendingSpeech = text; return }
         try {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "workout-cue")
         } catch (ignored: RuntimeException) {
