@@ -130,7 +130,11 @@ i18n on the native sides.
 - **iOS**: the `AudioCue` plugin (`ios/App/App/AudioCuePlugin.swift`) — tones
   synthesized with the SAME patterns as web, `AVSpeechSynthesizer`, on an
   `.playback`/`.voicePrompt` session with `duckOthers` activated per cue and
-  released after (music ducks for the prompt only). JS keeps running under
+  released after (music ducks for the prompt only). Speaking from the
+  background needs the `audio` background mode (Info.plist): the session is
+  released between cues, and iOS won't re-activate playback for a backgrounded
+  app without it. It is declared for spoken run guidance, which App Review
+  notes should say. JS keeps running under
   background location on iOS, so cues stay JS-driven — except a time boundary
   a stationary runner won't produce a fix for: the hook arms ONE native
   one-shot (`schedule`, re-armed on drift >2.5s, disarmed on pause) so
