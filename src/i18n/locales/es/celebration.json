@@ -1,0 +1,155 @@
+{
+  "head": {
+    "run": {
+      "r1": "¡Así se hace!",
+      "r2": "¡Buen entrenamiento!",
+      "r3": "¡Qué esfuerzo!",
+      "r4": "Uno más en el bolsillo",
+      "r5": "¡Mírate!",
+      "r6": "Listo y terminado",
+      "r7": "¡Gran final!",
+      "r8": "Saliste, y eso es lo más difícil.",
+      "r9": "Piernas: entrenadas. Cabeza: despejada.",
+      "r10": "Uno más para el registro",
+      "r11": "Así es como se hace",
+      "r12": "Bum. Entrenamiento completo.",
+      "r13": "Buen trabajo ahí fuera",
+      "r14": "Este te lo ganaste",
+      "r15": "¡Bien corrido!",
+      "r16": "Tu yo del futuro te lo agradece",
+      "r17": "Kilómetros en las piernas",
+      "r18": "¡Lo clavaste!",
+      "r19": "¡Muy bien!",
+      "r20": "¡Y listo!",
+      "r21": "¡Choca esos cinco!",
+      "r22": "Entrenamiento: hecho. Ánimo: por las nubes.",
+      "r23": "¡Lo lograste!",
+      "r24": "Este sí que da orgullo.",
+      "r25": "¡Lo diste todo!",
+      "r26": "Cada paso contó",
+      "r27": "¡Y uno más!",
+      "r28": "Aire fresco: conseguido",
+      "r29": "Un paso más hacia adelante",
+      "r30": "¡Mira quién acaba de salir a correr!"
+    },
+    "early": {
+      "e1": "¡A primera hora!",
+      "e2": "¡Arriba y a por ello!",
+      "e3": "Hecho antes del café de casi todos",
+      "e4": "Qué manera de empezar el día",
+      "e5": "El día ya es un éxito"
+    },
+    "night": {
+      "n1": "¡Kilómetros bajo las estrellas!",
+      "n2": "Terminando el día a lo grande",
+      "n3": "Kilómetros nocturnos en el bolsillo",
+      "n4": "Que descanses. Te lo ganaste.",
+      "n5": "Día terminado, entrenamiento hecho"
+    },
+    "short": {
+      "s1": "Cada entrenamiento cuenta",
+      "s2": "Corto pero bueno",
+      "s3": "Un poco ya es mucho",
+      "s4": "Moverse es ganar",
+      "s5": "¡Eso cuenta!",
+      "s6": "Una salida cortita y bonita"
+    },
+    "pb": {
+      "p1": "¡Cada vez más rápido!",
+      "p2": "¡Mira ese tiempo!",
+      "p3": "Algo especial acaba de pasar",
+      "p4": "¡Nivel récord!",
+      "p5": "¡Más rápido que nunca!",
+      "p6": "¡Nuevo récord personal!"
+    },
+    "indoor": {
+      "i1": "¡Gran sesión!",
+      "i2": "¡Buen trabajo!",
+      "i3": "Sudor: ganado",
+      "i4": "Eso sí que es un buen entrenamiento",
+      "i5": "Listo y terminado",
+      "i6": "¡Así se hace!",
+      "i7": "¡Sesión potente!",
+      "i8": "Te pusiste a ello, y eso es lo más difícil.",
+      "i9": "Buen trabajo ahí dentro",
+      "i10": "¡Bien merecido!"
+    },
+    "rare": {
+      "x1": "¡Eres una superestrella!",
+      "x2": "Leyenda absoluta.",
+      "x3": "Esto es de salón de la fama",
+      "x4": "El camino llamó y tú respondiste.",
+      "x5": "En algún lugar, un comentarista se acaba de quedar sin voz",
+      "x6": "Nivel heroico: certificado"
+    }
+  },
+  "fact": {
+    "first": {
+      "a": "Tu primer entrenamiento con la app. ¡Que vengan muchos más!",
+      "b": "¡El entrenamiento número uno ya está registrado!"
+    },
+    "count": {
+      "a": "¡Es tu entrenamiento número {{n}}!",
+      "b": "{{n}} entrenamientos registrados y contando"
+    },
+    "total": {
+      "a": "¡Acabas de superar los {{km}} km en total!",
+      "b": "{{km}} km desde el principio. Nada mal."
+    },
+    "longest": {
+      "a": "{{km}} km: tu entrenamiento más largo hasta ahora",
+      "b": "Tu entrenamiento más largo de siempre: ¡{{km}} km!",
+      "c": "Nunca habías corrido tanto. ¡{{km}} km!"
+    },
+    "longestTime": {
+      "a": "{{dur}} corriendo: tu entrenamiento más largo hasta ahora",
+      "b": "Tu entrenamiento más largo en tiempo: {{dur}}"
+    },
+    "recentLongest": {
+      "a": "Tu entrenamiento más largo de las últimas 8 semanas",
+      "b": "Lo más lejos que has ido en un buen tiempo: {{km}} km"
+    },
+    "climb": {
+      "a": "{{m}} m de desnivel, tu máximo hasta ahora",
+      "b": "Nuevo récord de subida: {{m}} m"
+    },
+    "week": {
+      "a": "{{km}} km esta semana: tu semana más grande",
+      "b": "Tu mejor semana hasta ahora: {{km}} km y sumando"
+    },
+    "quicker": {
+      "a": "Más rápido que tu ritmo habitual para esta distancia",
+      "b": "{{pace}}/km, más rápido de lo habitual para esta distancia"
+    },
+    "negSplit": {
+      "a": "Segunda mitad más rápida que la primera. De manual.",
+      "b": "Terminaste más fuerte de lo que empezaste",
+      "c": "¡Negative split! Lo mejor para el final."
+    },
+    "comeback": {
+      "a": "¡Qué bueno verte de vuelta!",
+      "b": "El primero en {{days}} días. ¡Qué alegría tenerte de vuelta!",
+      "c": "De vuelta. Eso es lo que cuenta."
+    },
+    "session": {
+      "EASY": "Rodaje suave del plan: hecho",
+      "TEMPO": "Sesión de tempo: completada",
+      "INTERVALS": "Series hechas. Lo más duro ya pasó.",
+      "LONG": "Tirada larga en el bolsillo",
+      "WALK": "Caminata del plan: hecha",
+      "RACE": "Día de carrera: ¡hecho! Qué día."
+    },
+    "indoorFirst": {
+      "a": "Tu primera sesión indoor. ¡Buen comienzo!"
+    },
+    "indoorLongest": {
+      "a": "{{dur}}: tu sesión indoor más larga",
+      "b": "La sesión indoor más larga hasta ahora: {{dur}}"
+    }
+  },
+  "summary": "{{km}} km · {{dur}} · {{pace}}/km",
+  "summaryIndoor": "{{dur}}",
+  "continue": "Continuar",
+  "tapHint": "Toca para ver tu resumen",
+  "rareTag": "Mensaje raro: 1 de cada 100"
+}

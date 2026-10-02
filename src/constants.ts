@@ -33,6 +33,10 @@ export const INDOOR_RUN_KEY = "rc_indoor_run";
 // the gym they're standing in, not their account.
 export const INDOOR_ACTIVITY_KEY = "rc_indoor_activity";
 
+// Per-device memory of the finish-screen lines shown lately, so the next run
+// draws something different. A convenience: losing it only allows a repeat.
+export const CELEBRATION_RECENT_KEY = "rc_celebration_recent";
+
 // How fresh the buffer must be to count as possibly still ON THE AIR (live
 // sharing): past this window the publisher sweeps a leftover broadcast and the
 // watcher stops treating the run as live (useLiveRun). The recovery OFFER is

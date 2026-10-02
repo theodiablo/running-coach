@@ -27,6 +27,8 @@ type LogPrefill = Partial<Run> & {
   // can be declined here; a chosen session has already been decided.
   sessionOffered?: boolean;
   hrPending?: HrPending | null;
+  // The recorder's finish screen already showed this run's best efforts.
+  celebrated?: boolean;
 };
 
 // The manual run form, and — as its own screen, never alongside it — the file
@@ -36,7 +38,7 @@ type LogPrefill = Partial<Run> & {
 // logging a plan session, reviewing something a recorder just captured
 // (`prefill.source`), and importing a file.
 type LogViewProps = {
-  addRuns: (runs: Partial<Run>[]) => Run[];
+  addRuns: (runs: Partial<Run>[], opts?: { celebrated?: boolean }) => Run[];
   onDone: () => void;
   // The saved runs (with their minted ids) and the plan session the save
   // settles, if any — the hub ticks it off and records which run did it.
@@ -112,7 +114,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       // runs" — carryPrefill ends that class of bug.
       ...carryPrefill(prefill),
       ...runFormToPatch(f),
-    }]);
+    }], { celebrated: !!prefill?.celebrated });
     setBusy(false); onSaved?.(saved || [], link); onDone();
   };
 

@@ -1,0 +1,155 @@
+{
+  "head": {
+    "run": {
+      "r1": "Way to go!",
+      "r2": "Nice run!",
+      "r3": "Great effort!",
+      "r4": "That's one in the bank",
+      "r5": "Look at you go!",
+      "r6": "Done and dusted",
+      "r7": "Strong finish!",
+      "r8": "You showed up. That's the hard part.",
+      "r9": "Legs: worked. Head: cleared.",
+      "r10": "Another one for the log",
+      "r11": "That's how it's done",
+      "r12": "Boom. Run complete.",
+      "r13": "Solid work out there",
+      "r14": "You earned this one",
+      "r15": "Well run!",
+      "r16": "Future you says thanks",
+      "r17": "Kilometres in the legs",
+      "r18": "Nailed it!",
+      "r19": "Good stuff!",
+      "r20": "That's a wrap!",
+      "r21": "High five!",
+      "r22": "Run: done. Feeling: great.",
+      "r23": "You did the thing!",
+      "r24": "Proud of that one? You should be.",
+      "r25": "Crushed it!",
+      "r26": "Every step counted",
+      "r27": "And that's a run!",
+      "r28": "Fresh air: collected",
+      "r29": "One more step forward",
+      "r30": "Look who just went for a run!"
+    },
+    "early": {
+      "e1": "Early bird!",
+      "e2": "Up and at it!",
+      "e3": "Done before most people's coffee",
+      "e4": "What a way to start the day",
+      "e5": "The day's already a win"
+    },
+    "night": {
+      "n1": "Night owl run!",
+      "n2": "Ending the day on a high",
+      "n3": "Late kilometres in the bag",
+      "n4": "Sleep well. You've earned it.",
+      "n5": "Day done, run done"
+    },
+    "short": {
+      "s1": "Every run counts",
+      "s2": "Short and sweet",
+      "s3": "A little goes a long way",
+      "s4": "Moving is winning",
+      "s5": "That counts!",
+      "s6": "Nice little outing"
+    },
+    "pb": {
+      "p1": "You're getting faster!",
+      "p2": "Look at that time!",
+      "p3": "Something special just happened",
+      "p4": "Record-breaking stuff!",
+      "p5": "Faster than ever!",
+      "p6": "New personal best!"
+    },
+    "indoor": {
+      "i1": "Great session!",
+      "i2": "Nice work!",
+      "i3": "Sweat: earned",
+      "i4": "That's a solid workout",
+      "i5": "Done and dusted",
+      "i6": "Way to go!",
+      "i7": "Strong session!",
+      "i8": "You showed up. That's the hard part.",
+      "i9": "Good work in there",
+      "i10": "Well earned!"
+    },
+    "rare": {
+      "x1": "You're a superstar!",
+      "x2": "Absolute legend.",
+      "x3": "Hall of fame stuff right there",
+      "x4": "The road called. You answered.",
+      "x5": "Somewhere, a commentator just lost their voice",
+      "x6": "Certified running hero"
+    }
+  },
+  "fact": {
+    "first": {
+      "a": "Your first run with the app. Here's to many more!",
+      "b": "Run number one is on the board!"
+    },
+    "count": {
+      "a": "That's run number {{n}} in your log!",
+      "b": "{{n}} runs logged and counting"
+    },
+    "total": {
+      "a": "You just passed {{km}} km in total!",
+      "b": "{{km}} km all-time. Look at that."
+    },
+    "longest": {
+      "a": "{{km}} km: your longest run yet",
+      "b": "Longest run ever: {{km}} km!",
+      "c": "You've never run this far before. {{km}} km!"
+    },
+    "longestTime": {
+      "a": "{{dur}} on your feet: your longest run yet",
+      "b": "Your longest run by time: {{dur}}"
+    },
+    "recentLongest": {
+      "a": "Your longest run in the last 8 weeks",
+      "b": "Longest run in a good while: {{km}} km"
+    },
+    "climb": {
+      "a": "{{m}} m of climbing, your most yet",
+      "b": "A new climbing high: {{m}} m up"
+    },
+    "week": {
+      "a": "{{km}} km this week: your biggest week so far",
+      "b": "Biggest week yet: {{km}} km and counting"
+    },
+    "quicker": {
+      "a": "Quicker than your usual pace for this distance",
+      "b": "{{pace}}/km, faster than you usually run this far"
+    },
+    "negSplit": {
+      "a": "Second half faster than the first. Textbook.",
+      "b": "You finished stronger than you started",
+      "c": "Negative split! Saved the best for last."
+    },
+    "comeback": {
+      "a": "Welcome back! Good to see you out there.",
+      "b": "First one in {{days}} days. Great to have you back.",
+      "c": "Back at it. That's what counts."
+    },
+    "session": {
+      "EASY": "Easy run from your plan: done",
+      "TEMPO": "Tempo session: ticked off",
+      "INTERVALS": "Intervals done. The hard part's behind you.",
+      "LONG": "Long run in the bag",
+      "WALK": "Planned walk: done",
+      "RACE": "Race day: done! What a day."
+    },
+    "indoorFirst": {
+      "a": "Your first indoor session. Nice start!"
+    },
+    "indoorLongest": {
+      "a": "{{dur}}: your longest indoor session yet",
+      "b": "Longest indoor session so far: {{dur}}"
+    }
+  },
+  "summary": "{{km}} km · {{dur}} · {{pace}}/km",
+  "summaryIndoor": "{{dur}}",
+  "continue": "Continue",
+  "tapHint": "Tap to see your summary",
+  "rareTag": "Rare one: 1 in 100"
+}

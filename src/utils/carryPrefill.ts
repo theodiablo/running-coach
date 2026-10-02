@@ -19,8 +19,9 @@ const FORM_OWNED = new Set([
 
 // Not run data: `pace` is a display hint, `session`/`sessionOffered` name the
 // plan session the save ticks off and how it got there (RunningCoach consumes
-// them from the prefill), and `id` is minted by addRuns.
-const NOT_RUN_DATA = new Set(["pace", "session", "sessionOffered", "id"]);
+// them from the prefill), `celebrated` says the recorder already showed this
+// run's best efforts, and `id` is minted by addRuns.
+const NOT_RUN_DATA = new Set(["pace", "session", "sessionOffered", "celebrated", "id"]);
 
 export function carryPrefill(prefill: Partial<Run> | null | undefined): Partial<Run> {
   if (!prefill) return {};
