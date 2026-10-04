@@ -970,7 +970,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
               <RecorderOptionRow ref={audioRowRef} onOpen={() => { setSheet("audio"); setTourStep(null); }}
                 className={"rounded-t-xl " + (showTour && tourStep === 1 ? SPOTLIGHT_CLS : "")}
                 icon={audioOn ? <Volume2 size={16} className="text-orange-400" /> : <VolumeX size={16} className="text-slate-400" />}
-                title={t("tracker.audio.title")} status={audioStatus} tone={audioOn ? "on" : "off"} />
+                title={t("tracker.audio.title")} badge={<BetaBadge label={t("app.beta")} />} status={audioStatus} tone={audioOn ? "on" : "off"} />
               <RecorderOptionRow onOpen={() => setSheet("share")}
                 className={routeRowShown ? "" : "rounded-b-xl"}
                 icon={<Radio size={16} className={shareLive ? "text-emerald-300" : "text-slate-400"} />}
