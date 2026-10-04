@@ -101,6 +101,15 @@ today; that limitation is understood and accepted for v1.
   restores reminders after a reboot, plus `POST_NOTIFICATIONS` and `WAKE_LOCK`
   that we already declared.)
 
+### What a reminder shows
+
+The collapsed line is type · distance · expected time (`estMin`, the same
+`~48 min` the Dashboard card shows); the expanded `largeBody` adds the session
+sentence. Distance/time drop out when `km` is 0 (cross-training). Android's
+small icon is `drawable/ic_stat_notify`, a white silhouette of the launcher mark
+(the status bar renders alpha only); without it the plugin falls back to the
+system "i" icon.
+
 ### The one rescheduling seam
 
 `plan` is mutated from six places in `src/RunningCoach.tsx` (boot, `savePlan`,

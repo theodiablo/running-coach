@@ -116,6 +116,19 @@ describe("reminderSchedule", () => {
     expect(r.body).toContain("km");
   });
 
+  it("puts the distance and expected time on the collapsed line", () => {
+    const r = reminderSchedule(planOf([sess("a", "2026-03-14", {km: 8, pace: 360})]), on, now)[0];
+    expect(r.body).toContain("8 km");
+    expect(r.body).toContain("~48 min");
+    expect(r.largeBody.startsWith(r.body)).toBe(true);
+  });
+
+  it("omits distance and time when the session has none", () => {
+    const r = reminderSchedule(planOf([sess("x", "2026-03-14", {type: "OTHER", km: 0, pace: null})]), on, now)[0];
+    expect(r.body).not.toContain("km");
+    expect(r.body).not.toContain("~");
+  });
+
   it("is idempotent — same inputs, same ids and times", () => {
     const plan = planOf([sess("a", "2026-03-12"), sess("b", "2026-03-15")]);
     const a = reminderSchedule(plan, on, now);

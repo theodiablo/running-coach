@@ -1,5 +1,6 @@
 import { t } from "../i18n";
 import { describeSession } from "./sessionDesc";
+import { estMin } from "./format";
 import type { Plan, PlanSession, SettingsState } from "../types";
 
 // Pure scheduling math for plan-session reminders. Device-free on purpose: the
@@ -19,7 +20,9 @@ export type ScheduledReminder = {
   at: Date;
   sessionId: string;
   title: string;
+  // Collapsed line: type, distance, expected time. largeBody adds the session sentence.
   body: string;
+  largeBody: string;
 };
 
 export const DEFAULT_REMINDER_PREFS: ReminderPrefs = {enabled: false, time: "18:00", leadDays: 1};
@@ -71,7 +74,10 @@ export function fireAt(date: string, prefs: ReminderPrefs): Date {
 function textFor(s: PlanSession, prefs: ReminderPrefs) {
   const title = prefs.leadDays === 1 ? t("reminders.notif.tomorrow") : t("reminders.notif.today");
   const type = t("common.types." + s.type, {defaultValue: String(s.type)});
-  return {title, body: type + " · " + describeSession(s)};
+  const km = Number(s.km) || 0;
+  const est = estMin(km, Number(s.pace) || 0);
+  const body = [type, km > 0 ? km + " km" : "", est ? "~" + est : ""].filter(Boolean).join(" · ");
+  return {title, body, largeBody: body + "\n" + describeSession(s)};
 }
 
 // Every reminder that should currently be pending, soonest first.
@@ -92,8 +98,8 @@ export function reminderSchedule(
       if (s.done || s.skipped || !s.date) continue;
       const at = fireAt(s.date, prefs);
       if (at.getTime() <= now.getTime()) continue;
-      const {title, body} = textFor(s, prefs);
-      out.push({id: reminderId(s.id), at, sessionId: s.id, title, body});
+      const {title, body, largeBody} = textFor(s, prefs);
+      out.push({id: reminderId(s.id), at, sessionId: s.id, title, body, largeBody});
     }
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, Math.max(0, max));
