@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   hrZoneBpm, sessionHR, runZoneIndex, parseHrMeasurement, hrSummary, SESSION_ZONES,
-  tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones,
+  tanakaMaxHR, deriveAge, runnerAge, effectiveMaxHR, timeInZones, zonePercents,
   hrMeasuredSec, hrCoverage, mergeHrSamples, compactHrSamples, expandHrSamples, HR_KEEPALIVE_MS, isHrStale, HR_STALE_MS, liveHrStatusLine,
 } from "./hr";
 
@@ -165,6 +165,19 @@ describe("hrSummary", () => {
   it("returns nulls for an empty/absent stream", () => {
     expect(hrSummary([])).toEqual({ hr: null, hrAvg: null, hrMax: null });
     expect(summarize(undefined)).toEqual({ hr: null, hrAvg: null, hrMax: null });
+  });
+});
+
+describe("zonePercents", () => {
+  it("rounds to whole percents that always sum to 100", () => {
+    expect(zonePercents([1, 1, 1, 0, 0])).toEqual([34, 33, 33, 0, 0]);
+    expect(zonePercents([600, 1800, 900, 300, 0])).toEqual([17, 50, 25, 8, 0]);
+    const p = zonePercents([7, 13, 29, 41, 3]);
+    expect(p.reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
+  it("returns zeros for an empty total", () => {
+    expect(zonePercents([0, 0, 0, 0, 0])).toEqual([0, 0, 0, 0, 0]);
   });
 });
 
