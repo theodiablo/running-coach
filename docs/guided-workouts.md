@@ -71,6 +71,9 @@ distance, what's left), `freeOn`.
 - `calloutContent` decides what the sentence holds; the hook words it
   (`tracker.guided.speak.*`). The old 25 s "too fast / too slow" nag is gone —
   the verdict lives inside the callout.
+- What's left leads with its marker ("Still… to go", "Encore", "Quedan") and
+  distance done says "done": heard mid-run, a sentence opening on a bare number
+  reads as distance covered (`calloutTemplates.test.ts`).
 - "Hear it" plays `guide.sample(prefs)` through `previewCue` (Android: the
   plugin's `preview`, since JS cues are silent there).
 
