@@ -19,4 +19,16 @@ describe("native callout templates", () => {
     for (const k of ["leftM_one", "leftM_other", "leftSec_one", "leftSec_other", "leftMin_other"])
       expect(t(`tracker.guided.speak.${k}`, { count: "{n}" })).toContain("{n}");
   });
+
+  // Heard mid-run, a sentence that opens on a bare number reads as distance done.
+  it.each(["en", "fr", "es"] as const)("%s says what's left before the number, and marks distance done", async (lng) => {
+    await setLocale(lng, { persist: false });
+    const t = i18n.getFixedT(lng);
+    const ph = { km: "{km}" };
+    for (const k of ["leftKm_one", "leftKm_other"]) expect(t(`tracker.guided.speak.${k}`, ph)).not.toMatch(/^\{km\}/);
+    for (const k of ["leftM_other", "leftSec_other", "leftMin_other"])
+      expect(t(`tracker.guided.speak.${k}`, { count: "{n}" })).not.toMatch(/^\{n\}/);
+    const done = t("tracker.guided.speak.distDone_other", ph);
+    expect(done).not.toMatch(/^\{km\} \S+\.$/);
+  });
 });

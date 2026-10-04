@@ -184,8 +184,8 @@
       "runSec_other": "Corre durante {{count}} segundos.",
       "walkSec_one": "Camina durante {{count}} segundo.",
       "walkSec_other": "Camina durante {{count}} segundos.",
-      "distDone_one": "{{km}} kilómetro.",
-      "distDone_other": "{{km}} kilómetros.",
+      "distDone_one": "{{km}} kilómetro recorrido.",
+      "distDone_other": "{{km}} kilómetros recorridos.",
       "leftKm_one": "Queda {{km}} kilómetro.",
       "leftKm_other": "Quedan {{km}} kilómetros."
     },

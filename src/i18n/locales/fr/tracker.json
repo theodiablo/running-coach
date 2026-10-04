@@ -184,8 +184,8 @@
       "runSec_other": "Cours pendant {{count}} secondes.",
       "walkSec_one": "Marche pendant {{count}} seconde.",
       "walkSec_other": "Marche pendant {{count}} secondes.",
-      "distDone_one": "{{km}} kilomètre.",
-      "distDone_other": "{{km}} kilomètres.",
+      "distDone_one": "{{km}} kilomètre parcouru.",
+      "distDone_other": "{{km}} kilomètres parcourus.",
       "leftKm_one": "Encore {{km}} kilomètre.",
       "leftKm_other": "Encore {{km}} kilomètres."
     },
