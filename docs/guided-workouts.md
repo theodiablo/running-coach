@@ -54,6 +54,9 @@ leeway) and `hrLo`/`hrHi` (zone → bpm by `zoneBpm`, Karvonen on the profile).
 
 ## Audio guidance — callouts (`src/utils/callout.ts`)
 
+Beta: the recorder's audio row and `AudioGuideSheet` carry `BetaBadge`, and the
+sheet asks for feedback through the Feedback button. Drop both once it's proven.
+
 `AudioPrefs` (`settings.audioGuide`, synced, read through `readAudioPrefs`):
 `freq` (30/60/90/120 s or each km; default 60 s), `band` (± s/km, default 10),
 `hrWarn` (`"off"`, above the zone, or 5 bpm above), `say` (pace, heart rate,

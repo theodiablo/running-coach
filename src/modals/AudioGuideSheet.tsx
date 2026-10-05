@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Play } from "lucide-react";
 import { RecorderSheet, Segmented, SheetLabel, Stepper } from "../components/RecorderSheet";
 import { ToggleSwitch } from "../components/ToggleSwitch";
+import { BetaBadge } from "../components/BetaBadge";
 import { fmt } from "../utils/format";
 import { BAND_MAX, BAND_MIN, CALLOUT_FREQS, HR_WARNS, type AudioPrefs, type CalloutParts } from "../utils/callout";
 
@@ -30,7 +31,9 @@ export function AudioGuideSheet({ on, prefs, pace, hr, hasHrSensor, sample, onTo
 
   return (
     <RecorderSheet title={t("tracker.audio.title")} onClose={onClose}
+      badge={<BetaBadge label={t("app.beta")} />}
       headerRight={<ToggleSwitch on={on} onToggle={onToggle} label={t("tracker.audio.title")} />}>
+      <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">{t("tracker.audio.betaNote", { button: t("feedback.button") })}</p>
       {!on ? (
         <p className="py-6 text-center text-sm text-slate-400">{t("tracker.audio.offBody")}</p>
       ) : (

@@ -5,8 +5,9 @@ import { useDismissable } from "../hooks/useDismissable";
 // The bottom sheet every recorder setting opens into (today's run, audio
 // guidance, live sharing). Above the tracker and its map, below ModalOverlay so
 // a confirm raised from inside a sheet still lands on top.
-export function RecorderSheet({ title, headerRight, onClose, children }: {
+export function RecorderSheet({ title, badge, headerRight, onClose, children }: {
   title: string;
+  badge?: ReactNode;
   headerRight?: ReactNode;
   onClose: () => void;
   children: ReactNode;
@@ -21,7 +22,7 @@ export function RecorderSheet({ title, headerRight, onClose, children }: {
         <div className="px-4 pt-2.5 pb-2 space-y-2">
           <div className="w-9 h-1 rounded-full bg-slate-600 mx-auto" />
           <div className="flex items-center gap-3">
-            <h3 className="flex-1 text-base font-bold text-white">{title}</h3>
+            <h3 className="flex flex-1 items-center gap-2 text-base font-bold text-white">{title}{badge}</h3>
             {headerRight}
           </div>
         </div>

@@ -263,6 +263,7 @@
     "noProfile": "Añade tu FC máxima en Ajustes → Perfil de entrenamiento para ver esta zona en ppm."
   },
   "audio": {
+    "betaNote": "La guía de audio es nueva y aún está en pruebas. Después de tu entrenamiento, cuéntanos qué tal sonó con el botón {{button}}.",
     "title": "Guía de audio",
     "offBody": "La guía está desactivada para este entrenamiento. Actívala para oír tu ritmo y tu pulso mientras corres.",
     "against": "Te compara con {{targets}}, según tu entrenamiento de hoy.",

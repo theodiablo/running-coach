@@ -263,6 +263,7 @@
     "noProfile": "Ajoute ta FC max dans Réglages → Profil d'entraînement pour voir cette zone en bpm."
   },
   "audio": {
+    "betaNote": "Le guidage audio est nouveau et encore en test. Après ta sortie, dis-nous ce que tu en as pensé avec le bouton {{button}}.",
     "title": "Guidage audio",
     "offBody": "Le guidage est désactivé pour cette sortie. Active-le pour entendre ton allure et ton cardio pendant que tu cours.",
     "against": "Te compare à {{targets}}, d'après ta sortie du jour.",
