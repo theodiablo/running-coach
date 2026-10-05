@@ -10,7 +10,7 @@ import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
 import { runWalkBreakdown } from "../utils/runSegments";
 import { rankRunEfforts } from "../utils/bestEfforts";
-import { timeInZones, effectiveMaxHR, hrCoverage, expandHrSamples, HR_ZONES } from "../utils/hr";
+import { timeInZones, effectiveMaxHR, hrCoverage, expandHrSamples, HR_ZONES, zonePercents } from "../utils/hr";
 import { flattenTrack, haversineM } from "../utils/geo";
 import { fmt } from "../utils/format";
 import type { HrSample } from "../utils/runSeries";
@@ -79,6 +79,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
   }, [route, run.durationSec, maxHR, restHR]);
   const { hasPoints, series, flat, splits, zones, hasHr, hasElev, coverage, runWalk } = derived;
   const zoneTotal = zones.reduce((s, z) => s + z.sec, 0);
+  const zonePct = zonePercents(zones.map(z => z.sec));
 
   // Shared chart↔map cursor: the active series/flat index (a single nullable
   // number). Derived during render (not an effect), clamped to the current trace
@@ -192,7 +193,10 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
                     <span className="w-2.5 h-2.5 rounded-sm" style={{ background: HR_ZONES[z.zone - 1].clr }} />
                     {t("progress.detail.zones.zone", { n: z.zone })}
                   </span>
-                  <span className="text-slate-400 tabular-nums">{fmt.mins(Math.round(z.sec / 60))}</span>
+                  <span className="text-slate-400 tabular-nums">
+                    {fmt.mins(Math.round(z.sec / 60))}
+                    <span className="inline-block w-10 text-right text-slate-500">{zonePct[z.zone - 1] < 1 ? "<1%" : zonePct[z.zone - 1] + "%"}</span>
+                  </span>
                 </div>
               ))}
             </div>

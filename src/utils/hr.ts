@@ -275,6 +275,18 @@ export function timeInZones(
   return any ? sec.map((s, i) => ({ zone: i + 1, sec: s })) : [];
 }
 
+// Whole-number shares of the total by largest remainder, so the column sums to 100.
+export function zonePercents(secs: number[]): number[] {
+  const total = secs.reduce((a, b) => a + b, 0);
+  if (total <= 0) return secs.map(() => 0);
+  const raw = secs.map(s => s / total * 100);
+  const pct = raw.map(Math.floor);
+  let left = 100 - pct.reduce((a, b) => a + b, 0);
+  const order = raw.map((r, i) => i).sort((a, b) => (raw[b] - pct[b]) - (raw[a] - pct[a]));
+  for (const i of order) { if (left <= 0) break; pct[i]++; left--; }
+  return pct;
+}
+
 export function sessionHR(type: RunType | string, settings: Partial<Pick<SettingsState, "maxHR" | "restHR">>) {
   const key = type in SESSION_ZONES ? type as SessionZoneType : "EASY";
   const cfg = SESSION_ZONES[key];
