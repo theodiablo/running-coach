@@ -154,7 +154,10 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
   `BASE|BUILD|PEAK|TAPER|RACE`. `convert_to_cross_training` writes `WALK`
   (a brisk walk, the default) or `OTHER` with `sd: {kind: "crossActivity",
   activity, minutes}` for a bike, elliptical, swim or rowing session; `km` stays
-  as the easy-run-equivalent effort, like lowfreq's OTHER days.
+  as the easy-run-equivalent effort, like lowfreq's OTHER days. The app shows
+  such a day by its minutes (`sessionMeta`), opens the indoor recorder on its
+  activity and prefills the log form with it; a swim has no "Start run"
+  (`canRecordSession`) and logs as `other`.
 - **Baseline waiver**: a user's *existing* plan can violate a rule (aggressive
   short-horizon generator output, user-chosen adjacent hard days, a manual
   edit saved through its warning — `docs/training-plan.md`). Errors that
@@ -449,6 +452,7 @@ built around, not because Mistral was shown to coach badly.
 | `COACH_MODEL_LIGHT` | `claude-haiku-4-5` | reserved for the `pickModel` routing seam (Phase 5) — unused until a classifier routes trivial edits |
 | `RATE_LIMIT_PER_DAY` | `5` | model-calling rounds per user per day (confirm/result/usage are free); enforced via the atomic `increment_agent_usage` SQL function. A per-user override lives in `profiles.coach_daily_limit` (nullable; NULL → this default) — the premium seam, service-role-writable only |
 | `NEW_USER_RATE_LIMIT_PER_DAY` | `15` | the free daily budget for an account's first 3 days (from `auth.users.created_at`): a new runner's first conversations shape their plan, and a cap of 5 ended one mid-conversation on day one. Only ever raises the budget |
+| — | — | A round whose model call throws (outage, exhausted credits) is refunded (`refundUsage`, compare-and-set on `agent_usage`): the runner got no answer, so it costs no round. A validator-failed round still counts — it was a real answer |
 | `MOCK_LLM` | unset | `1` → canned responses from `_shared/coach/mock.mjs`, zero model calls (CI, local dev) |
 
 The **`usage`** action (authed, no model call, no charge) returns

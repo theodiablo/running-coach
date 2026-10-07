@@ -88,6 +88,23 @@ async function getDailyLimit(admin: any, userId: string, createdAt?: string): Pr
   return free;
 }
 
+// Undo one increment_agent_usage charge. Compare-and-set, so a concurrent
+// charge between the read and the write is retried rather than overwritten.
+// deno-lint-ignore no-explicit-any
+async function refundUsage(admin: any, userId: string, day: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await admin.from("agent_usage").select("count")
+      .eq("user_id", userId).eq("day", day).maybeSingle();
+    if (error) throw error;
+    const count = Number(data?.count) || 0;
+    if (count <= 0) return;
+    const { data: updated, error: updErr } = await admin.from("agent_usage").update({ count: count - 1 })
+      .eq("user_id", userId).eq("day", day).eq("count", count).select("count");
+    if (updErr) throw updErr;
+    if (updated?.length) return;
+  }
+}
+
 const isNewAccount = (createdAt?: string) => {
   const t = createdAt ? Date.parse(createdAt) : NaN;
   return Number.isFinite(t) && Date.now() - t < NEW_USER_DAYS * 86400000;
@@ -392,14 +409,21 @@ async function handle(req: Request): Promise<any> {
       return { unavailable: "run detail temporarily unavailable" };
     }
   };
-  const result = await generateProposal({
-    baseline: baselinePlan,
-    context,
-    history,
-    message: action === "critique" ? message : null,
-    callModel,
-    fetchRunDetail,
-  });
+  let result;
+  try {
+    result = await generateProposal({
+      baseline: baselinePlan,
+      context,
+      history,
+      message: action === "critique" ? message : null,
+      callModel,
+      fetchRunDetail,
+    });
+  } catch (err) {
+    // The model never answered (outage, exhausted credits): the runner got nothing, so it costs them nothing.
+    await refundUsage(admin, user.id, today).catch((e) => console.error("coach-agent: usage refund failed", e));
+    throw err;
+  }
 
   const failed = result.status === "no_valid_adjustment";
   // A failed round only closes the WHOLE trajectory when there's no earlier

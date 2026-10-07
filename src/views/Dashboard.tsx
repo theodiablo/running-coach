@@ -4,11 +4,11 @@ import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PenLine, Pl
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
-import { fmt, ymd, estMin, weekStart } from "../utils/format";
+import { fmt, ymd, weekStart } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { overdueSessions, nextSession } from "../utils/overdue";
-import { planSessionPrefill } from "../utils/plan";
+import { canRecordSession, planSessionPrefill, sessionMeta, sessionRecorderActivity } from "../utils/plan";
 import { candidateRuns, canMoveSessionTo, dayGap, type SavedRun } from "../utils/sessionMatch";
 import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
@@ -20,7 +20,7 @@ import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
-import type { CoachSource, Plan, PlanSession, RacesState, Run, RunType, SettingsPage, SettingsState } from "../types";
+import type { CoachSource, Plan, PlanSession, RacesState, Run, RunActivity, RunType, SettingsPage, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
 type DashboardProps = {
@@ -54,7 +54,7 @@ type DashboardProps = {
   // Both recorders take an optional {wNum, sId} link so a run saved from a plan
   // session ticks that session off (the shared bag's openTracker/openIndoor).
   openTracker?: (link?: { wNum: number; sId: string }) => void;
-  openIndoor?: (link?: { wNum: number; sId: string }) => void;
+  openIndoor?: (link?: { wNum: number; sId: string; activity?: RunActivity }) => void;
   // Store version newer than the installed one; null when current or unknown.
   availableUpdate?: string | null;
   // Races whose calendar date moved after the user planned around them.
@@ -426,7 +426,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
               </div>
               <p className="text-white text-base font-medium mt-1 leading-snug">{describeSession(nextSess)}</p>
               <p className="text-slate-400 text-xs mt-2">
-                {fmt.sht(nextSess.date) + " · " + nextSess.km + " km · ~" + estMin(Number(nextSess.km), nextSess.pace) + " · " + fmt.pace(nextSess.pace) + "/km"}
+                {fmt.sht(nextSess.date) + " · " + sessionMeta(nextSess)}
               </p>
             </button>
             <HRTarget type={nextSess.type} settings={settings} openSettings={openSettings}/>
@@ -448,11 +448,13 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
                 Start run opens the recorder, Log it fills in a run already done.
                 Ticking off without logging anything stays available, quieter. */}
             <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => (nextSess.type === "OTHER" ? openIndoor : openTracker)?.({ wNum: nextSess.wNum, sId: nextSess.id })}
+              {canRecordSession(nextSess) && <button
+                onClick={() => nextSess.type === "OTHER"
+                  ? openIndoor?.({ wNum: nextSess.wNum, sId: nextSess.id, activity: sessionRecorderActivity(nextSess) })
+                  : openTracker?.({ wNum: nextSess.wNum, sId: nextSess.id })}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
                 <Play size={15}/>{t("dashboard.session.startRun")}
-              </button>
+              </button>}
               <button
                 onClick={() => goLog(planSessionPrefill(nextSess, nextSess.wNum))}
                 className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">

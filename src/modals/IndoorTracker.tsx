@@ -36,6 +36,8 @@ type IndoorTrackerProps = {
   onDeclineHr?: () => void;
   // The log before this session, for the finish celebration's comparisons.
   runs?: Run[];
+  // The plan session's own activity (a coach-scheduled bike day), over the remembered pick.
+  initialActivity?: RunActivity;
 };
 
 // Indoor / static cardio recorder — a stationary bike or elliptical, where the
@@ -45,7 +47,7 @@ type IndoorTrackerProps = {
 // background-location consent apply with no GPS, and threading an `indoor`
 // branch through all of it would leave two half-features. See
 // docs/indoor-sessions.md.
-export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [] }: IndoorTrackerProps) {
+export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [], initialActivity }: IndoorTrackerProps) {
   const { t } = useTranslation();
   // Same pre-start read as LiveRunTracker, from the same helper.
   const hr = recorderHrSetup(settings.hrMethod, settings.hrOptOut);
@@ -55,6 +57,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
   const reducedMotion = usePrefersReducedMotion();
 
   const [activity, setActivity] = useState<RunActivity>(() => {
+    if (initialActivity && (RUN_ACTIVITIES as string[]).includes(initialActivity)) return initialActivity;
     try {
       const saved = localStorage.getItem(INDOOR_ACTIVITY_KEY);
       if (saved && (RUN_ACTIVITIES as string[]).includes(saved)) return saved as RunActivity;

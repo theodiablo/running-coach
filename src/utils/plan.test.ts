@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildPlan, carryProgress, findOpenPlanSession, planSessionPrefill } from "./plan";
+import { buildPlan, canRecordSession, carryProgress, findOpenPlanSession, planSessionPrefill, sessionMeta, sessionRecorderActivity } from "./plan";
 import { overdueByWeek } from "./overdue";
 import type { Plan } from "../types";
 import { ymd } from "./format";
@@ -569,6 +569,35 @@ describe("planSessionPrefill", () => {
     expect(planSessionPrefill({ id: "s3", date: "2026-08-12", type: "OTHER", km: 6 }, 3))
       .toEqual({ date: "2026-08-12", type: "OTHER",
         session: { id: "s3", date: "2026-08-12", type: "OTHER", km: 6, wNum: 3 } });
+  });
+
+  // A coach-scheduled bike/swim day: the log form opens on the right activity.
+  it("carries a coach cross-training day's activity, a swim as other", () => {
+    const sd = (activity: "bike" | "swim") => ({ kind: "crossActivity" as const, activity, minutes: 45 });
+    expect(planSessionPrefill({ id: "s4", date: "2026-08-12", type: "OTHER", km: 7, sd: sd("bike") }, 3))
+      .toMatchObject({ durationSec: 2700, activity: "bike" });
+    expect(planSessionPrefill({ id: "s5", date: "2026-08-12", type: "OTHER", km: 7, sd: sd("swim") }, 3))
+      .toMatchObject({ durationSec: 2700, activity: "other" });
+  });
+});
+
+describe("cross-training session helpers", () => {
+  const cross = (activity: "bike" | "swim" | "rower") =>
+    ({ type: "OTHER", km: 7, pace: null, sd: { kind: "crossActivity" as const, activity, minutes: 45 } });
+
+  it("only a swim has no recorder", () => {
+    expect(canRecordSession(cross("bike"))).toBe(true);
+    expect(canRecordSession(cross("swim"))).toBe(false);
+    expect(canRecordSession({ type: "EASY" })).toBe(true);
+    expect(sessionRecorderActivity(cross("rower"))).toBe("rower");
+    expect(sessionRecorderActivity(cross("swim"))).toBeUndefined();
+    expect(sessionRecorderActivity({ type: "OTHER", sd: { kind: "cross", minutes: 30 } })).toBeUndefined();
+  });
+
+  it("a cross-training day reads as minutes, a run as distance and pace", () => {
+    expect(sessionMeta(cross("bike"))).toBe("45min");
+    expect(sessionMeta({ type: "OTHER", km: 6, pace: 400, sd: { kind: "cross", minutes: 40 } })).toBe("40min");
+    expect(sessionMeta({ type: "EASY", km: 8, pace: 330 })).toBe("8 km · ~44 min · 5:30/km");
   });
 });
 

@@ -191,6 +191,16 @@ describe("IndoorTracker", () => {
     expect(onFinish.mock.calls[0][0].activity).toBe("elliptical");
   });
 
+  it("starts on the plan session's own activity over the remembered pick", async () => {
+    const onFinish = vi.fn();
+    render(<IndoorTracker settings={withHr("off")} onFinish={onFinish} onClose={() => {}} initialActivity="rower" />);
+    start();
+    vi.setSystemTime(START + 600_000);
+    finish();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    expect(onFinish.mock.calls[0][0].activity).toBe("rower");
+  });
+
   // The screen tells Health Connect / Apple Health users "heart rate is added
   // after you finish". These two are that promise being kept.
   describe("post-run heart-rate source", () => {

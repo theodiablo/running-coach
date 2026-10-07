@@ -75,6 +75,7 @@ import type {
   RacesState,
   RouteBackup,
   Run,
+  RunActivity,
   RunHighlight,
   RunPatch,
   SettingsPage,
@@ -172,7 +173,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // from showTracker: the two screens share nothing but the tracker hook, and
   // an indoor session must never appear in the GPS recovery flow below.
   const [showIndoor, setShowIndoor] = useState(false);
-  const [indoorLink, setIndoorLink] = useState<{ wNum: number; sId: string } | null>(null);
+  const [indoorLink, setIndoorLink] = useState<{ wNum: number; sId: string; activity?: RunActivity } | null>(null);
   // A started recording can be minimized to browse the app: the recorder stays
   // mounted (hidden), so the run keeps recording, and a bar above the nav leads
   // back. Any way into a recorder while one is open returns to that one.
@@ -1251,8 +1252,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // a plan's cross-training day records here rather than through GPS.
     openIndoor: (link?: unknown) => {
       if (recorderOpen) { setRecorderMinimized(false); return; }
-      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string } : null;
-      setIndoorLink(l ? { wNum: l.wNum, sId: l.sId } : null);
+      const l = link && typeof link === "object" && "sId" in link && "wNum" in link ? link as { wNum: number; sId: string; activity?: RunActivity } : null;
+      setIndoorLink(l ? { wNum: l.wNum, sId: l.sId, activity: l.activity } : null);
       setShowIndoor(true);
     },
     // Open the full-screen per-run analytics view. Guard on shape so a click
@@ -1331,7 +1332,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setRecorderMinimized(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
-      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} initialActivity={indoorLink?.activity}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}

@@ -1,6 +1,6 @@
 // Training-plan builder.
 import { VERT_COST } from "../constants";
-import { fmt, ymd } from "./format";
+import { estMin, fmt, ymd } from "./format";
 import {
   DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelEasyKm, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
@@ -9,7 +9,7 @@ import { runWalkConfig, runwalkRunSec, type RunWalkConfig } from "./runwalk";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
-import type { Plan, PlanProgress, SessionSd } from "../types";
+import type { Plan, PlanProgress, RunActivity, SessionSd } from "../types";
 
 export type PlanSessionInput = { dayOffset: number; minutes: number };
 type PlanSession = {
@@ -704,6 +704,26 @@ type OpenSessionPlan = {
 // km <= 0 — so passing it through would save a number nobody covered as real
 // running distance, contaminating volume, pace and PBs. Its *duration* is the
 // real prescription, so prefill that instead. See docs/indoor-sessions.md.
+type CrossSession = { type: string; sd?: SessionSd };
+
+// The indoor recorder's activity for a coach-converted cross-training day; a swim
+// has none — the phone stays out of the pool.
+export function sessionRecorderActivity(s: CrossSession): RunActivity | undefined {
+  const a = s.sd?.kind === "crossActivity" ? s.sd.activity : undefined;
+  return a && a !== "swim" ? a : undefined;
+}
+
+// Whether "Start run" means anything for this session (false only for a swim).
+export const canRecordSession = (s: CrossSession) =>
+  !(s.sd?.kind === "crossActivity" && s.sd.activity === "swim");
+
+// The row's "how much" line: a cross-training day's real prescription is its
+// minutes, not its synthetic km (see planSessionPrefill).
+export function sessionMeta(s: CrossSession & { km?: number | string; pace?: number | null }): string {
+  if (isCrossTraining(s) && s.sd?.minutes) return fmt.mins(s.sd.minutes);
+  return s.km + " km · ~" + estMin(Number(s.km), s.pace ?? 0) + " · " + fmt.pace(s.pace) + "/km";
+}
+
 export function planSessionPrefill(
   s: { id: string; date: string; type: string; km?: number | string; pace?: number; sd?: SessionSd },
   wNum: number,
@@ -713,7 +733,8 @@ export function planSessionPrefill(
   const base = { date: s.date, type: s.type, session: { ...s, wNum } };
   if (!isCrossTraining(s))
     return { ...base, km: Number(s.km), pace: s.pace };
-  return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}) };
+  const activity = s.sd?.kind === "crossActivity" ? sessionRecorderActivity(s) ?? "other" : undefined;
+  return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}), ...(activity ? { activity } : {}) };
 }
 
 // First not-done, not-skipped, non-RACE session on a given date, so a run logged

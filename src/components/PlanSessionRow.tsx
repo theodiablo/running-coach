@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, MessageCircle, MoreHorizontal, PenLine, Pencil, Play, RotateCcw, Route, SkipForward } from "lucide-react";
 import { TCLR } from "../constants";
-import { fmt, estMin } from "../utils/format";
+import { fmt } from "../utils/format";
+import { sessionMeta } from "../utils/plan";
 import { describeSession } from "../utils/sessionDesc";
 import { sessionSteps } from "../utils/sessionSteps";
 import { useDismissable } from "../hooks/useDismissable";
@@ -16,7 +17,7 @@ type PlanSessionRowProps = {
   settings: SettingsState;
   notesOpen: boolean;
   onToggleNotes: () => void;
-  onRecord: () => void;
+  onRecord?: () => void;     // absent where nothing can record it (a swim)
   onDone: () => void;
   onToggleDone: () => void;
   onSkip: () => void;
@@ -42,7 +43,7 @@ export function PlanSessionRow({
   const isSkipped = !!s.skipped && !s.done;
   const type = t("common.types." + s.type, { defaultValue: s.type });
   const title = describeSession(s);
-  const meta = s.km + " km · ~" + estMin(Number(s.km), s.pace) + " · " + fmt.pace(s.pace) + "/km";
+  const meta = sessionMeta(s);
 
   // ── Done ──────────────────────────────────────────────────────────────────
   if (s.done) {
@@ -118,10 +119,10 @@ export function PlanSessionRow({
 
       {/* Action footer */}
       <div className="relative flex items-center gap-2 px-4 py-2.5 border-t border-slate-700/50">
-        <button onClick={onRecord}
+        {onRecord && <button onClick={onRecord}
           className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-500 text-slate-900 hover:bg-orange-400 transition-[background-color,transform] active:scale-95">
           <Play size={13}/>{t("plan.session.startRun")}
-        </button>
+        </button>}
         <button onClick={onDone}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700 transition-colors">
           <PenLine size={13}/>{t("plan.session.logIt")}
