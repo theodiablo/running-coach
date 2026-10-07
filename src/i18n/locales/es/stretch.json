@@ -200,6 +200,8 @@
   "info": {
     "label": "Sobre los estiramientos",
     "title": "Sobre los estiramientos",
+    "testingBadge": "En pruebas",
+    "testing": "Los estiramientos todavía están en pruebas. Solo algunas cuentas de prueba pueden verlos y aún no están disponibles para el público, así que pueden cambiar antes de abrirse a todos.",
     "intro": "Qué dice la investigación y cómo la usa la app para elegir tus estiramientos.",
     "researchTitle": "Qué dice la investigación",
     "methodTitle": "Cómo decide la app",

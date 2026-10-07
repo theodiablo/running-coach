@@ -200,6 +200,8 @@
   "info": {
     "label": "About stretching",
     "title": "About stretching",
+    "testingBadge": "Testing",
+    "testing": "Stretching is still being tested. Only a few test accounts can see it and it isn't available to the public yet, so it may change before it opens to everyone.",
     "intro": "What the research says, and how the app uses it to pick your stretches.",
     "researchTitle": "What the research says",
     "methodTitle": "How the app decides",

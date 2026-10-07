@@ -200,6 +200,8 @@
   "info": {
     "label": "À propos des étirements",
     "title": "À propos des étirements",
+    "testingBadge": "En test",
+    "testing": "Les étirements sont encore en test. Seuls quelques comptes de test y ont accès et la fonction n'est pas encore ouverte au public, elle peut donc encore évoluer avant d'être disponible pour tous.",
     "intro": "Ce que dit la recherche, et comment l'app s'en sert pour choisir tes étirements.",
     "researchTitle": "Ce que dit la recherche",
     "methodTitle": "Comment l'app décide",

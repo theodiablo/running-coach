@@ -91,6 +91,8 @@ decides". Keep the two in step when a rule below changes.
   canShowPremiumTeaser`, a free tap gets `PremiumTeaserSheet`). The Home
   suggestion and the Help section stay `isPremium` only: a suggestion is the
   feature itself, and a locked one after every run would be an ad.
+- The FAQ opens with a "Testing" notice (`stretch.info.testing`): only test
+  accounts see the feature and it isn't public yet. Remove it when it opens.
 - **The gate is client-side only.** The content ships in the (lazy) bundle and
   there is no server half, the same reason guided workouts went free. Whether it
   stays premium (and moves its content behind an edge function) or opens to

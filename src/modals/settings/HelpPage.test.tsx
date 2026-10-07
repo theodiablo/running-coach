@@ -23,5 +23,6 @@ describe("HelpPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stretching" }));
     expect(screen.getByText("Will stretching stop me getting injured?")).toBeInTheDocument();
     expect(screen.getByText("How the app decides")).toBeInTheDocument();
+    expect(screen.getByText(/isn't available to the public yet/)).toBeInTheDocument();
   });
 });
