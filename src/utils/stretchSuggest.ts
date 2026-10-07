@@ -5,7 +5,7 @@
 import { isCrossTraining } from "../types";
 import type { Plan, Run } from "../types";
 import type { CooldownFocus, RoutineId } from "../stretch/routines";
-import { ymd } from "./format";
+import { weekKey, ymd } from "./format";
 
 export type StretchLogEntry = { date: string; at: number; routine: RoutineId; sec: number };
 
@@ -87,6 +87,25 @@ export function stretchesThisWeek(log: StretchLogEntry[], now: Date): number {
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const from = ymd(monday);
   return log.filter(e => e.date >= from && e.date <= ymd(now)).length;
+}
+
+/** One Monday-to-Sunday week of the log, its sessions newest first. */
+export type StretchWeek = { start: string; entries: StretchLogEntry[]; sec: number };
+
+/** The log as weeks, newest first; weeks with nothing logged are left out, never shown as gaps. */
+export function stretchWeeks(log: StretchLogEntry[]): StretchWeek[] {
+  const byWeek = new Map<string, StretchLogEntry[]>();
+  for (const e of log) {
+    const k = weekKey(e.date);
+    byWeek.set(k, [...(byWeek.get(k) ?? []), e]);
+  }
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .map(([start, entries]) => ({
+      start,
+      entries: [...entries].sort((a, b) => b.at - a.at),
+      sec: entries.reduce((sum, e) => sum + e.sec, 0),
+    }));
 }
 
 /** The stored log, keeping only well-formed entries (the blob is user-writable and restorable). */

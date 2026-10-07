@@ -155,6 +155,16 @@
     "drill": "en movimiento",
     "next": "Siguiente"
   },
+  "history": {
+    "open": "Historial",
+    "title": "Historial de estiramientos",
+    "thisWeek": "Esta semana",
+    "lastWeek": "La semana pasada",
+    "weekOf": "Semana del {{date}}",
+    "sessions_one": "{{count}} sesión",
+    "sessions_other": "{{count}} sesiones",
+    "kept": "Se guardan tus últimas 200 sesiones. Una rutina de menos de un minuto no cuenta."
+  },
   "player": {
     "getReady": "Prepárate",
     "switchSides": "Cambia de lado",

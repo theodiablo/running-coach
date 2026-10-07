@@ -155,6 +155,16 @@
     "drill": "keep moving",
     "next": "Next"
   },
+  "history": {
+    "open": "History",
+    "title": "Stretch history",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "weekOf": "Week of {{date}}",
+    "sessions_one": "{{count}} session",
+    "sessions_other": "{{count}} sessions",
+    "kept": "Your last 200 sessions are kept. A routine under a minute isn't counted."
+  },
   "player": {
     "getReady": "Get ready",
     "switchSides": "Switch sides",

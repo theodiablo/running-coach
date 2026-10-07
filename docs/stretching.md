@@ -105,6 +105,9 @@ decides". Keep the two in step when a rule below changes.
   restore.
 - The week shows as a count of sessions since Monday against the usual 2-3,
   **never a streak** (the `badges.ts` stance).
+- "History" beside that count (once anything is logged) opens `StretchHistory`:
+  the log week by week (`stretchWeeks`), a tally and minutes per week, newest
+  first. Empty weeks are skipped rather than shown as gaps, for the same reason.
 - Settings → Training profile holds the two synced switches (suggestions,
   voice), so a dismissed banner always has a visible way back on.
 

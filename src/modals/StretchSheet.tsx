@@ -6,10 +6,11 @@ import { StretchInfo } from "../components/StretchInfo";
 import { useDismissable } from "../hooks/useDismissable";
 import { ROUTINES, ROUTINE_ORDER, cooldownFor, itemTime } from "../stretch/routines";
 import type { Routine, RoutineId, RoutineItem } from "../stretch/routines";
-import type { StretchSuggestion } from "../utils/stretchSuggest";
+import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import { routineMinutes } from "../utils/stretchEngine";
 import { StretchPlayer } from "./StretchPlayer";
 import { StretchMovePreview } from "./StretchMovePreview";
+import { StretchHistory } from "./StretchHistory";
 
 /** What opened the sheet: a Home suggestion goes straight to its routine. */
 export type StretchTarget = StretchSuggestion;
@@ -17,6 +18,7 @@ export type StretchTarget = StretchSuggestion;
 type StretchSheetProps = {
   target: StretchTarget | null;
   weekCount: number;
+  log: StretchLogEntry[];
   voice: boolean;
   onVoiceChange: (on: boolean) => void;
   onComplete: (routine: RoutineId, sec: number) => void;
@@ -26,14 +28,19 @@ type StretchSheetProps = {
 const routineFor = (target: StretchTarget): Routine =>
   target.routine === "cooldown" ? cooldownFor(target.focus) : ROUTINES.recovery;
 
-function WeekLine({ count }: { count: number }) {
+function WeekLine({ count, onHistory }: { count: number; onHistory?: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 text-xs text-slate-400">
-      <span className="flex gap-1" aria-hidden>
+      <span className="flex gap-1 shrink-0" aria-hidden>
         {[0, 1, 2].map(i => <span key={i} className={"w-2 h-2 rounded-full " + (i < count ? "bg-teal-400" : "bg-slate-700")}/>)}
       </span>
-      <span>{count > 0 ? t("stretch.sheet.week", { count }) : t("stretch.sheet.weekNone")} · {t("stretch.sheet.weekAim")}</span>
+      <span className="flex-1 min-w-0">{count > 0 ? t("stretch.sheet.week", { count }) : t("stretch.sheet.weekNone")} · {t("stretch.sheet.weekAim")}</span>
+      {onHistory && (
+        <button onClick={onHistory} className="shrink-0 font-semibold text-teal-300 hover:text-teal-200 transition-colors">
+          {t("stretch.history.open")}
+        </button>
+      )}
     </div>
   );
 }
@@ -57,12 +64,14 @@ function ItemRow({ item, onOpen }: { item: RoutineItem; onOpen: () => void }) {
 
 // The stretching flow: the routine list, one routine's preview, and the player
 // on top. Lazily loaded, premium only for now (docs/stretching.md).
-export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComplete, onClose }: StretchSheetProps) {
+export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onComplete, onClose }: StretchSheetProps) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Routine | null>(() => (target ? routineFor(target) : null));
   const [viaTarget, setViaTarget] = useState(!!target);
   const [playing, setPlaying] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
+  const [history, setHistory] = useState(false);
+  const openHistory = log.length ? () => setHistory(true) : undefined;
   const previewItems = selected ? [...selected.items, ...(selected.tail ?? [])] : [];
   const canGoBack = !!selected && !viaTarget;
   const showList = () => { setSelected(null); setViaTarget(false); };
@@ -123,7 +132,7 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
                 ) : null}
               </div>
               <p className="text-xs text-slate-500">{t(`stretch.routines.${selected.id}.why`)}</p>
-              <WeekLine count={weekCount}/>
+              <WeekLine count={weekCount} onHistory={openHistory}/>
               <p className="text-xs text-amber-200/80">{t("stretch.sheet.safety")}</p>
             </>
           ) : (
@@ -146,7 +155,7 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
                   );
                 })}
               </div>
-              <WeekLine count={weekCount}/>
+              <WeekLine count={weekCount} onHistory={openHistory}/>
             </>
           )}
           <div className="flex items-center gap-5">
@@ -172,6 +181,8 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
       {preview !== null && selected && (
         <StretchMovePreview items={previewItems} start={preview} onClose={() => setPreview(null)}/>
       )}
+
+      {history && <StretchHistory log={log} onClose={() => setHistory(false)}/>}
 
       {playing && selected && (
         <StretchPlayer routine={selected} voice={voice} onVoiceChange={onVoiceChange} weekCount={weekCount}

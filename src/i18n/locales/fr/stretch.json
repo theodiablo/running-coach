@@ -155,6 +155,16 @@
     "drill": "en mouvement",
     "next": "Suivant"
   },
+  "history": {
+    "open": "Historique",
+    "title": "Historique des étirements",
+    "thisWeek": "Cette semaine",
+    "lastWeek": "La semaine dernière",
+    "weekOf": "Semaine du {{date}}",
+    "sessions_one": "{{count}} séance",
+    "sessions_other": "{{count}} séances",
+    "kept": "Tes 200 dernières séances sont gardées. Une routine de moins d'une minute n'est pas comptée."
+  },
   "player": {
     "getReady": "Prépare-toi",
     "switchSides": "Change de côté",
