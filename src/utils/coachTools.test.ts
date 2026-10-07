@@ -230,12 +230,12 @@ describe("applyToolCall", () => {
   it("increase_session_distance grows easy days inside the final 14 days, never quality or race eve", () => {
     const out = applyTool(nearRace(), "increase_session_distance", { session_id: "w1d0", factor: 2 });
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d0")!.km).toBe(5);
-    // Race week: an easy day may grow, but never past the plan's longest easy run.
-    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 1.5 }))
-      .toThrow(/easy-day sized/);
-    const grownEasy = applyTool(nearRace(), "increase_session_distance", { session_id: "w1d0", factor: 2 });
-    expect(applyTool(grownEasy, "increase_session_distance", { session_id: "w2d1", factor: 1.25 })
-      .weeks[1]!.sessions.find(s => s.id === "w2d1")!.km).toBe(5);
+    // Race week: an easy day may grow, but never past the race distance.
+    expect(applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 1.5 })
+      .weeks[1]!.sessions.find(s => s.id === "w2d1")!.km).toBe(6);
+    const fiveK = { ...nearRace(), distanceKm: 5 };
+    expect(() => applyTool(fiveK, "increase_session_distance", { session_id: "w2d1", factor: 1.5 }))
+      .toThrow(/race distance/);
     expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w1d3", factor: 1.2 }))
       .toThrow(/TEMPO sessions are not lengthened/);
     expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d4", factor: 1.2 }))
@@ -266,14 +266,12 @@ describe("applyToolCall", () => {
 
   // Reviewer probes: permissive near the race must still keep the taper's downward shape.
   it("race week never outgrows the week before it, however the load is added", () => {
-    let p = nearRace();
-    for (const id of ["w1d0", "w1d2"]) p = applyTool(p, "increase_session_distance", { session_id: id, factor: 2 });
-    // Week 1 is now 5 + 5 + 5 + 11 = 26 km; race week holds 8 km of training.
-    p = applyTool(p, "increase_session_distance", { session_id: "w2d1", factor: 1.25 });
-    expect(() => applyTool(p, "add_session", { date: "2026-01-14", type: "EASY", km: 6 }))
-      .toThrow(/easy-day sized/);
-    expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "EASY", km: 11 }))
-      .not.toThrow();
+    // Week 1 holds 2.5 + 2.5 + 5 + 11 = 21 km; race week 8 km of training.
+    const p = applyTool(nearRace(), "add_session", { date: "2026-01-14", type: "EASY", km: 11 });
+    expect(() => applyTool(p, "add_session", { date: "2026-01-12", type: "EASY", km: 11 }))
+      .toThrow(/above week 1/);
+    expect(() => applyTool(p, "increase_session_distance", { session_id: "w2d1", factor: 2 }))
+      .toThrow(/above week 1/);
   });
 
   it("the long run never grows in the final 7 days", () => {
