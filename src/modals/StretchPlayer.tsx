@@ -222,7 +222,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             </div>
 
             <div className="relative bg-slate-800 rounded-2xl flex items-center justify-center" style={{ height: "min(38vh, 300px)" }}>
-              <StretchFigure move={step.move} mirror={step.side === "right"} animate={running} bg="#1e293b"
+              <StretchFigure move={step.move} side={step.side} animate={running} bg="#1e293b"
                 className="h-full max-h-full aspect-square" label={name(step.move)}/>
               {step.side && (
                 <span className="absolute top-2.5 right-2.5 text-[10.5px] font-bold uppercase tracking-wider text-teal-200 bg-teal-400/15 border border-teal-400/35 rounded-full px-2 py-0.5">

@@ -146,7 +146,14 @@
     "whyCooldownHills": "A hilly {{km}} km, so the calf stretches get 45 s.",
     "whyCooldownHard": "A hard {{km}} km, so hips and hamstrings get 45 s.",
     "whyRecovery": "Easy moves for the day after a big run. Nothing is held hard.",
-    "weekNone": "No sessions yet this week"
+    "weekNone": "No sessions yet this week",
+    "tapToPreview": "Tap a stretch to see how it's done"
+  },
+  "preview": {
+    "how": "How to do it",
+    "hold": "held still",
+    "drill": "keep moving",
+    "next": "Next"
   },
   "player": {
     "getReady": "Get ready",

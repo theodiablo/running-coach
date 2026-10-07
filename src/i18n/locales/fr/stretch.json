@@ -146,7 +146,14 @@
     "whyCooldownHills": "{{km}} km vallonnés, donc les étirements des mollets ont droit à 45 s.",
     "whyCooldownHard": "{{km}} km intenses, donc les hanches et les ischio-jambiers ont droit à 45 s.",
     "whyRecovery": "Des mouvements doux pour le lendemain d'une grosse sortie. Rien n'est tenu à fond.",
-    "weekNone": "Aucune séance pour l'instant cette semaine"
+    "weekNone": "Aucune séance pour l'instant cette semaine",
+    "tapToPreview": "Touche un étirement pour voir comment le faire"
+  },
+  "preview": {
+    "how": "Comment faire",
+    "hold": "en position fixe",
+    "drill": "en mouvement",
+    "next": "Suivant"
   },
   "player": {
     "getReady": "Prépare-toi",

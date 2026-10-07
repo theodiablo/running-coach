@@ -33,8 +33,11 @@ decides". Keep the two in step when a rule below changes.
 ## Shape
 
 - `src/stretch/poses.ts`: each move as joint coordinates on a 200×200 side-view
-  board; `far` limbs behind the body, `near` in front, `target` the stretched
-  muscle (drawn teal). Drills have two key frames with identical shapes,
+  board, facing right; `far` limbs behind the body, `near` in front, `target` the
+  stretched muscle (drawn teal, always on a near limb). A figure facing right
+  shows its **right** side, so the unmirrored drawing is the right-side stretch
+  and the left side is drawn mirrored (`mirrorFor`); getting this backwards
+  shows the wrong leg for every two-sided move. Drills have two key frames with identical shapes,
   interpolated by `poseAt`. No image files: ~1 KB a pose, nothing to translate,
   works offline. `src/components/StretchFigure.tsx` is the one renderer.
 - `src/stretch/routines.ts`: the moves and the four routines (cool-down,
@@ -57,7 +60,9 @@ decides". Keep the two in step when a rule below changes.
   ("Not today", whose toast links to Training profile), and while a recorder is
   open: the player's audio and screen lock would fight the recorder's, so
   `openStretch` refuses too.
-- `src/modals/StretchSheet.tsx` (routine list + one routine's preview) and
+- `src/modals/StretchSheet.tsx` (routine list + one routine's preview, where
+  each move opens `StretchMovePreview`: the figure up close with a left/right
+  toggle, the cues, and previous/next through the routine) and
   `src/modals/StretchPlayer.tsx`: one lazy chunk, loaded from `RunningCoach`
   behind `ChunkLoadBoundary`. A Home suggestion opens straight on its routine
   and says why; back from a routine picked in the list returns to the list.

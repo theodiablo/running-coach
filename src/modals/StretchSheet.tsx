@@ -4,11 +4,12 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { StretchFigure } from "../components/StretchFigure";
 import { StretchInfo } from "../components/StretchInfo";
 import { useDismissable } from "../hooks/useDismissable";
-import { ROUTINES, ROUTINE_ORDER, cooldownFor } from "../stretch/routines";
+import { ROUTINES, ROUTINE_ORDER, cooldownFor, itemTime } from "../stretch/routines";
 import type { Routine, RoutineId, RoutineItem } from "../stretch/routines";
 import type { StretchSuggestion } from "../utils/stretchSuggest";
 import { routineMinutes } from "../utils/stretchEngine";
 import { StretchPlayer } from "./StretchPlayer";
+import { StretchMovePreview } from "./StretchMovePreview";
 
 /** What opened the sheet: a Home suggestion goes straight to its routine. */
 export type StretchTarget = StretchSuggestion;
@@ -37,19 +38,19 @@ function WeekLine({ count }: { count: number }) {
   );
 }
 
-function ItemRow({ item }: { item: RoutineItem }) {
+function ItemRow({ item, onOpen }: { item: RoutineItem; onOpen: () => void }) {
   const { t } = useTranslation();
-  const time = item.sides === 2
-    ? t("stretch.sheet.eachSide", { sec: item.sec })
-    : item.sec >= 120 ? t("stretch.sheet.wholeMinutes", { min: item.sec / 60 }) : t("stretch.sheet.seconds", { sec: item.sec });
   return (
-    <li className="flex items-center gap-3 py-1.5">
-      <StretchFigure move={item.move} crop bg="#0f172a" className="w-11 h-11 rounded-lg bg-slate-900 shrink-0"/>
-      <span className="flex-1 min-w-0">
-        <span className="block text-sm font-semibold leading-snug">{t(`stretch.moves.${item.move}.name`)}</span>
-        <span className="block text-xs text-slate-400">{t(`stretch.moves.${item.move}.target`)}</span>
-      </span>
-      <span className="text-xs text-slate-300 tabular-nums shrink-0">{time}</span>
+    <li>
+      <button onClick={onOpen} className="w-full flex items-center gap-3 py-1.5 text-left group">
+        <StretchFigure move={item.move} crop bg="#0f172a" className="w-11 h-11 rounded-lg bg-slate-900 shrink-0"/>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-semibold leading-snug group-hover:text-orange-300 transition-colors">{t(`stretch.moves.${item.move}.name`)}</span>
+          <span className="block text-xs text-slate-400">{t(`stretch.moves.${item.move}.target`)}</span>
+        </span>
+        <span className="text-xs text-slate-300 tabular-nums shrink-0">{itemTime(t, item)}</span>
+        <ChevronRight size={14} className="text-slate-600 shrink-0"/>
+      </button>
     </li>
   );
 }
@@ -61,6 +62,8 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
   const [selected, setSelected] = useState<Routine | null>(() => (target ? routineFor(target) : null));
   const [viaTarget, setViaTarget] = useState(!!target);
   const [playing, setPlaying] = useState(false);
+  const [preview, setPreview] = useState<number | null>(null);
+  const previewItems = selected ? [...selected.items, ...(selected.tail ?? [])] : [];
   const canGoBack = !!selected && !viaTarget;
   const showList = () => { setSelected(null); setViaTarget(false); };
   useDismissable(true, () => (canGoBack ? setSelected(null) : onClose()));
@@ -103,17 +106,18 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
               </div>
               {why && <p className="text-sm text-slate-300 bg-slate-800 rounded-xl px-3 py-2.5">{why}</p>}
               <div>
+                <p className="text-xs text-slate-500 mb-1">{t("stretch.sheet.tapToPreview")}</p>
                 {(selected.rounds ?? 1) > 1 && (
                   <p className="text-xs text-slate-400 mb-1">{t("stretch.sheet.rounds", { count: selected.rounds })}</p>
                 )}
                 <ul className="divide-y divide-slate-800">
-                  {selected.items.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
+                  {selected.items.map((item, i) => <ItemRow key={item.move + item.sec} item={item} onOpen={() => setPreview(i)}/>)}
                 </ul>
                 {selected.tail?.length ? (
                   <>
                     <p className="text-xs text-slate-400 mt-2 mb-1">{t("stretch.sheet.then")}</p>
                     <ul className="divide-y divide-slate-800">
-                      {selected.tail.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
+                      {selected.tail.map((item, i) => <ItemRow key={item.move + item.sec} item={item} onOpen={() => setPreview(selected.items.length + i)}/>)}
                     </ul>
                   </>
                 ) : null}
@@ -163,6 +167,10 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
             {t("stretch.sheet.start")}
           </button>
         </div>
+      )}
+
+      {preview !== null && selected && (
+        <StretchMovePreview items={previewItems} start={preview} onClose={() => setPreview(null)}/>
       )}
 
       {playing && selected && (

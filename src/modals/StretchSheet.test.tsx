@@ -55,4 +55,27 @@ describe("StretchSheet", () => {
     expect(screen.getByText("Get ready")).toBeInTheDocument();
     expect(screen.getAllByText("Cat-cow").length).toBeGreaterThan(0);
   });
+
+  it("previews a move from the routine, both sides, then the next one", () => {
+    setup({ routine: "cooldown", focus: "standard", km: 8 });
+    fireEvent.click(screen.getByText("Wall calf stretch"));
+    expect(screen.getByRole("heading", { name: "Wall calf stretch" })).toBeInTheDocument();
+    expect(screen.getByText("Back leg straight, heel down")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Left side" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Right side" }));
+    expect(screen.getByRole("button", { name: "Right side" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    expect(screen.getByRole("heading", { name: "Bent-knee calf stretch" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Left side" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("back from a preview returns to the routine, not the list", () => {
+    const p = setup(null);
+    fireEvent.click(screen.getByText("Warm-up drills"));
+    fireEvent.click(screen.getByText("Leg swings"));
+    act(() => { dismissTop(); });
+    expect(screen.queryByRole("heading", { name: "Leg swings" })).not.toBeInTheDocument();
+    expect(screen.getByText("Leg swings")).toBeInTheDocument();
+    expect(p.onClose).not.toHaveBeenCalled();
+  });
 });

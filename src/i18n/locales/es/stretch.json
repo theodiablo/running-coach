@@ -146,7 +146,14 @@
     "whyCooldownHills": "{{km}} km con cuestas, así que los estiramientos de gemelos se llevan 45 s.",
     "whyCooldownHard": "{{km}} km intensos, así que las caderas y los isquiotibiales se llevan 45 s.",
     "whyRecovery": "Movimientos suaves para el día después de un entrenamiento fuerte. Nada se mantiene con fuerza.",
-    "weekNone": "Aún no hay sesiones esta semana"
+    "weekNone": "Aún no hay sesiones esta semana",
+    "tapToPreview": "Toca un estiramiento para ver cómo se hace"
+  },
+  "preview": {
+    "how": "Cómo se hace",
+    "hold": "sin moverte",
+    "drill": "en movimiento",
+    "next": "Siguiente"
   },
   "player": {
     "getReady": "Prepárate",
