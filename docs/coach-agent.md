@@ -35,11 +35,14 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    base-phase easy days at all — so a runner whose sessions were too short was
    told, correctly but uselessly, that nothing could be done. Inside the taper
    or the final 14 days it lengthens only EASY, LONG and cross-training days
-   (never TEMPO/INTERVALS), nothing in the last 2 days before the race, and a
-   taper week never past the plan's peak pre-taper week. That last bar lives in
-   the tool because nothing downstream covers a taper week: the validator's
-   ramp rule skips `TAPER`/`RACE` weeks outright and `TAPER_VOLUME` only
-   inspects the final 14 days of plans of 6+ weeks. Why the final 14 days are
+   (never TEMPO/INTERVALS) and nothing in the last 2 days before the race.
+   `guardTaperGrowth` (shared with `add_session`) keeps the taper's shape: a
+   week near the race never outgrows the week before it (the first week, with
+   none before it, is bounded by the plan's peak pre-taper week if any), and in
+   the final 7 days the long run doesn't grow and no session passes the plan's
+   longest easy run. These bars live in the tool because nothing downstream
+   covers them: the validator's ramp rule skips `TAPER`/`RACE` weeks outright
+   and `TAPER_VOLUME` only inspects the final 14 days of plans of 6+ weeks. Why the final 14 days are
    not simply closed: see "Load policy" below.
    Neither tool may ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
@@ -253,12 +256,14 @@ coach still acts on what the runner said and asks one specific question
 **The final 14 days are not closed.** A plan built shortly before a race holds
 placeholder distances, not a taper of the runner's real load, so its easy and
 long days may grow. What stays closed there: lengthening or adding quality
-(tempo, intervals), and anything at all in the last 2 days.
+(tempo, intervals), any week outgrowing the week before it, long-run growth or
+anything bigger than an easy day in the final 7 days, and anything at all in
+the last 2 days.
 
 **Never, whatever the evidence:** to make up missed volume; under any pain,
 injury or illness signal (including an unresolved one in Coach memory);
 alongside a refusal; past the plan's longest live training session plus a 10%
-margin; or a taper week past the plan's peak week.
+margin; or a week near the race past the week before it.
 
 ## Validator rules (safety > consistency > peak performance)
 

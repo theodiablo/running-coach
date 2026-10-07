@@ -143,7 +143,7 @@ export const TOOL_DEFS = [
   {
     name: "increase_session_distance",
     description:
-      "Lengthen ONE session's distance by a factor between 1.05 and 2, keeping its date and type. Use whenever a session is too short for what the runner can do — RECENT RUNS longer than what is prescribed, the runner saying the plan is too easy or that they can do more, a capability they state themselves, or their SELF-REPORTED LEVEL (all of which count even with no runs logged yet). Lengthen several short days rather than one, and prefer giving part of an oversized ask over refusing all of it. Works inside the final 14 days too, for EASY, LONG and cross-training days (a plan built shortly before a race holds placeholder distances, not a taper of the runner's real load); TEMPO and INTERVALS are not lengthened there, and nothing is lengthened in the last 2 days before the race. Never to make up missed volume, and never during pain, injury or illness. The result cannot go past the plan's longest training session plus 10%, a taper week cannot go past the plan's peak week, and the weekly ramp rule still bounds how far one week can grow. The tool result reports the new distance.",
+      "Lengthen ONE session's distance by a factor between 1.05 and 2, keeping its date and type. Use whenever a session is too short for what the runner can do — RECENT RUNS longer than what is prescribed, the runner saying the plan is too easy or that they can do more, a capability they state themselves, or their SELF-REPORTED LEVEL (all of which count even with no runs logged yet). Lengthen several short days rather than one, and prefer giving part of an oversized ask over refusing all of it. Works inside the final 14 days too, for EASY, LONG and cross-training days (a plan built shortly before a race holds placeholder distances, not a taper of the runner's real load); TEMPO and INTERVALS are not lengthened there, and nothing is lengthened in the last 2 days before the race. Never to make up missed volume, and never during pain, injury or illness. The result cannot go past the plan's longest training session plus 10%; near the race a week never outgrows the week before it, and in the final 7 days the long run is not lengthened and no session grows past the plan's longest easy run; the weekly ramp rule still bounds how far one week can grow. The tool result reports the new distance.",
     input_schema: {
       type: "object",
       properties: {
@@ -166,7 +166,7 @@ export const TOOL_DEFS = [
   {
     name: "add_session",
     description:
-      "Add ONE extra training session on a free day, when the runner has extra availability or asks to train more — never to make up missed volume, never during pain or illness. Inside the final 14 days only an EASY or WALK session can be added, and nothing in the last 2 days before the race. Distance is capped at the plan's current longest training session, and the weekly volume ramp rule still applies to the result.",
+      "Add ONE extra training session on a free day, when the runner has extra availability or asks to train more — never to make up missed volume, never during pain or illness. Inside the final 14 days only an EASY or WALK session can be added, its week never outgrowing the week before, no bigger than the plan's longest easy run in the final 7 days, and nothing in the last 2 days before the race. Distance is capped at the plan's current longest training session, and the weekly volume ramp rule still applies to the result.",
     input_schema: {
       type: "object",
       properties: {
@@ -236,6 +236,44 @@ function guardEditable(session, verb, today) {
     throw new CoachToolError("IS_RACE", `Session ${session.id} is a race — races are fixed events and cannot be ${verb}ed.`);
   if (isPastDate(session.date, today))
     throw new CoachToolError("IN_PAST", `Session ${session.id} is dated ${session.date}, which has already passed — the elapsed weeks are the training record and cannot be ${verb}ed. Adjust what is still ahead.`);
+}
+
+const TAPER_EASY_DAYS = 7;
+const loadKm = (w) => w.sessions.reduce((t, s) => t + (s.type === "RACE" || s.skipped ? 0 : s.km), 0);
+
+// Load added near the race keeps the taper's shape: a week never outgrows the
+// one before it (or, with none, the plan's peak pre-taper week), and in the
+// final week a session is never more than an easy day.
+// `session` is the one being lengthened (null for an added session).
+function guardTaperGrowth(p, week, { date, type, session = null }, addedKm, resultKm, today) {
+  const days = daysBetween(date, p.raceDate);
+  if (days <= TAPER_EASY_DAYS && type === "LONG")
+    throw new CoachToolError("TAPER", `No lengthening the long run in the final ${TAPER_EASY_DAYS} days — lengthen an easy day instead.`);
+  if (days <= TAPER_EASY_DAYS) {
+    const easyMax = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today)).flatMap(w => w.sessions)
+      .filter(s => s.type === "EASY" && !s.skipped && s !== session).map(s => s.km));
+    const ceiling = Math.max(easyMax, session ? session.km : 0);
+    if (resultKm > ceiling)
+      throw new CoachToolError("TAPER", `In the final ${TAPER_EASY_DAYS} days a session stays easy-day sized (≤ ${ceiling} km, the plan's longest easy run).`);
+  }
+  const idx = p.weeks.indexOf(week);
+  const prevWeek = idx > 0 ? p.weeks[idx - 1] : null;
+  // A fully skipped week before carries no load, so it can't be the reference.
+  const prev = prevWeek && loadKm(prevWeek) > 0 ? prevWeek : null;
+  const ref = prev ? loadKm(prev) : Math.max(0, ...p.weeks.filter(w => w !== week && w.phase !== "TAPER" &&
+    w.phase !== "RACE" && daysBetween(w.startDate, p.raceDate) > 14).map(loadKm));
+  const after = loadKm(week) + addedKm;
+  if (ref > 0 && after > ref)
+    throw new CoachToolError("TAPER", `That would put week ${week.weekNumber} at ${after.toFixed(1)} km, above ${prev ? `week ${prev.weekNumber}` : "the plan's peak week"} (${ref.toFixed(1)} km) — near the race each week stays at or below the one before.`);
+}
+
+// A cross-training day's minutes follow its effort-equivalent km.
+function refreshCross(session, plan) {
+  if (session.sd?.kind !== "crossActivity") return;
+  const easySec = (plan && paceFor(plan, "EASY")) || 390;
+  const minutes = Math.min(120, Math.max(20, Math.round(session.km * easySec / 60 / 5) * 5));
+  session.sd = { ...session.sd, minutes };
+  session.desc = `Cross-training — ${fmtMins(minutes)} easy ${CROSS_NOUN[session.sd.activity]}, no running`;
 }
 
 // Pace/description derivation mirrors buildPlan's ratios off plan.targetPace.
@@ -378,6 +416,7 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       for (const s of week.sessions) {
         if (isFixed(s)) continue;
         s.km = Math.max(1.5, Math.round(s.km * factor * 10) / 10);
+        refreshCross(s, p);
       }
       return p;
     }
@@ -403,6 +442,7 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       const { session } = findSession(p, session_id);
       guardEditable(session, "shorten", today);
       session.km = Math.max(1.5, Math.round(session.km * factor * 10) / 10);
+      refreshCross(session, p);
       return p;
     }
     case "increase_session_distance": {
@@ -413,8 +453,8 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       guardEditable(session, "lengthen", today);
       // Near the race the plan's numbers may be a placeholder, not a taper of the
       // runner's real load (a plan built days before the race), so easy volume
-      // may still grow; quality may not, and race eve stays untouched.
-      // TAPER_VOLUME and the ceilings below still bound how far it can go.
+      // may still grow; quality may not, race eve stays untouched, and
+      // guardTaperGrowth keeps the taper's downward shape.
       const inTaper = week.phase === "TAPER" || week.phase === "RACE" || daysBetween(session.date, p.raceDate) <= 14;
       if (daysBetween(session.date, p.raceDate) <= RACE_EVE_DAYS)
         throw new CoachToolError("RACE_EVE", `No lengthening in the last ${RACE_EVE_DAYS} days before the race — keep those legs fresh.`);
@@ -436,16 +476,9 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       const grown = Math.round(session.km * factor * 10) / 10;
       if (peak > 0 && grown > cap)
         throw new CoachToolError("TOO_LONG", `Lengthening ${session_id} to ${grown} km would go past this plan's ceiling (${cap} km) — the longest training session plus 10%, and never past the plan's race-scaled peak long run. Lengthen the shorter days instead.`);
-      if (inTaper) {
-        // A taper week may refill toward the plan's own peak week, never past it.
-        const loadKm = (w) => w.sessions.reduce((t, s) => t + (s.type === "RACE" || s.skipped ? 0 : s.km), 0);
-        const peakWeek = Math.max(0, ...p.weeks.filter(w => w !== week && w.phase !== "TAPER" && w.phase !== "RACE" &&
-          daysBetween(w.startDate, p.raceDate) > 14).map(loadKm));
-        const after = loadKm(week) - session.km + grown;
-        if (peakWeek > 0 && after > peakWeek)
-          throw new CoachToolError("TAPER", `That would put week ${week.weekNumber} at ${after.toFixed(1)} km, above the plan's peak week (${peakWeek.toFixed(1)} km) — a taper week can come back up toward the peak, never past it.`);
-      }
+      if (inTaper) guardTaperGrowth(p, week, { date: session.date, type: session.type, session }, grown - session.km, grown, today);
       session.km = grown;
+      refreshCross(session, p);
       return p;
     }
     case "cancel_session": {
@@ -486,6 +519,7 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
         .filter(s => s.type !== "RACE" && !s.skipped).map(s => s.km));
       if (cap > 0 && km > cap)
         throw new CoachToolError("TOO_LONG", `km must not exceed the plan's current longest training session (${cap} km).`);
+      if (daysBetween(date, p.raceDate) <= 14) guardTaperGrowth(p, target, { date, type }, km, km, today);
       const ids = new Set(p.weeks.flatMap(w => w.sessions.map(s => s.id)));
       let id = `coach-add-${date}`;
       for (let n = 2; ids.has(id); n++) id = `coach-add-${date}-${n}`;
@@ -511,12 +545,10 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
         return p;
       }
       // OTHER is the plan's own cross-training type; km stays as the effort equivalent.
-      const easySec = paceFor(p, "EASY") || 390;
-      const minutes = Math.min(120, Math.max(20, Math.round(session.km * easySec / 60 / 5) * 5));
       session.type = "OTHER";
       session.pace = null;
-      session.desc = `Cross-training — ${fmtMins(minutes)} easy ${CROSS_NOUN[activity]}, no running`;
-      session.sd = { kind: "crossActivity", activity, minutes };
+      session.sd = { kind: "crossActivity", activity };
+      refreshCross(session, p);
       return p;
     }
     default:

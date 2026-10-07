@@ -310,7 +310,7 @@ async function handle(req: Request): Promise<any> {
     if (!traj) return { error: "trajectory not found", code: "TRAJECTORY_NOT_FOUND" };
     if (traj.status !== "open") return { error: `trajectory is ${traj.status}`, code: "TRAJECTORY_CLOSED" };
     const { data: rounds, error } = await admin.from("agent_rounds")
-      .select("round_index, user_feedback, rationale, tool_calls")
+      .select("round_index, user_feedback, rationale, tool_calls, outcome")
       .eq("trajectory_id", trajectoryId).order("round_index", { ascending: true });
     if (error) throw error;
     history = rounds ?? [];

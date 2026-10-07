@@ -274,7 +274,7 @@ const cases = [
       const d = new Date(anchor.date + "T00:00:00");
       d.setDate(d.getDate() + 1);
       const result = await run(context, [
-        [{ name: "add_session", input: { date: ymd(d), type: "TEMPO", km: 5 } }],
+        [{ name: "add_session", input: { date: ymd(d), type: "EASY", km: 5 } }],
         [],
       ]);
       expect(result.status).toBe("proposed");
@@ -330,6 +330,11 @@ const cases = [
       expect(JSON.stringify(msgs)).toContain("awaiting the runner's Confirm");
       expect(JSON.stringify(msgs)).not.toContain("adjustments applied");
       expect(buildMessages(base, [], null)[0].content).not.toContain("PENDING PROPOSAL");
+      // A validator-rejected round never reached the plan: not pending, labelled as not applied.
+      const rejected = [{ ...history[0], outcome: "invalid" }];
+      const after = buildMessages(base, rejected, "can I also swim?");
+      expect(after[0].content).not.toContain("PENDING PROPOSAL");
+      expect(JSON.stringify(after)).toContain("rejected by the validator");
     },
   },
   {

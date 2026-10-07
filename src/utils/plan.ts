@@ -64,7 +64,7 @@ type WeekCtx = {
   isTaper: boolean;
   buildW: number; // 0-based week index within the post-base block
   rampFrac: number; // 0→1 progress through the pre-taper ramp (long-run ramp)
-  easyFloor: number; // fitness-aware easy-day start (0 with no run history)
+  easyFloor: number; // fitness-aware easy-day start (from logged runs, else the self-reported level, else 0)
   taperMult: number | null; // this taper week's shed multiplier; null pre-taper
   longSess: PlanSessionInput;
   qualSessions: PlanSessionInput[];
