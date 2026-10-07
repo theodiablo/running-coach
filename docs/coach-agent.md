@@ -26,20 +26,24 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    by the validator's ramp rule on the resulting week, and by the engine's
    `guardToolForContext` gates (pain/injury/illness/fatigue, unsafe
    train-through-pain memory, or a missed week block both). `add_session`
-   refuses dates inside the final 14 days and caps distance at the plan's
-   longest existing training session; the prompt licenses it only for explicit
-   extra availability. `increase_session_distance` lengthens ONE session by a
-   factor in `[1.05, 1.5]`, keeping its date and type. It exists because every
+   caps distance at the plan's longest existing training session; inside the
+   final 14 days it adds only an EASY or WALK session, and nothing in the last
+   2 days before the race. `increase_session_distance` lengthens ONE session by a
+   factor in `[1.05, 2]`, keeping its date and type. It exists because every
    other editing tool only reduces or moves load: asked to make a plan harder,
    the coach could do nothing but point at the goal settings, which do not size
    base-phase easy days at all — so a runner whose sessions were too short was
-   told, correctly but uselessly, that nothing could be done. It carries the
-   same two structural bars `add_session` does: nothing inside the taper or the
-   final 14 days, and no result above the plan's longest live training session.
-   Neither bar is redundant, because nothing downstream covers a taper week —
-   the validator's ramp rule skips `TAPER`/`RACE` weeks outright and
-   `TAPER_VOLUME` only inspects the final 14 days, so a taper week further out
-   could be grown past the plan's peak one validator-clean call at a time.
+   told, correctly but uselessly, that nothing could be done. Inside the taper
+   or the final 14 days it lengthens only EASY, LONG and cross-training days
+   (never TEMPO/INTERVALS) and nothing in the last 2 days before the race.
+   `guardTaperGrowth` (shared with `add_session`) keeps the taper's shape: a
+   week near the race never outgrows the week before it (the first week, with
+   none before it, is bounded by the plan's peak pre-taper week if any), and in
+   the final 7 days the long run doesn't grow and no session passes the race
+   distance. These bars live in the tool because nothing downstream
+   covers them: the validator's ramp rule skips `TAPER`/`RACE` weeks outright
+   and `TAPER_VOLUME` only inspects the final 14 days of plans of 6+ weeks. Why the final 14 days are
+   not simply closed: see "Load policy" below.
    Neither tool may ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
@@ -147,7 +151,13 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
   `app_state.data.rc_plan`; rounds snapshot the full plan JSON instead.
 - **App vocabulary**, not generic: session types
   `EASY|TEMPO|INTERVALS|LONG|RACE|WALK|OTHER`, phases
-  `BASE|BUILD|PEAK|TAPER|RACE`. "Cross-training" = `WALK`.
+  `BASE|BUILD|PEAK|TAPER|RACE`. `convert_to_cross_training` writes `WALK`
+  (a brisk walk, the default) or `OTHER` with `sd: {kind: "crossActivity",
+  activity, minutes}` for a bike, elliptical, swim or rowing session; `km` stays
+  as the easy-run-equivalent effort, like lowfreq's OTHER days. The app shows
+  such a day by its minutes (`sessionMeta`), opens the indoor recorder on its
+  activity and prefills the log form with it; a swim has no "Start run"
+  (`canRecordSession`) and logs as `other`.
 - **Baseline waiver**: a user's *existing* plan can violate a rule (aggressive
   short-horizon generator output, user-chosen adjacent hard days, a manual
   edit saved through its warning — `docs/training-plan.md`). Errors that
@@ -171,7 +181,15 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
   `buildMessages` also adds a `RUNNER AGE:` line (derived server-side in
   `index.ts` from `settings.birthYear`, legacy `settings.age` fallback) so
   advice can be age-aware; it is omitted when unknown, keeping ageless
-  contexts — including all golden/eval fixtures — byte-identical.
+  contexts — including all golden/eval fixtures — byte-identical. The same
+  goes for `SELF-REPORTED LEVEL:` (onboarding's `settings.trainingLevel`,
+  which the prompt treats as a stated capability when there is no log) and
+  `PENDING PROPOSAL:` (a follow-up round whose earlier rounds proposed edits
+  not yet confirmed — the history labels them "awaiting the runner's
+  Confirm", so a turn with no new edits never tells the runner the plan is
+  unchanged while a proposal sits under the reply). Each applied edit's
+  tool result echoes the session's resulting distance, so the reply quotes
+  real numbers.
 - **A trajectory only closes (`no_valid_adjustment`) when there's nothing to
   fall back on** — round 0 failing (nothing was ever proposed). A failed
   *critique* on an otherwise-open trajectory leaves it `open`: the prior round
@@ -197,6 +215,8 @@ policy order, but a coach that cannot say yes is not safe, it is useless.
 
 - RECENT RUNS are consistently longer or more frequent than what is prescribed.
 - The runner says they can do more, or that the plan is too easy.
+- With no log, the runner's onboarding SELF-REPORTED LEVEL outruns what is
+  prescribed.
 - The runner states a specific capability ("4:00/km for 10K", "I run 15 km on
   Sundays") — **including when there is no log at all.** A stated capability is
   weaker evidence than a measurement, and "weaker" means say you are going on
@@ -227,10 +247,26 @@ complaint about the line, not about one day.
 goal with an `app:goal` link, clearly separated. Sessions are the coach's lever;
 the goal is the runner's, and it is the one the generator sizes everything from.
 
-**Never, whatever the evidence:** inside the taper or the final 14 days; to make
-up missed volume; under any pain, injury or illness signal (including an
-unresolved one in Coach memory); alongside a refusal; or past the plan's longest
-live training session plus a 10% margin.
+**Permissive by default.** Absent a danger signal, the coach leans toward what
+the runner asks for: a runner who wants more and gets it can be scaled back
+later; one who is refused stops using the coach. A runner who joined 17 days
+before a hilly half was lost to exactly that: every session was inside the
+final 14 days, so "2.5 km is too short" could not earn a single extra metre,
+and four of their five messages got a "can't". With no log and no level, the
+coach still acts on what the runner said and asks one specific question
+(usual weekly km, longest recent run) to size it next turn.
+
+**The final 14 days are not closed.** A plan built shortly before a race holds
+placeholder distances, not a taper of the runner's real load, so its easy and
+long days may grow. What stays closed there: lengthening or adding quality
+(tempo, intervals), any week outgrowing the week before it, long-run growth or
+any session past the race distance in the final 7 days, and anything at all in
+the last 2 days.
+
+**Never, whatever the evidence:** to make up missed volume; under any pain,
+injury or illness signal (including an unresolved one in Coach memory);
+alongside a refusal; past the plan's longest live training session plus a 10%
+margin; or a week near the race past the week before it.
 
 ## Validator rules (safety > consistency > peak performance)
 
@@ -415,6 +451,8 @@ built around, not because Mistral was shown to coach badly.
 | `COACH_MODEL` | `claude-sonnet-5-5` | coaching judgment. Switching model/provider is one secret change. |
 | `COACH_MODEL_LIGHT` | `claude-haiku-4-5` | reserved for the `pickModel` routing seam (Phase 5) — unused until a classifier routes trivial edits |
 | `RATE_LIMIT_PER_DAY` | `5` | model-calling rounds per user per day (confirm/result/usage are free); enforced via the atomic `increment_agent_usage` SQL function. A per-user override lives in `profiles.coach_daily_limit` (nullable; NULL → this default) — the premium seam, service-role-writable only |
+| `NEW_USER_RATE_LIMIT_PER_DAY` | `15` | the free daily budget for an account's first 3 days (from `auth.users.created_at`): a new runner's first conversations shape their plan, and a cap of 5 ended one mid-conversation on day one. Only ever raises the budget |
+| — | — | A round whose model call throws (outage, exhausted credits) is refunded (`refundUsage`, compare-and-set on `agent_usage`): the runner got no answer, so it costs no round. A validator-failed round still counts — it was a real answer |
 | `MOCK_LLM` | unset | `1` → canned responses from `_shared/coach/mock.mjs`, zero model calls (CI, local dev) |
 
 The **`usage`** action (authed, no model call, no charge) returns

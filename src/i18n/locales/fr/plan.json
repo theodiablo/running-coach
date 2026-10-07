@@ -242,6 +242,13 @@
     }
   },
   "crosswalk": "Entraînement croisé ou marche rapide, sans impact et à effort léger",
+  "crossActivity": "Entraînement croisé : {{activity}} facile de {{mins}}, sans courir",
+  "crossActivityName": {
+    "bike": "vélo",
+    "elliptical": "elliptique",
+    "swim": "natation",
+    "rower": "rameur"
+  },
   "recovery": "Footing de récupération à effort très facile ; les pauses de marche sont les bienvenues",
   "preview": {
     "title": "Vérifie les changements",

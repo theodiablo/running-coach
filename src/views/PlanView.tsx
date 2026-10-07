@@ -18,8 +18,8 @@ import { addSlot, isEditableSession, type SessionEdit } from "../utils/planEdit"
 import { RebuildPreview } from "../components/RebuildPreview";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, SettingsPage, SettingsState, ToastAction } from "../types";
-import { carryProgress, isElapsedWeek, planSessionPrefill, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
+import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
+import { canRecordSession, carryProgress, isElapsedWeek, planSessionPrefill, sessionRecorderActivity, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 import { diffPlans } from "../utils/planDiff";
 
@@ -69,7 +69,7 @@ type PlanViewProps = {
   openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
-  openIndoor: (link?: { wNum: number; sId: string }) => void;
+  openIndoor: (link?: { wNum: number; sId: string; activity?: RunActivity }) => void;
   goLog: (prefill: Partial<Run>) => void;
   showToast: (msg: string, type?: string, action?: ToastAction) => void;
   planPrefill?: PlanPrefill | null;
@@ -421,7 +421,9 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               <PlanSessionRow key={s.id} session={s} settings={settings}
                 notesOpen={openSess === s.id}
                 onToggleNotes={() => setOpenSess(openSess === s.id ? null : s.id)}
-                onRecord={() => (s.type === "OTHER" ? openIndoor : openTracker)({wNum: wk.weekNumber, sId: s.id})}
+                onRecord={canRecordSession(s) ? () => (s.type === "OTHER"
+                  ? openIndoor({wNum: wk.weekNumber, sId: s.id, activity: sessionRecorderActivity(s)})
+                  : openTracker({wNum: wk.weekNumber, sId: s.id})) : undefined}
                 onDone={() => goLog(planSessionPrefill(s, wk.weekNumber))}
                 onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                 onSkip={() => skipSess(wk.weekNumber, s.id)}

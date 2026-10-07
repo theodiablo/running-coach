@@ -54,6 +54,10 @@ export function renderSd(
     // Coach-authored kinds: a converted no-impact walk and a recovery-week run.
     case "crosswalk":
       return t("plan.crosswalk");
+    case "crossActivity": {
+      const key = `plan.crossActivityName.${sd.activity}`;
+      return has(key) ? t("plan.crossActivity", { mins: fmt.mins(sd.minutes), activity: t(key) }) : null;
+    }
     case "recovery":
       return t("plan.recovery");
     case "race": {

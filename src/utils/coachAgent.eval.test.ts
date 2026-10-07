@@ -310,13 +310,55 @@ const cases = [
     },
   },
   {
-    name: "add_session inside the taper is refused by the tool, plan unchanged",
+    // A runner with no log is not a runner with no fitness: onboarding's answer reaches the model.
+    name: "self-reported level reaches the model, and is absent when unknown",
+    check() {
+      const base = { plan: buildPlan(weeksOut(18), 6600, SESSIONS, 21.1, 0, {}), recentRuns: [], today: ymd(new Date()), goal: {}, report: "2.5k is too short" };
+      expect(buildMessages({ ...base, trainingLevel: "frequent" }, [], null)[0].content).toContain("SELF-REPORTED LEVEL (from onboarding): runs 4+× a week");
+      expect(buildMessages({ ...base, trainingLevel: "bogus" }, [], null)[0].content).not.toContain("SELF-REPORTED LEVEL");
+      expect(buildMessages(base, [], null)[0].content).not.toContain("SELF-REPORTED LEVEL");
+    },
+  },
+  {
+    // A follow-up with no new edits must not read as "nothing changed" while earlier edits await Confirm.
+    name: "unconfirmed edits from earlier rounds are flagged as pending, never as applied",
+    check() {
+      const base = { plan: buildPlan(weeksOut(18), 6600, SESSIONS, 21.1, 0, {}), recentRuns: [], today: ymd(new Date()), goal: {}, report: "I hurt my knee" };
+      const history = [{ user_feedback: null, rationale: "Swapped your runs for bike rides.", tool_calls: [{ name: "convert_to_cross_training", input: { session_id: "w1d0", activity: "bike" } }] }];
+      const msgs = buildMessages(base, history, "can I also swim?");
+      expect(msgs[0].content).toContain("PENDING PROPOSAL: earlier in this conversation you proposed 1 plan edit(s)");
+      expect(JSON.stringify(msgs)).toContain("awaiting the runner's Confirm");
+      expect(JSON.stringify(msgs)).not.toContain("adjustments applied");
+      expect(buildMessages(base, [], null)[0].content).not.toContain("PENDING PROPOSAL");
+      // A validator-rejected round never reached the plan: not pending, labelled as not applied.
+      const rejected = [{ ...history[0], outcome: "invalid" }];
+      const after = buildMessages(base, rejected, "can I also swim?");
+      expect(after[0].content).not.toContain("PENDING PROPOSAL");
+      expect(JSON.stringify(after)).toContain("rejected by the validator");
+    },
+  },
+  {
+    name: "an applied edit reports the session's resulting distance back to the model",
+    async check() {
+      const context = makeContext("these easy runs are too short");
+      const easy = allSessions(context.plan).find(s => s.type === "EASY" && s.date >= context.today)!;
+      let feedback = "";
+      const inner = scriptedModel([[{ name: "increase_session_distance", input: { session_id: easy.id, factor: 1.2 } }], []]);
+      await generateProposal({
+        baseline: context.plan, context,
+        callModel: async (messages: { role: string; content: unknown }[]) => { feedback = JSON.stringify(messages); return inner(); },
+      });
+      expect(feedback).toContain(`Applied. Now: ${easy.id} ${easy.date} EASY ${Math.round(easy.km * 1.2 * 10) / 10} km`);
+    },
+  },
+  {
+    name: "a hard add_session inside the taper is refused by the tool, plan unchanged",
     async check() {
       const context = makeContext("add one more hard session before the race");
       const d = new Date(context.plan.raceDate + "T00:00:00");
       d.setDate(d.getDate() - 7);
       const result = await run(context, [
-        [{ name: "add_session", input: { date: ymd(d), type: "EASY", km: 5 } }],
+        [{ name: "add_session", input: { date: ymd(d), type: "TEMPO", km: 5 } }],
         [],
       ]);
       expect(result.status).toBe("proposed");

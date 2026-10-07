@@ -1,15 +1,15 @@
 // Training-plan builder.
 import { VERT_COST } from "../constants";
-import { fmt, ymd } from "./format";
+import { estMin, fmt, ymd } from "./format";
 import {
-  DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelStartLongKm, pickHardDays, stylePacing,
+  DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelEasyKm, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
 } from "./planStyles";
 import { runWalkConfig, runwalkRunSec, type RunWalkConfig } from "./runwalk";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
-import type { Plan, PlanProgress, SessionSd } from "../types";
+import type { Plan, PlanProgress, RunActivity, SessionSd } from "../types";
 
 export type PlanSessionInput = { dayOffset: number; minutes: number };
 type PlanSession = {
@@ -64,7 +64,7 @@ type WeekCtx = {
   isTaper: boolean;
   buildW: number; // 0-based week index within the post-base block
   rampFrac: number; // 0→1 progress through the pre-taper ramp (long-run ramp)
-  easyFloor: number; // fitness-aware easy-day start (0 with no run history)
+  easyFloor: number; // fitness-aware easy-day start (from logged runs, else the self-reported level, else 0)
   taperMult: number | null; // this taper week's shed multiplier; null pre-taper
   longSess: PlanSessionInput;
   qualSessions: PlanSessionInput[];
@@ -204,7 +204,7 @@ export function buildPlan(
   const EASY_FLOOR_MIN_RUNS = 3;
   const easyFloor = runsInWindow.length >= EASY_FLOOR_MIN_RUNS
     ? median(runsInWindow.map(r => r.km ?? 0)) * 0.8
-    : 0;
+    : levelEasyKm(planOpts.level); // no habit logged: the self-reported level stands in
   const lastBuildW = N - 4; // 0-based index of the final pre-taper week (peak hits here)
   // Phase boundaries. The base block is what the composers actually treat as
   // base (easy only, no quality), so it must never swallow the whole pre-taper
@@ -704,6 +704,26 @@ type OpenSessionPlan = {
 // km <= 0 — so passing it through would save a number nobody covered as real
 // running distance, contaminating volume, pace and PBs. Its *duration* is the
 // real prescription, so prefill that instead. See docs/indoor-sessions.md.
+type CrossSession = { type: string; sd?: SessionSd };
+
+// The indoor recorder's activity for a coach-converted cross-training day; a swim
+// has none — the phone stays out of the pool.
+export function sessionRecorderActivity(s: CrossSession): RunActivity | undefined {
+  const a = s.sd?.kind === "crossActivity" ? s.sd.activity : undefined;
+  return a && a !== "swim" ? a : undefined;
+}
+
+// Whether "Start run" means anything for this session (false only for a swim).
+export const canRecordSession = (s: CrossSession) =>
+  !(s.sd?.kind === "crossActivity" && s.sd.activity === "swim");
+
+// The row's "how much" line: a cross-training day's real prescription is its
+// minutes, not its synthetic km (see planSessionPrefill).
+export function sessionMeta(s: CrossSession & { km?: number | string; pace?: number | null }): string {
+  if (isCrossTraining(s) && s.sd?.minutes) return fmt.mins(s.sd.minutes);
+  return s.km + " km · ~" + estMin(Number(s.km), s.pace ?? 0) + " · " + fmt.pace(s.pace) + "/km";
+}
+
 export function planSessionPrefill(
   s: { id: string; date: string; type: string; km?: number | string; pace?: number; sd?: SessionSd },
   wNum: number,
@@ -713,7 +733,8 @@ export function planSessionPrefill(
   const base = { date: s.date, type: s.type, session: { ...s, wNum } };
   if (!isCrossTraining(s))
     return { ...base, km: Number(s.km), pace: s.pace };
-  return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}) };
+  const activity = s.sd?.kind === "crossActivity" ? sessionRecorderActivity(s) ?? "other" : undefined;
+  return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}), ...(activity ? { activity } : {}) };
 }
 
 // First not-done, not-skipped, non-RACE session on a given date, so a run logged

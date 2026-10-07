@@ -89,6 +89,18 @@ guards keep it honest:
   `N-4` against `peakLong` (recoverable in a taper week as `longKm / taperMult`)
   and then applies the multiplier.
 
+**With no logged habit, the self-reported level stands in** — the same way
+`levelStartLongKm` stands in for the long run. `levelEasyKm`
+(`planStyles.ts`) derives it from `LEVEL_PROFILE`:
+`0.8 x (weeklyKm - startLongKm) / max(1, runCount - 1)`, kept monotonic across
+levels (more running days never means shorter easy days): occasional 3.2 km,
+regular and frequent 6.8; `none`/absent is 0. It feeds the same `easyFloor`
+slot only when the window holds fewer than 3 runs, so logged runs always win,
+and the same `easyLine` caps (week's long run, day's time budget) apply — a
+level never prescribes more than the runner's own configured minutes. Without
+it a signup 17 days from a half marathon opened on four 2.5 km jogs next to a
+long run several times that, and left.
+
 Which weeks it reaches is per style, and follows where each style's easy line
 already lived: base only for balanced and lowfreq; base **and build** for
 polarized (whose build-phase non-hard days are on the same growth line); every
@@ -375,7 +387,7 @@ is onboarding's one-question self-report ("How much do you run right now?",
 `LevelTiles` in both branches, optional). It substitutes for run history ONLY
 when none exists: `recommendStyle` maps it to a synthetic weekly-km band (real
 logged runs always win) and `buildPlan`'s `opts.level` floors the starting long
-run (`levelStartLongKm`, capped at the race peak).
+run (`levelStartLongKm`, capped at the race peak) and, below 3 logged runs, the easy-day line (`levelEasyKm`).
 
 `suggestPlanSessions(distance, level)` (`planStyles.ts`) provides default
 training days — minutes must come from `SessionConfigurator`'s fixed option

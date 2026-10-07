@@ -275,7 +275,7 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(SYSTEM_PROMPT).toContain("Past-tense claims are the trap");
     expect(SYSTEM_PROMPT).toContain("never write one when you made no tool calls");
     expect(SYSTEM_PROMPT).toContain("Never leave the runner believing their plan moved when it did not");
-    expect(SYSTEM_PROMPT).toContain("If you made no tool calls in this response, say plainly that nothing in the plan has changed");
+    expect(SYSTEM_PROMPT).toContain("If you made no tool calls in this response, say plainly that you changed nothing new");
   });
 
   // Production regression (2026-08, mistral-large-latest): a "simulating an

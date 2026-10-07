@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildPlan, carryProgress, findOpenPlanSession, planSessionPrefill } from "./plan";
+import { buildPlan, canRecordSession, carryProgress, findOpenPlanSession, planSessionPrefill, sessionMeta, sessionRecorderActivity } from "./plan";
 import { overdueByWeek } from "./overdue";
 import type { Plan } from "../types";
 import { ymd } from "./format";
@@ -570,6 +570,35 @@ describe("planSessionPrefill", () => {
       .toEqual({ date: "2026-08-12", type: "OTHER",
         session: { id: "s3", date: "2026-08-12", type: "OTHER", km: 6, wNum: 3 } });
   });
+
+  // A coach-scheduled bike/swim day: the log form opens on the right activity.
+  it("carries a coach cross-training day's activity, a swim as other", () => {
+    const sd = (activity: "bike" | "swim") => ({ kind: "crossActivity" as const, activity, minutes: 45 });
+    expect(planSessionPrefill({ id: "s4", date: "2026-08-12", type: "OTHER", km: 7, sd: sd("bike") }, 3))
+      .toMatchObject({ durationSec: 2700, activity: "bike" });
+    expect(planSessionPrefill({ id: "s5", date: "2026-08-12", type: "OTHER", km: 7, sd: sd("swim") }, 3))
+      .toMatchObject({ durationSec: 2700, activity: "other" });
+  });
+});
+
+describe("cross-training session helpers", () => {
+  const cross = (activity: "bike" | "swim" | "rower") =>
+    ({ type: "OTHER", km: 7, pace: null, sd: { kind: "crossActivity" as const, activity, minutes: 45 } });
+
+  it("only a swim has no recorder", () => {
+    expect(canRecordSession(cross("bike"))).toBe(true);
+    expect(canRecordSession(cross("swim"))).toBe(false);
+    expect(canRecordSession({ type: "EASY" })).toBe(true);
+    expect(sessionRecorderActivity(cross("rower"))).toBe("rower");
+    expect(sessionRecorderActivity(cross("swim"))).toBeUndefined();
+    expect(sessionRecorderActivity({ type: "OTHER", sd: { kind: "cross", minutes: 30 } })).toBeUndefined();
+  });
+
+  it("a cross-training day reads as minutes, a run as distance and pace", () => {
+    expect(sessionMeta(cross("bike"))).toBe("45min");
+    expect(sessionMeta({ type: "OTHER", km: 6, pace: 400, sd: { kind: "cross", minutes: 40 } })).toBe("40min");
+    expect(sessionMeta({ type: "EASY", km: 8, pace: 330 })).toBe("8 km · ~44 min · 5:30/km");
+  });
 });
 
 // ── carryProgress ───────────────────────────────────────────────────────────
@@ -884,5 +913,48 @@ describe("carryProgress", () => {
       // And the ids never stack a second "past-" prefix on a re-carried week.
       expect(sessionsOf(plan).every(s => !s.id.startsWith("past-past-"))).toBe(true);
     });
+  });
+});
+
+describe.each([
+  ["monday anchor", "2026-09-14"],
+  ["midweek anchor", "2026-09-16"],
+])("buildPlan · self-reported level floors the easy days (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const raceIn = (days: number) => { const d = new Date(anchor + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
+  const DAYS = [{dayOffset: 1, minutes: 60}, {dayOffset: 2, minutes: 60}, {dayOffset: 4, minutes: 60}, {dayOffset: 6, minutes: 120}];
+  const week1Easy = (opts: object, days = 17) => {
+    const plan = buildPlan(raceIn(days), 6600, DAYS, 21.1, 150, opts);
+    return plan.weeks[0]!.sessions.filter(s => s.type === "EASY").map(s => s.km as number);
+  };
+  const habit = (kms: number[]) => kms.map((km, i) => {
+    const d = new Date(anchor + "T00:00:00"); d.setDate(d.getDate() - (i + 1) * 3);
+    return { date: ymd(d), km, type: "EASY" };
+  });
+
+  it.each([["regular", 17], ["regular", 84], ["frequent", 17], ["frequent", 84]])(
+    "%s level, no runs, race in %i days: week-1 easy days open well above 2.5 km", (level, days) => {
+      const kms = week1Easy({ level }, days);
+      expect(kms.length).toBeGreaterThan(0);
+      for (const km of kms) expect(km).toBeGreaterThanOrEqual(5);
+    });
+
+  it("never exceeds the day's own time budget", () => {
+    const plan = buildPlan(raceIn(84), 6600, [{dayOffset: 1, minutes: 20}, {dayOffset: 6, minutes: 90}], 21.1, 0, { level: "frequent" });
+    const easy = plan.weeks[0]!.sessions.find(s => s.type === "EASY")!;
+    expect(easy.km as number).toBeLessThanOrEqual(20 * 60 / 330 + 0.01);
+  });
+
+  it("logged runs win over the level", () => {
+    const runs = habit([3, 3.2, 3.1, 3]);
+    expect(week1Easy({ level: "frequent", recentRuns: runs as never }, 84))
+      .toEqual(week1Easy({ recentRuns: runs as never }, 84));
+  });
+
+  it.each([[undefined], [null], ["none"], ["bogus"]])("level %s leaves the plan unchanged", (level) => {
+    expect(buildPlan(raceIn(84), 6600, DAYS, 21.1, 150, { level: level as never }))
+      .toEqual(buildPlan(raceIn(84), 6600, DAYS, 21.1, 150));
   });
 });

@@ -230,6 +230,13 @@
     }
   },
   "crosswalk": "Cross-training / brisk walk — no impact, easy effort",
+  "crossActivity": "Cross-training — {{mins}} easy {{activity}}, no running",
+  "crossActivityName": {
+    "bike": "bike ride",
+    "elliptical": "elliptical session",
+    "swim": "swim",
+    "rower": "rowing session"
+  },
   "recovery": "Recovery run — very easy effort, walk breaks welcome",
   "preview": {
     "title": "Review changes",
