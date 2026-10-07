@@ -86,7 +86,7 @@ decides". Keep the two in step when a rule below changes.
   web), never while paused or idle. The player is read while in use, the
   opposite of a recording: never reuse this for a recorder, which runs
   screen-off in a pocket.
-- **Sound:** a beep at each change, and voice (on by default, `stretchVoice`)
+- **Sound:** a short blip on each of a move's last 5 s, a beep at each change, and voice (on by default, `stretchVoice`)
   naming the next stretch and "switch sides". `stretchCue` in `src/cues`: iOS
   through `AudioCue`; web and Android beep through Web Audio, and Android speaks
   through the guide plugin's TTS (`playCue` is silent on Android on purpose,

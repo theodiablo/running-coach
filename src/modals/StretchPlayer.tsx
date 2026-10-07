@@ -30,6 +30,8 @@ type Clock = { startedAt: number | null; elapsed: number };
 
 // Less than this actually played (a tap-through on Skip) is not a session.
 const MIN_LOGGED_SEC = 60;
+// A blip each second over a move's last few, before the change beep.
+const COUNTDOWN_SEC = 5;
 const RING_R = 46;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -57,6 +59,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const [done, setDone] = useState(false);
   const [playedSec, setPlayedSec] = useState(0);
   const announced = useRef("");
+  const ticked = useRef("");
   const finished = useRef(false);
   // Wall-clock time spent running, not the routine's planned length.
   const played = useRef({ ms: 0, since: null as number | null });
@@ -95,6 +98,15 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
     stretchCue("step", text, i18n.language || "en");
   };
 
+  const countdown = (p: StretchPosition) => {
+    const left = Math.ceil(p.remainingMs / 1000);
+    if (p.phase !== "hold" || left > COUNTDOWN_SEC || left < 1 || left * 1000 >= p.phaseMs) return;
+    const key = `${p.index}:${left}`;
+    if (key === ticked.current) return;
+    ticked.current = key;
+    stretchCue("info");
+  };
+
   const finish = () => {
     if (finished.current) return;
     finished.current = true;
@@ -111,7 +123,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
     const t0 = Date.now();
     const p = positionAt(steps, t0 - (clock.startedAt ?? t0));
     if (p.done) finish();
-    else { announce(p); setNow(t0); }
+    else { announce(p); countdown(p); setNow(t0); }
   });
 
   useEffect(() => {
@@ -123,6 +135,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const seek = (ms: number) => {
     const t0 = Date.now();
     announced.current = "";
+    ticked.current = "";
     setNow(t0);
     if (running) {
       setClock({ startedAt: t0 - ms, elapsed: 0 });
