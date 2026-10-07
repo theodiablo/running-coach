@@ -332,7 +332,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   for loyalty history), **service-role-writable only** — never put it in the
   `app_state` blob, which the user can write. `src/premium.ts` reads the caller's
   own row for UI only (`isPremiumActive`); **the gate is always server-side** in
-  the feature's edge function. `App.tsx` owns the fetch and threads `isPremium`
+  the feature's edge function — the one exception is stretching, a client-only
+  test flag with no server half (`docs/stretching.md`). `App.tsx` owns the fetch and threads `isPremium`
   through the `shared` bag. A failed read means free, so premium checks must
   degrade safely. **The tier is not unveiled yet:** `canShowPremiumTeaser` is
   `false` — gate every premium affordance on `isPremium || canShowPremiumTeaser`,

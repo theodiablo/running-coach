@@ -25,10 +25,17 @@ describe("StretchSheet", () => {
   it("opens a Home suggestion straight on its routine, saying why", () => {
     setup({ routine: "cooldown", focus: "hills", km: 12 });
     expect(screen.getByText("Cool-down")).toBeInTheDocument();
-    expect(screen.getByText("A hilly 12.0 km, so calves come first and get 45 s.")).toBeInTheDocument();
+    expect(screen.getByText("A hilly 12.0 km, so the calf stretches get 45 s.")).toBeInTheDocument();
     const rows = screen.getAllByRole("listitem");
     expect(rows[0]).toHaveTextContent("Wall calf stretch");
     expect(rows[0]).toHaveTextContent("45 s each side");
+  });
+
+  it("shows the rest-day rounds and the closing stretch apart", () => {
+    setup(null);
+    fireEvent.click(screen.getByText("Rest-day stretch"));
+    expect(screen.getByText("× 2 rounds")).toBeInTheDocument();
+    expect(screen.getByText("Then")).toBeInTheDocument();
   });
 
   it("back from a routine picked in the list returns to the list", () => {

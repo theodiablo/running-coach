@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Plan, Run } from "../types";
 import { ymd } from "./format";
-import { STRETCH_LOG_CAP, appendStretchLog, stretchSuggestion, stretchesThisWeek } from "./stretchSuggest";
+import { STRETCH_LOG_CAP, appendStretchLog, readStretchLog, stretchSuggestion, stretchesThisWeek } from "./stretchSuggest";
 import type { StretchLogEntry } from "./stretchSuggest";
 
 // A Wednesday evening; every date below is derived from it.
@@ -51,6 +51,15 @@ describe("stretchSuggestion: after a run today", () => {
     expect(suggest([run({})], { log: [logAt(new Date(NOW.getTime() - 8 * 3600e3))] })).toBeNull();
   });
 
+  it("ignores a run with no distance", () => {
+    expect(suggest([run({ km: 0 })])).toBeNull();
+  });
+
+  it("counts a run that ran past midnight as today's", () => {
+    const startedAt = new Date(NOW.getTime() - 19.25 * 3600e3).toISOString(); // 23:45 the evening before
+    expect(suggest([run({ date: YESTERDAY, startedAt, durationSec: 40 * 60 })])).toMatchObject({ routine: "cooldown" });
+  });
+
   it("adds up the day's distance", () => {
     expect(suggest([run({ km: 5 }), run({ km: 4, id: "r2" })])).toMatchObject({ km: 9 });
   });
@@ -93,6 +102,12 @@ describe("stretch log", () => {
     const monday = new Date(2026, 9, 5, 8);
     const lastSunday = new Date(2026, 9, 4, 8);
     expect(stretchesThisWeek([logAt(lastSunday), logAt(monday), logAt(NOW)], NOW)).toBe(2);
+  });
+
+  it("reads only well-formed entries from the stored blob", () => {
+    const good = logAt(NOW);
+    expect(readStretchLog([good, null, { date: 1 }, "x"])).toEqual([good]);
+    expect(readStretchLog({})).toEqual([]);
   });
 
   it("keeps only the newest entries", () => {

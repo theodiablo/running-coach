@@ -240,7 +240,7 @@ choice either way.
   is only how often the feature is used.
 - Premium: `premium_teaser_shown` `{feature}` when the "premium feature" sheet
   opens (`src/modals/PremiumTeaserSheet.tsx`). `feature` is a fixed slug
-  (`"routeFinder"`), never free text. It is the demand signal for the paid tier
+  (`"routeFinder"`, `"stretching"`), never free text. It is the demand signal for the paid tier
   — how many people reach for a premium feature before there is anything to
   sell — but it is **dormant today**: premium entry points are hidden from free
   users (`canShowPremiumTeaser === false`), so this fires ~never until the tier

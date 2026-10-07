@@ -47,7 +47,7 @@ function ItemRow({ item }: { item: RoutineItem }) {
       <StretchFigure move={item.move} crop bg="#0f172a" className="w-11 h-11 rounded-lg bg-slate-900 shrink-0"/>
       <span className="flex-1 min-w-0">
         <span className="block text-sm font-semibold leading-snug">{t(`stretch.moves.${item.move}.name`)}</span>
-        <span className="block text-xs text-slate-400 truncate">{t(`stretch.moves.${item.move}.target`)}</span>
+        <span className="block text-xs text-slate-400">{t(`stretch.moves.${item.move}.target`)}</span>
       </span>
       <span className="text-xs text-slate-300 tabular-nums shrink-0">{time}</span>
     </li>
@@ -74,7 +74,6 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
     return t("stretch.sheet.whyCooldown", { km });
   })();
 
-  const items = selected ? [...selected.items, ...(selected.tail ?? [])] : [];
 
   return (
     <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col animate-slide-up">
@@ -92,7 +91,7 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="max-w-lg mx-auto p-4 space-y-4">
+        <div className="max-w-lg mx-auto p-4 space-y-4" style={selected ? undefined : { paddingBottom: "calc(1rem + var(--safe-bottom))" }}>
           {selected ? (
             <>
               <div className="space-y-1">
@@ -104,12 +103,20 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
               </div>
               {why && <p className="text-sm text-slate-300 bg-slate-800 rounded-xl px-3 py-2.5">{why}</p>}
               <div>
-                {selected.rounds && selected.rounds > 1 && (
+                {(selected.rounds ?? 1) > 1 && (
                   <p className="text-xs text-slate-400 mb-1">{t("stretch.sheet.rounds", { count: selected.rounds })}</p>
                 )}
                 <ul className="divide-y divide-slate-800">
-                  {items.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
+                  {selected.items.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
                 </ul>
+                {selected.tail?.length ? (
+                  <>
+                    <p className="text-xs text-slate-400 mt-2 mb-1">{t("stretch.sheet.then")}</p>
+                    <ul className="divide-y divide-slate-800">
+                      {selected.tail.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
+                    </ul>
+                  </>
+                ) : null}
               </div>
               <p className="text-xs text-slate-500">{t(`stretch.routines.${selected.id}.why`)}</p>
               <WeekLine count={weekCount}/>

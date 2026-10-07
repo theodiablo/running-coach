@@ -31,7 +31,7 @@ export function RecordSheet({ onTrack, onIndoor, onManual, onStretch, onClose }:
   return (
     <div className="fixed inset-0 bg-black/70 z-[2000] flex items-end animate-overlay-fade" onClick={onClose}>
       <div
-        className="w-full bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4 space-y-2.5 animate-slide-up"
+        className="w-full max-h-full overflow-y-auto bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4 space-y-2.5 animate-slide-up"
         style={{ paddingBottom: "calc(1.5rem + var(--safe-bottom))" }}
         onClick={e => e.stopPropagation()}
       >

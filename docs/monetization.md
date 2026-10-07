@@ -135,7 +135,8 @@ from then on manual comps go through the provider's *granted entitlements* so
 the webhook stays the single writer to these columns (otherwise an `EXPIRATION`
 event silently revokes a hand-granted comp).
 
-**Enforcement** is always server-side, per feature:
+**Enforcement** is always server-side, per feature (stretching is the one
+exception: a client-only test flag with no server half, see `docs/stretching.md`):
 
 - `route-suggest` → `{code:"PREMIUM_REQUIRED"}` before it touches the quota
   table, so free callers never consume one.

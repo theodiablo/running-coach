@@ -6,7 +6,8 @@
 // policy) purely so the UI can render the right affordance. It is NEVER the
 // gate: every premium feature is enforced server-side in its edge function
 // (route-suggest returns PREMIUM_REQUIRED; coach-agent raises the daily
-// budget), so a tampered client gains nothing.
+// budget), so a tampered client gains nothing. Stretching is the one exception,
+// a client-only test flag (docs/stretching.md).
 //
 // Nothing here touches `db`/app_state: that blob is client-writable, and
 // entitlement is per-account server truth, not synced user state.

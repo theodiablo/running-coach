@@ -45,7 +45,14 @@ describe("Dashboard stretch banner", () => {
     const p = renderDash();
     fireEvent.click(screen.getByRole("button", { name: "Not today" }));
     expect(p.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ stretchDismissed: TODAY }));
-    expect(p.showToast).toHaveBeenCalledWith(expect.stringContaining("Settings"));
+    expect(p.showToast).toHaveBeenCalledWith(expect.stringContaining("Training profile"), "ok", expect.objectContaining({ label: "Settings" }));
+    (p.showToast as ReturnType<typeof vi.fn>).mock.calls[0][2].onClick();
+    expect(p.openSettings).toHaveBeenCalledWith("training");
+  });
+
+  it("stays away while a run is being recorded", () => {
+    renderDash({ recorderOpen: true });
+    expect(screen.queryByText("Cool down · 7 min")).toBeNull();
   });
 
   it("respects the suggestions setting", () => {

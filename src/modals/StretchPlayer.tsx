@@ -8,7 +8,7 @@ import { useKeepAwake } from "../hooks/useKeepAwake";
 import { primeStretchCues, releaseCues, stretchCue } from "../cues";
 import { MOVE_KIND } from "../stretch/routines";
 import type { Routine } from "../stretch/routines";
-import { backTarget, isSideSwitch, positionAt, routineMinutes, routineSteps, stepStartMs, totalMs } from "../utils/stretchEngine";
+import { backTarget, isSideSwitch, positionAt, routineSteps, stepStartMs, totalMs } from "../utils/stretchEngine";
 import type { StretchPosition, StretchSide } from "../utils/stretchEngine";
 
 type StretchPlayerProps = {
@@ -16,7 +16,7 @@ type StretchPlayerProps = {
   voice: boolean;
   onVoiceChange: (on: boolean) => void;
   weekCount: number;
-  /** Fires once, when the last hold ends: the session counts from here. */
+  /** Fires once at the end, with the seconds actually played, if that is a real session. */
   onComplete: (sec: number) => void;
   /** Back to the routine, before the end. */
   onClose: () => void;
@@ -28,6 +28,8 @@ type StretchPlayerProps = {
 // routine would have started, so a screen that slept reads the right step.
 type Clock = { startedAt: number | null; elapsed: number };
 
+// Less than this actually played (a tap-through on Skip) is not a session.
+const MIN_LOGGED_SEC = 60;
 const RING_R = 46;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -53,8 +55,12 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const [now, setNow] = useState(() => Date.now());
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [done, setDone] = useState(false);
+  const [playedSec, setPlayedSec] = useState(0);
   const announced = useRef("");
   const finished = useRef(false);
+  // Wall-clock time spent running, not the routine's planned length.
+  const played = useRef({ ms: 0, since: null as number | null });
+  const resumeAfterConfirm = useRef(false);
   const running = clock.startedAt !== null;
   const elapsed = running ? now - (clock.startedAt as number) : clock.elapsed;
   const pos = positionAt(steps, done ? totalMs(steps) : elapsed);
@@ -63,8 +69,15 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const sideWord = (side: StretchSide) => t(side === "left" ? "stretch.player.sideLeft" : "stretch.player.sideRight");
   const routineName = t(`stretch.routines.${routine.id}.name`);
 
-  useKeepAwake(!done);
-  useEffect(() => () => releaseCues(), []);
+  useKeepAwake(running);
+  // Once done, the last cue is left to finish on its own.
+  useEffect(() => () => { if (!finished.current) releaseCues(); }, []);
+
+  const startPlayed = (t0: number) => { played.current.since = t0; };
+  const stopPlayed = (t0: number) => {
+    if (played.current.since !== null) played.current.ms += t0 - played.current.since;
+    played.current.since = null;
+  };
 
   const announce = (p: StretchPosition) => {
     const key = `${p.index}:${p.phase}`;
@@ -85,10 +98,13 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const finish = () => {
     if (finished.current) return;
     finished.current = true;
+    stopPlayed(Date.now());
+    const sec = Math.round(played.current.ms / 1000);
+    setPlayedSec(sec);
     setClock({ startedAt: null, elapsed: totalMs(steps) });
     setDone(true);
     stretchCue("done", voice ? t("stretch.player.speak.done") : undefined, i18n.language || "en");
-    onComplete(Math.round(totalMs(steps) / 1000));
+    if (sec >= MIN_LOGGED_SEC) onComplete(sec);
   };
 
   const onTick = useEffectEvent(() => {
@@ -114,13 +130,22 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
     } else setClock({ startedAt: null, elapsed: ms });
   };
 
-  const togglePlay = () => {
-    const t0 = Date.now();
-    if (running) { setClock({ startedAt: null, elapsed: t0 - (clock.startedAt as number) }); return; }
+  const pause = (t0: number) => {
+    stopPlayed(t0);
+    setClock({ startedAt: null, elapsed: t0 - (clock.startedAt as number) });
+  };
+
+  const resume = (t0: number) => {
     primeStretchCues();
+    startPlayed(t0);
     setNow(t0);
     setClock({ startedAt: t0 - clock.elapsed, elapsed: 0 });
     announce(positionAt(steps, clock.elapsed));
+  };
+
+  const togglePlay = () => {
+    const t0 = Date.now();
+    if (running) pause(t0); else resume(t0);
   };
 
   const skip = () => {
@@ -129,9 +154,16 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   };
 
   const requestClose = () => {
-    if (done) onFinish();
-    else if (running || clock.elapsed > 0) setConfirmLeave(true);
-    else onClose();
+    if (done) { onFinish(); return; }
+    if (!running && clock.elapsed === 0) { onClose(); return; }
+    // The routine holds still behind the question, so it can't finish (and log) there.
+    resumeAfterConfirm.current = running;
+    if (running) pause(Date.now());
+    setConfirmLeave(true);
+  };
+  const keepGoing = () => {
+    setConfirmLeave(false);
+    if (resumeAfterConfirm.current) resume(Date.now());
   };
   useDismissable(true, requestClose);
 
@@ -155,7 +187,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
           {!done && <p className="text-[11px] text-slate-400 tabular-nums">{t("stretch.player.progress", { n: pos.index + 1, total: steps.length })}</p>}
         </div>
         <button onClick={() => onVoiceChange(!voice)} aria-pressed={voice}
-          aria-label={t(voice ? "stretch.player.voiceOn" : "stretch.player.voiceOff")}
+          aria-label={t("stretch.player.voice")}
           className={"p-1.5 rounded-full transition-colors " + (voice
             ? "text-teal-300 bg-teal-400/15 hover:bg-teal-400/25"
             : "text-slate-500 hover:text-slate-300")}>
@@ -169,7 +201,9 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             <Check size={30}/>
           </div>
           <p className="text-xl font-bold">{t("stretch.player.doneTitle", { name: routineName })}</p>
-          <p className="text-sm text-slate-400">{t("stretch.player.doneBody", { min: routineMinutes(routine) })}</p>
+          <p className="text-sm text-slate-400">
+            {playedSec >= MIN_LOGGED_SEC ? t("stretch.player.doneBody", { min: Math.max(1, Math.round(playedSec / 60)) }) : t("stretch.player.doneShort")}
+          </p>
           <p className="text-xs text-slate-500">{weekCount > 0 ? t("stretch.sheet.week", { count: weekCount }) : t("stretch.sheet.weekNone")}</p>
           <button onClick={onFinish} className="mt-3 px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm font-semibold">
             {t("stretch.player.doneClose")}
@@ -188,7 +222,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             </div>
 
             <div className="relative bg-slate-800 rounded-2xl flex items-center justify-center" style={{ height: "min(38vh, 300px)" }}>
-              <StretchFigure move={step.move} mirror={step.side === "right"} animate bg="#1e293b"
+              <StretchFigure move={step.move} mirror={step.side === "right"} animate={running} bg="#1e293b"
                 className="h-full max-h-full aspect-square" label={name(step.move)}/>
               {step.side && (
                 <span className="absolute top-2.5 right-2.5 text-[10.5px] font-bold uppercase tracking-wider text-teal-200 bg-teal-400/15 border border-teal-400/35 rounded-full px-2 py-0.5">
@@ -197,7 +231,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
               )}
             </div>
 
-            <div>
+            <div aria-live="polite">
               <p className="text-lg font-bold leading-tight">{name(step.move)}</p>
               <p className="text-xs text-slate-400">{t(`stretch.moves.${step.move}.target`)}</p>
             </div>
@@ -211,7 +245,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                   <span className="text-2xl font-extrabold tabular-nums leading-none">{Math.floor(secLeft / 60)}:{String(secLeft % 60).padStart(2, "0")}</span>
-                  <span className={"text-[10.5px] mt-1 " + (prep ? "text-amber-300" : "text-slate-400")}>{phaseLabel}</span>
+                  <span className={"text-[10.5px] mt-1 max-w-[76px] leading-tight " + (prep ? "text-amber-300" : "text-slate-400")}>{phaseLabel}</span>
                 </div>
               </div>
               <ul className="space-y-1.5 min-w-0">
@@ -224,7 +258,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
               </ul>
             </div>
 
-            <p className="text-xs text-slate-400 bg-slate-800 rounded-xl px-3 py-2 truncate">
+            <p className="text-xs text-slate-400 bg-slate-800 rounded-xl px-3 py-2 line-clamp-2">
               {next
                 ? (next.side
                   ? <Trans i18nKey="stretch.player.nextSide" values={{ name: name(next.move), side: sideWord(next.side) }} components={[<span className="text-slate-200 font-semibold"/>]}/>
@@ -242,7 +276,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200">
             <SkipBack size={20}/>
           </button>
-          <button onClick={togglePlay} aria-label={t(running ? "stretch.player.pause" : "stretch.player.play")}
+          <button onClick={togglePlay} aria-label={t(running ? "stretch.player.pause" : clock.elapsed > 0 ? "stretch.player.resume" : "stretch.player.play")}
             className="w-16 h-16 rounded-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center text-white">
             {running ? <Pause size={26}/> : <Play size={26} className="ml-0.5"/>}
           </button>
@@ -253,7 +287,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
         </div>
       )}
 
-      {confirmLeave && <LeaveConfirm onStop={onClose} onKeep={() => setConfirmLeave(false)}/>}
+      {confirmLeave && <LeaveConfirm onStop={onClose} onKeep={keepGoing}/>}
     </div>
   );
 }

@@ -24,7 +24,7 @@ export const HILLY_M_PER_KM = 15;
 const HARD_TYPES = new Set(["TEMPO", "INTERVALS", "RACE"]);
 const typeOf = (r: { type?: unknown }) => String(r.type ?? "").toUpperCase();
 
-const counts = (r: Run) => !isCrossTraining(r) && (r.durationSec ?? 0) >= MIN_RUN_SEC;
+const counts = (r: Run) => !isCrossTraining(r) && (Number(r.km) || 0) > 0 && (r.durationSec ?? 0) >= MIN_RUN_SEC;
 
 /** When a run ended, if it says when it started; null for a hand-logged run. */
 function runEndMs(r: Run): number | null {
@@ -38,6 +38,9 @@ export function cooldownFocus(r: Run): CooldownFocus {
   if (HARD_TYPES.has(typeOf(r))) return "hard";
   return "standard";
 }
+
+// A run's `date` is the day it started, so one that ran past midnight belongs to both.
+const endsOn = (r: Run, day: string) => { const end = runEndMs(r); return end !== null && ymd(new Date(end)) === day; };
 
 function hardSessionToday(plan: Plan | null, day: string): boolean {
   return !!plan?.weeks?.some(w => w.sessions.some(s =>
@@ -57,7 +60,7 @@ export function stretchSuggestion(args: {
   if (!enabled || dismissedOn === today) return null;
   const stretchedToday = log.filter(e => e.date === today);
 
-  const ranToday = runs.filter(r => r.date === today && counts(r));
+  const ranToday = runs.filter(r => (r.date === today || endsOn(r, today)) && counts(r));
   if (ranToday.length) {
     const ends = ranToday.map(runEndMs);
     const lastEnd = ends.every(e => e !== null) ? Math.max(...(ends as number[])) : null;
@@ -84,6 +87,14 @@ export function stretchesThisWeek(log: StretchLogEntry[], now: Date): number {
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const from = ymd(monday);
   return log.filter(e => e.date >= from && e.date <= ymd(now)).length;
+}
+
+/** The stored log, keeping only well-formed entries (the blob is user-writable and restorable). */
+export function readStretchLog(v: unknown): StretchLogEntry[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((e): e is StretchLogEntry => !!e && typeof e === "object"
+    && typeof e.date === "string" && typeof e.at === "number" && typeof e.routine === "string" && typeof e.sec === "number")
+    .slice(-STRETCH_LOG_CAP);
 }
 
 export function appendStretchLog(log: StretchLogEntry[], entry: StretchLogEntry): StretchLogEntry[] {

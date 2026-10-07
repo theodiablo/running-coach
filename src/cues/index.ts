@@ -9,6 +9,8 @@
 //   Android     — silent HERE on purpose: the WorkoutGuide plugin evaluates the
 //                 whole schedule natively off the LIVE_FIX relay (fore AND
 //                 background) and owns every sound, so a JS cue would double up.
+//                 (The stretch player, with no run under it, has its own
+//                 `stretchCue` below.)
 // Whether to speak at all is the recorder's per-run audio switch: callers only
 // call in when it's on, and the Android engine is told via its seed.
 // Everything is fire-and-forget and never throws.
@@ -90,8 +92,10 @@ export function stretchCue(tone: CueTone, text?: string, lang = "en"): void {
   }
   playWebTone(tone);
   if (!text) return;
-  if (isAndroid) previewWorkoutGuide(text, lang);
-  else speakWeb(text, lang);
+  if (isAndroid) { previewWorkoutGuide(text, lang); return; }
+  // speechSynthesis queues: a skip must replace the announcement, not wait behind it.
+  stopWebSpeech();
+  speakWeb(text, lang);
 }
 
 /** Run over/reset: cancel anything pending and let go of the audio session. */

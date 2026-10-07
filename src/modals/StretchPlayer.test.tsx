@@ -60,10 +60,43 @@ describe("StretchPlayer", () => {
     expect(p.onFinish).toHaveBeenCalledTimes(1);
   });
 
-  it("skipping past the last stretch finishes the routine", () => {
+  it("a tap-through on Skip ends the routine without counting it", () => {
     const p = setup();
     for (let i = 0; i < 12; i++) fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(screen.getByText("Cool-down done")).toBeInTheDocument();
+    expect(screen.getByText("Under a minute, so it isn't counted.")).toBeInTheDocument();
+    expect(p.onComplete).not.toHaveBeenCalled();
+  });
+
+  it("logs the time actually played when the end is skipped to", () => {
+    const p = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    advance(90 * 1000);
+    while (screen.queryByRole("button", { name: "Skip" })) fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(p.onComplete).toHaveBeenCalledWith(90);
+  });
+
+  it("pauses behind the leave question, so the routine can't finish there", () => {
+    const p = setup({ routine: ROUTINES.warmup });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    advance(160 * 1000);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    advance(60 * 1000);
+    expect(p.onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Keep going" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    advance(30 * 1000);
     expect(p.onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Resume once paused, and keeps a stable voice label", () => {
+    setup();
+    const voice = screen.getByRole("button", { name: "Voice cues" });
+    expect(voice).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    advance(3000);
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
   });
 
   it("asks before leaving a routine under way, and back keeps it going", () => {
