@@ -1033,7 +1033,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
           <div className="flex gap-2">
             <button onClick={toggleAudio} aria-pressed={audioOn}
               className={"flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold "
-                + (audioOn ? "border-orange-500/40 text-orange-300 bg-slate-800" : "border-slate-700 text-slate-400 bg-slate-800")}>
+                + (audioOn ? "border-orange-500/40 text-orange-300 bg-orange-500/10" : "border-slate-700 text-slate-400 bg-slate-800")}>
               {audioOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
               {t(audioOn ? "tracker.quick.audioOn" : "tracker.quick.audioOff")}
             </button>
