@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import type { Plan, RouteBackup, Run, SettingsState, UserContextState } from "../types";
+import type { StretchLogEntry } from "../utils/stretchSuggest";
 
 type BackupPayload = {
   runs?: Run[];
@@ -9,6 +10,7 @@ type BackupPayload = {
   settings?: Partial<SettingsState>;
   routes?: RouteBackup[];
   userContext?: UserContextState;
+  stretchLog?: StretchLogEntry[];
 };
 
 type RestoreModalProps = { onRestore: (payload: BackupPayload) => void; onClose: () => void };

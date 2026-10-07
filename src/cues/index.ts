@@ -73,6 +73,27 @@ export function cancelScheduledCue(): void {
   AudioCue.cancelScheduled().catch(() => {});
 }
 
+/** The stretch player's prime, from its Start tap. Unlike `primeCues` it primes Web Audio on Android too. */
+export function primeStretchCues(): void {
+  if (isIos) { AudioCue.prime().catch(() => {}); return; }
+  primeWebAudio();
+}
+
+/**
+ * A stretch player cue. The player is a foreground timer with no native engine
+ * behind it, so Android beeps through Web Audio and speaks through the guide's TTS.
+ */
+export function stretchCue(tone: CueTone, text?: string, lang = "en"): void {
+  if (isIos) {
+    AudioCue.play({ tone, ...(text ? { text, lang } : {}) }).catch(() => {});
+    return;
+  }
+  playWebTone(tone);
+  if (!text) return;
+  if (isAndroid) previewWorkoutGuide(text, lang);
+  else speakWeb(text, lang);
+}
+
 /** Run over/reset: cancel anything pending and let go of the audio session. */
 export function releaseCues(): void {
   if (isAndroid) return;

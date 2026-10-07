@@ -221,6 +221,10 @@ choice either way.
   returns, `coach_plan_applied` when the user accepts one —
   `src/modals/CoachChat.tsx`. Limited: never the message text, the plan, or the
   tool calls (those live server-side in `agent_rounds`).
+- Stretching (`docs/stretching.md`): `stretch_completed`
+  `{routine:"cooldown"|"recovery"|"warmup"|"restday"}` when a routine reaches
+  its end (`src/RunningCoach.tsx`). An enum only. It answers whether the test
+  feature gets used, and which routine.
 - Catalogue events (Phase 2): `race_contributed` `{kind:"race"|"edition"}` when a
   user adds to the shared catalogue (`src/modals/RaceFormModal.tsx`); `find_near_me`
   `{}` the first time the "Near me" toggle is enabled in Races → Find a race

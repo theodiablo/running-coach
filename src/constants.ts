@@ -11,6 +11,8 @@ export const STORAGE_KEYS = {
   // The race *catalogue* is NOT here — it's shared/heavy (a bundled seed in
   // Phase 1, a Supabase table in Phase 2); only per-user data lives in the blob.
   RACES: "rc_races",
+  // Completed stretching routines, for "already stretched today" and the weekly count.
+  STRETCH_LOG: "rc_stretch_log",
 };
 
 export const USER_CONTEXT_MAX_CHARS = 2000;

@@ -1,0 +1,237 @@
+{
+  "banner": {
+    "cooldownTitle": "Cool down · {{min}} min",
+    "cooldownStandard": "After your {{km}} km. Calves, quads and hips.",
+    "cooldownHills": "After your {{km}} km. Calves first today.",
+    "cooldownHard": "After your {{km}} km. Extra time for hips.",
+    "recoveryTitle": "Recovery mobility · {{min}} min",
+    "recoveryLong": "Easy moves after yesterday's {{km}} km.",
+    "recoveryRace": "Easy moves after yesterday's race.",
+    "start": "Start",
+    "notToday": "Not today",
+    "dismissed": "Hidden until tomorrow. You can turn stretching suggestions off in Settings."
+  },
+  "routines": {
+    "cooldown": {
+      "name": "Cool-down",
+      "when": "Right after any run",
+      "why": "The muscles running works hardest, 30 s a side. Short enough to do before the shower."
+    },
+    "recovery": {
+      "name": "Recovery mobility",
+      "when": "The day after a long run or race",
+      "why": "Easy, moving positions for the stiff day after. Nothing is held hard."
+    },
+    "warmup": {
+      "name": "Warm-up drills",
+      "when": "Before a hard session, after 5 to 10 min of easy jogging",
+      "why": "Movement only, no long holds. Do it right before the hard part."
+    },
+    "restday": {
+      "name": "Rest-day stretch",
+      "when": "A day off, when you have a bit more time",
+      "why": "Two rounds of 30 s a side: about a minute per muscle, which is what improves range of motion over the weeks."
+    }
+  },
+  "moves": {
+    "calfWall": {
+      "name": "Wall calf stretch",
+      "target": "Upper calf",
+      "cue1": "Back leg straight, heel down",
+      "cue2": "Lean your hips toward the wall",
+      "cue3": "Toes point straight ahead"
+    },
+    "calfBent": {
+      "name": "Bent-knee calf stretch",
+      "target": "Lower calf, Achilles",
+      "cue1": "Same stance, bend the back knee",
+      "cue2": "Keep that heel on the floor",
+      "cue3": "Feel it low, just above the heel"
+    },
+    "quad": {
+      "name": "Standing quad stretch",
+      "target": "Front of thigh",
+      "cue1": "Knees side by side",
+      "cue2": "Tuck the pelvis, don't arch your back",
+      "cue3": "Hand on a wall if you wobble"
+    },
+    "hipFlexor": {
+      "name": "Kneeling hip flexor stretch",
+      "target": "Front of hip",
+      "cue1": "Cushion under the back knee",
+      "cue2": "Squeeze the back glute, tuck the pelvis",
+      "cue3": "Stay tall, don't lean forward"
+    },
+    "hamStrap": {
+      "name": "Lying hamstring stretch",
+      "target": "Back of thigh",
+      "cue1": "Towel or belt around the foot",
+      "cue2": "Raised knee soft, not locked",
+      "cue3": "Other leg long on the floor"
+    },
+    "kneeChest": {
+      "name": "Knee to chest",
+      "target": "Glutes, lower back",
+      "cue1": "Pull the knee toward the same shoulder",
+      "cue2": "Other leg relaxed and long",
+      "cue3": "Breathe out as you pull"
+    },
+    "child": {
+      "name": "Child's pose",
+      "target": "Lower back, hips",
+      "cue1": "Knees wide, big toes together",
+      "cue2": "Sit back toward your heels",
+      "cue3": "Let your forehead rest"
+    },
+    "legsWall": {
+      "name": "Legs up the wall",
+      "target": "Calves, hamstrings",
+      "cue1": "Hips close to the wall",
+      "cue2": "Let your legs go heavy",
+      "cue3": "Slow breaths"
+    },
+    "legSwing": {
+      "name": "Leg swings",
+      "target": "Hips, hamstrings",
+      "cue1": "Hold a wall or post for balance",
+      "cue2": "Swing loosely, let the height build",
+      "cue3": "Keep your upper body still"
+    },
+    "lunge": {
+      "name": "Walking lunges",
+      "target": "Hips, quads, glutes",
+      "cue1": "Long step, back knee hovers",
+      "cue2": "Stay tall",
+      "cue3": "Push through the front heel"
+    },
+    "highKnees": {
+      "name": "High knees",
+      "target": "Hip flexors, rhythm",
+      "cue1": "Quick, light steps",
+      "cue2": "Drive the arms",
+      "cue3": "Stay tall"
+    },
+    "calfRaise": {
+      "name": "Calf raises",
+      "target": "Calves, ankles",
+      "cue1": "Up in one count, down in two",
+      "cue2": "Hand on a wall for balance",
+      "cue3": "Full range, heels to toes"
+    },
+    "catCow": {
+      "name": "Cat-cow",
+      "target": "Spine, hips",
+      "cue1": "Round your back as you breathe out",
+      "cue2": "Arch as you breathe in",
+      "cue3": "Move slowly, nothing forced"
+    }
+  },
+  "sheet": {
+    "title": "Stretching",
+    "subtitle": "Guided routines picked for runners",
+    "minutes": "{{count}} min",
+    "moves_one": "{{count}} move",
+    "moves_other": "{{count}} moves",
+    "rounds": "× {{count}} rounds",
+    "eachSide": "{{sec}} s each side",
+    "seconds": "{{sec}} s",
+    "wholeMinutes": "{{min}} min",
+    "start": "Start",
+    "allRoutines": "All routines",
+    "week_one": "{{count}} session this week",
+    "week_other": "{{count}} sessions this week",
+    "weekAim": "2 or 3 a week is the usual aim",
+    "safety": "Mild tension, never pain. Skip anything that hurts.",
+    "whyCooldown": "You just ran {{km}} km. A calm finish while your muscles are still warm.",
+    "whyCooldownHills": "A hilly {{km}} km, so calves come first and get 45 s.",
+    "whyCooldownHard": "A hard {{km}} km, so hips and hamstrings get 45 s.",
+    "whyRecovery": "Easy moves for the day after a big run. Nothing is held hard.",
+    "weekNone": "No sessions yet this week"
+  },
+  "player": {
+    "getReady": "Get ready",
+    "switchSides": "Switch sides",
+    "nextUp": "Next up",
+    "hold": "Hold",
+    "move": "Keep moving",
+    "left": "Left side",
+    "right": "Right side",
+    "sideLeft": "left",
+    "sideRight": "right",
+    "next": "Next: <0>{{name}}</0>",
+    "nextSide": "Next: <0>{{name}}</0> · {{side}}",
+    "lastOne": "Last one",
+    "progress": "{{n}} of {{total}}",
+    "play": "Start",
+    "pause": "Pause",
+    "previous": "Previous",
+    "skip": "Skip",
+    "close": "Close",
+    "voiceOn": "Voice cues on",
+    "voiceOff": "Voice cues off",
+    "leaveTitle": "Stop this routine?",
+    "leaveBody": "It won't count for today.",
+    "leaveStop": "Stop",
+    "leaveKeep": "Keep going",
+    "doneTitle": "{{name}} done",
+    "doneBody": "{{min}} min. Saved for today.",
+    "doneClose": "Done",
+    "speak": {
+      "start": "{{name}}",
+      "startSide": "{{name}}, {{side}} side",
+      "next": "Next: {{name}}",
+      "nextSide": "Next: {{name}}, {{side}} side",
+      "switch": "Switch sides",
+      "done": "Routine done. Nice work."
+    }
+  },
+  "record": {
+    "row": "Stretch",
+    "rowSub": "Guided routines, 3 to 15 min",
+    "or": "or"
+  },
+  "settings": {
+    "title": "Stretching",
+    "suggest": "Stretching suggestions",
+    "suggestDesc": "A stretch on Home after your runs, and the day after a long one.",
+    "voice": "Voice cues",
+    "voiceDesc": "Reads out each stretch and when to switch sides."
+  },
+  "info": {
+    "label": "About stretching",
+    "title": "About stretching",
+    "intro": "What the research says, and how the app uses it to pick your stretches.",
+    "researchTitle": "What the research says",
+    "methodTitle": "How the app decides",
+    "q1": "When should I stretch?",
+    "a1": "Hold stretches after your run, while your muscles are warm. Before a hard session, do drills instead (leg swings, lunges, high knees) after a few minutes of easy jogging.",
+    "q2": "How often?",
+    "a2": "At least 2 or 3 days a week. Daily works best. Straight after a run is the easiest time to make it a habit.",
+    "q3": "How long should I hold each stretch?",
+    "a3": "20 to 30 seconds, repeated to reach about a minute per muscle. You should feel mild tension, never pain.",
+    "q4": "Is it bad to stretch before running?",
+    "a4": "Short holds are fine. Long holds, over a minute per muscle, can make you a little slower for a while. Drills warm you up better.",
+    "q5": "Will stretching stop me getting injured?",
+    "a5": "The research says no. What does reduce injuries is strength work (calf raises, glute bridges) and building up your training gradually.",
+    "q6": "Will it stop me being sore tomorrow?",
+    "a6": "No. Soreness fades with easy movement, sleep and time. Stretching can still feel good while you're stiff.",
+    "q7": "So why stretch?",
+    "a7": "Done regularly, it keeps and improves your range of motion. It's also a calm way to end a run, and most runners feel better for it.",
+    "q8": "What if a stretch hurts?",
+    "a8": "Ease off until it doesn't. If one keeps hurting, skip it and get it checked by a physio or doctor.",
+    "m1": "Why these stretches?",
+    "n1": "The cool-down covers the muscles running works hardest: calves, front of thigh, front of hip, back of thigh and glutes. Each one is held on both sides.",
+    "m2": "Why 30 seconds?",
+    "n2": "Holds of 10 to 30 seconds work as well as longer ones, and 30 s a side keeps the cool-down to about 7 minutes. The rest-day routine does two rounds, to reach a minute per muscle.",
+    "m3": "When does the app suggest a stretch?",
+    "n3": "After you save a run of 15 minutes or more, and the day after a long run (90 minutes or more) or a race. Never more than one suggestion a day, and \"Not today\" hides it until tomorrow.",
+    "m4": "How does my run change the routine?",
+    "n4": "After a hilly run (15 m of climb per km or more), calves come first and get 45 s. After intervals, a tempo or a race, hips and hamstrings get 45 s. After a long run, the next day brings an easier recovery session.",
+    "m5": "Why does the warm-up have no holds?",
+    "n5": "Before a hard session, long holds slow you down a little and drills don't. So the warm-up is all movement, done after a few minutes of easy jogging.",
+    "m6": "Why no streaks?",
+    "n6": "The aim is 2 or 3 sessions a week, not every day without fail. Missing a day doesn't undo anything, so the app counts your week and never shows a broken streak.",
+    "sources": "Sources: ACSM position stand (2011), Behm et al. (2016), Afonso et al. (2021), Lauersen et al. (2014)."
+  },
+  "loadError": "Couldn't open stretching. Check your connection and try again."
+}

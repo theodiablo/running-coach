@@ -55,6 +55,10 @@ export type SettingsState = Record<string, unknown> & {
   // the coach signposts: it explains a behaviour change (guidance now talks by
   // default on tempo/intervals) to the runners who already had the recorder.
   guidanceTourSeen?: boolean;
+  // Stretching (premium): Home suggestions on/off, the player's voice, and the day of the last "Not today".
+  stretchSuggest?: boolean;
+  stretchVoice?: boolean;
+  stretchDismissed?: string;
   // True once this account has sent beta feedback: the pill drops its
   // label and collapses to an icon, because the word was recruitment.
   feedbackSent?: boolean;
@@ -131,9 +135,9 @@ export type SessionSd = {
   elevM?: number;
 };
 
-// Settings sub-pages (the hub's three rows) — named here because views deep-link
+// Settings sub-pages (the hub's rows) — named here because views deep-link
 // into them through the shared bag's openSettings.
-export type SettingsPage = "account" | "integrations" | "training";
+export type SettingsPage = "account" | "integrations" | "training" | "help";
 
 export type Run = Record<string, unknown> & {
   id?: string;

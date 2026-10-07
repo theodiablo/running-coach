@@ -2,11 +2,12 @@ import { useTranslation, Trans } from "react-i18next";
 import { InfoButton, InfoSection } from "./InfoButton";
 
 // "ⓘ info" affordance + panel explaining how race predictions are computed.
-// Mirrors the maths in utils/predictions.js.
-export function PredictionsInfo() {
+// Mirrors the maths in utils/predictions.js. Its body is
+// also shown in Settings → Help & FAQ.
+export function PredictionsInfoBody() {
   const { t } = useTranslation();
   return (
-    <InfoButton title={t("progress.predictions.info.title")} label={t("progress.predictions.info.label")}>
+    <>
       <p className="text-slate-300 text-sm">
         {t("progress.predictions.info.intro")}
       </p>
@@ -47,6 +48,15 @@ export function PredictionsInfo() {
       <p className="text-slate-500 text-xs">
         {t("progress.predictions.info.footer")}
       </p>
+    </>
+  );
+}
+
+export function PredictionsInfo() {
+  const { t } = useTranslation();
+  return (
+    <InfoButton title={t("progress.predictions.info.title")} label={t("progress.predictions.info.label")}>
+      <PredictionsInfoBody/>
     </InfoButton>
   );
 }
