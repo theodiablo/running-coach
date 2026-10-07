@@ -20,5 +20,10 @@
   "race-done-5": { "label": "Seasoned racer", "desc": "Complete 5 races" },
   "gps-first": { "label": "On the map", "desc": "Track a run with GPS" },
   "elev-1000": { "label": "Climber", "desc": "Climb 1000 m all-time" },
-  "elev-5000": { "label": "Mountain goat", "desc": "Climb 5000 m all-time" }
+  "elev-5000": { "label": "Mountain goat", "desc": "Climb 5000 m all-time" },
+  "stretch-first": { "label": "First stretch", "desc": "Finish a stretching routine" },
+  "stretch-10": { "label": "Ten sessions", "desc": "Finish 10 stretching routines" },
+  "stretch-weeks-4": { "label": "Loosening up", "desc": "Stretch in 4 different weeks" },
+  "stretch-weeks-12": { "label": "Supple habit", "desc": "Stretch in 12 different weeks" },
+  "stretch-all": { "label": "Full repertoire", "desc": "Try all four stretching routines" }
 }

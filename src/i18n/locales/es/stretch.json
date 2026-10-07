@@ -169,6 +169,11 @@
     "sessions_other": "{{count}} sesiones",
     "kept": "Se guardan tus últimas 200 sesiones. Una rutina de menos de un minuto no cuenta."
   },
+  "stats": {
+    "title": "Estiramientos",
+    "perWeek": "{{n}} por semana de media",
+    "seeHistory": "Ver historial"
+  },
   "beta": {
     "note": "Los estiramientos son nuevos y aún se han probado poco. Si una figura parece incorrecta, una indicación no se entiende o un tiempo no encaja, cuéntanoslo.",
     "done": "Los estiramientos siguen en beta. ¿Qué tal la rutina? Un comentario rápido nos ayuda a mejorarla.",

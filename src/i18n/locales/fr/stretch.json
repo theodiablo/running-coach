@@ -169,6 +169,11 @@
     "sessions_other": "{{count}} séances",
     "kept": "Tes 200 dernières séances sont gardées. Une routine de moins d'une minute n'est pas comptée."
   },
+  "stats": {
+    "title": "Étirements",
+    "perWeek": "{{n}} par semaine en moyenne",
+    "seeHistory": "Voir l'historique"
+  },
   "beta": {
     "note": "Les étirements sont nouveaux et encore peu testés. Si une figure te semble fausse, une consigne pas claire ou un timing mal réglé, dis-le-nous.",
     "done": "Les étirements sont encore en bêta. Comment s'est passée cette routine ? Un petit mot nous aide à l'améliorer.",

@@ -92,7 +92,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // Keyed on the language too: computeBadges resolves its strings through t(),
   // so a locale switch must recompute even though runs/races are unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
-  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [])), [runs, races, i18n.language]);
+  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [], isPremium ? stretchLog : null)), [runs, races, isPremium, stretchLog, i18n.language]);
   const today    = new Date(); today.setHours(0,0,0,0);
   const raceD    = new Date(settings.raceDate + "T00:00:00");
   const daysLeft = Math.max(0, Math.ceil((raceD.getTime() - today.getTime()) / 86400000));

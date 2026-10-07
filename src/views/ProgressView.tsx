@@ -5,6 +5,7 @@ import { StatsView } from "./StatsView";
 import { Badge } from "../components/Badge";
 import { computeBadges } from "../utils/badges";
 import type { RacesState, Run, SettingsState, RunPatch, RunHighlight } from "../types";
+import type { StretchLogEntry } from "../utils/stretchSuggest";
 
 // "Progress" merges the former History + Stats tabs and adds Badges, under a
 // segmented toggle. Each sub-view is the existing component, unchanged.
@@ -15,6 +16,8 @@ type ProgressViewProps = {
   races: RacesState | null;
   settings: SettingsState;
   initialSub?: ProgressSub;
+  isPremium?: boolean;
+  stretchLog?: StretchLogEntry[];
   navKey?: number;
   deleteRun: (id: string) => void;
   updateRun: (id: string, patch: RunPatch) => void;
@@ -31,9 +34,10 @@ export function ProgressView(props: ProgressViewProps) {
   // even if it's the same target as last time. Render-time sync, not an effect.
   const [prevKey, setPrevKey] = useState(navKey);
   if (navKey !== prevKey) { setPrevKey(navKey); setSub(initialSub || "log"); }
+  const stretch = props.isPremium ? props.stretchLog ?? null : null;
   // Language is a dependency: computeBadges resolves its labels through t().
   // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
-  const badges = useMemo(() => computeBadges(runs, races?.participations || []), [runs, races, i18n.language]);
+  const badges = useMemo(() => computeBadges(runs, races?.participations || [], stretch), [runs, races, stretch, i18n.language]);
   const unlocked = badges.filter(b => b.unlocked).length;
 
   return (

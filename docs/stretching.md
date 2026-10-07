@@ -108,6 +108,14 @@ decides". Keep the two in step when a rule below changes.
 - "History" beside that count (once anything is logged) opens `StretchHistory`:
   the log week by week (`stretchWeeks`), a tally and minutes per week, newest
   first. Empty weeks are skipped rather than shown as gaps, for the same reason.
+- Progress → Stats has a `StretchStatsCard` (premium, once anything is logged):
+  sessions and minutes in the selected period, the weekly average against 2-3,
+  and a link to the history. Its own card, no chart (bars would draw the empty
+  weeks), and never part of the running totals, total time included.
+- Five badges (`computeBadges`'s third argument, the log, or null for accounts
+  without stretching, who get none): first session, 10 sessions, 4 and 12
+  distinct weeks, all four routines tried. Cumulative like the running ones;
+  `logStretch` reconciles them so an unlock toasts like any other.
 - Settings → Training profile holds the two synced switches (suggestions,
   voice), so a dismissed banner always has a visible way back on.
 

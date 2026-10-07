@@ -108,6 +108,21 @@ export function stretchWeeks(log: StretchLogEntry[]): StretchWeek[] {
     }));
 }
 
+/** Sessions, seconds and weeks covered in the last `days` (all of the log when null), for the Stats card. */
+export function stretchSummary(log: StretchLogEntry[], now: Date, days: number | null): { count: number; sec: number; weeks: number } {
+  const today = ymd(now);
+  let from: string;
+  if (days === null) from = log.reduce((m, e) => (e.date < m ? e.date : m), today);
+  else { const d = new Date(now); d.setDate(d.getDate() - days); from = ymd(d); }
+  const inRange = log.filter(e => e.date >= from && e.date <= today);
+  const spanDays = (new Date(today + "T00:00:00").getTime() - new Date(from + "T00:00:00").getTime()) / 86400000 + 1;
+  return {
+    count: inRange.length,
+    sec: inRange.reduce((s, e) => s + e.sec, 0),
+    weeks: days === null ? Math.max(1, Math.round(spanDays / 7)) : days / 7,
+  };
+}
+
 /** The stored log, keeping only well-formed entries (the blob is user-writable and restorable). */
 export function readStretchLog(v: unknown): StretchLogEntry[] {
   if (!Array.isArray(v)) return [];

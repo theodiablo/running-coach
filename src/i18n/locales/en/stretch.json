@@ -169,6 +169,11 @@
     "sessions_other": "{{count}} sessions",
     "kept": "Your last 200 sessions are kept. A routine under a minute isn't counted."
   },
+  "stats": {
+    "title": "Stretching",
+    "perWeek": "{{n}} a week on average",
+    "seeHistory": "See history"
+  },
   "beta": {
     "note": "Stretching is new and hasn't been tested much yet. If a figure looks wrong, a cue is unclear or a timing feels off, we'd love to hear about it.",
     "done": "Stretching is still in beta. How did that routine feel? A quick note helps us improve it.",

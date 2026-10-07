@@ -107,3 +107,31 @@ describe("StatsView race predictions", () => {
     expect(screen.queryByRole("button", {name: /Other distances/})).not.toBeInTheDocument();
   });
 });
+
+describe("StatsView stretching card", () => {
+  const LOG = [
+    { date: "2026-09-20", at: 3, routine: "cooldown" as const, sec: 430 },
+    { date: "2026-09-14", at: 2, routine: "recovery" as const, sec: 550 },
+    { date: "2026-09-01", at: 1, routine: "cooldown" as const, sec: 430 },
+    { date: "2026-07-20", at: 0, routine: "restday" as const, sec: 960 },
+  ];
+
+  it("summarises the selected period on its own card, apart from the running totals", () => {
+    view({ isPremium: true, stretchLog: LOG });
+    fireEvent.click(screen.getAllByRole("button", { name: "4w" })[0]);
+    expect(card("Stretching")).toHaveTextContent("3 sessions");
+    expect(card("Stretching")).toHaveTextContent("0.8 a week on average");
+    fireEvent.click(screen.getAllByRole("button", { name: "12w" })[0]);
+    expect(card("Stretching")).toHaveTextContent("4 sessions");
+    fireEvent.click(screen.getByRole("button", { name: "See history" }));
+    expect(screen.getByText("Stretch history")).toBeInTheDocument();
+  });
+
+  it("is absent without stretching or without a session", () => {
+    view({ isPremium: false, stretchLog: LOG });
+    expect(screen.queryByText("Stretching")).toBeNull();
+    cleanup();
+    view({ isPremium: true, stretchLog: [] });
+    expect(screen.queryByText("Stretching")).toBeNull();
+  });
+});

@@ -20,5 +20,10 @@
   "race-done-5": { "label": "Pro des dossards", "desc": "Terminer 5 courses" },
   "gps-first": { "label": "Sur la carte", "desc": "Enregistrer une sortie avec le GPS" },
   "elev-1000": { "label": "Grimpeur", "desc": "Cumuler 1000 m de dénivelé positif" },
-  "elev-5000": { "label": "Chamois", "desc": "Cumuler 5000 m de dénivelé positif" }
+  "elev-5000": { "label": "Chamois", "desc": "Cumuler 5000 m de dénivelé positif" },
+  "stretch-first": { "label": "Premiers étirements", "desc": "Termine une routine d'étirements" },
+  "stretch-10": { "label": "Dix séances", "desc": "Termine 10 routines d'étirements" },
+  "stretch-weeks-4": { "label": "Ça se détend", "desc": "Étire-toi pendant 4 semaines différentes" },
+  "stretch-weeks-12": { "label": "Souplesse installée", "desc": "Étire-toi pendant 12 semaines différentes" },
+  "stretch-all": { "label": "Répertoire complet", "desc": "Essaie les quatre routines d'étirements" }
 }
