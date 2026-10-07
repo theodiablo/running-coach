@@ -563,6 +563,11 @@ changes.
 - Show whole-minute durations with `fmt.mins`, never `minutes / 60`.
 - **Icon-only buttons need an `aria-label`** (plus `aria-pressed` for
   toggles); buttons with adjacent visible text don't get double-labeled.
+- **An on/off control shows its state in colour, not only in its icon or
+  label**: on = the feature's own accent on a tinted fill (e.g. `text-orange-300
+  bg-orange-500/10`; emerald for live sharing, sky for the route finder), off =
+  grey with no fill. An icon swap alone (speaker ↔ crossed speaker) reads as
+  decoration, and two toggles side by side must not show "on" two ways.
 - Number inputs: keep an emptied field empty while editing — no
   `parseFloat(v) || 0` in `onChange`; coalesce at use time. Settings fields
   auto-save (commit on blur/Enter), keeping local string state.
