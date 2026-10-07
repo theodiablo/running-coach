@@ -1,13 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { User, Cable, HeartPulse, ChevronRight } from "lucide-react";
+import { User, Cable, HeartPulse, CircleHelp, ChevronRight } from "lucide-react";
 import type { SettingsPage } from "../../types";
 
 // The settings root: a menu, nothing else. Every actual control lives on one of
-// the three sub-pages, so this screen stays scannable as integrations pile up.
+// the sub-pages, so this screen stays scannable as integrations pile up.
 const ROWS: { page: SettingsPage; Icon: typeof User }[] = [
   { page: "account", Icon: User },
   { page: "integrations", Icon: Cable },
   { page: "training", Icon: HeartPulse },
+  { page: "help", Icon: CircleHelp },
 ];
 
 export function SettingsHub({ onOpen }: { onOpen: (page: SettingsPage) => void }) {

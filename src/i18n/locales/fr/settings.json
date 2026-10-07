@@ -17,6 +17,10 @@
     "training": {
       "title": "Profil d'entraînement",
       "desc": "Fréquence cardiaque et ce que ton coach retient de toi."
+    },
+    "help": {
+      "title": "Aide et FAQ",
+      "desc": "Comment l'app fonctionne, de ton plan aux prévisions de course."
     }
   },
   "profile": {
@@ -240,5 +244,12 @@
     "title": "Importer un fichier",
     "subtitle": "Récupère tes sorties depuis un export FIT, GPX, TCX ou CSV. C'est aussi ici qu'arrive une sortie exportée depuis Strava.",
     "cta": "Importer un fichier"
+  },
+  "help": {
+    "intro": "Comment fonctionne l'app, en termes simples.",
+    "plan": "Ton plan d'entraînement",
+    "predictions": "Prévisions de course",
+    "stretching": "Étirements",
+    "more": "Tu ne trouves pas ta réponse ? Envoie-nous un avis depuis l'écran principal des Paramètres."
   }
 }

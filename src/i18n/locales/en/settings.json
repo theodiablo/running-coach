@@ -17,6 +17,10 @@
     "training": {
       "title": "Training profile",
       "desc": "Heart rate and what your coach remembers about you."
+    },
+    "help": {
+      "title": "Help & FAQ",
+      "desc": "How the app works, from your plan to race predictions."
     }
   },
   "profile": {
@@ -240,5 +244,12 @@
     "title": "Import a file",
     "subtitle": "Bring runs in from a FIT, GPX, TCX or CSV export. This is also where a single run exported from Strava lands.",
     "cta": "Import a file"
+  },
+  "help": {
+    "intro": "How the app works, in plain words.",
+    "plan": "Your training plan",
+    "predictions": "Race predictions",
+    "stretching": "Stretching",
+    "more": "Can't find your answer? Send us feedback from the main Settings screen."
   }
 }

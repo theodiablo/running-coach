@@ -1,0 +1,240 @@
+{
+  "banner": {
+    "cooldownTitle": "Retour au calme · {{min}} min",
+    "cooldownStandard": "Après ta sortie de {{km}} km. Mollets, quadriceps et hanches.",
+    "cooldownHills": "Après ta sortie de {{km}} km. Plus de temps pour les mollets.",
+    "cooldownHard": "Après ta sortie de {{km}} km. Plus de temps pour les hanches.",
+    "recoveryTitle": "Mobilité de récupération · {{min}} min",
+    "recoveryLong": "Des mouvements doux après tes {{km}} km d'hier.",
+    "recoveryRace": "Des mouvements doux après la course d'hier.",
+    "start": "Démarrer",
+    "notToday": "Pas aujourd'hui",
+    "dismissed": "Masqué jusqu'à demain. Tu peux désactiver les suggestions dans Paramètres, Profil d'entraînement.",
+    "settings": "Paramètres"
+  },
+  "routines": {
+    "cooldown": {
+      "name": "Retour au calme",
+      "when": "Juste après n'importe quelle sortie",
+      "why": "Les muscles les plus sollicités quand tu cours, 30 s par côté. Assez court pour le faire avant la douche."
+    },
+    "recovery": {
+      "name": "Mobilité de récupération",
+      "when": "Le lendemain d'une sortie longue ou d'une course",
+      "why": "Des positions douces, en mouvement, pour le lendemain où tu es raide. Rien n'est tenu à fond."
+    },
+    "warmup": {
+      "name": "Exercices d'échauffement",
+      "when": "Avant une séance intense, après 5 à 10 min de footing tranquille",
+      "why": "Du mouvement uniquement, sans maintien long. À faire juste avant la partie dure."
+    },
+    "restday": {
+      "name": "Étirements du jour de repos",
+      "when": "Un jour de repos, quand tu as un peu plus de temps",
+      "why": "Deux séries de 30 s par côté : environ une minute par muscle, ce qui améliore l'amplitude de mouvement au fil des semaines."
+    }
+  },
+  "moves": {
+    "calfWall": {
+      "name": "Étirement du mollet au mur",
+      "target": "Haut du mollet",
+      "cue1": "Jambe arrière tendue, talon au sol",
+      "cue2": "Penche les hanches vers le mur",
+      "cue3": "Les orteils pointent droit devant"
+    },
+    "calfBent": {
+      "name": "Étirement du mollet, genou fléchi",
+      "target": "Bas du mollet, tendon d'Achille",
+      "cue1": "Même position, plie le genou arrière",
+      "cue2": "Garde ce talon au sol",
+      "cue3": "Sens l'étirement en bas, juste au-dessus du talon"
+    },
+    "quad": {
+      "name": "Étirement du quadriceps debout",
+      "target": "Devant de la cuisse",
+      "cue1": "Genoux côte à côte",
+      "cue2": "Rentre le bassin, ne cambre pas le dos",
+      "cue3": "Une main au mur si tu vacilles"
+    },
+    "hipFlexor": {
+      "name": "Fléchisseurs de hanche à genoux",
+      "target": "Devant de la hanche",
+      "cue1": "Un coussin sous le genou arrière",
+      "cue2": "Serre la fesse arrière, rentre le bassin",
+      "cue3": "Reste grand, ne te penche pas en avant"
+    },
+    "hamStrap": {
+      "name": "Étirement des ischio-jambiers allongé",
+      "target": "Arrière de la cuisse",
+      "cue1": "Une serviette ou une ceinture autour du pied",
+      "cue2": "Genou levé souple, pas verrouillé",
+      "cue3": "L'autre jambe allongée au sol"
+    },
+    "kneeChest": {
+      "name": "Genou à la poitrine",
+      "target": "Fessiers, bas du dos",
+      "cue1": "Ramène le genou vers l'épaule du même côté",
+      "cue2": "L'autre jambe détendue et allongée",
+      "cue3": "Expire en tirant"
+    },
+    "child": {
+      "name": "Posture de l'enfant",
+      "target": "Bas du dos, hanches",
+      "cue1": "Genoux écartés, gros orteils joints",
+      "cue2": "Assieds-toi vers tes talons",
+      "cue3": "Laisse ton front se poser"
+    },
+    "legsWall": {
+      "name": "Jambes au mur",
+      "target": "Mollets, ischio-jambiers",
+      "cue1": "Hanches près du mur",
+      "cue2": "Laisse tes jambes devenir lourdes",
+      "cue3": "Respire lentement"
+    },
+    "legSwing": {
+      "name": "Balancements de jambe",
+      "target": "Hanches, ischio-jambiers",
+      "cue1": "Tiens un mur ou un poteau pour l'équilibre",
+      "cue2": "Balance sans raideur, l'amplitude viendra",
+      "cue3": "Garde le haut du corps immobile"
+    },
+    "lunge": {
+      "name": "Fentes marchées",
+      "target": "Hanches, quadriceps, fessiers",
+      "cue1": "Grand pas, le genou arrière flotte au-dessus du sol",
+      "cue2": "Reste grand",
+      "cue3": "Pousse dans le talon avant"
+    },
+    "highKnees": {
+      "name": "Montées de genoux",
+      "target": "Fléchisseurs de hanche, rythme",
+      "cue1": "Des pas rapides et légers",
+      "cue2": "Fais travailler les bras",
+      "cue3": "Reste grand"
+    },
+    "calfRaise": {
+      "name": "Élévations de mollets",
+      "target": "Mollets, chevilles",
+      "cue1": "Monte en un temps, descends en deux",
+      "cue2": "Une main au mur pour l'équilibre",
+      "cue3": "Amplitude complète, des talons aux orteils"
+    },
+    "catCow": {
+      "name": "Chat-vache",
+      "target": "Colonne, hanches",
+      "cue1": "Arrondis le dos en expirant",
+      "cue2": "Creuse le dos en inspirant",
+      "cue3": "Bouge lentement, sans forcer"
+    }
+  },
+  "sheet": {
+    "title": "Étirements",
+    "subtitle": "Des routines guidées choisies pour les coureurs",
+    "minutes": "{{count}} min",
+    "rounds": "× {{count}} séries",
+    "then": "Puis",
+    "eachSide": "{{sec}} s par côté",
+    "seconds": "{{sec}} s",
+    "wholeMinutes": "{{min}} min",
+    "start": "Démarrer",
+    "allRoutines": "Toutes les routines",
+    "week_one": "{{count}} séance cette semaine",
+    "week_other": "{{count}} séances cette semaine",
+    "weekAim": "2 ou 3 par semaine, c'est l'objectif habituel",
+    "safety": "Une légère tension, jamais de douleur. Saute tout ce qui fait mal.",
+    "whyCooldown": "Après ta sortie de {{km}} km. Idéal tant que tes muscles sont encore chauds.",
+    "whyCooldownHills": "{{km}} km vallonnés, donc les étirements des mollets ont droit à 45 s.",
+    "whyCooldownHard": "{{km}} km intenses, donc les hanches et les ischio-jambiers ont droit à 45 s.",
+    "whyRecovery": "Des mouvements doux pour le lendemain d'une grosse sortie. Rien n'est tenu à fond.",
+    "weekNone": "Aucune séance pour l'instant cette semaine"
+  },
+  "player": {
+    "getReady": "Prépare-toi",
+    "switchSides": "Change de côté",
+    "nextUp": "À suivre",
+    "hold": "Maintiens",
+    "move": "Continue de bouger",
+    "left": "Côté gauche",
+    "right": "Côté droit",
+    "sideLeft": "côté gauche",
+    "sideRight": "côté droit",
+    "next": "Suivant : <0>{{name}}</0>",
+    "nextSide": "Suivant : <0>{{name}}</0> · {{side}}",
+    "lastOne": "Dernier",
+    "progress": "{{n}} sur {{total}}",
+    "play": "Démarrer",
+    "resume": "Reprendre",
+    "pause": "Pause",
+    "previous": "Précédent",
+    "skip": "Passer",
+    "close": "Fermer",
+    "voice": "Consignes vocales",
+    "leaveTitle": "Arrêter cette routine ?",
+    "leaveBody": "Elle ne comptera pas pour aujourd'hui.",
+    "leaveStop": "Arrêter",
+    "leaveKeep": "Continuer",
+    "doneTitle": "Terminé : {{name}}",
+    "doneBody": "{{min}} min. Enregistré pour aujourd'hui.",
+    "doneShort": "Moins d'une minute, donc ce n'est pas compté.",
+    "doneClose": "Terminé",
+    "speak": {
+      "start": "{{name}}",
+      "startSide": "{{name}}, {{side}}",
+      "next": "Ensuite, {{name}}",
+      "nextSide": "Ensuite, {{name}}, {{side}}",
+      "switch": "Change de côté",
+      "done": "Routine terminée. Bien joué."
+    }
+  },
+  "record": {
+    "row": "S'étirer",
+    "rowSub": "Routines guidées, de 3 à 15 min",
+    "or": "ou"
+  },
+  "settings": {
+    "title": "Étirements",
+    "suggest": "Suggestions d'étirements",
+    "suggestDesc": "Un étirement proposé sur l'Accueil après tes sorties, et le lendemain d'une sortie longue.",
+    "voice": "Consignes vocales",
+    "voiceDesc": "Annonce chaque étirement et le moment de changer de côté."
+  },
+  "info": {
+    "label": "À propos des étirements",
+    "title": "À propos des étirements",
+    "testingBadge": "En test",
+    "testing": "Les étirements sont encore en test. Seuls quelques comptes de test y ont accès et la fonction n'est pas encore ouverte au public, elle peut donc encore évoluer avant d'être disponible pour tous.",
+    "intro": "Ce que dit la recherche, et comment l'app s'en sert pour choisir tes étirements.",
+    "researchTitle": "Ce que dit la recherche",
+    "methodTitle": "Comment l'app décide",
+    "q1": "Quand dois-je m'étirer ?",
+    "a1": "Tiens tes étirements après ta sortie, quand tes muscles sont chauds. Avant une séance intense, fais plutôt des exercices dynamiques (balancements de jambe, fentes, montées de genoux) après quelques minutes de footing tranquille.",
+    "q2": "À quelle fréquence ?",
+    "a2": "Au moins 2 ou 3 jours par semaine. Tous les jours, c'est ce qui marche le mieux. Juste après une sortie, c'est le moment le plus simple pour en faire une habitude.",
+    "q3": "Combien de temps tenir chaque étirement ?",
+    "a3": "20 à 30 secondes, répétées pour atteindre environ une minute par muscle. Tu dois sentir une légère tension, jamais de douleur.",
+    "q4": "Est-ce mauvais de s'étirer avant de courir ?",
+    "a4": "Les maintiens courts ne posent pas de problème. Les maintiens longs, de plus d'une minute par muscle, peuvent te ralentir un peu pendant un moment. Les exercices dynamiques t'échauffent mieux.",
+    "q5": "Est-ce que s'étirer m'évitera les blessures ?",
+    "a5": "La recherche répond que non. Ce qui a fait ses preuves contre les blessures, c'est le renforcement musculaire, comme les élévations de mollets et les ponts fessiers.",
+    "q6": "Est-ce que ça m'évitera les courbatures demain ?",
+    "a6": "Non. Les courbatures s'estompent avec du mouvement doux, du sommeil et du temps. S'étirer peut quand même faire du bien quand tu es raide.",
+    "q7": "Alors pourquoi s'étirer ?",
+    "a7": "Pratiqué régulièrement, ça entretient et améliore ton amplitude de mouvement. C'est aussi une façon calme de finir une sortie, et beaucoup de gens trouvent que ça fait du bien.",
+    "q8": "Et si un étirement fait mal ?",
+    "a8": "Relâche jusqu'à ce que ça ne fasse plus mal. Si l'un d'eux continue de faire mal, saute-le et fais-le examiner par un kiné ou un médecin.",
+    "m1": "Pourquoi ces étirements ?",
+    "n1": "Le retour au calme cible les muscles les plus sollicités quand tu cours : mollets, devant de la cuisse, devant de la hanche, arrière de la cuisse et fessiers. Chacun est tenu des deux côtés.",
+    "m2": "Pourquoi 30 secondes ?",
+    "n2": "Des maintiens d'environ 30 secondes sont à peu près aussi efficaces que des maintiens plus longs, et 30 s par côté limite le retour au calme à 7 ou 8 minutes. Les 45 s après une sortie vallonnée ou une séance dure sont un choix de l'app. La routine du jour de repos fait deux séries, pour atteindre une minute par muscle.",
+    "m3": "Quand l'app suggère-t-elle un étirement ?",
+    "n3": "Après l'enregistrement d'une sortie de 15 minutes ou plus. Et le lendemain d'une sortie longue, d'une course ou de toute sortie de 90 minutes ou plus, sauf si une séance d'étirements est déjà faite ce jour-là ou si un tempo, du fractionné ou une course est prévu. Une suggestion à la fois, et « Pas aujourd'hui » la masque jusqu'à demain.",
+    "m4": "Comment ma sortie change-t-elle la routine ?",
+    "n4": "Après une sortie vallonnée (15 m de dénivelé positif par km ou plus), les étirements des mollets passent de 30 à 45 s. Après du fractionné, un tempo ou une course, les hanches et les ischio-jambiers ont droit à 45 s ; une séance qui est les deux compte comme vallonnée. Après une sortie longue, le lendemain propose une séance de récupération plus douce.",
+    "m5": "Pourquoi l'échauffement n'a-t-il aucun maintien ?",
+    "n5": "Avant une séance intense, les maintiens longs te ralentissent un peu, pas les exercices dynamiques. L'échauffement n'est donc que du mouvement, à faire après quelques minutes de footing tranquille.",
+    "m6": "Pourquoi pas de compteur de jours d'affilée ?",
+    "n6": "L'objectif est de 2 ou 3 séances par semaine, pas tous les jours sans faute. Manquer un jour n'annule rien : l'app compte ta semaine et n'affiche jamais de compteur remis à zéro.",
+    "sources": "Sources : prise de position de l'ACSM (2011), Behm et al. (2016), Herbert et al. (2011, Cochrane), Afonso et al. (2021), Lauersen et al. (2014)."
+  },
+  "loadError": "Impossible d'ouvrir les étirements. Vérifie ta connexion et réessaie."
+}

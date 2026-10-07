@@ -16,6 +16,9 @@ import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import { UpdateCard } from "../components/UpdatePrompt";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
+import { StretchBanner } from "../components/StretchBanner";
+import { stretchSuggestion } from "../utils/stretchSuggest";
+import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
@@ -61,6 +64,11 @@ type DashboardProps = {
   dateChanges?: RaceDateChange[];
   applyRaceDateChange?: (c: RaceDateChange) => void;
   keepRaceDate?: (c: RaceDateChange) => void;
+  isPremium?: boolean;
+  stretchLog?: StretchLogEntry[];
+  openStretch?: (target?: StretchSuggestion) => void;
+  saveSettings?: (s: SettingsState) => void;
+  recorderOpen?: boolean;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
@@ -75,7 +83,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, isPremium = false, stretchLog = [], openStretch, saveSettings, recorderOpen = false}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -89,6 +97,10 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // The soonest secondary race folded into the plan before the main race — a
   // checkpoint to flag under the main-race countdown.
   const todayStr = ymd(today);
+  // A suggestion is the feature itself, not a way in to it: free accounts get none, even once teasers show.
+  const stretch = isPremium && !recorderOpen
+    ? stretchSuggestion({ runs, plan, log: stretchLog, now: new Date(), enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed })
+    : null;
   const nextRace = (races?.participations || [])
     .filter(p => p.status === "wishlist" && p.inPlan && p.raceDate && p.raceDate >= todayStr && p.raceDate < settings.raceDate)
       .sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)))[0];
@@ -251,6 +263,14 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             <Radio size={14}/>{t("liveShare.banner.action")}
           </span>
         </button>
+      )}
+
+      {stretch && openStretch && saveSettings && (
+        <StretchBanner suggestion={stretch} onStart={() => openStretch(stretch)}
+          onDismiss={() => {
+            saveSettings({ ...settings, stretchDismissed: todayStr });
+            showToast(t("stretch.banner.dismissed"), "ok", { label: t("stretch.banner.settings"), onClick: () => openSettings("training") });
+          }}/>
       )}
 
       <div className="rounded-2xl p-5 border border-orange-500/30"

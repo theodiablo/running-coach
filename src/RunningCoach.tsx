@@ -9,7 +9,7 @@ import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
-import { isPremiumActive } from "./premium";
+import { canShowPremiumTeaser, isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
@@ -53,6 +53,11 @@ import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
 import { IndoorTracker } from "./modals/IndoorTracker";
 import { RecordSheet } from "./modals/RecordSheet";
+import { PremiumTeaserSheet } from "./modals/PremiumTeaserSheet";
+import { appendStretchLog, readStretchLog, stretchesThisWeek } from "./utils/stretchSuggest";
+import type { StretchLogEntry } from "./utils/stretchSuggest";
+import type { StretchTarget } from "./modals/StretchSheet";
+import type { RoutineId } from "./stretch/routines";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
@@ -95,6 +100,8 @@ type PromotableEdition = { name: string; raceId?: string; edition: { id: string;
 // web-only cost.
 const CoachChat = lazy(() => import("./modals/CoachChat").then(m => ({ default: m.CoachChat })));
 import type { CoachChatSnapshot } from "./modals/CoachChat";
+// Lazy: the stretching sheet, player and figures load on first open.
+const StretchSheet = lazy(() => import("./modals/StretchSheet").then(m => ({ default: m.StretchSheet })));
 
 // In-app "review notification" helper (pure, module-level so it isn't a hook
 // dependency): when a maintainer verifies one of the user's OWN catalogue
@@ -182,6 +189,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // straight to the Log tab, which then had to offer every way of recording at
   // once; the sheet asks first so each destination does one thing.
   const [showRecordSheet, setShowRecordSheet] = useState(false);
+  // Stretching (premium, docs/stretching.md): the sheet, and the Home
+  // suggestion it was opened from, if any.
+  const [stretchLog, setStretchLog] = useState<StretchLogEntry[]>([]);
+  const [stretchOpen, setStretchOpen] = useState<{ target: StretchTarget | null } | null>(null);
+  const [premiumTeaser, setPremiumTeaser] = useState<string | null>(null);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
   // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
   // a Dashboard banner so the runner doesn't have to know to reopen the recorder
@@ -406,7 +418,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       const s = await db.get(STORAGE_KEYS.SETTINGS) as Partial<SettingsState> | null;
       const rc = await db.get(STORAGE_KEYS.RACES) as Partial<RacesState> | null;
       const uc = await db.get(STORAGE_KEYS.USER_CONTEXT) as Partial<UserContextState> | null;
+      const sl = readStretchLog(await db.get(STORAGE_KEYS.STRETCH_LOG));
       if (r) setRuns(r);
+      setStretchLog(sl);
       if (p) setPlan(p);
       if (s) setSettings(prev => ({...prev, ...s}));
       // The synced language preference wins over the boot-time device guess
@@ -1038,7 +1052,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     setBackupRoutes(routes);
     setShowBackup(true);
   };
-  const handleRestore = (d: { runs?: Run[]; plan?: Plan | null; settings?: Partial<SettingsState>; races?: RacesState; userContext?: UserContextState; routes?: RouteBackup[] }) => {
+  const handleRestore = (d: { runs?: Run[]; plan?: Plan | null; settings?: Partial<SettingsState>; races?: RacesState; userContext?: UserContextState; routes?: RouteBackup[]; stretchLog?: StretchLogEntry[] }) => {
     if (d.runs)     { setRuns(d.runs);         db.set(STORAGE_KEYS.RUNS, d.runs); }
     if (d.plan)     { setPlan(d.plan);          db.set(STORAGE_KEYS.PLAN, d.plan); }
     if (d.settings) { const nextSettings = { ...settings, ...d.settings }; setSettings(nextSettings);  db.set(STORAGE_KEYS.SETTINGS, nextSettings);
@@ -1047,6 +1061,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       if (isLangId(nextSettings.language)) void setLocale(nextSettings.language); }
     if (d.races)    { setRaces(d.races);         db.set(STORAGE_KEYS.RACES, d.races); }
     if (d.userContext) saveUserContext(d.userContext);
+    if (Array.isArray(d.stretchLog)) { const sl = readStretchLog(d.stretchLog); setStretchLog(sl); db.set(STORAGE_KEYS.STRETCH_LOG, sl); }
     if (d.routes)   { restoreRoutes(d.routes as Parameters<typeof restoreRoutes>[0]); }
     showToast(t("app.toasts.restored", { n: d.runs ? d.runs.length : 0 }));
   };
@@ -1182,7 +1197,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     resumeRecorderRef.current = null;
     dismissAll();
     setLogPrefill(null); setLogImportOpen(false); setPlanPrefill(null); setCoachResume(null);
-    setProgressSub("log"); setHighlight(null);
+    setProgressSub("log"); setHighlight(null); setStretchOpen(null);
     setTab("dash"); setHomeNonce(n => n + 1);
     window.scrollTo(0, 0);
   };
@@ -1191,7 +1206,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // never counts as a page, the same shape openTracker/openCoach use.
   const openSettings = (page?: unknown) => {
     saveUserContext(userContextRef.current);
-    setSettingsPage(page === "account" || page === "integrations" || page === "training" ? page : null);
+    setSettingsPage(page === "account" || page === "integrations" || page === "training" || page === "help" ? page : null);
     setShowSettings(true);
   };
   // Leaving settings FOR another full-screen flow (backup, restore, coach,
@@ -1236,7 +1251,25 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.coachIntroSeen === false) markCoachIntroSeen();
     track("coach_opened", { source: source || (ctx ? "plan_session" : "other") });
   };
-  const shared = {openFeedback, isPremium, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const logStretch = (routine: RoutineId, sec: number) => {
+    const now = new Date();
+    setStretchLog(prev => {
+      const next = appendStretchLog(prev, { date: ymd(now), at: now.getTime(), routine, sec });
+      db.set(STORAGE_KEYS.STRETCH_LOG, next);
+      return next;
+    });
+    track("stretch_completed", { routine });
+  };
+  // Premium affordances show when the tier is unveiled too; a free tap re-reads the
+  // entitlement first (an offline sign-in reads as free) and only then gets the teaser.
+  // Never over a recording: the player's audio and screen lock would fight the recorder's.
+  const openStretch = async (target?: StretchTarget) => {
+    if (recorderOpen) return;
+    if (!isPremium && !isPremiumActive(await onRefreshPremium())) { setPremiumTeaser("stretching"); return; }
+    setStretchOpen({ target: target ?? null });
+  };
+  const stretchShown = isPremium || canShowPremiumTeaser;
+  const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1322,7 +1355,19 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onTrack={() => shared.openTracker()}
         onIndoor={() => shared.openIndoor()}
         onManual={() => goLog()}
+        onStretch={stretchShown ? () => openStretch() : undefined}
         onClose={() => setShowRecordSheet(false)}/>}
+      {stretchOpen && (
+        <ChunkLoadBoundary fallback={null}
+          onError={() => { setStretchOpen(null); showToast(t("stretch.loadError"), "err"); }}>
+          <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
+            <StretchSheet target={stretchOpen.target} weekCount={stretchesThisWeek(stretchLog, new Date())}
+              voice={settings.stretchVoice !== false} onVoiceChange={on => patchSettings({ stretchVoice: on })}
+              onComplete={logStretch} onClose={() => setStretchOpen(null)}/>
+          </Suspense>
+        </ChunkLoadBoundary>
+      )}
+      {premiumTeaser && <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         settings={settings} onSettingsPatch={patchSettings}
@@ -1341,13 +1386,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => { setShowIndoor(false); setRecorderMinimized(false); setIndoorLink(null); }}/>}
       {showLiveWatch && <LiveWatchModal row={liveRun.row} onClose={() => setShowLiveWatch(false)}/>}
       {showBackup && <BackupModal
-        data={{runs, plan, settings, races, userContext, ...(backupRoutes.length ? {routes: backupRoutes} : {})}}
+        data={{runs, plan, settings, races, userContext, ...(stretchLog.length ? {stretchLog} : {}), ...(backupRoutes.length ? {routes: backupRoutes} : {})}}
         onClose={() => setShowBackup(false)}/>
       }
       {showRestore && <RestoreModal onRestore={handleRestore}     onClose={() => setShowRestore(false)}/>}
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
-        scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
+        scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined} isPremium={isPremium}
         onBackup={()  => { leaveSettings(); exportData(); }}
         onRestore={() => { leaveSettings(); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}

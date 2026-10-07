@@ -21,11 +21,12 @@ const baseProps = {
 // tap to each page, and back/Escape pops exactly one level (the LIFO dismiss
 // stack).
 describe("SettingsModal hub", () => {
-  it("shows only the three menu rows at the root", () => {
+  it("shows only the menu rows at the root", () => {
     render(<SettingsModal {...baseProps} />);
     expect(screen.getByText("Account")).toBeInTheDocument();
     expect(screen.getByText("Integrations")).toBeInTheDocument();
     expect(screen.getByText("Training profile")).toBeInTheDocument();
+    expect(screen.getByText("Help & FAQ")).toBeInTheDocument();
     // No controls from the old single-page settings.
     expect(screen.queryByText("Your name")).toBeNull();
     expect(screen.queryByText("Connections & sync")).toBeNull();

@@ -7,6 +7,7 @@ import { SubPage } from "./settings/SubPage";
 import { AccountPage } from "./settings/AccountPage";
 import { IntegrationsPage } from "./settings/IntegrationsPage";
 import { TrainingProfilePage } from "./settings/TrainingProfilePage";
+import { HelpPage } from "./settings/HelpPage";
 import type { User } from "@supabase/supabase-js";
 import type { Plan, SettingsPage, SettingsState, UserContextState } from "../types";
 
@@ -35,17 +36,18 @@ type SettingsModalProps = {
   // the plan builder's means Training profile), and the hub menu is a dead end
   // for someone who was told to "set up" something in particular.
   initialPage?: SettingsPage;
+  isPremium?: boolean;
 };
 
-// Settings is a hub, not a page: the root is a three-row menu and every control
-// lives on a sub-page (Account / Integrations / Training Profile). The sub-page
+// Settings is a hub, not a page: the root is a menu and every control lives on
+// a sub-page (Account / Integrations / Training Profile / Help & FAQ). The sub-page
 // mounts on top of this overlay and registers its OWN dismiss handler, so back /
 // Escape pops one level at a time — sub-page, then hub.
 //
 // The flows that replace the whole screen (backup, restore, delete account, the
 // coach) still close settings first, as they always did: their handlers come in
 // from RunningCoach already wired that way.
-export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, isPremium = false}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
@@ -102,8 +104,10 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
           )}
           {page === "training" && (
             <TrainingProfilePage settings={settings} saveSettings={saveSettings}
-              userContext={userContext} saveUserContext={saveUserContext} onOpenCoach={onOpenCoach} plan={plan}/>
+              userContext={userContext} saveUserContext={saveUserContext} onOpenCoach={onOpenCoach} plan={plan}
+              isPremium={isPremium}/>
           )}
+          {page === "help" && <HelpPage isPremium={isPremium}/>}
         </SubPage>
       )}
     </div>

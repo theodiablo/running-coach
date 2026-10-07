@@ -1,0 +1,240 @@
+{
+  "banner": {
+    "cooldownTitle": "Vuelta a la calma · {{min}} min",
+    "cooldownStandard": "Después de tu entrenamiento de {{km}} km. Gemelos, cuádriceps y caderas.",
+    "cooldownHills": "Después de tu entrenamiento de {{km}} km. Más tiempo para los gemelos.",
+    "cooldownHard": "Después de tu entrenamiento de {{km}} km. Más tiempo para las caderas.",
+    "recoveryTitle": "Movilidad de recuperación · {{min}} min",
+    "recoveryLong": "Movimientos suaves después de los {{km}} km de ayer.",
+    "recoveryRace": "Movimientos suaves después de la carrera de ayer.",
+    "start": "Empezar",
+    "notToday": "Hoy no",
+    "dismissed": "Oculto hasta mañana. Puedes desactivar las sugerencias en Ajustes, Perfil de entrenamiento.",
+    "settings": "Ajustes"
+  },
+  "routines": {
+    "cooldown": {
+      "name": "Vuelta a la calma",
+      "when": "Justo después de cualquier entrenamiento",
+      "why": "Los músculos que más trabajan al correr, 30 s por lado. Lo bastante corto para hacerlo antes de la ducha."
+    },
+    "recovery": {
+      "name": "Movilidad de recuperación",
+      "when": "El día después de una tirada larga o una carrera",
+      "why": "Posturas suaves y en movimiento para el día de rigidez después. Nada se mantiene con fuerza."
+    },
+    "warmup": {
+      "name": "Ejercicios de calentamiento",
+      "when": "Antes de una sesión exigente, tras 5 a 10 min de trote suave",
+      "why": "Solo movimiento, sin mantener posturas largas. Hazlo justo antes de la parte dura."
+    },
+    "restday": {
+      "name": "Estiramientos del día de descanso",
+      "when": "Un día libre, cuando tienes algo más de tiempo",
+      "why": "Dos rondas de 30 s por lado: cerca de un minuto por músculo, que es lo que mejora el rango de movimiento con el paso de las semanas."
+    }
+  },
+  "moves": {
+    "calfWall": {
+      "name": "Estiramiento de gemelo en la pared",
+      "target": "Parte alta de la pantorrilla",
+      "cue1": "Pierna de atrás recta, talón en el suelo",
+      "cue2": "Inclina las caderas hacia la pared",
+      "cue3": "Las puntas de los pies miran al frente"
+    },
+    "calfBent": {
+      "name": "Estiramiento de gemelo, rodilla flexionada",
+      "target": "Parte baja de la pantorrilla, tendón de Aquiles",
+      "cue1": "Misma postura, flexiona la rodilla de atrás",
+      "cue2": "Mantén ese talón en el suelo",
+      "cue3": "Notarás el estiramiento abajo, justo encima del talón"
+    },
+    "quad": {
+      "name": "Estiramiento de cuádriceps de pie",
+      "target": "Parte delantera del muslo",
+      "cue1": "Rodillas juntas, una al lado de la otra",
+      "cue2": "Mete la pelvis, no arquees la espalda",
+      "cue3": "Apoya una mano en la pared si pierdes el equilibrio"
+    },
+    "hipFlexor": {
+      "name": "Flexores de cadera de rodillas",
+      "target": "Parte delantera de la cadera",
+      "cue1": "Un cojín bajo la rodilla de atrás",
+      "cue2": "Aprieta el glúteo de atrás y mete la pelvis",
+      "cue3": "Mantén el torso erguido, sin inclinarte hacia delante"
+    },
+    "hamStrap": {
+      "name": "Estiramiento de isquiotibiales tumbado",
+      "target": "Parte trasera del muslo",
+      "cue1": "Una toalla o un cinturón alrededor del pie",
+      "cue2": "Rodilla elevada algo flexionada, sin bloquear",
+      "cue3": "La otra pierna estirada en el suelo"
+    },
+    "kneeChest": {
+      "name": "Rodilla al pecho",
+      "target": "Glúteos, zona lumbar",
+      "cue1": "Lleva la rodilla hacia el hombro del mismo lado",
+      "cue2": "La otra pierna relajada y estirada",
+      "cue3": "Suelta el aire al tirar"
+    },
+    "child": {
+      "name": "Postura del niño",
+      "target": "Zona lumbar, caderas",
+      "cue1": "Rodillas separadas, dedos gordos de los pies juntos",
+      "cue2": "Siéntate hacia los talones",
+      "cue3": "Deja descansar la frente"
+    },
+    "legsWall": {
+      "name": "Piernas en la pared",
+      "target": "Gemelos, isquiotibiales",
+      "cue1": "Caderas cerca de la pared",
+      "cue2": "Deja que las piernas se vuelvan pesadas",
+      "cue3": "Respiraciones lentas"
+    },
+    "legSwing": {
+      "name": "Balanceos de pierna",
+      "target": "Caderas, isquiotibiales",
+      "cue1": "Agárrate a una pared o a un poste para mantener el equilibrio",
+      "cue2": "Balancea con soltura y deja que la altura aumente",
+      "cue3": "Mantén quieta la parte superior del cuerpo"
+    },
+    "lunge": {
+      "name": "Zancadas caminando",
+      "target": "Caderas, cuádriceps, glúteos",
+      "cue1": "Paso largo, la rodilla de atrás flota sin tocar el suelo",
+      "cue2": "Mantén el torso erguido",
+      "cue3": "Empuja con el talón de delante"
+    },
+    "highKnees": {
+      "name": "Elevación de rodillas",
+      "target": "Flexores de cadera, ritmo",
+      "cue1": "Pasos rápidos y ligeros",
+      "cue2": "Mueve los brazos con energía",
+      "cue3": "Mantén el torso erguido"
+    },
+    "calfRaise": {
+      "name": "Elevaciones de talones",
+      "target": "Gemelos, tobillos",
+      "cue1": "Sube en un tiempo, baja en dos",
+      "cue2": "Apoya una mano en la pared para el equilibrio",
+      "cue3": "Recorrido completo, de talones a puntas"
+    },
+    "catCow": {
+      "name": "Gato-vaca",
+      "target": "Columna, caderas",
+      "cue1": "Redondea la espalda al soltar el aire",
+      "cue2": "Arquéala al coger aire",
+      "cue3": "Muévete despacio, sin forzar"
+    }
+  },
+  "sheet": {
+    "title": "Estiramientos",
+    "subtitle": "Rutinas guiadas elegidas para corredores",
+    "minutes": "{{count}} min",
+    "rounds": "× {{count}} rondas",
+    "then": "Después",
+    "eachSide": "{{sec}} s por lado",
+    "seconds": "{{sec}} s",
+    "wholeMinutes": "{{min}} min",
+    "start": "Empezar",
+    "allRoutines": "Todas las rutinas",
+    "week_one": "{{count}} sesión esta semana",
+    "week_other": "{{count}} sesiones esta semana",
+    "weekAim": "Lo habitual es hacer 2 o 3 por semana",
+    "safety": "Una tensión suave, nunca dolor. Omite lo que duela.",
+    "whyCooldown": "Después de tu entrenamiento de {{km}} km. Mejor mientras los músculos siguen calientes.",
+    "whyCooldownHills": "{{km}} km con cuestas, así que los estiramientos de gemelos se llevan 45 s.",
+    "whyCooldownHard": "{{km}} km intensos, así que las caderas y los isquiotibiales se llevan 45 s.",
+    "whyRecovery": "Movimientos suaves para el día después de un entrenamiento fuerte. Nada se mantiene con fuerza.",
+    "weekNone": "Aún no hay sesiones esta semana"
+  },
+  "player": {
+    "getReady": "Prepárate",
+    "switchSides": "Cambia de lado",
+    "nextUp": "A continuación",
+    "hold": "Mantén",
+    "move": "Sigue moviéndote",
+    "left": "Lado izquierdo",
+    "right": "Lado derecho",
+    "sideLeft": "lado izquierdo",
+    "sideRight": "lado derecho",
+    "next": "Siguiente: <0>{{name}}</0>",
+    "nextSide": "Siguiente: <0>{{name}}</0> · {{side}}",
+    "lastOne": "Último",
+    "progress": "{{n}} de {{total}}",
+    "play": "Empezar",
+    "resume": "Reanudar",
+    "pause": "Pausar",
+    "previous": "Anterior",
+    "skip": "Omitir",
+    "close": "Cerrar",
+    "voice": "Indicaciones por voz",
+    "leaveTitle": "¿Detener esta rutina?",
+    "leaveBody": "No contará para hoy.",
+    "leaveStop": "Detener",
+    "leaveKeep": "Seguir",
+    "doneTitle": "Completado: {{name}}",
+    "doneBody": "{{min}} min. Guardado para hoy.",
+    "doneShort": "Menos de un minuto, así que no cuenta.",
+    "doneClose": "Hecho",
+    "speak": {
+      "start": "{{name}}",
+      "startSide": "{{name}}, {{side}}",
+      "next": "Siguiente: {{name}}",
+      "nextSide": "Siguiente: {{name}}, {{side}}",
+      "switch": "Cambia de lado",
+      "done": "Rutina completada. Buen trabajo."
+    }
+  },
+  "record": {
+    "row": "Estirar",
+    "rowSub": "Rutinas guiadas, de 3 a 15 min",
+    "or": "o"
+  },
+  "settings": {
+    "title": "Estiramientos",
+    "suggest": "Sugerencias de estiramientos",
+    "suggestDesc": "Un estiramiento en Inicio después de tus entrenamientos y el día después de una tirada larga.",
+    "voice": "Indicaciones por voz",
+    "voiceDesc": "Lee en voz alta cada estiramiento y cuándo cambiar de lado."
+  },
+  "info": {
+    "label": "Sobre los estiramientos",
+    "title": "Sobre los estiramientos",
+    "testingBadge": "En pruebas",
+    "testing": "Los estiramientos todavía están en pruebas. Solo algunas cuentas de prueba pueden verlos y aún no están disponibles para el público, así que pueden cambiar antes de abrirse a todos.",
+    "intro": "Qué dice la investigación y cómo la usa la app para elegir tus estiramientos.",
+    "researchTitle": "Qué dice la investigación",
+    "methodTitle": "Cómo decide la app",
+    "q1": "¿Cuándo debería estirar?",
+    "a1": "Mantén los estiramientos después de correr, mientras los músculos están calientes. Antes de una sesión intensa, haz ejercicios dinámicos (balanceos de pierna, zancadas, elevación de rodillas) tras unos minutos de trote suave.",
+    "q2": "¿Con qué frecuencia?",
+    "a2": "Al menos 2 o 3 días a la semana. A diario funciona mejor. Justo después de correr es el momento más fácil para convertirlo en hábito.",
+    "q3": "¿Cuánto tiempo debo mantener cada estiramiento?",
+    "a3": "De 20 a 30 segundos, repetidos hasta llegar a cerca de un minuto por músculo. Debes notar una tensión suave, nunca dolor.",
+    "q4": "¿Es malo estirar antes de correr?",
+    "a4": "Mantener la postura poco tiempo no es problema. Mantenerla mucho, más de un minuto por músculo, puede hacerte un poco más lento durante un rato. Los ejercicios dinámicos calientan mejor.",
+    "q5": "¿Estirar evitará que me lesione?",
+    "a5": "La investigación dice que no. Lo que sí ha demostrado reducir las lesiones es el trabajo de fuerza, como las elevaciones de talones y los puentes de glúteos.",
+    "q6": "¿Evitará que mañana me duelan los músculos?",
+    "a6": "No. El dolor muscular se pasa con movimiento suave, sueño y tiempo. Aun así, estirar puede sentar bien cuando notas rigidez.",
+    "q7": "Entonces, ¿por qué estirar?",
+    "a7": "Hecho con regularidad, mantiene y mejora tu rango de movimiento. También es una forma tranquila de terminar un entrenamiento, y a mucha gente le sienta bien.",
+    "q8": "¿Y si un estiramiento duele?",
+    "a8": "Afloja hasta que deje de doler. Si alguno sigue doliendo, sáltalo y que te lo revise un fisioterapeuta o un médico.",
+    "m1": "¿Por qué estos estiramientos?",
+    "n1": "La vuelta a la calma cubre los músculos que más trabajan al correr: gemelos, parte delantera del muslo, parte delantera de la cadera, parte trasera del muslo y glúteos. Cada uno se mantiene en ambos lados.",
+    "m2": "¿Por qué 30 segundos?",
+    "n2": "Mantener unos 30 segundos funciona más o menos igual de bien que mantener más tiempo, y 30 s por lado dejan la vuelta a la calma en 7 u 8 minutos. Los 45 s después de cuestas o de una sesión dura son una elección de la app. La rutina del día de descanso hace dos rondas, para llegar a un minuto por músculo.",
+    "m3": "¿Cuándo sugiere la app un estiramiento?",
+    "n3": "Después de guardar un entrenamiento de 15 minutos o más. Y el día después de una tirada larga, una carrera o cualquier entrenamiento de 90 minutos o más, salvo que ya hayas estirado ese día o tengas un tempo, series o una carrera previstos. Una sugerencia a la vez, y «Hoy no» la oculta hasta mañana.",
+    "m4": "¿Cómo cambia mi entrenamiento la rutina?",
+    "n4": "Después de un entrenamiento con cuestas (15 m de desnivel por km o más), los estiramientos de gemelos pasan de 30 a 45 s. Después de series, un tempo o una carrera, las caderas y los isquiotibiales se llevan 45 s; una sesión que es ambas cosas cuenta como de cuestas. Después de una tirada larga, el día siguiente trae una sesión de recuperación más suave.",
+    "m5": "¿Por qué el calentamiento no tiene posturas mantenidas?",
+    "n5": "Antes de una sesión intensa, mantener posturas largas te hace un poco más lento y los ejercicios dinámicos no. Por eso el calentamiento es solo movimiento, y se hace tras unos minutos de trote suave.",
+    "m6": "¿Por qué no hay rachas?",
+    "n6": "El objetivo son 2 o 3 sesiones por semana, no todos los días sin falta. Saltarte un día no deshace nada, así que la app cuenta tu semana y nunca muestra una racha rota.",
+    "sources": "Fuentes: postura oficial del ACSM (2011), Behm et al. (2016), Herbert et al. (2011, Cochrane), Afonso et al. (2021), Lauersen et al. (2014)."
+  },
+  "loadError": "No se pudieron abrir los estiramientos. Comprueba tu conexión e inténtalo de nuevo."
+}

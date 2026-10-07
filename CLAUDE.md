@@ -332,7 +332,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   for loyalty history), **service-role-writable only** — never put it in the
   `app_state` blob, which the user can write. `src/premium.ts` reads the caller's
   own row for UI only (`isPremiumActive`); **the gate is always server-side** in
-  the feature's edge function. `App.tsx` owns the fetch and threads `isPremium`
+  the feature's edge function — the one exception is stretching, a client-only
+  test flag with no server half (`docs/stretching.md`). `App.tsx` owns the fetch and threads `isPremium`
   through the `shared` bag. A failed read means free, so premium checks must
   degrade safely. **The tier is not unveiled yet:** `canShowPremiumTeaser` is
   `false` — gate every premium affordance on `isPremium || canShowPremiumTeaser`,
@@ -439,7 +440,9 @@ Always re-verify a finding before acting on it; agents report false positives.
 - **`navigator.wakeLock` does not exist in either WebView** (browser-only), so it
   holds the screen on the web and nowhere else. Don't "fix" that by pinning the
   display on native — a run is recorded screen-off in a pocket and the battery is
-  the constraint. Native recording must survive backgrounding instead.
+  the constraint. Native recording must survive backgrounding instead. The one
+  screen-on surface is one read *while in use* (the stretch player), through
+  `useKeepAwake` (keep-awake plugin on native); never a recorder.
 - **A foreground service holds the app process, NOT the WebView renderer.** The
   renderer is a separate sandboxed process, and its default priority policy is
   *waived* as soon as the WebView stops being visible — so a backgrounded
@@ -636,7 +639,9 @@ changes.
   is only a menu; every control lives on a sub-page in `src/modals/settings/`:
   **Account** (identity, language, email/password, privacy, backup & restore,
   destructive last), **Integrations** (`ConnectionsCard` + vendor guides),
-  **Training Profile** (HR zones, coach memory). Sub-pages mount over the hub
+  **Training Profile** (HR zones, coach memory), **Help & FAQ** (the app's
+  explainers, each the same body its in-context "info" link opens — add a new
+  explainer as a `*Body` component used in both places). Sub-pages mount over the hub
   and register their own `useDismissable`, so back pops one level. A vendor we
   can't connect to gets a *guide* in `VendorGuides.tsx`, never a fake
   integration. Analysis surfaces live in Progress → Stats. **A nudge that says
@@ -694,6 +699,7 @@ changes.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
 - `docs/feedback.md` — the beta feedback button (and why voice input was removed).
+- `docs/stretching.md` — premium stretching (test flag): the research and what copy may claim, routines, poses-as-data figures, Home suggestion rules, the player.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.

@@ -8,17 +8,19 @@
 // manual form (the one place someone might realise they have a file).
 
 import { useTranslation } from "react-i18next";
-import { Bike, MapPin, PenLine } from "lucide-react";
+import { Bike, MapPin, PenLine, PersonStanding } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 
 type RecordSheetProps = {
   onTrack: () => void;
   onIndoor: () => void;
   onManual: () => void;
+  /** Premium stretching; absent hides the row. Not a run, so it sits below a divider. */
+  onStretch?: () => void;
   onClose: () => void;
 };
 
-export function RecordSheet({ onTrack, onIndoor, onManual, onClose }: RecordSheetProps) {
+export function RecordSheet({ onTrack, onIndoor, onManual, onStretch, onClose }: RecordSheetProps) {
   const { t } = useTranslation();
   // Registered here, in the overlay's own component, so Android back / Escape
   // close it via the LIFO dismiss registry.
@@ -29,7 +31,7 @@ export function RecordSheet({ onTrack, onIndoor, onManual, onClose }: RecordShee
   return (
     <div className="fixed inset-0 bg-black/70 z-[2000] flex items-end animate-overlay-fade" onClick={onClose}>
       <div
-        className="w-full bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4 space-y-2.5 animate-slide-up"
+        className="w-full max-h-full overflow-y-auto bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4 space-y-2.5 animate-slide-up"
         style={{ paddingBottom: "calc(1.5rem + var(--safe-bottom))" }}
         onClick={e => e.stopPropagation()}
       >
@@ -62,6 +64,22 @@ export function RecordSheet({ onTrack, onIndoor, onManual, onClose }: RecordShee
             <span className="block text-xs text-slate-400">{t("log.sheet.manualSub")}</span>
           </span>
         </button>
+
+        {onStretch && (
+          <>
+            <div className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-slate-500 pt-1" aria-hidden>
+              <span className="flex-1 h-px bg-slate-700"/>{t("stretch.record.or")}<span className="flex-1 h-px bg-slate-700"/>
+            </div>
+            <button onClick={pick(onStretch)}
+              className="w-full flex items-center gap-3 bg-slate-700/60 hover:bg-slate-700 border border-teal-500/40 text-slate-100 px-4 py-3 rounded-xl text-left transition-colors">
+              <PersonStanding size={18} className="text-teal-400 flex-shrink-0"/>
+              <span>
+                <span className="block text-sm font-semibold">{t("stretch.record.row")}</span>
+                <span className="block text-xs text-slate-400">{t("stretch.record.rowSub")}</span>
+              </span>
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

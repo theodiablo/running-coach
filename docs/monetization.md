@@ -135,7 +135,8 @@ from then on manual comps go through the provider's *granted entitlements* so
 the webhook stays the single writer to these columns (otherwise an `EXPIRATION`
 event silently revokes a hand-granted comp).
 
-**Enforcement** is always server-side, per feature:
+**Enforcement** is always server-side, per feature (stretching is the one
+exception: a client-only test flag with no server half, see `docs/stretching.md`):
 
 - `route-suggest` → `{code:"PREMIUM_REQUIRED"}` before it touches the quota
   table, so free callers never consume one.
@@ -223,6 +224,7 @@ convenience last.
 | 6 | **Convenience** — calendar export (.ics), richer multi-race handling | Bundle filler, weak on its own | Planned |
 | 7 | **Higher coach daily budget** (`PREMIUM_RATE_LIMIT_PER_DAY`, 40 vs 5) | Already shipped as a *raise*; never framed as the reason to buy | **Built** |
 | 8 | **Guided workouts** — live step-by-step tempo/interval/run-walk guidance in the tracker with voice/beep cues, screen-off included (`docs/guided-workouts.md`) | Moved to free (2026-10) together with audio guidance: the maintainer's call, and with no server half the client gate was the only gate anyway | **Free** — no longer a premium candidate |
+| 9 | **Stretching** — running-specific routines with drawn figures, a hold timer, voice cues and Home suggestions after runs (`docs/stretching.md`) | Landed premium-first as a test flag for the maintainer; client-side gate only (no server half), so whether it stays premium is decided after the test | **Built**, testing behind `isPremium` |
 
 ### Live run sharing: shipped free (2026-08)
 

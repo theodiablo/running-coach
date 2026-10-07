@@ -35,6 +35,17 @@ describe("RecordSheet", () => {
     expect(h.onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("adds the stretching row only when it is offered", () => {
+    setup();
+    expect(screen.queryByText("Stretch")).not.toBeInTheDocument();
+    cleanup();
+    const onStretch = vi.fn(), onClose = vi.fn();
+    render(<RecordSheet onTrack={vi.fn()} onIndoor={vi.fn()} onManual={vi.fn()} onStretch={onStretch} onClose={onClose}/>);
+    fireEvent.click(screen.getByText("Stretch"));
+    expect(onStretch).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("closes on Android back / Escape via the dismiss registry", () => {
     const h = setup();
     expect(dismissTop()).toBe(true);
