@@ -303,6 +303,9 @@ describe.each(ANCHORS)("buildPlan output passes the shared validator (%s)", (_an
     ["marathon, 20 weeks, fit", weeksOut(20), 14400, 42.2, { recentRuns: seedRuns(18) }],
     // Self-reported level, no history: the onboarding path's higher week-1 start.
     ["marathon, 20 weeks, frequent (self-reported)", weeksOut(20), 14400, 42.2, { level: "frequent" }],
+    ["half, 16 weeks, regular (self-reported)", weeksOut(16), 6600, 21.1, { level: "regular" }],
+    ["10k, 12 weeks, occasional (self-reported)", weeksOut(12), 3000, 10, { level: "occasional" }],
+    ["half, 10 weeks, frequent (self-reported)", weeksOut(10), 6600, 21.1, { level: "frequent" }],
     // Short horizons and credited histories: both shorten the base block, so
     // quality lands on a smaller week. Neither was covered, which is how a
     // generation that breaks the ramp rule reached main.

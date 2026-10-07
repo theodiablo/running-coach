@@ -161,7 +161,7 @@ describe("applyToolCall", () => {
     const out = applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1.5 });
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d2")!.km).toBe(7.5);
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(10); // untouched
-    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1.6 })).toThrow(/factor/);
+    expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 2.1 })).toThrow(/factor/);
     expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w1d2", factor: 1 })).toThrow(/factor/);
     expect(() => applyTool(plan(), "increase_session_distance", { session_id: "w2d2", factor: 1.2 })).toThrow(/completed/);
     expect(() => applyTool(plan(), "increase_session_distance", { session_id: "race", factor: 1.2 })).toThrow(/race/);
@@ -211,6 +211,66 @@ describe("applyToolCall", () => {
     expect(ok.weeks[0]!.sessions.find(s => s.id === "w1d6")!.km).toBe(12);
   });
 
+  // A plan built days before a race is all "final 14 days", and its distances
+  // are placeholders: easy and long days may grow toward what the runner does.
+  const nearRace = (): TestPlan => ({
+    raceDate: "2026-01-17", distanceKm: 21.1, goalSec: 6600, targetPace: 330, planSessions: [],
+    weeks: [
+      { weekNumber: 1, startDate: "2026-01-05", phase: "BUILD", sessions: [
+        sess("w1d0", "2026-01-05", "EASY", 2.5), sess("w1d2", "2026-01-07", "EASY", 2.5),
+        sess("w1d3", "2026-01-08", "TEMPO", 5), sess("w1d6", "2026-01-11", "LONG", 11),
+      ]},
+      { weekNumber: 2, startDate: "2026-01-12", phase: "RACE", sessions: [
+        sess("w2d1", "2026-01-13", "EASY", 4), sess("w2d4", "2026-01-16", "EASY", 4),
+        sess("race", "2026-01-17", "RACE", 21.1),
+      ]},
+    ],
+  });
+
+  it("increase_session_distance grows easy days inside the final 14 days, never quality or race eve", () => {
+    const out = applyTool(nearRace(), "increase_session_distance", { session_id: "w1d0", factor: 2 });
+    expect(out.weeks[0]!.sessions.find(s => s.id === "w1d0")!.km).toBe(5);
+    expect(applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 1.5 })
+      .weeks[1]!.sessions.find(s => s.id === "w2d1")!.km).toBe(6);
+    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w1d3", factor: 1.2 }))
+      .toThrow(/TEMPO sessions are not lengthened/);
+    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d4", factor: 1.2 }))
+      .toThrow(/before the race/);
+  });
+
+  it("add_session inside the final 14 days takes only easy work, and nothing on race eve", () => {
+    const out = applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "EASY", km: 5 });
+    expect(out.weeks[0]!.sessions.some(s => s.id === "coach-add-2026-01-09")).toBe(true);
+    expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "LONG", km: 8 }))
+      .toThrow(/final 14 days/);
+    expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-15", type: "EASY", km: 3 }))
+      .toThrow(/before the race/);
+  });
+
+  it("a taper week can refill toward the plan's peak week, never past it", () => {
+    const tapered = () => {
+      const p = plan();
+      p.weeks[0]!.sessions[1]!.km = 12; // peak week: 5 + 12 = 17 km
+      p.weeks[1]!.phase = "TAPER";      // 4 (done) + 11 = 15 km
+      return p;
+    };
+    const ok = applyTool(tapered(), "increase_session_distance", { session_id: "w2d6", factor: 1.1 });
+    expect(ok.weeks[1]!.sessions.find(s => s.id === "w2d6")!.km).toBe(12.1);
+    expect(() => applyTool(tapered(), "increase_session_distance", { session_id: "w2d6", factor: 1.2 }))
+      .toThrow(/peak week/);
+  });
+
+  it("convert_to_cross_training schedules the activity asked for", () => {
+    const bike = applyTool(plan(), "convert_to_cross_training", { session_id: "w1d6", activity: "bike" });
+    const s = bike.weeks[0]!.sessions.find(x => x.id === "w1d6")!;
+    expect(s).toMatchObject({ type: "OTHER", km: 10, pace: null });
+    expect(s.desc).toBe("Cross-training — 1h10 easy bike ride, no running");
+    expect(applyTool(plan(), "convert_to_cross_training", { session_id: "w1d6" }).weeks[0]!.sessions
+      .find(x => x.id === "w1d6")!.type).toBe("WALK");
+    expect(() => applyTool(plan(), "convert_to_cross_training", { session_id: "w1d6", activity: "golf" }))
+      .toThrow(/activity/);
+  });
+
   it("cancel_session marks skipped and refuses done/RACE sessions", () => {
     const out = applyTool(plan(), "cancel_session", { session_id: "w1d2" });
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d2")!.skipped).toBe(true);
@@ -230,9 +290,7 @@ describe("applyToolCall", () => {
       .toEqual(["coach-add-2026-01-08", "coach-add-2026-01-08-2"]);
   });
 
-  it("add_session refuses taper dates, oversized runs and out-of-plan dates", () => {
-    // Race day is 2026-02-14: 2026-02-05 is inside the final 14 days.
-    expect(() => applyTool(plan(), "add_session", { date: "2026-02-05", type: "EASY", km: 5 })).toThrow(/final 14 days/);
+  it("add_session refuses oversized runs and out-of-plan dates", () => {
     // Longest training session in the fixture is 11 km.
     expect(() => applyTool(plan(), "add_session", { date: "2026-01-08", type: "LONG", km: 15 })).toThrow(/longest/);
     expect(() => applyTool(plan(), "add_session", { date: "2026-01-30", type: "EASY", km: 5 })).toThrow(/outside/);

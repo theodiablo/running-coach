@@ -2,7 +2,7 @@
 import { VERT_COST } from "../constants";
 import { fmt, ymd } from "./format";
 import {
-  DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelStartLongKm, pickHardDays, stylePacing,
+  DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelEasyKm, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
 } from "./planStyles";
 import { runWalkConfig, runwalkRunSec, type RunWalkConfig } from "./runwalk";
@@ -204,7 +204,7 @@ export function buildPlan(
   const EASY_FLOOR_MIN_RUNS = 3;
   const easyFloor = runsInWindow.length >= EASY_FLOOR_MIN_RUNS
     ? median(runsInWindow.map(r => r.km ?? 0)) * 0.8
-    : 0;
+    : levelEasyKm(planOpts.level); // no habit logged: the self-reported level stands in
   const lastBuildW = N - 4; // 0-based index of the final pre-taper week (peak hits here)
   // Phase boundaries. The base block is what the composers actually treat as
   // base (easy only, no quality), so it must never swallow the whole pre-taper

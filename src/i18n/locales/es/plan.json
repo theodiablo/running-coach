@@ -242,6 +242,13 @@
     }
   },
   "crosswalk": "Entrenamiento cruzado o caminata a paso ligero, sin impacto y a esfuerzo suave",
+  "crossActivity": "Entrenamiento cruzado: {{activity}} suave de {{mins}}, sin correr",
+  "crossActivityName": {
+    "bike": "bici",
+    "elliptical": "elíptica",
+    "swim": "natación",
+    "rower": "remo"
+  },
   "recovery": "Rodaje de recuperación a esfuerzo muy suave; puedes hacer pausas para caminar",
   "preview": {
     "title": "Revisa los cambios",

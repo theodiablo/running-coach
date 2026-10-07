@@ -886,3 +886,46 @@ describe("carryProgress", () => {
     });
   });
 });
+
+describe.each([
+  ["monday anchor", "2026-09-14"],
+  ["midweek anchor", "2026-09-16"],
+])("buildPlan · self-reported level floors the easy days (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const raceIn = (days: number) => { const d = new Date(anchor + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
+  const DAYS = [{dayOffset: 1, minutes: 60}, {dayOffset: 2, minutes: 60}, {dayOffset: 4, minutes: 60}, {dayOffset: 6, minutes: 120}];
+  const week1Easy = (opts: object, days = 17) => {
+    const plan = buildPlan(raceIn(days), 6600, DAYS, 21.1, 150, opts);
+    return plan.weeks[0]!.sessions.filter(s => s.type === "EASY").map(s => s.km as number);
+  };
+  const habit = (kms: number[]) => kms.map((km, i) => {
+    const d = new Date(anchor + "T00:00:00"); d.setDate(d.getDate() - (i + 1) * 3);
+    return { date: ymd(d), km, type: "EASY" };
+  });
+
+  it.each([["regular", 17], ["regular", 84], ["frequent", 17], ["frequent", 84]])(
+    "%s level, no runs, race in %i days: week-1 easy days open well above 2.5 km", (level, days) => {
+      const kms = week1Easy({ level }, days);
+      expect(kms.length).toBeGreaterThan(0);
+      for (const km of kms) expect(km).toBeGreaterThanOrEqual(5);
+    });
+
+  it("never exceeds the day's own time budget", () => {
+    const plan = buildPlan(raceIn(84), 6600, [{dayOffset: 1, minutes: 20}, {dayOffset: 6, minutes: 90}], 21.1, 0, { level: "frequent" });
+    const easy = plan.weeks[0]!.sessions.find(s => s.type === "EASY")!;
+    expect(easy.km as number).toBeLessThanOrEqual(20 * 60 / 330 + 0.01);
+  });
+
+  it("logged runs win over the level", () => {
+    const runs = habit([3, 3.2, 3.1, 3]);
+    expect(week1Easy({ level: "frequent", recentRuns: runs as never }, 84))
+      .toEqual(week1Easy({ recentRuns: runs as never }, 84));
+  });
+
+  it.each([[undefined], [null], ["none"], ["bogus"]])("level %s leaves the plan unchanged", (level) => {
+    expect(buildPlan(raceIn(84), 6600, DAYS, 21.1, 150, { level: level as never }))
+      .toEqual(buildPlan(raceIn(84), 6600, DAYS, 21.1, 150));
+  });
+});

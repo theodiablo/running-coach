@@ -112,7 +112,8 @@ export type HrPending = { start: string | number; end: string | number; source: 
 // _shared/coach/tools.mjs) both stamp this; sessionDesc.test.ts proves both
 // render to the canonical English `desc` byte-for-byte.
 export type SessionSd = {
-  kind: "long" | "easy" | "recovery" | "tempo" | "intervals" | "runwalk" | "cross" | "crosswalk" | "race" | "raceday";
+  kind: "long" | "easy" | "recovery" | "tempo" | "intervals" | "runwalk" | "cross" | "crosswalk" | "crossActivity" | "race" | "raceday";
+  activity?: "bike" | "elliptical" | "swim" | "rower"; // coach-converted cross-training
   variant?: string;      // sentence flavor within a kind (1:1 with the English templates)
   reps?: number;         // rep/set count
   repM?: number;         // rep length in metres (400 | 600 | 800 | 1000 | 3000)

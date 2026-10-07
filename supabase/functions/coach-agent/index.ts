@@ -18,6 +18,9 @@ const RATE_LIMIT_PER_DAY = Number(Deno.env.get("RATE_LIMIT_PER_DAY") ?? 5);
 // Raises the free allowance for paying users, never lowers anyone's — the
 // limit is cost-insurance, not an upgrade lever (docs/monetization.md).
 const PREMIUM_RATE_LIMIT_PER_DAY = Number(Deno.env.get("PREMIUM_RATE_LIMIT_PER_DAY") ?? 40);
+// A new account's first conversations shape its plan; the free cap must not end them.
+const NEW_USER_RATE_LIMIT_PER_DAY = Number(Deno.env.get("NEW_USER_RATE_LIMIT_PER_DAY") ?? 15);
+const NEW_USER_DAYS = 3;
 // Explicit retry/timeout bounds (not the SDK's maxRetries:2 default) so an
 // overloaded model doesn't sink a round, and no single attempt hangs forever.
 const MODEL_MAX_RETRIES = Number(Deno.env.get("COACH_MODEL_MAX_RETRIES") ?? 4);
@@ -57,12 +60,14 @@ function cleanUserContext(value: unknown): { notes: string } {
 }
 
 // Caller's daily budget, most specific first: coach_daily_limit override,
-// then premium's PREMIUM_RATE_LIMIT_PER_DAY, then the env default. Both
+// then premium's PREMIUM_RATE_LIMIT_PER_DAY, then the env default (raised to
+// NEW_USER_RATE_LIMIT_PER_DAY for an account's first days). Both
 // columns are service-role-writable only. A failed read THROWS rather than
 // silently falling back to the free number — a paying user should see an
 // error, not a quietly smaller allowance.
 // deno-lint-ignore no-explicit-any
-async function getDailyLimit(admin: any, userId: string): Promise<number> {
+async function getDailyLimit(admin: any, userId: string, createdAt?: string): Promise<number> {
+  const free = isNewAccount(createdAt) ? Math.max(RATE_LIMIT_PER_DAY, NEW_USER_RATE_LIMIT_PER_DAY) : RATE_LIMIT_PER_DAY;
   let { data, error } = await admin.from("profiles")
     .select("coach_daily_limit, premium_until").eq("id", userId).maybeSingle();
   // 42703 = undefined_column: the premium migration hasn't been applied yet.
@@ -79,9 +84,14 @@ async function getDailyLimit(admin: any, userId: string): Promise<number> {
   if (error) throw error;
   const n = Number(data?.coach_daily_limit);
   if (Number.isFinite(n) && n > 0) return n;
-  if (isPremiumActive(data?.premium_until)) return PREMIUM_RATE_LIMIT_PER_DAY;
-  return RATE_LIMIT_PER_DAY;
+  if (isPremiumActive(data?.premium_until)) return Math.max(PREMIUM_RATE_LIMIT_PER_DAY, free);
+  return free;
 }
+
+const isNewAccount = (createdAt?: string) => {
+  const t = createdAt ? Date.parse(createdAt) : NaN;
+  return Number.isFinite(t) && Date.now() - t < NEW_USER_DAYS * 86400000;
+};
 
 // deno-lint-ignore no-explicit-any
 function makeCallModel(context: any, message: string) {
@@ -176,7 +186,7 @@ async function handle(req: Request): Promise<any> {
     const day = new Date().toISOString().slice(0, 10);
     const [usageRes, limit] = await Promise.all([
       admin.from("agent_usage").select("count").eq("user_id", user.id).eq("day", day).maybeSingle(),
-      getDailyLimit(admin, user.id),
+      getDailyLimit(admin, user.id, user.created_at),
     ]);
     if (usageRes.error) throw usageRes.error;
     return { used: Math.min(usageRes.data?.count ?? 0, limit), limit };
@@ -240,7 +250,7 @@ async function handle(req: Request): Promise<any> {
   // so exposing it adds no latency to the hot path.
   const [stateResult, dailyLimit] = await Promise.all([
     userClient.from("app_state").select("data").eq("user_id", user.id).maybeSingle(),
-    getDailyLimit(admin, user.id),
+    getDailyLimit(admin, user.id, user.created_at),
   ]);
   if (stateResult.error) throw stateResult.error;
   const blob = stateResult.data?.data ?? {};
@@ -342,6 +352,7 @@ async function handle(req: Request): Promise<any> {
     today,
     report,
     runnerAge,
+    trainingLevel: typeof settings.trainingLevel === "string" ? settings.trainingLevel : null,
     goal: {
       raceDate: settings.raceDate || workingPlan.raceDate,
       distanceKm: Number(settings.distanceKm || workingPlan.distanceKm),
@@ -437,7 +448,7 @@ async function handle(req: Request): Promise<any> {
     rationale: result.rationale || null,
     proposed_plan: failed ? context.plan : result.plan,
     input_context: {
-      report, goal: context.goal, today, recentRuns, userContext,
+      report, goal: context.goal, today, recentRuns, userContext, trainingLevel: context.trainingLevel,
       baselinePlan, planSeenByModel: workingPlan,
       memorySuggestions: result.memorySuggestions ?? [],
       // Digests the model fetched via get_run_detail — part of what it saw,

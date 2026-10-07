@@ -131,6 +131,8 @@ describe.each(ANCHORS)("renderSd reproduces the English desc for coach-authored 
       }
       // convert to cross-training + recovery week
       check(applyToolCall(base, "convert_to_cross_training", { session_id: firstEditable(base).id }));
+      for (const activity of ["bike", "elliptical", "swim", "rower"])
+        expect(check(applyToolCall(base, "convert_to_cross_training", { session_id: firstEditable(base).id, activity }))).toBeGreaterThan(0);
       check(applyToolCall(base, "insert_recovery_week", { week_number: firstEditable(base).week }));
       // A free day in the plan's own second week, read off the plan rather than
       // written down: any literal date here decays as the weeks pass.

@@ -153,6 +153,18 @@ const LEVEL_PROFILE: Record<TrainingLevel, { weeklyKm: number; runCount: number;
 export const levelStartLongKm = (level: unknown): number =>
   isTrainingLevel(level) ? LEVEL_PROFILE[level].startLongKm : 0;
 
+// Typical easy-day km for a level (weekly volume minus the long run, spread over the other runs, 0.8 haircut); 0 for none/unknown.
+const rawLevelEasyKm = (level: TrainingLevel): number => {
+  const { weeklyKm, runCount, startLongKm } = LEVEL_PROFILE[level];
+  return Math.max(0, (weeklyKm - startLongKm) / Math.max(1, runCount - 1)) * 0.8;
+};
+// Monotonic: more running days must never mean shorter easy days than a lower level gets.
+export const levelEasyKm = (level: unknown): number => {
+  if (!isTrainingLevel(level)) return 0;
+  const upTo = TRAINING_LEVEL_IDS.slice(0, TRAINING_LEVEL_IDS.indexOf(level) + 1);
+  return Math.max(...upTo.map(rawLevelEasyKm));
+};
+
 // ── Suggested training days/durations ───────────────────────────────────────
 // A sensible days-and-minutes layout for the race distance and self-reported
 // level, so a user with no preference never has to assemble the week by hand.
