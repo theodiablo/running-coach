@@ -14,6 +14,15 @@ export const MOVE_KIND: Record<MoveId, "hold" | "drill"> = {
   legSwing: "drill", lunge: "drill", highKnees: "drill", calfRaise: "drill", catCow: "drill",
 };
 
+/** How the body is placed for a move: getting between levels takes longer than between moves on the same one. */
+export type Posture = "stand" | "kneel" | "lie";
+
+export const MOVE_POSTURE: Record<MoveId, Posture> = {
+  calfWall: "stand", calfBent: "stand", quad: "stand", hipFlexor: "kneel",
+  hamStrap: "lie", kneeChest: "lie", child: "kneel", legsWall: "lie",
+  legSwing: "stand", lunge: "stand", highKnees: "stand", calfRaise: "stand", catCow: "kneel",
+};
+
 /** One move in a routine: seconds per side, both sides or one. */
 export type RoutineItem = { move: MoveId; sec: number; sides: 1 | 2 };
 

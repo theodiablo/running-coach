@@ -52,9 +52,9 @@ describe("StretchPlayer", () => {
   it("logs the session once, at the end", () => {
     const p = setup();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    advance(7 * 60 * 1000 + 1000);
+    advance(430 * 1000 + 1000);
     expect(p.onComplete).toHaveBeenCalledTimes(1);
-    expect(p.onComplete).toHaveBeenCalledWith(420);
+    expect(p.onComplete).toHaveBeenCalledWith(430);
     expect(screen.getByText("Cool-down done")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(p.onFinish).toHaveBeenCalledTimes(1);

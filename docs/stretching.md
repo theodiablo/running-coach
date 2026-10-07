@@ -44,10 +44,14 @@ decides". Keep the two in step when a rule below changes.
   recovery, warm-up, rest-day). `cooldownFor(focus)` reshapes the cool-down for
   the run it follows: hilly (15+ m climb per km) puts calves first at 45 s; a
   tempo, interval or race session gives hips and hamstrings 45 s.
-- `src/utils/stretchEngine.ts`: pure. A routine flattens into steps (5 s prep +
+- `src/utils/stretchEngine.ts`: pure. A routine flattens into steps (a prep +
   the hold, two-sided moves split left then right); `positionAt(steps, elapsed)`
   reads the position from elapsed time, never from counted ticks, so a screen
   that slept catches up.
+  The prep is 5 s between moves in the same posture (and for the second side),
+  plus 5 s per level crossed (`MOVE_POSTURE`: stand / kneel / lie; a routine
+  starts standing), so getting down to the floor or back up isn't rushed.
+  Order a routine's moves to keep the ups and downs few.
 - `src/utils/stretchSuggest.ts`: pure, **derived on every render, never stored**
   (the overdue-sessions rule). At most one suggestion a day:
   1. a run today (15+ min, some distance, not cross-training; one that ran past

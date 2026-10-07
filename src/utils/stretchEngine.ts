@@ -1,26 +1,38 @@
-// The stretch player's schedule: a routine flattened into steps, each a short
+// The stretch player's schedule: a routine flattened into steps, each a
 // "get into position" prep followed by the hold. Pure, and read from elapsed
 // time rather than counted ticks, so a screen that slept catches up.
 
-import type { MoveId, Routine } from "../stretch/routines";
+import { MOVE_POSTURE } from "../stretch/routines";
+import type { MoveId, Posture, Routine } from "../stretch/routines";
 
+/** Prep before a move in the same posture as the last one (or the other side). */
 export const PREP_SEC = 5;
+/** Extra prep per level crossed: standing to kneeling is one, standing to lying two. */
+export const PREP_PER_LEVEL_SEC = 5;
+const LEVEL: Record<Posture, number> = { stand: 0, kneel: 1, lie: 2 };
 
 export type StretchSide = "left" | "right";
-export type StretchStep = { move: MoveId; sec: number; side: StretchSide | null };
+export type StretchStep = { move: MoveId; sec: number; side: StretchSide | null; prepSec: number };
+
+/** Seconds to get from one move into the next; a routine starts standing. */
+export function prepSec(from: MoveId | null, to: MoveId): number {
+  const a = from ? LEVEL[MOVE_POSTURE[from]] : LEVEL.stand;
+  return PREP_SEC + PREP_PER_LEVEL_SEC * Math.abs(LEVEL[MOVE_POSTURE[to]] - a);
+}
 
 export function routineSteps(r: Routine): StretchStep[] {
   const out: StretchStep[] = [];
   const push = ({ move, sec, sides }: Routine["items"][number]) => {
-    if (sides === 2) out.push({ move, sec, side: "left" }, { move, sec, side: "right" });
-    else out.push({ move, sec, side: null });
+    const first = prepSec(out.at(-1)?.move ?? null, move);
+    if (sides === 2) out.push({ move, sec, side: "left", prepSec: first }, { move, sec, side: "right", prepSec: PREP_SEC });
+    else out.push({ move, sec, side: null, prepSec: first });
   };
   for (let k = 0; k < (r.rounds ?? 1); k++) r.items.forEach(push);
   (r.tail ?? []).forEach(push);
   return out;
 }
 
-const stepMs = (s: StretchStep) => (PREP_SEC + s.sec) * 1000;
+const stepMs = (s: StretchStep) => (s.prepSec + s.sec) * 1000;
 
 export function totalMs(steps: StretchStep[]): number {
   return steps.reduce((sum, s) => sum + stepMs(s), 0);
@@ -51,9 +63,9 @@ export function positionAt(steps: StretchStep[], elapsedMs: number): StretchPosi
   let start = 0;
   const t = Math.max(0, elapsedMs);
   for (let i = 0; i < steps.length; i++) {
-    const prepEnd = start + PREP_SEC * 1000;
+    const prepEnd = start + steps[i].prepSec * 1000;
     const end = start + stepMs(steps[i]);
-    if (t < prepEnd) return { index: i, phase: "prep", phaseMs: PREP_SEC * 1000, remainingMs: prepEnd - t, done: false };
+    if (t < prepEnd) return { index: i, phase: "prep", phaseMs: steps[i].prepSec * 1000, remainingMs: prepEnd - t, done: false };
     if (t < end) return { index: i, phase: "hold", phaseMs: steps[i].sec * 1000, remainingMs: end - t, done: false };
     start = end;
   }
@@ -71,6 +83,6 @@ export function isSideSwitch(steps: StretchStep[], index: number): boolean {
 export function backTarget(steps: StretchStep[], pos: StretchPosition): number {
   const start = stepStartMs(steps, pos.index);
   const intoHold = pos.phase === "hold" ? pos.phaseMs - pos.remainingMs : 0;
-  if (!pos.done && pos.phase === "hold" && intoHold > 3000) return start + PREP_SEC * 1000;
+  if (!pos.done && pos.phase === "hold" && intoHold > 3000) return start + steps[pos.index].prepSec * 1000;
   return stepStartMs(steps, Math.max(0, pos.done ? pos.index : pos.index - 1));
 }
