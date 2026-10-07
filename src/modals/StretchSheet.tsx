@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { StretchFigure } from "../components/StretchFigure";
 import { StretchInfo } from "../components/StretchInfo";
+import { StretchBetaNote } from "../components/StretchBetaNote";
+import { BetaBadge } from "../components/BetaBadge";
 import { useDismissable } from "../hooks/useDismissable";
 import { ROUTINES, ROUTINE_ORDER, cooldownFor, itemTime } from "../stretch/routines";
 import type { Routine, RoutineId, RoutineItem } from "../stretch/routines";
@@ -22,6 +24,8 @@ type StretchSheetProps = {
   voice: boolean;
   onVoiceChange: (on: boolean) => void;
   onComplete: (routine: RoutineId, sec: number) => void;
+  /** Opens the beta feedback sheet. */
+  onFeedback?: () => void;
   onClose: () => void;
 };
 
@@ -64,7 +68,7 @@ function ItemRow({ item, onOpen }: { item: RoutineItem; onOpen: () => void }) {
 
 // The stretching flow: the routine list, one routine's preview, and the player
 // on top. Lazily loaded, premium only for now (docs/stretching.md).
-export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onComplete, onClose }: StretchSheetProps) {
+export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onComplete, onFeedback, onClose }: StretchSheetProps) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Routine | null>(() => (target ? routineFor(target) : null));
   const [viaTarget, setViaTarget] = useState(!!target);
@@ -96,7 +100,7 @@ export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onC
             <ChevronLeft size={20}/>
           </button>
         ) : <span className="w-8"/>}
-        <span className="flex-1 text-center text-sm font-semibold">{t("stretch.sheet.title")}</span>
+        <span className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold">{t("stretch.sheet.title")}<BetaBadge label={t("app.beta")}/></span>
         <button onClick={onClose} aria-label={t("common.close")} className="text-slate-400 hover:text-white p-1.5">
           <X size={20}/>
         </button>
@@ -158,6 +162,7 @@ export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onC
               <WeekLine count={weekCount} onHistory={openHistory}/>
             </>
           )}
+          <StretchBetaNote onFeedback={onFeedback}/>
           <div className="flex items-center gap-5">
             {viaTarget && selected && (
               <button onClick={showList} className="text-xs text-slate-400 hover:text-orange-400 transition-colors">
@@ -186,7 +191,7 @@ export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onC
 
       {playing && selected && (
         <StretchPlayer routine={selected} voice={voice} onVoiceChange={onVoiceChange} weekCount={weekCount}
-          onComplete={sec => onComplete(selected.id, sec)} onClose={() => setPlaying(false)} onFinish={onClose}/>
+          onComplete={sec => onComplete(selected.id, sec)} onFeedback={onFeedback} onClose={() => setPlaying(false)} onFinish={onClose}/>
       )}
     </div>
   );

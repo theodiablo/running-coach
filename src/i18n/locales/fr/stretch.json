@@ -12,6 +12,10 @@
     "dismissed": "Masqué jusqu'à demain. Tu peux désactiver les suggestions dans Paramètres, Profil d'entraînement.",
     "settings": "Paramètres"
   },
+  "home": {
+    "title": "Étirements",
+    "sub": "Des routines guidées pour les coureurs"
+  },
   "routines": {
     "cooldown": {
       "name": "Retour au calme",
@@ -164,6 +168,11 @@
     "sessions_one": "{{count}} séance",
     "sessions_other": "{{count}} séances",
     "kept": "Tes 200 dernières séances sont gardées. Une routine de moins d'une minute n'est pas comptée."
+  },
+  "beta": {
+    "note": "Les étirements sont nouveaux et encore peu testés. Si une figure te semble fausse, une consigne pas claire ou un timing mal réglé, dis-le-nous.",
+    "done": "Les étirements sont encore en bêta. Comment s'est passée cette routine ? Un petit mot nous aide à l'améliorer.",
+    "send": "Envoyer un avis"
   },
   "player": {
     "getReady": "Prépare-toi",

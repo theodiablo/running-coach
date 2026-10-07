@@ -114,12 +114,19 @@ decides". Keep the two in step when a rule below changes.
 ## Gating
 
 - Everything is behind `isPremium`, which makes it a test flag while grants are
-  manual. The Record sheet row follows the house rule (`isPremium ||
-  canShowPremiumTeaser`, a free tap gets `PremiumTeaserSheet`). The Home
+  manual. The two doors in follow the house rule (`isPremium ||
+  canShowPremiumTeaser`, a free tap gets `PremiumTeaserSheet`): the Record
+  sheet row and a quiet "Stretching" row on Home (below the stat cards, this
+  week's count as its subtitle), which steps aside while the suggestion banner
+  shows so Home never offers stretching twice. The Home
   suggestion and the Help section stay `isPremium` only: a suggestion is the
   feature itself, and a locked one after every run would be an ad.
 - The FAQ opens with a "Testing" notice (`stretch.info.testing`): only test
   accounts see the feature and it isn't public yet. Remove it when it opens.
+- **Beta:** every surface carries the `BetaBadge` (Record row, Home row and
+  banner, the sheet's header, Help, Training profile), and `StretchBetaNote`
+  asks for feedback on the sheet and on the done screen, opening the beta
+  feedback sheet with source `stretch`. Remove all of it when it opens.
 - **The gate is client-side only.** The content ships in the (lazy) bundle and
   there is no server half, the same reason guided workouts went free. Whether it
   stays premium (and moves its content behind an edge function) or opens to

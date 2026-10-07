@@ -21,7 +21,8 @@
     "progress": "Progress",
     "log": "Log a run",
     "coach": "Coach chat",
-    "settings": "Settings"
+    "settings": "Settings",
+    "stretch": "Stretching"
   },
   "coachmark": {
     "title": "Found something odd?",

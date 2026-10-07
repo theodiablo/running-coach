@@ -8,7 +8,7 @@ vi.mock("../hooks/useKeepAwake", () => ({ useKeepAwake: vi.fn() }));
 afterEach(cleanup);
 
 const setup = (target: React.ComponentProps<typeof StretchSheet>["target"], log: React.ComponentProps<typeof StretchSheet>["log"] = []) => {
-  const props = { target, weekCount: 1, log, voice: true, onVoiceChange: vi.fn(), onComplete: vi.fn(), onClose: vi.fn() };
+  const props = { target, weekCount: 1, log, voice: true, onVoiceChange: vi.fn(), onComplete: vi.fn(), onFeedback: vi.fn(), onClose: vi.fn() };
   render(<StretchSheet {...props}/>);
   return props;
 };
@@ -101,5 +101,12 @@ describe("StretchSheet", () => {
     act(() => { dismissTop(); });
     expect(screen.queryByText("Stretch history")).not.toBeInTheDocument();
     expect(p.onClose).not.toHaveBeenCalled();
+  });
+
+  it("says it's a beta and asks for feedback", () => {
+    const p = setup(null);
+    expect(screen.getByText(/hasn't been tested much yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+    expect(p.onFeedback).toHaveBeenCalledTimes(1);
   });
 });

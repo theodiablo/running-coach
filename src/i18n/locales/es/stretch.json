@@ -12,6 +12,10 @@
     "dismissed": "Oculto hasta mañana. Puedes desactivar las sugerencias en Ajustes, Perfil de entrenamiento.",
     "settings": "Ajustes"
   },
+  "home": {
+    "title": "Estiramientos",
+    "sub": "Rutinas guiadas para corredores"
+  },
   "routines": {
     "cooldown": {
       "name": "Vuelta a la calma",
@@ -164,6 +168,11 @@
     "sessions_one": "{{count}} sesión",
     "sessions_other": "{{count}} sesiones",
     "kept": "Se guardan tus últimas 200 sesiones. Una rutina de menos de un minuto no cuenta."
+  },
+  "beta": {
+    "note": "Los estiramientos son nuevos y aún se han probado poco. Si una figura parece incorrecta, una indicación no se entiende o un tiempo no encaja, cuéntanoslo.",
+    "done": "Los estiramientos siguen en beta. ¿Qué tal la rutina? Un comentario rápido nos ayuda a mejorarla.",
+    "send": "Enviar comentarios"
   },
   "player": {
     "getReady": "Prepárate",

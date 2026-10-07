@@ -1364,7 +1364,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
             <StretchSheet target={stretchOpen.target} weekCount={stretchesThisWeek(stretchLog, new Date())} log={stretchLog}
               voice={settings.stretchVoice !== false} onVoiceChange={on => patchSettings({ stretchVoice: on })}
-              onComplete={logStretch} onClose={() => setStretchOpen(null)}/>
+              onComplete={logStretch} onFeedback={() => openFeedback("stretch")} onClose={() => setStretchOpen(null)}/>
           </Suspense>
         </ChunkLoadBoundary>
       )}

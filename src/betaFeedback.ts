@@ -3,12 +3,12 @@ import { currentUserId } from "./db";
 import { notifyContribution } from "./notify";
 import { platform, nativeBuildLabel } from "./native";
 
-// Where the user was when they tapped the button. The four tabs, plus the two
+// Where the user was when they tapped the button. The four tabs, plus the
 // surfaces that carry their own entry point because a floating pill can't sit
-// on them (the coach's send button is already bottom-right, and a badge over
-// the settings list reads as an ad).
+// on them (the coach's send button is already bottom-right, a badge over the
+// settings list reads as an ad, and stretching is a full-screen beta).
 export type FeedbackSource =
-  | "dash" | "plan" | "races" | "progress" | "log" | "coach" | "settings";
+  | "dash" | "plan" | "races" | "progress" | "log" | "coach" | "settings" | "stretch";
 
 // `tab` is a bare string on the state hub and takes values the sheet has no
 // name for. Map rather than cast: an unmapped tab reaches the UI as the raw

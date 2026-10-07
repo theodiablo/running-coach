@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Check, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from "lucide-react";
 import { StretchFigure } from "../components/StretchFigure";
+import { StretchBetaNote } from "../components/StretchBetaNote";
 import { ConfirmButtons, ModalOverlay } from "../components/ModalPrimitives";
 import { useDismissable } from "../hooks/useDismissable";
 import { useKeepAwake } from "../hooks/useKeepAwake";
@@ -22,6 +23,7 @@ type StretchPlayerProps = {
   onClose: () => void;
   /** After the done screen. */
   onFinish: () => void;
+  onFeedback?: () => void;
 };
 
 // Paused state keeps the elapsed time; running keeps the wall-clock instant the
@@ -50,7 +52,7 @@ function LeaveConfirm({ onStop, onKeep }: { onStop: () => void; onKeep: () => vo
   );
 }
 
-export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComplete, onClose, onFinish }: StretchPlayerProps) {
+export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComplete, onClose, onFinish, onFeedback }: StretchPlayerProps) {
   const { t, i18n } = useTranslation();
   const steps = useMemo(() => routineSteps(routine), [routine]);
   const [clock, setClock] = useState<Clock>({ startedAt: null, elapsed: 0 });
@@ -218,6 +220,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             {playedSec >= MIN_LOGGED_SEC ? t("stretch.player.doneBody", { min: Math.max(1, Math.round(playedSec / 60)) }) : t("stretch.player.doneShort")}
           </p>
           <p className="text-xs text-slate-500">{weekCount > 0 ? t("stretch.sheet.week", { count: weekCount }) : t("stretch.sheet.weekNone")}</p>
+          <div className="w-full max-w-sm mt-2"><StretchBetaNote compact onFeedback={onFeedback}/></div>
           <button onClick={onFinish} className="mt-3 px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm font-semibold">
             {t("stretch.player.doneClose")}
           </button>

@@ -4,6 +4,7 @@ import { INPUT_CLS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_WARN_CHARS, USER_CONTEX
 import { HRZones } from "../../views/HRZones";
 import { SessionRemindersCard } from "../../components/SessionRemindersCard";
 import { ToggleSwitch } from "../../components/ToggleSwitch";
+import { BetaBadge } from "../../components/BetaBadge";
 import type { Plan, SettingsState, UserContextState } from "../../types";
 
 // Training Profile: what the coach and the plan reason about — your heart-rate
@@ -44,7 +45,7 @@ export function TrainingProfilePage({ settings, saveSettings, userContext, saveU
 
       {isPremium && (
         <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-slate-200">{t("stretch.settings.title")}</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-slate-200">{t("stretch.settings.title")}<BetaBadge label={t("app.beta")}/></p>
           {([["stretchSuggest", "suggest"], ["stretchVoice", "voice"]] as const).map(([key, copy]) => {
             const on = settings[key] !== false;
             return (

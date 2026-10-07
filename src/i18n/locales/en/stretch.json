@@ -12,6 +12,10 @@
     "dismissed": "Hidden until tomorrow. Suggestions can be turned off in Settings, Training profile.",
     "settings": "Settings"
   },
+  "home": {
+    "title": "Stretching",
+    "sub": "Guided routines for runners"
+  },
   "routines": {
     "cooldown": {
       "name": "Cool-down",
@@ -164,6 +168,11 @@
     "sessions_one": "{{count}} session",
     "sessions_other": "{{count}} sessions",
     "kept": "Your last 200 sessions are kept. A routine under a minute isn't counted."
+  },
+  "beta": {
+    "note": "Stretching is new and hasn't been tested much yet. If a figure looks wrong, a cue is unclear or a timing feels off, we'd love to hear about it.",
+    "done": "Stretching is still in beta. How did that routine feel? A quick note helps us improve it.",
+    "send": "Send feedback"
   },
   "player": {
     "getReady": "Get ready",

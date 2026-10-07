@@ -60,3 +60,23 @@ describe("Dashboard stretch banner", () => {
     expect(screen.queryByText("Cool down · 7 min")).toBeNull();
   });
 });
+
+describe("Dashboard stretching entry", () => {
+  it("is always there for premium, behind the suggestion when one shows", () => {
+    renderDash();
+    expect(screen.queryByText("Guided routines for runners")).toBeNull();
+    cleanup();
+    const p = renderDash({ runs: [], stretchLog: [{ date: TODAY, at: NOW.getTime(), routine: "cooldown", sec: 430 }] });
+    expect(screen.getByText("1 session this week")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Stretching"));
+    expect(p.openStretch).toHaveBeenCalledWith();
+  });
+
+  it("is absent for a free account and during a recording", () => {
+    renderDash({ runs: [], isPremium: false });
+    expect(screen.queryByText("Stretching")).toBeNull();
+    cleanup();
+    renderDash({ runs: [], recorderOpen: true });
+    expect(screen.queryByText("Stretching")).toBeNull();
+  });
+});
