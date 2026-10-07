@@ -156,7 +156,9 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
         </div>
         <button onClick={() => onVoiceChange(!voice)} aria-pressed={voice}
           aria-label={t(voice ? "stretch.player.voiceOn" : "stretch.player.voiceOff")}
-          className="text-slate-400 hover:text-white p-1.5">
+          className={"p-1.5 rounded-full transition-colors " + (voice
+            ? "text-teal-300 bg-teal-400/15 hover:bg-teal-400/25"
+            : "text-slate-500 hover:text-slate-300")}>
           {voice ? <Volume2 size={20}/> : <VolumeX size={20}/>}
         </button>
       </header>
