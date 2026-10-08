@@ -1,0 +1,72 @@
+name: Promote Android build
+
+# Moves a build Play already has from one track to another (internal ->
+# production by default) without rebuilding or re-uploading it. Phone-friendly
+# like the other release workflows: Actions -> "Promote Android build" -> Run.
+#
+# This does NOT flip the in-app update prompt: production still goes through
+# Play review, so run "Publish app version" once the build is actually live.
+# The service account needs the "Release to production" permission in Play
+# Console. Detail: docs/release.md ("Promoting an Android build").
+on:
+  workflow_dispatch:
+    inputs:
+      from_track:
+        description: Track the build is on now
+        type: choice
+        default: internal
+        options: [internal, alpha, beta]
+      to_track:
+        description: Track to promote it to
+        type: choice
+        default: production
+        options: [production, beta, alpha]
+      version_code:
+        description: "versionCode to promote (blank = newest completed release on the source track)"
+        type: string
+        required: false
+        default: ""
+      rollout_percent:
+        description: "Staged rollout percent, 1-100 (re-run with a higher value to widen it)"
+        type: string
+        required: false
+        default: "100"
+      draft:
+        description: Create a draft release to finish in Play Console instead
+        type: boolean
+        default: false
+      dry_run:
+        description: Validate the change with Play, commit nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-android
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Promote on Google Play
+        run: node scripts/play-promote.mjs
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          PACKAGE_NAME: solutions.camboulive.run
+          FROM_TRACK: ${{ inputs.from_track }}
+          TO_TRACK: ${{ inputs.to_track }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+          DRAFT: ${{ inputs.draft }}
+          DRY_RUN: ${{ inputs.dry_run }}
