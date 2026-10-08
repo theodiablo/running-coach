@@ -48,8 +48,8 @@ export const ROUTINES: Record<RoutineId, Routine> = {
   recovery: {
     id: "recovery",
     items: [
-      item("catCow", 60, 1), item("child", 60, 1), item("hipFlexor", 45),
-      item("kneeChest", 45), item("calfWall", 30), item("legsWall", 120, 1),
+      item("calfWall", 30), item("catCow", 60, 1), item("child", 60, 1),
+      item("hipFlexor", 45), item("kneeChest", 45), item("legsWall", 120, 1),
     ],
   },
   warmup: {

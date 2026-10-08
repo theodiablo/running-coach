@@ -53,7 +53,7 @@ describe("StretchSheet", () => {
     setup({ routine: "recovery", km: 18, race: false });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(screen.getByText("Get ready")).toBeInTheDocument();
-    expect(screen.getAllByText("Cat-cow").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Wall calf stretch").length).toBeGreaterThan(0);
   });
 
   it("previews a move from the routine, both sides, then the next one", () => {

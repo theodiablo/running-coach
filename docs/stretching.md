@@ -51,7 +51,8 @@ decides". Keep the two in step when a rule below changes.
   The prep is 5 s between moves in the same posture (and for the second side),
   plus 5 s per level crossed (`MOVE_POSTURE`: stand / kneel / lie; a routine
   starts standing), so getting down to the floor or back up isn't rushed.
-  Order a routine's moves to keep the ups and downs few.
+  A routine's round only goes down toward the floor, never back up (pinned in
+  `stretchEngine.test.ts`).
 - `src/utils/stretchSuggest.ts`: pure, **derived on every render, never stored**
   (the overdue-sessions rule). At most one suggestion a day:
   1. a run today (15+ min, some distance, not cross-training; one that ran past
