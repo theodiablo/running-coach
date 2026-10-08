@@ -108,7 +108,10 @@ The collapsed line is type · distance · expected time (`estMin`, the same
 sentence. Distance/time drop out when `km` is 0 (cross-training). Android's
 small icon is `drawable/ic_stat_notify`, a white silhouette of the launcher mark
 (the status bar renders alpha only); without it the plugin falls back to the
-system "i" icon.
+system "i" icon. It is only ever named from JS, so `res/raw/keep.xml` pins it
+against `shrinkResources` — without that the release APK strips it and the "i"
+comes back (the debug build, unshrunk, looks fine). The live-run, indoor and
+guided-workout notifications use the same drawable.
 
 ### The one rescheduling seam
 
