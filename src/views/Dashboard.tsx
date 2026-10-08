@@ -18,8 +18,6 @@ import { UpdateCard } from "../components/UpdatePrompt";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import { StretchBanner } from "../components/StretchBanner";
 import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
-import { BetaBadge } from "../components/BetaBadge";
-import { canShowPremiumTeaser } from "../premium";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
@@ -66,7 +64,6 @@ type DashboardProps = {
   dateChanges?: RaceDateChange[];
   applyRaceDateChange?: (c: RaceDateChange) => void;
   keepRaceDate?: (c: RaceDateChange) => void;
-  isPremium?: boolean;
   stretchLog?: StretchLogEntry[];
   openStretch?: (target?: StretchSuggestion) => void;
   saveSettings?: (s: SettingsState) => void;
@@ -85,22 +82,21 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, isPremium = false, stretchLog = [], openStretch, saveSettings, recorderOpen = false}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
   // Keyed on the language too: computeBadges resolves its strings through t(),
   // so a locale switch must recompute even though runs/races are unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
-  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [], isPremium ? stretchLog : null)), [runs, races, isPremium, stretchLog, i18n.language]);
+  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [], stretchLog)), [runs, races, stretchLog, i18n.language]);
   const today    = new Date(); today.setHours(0,0,0,0);
   const raceD    = new Date(settings.raceDate + "T00:00:00");
   const daysLeft = Math.max(0, Math.ceil((raceD.getTime() - today.getTime()) / 86400000));
   // The soonest secondary race folded into the plan before the main race — a
   // checkpoint to flag under the main-race countdown.
   const todayStr = ymd(today);
-  // A suggestion is the feature itself, not a way in to it: free accounts get none, even once teasers show.
-  const stretch = isPremium && !recorderOpen
+  const stretch = !recorderOpen
     ? stretchSuggestion({ runs, plan, log: stretchLog, now: new Date(), enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed })
     : null;
   const nextRace = (races?.participations || [])
@@ -322,12 +318,12 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         ))}
       </div>
 
-      {!stretch && openStretch && !recorderOpen && (isPremium || canShowPremiumTeaser) && (
+      {!stretch && openStretch && !recorderOpen && (
         <button onClick={() => openStretch()}
           className="w-full bg-slate-800 rounded-xl p-3 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
           <PersonStanding size={20} className="text-teal-400 flex-shrink-0"/>
           <div className="flex-1 min-w-0">
-            <p className="flex items-center gap-2 text-sm font-semibold">{t("stretch.home.title")}<BetaBadge label={t("app.beta")}/></p>
+            <p className="flex items-center gap-2 text-sm font-semibold">{t("stretch.home.title")}</p>
             <p className="text-xs text-slate-400 truncate">{(n => n > 0 ? t("stretch.sheet.week", { count: n }) : t("stretch.home.sub"))(stretchesThisWeek(stretchLog, today))}</p>
           </div>
           <ChevronRight size={16} className="text-slate-500 flex-shrink-0"/>

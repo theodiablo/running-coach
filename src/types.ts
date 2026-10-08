@@ -55,7 +55,7 @@ export type SettingsState = Record<string, unknown> & {
   // the coach signposts: it explains a behaviour change (guidance now talks by
   // default on tempo/intervals) to the runners who already had the recorder.
   guidanceTourSeen?: boolean;
-  // Stretching (premium): Home suggestions on/off, the player's voice, and the day of the last "Not today".
+  // Stretching: Home suggestions on/off, the player's voice, and the day of the last "Not today".
   stretchSuggest?: boolean;
   stretchVoice?: boolean;
   stretchDismissed?: string;

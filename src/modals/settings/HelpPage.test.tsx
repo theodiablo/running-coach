@@ -15,14 +15,11 @@ describe("HelpPage", () => {
     expect(screen.getByText("1 · From goal to target pace")).toBeInTheDocument();
   });
 
-  it("adds stretching for premium accounts only", () => {
+  it("includes stretching, with no testing notice", () => {
     render(<HelpPage/>);
-    expect(screen.queryByRole("button", { name: /^Stretching/ })).toBeNull();
-    cleanup();
-    render(<HelpPage isPremium/>);
     fireEvent.click(screen.getByRole("button", { name: /^Stretching/ }));
     expect(screen.getByText("Will stretching stop me getting injured?")).toBeInTheDocument();
     expect(screen.getByText("How the app decides")).toBeInTheDocument();
-    expect(screen.getByText(/isn't available to the public yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/isn't available to the public yet/)).toBeNull();
   });
 });

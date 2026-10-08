@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import { InfoButton, InfoSection } from "./InfoButton";
-import { BetaBadge } from "./BetaBadge";
 
 const RESEARCH = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 const METHOD = [1, 2, 3, 4, 5, 6] as const;
@@ -11,10 +10,6 @@ export function StretchInfoBody() {
   const { t } = useTranslation();
   return (
     <>
-      <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-3 space-y-1.5">
-        <BetaBadge label={t("stretch.info.testingBadge")}/>
-        <p className="text-xs text-amber-100/90 leading-relaxed">{t("stretch.info.testing")}</p>
-      </div>
       <p className="text-slate-300 text-sm">{t("stretch.info.intro")}</p>
       <InfoSection title={t("stretch.info.researchTitle")} accent="text-teal-300">
         {RESEARCH.map(n => (

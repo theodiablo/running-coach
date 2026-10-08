@@ -174,11 +174,6 @@
     "perWeek": "{{n}} a week on average",
     "seeHistory": "See history"
   },
-  "beta": {
-    "note": "Stretching is new and hasn't been tested much yet. If a figure looks wrong, a cue is unclear or a timing feels off, we'd love to hear about it.",
-    "done": "Stretching is still in beta. How did that routine feel? A quick note helps us improve it.",
-    "send": "Send feedback"
-  },
   "player": {
     "getReady": "Get ready",
     "switchSides": "Switch sides",
@@ -232,8 +227,6 @@
   "info": {
     "label": "About stretching",
     "title": "About stretching",
-    "testingBadge": "Testing",
-    "testing": "Stretching is still being tested. Only a few test accounts can see it and it isn't available to the public yet, so it may change before it opens to everyone.",
     "intro": "What the research says, and how the app uses it to pick your stretches.",
     "researchTitle": "What the research says",
     "methodTitle": "How the app decides",

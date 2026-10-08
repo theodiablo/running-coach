@@ -9,7 +9,7 @@ import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
 import { db, currentUserId } from "./db";
-import { canShowPremiumTeaser, isPremiumActive } from "./premium";
+import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
@@ -53,7 +53,6 @@ import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
 import { IndoorTracker } from "./modals/IndoorTracker";
 import { RecordSheet } from "./modals/RecordSheet";
-import { PremiumTeaserSheet } from "./modals/PremiumTeaserSheet";
 import { appendStretchLog, readStretchLog, stretchesThisWeek } from "./utils/stretchSuggest";
 import type { StretchLogEntry } from "./utils/stretchSuggest";
 import type { StretchTarget } from "./modals/StretchSheet";
@@ -190,11 +189,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // straight to the Log tab, which then had to offer every way of recording at
   // once; the sheet asks first so each destination does one thing.
   const [showRecordSheet, setShowRecordSheet] = useState(false);
-  // Stretching (premium, docs/stretching.md): the sheet, and the Home
+  // Stretching (docs/stretching.md): the sheet, and the Home
   // suggestion it was opened from, if any.
   const [stretchLog, setStretchLog] = useState<StretchLogEntry[]>([]);
   const [stretchOpen, setStretchOpen] = useState<{ target: StretchTarget | null } | null>(null);
-  const [premiumTeaser, setPremiumTeaser] = useState<string | null>(null);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
   // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
   // a Dashboard banner so the runner doesn't have to know to reopen the recorder
@@ -770,7 +768,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // unlocks. Pure-ish — only side effect is the toast — so it's safe to call
   // from event handlers (badges are derived, never an effect/cascading render).
   const reconcileBadges = (nextRuns: Run[], nextRaces: RacesState, nextStretch: StretchLogEntry[] = stretchLog): RacesState => {
-    const badges = computeBadges(nextRuns, nextRaces.participations || [], isPremium ? nextStretch : null);
+    const badges = computeBadges(nextRuns, nextRaces.participations || [], nextStretch);
     const unlocked = unlockedIds(badges);
     if (nextRaces.seenBadges == null) return { ...nextRaces, seenBadges: unlocked };
     const seenBadges = nextRaces.seenBadges;
@@ -1266,10 +1264,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Never over a recording: the player's audio and screen lock would fight the recorder's.
   const openStretch = async (target?: StretchTarget) => {
     if (recorderOpen) return;
-    if (!isPremium && !isPremiumActive(await onRefreshPremium())) { setPremiumTeaser("stretching"); return; }
     setStretchOpen({ target: target ?? null });
   };
-  const stretchShown = isPremium || canShowPremiumTeaser;
   const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
@@ -1356,7 +1352,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onTrack={() => shared.openTracker()}
         onIndoor={() => shared.openIndoor()}
         onManual={() => goLog()}
-        onStretch={stretchShown ? () => openStretch() : undefined}
+        onStretch={() => openStretch()}
         onClose={() => setShowRecordSheet(false)}/>}
       {stretchOpen && (
         <ChunkLoadBoundary fallback={null}
@@ -1364,11 +1360,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
             <StretchSheet target={stretchOpen.target} weekCount={stretchesThisWeek(stretchLog, new Date())} log={stretchLog}
               voice={settings.stretchVoice !== false} onVoiceChange={on => patchSettings({ stretchVoice: on })}
-              onComplete={logStretch} onFeedback={() => openFeedback("stretch")} onClose={() => setStretchOpen(null)}/>
+              onComplete={logStretch} onClose={() => setStretchOpen(null)}/>
           </Suspense>
         </ChunkLoadBoundary>
       )}
-      {premiumTeaser && <PremiumTeaserSheet feature={premiumTeaser} onClose={() => setPremiumTeaser(null)}/>}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
         initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         settings={settings} onSettingsPatch={patchSettings}
@@ -1393,7 +1388,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showRestore && <RestoreModal onRestore={handleRestore}     onClose={() => setShowRestore(false)}/>}
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
-        scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined} isPremium={isPremium}
+        scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
         onBackup={()  => { leaveSettings(); exportData(); }}
         onRestore={() => { leaveSettings(); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}
