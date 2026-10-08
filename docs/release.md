@@ -130,22 +130,6 @@ THAT flips the update prompt on. Don't reintroduce a direct `latest_version`
 write in `release.yml`. `min_supported_version` / `min_supported_version_ios`
 (hard gates) are bumped by hand on a breaking change.
 
-## Promoting an Android build
-
-`promote-android.yml` (manual dispatch, phone-friendly) moves a build Play
-already has between tracks — internal → production by default — through
-`scripts/play-promote.mjs` (Play Developer API edits, no deps, no rebuild). It
-promotes the newest *completed* release on the source track unless a
-`version_code` is given, and carries its name and release notes over.
-`rollout_percent` < 100 makes a staged rollout that keeps the current
-production release serving everyone else; re-run with a higher percent (or
-100) to widen it. `draft` leaves the release for Play Console, `dry_run`
-validates the edit and discards it. The service account behind
-`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` needs "Release to production" in Play
-Console. Promotion is still not publication: production goes through Play
-review, so "Publish app version" stays the separate step that flips the
-update prompt.
-
 `App.tsx` selects all four columns and compares the installed version
 (`App.getInfo()`) against its platform's pair via `versionStatus`
 (`src/utils/version.ts`); a failed check never blocks the user. iOS store links
@@ -161,6 +145,22 @@ external hosts (`Bridge.launchIntent`) and hands them to the OS as an
 `ACTION_VIEW` intent, which the Play Store app claims. Use the same pattern for
 any future Android outbound link that a native app should claim; `Browser.open`
 stays correct for iOS (SFSafariViewController, as in OAuth).
+
+## Promoting an Android build
+
+`promote-android.yml` (manual dispatch, phone-friendly) moves a build Play
+already has between tracks — internal → production by default — through
+`scripts/play-promote.mjs` (Play Developer API edits, no deps, no rebuild). It
+promotes the newest *completed* release on the source track unless a
+`version_code` is given, and carries its name and release notes over.
+`rollout_percent` < 100 makes a staged rollout that keeps the current
+production release serving everyone else; re-run with a higher percent (or
+100) to widen it. `draft` leaves the release for Play Console, `dry_run`
+validates the edit and discards it. The service account behind
+`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` needs "Release to production" in Play
+Console. Promotion is still not publication: production goes through Play
+review, so "Publish app version" stays the separate step that flips the
+update prompt.
 
 ## Deploying Supabase edge functions
 
