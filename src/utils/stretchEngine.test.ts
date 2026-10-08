@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ROUTINES, cooldownFor } from "../stretch/routines";
+import { MOVE_POSTURE, ROUTINES, cooldownFor } from "../stretch/routines";
 import { PREP_SEC, backTarget, isSideSwitch, positionAt, prepSec, routineMinutes, routineSteps, stepStartMs, totalMs } from "./stretchEngine";
 
 describe("routineSteps", () => {
@@ -47,6 +47,15 @@ describe("prep time", () => {
     const i = steps.findIndex(s => s.move === "hamStrap");
     expect(positionAt(steps, stepStartMs(steps, i) + 7000)).toMatchObject({ index: i, phase: "prep", phaseMs: 10000, remainingMs: 3000 });
     expect(backTarget(steps, positionAt(steps, stepStartMs(steps, i) + 20000))).toBe(stepStartMs(steps, i) + 10000);
+  });
+});
+
+describe("routine order", () => {
+  const LEVEL = { stand: 0, kneel: 1, lie: 2 };
+  // Each round only goes down toward the floor: getting back up mid-routine costs prep and breaks the flow.
+  it.each(Object.values(ROUTINES))("$id never gets back up within a round", r => {
+    const levels = r.items.map(i => LEVEL[MOVE_POSTURE[i.move]]);
+    expect(levels).toEqual([...levels].sort((a, b) => a - b));
   });
 });
 
