@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Check, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from "lucide-react";
 import { StretchFigure } from "../components/StretchFigure";
+import { StretchBetaNote } from "../components/StretchBetaNote";
 import { ConfirmButtons, ModalOverlay } from "../components/ModalPrimitives";
 import { useDismissable } from "../hooks/useDismissable";
 import { useKeepAwake } from "../hooks/useKeepAwake";
@@ -22,6 +23,7 @@ type StretchPlayerProps = {
   onClose: () => void;
   /** After the done screen. */
   onFinish: () => void;
+  onFeedback?: () => void;
 };
 
 // Paused state keeps the elapsed time; running keeps the wall-clock instant the
@@ -30,6 +32,8 @@ type Clock = { startedAt: number | null; elapsed: number };
 
 // Less than this actually played (a tap-through on Skip) is not a session.
 const MIN_LOGGED_SEC = 60;
+// A blip each second over a move's last few, before the change beep.
+const COUNTDOWN_SEC = 5;
 const RING_R = 46;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -48,7 +52,7 @@ function LeaveConfirm({ onStop, onKeep }: { onStop: () => void; onKeep: () => vo
   );
 }
 
-export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComplete, onClose, onFinish }: StretchPlayerProps) {
+export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComplete, onClose, onFinish, onFeedback }: StretchPlayerProps) {
   const { t, i18n } = useTranslation();
   const steps = useMemo(() => routineSteps(routine), [routine]);
   const [clock, setClock] = useState<Clock>({ startedAt: null, elapsed: 0 });
@@ -57,6 +61,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const [done, setDone] = useState(false);
   const [playedSec, setPlayedSec] = useState(0);
   const announced = useRef("");
+  const ticked = useRef("");
   const finished = useRef(false);
   // Wall-clock time spent running, not the routine's planned length.
   const played = useRef({ ms: 0, since: null as number | null });
@@ -95,6 +100,15 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
     stretchCue("step", text, i18n.language || "en");
   };
 
+  const countdown = (p: StretchPosition) => {
+    const left = Math.ceil(p.remainingMs / 1000);
+    if (p.phase !== "hold" || left > COUNTDOWN_SEC || left < 1 || left * 1000 >= p.phaseMs) return;
+    const key = `${p.index}:${left}`;
+    if (key === ticked.current) return;
+    ticked.current = key;
+    stretchCue("info");
+  };
+
   const finish = () => {
     if (finished.current) return;
     finished.current = true;
@@ -111,7 +125,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
     const t0 = Date.now();
     const p = positionAt(steps, t0 - (clock.startedAt ?? t0));
     if (p.done) finish();
-    else { announce(p); setNow(t0); }
+    else { announce(p); countdown(p); setNow(t0); }
   });
 
   useEffect(() => {
@@ -123,6 +137,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
   const seek = (ms: number) => {
     const t0 = Date.now();
     announced.current = "";
+    ticked.current = "";
     setNow(t0);
     if (running) {
       setClock({ startedAt: t0 - ms, elapsed: 0 });
@@ -205,6 +220,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             {playedSec >= MIN_LOGGED_SEC ? t("stretch.player.doneBody", { min: Math.max(1, Math.round(playedSec / 60)) }) : t("stretch.player.doneShort")}
           </p>
           <p className="text-xs text-slate-500">{weekCount > 0 ? t("stretch.sheet.week", { count: weekCount }) : t("stretch.sheet.weekNone")}</p>
+          <div className="w-full max-w-sm mt-2"><StretchBetaNote compact onFeedback={onFeedback}/></div>
           <button onClick={onFinish} className="mt-3 px-6 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-sm font-semibold">
             {t("stretch.player.doneClose")}
           </button>
@@ -222,7 +238,7 @@ export function StretchPlayer({ routine, voice, onVoiceChange, weekCount, onComp
             </div>
 
             <div className="relative bg-slate-800 rounded-2xl flex items-center justify-center" style={{ height: "min(38vh, 300px)" }}>
-              <StretchFigure move={step.move} mirror={step.side === "right"} animate={running} bg="#1e293b"
+              <StretchFigure move={step.move} side={step.side} animate={running} bg="#1e293b"
                 className="h-full max-h-full aspect-square" label={name(step.move)}/>
               {step.side && (
                 <span className="absolute top-2.5 right-2.5 text-[10.5px] font-bold uppercase tracking-wider text-teal-200 bg-teal-400/15 border border-teal-400/35 rounded-full px-2 py-0.5">

@@ -43,6 +43,21 @@ describe("StretchPlayer", () => {
     expect(stretchCue).toHaveBeenLastCalledWith("step", "Switch sides", "en");
   });
 
+  it("blips each of a hold's last five seconds, then beeps the change", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    advance(5000 + 24000);
+    vi.mocked(stretchCue).mockClear();
+    advance(1250);
+    expect(stretchCue).toHaveBeenCalledTimes(1);
+    expect(stretchCue).toHaveBeenLastCalledWith("info");
+    advance(4000);
+    expect(vi.mocked(stretchCue).mock.calls).toEqual([["info"], ["info"], ["info"], ["info"], ["info"]]);
+    advance(1000);
+    expect(stretchCue).toHaveBeenLastCalledWith("step", "Switch sides", "en");
+    expect(stretchCue).toHaveBeenCalledTimes(6);
+  });
+
   it("stays silent apart from beeps with voice off", () => {
     setup({ voice: false });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
@@ -52,9 +67,9 @@ describe("StretchPlayer", () => {
   it("logs the session once, at the end", () => {
     const p = setup();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    advance(7 * 60 * 1000 + 1000);
+    advance(430 * 1000 + 1000);
     expect(p.onComplete).toHaveBeenCalledTimes(1);
-    expect(p.onComplete).toHaveBeenCalledWith(420);
+    expect(p.onComplete).toHaveBeenCalledWith(430);
     expect(screen.getByText("Cool-down done")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(p.onFinish).toHaveBeenCalledTimes(1);

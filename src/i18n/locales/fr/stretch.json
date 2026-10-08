@@ -12,6 +12,10 @@
     "dismissed": "Masqué jusqu'à demain. Tu peux désactiver les suggestions dans Paramètres, Profil d'entraînement.",
     "settings": "Paramètres"
   },
+  "home": {
+    "title": "Étirements",
+    "sub": "Des routines guidées pour les coureurs"
+  },
   "routines": {
     "cooldown": {
       "name": "Retour au calme",
@@ -146,7 +150,34 @@
     "whyCooldownHills": "{{km}} km vallonnés, donc les étirements des mollets ont droit à 45 s.",
     "whyCooldownHard": "{{km}} km intenses, donc les hanches et les ischio-jambiers ont droit à 45 s.",
     "whyRecovery": "Des mouvements doux pour le lendemain d'une grosse sortie. Rien n'est tenu à fond.",
-    "weekNone": "Aucune séance pour l'instant cette semaine"
+    "weekNone": "Aucune séance pour l'instant cette semaine",
+    "tapToPreview": "Touche un étirement pour voir comment le faire"
+  },
+  "preview": {
+    "how": "Comment faire",
+    "hold": "en position fixe",
+    "drill": "en mouvement",
+    "next": "Suivant"
+  },
+  "history": {
+    "open": "Historique",
+    "title": "Historique des étirements",
+    "thisWeek": "Cette semaine",
+    "lastWeek": "La semaine dernière",
+    "weekOf": "Semaine du {{date}}",
+    "sessions_one": "{{count}} séance",
+    "sessions_other": "{{count}} séances",
+    "kept": "Tes 200 dernières séances sont gardées. Une routine de moins d'une minute n'est pas comptée."
+  },
+  "stats": {
+    "title": "Étirements",
+    "perWeek": "{{n}} par semaine en moyenne",
+    "seeHistory": "Voir l'historique"
+  },
+  "beta": {
+    "note": "Les étirements sont nouveaux et encore peu testés. Si une figure te semble fausse, une consigne pas claire ou un timing mal réglé, dis-le-nous.",
+    "done": "Les étirements sont encore en bêta. Comment s'est passée cette routine ? Un petit mot nous aide à l'améliorer.",
+    "send": "Envoyer un avis"
   },
   "player": {
     "getReady": "Prépare-toi",
@@ -188,7 +219,7 @@
   },
   "record": {
     "row": "S'étirer",
-    "rowSub": "Routines guidées, de 3 à 15 min",
+    "rowSub": "Routines guidées, de 3 à 16 min",
     "or": "ou"
   },
   "settings": {

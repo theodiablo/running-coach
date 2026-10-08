@@ -3,9 +3,9 @@
 One button, reachable from anywhere, for "this is broken / confusing /
 annoying".
 
-## Three doors, one sheet
+## Four doors, one sheet
 
-All three call `openFeedback(source)` on the state hub (`RunningCoach.tsx`),
+All four call `openFeedback(source)` on the state hub (`RunningCoach.tsx`),
 which opens `src/modals/FeedbackSheet.tsx`:
 
 1. **The floating pill** — a sibling of `BottomNav` in `RunningCoach`, never
@@ -18,6 +18,8 @@ which opens `src/modals/FeedbackSheet.tsx`:
 3. **A row in the Settings hub**, below the three sub-page entries and separated
    by a rule so it reads as an action, not a fourth destination. This is the one
    door discoverable by someone who never noticed the pill.
+4. **Stretching's beta note** (`StretchBetaNote`, on the routine sheet and the
+   done screen), source `stretch`: a full-screen beta with no pill over it.
 
 The sheet is `z-[60]` so it clears the coach chat's own `z-50`, and `tab` is
 mapped through `feedbackSourceForTab` rather than cast — an unmapped tab would

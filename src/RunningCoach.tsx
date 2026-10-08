@@ -769,8 +769,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // time (no toast flurry for existing users), then toast only genuinely new
   // unlocks. Pure-ish — only side effect is the toast — so it's safe to call
   // from event handlers (badges are derived, never an effect/cascading render).
-  const reconcileBadges = (nextRuns: Run[], nextRaces: RacesState): RacesState => {
-    const badges = computeBadges(nextRuns, nextRaces.participations || []);
+  const reconcileBadges = (nextRuns: Run[], nextRaces: RacesState, nextStretch: StretchLogEntry[] = stretchLog): RacesState => {
+    const badges = computeBadges(nextRuns, nextRaces.participations || [], isPremium ? nextStretch : null);
     const unlocked = unlockedIds(badges);
     if (nextRaces.seenBadges == null) return { ...nextRaces, seenBadges: unlocked };
     const seenBadges = nextRaces.seenBadges;
@@ -1254,11 +1254,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   };
   const logStretch = (routine: RoutineId, sec: number) => {
     const now = new Date();
-    setStretchLog(prev => {
-      const next = appendStretchLog(prev, { date: ymd(now), at: now.getTime(), routine, sec });
-      db.set(STORAGE_KEYS.STRETCH_LOG, next);
-      return next;
-    });
+    const next = appendStretchLog(stretchLog, { date: ymd(now), at: now.getTime(), routine, sec });
+    setStretchLog(next);
+    db.set(STORAGE_KEYS.STRETCH_LOG, next);
+    const reconciled = reconcileBadges(runs, races, next);
+    if (reconciled !== races) commitRaces(reconciled);
     track("stretch_completed", { routine });
   };
   // Premium affordances show when the tier is unveiled too; a free tap re-reads the
@@ -1362,9 +1362,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         <ChunkLoadBoundary fallback={null}
           onError={() => { setStretchOpen(null); showToast(t("stretch.loadError"), "err"); }}>
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
-            <StretchSheet target={stretchOpen.target} weekCount={stretchesThisWeek(stretchLog, new Date())}
+            <StretchSheet target={stretchOpen.target} weekCount={stretchesThisWeek(stretchLog, new Date())} log={stretchLog}
               voice={settings.stretchVoice !== false} onVoiceChange={on => patchSettings({ stretchVoice: on })}
-              onComplete={logStretch} onClose={() => setStretchOpen(null)}/>
+              onComplete={logStretch} onFeedback={() => openFeedback("stretch")} onClose={() => setStretchOpen(null)}/>
           </Suspense>
         </ChunkLoadBoundary>
       )}

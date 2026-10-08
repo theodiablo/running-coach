@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Plan, Run } from "../types";
 import { ymd } from "./format";
-import { STRETCH_LOG_CAP, appendStretchLog, readStretchLog, stretchSuggestion, stretchesThisWeek } from "./stretchSuggest";
+import { STRETCH_LOG_CAP, appendStretchLog, readStretchLog, stretchSuggestion, stretchWeeks, stretchesThisWeek } from "./stretchSuggest";
 import type { StretchLogEntry } from "./stretchSuggest";
 
 // A Wednesday evening; every date below is derived from it.
@@ -115,5 +115,21 @@ describe("stretch log", () => {
     for (let i = 0; i < STRETCH_LOG_CAP + 5; i++) log = appendStretchLog(log, { ...logAt(NOW), at: i });
     expect(log).toHaveLength(STRETCH_LOG_CAP);
     expect(log[0].at).toBe(5);
+  });
+});
+
+describe("stretchWeeks", () => {
+  const e = (date: string, hour: number, sec = 420): StretchLogEntry =>
+    ({ date, at: new Date(date + "T00:00:00").getTime() + hour * 3600_000, routine: "cooldown", sec });
+
+  it("groups Monday to Sunday, newest week and newest session first, skipping empty weeks", () => {
+    const weeks = stretchWeeks([e("2026-09-14", 8), e("2026-10-05", 9), e("2026-10-11", 18, 60), e("2026-10-05", 19)]);
+    expect(weeks.map(w => w.start)).toEqual(["2026-10-05", "2026-09-14"]);
+    expect(weeks[0].entries.map(x => [x.date, new Date(x.at).getHours()])).toEqual([["2026-10-11", 18], ["2026-10-05", 19], ["2026-10-05", 9]]);
+    expect(weeks[0].sec).toBe(900);
+  });
+
+  it("is empty for an empty log", () => {
+    expect(stretchWeeks([])).toEqual([]);
   });
 });

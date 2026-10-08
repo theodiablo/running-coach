@@ -10,6 +10,8 @@ import { raceTargets, goalGap } from "../utils/raceTargets";
 import { findEdition } from "../utils/races";
 import { PredictionsInfo } from "../components/PredictionsInfo";
 import { HRZonesCard } from "../components/HRZonesCard";
+import { StretchStatsCard } from "../components/StretchStatsCard";
+import type { StretchLogEntry } from "../utils/stretchSuggest";
 import { isCrossTraining } from "../types";
 import type { RacesState, Run, SettingsState } from "../types";
 
@@ -18,6 +20,8 @@ type StatsViewProps = {
   settings: SettingsState;
   races?: RacesState | null;
   goTab?: (tab: string) => void;
+  isPremium?: boolean;
+  stretchLog?: StretchLogEntry[];
 };
 type StatCard = { l: string; v: string; s: string; c: string };
 type Period = "4w" | "12w" | "all";
@@ -30,14 +34,14 @@ export function StatsView(props: StatsViewProps) {
       <div className="px-4 pt-6 pb-0">
         <h2 className="text-xl font-bold">{t("progress.stats.title")}</h2>
       </div>
-      <Overview runs={runs} settings={settings}/>
+      <Overview runs={runs} settings={settings} isPremium={props.isPremium} stretchLog={props.stretchLog}/>
       <RacePredictions {...props}/>
       <HRZonesCard runs={runs} settings={settings}/>
     </div>
   );
 }
 
-function Overview({runs, settings}: StatsViewProps) {
+function Overview({runs, settings, isPremium = false, stretchLog = []}: StatsViewProps) {
   const { t } = useTranslation();
   const [period, setPeriod] = useState<Period>("12w");
   // The user's goal pace, drawn on the pace trend so the reference line tracks
@@ -114,10 +118,16 @@ function Overview({runs, settings}: StatsViewProps) {
 
   const tt = {background:"#1e293b", border:"none", borderRadius:8, color:"#fff", fontSize:12};
 
+  const stretchCard = isPremium && stretchLog.length > 0
+    ? <StretchStatsCard log={stretchLog} days={period === "all" ? null : period === "4w" ? 28 : 84}/> : null;
+
   if (!runs.length) return (
-    <div className="flex flex-col items-center justify-center pt-20 text-center gap-3 p-4">
-      <TrendingUp size={48} className="text-slate-700"/>
-      <p className="text-slate-400">{t("progress.stats.empty")}</p>
+    <div className="p-4 space-y-4">
+      <div className="flex flex-col items-center justify-center pt-16 text-center gap-3">
+        <TrendingUp size={48} className="text-slate-700"/>
+        <p className="text-slate-400">{t("progress.stats.empty")}</p>
+      </div>
+      {stretchCard}
     </div>
   );
 
@@ -194,6 +204,7 @@ function Overview({runs, settings}: StatsViewProps) {
           </ResponsiveContainer>
         </div>
       )}
+      {stretchCard}
     </div>
   );
 }

@@ -33,18 +33,25 @@ decides". Keep the two in step when a rule below changes.
 ## Shape
 
 - `src/stretch/poses.ts`: each move as joint coordinates on a 200×200 side-view
-  board; `far` limbs behind the body, `near` in front, `target` the stretched
-  muscle (drawn teal). Drills have two key frames with identical shapes,
+  board, facing right; `far` limbs behind the body, `near` in front, `target` the
+  stretched muscle (drawn teal, always on a near limb). A figure facing right
+  shows its **right** side, so the unmirrored drawing is the right-side stretch
+  and the left side is drawn mirrored (`mirrorFor`); getting this backwards
+  shows the wrong leg for every two-sided move. Drills have two key frames with identical shapes,
   interpolated by `poseAt`. No image files: ~1 KB a pose, nothing to translate,
   works offline. `src/components/StretchFigure.tsx` is the one renderer.
 - `src/stretch/routines.ts`: the moves and the four routines (cool-down,
   recovery, warm-up, rest-day). `cooldownFor(focus)` reshapes the cool-down for
   the run it follows: hilly (15+ m climb per km) puts calves first at 45 s; a
   tempo, interval or race session gives hips and hamstrings 45 s.
-- `src/utils/stretchEngine.ts`: pure. A routine flattens into steps (5 s prep +
+- `src/utils/stretchEngine.ts`: pure. A routine flattens into steps (a prep +
   the hold, two-sided moves split left then right); `positionAt(steps, elapsed)`
   reads the position from elapsed time, never from counted ticks, so a screen
   that slept catches up.
+  The prep is 5 s between moves in the same posture (and for the second side),
+  plus 5 s per level crossed (`MOVE_POSTURE`: stand / kneel / lie; a routine
+  starts standing), so getting down to the floor or back up isn't rushed.
+  Order a routine's moves to keep the ups and downs few.
 - `src/utils/stretchSuggest.ts`: pure, **derived on every render, never stored**
   (the overdue-sessions rule). At most one suggestion a day:
   1. a run today (15+ min, some distance, not cross-training; one that ran past
@@ -57,7 +64,9 @@ decides". Keep the two in step when a rule below changes.
   ("Not today", whose toast links to Training profile), and while a recorder is
   open: the player's audio and screen lock would fight the recorder's, so
   `openStretch` refuses too.
-- `src/modals/StretchSheet.tsx` (routine list + one routine's preview) and
+- `src/modals/StretchSheet.tsx` (routine list + one routine's preview, where
+  each move opens `StretchMovePreview`: the figure up close with a left/right
+  toggle, the cues, and previous/next through the routine) and
   `src/modals/StretchPlayer.tsx`: one lazy chunk, loaded from `RunningCoach`
   behind `ChunkLoadBoundary`. A Home suggestion opens straight on its routine
   and says why; back from a routine picked in the list returns to the list.
@@ -77,7 +86,7 @@ decides". Keep the two in step when a rule below changes.
   web), never while paused or idle. The player is read while in use, the
   opposite of a recording: never reuse this for a recorder, which runs
   screen-off in a pocket.
-- **Sound:** a beep at each change, and voice (on by default, `stretchVoice`)
+- **Sound:** a short blip on each of a move's last 5 s, a beep at each change, and voice (on by default, `stretchVoice`)
   naming the next stretch and "switch sides". `stretchCue` in `src/cues`: iOS
   through `AudioCue`; web and Android beep through Web Audio, and Android speaks
   through the guide plugin's TTS (`playCue` is silent on Android on purpose,
@@ -96,18 +105,36 @@ decides". Keep the two in step when a rule below changes.
   restore.
 - The week shows as a count of sessions since Monday against the usual 2-3,
   **never a streak** (the `badges.ts` stance).
+- "History" beside that count (once anything is logged) opens `StretchHistory`:
+  the log week by week (`stretchWeeks`), a tally and minutes per week, newest
+  first. Empty weeks are skipped rather than shown as gaps, for the same reason.
+- Progress → Stats has a `StretchStatsCard` (premium, once anything is logged):
+  sessions and minutes in the selected period, the weekly average against 2-3,
+  and a link to the history. Its own card, no chart (bars would draw the empty
+  weeks), and never part of the running totals, total time included.
+- Five badges (`computeBadges`'s third argument, the log, or null for accounts
+  without stretching, who get none): first session, 10 sessions, 4 and 12
+  distinct weeks, all four routines tried. Cumulative like the running ones;
+  `logStretch` reconciles them so an unlock toasts like any other.
 - Settings → Training profile holds the two synced switches (suggestions,
   voice), so a dismissed banner always has a visible way back on.
 
 ## Gating
 
 - Everything is behind `isPremium`, which makes it a test flag while grants are
-  manual. The Record sheet row follows the house rule (`isPremium ||
-  canShowPremiumTeaser`, a free tap gets `PremiumTeaserSheet`). The Home
+  manual. The two doors in follow the house rule (`isPremium ||
+  canShowPremiumTeaser`, a free tap gets `PremiumTeaserSheet`): the Record
+  sheet row and a quiet "Stretching" row on Home (below the stat cards, this
+  week's count as its subtitle), which steps aside while the suggestion banner
+  shows so Home never offers stretching twice. The Home
   suggestion and the Help section stay `isPremium` only: a suggestion is the
   feature itself, and a locked one after every run would be an ad.
 - The FAQ opens with a "Testing" notice (`stretch.info.testing`): only test
   accounts see the feature and it isn't public yet. Remove it when it opens.
+- **Beta:** every surface carries the `BetaBadge` (Record row, Home row and
+  banner, the sheet's header, Help, Training profile), and `StretchBetaNote`
+  asks for feedback on the sheet and on the done screen, opening the beta
+  feedback sheet with source `stretch`. Remove all of it when it opens.
 - **The gate is client-side only.** The content ships in the (lazy) bundle and
   there is no server half, the same reason guided workouts went free. Whether it
   stays premium (and moves its content behind an edge function) or opens to

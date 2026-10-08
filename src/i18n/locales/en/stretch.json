@@ -12,6 +12,10 @@
     "dismissed": "Hidden until tomorrow. Suggestions can be turned off in Settings, Training profile.",
     "settings": "Settings"
   },
+  "home": {
+    "title": "Stretching",
+    "sub": "Guided routines for runners"
+  },
   "routines": {
     "cooldown": {
       "name": "Cool-down",
@@ -146,7 +150,34 @@
     "whyCooldownHills": "A hilly {{km}} km, so the calf stretches get 45 s.",
     "whyCooldownHard": "A hard {{km}} km, so hips and hamstrings get 45 s.",
     "whyRecovery": "Easy moves for the day after a big run. Nothing is held hard.",
-    "weekNone": "No sessions yet this week"
+    "weekNone": "No sessions yet this week",
+    "tapToPreview": "Tap a stretch to see how it's done"
+  },
+  "preview": {
+    "how": "How to do it",
+    "hold": "held still",
+    "drill": "keep moving",
+    "next": "Next"
+  },
+  "history": {
+    "open": "History",
+    "title": "Stretch history",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "weekOf": "Week of {{date}}",
+    "sessions_one": "{{count}} session",
+    "sessions_other": "{{count}} sessions",
+    "kept": "Your last 200 sessions are kept. A routine under a minute isn't counted."
+  },
+  "stats": {
+    "title": "Stretching",
+    "perWeek": "{{n}} a week on average",
+    "seeHistory": "See history"
+  },
+  "beta": {
+    "note": "Stretching is new and hasn't been tested much yet. If a figure looks wrong, a cue is unclear or a timing feels off, we'd love to hear about it.",
+    "done": "Stretching is still in beta. How did that routine feel? A quick note helps us improve it.",
+    "send": "Send feedback"
   },
   "player": {
     "getReady": "Get ready",
@@ -188,7 +219,7 @@
   },
   "record": {
     "row": "Stretch",
-    "rowSub": "Guided routines, 3 to 15 min",
+    "rowSub": "Guided routines, 3 to 16 min",
     "or": "or"
   },
   "settings": {

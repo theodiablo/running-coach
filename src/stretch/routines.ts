@@ -2,6 +2,7 @@
 // Copy lives in the `stretch` locale files keyed by these ids. The research
 // behind the choices (and what the copy must never claim): docs/stretching.md.
 
+import type { TFunction } from "i18next";
 import type { PoseId } from "./poses";
 
 export type MoveId = PoseId;
@@ -11,6 +12,15 @@ export const MOVE_KIND: Record<MoveId, "hold" | "drill"> = {
   calfWall: "hold", calfBent: "hold", quad: "hold", hipFlexor: "hold",
   hamStrap: "hold", kneeChest: "hold", child: "hold", legsWall: "hold",
   legSwing: "drill", lunge: "drill", highKnees: "drill", calfRaise: "drill", catCow: "drill",
+};
+
+/** How the body is placed for a move: getting between levels takes longer than between moves on the same one. */
+export type Posture = "stand" | "kneel" | "lie";
+
+export const MOVE_POSTURE: Record<MoveId, Posture> = {
+  calfWall: "stand", calfBent: "stand", quad: "stand", hipFlexor: "kneel",
+  hamStrap: "lie", kneeChest: "lie", child: "kneel", legsWall: "lie",
+  legSwing: "stand", lunge: "stand", highKnees: "stand", calfRaise: "stand", catCow: "kneel",
 };
 
 /** One move in a routine: seconds per side, both sides or one. */
@@ -66,4 +76,10 @@ export function cooldownFor(focus: CooldownFocus): Routine {
     return { id: "cooldown", items: COOLDOWN_ITEMS.map(i => (i.move === "hipFlexor" || i.move === "hamStrap" ? { ...i, sec: LONG_HOLD } : i)) };
   }
   return ROUTINES.cooldown;
+}
+
+/** How long a routine item lasts, as the routine and the preview both write it. */
+export function itemTime(t: TFunction, item: RoutineItem): string {
+  if (item.sides === 2) return t("stretch.sheet.eachSide", { sec: item.sec });
+  return item.sec >= 120 ? t("stretch.sheet.wholeMinutes", { min: item.sec / 60 }) : t("stretch.sheet.seconds", { sec: item.sec });
 }

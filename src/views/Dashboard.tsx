@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PenLine, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PenLine, PersonStanding, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
@@ -17,7 +17,9 @@ import { RunRow } from "../components/RunRow";
 import { UpdateCard } from "../components/UpdatePrompt";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import { StretchBanner } from "../components/StretchBanner";
-import { stretchSuggestion } from "../utils/stretchSuggest";
+import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
+import { BetaBadge } from "../components/BetaBadge";
+import { canShowPremiumTeaser } from "../premium";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
@@ -90,7 +92,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // Keyed on the language too: computeBadges resolves its strings through t(),
   // so a locale switch must recompute even though runs/races are unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
-  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [])), [runs, races, i18n.language]);
+  const nb = useMemo(() => nextBadge(computeBadges(runs, races?.participations || [], isPremium ? stretchLog : null)), [runs, races, isPremium, stretchLog, i18n.language]);
   const today    = new Date(); today.setHours(0,0,0,0);
   const raceD    = new Date(settings.raceDate + "T00:00:00");
   const daysLeft = Math.max(0, Math.ceil((raceD.getTime() - today.getTime()) / 86400000));
@@ -319,6 +321,18 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           </div>
         ))}
       </div>
+
+      {!stretch && openStretch && !recorderOpen && (isPremium || canShowPremiumTeaser) && (
+        <button onClick={() => openStretch()}
+          className="w-full bg-slate-800 rounded-xl p-3 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
+          <PersonStanding size={20} className="text-teal-400 flex-shrink-0"/>
+          <div className="flex-1 min-w-0">
+            <p className="flex items-center gap-2 text-sm font-semibold">{t("stretch.home.title")}<BetaBadge label={t("app.beta")}/></p>
+            <p className="text-xs text-slate-400 truncate">{(n => n > 0 ? t("stretch.sheet.week", { count: n }) : t("stretch.home.sub"))(stretchesThisWeek(stretchLog, today))}</p>
+          </div>
+          <ChevronRight size={16} className="text-slate-500 flex-shrink-0"/>
+        </button>
+      )}
 
       {nb && (
         <button onClick={() => goProgress("badges")}

@@ -1,6 +1,6 @@
 // Stretch figures as data: a side-view mannequin on a 200×200 board, ground at
-// y=181. `far` limbs sit behind the body, `near` limbs in front; `target` marks
-// the muscle being stretched. A moving drill has two key frames with identical
+// y=181, facing right. `far` limbs sit behind the body, `near` limbs in front;
+// `target` marks the muscle being stretched, always on a near limb. A moving drill has two key frames with identical
 // shapes, interpolated by `poseAt`. Detail: docs/stretching.md.
 
 export type Pt = [number, number];
@@ -134,6 +134,9 @@ export const POSES = {
 } satisfies Record<string, PoseDef>;
 
 export type PoseId = keyof typeof POSES;
+
+/** A figure facing right shows its right side, so the near limbs are the right ones: a left-side stretch is drawn mirrored. */
+export const mirrorFor = (side: "left" | "right" | null | undefined): boolean => side === "left";
 
 export function isMoving(def: PoseDef): def is { frames: [Pose, Pose]; periodMs: number } {
   return "frames" in def;

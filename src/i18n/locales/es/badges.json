@@ -20,5 +20,10 @@
   "race-done-5": { "label": "Con experiencia", "desc": "Completa 5 carreras" },
   "gps-first": { "label": "En el mapa", "desc": "Registra un entrenamiento con GPS" },
   "elev-1000": { "label": "Escalador", "desc": "Acumula 1000 m de desnivel positivo" },
-  "elev-5000": { "label": "Cabra montesa", "desc": "Acumula 5000 m de desnivel positivo" }
+  "elev-5000": { "label": "Cabra montesa", "desc": "Acumula 5000 m de desnivel positivo" },
+  "stretch-first": { "label": "Primer estiramiento", "desc": "Termina una rutina de estiramientos" },
+  "stretch-10": { "label": "Diez sesiones", "desc": "Termina 10 rutinas de estiramientos" },
+  "stretch-weeks-4": { "label": "Soltando el cuerpo", "desc": "Estira en 4 semanas distintas" },
+  "stretch-weeks-12": { "label": "Hábito flexible", "desc": "Estira en 12 semanas distintas" },
+  "stretch-all": { "label": "Repertorio completo", "desc": "Prueba las cuatro rutinas de estiramientos" }
 }

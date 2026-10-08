@@ -87,3 +87,30 @@ describe("nextBadge", () => {
     expect(next(allUnlocked)).toBeNull();
   });
 });
+
+describe("stretching badges", () => {
+  type Entry = { date: string; at: number; routine: "cooldown" | "recovery" | "warmup" | "restday"; sec: number };
+  const s = (date: string, routine: Entry["routine"] = "cooldown"): Entry => ({ date, at: 0, routine, sec: 430 });
+  const withStretch = computeBadges as unknown as (runs: TestRun[], parts: TestParticipation[], stretch: Entry[] | null) => TestBadge[];
+
+  it("only exist for accounts with stretching", () => {
+    expect(compute([], []).some(b => b.id.startsWith("stretch-"))).toBe(false);
+    expect(withStretch([], [], []).filter(b => b.id.startsWith("stretch-"))).toHaveLength(5);
+  });
+
+  it("count sessions, distinct weeks and routines tried, never a streak", () => {
+    // Four sessions in four separate weeks with gaps between them: weeks are cumulative.
+    const log = [s("2026-01-05"), s("2026-02-02", "recovery"), s("2026-03-02", "warmup"), s("2026-04-06", "restday")];
+    const badges = withStretch([], [], log);
+    expect(get(badges, "stretch-first").unlocked).toBe(true);
+    expect(get(badges, "stretch-10").progress).toBeCloseTo(0.4);
+    expect(get(badges, "stretch-weeks-4").unlocked).toBe(true);
+    expect(get(badges, "stretch-all").unlocked).toBe(true);
+    expect(get(withStretch([], [], log.slice(0, 3)), "stretch-all").unlocked).toBe(false);
+  });
+
+  it("counts two sessions in one week as one week", () => {
+    const badges = withStretch([], [], [s("2026-01-05"), s("2026-01-07"), s("2026-01-11")]);
+    expect(get(badges, "stretch-weeks-4").progress).toBeCloseTo(0.25);
+  });
+});

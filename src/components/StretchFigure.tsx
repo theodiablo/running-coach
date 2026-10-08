@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { POSES, cropViewBox, isMoving, poseAt } from "../stretch/poses";
+import { POSES, cropViewBox, isMoving, mirrorFor, poseAt } from "../stretch/poses";
 import type { Chain, Pose, PoseDef, PoseId } from "../stretch/poses";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
@@ -56,8 +56,8 @@ function useLoopClock(on: boolean): number {
 
 type StretchFigureProps = {
   move: PoseId;
-  /** The second side of a two-sided stretch, drawn facing the other way. */
-  mirror?: boolean;
+  /** The side being stretched; the left is drawn mirrored. */
+  side?: "left" | "right" | null;
   /** Plays a drill's movement; holds and reduced motion stay still. */
   animate?: boolean;
   /** Zooms to the figure, for thumbnails. */
@@ -69,7 +69,7 @@ type StretchFigureProps = {
 };
 
 /** A stretch drawn from its pose data (src/stretch/poses.ts). */
-export function StretchFigure({ move, mirror = false, animate = false, crop = false, bg = "#1e293b", className, label }: StretchFigureProps) {
+export function StretchFigure({ move, side, animate = false, crop = false, bg = "#1e293b", className, label }: StretchFigureProps) {
   const def: PoseDef = POSES[move];
   const reduced = usePrefersReducedMotion();
   const moving = animate && !reduced && isMoving(def);
@@ -78,7 +78,7 @@ export function StretchFigure({ move, mirror = false, animate = false, crop = fa
   return (
     <svg viewBox={crop ? cropViewBox(def) : "0 0 200 200"} className={className}
       role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-      <g transform={mirror ? "translate(200 0) scale(-1 1)" : undefined}>
+      <g transform={mirrorFor(side) ? "translate(200 0) scale(-1 1)" : undefined}>
         <Body pose={pose} bg={bg}/>
       </g>
     </svg>

@@ -12,6 +12,10 @@
     "dismissed": "Oculto hasta mañana. Puedes desactivar las sugerencias en Ajustes, Perfil de entrenamiento.",
     "settings": "Ajustes"
   },
+  "home": {
+    "title": "Estiramientos",
+    "sub": "Rutinas guiadas para corredores"
+  },
   "routines": {
     "cooldown": {
       "name": "Vuelta a la calma",
@@ -146,7 +150,34 @@
     "whyCooldownHills": "{{km}} km con cuestas, así que los estiramientos de gemelos se llevan 45 s.",
     "whyCooldownHard": "{{km}} km intensos, así que las caderas y los isquiotibiales se llevan 45 s.",
     "whyRecovery": "Movimientos suaves para el día después de un entrenamiento fuerte. Nada se mantiene con fuerza.",
-    "weekNone": "Aún no hay sesiones esta semana"
+    "weekNone": "Aún no hay sesiones esta semana",
+    "tapToPreview": "Toca un estiramiento para ver cómo se hace"
+  },
+  "preview": {
+    "how": "Cómo se hace",
+    "hold": "sin moverte",
+    "drill": "en movimiento",
+    "next": "Siguiente"
+  },
+  "history": {
+    "open": "Historial",
+    "title": "Historial de estiramientos",
+    "thisWeek": "Esta semana",
+    "lastWeek": "La semana pasada",
+    "weekOf": "Semana del {{date}}",
+    "sessions_one": "{{count}} sesión",
+    "sessions_other": "{{count}} sesiones",
+    "kept": "Se guardan tus últimas 200 sesiones. Una rutina de menos de un minuto no cuenta."
+  },
+  "stats": {
+    "title": "Estiramientos",
+    "perWeek": "{{n}} por semana de media",
+    "seeHistory": "Ver historial"
+  },
+  "beta": {
+    "note": "Los estiramientos son nuevos y aún se han probado poco. Si una figura parece incorrecta, una indicación no se entiende o un tiempo no encaja, cuéntanoslo.",
+    "done": "Los estiramientos siguen en beta. ¿Qué tal la rutina? Un comentario rápido nos ayuda a mejorarla.",
+    "send": "Enviar comentarios"
   },
   "player": {
     "getReady": "Prepárate",
@@ -188,7 +219,7 @@
   },
   "record": {
     "row": "Estirar",
-    "rowSub": "Rutinas guiadas, de 3 a 15 min",
+    "rowSub": "Rutinas guiadas, de 3 a 16 min",
     "or": "o"
   },
   "settings": {

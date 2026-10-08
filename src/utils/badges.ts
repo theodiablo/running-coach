@@ -13,11 +13,13 @@ import { t } from "../i18n";
 import { weekKey } from "./format";
 import { isCrossTraining } from "../types";
 import type { Participation, Run } from "../types";
+import type { StretchLogEntry } from "./stretchSuggest";
+import { ROUTINE_ORDER } from "../stretch/routines";
 
 export type Badge = {
   id: string;
   label: string;
-  Icon: "Footprints" | "Medal" | "Trophy" | "Gauge" | "CalendarCheck" | "CalendarHeart" | "Star" | "Flag" | "MapPin" | "Mountain";
+  Icon: "Footprints" | "Medal" | "Trophy" | "Gauge" | "CalendarCheck" | "CalendarHeart" | "Star" | "Flag" | "MapPin" | "Mountain" | "PersonStanding" | "Sparkles";
   unlocked: boolean;
   progress: number;
   desc: string;
@@ -47,7 +49,8 @@ function milestone(id: string, Icon: Badge["Icon"], value: number, threshold: nu
   };
 }
 
-export function computeBadges(runs: Run[] = [], participations: Participation[] = []): Badge[] {
+/** `stretch` is the stretch log for accounts that have stretching, null for the rest (no stretch badges at all). */
+export function computeBadges(runs: Run[] = [], participations: Participation[] = [], stretch: StretchLogEntry[] | null = null): Badge[] {
   // Distance badges are about running: "longest run" and the km totals must not
   // count a cross-training session's distance (docs/indoor-sessions.md).
   const runOnly = runs.filter(r => !isCrossTraining(r));
@@ -59,7 +62,7 @@ export function computeBadges(runs: Run[] = [], participations: Participation[] 
   const wishlisted = participations.length;
   const doneRaces = participations.filter(p => p.status === "done").length;
 
-  return [
+  const badges: Badge[] = [
     // ── Distance milestones (single longest run; walking counts) ────────────
     milestone("dist-first-5k", "Footprints", maxKm, 5, "km"),
     milestone("dist-first-10k", "Footprints", maxKm, 10, "km"),
@@ -87,6 +90,18 @@ export function computeBadges(runs: Run[] = [], participations: Participation[] 
       hint: hasGps ? null : t("badges.gps-first.desc") },
     milestone("elev-1000", "Mountain", totalElev, 1000, "m"),
     milestone("elev-5000", "Mountain", totalElev, 5000, "m"),
+  ];
+  if (!stretch) return badges;
+  // ── Stretching (cumulative like the rest: sessions, weeks, routines tried) ─
+  const stretchWeeks = new Set(stretch.map(e => weekKey(e.date))).size;
+  const routinesTried = ROUTINE_ORDER.filter(id => stretch.some(e => e.routine === id)).length;
+  return [
+    ...badges,
+    milestone("stretch-first", "PersonStanding", stretch.length, 1, null),
+    milestone("stretch-10", "PersonStanding", stretch.length, 10, null),
+    milestone("stretch-weeks-4", "CalendarCheck", stretchWeeks, 4, "wk"),
+    milestone("stretch-weeks-12", "CalendarHeart", stretchWeeks, 12, "wk"),
+    milestone("stretch-all", "Sparkles", routinesTried, ROUTINE_ORDER.length, null),
   ];
 }
 

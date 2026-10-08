@@ -7,8 +7,8 @@ vi.mock("../cues", () => ({ primeStretchCues: vi.fn(), stretchCue: vi.fn(), rele
 vi.mock("../hooks/useKeepAwake", () => ({ useKeepAwake: vi.fn() }));
 afterEach(cleanup);
 
-const setup = (target: React.ComponentProps<typeof StretchSheet>["target"]) => {
-  const props = { target, weekCount: 1, voice: true, onVoiceChange: vi.fn(), onComplete: vi.fn(), onClose: vi.fn() };
+const setup = (target: React.ComponentProps<typeof StretchSheet>["target"], log: React.ComponentProps<typeof StretchSheet>["log"] = []) => {
+  const props = { target, weekCount: 1, log, voice: true, onVoiceChange: vi.fn(), onComplete: vi.fn(), onFeedback: vi.fn(), onClose: vi.fn() };
   render(<StretchSheet {...props}/>);
   return props;
 };
@@ -54,5 +54,59 @@ describe("StretchSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(screen.getByText("Get ready")).toBeInTheDocument();
     expect(screen.getAllByText("Cat-cow").length).toBeGreaterThan(0);
+  });
+
+  it("previews a move from the routine, both sides, then the next one", () => {
+    setup({ routine: "cooldown", focus: "standard", km: 8 });
+    fireEvent.click(screen.getByText("Wall calf stretch"));
+    expect(screen.getByRole("heading", { name: "Wall calf stretch" })).toBeInTheDocument();
+    expect(screen.getByText("Back leg straight, heel down")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Left side" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Right side" }));
+    expect(screen.getByRole("button", { name: "Right side" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    expect(screen.getByRole("heading", { name: "Bent-knee calf stretch" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Left side" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("back from a preview returns to the routine, not the list", () => {
+    const p = setup(null);
+    fireEvent.click(screen.getByText("Warm-up drills"));
+    fireEvent.click(screen.getByText("Leg swings"));
+    act(() => { dismissTop(); });
+    expect(screen.queryByRole("heading", { name: "Leg swings" })).not.toBeInTheDocument();
+    expect(screen.getByText("Leg swings")).toBeInTheDocument();
+    expect(p.onClose).not.toHaveBeenCalled();
+  });
+
+  it("offers no history before anything is logged", () => {
+    setup(null);
+    expect(screen.queryByRole("button", { name: "History" })).not.toBeInTheDocument();
+  });
+
+  it("opens the history week by week, and back returns to the sheet", () => {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const p = setup(null, [
+      { date, at: today.getTime() - 1000, routine: "cooldown", sec: 430 },
+      { date, at: today.getTime(), routine: "recovery", sec: 550 },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    expect(screen.getByText("Stretch history")).toBeInTheDocument();
+    expect(screen.getByText("This week")).toBeInTheDocument();
+    expect(screen.getByText("2 sessions · 16 min")).toBeInTheDocument();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Recovery mobility");
+    expect(rows[1]).toHaveTextContent("7 min");
+    act(() => { dismissTop(); });
+    expect(screen.queryByText("Stretch history")).not.toBeInTheDocument();
+    expect(p.onClose).not.toHaveBeenCalled();
+  });
+
+  it("says it's a beta and asks for feedback", () => {
+    const p = setup(null);
+    expect(screen.getByText(/hasn't been tested much yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+    expect(p.onFeedback).toHaveBeenCalledTimes(1);
   });
 });

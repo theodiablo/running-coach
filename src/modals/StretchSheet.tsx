@@ -3,12 +3,16 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { StretchFigure } from "../components/StretchFigure";
 import { StretchInfo } from "../components/StretchInfo";
+import { StretchBetaNote } from "../components/StretchBetaNote";
+import { BetaBadge } from "../components/BetaBadge";
 import { useDismissable } from "../hooks/useDismissable";
-import { ROUTINES, ROUTINE_ORDER, cooldownFor } from "../stretch/routines";
+import { ROUTINES, ROUTINE_ORDER, cooldownFor, itemTime } from "../stretch/routines";
 import type { Routine, RoutineId, RoutineItem } from "../stretch/routines";
-import type { StretchSuggestion } from "../utils/stretchSuggest";
+import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import { routineMinutes } from "../utils/stretchEngine";
 import { StretchPlayer } from "./StretchPlayer";
+import { StretchMovePreview } from "./StretchMovePreview";
+import { StretchHistory } from "./StretchHistory";
 
 /** What opened the sheet: a Home suggestion goes straight to its routine. */
 export type StretchTarget = StretchSuggestion;
@@ -16,51 +20,63 @@ export type StretchTarget = StretchSuggestion;
 type StretchSheetProps = {
   target: StretchTarget | null;
   weekCount: number;
+  log: StretchLogEntry[];
   voice: boolean;
   onVoiceChange: (on: boolean) => void;
   onComplete: (routine: RoutineId, sec: number) => void;
+  /** Opens the beta feedback sheet. */
+  onFeedback?: () => void;
   onClose: () => void;
 };
 
 const routineFor = (target: StretchTarget): Routine =>
   target.routine === "cooldown" ? cooldownFor(target.focus) : ROUTINES.recovery;
 
-function WeekLine({ count }: { count: number }) {
+function WeekLine({ count, onHistory }: { count: number; onHistory?: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 text-xs text-slate-400">
-      <span className="flex gap-1" aria-hidden>
+      <span className="flex gap-1 shrink-0" aria-hidden>
         {[0, 1, 2].map(i => <span key={i} className={"w-2 h-2 rounded-full " + (i < count ? "bg-teal-400" : "bg-slate-700")}/>)}
       </span>
-      <span>{count > 0 ? t("stretch.sheet.week", { count }) : t("stretch.sheet.weekNone")} · {t("stretch.sheet.weekAim")}</span>
+      <span className="flex-1 min-w-0">{count > 0 ? t("stretch.sheet.week", { count }) : t("stretch.sheet.weekNone")} · {t("stretch.sheet.weekAim")}</span>
+      {onHistory && (
+        <button onClick={onHistory} className="shrink-0 font-semibold text-teal-300 hover:text-teal-200 transition-colors">
+          {t("stretch.history.open")}
+        </button>
+      )}
     </div>
   );
 }
 
-function ItemRow({ item }: { item: RoutineItem }) {
+function ItemRow({ item, onOpen }: { item: RoutineItem; onOpen: () => void }) {
   const { t } = useTranslation();
-  const time = item.sides === 2
-    ? t("stretch.sheet.eachSide", { sec: item.sec })
-    : item.sec >= 120 ? t("stretch.sheet.wholeMinutes", { min: item.sec / 60 }) : t("stretch.sheet.seconds", { sec: item.sec });
   return (
-    <li className="flex items-center gap-3 py-1.5">
-      <StretchFigure move={item.move} crop bg="#0f172a" className="w-11 h-11 rounded-lg bg-slate-900 shrink-0"/>
-      <span className="flex-1 min-w-0">
-        <span className="block text-sm font-semibold leading-snug">{t(`stretch.moves.${item.move}.name`)}</span>
-        <span className="block text-xs text-slate-400">{t(`stretch.moves.${item.move}.target`)}</span>
-      </span>
-      <span className="text-xs text-slate-300 tabular-nums shrink-0">{time}</span>
+    <li>
+      <button onClick={onOpen} className="w-full flex items-center gap-3 py-1.5 text-left group">
+        <StretchFigure move={item.move} crop bg="#0f172a" className="w-11 h-11 rounded-lg bg-slate-900 shrink-0"/>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-semibold leading-snug group-hover:text-orange-300 transition-colors">{t(`stretch.moves.${item.move}.name`)}</span>
+          <span className="block text-xs text-slate-400">{t(`stretch.moves.${item.move}.target`)}</span>
+        </span>
+        <span className="text-xs text-slate-300 tabular-nums shrink-0">{itemTime(t, item)}</span>
+        <ChevronRight size={14} className="text-slate-600 shrink-0"/>
+      </button>
     </li>
   );
 }
 
 // The stretching flow: the routine list, one routine's preview, and the player
 // on top. Lazily loaded, premium only for now (docs/stretching.md).
-export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComplete, onClose }: StretchSheetProps) {
+export function StretchSheet({ target, weekCount, log, voice, onVoiceChange, onComplete, onFeedback, onClose }: StretchSheetProps) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Routine | null>(() => (target ? routineFor(target) : null));
   const [viaTarget, setViaTarget] = useState(!!target);
   const [playing, setPlaying] = useState(false);
+  const [preview, setPreview] = useState<number | null>(null);
+  const [history, setHistory] = useState(false);
+  const openHistory = log.length ? () => setHistory(true) : undefined;
+  const previewItems = selected ? [...selected.items, ...(selected.tail ?? [])] : [];
   const canGoBack = !!selected && !viaTarget;
   const showList = () => { setSelected(null); setViaTarget(false); };
   useDismissable(true, () => (canGoBack ? setSelected(null) : onClose()));
@@ -84,7 +100,7 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
             <ChevronLeft size={20}/>
           </button>
         ) : <span className="w-8"/>}
-        <span className="flex-1 text-center text-sm font-semibold">{t("stretch.sheet.title")}</span>
+        <span className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold">{t("stretch.sheet.title")}<BetaBadge label={t("app.beta")}/></span>
         <button onClick={onClose} aria-label={t("common.close")} className="text-slate-400 hover:text-white p-1.5">
           <X size={20}/>
         </button>
@@ -103,23 +119,24 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
               </div>
               {why && <p className="text-sm text-slate-300 bg-slate-800 rounded-xl px-3 py-2.5">{why}</p>}
               <div>
+                <p className="text-xs text-slate-500 mb-1">{t("stretch.sheet.tapToPreview")}</p>
                 {(selected.rounds ?? 1) > 1 && (
                   <p className="text-xs text-slate-400 mb-1">{t("stretch.sheet.rounds", { count: selected.rounds })}</p>
                 )}
                 <ul className="divide-y divide-slate-800">
-                  {selected.items.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
+                  {selected.items.map((item, i) => <ItemRow key={item.move + item.sec} item={item} onOpen={() => setPreview(i)}/>)}
                 </ul>
                 {selected.tail?.length ? (
                   <>
                     <p className="text-xs text-slate-400 mt-2 mb-1">{t("stretch.sheet.then")}</p>
                     <ul className="divide-y divide-slate-800">
-                      {selected.tail.map(item => <ItemRow key={item.move + item.sec} item={item}/>)}
+                      {selected.tail.map((item, i) => <ItemRow key={item.move + item.sec} item={item} onOpen={() => setPreview(selected.items.length + i)}/>)}
                     </ul>
                   </>
                 ) : null}
               </div>
               <p className="text-xs text-slate-500">{t(`stretch.routines.${selected.id}.why`)}</p>
-              <WeekLine count={weekCount}/>
+              <WeekLine count={weekCount} onHistory={openHistory}/>
               <p className="text-xs text-amber-200/80">{t("stretch.sheet.safety")}</p>
             </>
           ) : (
@@ -142,9 +159,10 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
                   );
                 })}
               </div>
-              <WeekLine count={weekCount}/>
+              <WeekLine count={weekCount} onHistory={openHistory}/>
             </>
           )}
+          <StretchBetaNote onFeedback={onFeedback}/>
           <div className="flex items-center gap-5">
             {viaTarget && selected && (
               <button onClick={showList} className="text-xs text-slate-400 hover:text-orange-400 transition-colors">
@@ -165,9 +183,15 @@ export function StretchSheet({ target, weekCount, voice, onVoiceChange, onComple
         </div>
       )}
 
+      {preview !== null && selected && (
+        <StretchMovePreview items={previewItems} start={preview} onClose={() => setPreview(null)}/>
+      )}
+
+      {history && <StretchHistory log={log} onClose={() => setHistory(false)}/>}
+
       {playing && selected && (
         <StretchPlayer routine={selected} voice={voice} onVoiceChange={onVoiceChange} weekCount={weekCount}
-          onComplete={sec => onComplete(selected.id, sec)} onClose={() => setPlaying(false)} onFinish={onClose}/>
+          onComplete={sec => onComplete(selected.id, sec)} onFeedback={onFeedback} onClose={() => setPlaying(false)} onFinish={onClose}/>
       )}
     </div>
   );

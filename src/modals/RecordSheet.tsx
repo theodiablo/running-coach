@@ -10,6 +10,7 @@
 import { useTranslation } from "react-i18next";
 import { Bike, MapPin, PenLine, PersonStanding } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
+import { BetaBadge } from "../components/BetaBadge";
 
 type RecordSheetProps = {
   onTrack: () => void;
@@ -74,7 +75,7 @@ export function RecordSheet({ onTrack, onIndoor, onManual, onStretch, onClose }:
               className="w-full flex items-center gap-3 bg-slate-700/60 hover:bg-slate-700 border border-teal-500/40 text-slate-100 px-4 py-3 rounded-xl text-left transition-colors">
               <PersonStanding size={18} className="text-teal-400 flex-shrink-0"/>
               <span>
-                <span className="block text-sm font-semibold">{t("stretch.record.row")}</span>
+                <span className="flex items-center gap-2 text-sm font-semibold">{t("stretch.record.row")}<BetaBadge label={t("app.beta")}/></span>
                 <span className="block text-xs text-slate-400">{t("stretch.record.rowSub")}</span>
               </span>
             </button>
