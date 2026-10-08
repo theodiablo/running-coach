@@ -174,11 +174,6 @@
     "perWeek": "{{n}} por semana de media",
     "seeHistory": "Ver historial"
   },
-  "beta": {
-    "note": "Los estiramientos son nuevos y aún se han probado poco. Si una figura parece incorrecta, una indicación no se entiende o un tiempo no encaja, cuéntanoslo.",
-    "done": "Los estiramientos siguen en beta. ¿Qué tal la rutina? Un comentario rápido nos ayuda a mejorarla.",
-    "send": "Enviar comentarios"
-  },
   "player": {
     "getReady": "Prepárate",
     "switchSides": "Cambia de lado",
@@ -232,8 +227,6 @@
   "info": {
     "label": "Sobre los estiramientos",
     "title": "Sobre los estiramientos",
-    "testingBadge": "En pruebas",
-    "testing": "Los estiramientos todavía están en pruebas. Solo algunas cuentas de prueba pueden verlos y aún no están disponibles para el público, así que pueden cambiar antes de abrirse a todos.",
     "intro": "Qué dice la investigación y cómo la usa la app para elegir tus estiramientos.",
     "researchTitle": "Qué dice la investigación",
     "methodTitle": "Cómo decide la app",

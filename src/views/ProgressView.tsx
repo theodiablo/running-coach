@@ -34,7 +34,7 @@ export function ProgressView(props: ProgressViewProps) {
   // even if it's the same target as last time. Render-time sync, not an effect.
   const [prevKey, setPrevKey] = useState(navKey);
   if (navKey !== prevKey) { setPrevKey(navKey); setSub(initialSub || "log"); }
-  const stretch = props.isPremium ? props.stretchLog ?? null : null;
+  const stretch = props.stretchLog ?? null;
   // Language is a dependency: computeBadges resolves its labels through t().
   // eslint-disable-next-line react-hooks/exhaustive-deps -- computeBadges resolves labels via t()
   const badges = useMemo(() => computeBadges(runs, races?.participations || [], stretch), [runs, races, stretch, i18n.language]);

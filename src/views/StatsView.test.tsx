@@ -127,9 +127,9 @@ describe("StatsView stretching card", () => {
     expect(screen.getByText("Stretch history")).toBeInTheDocument();
   });
 
-  it("is absent without stretching or without a session", () => {
+  it("shows for a free account, and is absent without a session", () => {
     view({ isPremium: false, stretchLog: LOG });
-    expect(screen.queryByText("Stretching")).toBeNull();
+    expect(screen.getByText("Stretching")).toBeInTheDocument();
     cleanup();
     view({ isPremium: true, stretchLog: [] });
     expect(screen.queryByText("Stretching")).toBeNull();

@@ -3,7 +3,6 @@ import { PersonStanding, X } from "lucide-react";
 import { ROUTINES, cooldownFor } from "../stretch/routines";
 import { routineMinutes } from "../utils/stretchEngine";
 import type { StretchSuggestion } from "../utils/stretchSuggest";
-import { BetaBadge } from "./BetaBadge";
 
 type StretchBannerProps = {
   suggestion: StretchSuggestion;
@@ -27,7 +26,7 @@ export function StretchBanner({ suggestion: s, onStart, onDismiss }: StretchBann
       <button onClick={onStart} className="flex-1 min-w-0 p-3.5 pr-2 flex items-center gap-3 text-left rounded-l-xl hover:bg-teal-500/10 transition-colors">
         <PersonStanding size={18} className="text-teal-400 flex-shrink-0"/>
         <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-2 text-sm font-semibold text-teal-100">{title}<BetaBadge label={t("app.beta")}/></span>
+          <span className="flex items-center gap-2 text-sm font-semibold text-teal-100">{title}</span>
           <span className="block text-xs text-teal-300/80">{subtitle}</span>
         </span>
         <span className="text-xs font-semibold text-teal-200 flex-shrink-0">{t("stretch.banner.start")}</span>

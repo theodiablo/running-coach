@@ -36,9 +36,9 @@ describe("Dashboard stretch banner", () => {
     expect(p.openStretch).toHaveBeenCalledWith({ routine: "cooldown", focus: "standard", km: 10.2 });
   });
 
-  it("is absent for a free account", () => {
+  it("shows for a free account too", () => {
     renderDash({ isPremium: false });
-    expect(screen.queryByText("Cool down · 7 min")).toBeNull();
+    expect(screen.getByText("Cool down · 7 min")).toBeInTheDocument();
   });
 
   it("hides until tomorrow on 'Not today', and says how to turn it off", () => {
@@ -72,9 +72,9 @@ describe("Dashboard stretching entry", () => {
     expect(p.openStretch).toHaveBeenCalledWith();
   });
 
-  it("is absent for a free account and during a recording", () => {
+  it("shows for a free account, and is absent during a recording", () => {
     renderDash({ runs: [], isPremium: false });
-    expect(screen.queryByText("Stretching")).toBeNull();
+    expect(screen.getByText("Stretching")).toBeInTheDocument();
     cleanup();
     renderDash({ runs: [], recorderOpen: true });
     expect(screen.queryByText("Stretching")).toBeNull();

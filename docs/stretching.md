@@ -2,8 +2,8 @@
 
 Guided, running-specific stretching: four routines with a drawn figure, a hold
 timer, side switches and voice cues, suggested on Home at the two moments that
-make sense (right after a run, the day after a big one). **Premium only, as a
-test flag** (see "Gating"). The proposal and the decisions behind it were
+make sense (right after a run, the day after a big one). **Free for
+everyone** (see "Gating"). The proposal and the decisions behind it were
 reviewed with the maintainer in October 2026.
 
 ## What the research supports (and what the copy must never claim)
@@ -109,7 +109,7 @@ decides". Keep the two in step when a rule below changes.
 - "History" beside that count (once anything is logged) opens `StretchHistory`:
   the log week by week (`stretchWeeks`), a tally and minutes per week, newest
   first. Empty weeks are skipped rather than shown as gaps, for the same reason.
-- Progress → Stats has a `StretchStatsCard` (premium, once anything is logged):
+- Progress → Stats has a `StretchStatsCard` (once anything is logged):
   sessions and minutes in the selected period, the weekly average against 2-3,
   and a link to the history. Its own card, no chart (bars would draw the empty
   weeks), and never part of the running totals, total time included.
@@ -122,24 +122,13 @@ decides". Keep the two in step when a rule below changes.
 
 ## Gating
 
-- Everything is behind `isPremium`, which makes it a test flag while grants are
-  manual. The two doors in follow the house rule (`isPremium ||
-  canShowPremiumTeaser`, a free tap gets `PremiumTeaserSheet`): the Record
-  sheet row and a quiet "Stretching" row on Home (below the stat cards, this
-  week's count as its subtitle), which steps aside while the suggestion banner
-  shows so Home never offers stretching twice. The Home
-  suggestion and the Help section stay `isPremium` only: a suggestion is the
-  feature itself, and a locked one after every run would be an ad.
-- The FAQ opens with a "Testing" notice (`stretch.info.testing`): only test
-  accounts see the feature and it isn't public yet. Remove it when it opens.
-- **Beta:** every surface carries the `BetaBadge` (Record row, Home row and
-  banner, the sheet's header, Help, Training profile), and `StretchBetaNote`
-  asks for feedback on the sheet and on the done screen, opening the beta
-  feedback sheet with source `stretch`. Remove all of it when it opens.
-- **The gate is client-side only.** The content ships in the (lazy) bundle and
-  there is no server half, the same reason guided workouts went free. Whether it
-  stays premium (and moves its content behind an edge function) or opens to
-  everyone is decided after the test; see the lineup in `docs/monetization.md`.
+- **Free for everyone, out of beta** (opened October 2026 after the test on
+  premium accounts). No `isPremium` check anywhere on it: the Record row, the
+  Home row and suggestion, the Stats card, the badges, Help and the Training
+  profile switches all show for every account. No beta pill, no beta note, no
+  "Testing" notice.
+- It stays free: the house rule is never to claw back something already free,
+  so stretching is no longer a premium candidate (`docs/monetization.md`).
 
 ## Next
 

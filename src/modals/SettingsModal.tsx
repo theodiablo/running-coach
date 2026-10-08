@@ -36,7 +36,6 @@ type SettingsModalProps = {
   // the plan builder's means Training profile), and the hub menu is a dead end
   // for someone who was told to "set up" something in particular.
   initialPage?: SettingsPage;
-  isPremium?: boolean;
 };
 
 // Settings is a hub, not a page: the root is a menu and every control lives on
@@ -47,7 +46,7 @@ type SettingsModalProps = {
 // The flows that replace the whole screen (backup, restore, delete account, the
 // coach) still close settings first, as they always did: their handlers come in
 // from RunningCoach already wired that way.
-export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, isPremium = false}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
@@ -104,10 +103,9 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
           )}
           {page === "training" && (
             <TrainingProfilePage settings={settings} saveSettings={saveSettings}
-              userContext={userContext} saveUserContext={saveUserContext} onOpenCoach={onOpenCoach} plan={plan}
-              isPremium={isPremium}/>
+              userContext={userContext} saveUserContext={saveUserContext} onOpenCoach={onOpenCoach} plan={plan}/>
           )}
-          {page === "help" && <HelpPage isPremium={isPremium}/>}
+          {page === "help" && <HelpPage/>}
         </SubPage>
       )}
     </div>

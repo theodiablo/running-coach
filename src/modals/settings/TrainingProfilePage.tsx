@@ -4,7 +4,6 @@ import { INPUT_CLS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_WARN_CHARS, USER_CONTEX
 import { HRZones } from "../../views/HRZones";
 import { SessionRemindersCard } from "../../components/SessionRemindersCard";
 import { ToggleSwitch } from "../../components/ToggleSwitch";
-import { BetaBadge } from "../../components/BetaBadge";
 import type { Plan, SettingsState, UserContextState } from "../../types";
 
 // Training Profile: what the coach and the plan reason about — your heart-rate
@@ -17,10 +16,9 @@ type TrainingProfilePageProps = {
   saveUserContext: (context: UserContextState) => void;
   onOpenCoach?: () => void;
   plan?: Plan | null;
-  isPremium?: boolean;
 };
 
-export function TrainingProfilePage({ settings, saveSettings, userContext, saveUserContext, onOpenCoach, plan, isPremium = false }: TrainingProfilePageProps) {
+export function TrainingProfilePage({ settings, saveSettings, userContext, saveUserContext, onOpenCoach, plan }: TrainingProfilePageProps) {
   const { t } = useTranslation();
   const sourceMemory = userContext?.notes || "";
   const [memorySource, setMemorySource] = useState(sourceMemory);
@@ -43,23 +41,21 @@ export function TrainingProfilePage({ settings, saveSettings, userContext, saveU
 
       <SessionRemindersCard settings={settings} saveSettings={saveSettings} plan={plan ?? null}/>
 
-      {isPremium && (
-        <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
-          <p className="flex items-center gap-2 text-sm font-semibold text-slate-200">{t("stretch.settings.title")}<BetaBadge label={t("app.beta")}/></p>
-          {([["stretchSuggest", "suggest"], ["stretchVoice", "voice"]] as const).map(([key, copy]) => {
-            const on = settings[key] !== false;
-            return (
-              <div key={key} className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm text-slate-200">{t(`stretch.settings.${copy}`)}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{t(`stretch.settings.${copy}Desc`)}</p>
-                </div>
-                <ToggleSwitch on={on} onToggle={() => saveSettings({ ...settings, [key]: !on })} label={t(`stretch.settings.${copy}`)}/>
+      <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
+        <p className="flex items-center gap-2 text-sm font-semibold text-slate-200">{t("stretch.settings.title")}</p>
+        {([["stretchSuggest", "suggest"], ["stretchVoice", "voice"]] as const).map(([key, copy]) => {
+          const on = settings[key] !== false;
+          return (
+            <div key={key} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-slate-200">{t(`stretch.settings.${copy}`)}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{t(`stretch.settings.${copy}Desc`)}</p>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <ToggleSwitch on={on} onToggle={() => saveSettings({ ...settings, [key]: !on })} label={t(`stretch.settings.${copy}`)}/>
+            </div>
+          );
+        })}
+      </div>
 
       <div className="bg-slate-800 rounded-2xl p-4 space-y-3">
         <div>

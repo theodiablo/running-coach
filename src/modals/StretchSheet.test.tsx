@@ -103,10 +103,9 @@ describe("StretchSheet", () => {
     expect(p.onClose).not.toHaveBeenCalled();
   });
 
-  it("says it's a beta and asks for feedback", () => {
-    const p = setup(null);
-    expect(screen.getByText(/hasn't been tested much yet/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
-    expect(p.onFeedback).toHaveBeenCalledTimes(1);
+  it("no longer reads as a beta", () => {
+    setup(null);
+    expect(screen.queryByText(/hasn't been tested much yet/)).toBeNull();
+    expect(screen.queryByText("Beta")).toBeNull();
   });
 });

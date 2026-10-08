@@ -34,14 +34,14 @@ export function StatsView(props: StatsViewProps) {
       <div className="px-4 pt-6 pb-0">
         <h2 className="text-xl font-bold">{t("progress.stats.title")}</h2>
       </div>
-      <Overview runs={runs} settings={settings} isPremium={props.isPremium} stretchLog={props.stretchLog}/>
+      <Overview runs={runs} settings={settings} stretchLog={props.stretchLog}/>
       <RacePredictions {...props}/>
       <HRZonesCard runs={runs} settings={settings}/>
     </div>
   );
 }
 
-function Overview({runs, settings, isPremium = false, stretchLog = []}: StatsViewProps) {
+function Overview({runs, settings, stretchLog = []}: StatsViewProps) {
   const { t } = useTranslation();
   const [period, setPeriod] = useState<Period>("12w");
   // The user's goal pace, drawn on the pace trend so the reference line tracks
@@ -118,7 +118,7 @@ function Overview({runs, settings, isPremium = false, stretchLog = []}: StatsVie
 
   const tt = {background:"#1e293b", border:"none", borderRadius:8, color:"#fff", fontSize:12};
 
-  const stretchCard = isPremium && stretchLog.length > 0
+  const stretchCard = stretchLog.length > 0
     ? <StretchStatsCard log={stretchLog} days={period === "all" ? null : period === "4w" ? 28 : 84}/> : null;
 
   if (!runs.length) return (
