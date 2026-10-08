@@ -146,6 +146,23 @@ external hosts (`Bridge.launchIntent`) and hands them to the OS as an
 any future Android outbound link that a native app should claim; `Browser.open`
 stays correct for iOS (SFSafariViewController, as in OAuth).
 
+## Promoting an Android build
+
+`promote-android.yml` (manual dispatch, phone-friendly) moves a build Play
+already has between tracks — internal → production by default — through
+`scripts/play-promote.mjs` (Play Developer API edits, no deps, no rebuild). It
+promotes the newest *completed* release on the source track unless a
+`version_code` is given, and carries its name and release notes over
+(`release_notes` replaces them: max 500 chars, `|` for a line break).
+`rollout_percent` < 100 makes a staged rollout that keeps the current
+production release serving everyone else; re-run with a higher percent (or
+100) to widen it. `draft` leaves the release for Play Console, `dry_run`
+validates the edit and discards it. The service account behind
+`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` needs "Release to production" in Play
+Console. Promotion is still not publication: production goes through Play
+review, so "Publish app version" stays the separate step that flips the
+update prompt.
+
 ## Deploying Supabase edge functions
 
 **On merge to `main` this is automatic** —
