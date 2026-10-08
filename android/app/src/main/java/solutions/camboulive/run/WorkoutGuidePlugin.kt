@@ -612,7 +612,7 @@ class WorkoutGuidePlugin : Plugin() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             }
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(context.applicationInfo.icon)
+                .setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle(notifTitle)
                 .setContentText(text)
                 .setOngoing(!finished)

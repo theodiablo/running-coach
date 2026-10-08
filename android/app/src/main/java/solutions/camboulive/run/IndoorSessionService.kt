@@ -202,10 +202,8 @@ class IndoorSessionService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(message)
-            // The app's own icon, not a framework one: a notification without a
-            // valid app icon opens app settings when tapped instead of the app
-            // (the same note the background-geolocation patch carries).
-            .setSmallIcon(applicationInfo.icon)
+            // A valid app icon, or tapping opens app settings instead of the app.
+            .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

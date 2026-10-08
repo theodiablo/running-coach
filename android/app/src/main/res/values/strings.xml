@@ -4,4 +4,5 @@
     <string name="title_activity_main">Running Coach</string>
     <string name="package_name">solutions.camboulive.run</string>
     <string name="custom_url_scheme">solutions.camboulive.run</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_notify</string>
 </resources>
