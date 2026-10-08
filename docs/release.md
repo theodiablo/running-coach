@@ -152,7 +152,8 @@ stays correct for iOS (SFSafariViewController, as in OAuth).
 already has between tracks — internal → production by default — through
 `scripts/play-promote.mjs` (Play Developer API edits, no deps, no rebuild). It
 promotes the newest *completed* release on the source track unless a
-`version_code` is given, and carries its name and release notes over.
+`version_code` is given, and carries its name and release notes over
+(`release_notes` replaces them: max 500 chars, `|` for a line break).
 `rollout_percent` < 100 makes a staged rollout that keeps the current
 production release serving everyone else; re-run with a higher percent (or
 100) to widen it. `draft` leaves the release for Play Console, `dry_run`

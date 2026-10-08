@@ -4,7 +4,8 @@ import * as promote from "../scripts/play-promote.mjs";
 
 interface Release { name?: string; versionCodes: string[]; status: string; userFraction?: number; releaseNotes?: unknown[] }
 interface Track { track: string; releases: Release[] }
-const { pickRelease, promotedReleases } = promote as {
+const { pickRelease, promotedReleases, releaseNotesFromInput } = promote as {
+  releaseNotesFromInput: (t: string | undefined, lang?: string) => { language: string; text: string }[] | undefined;
   pickRelease: (t: Track, code?: string) => Release;
   promotedReleases: (r: Release, t: Track, o?: { rolloutPercent?: number | string; draft?: boolean }) => Release[];
 };
@@ -55,5 +56,15 @@ describe("promotedReleases", () => {
     expect(promotedReleases(rel, production, { draft: true })[0].status).toBe("draft");
     expect(() => promotedReleases(rel, production, { rolloutPercent: 0 })).toThrow();
     expect(() => promotedReleases(rel, production, { rolloutPercent: "abc" })).toThrow();
+  });
+});
+
+describe("releaseNotesFromInput", () => {
+  it("turns '|' and a literal \\n into line breaks", () => {
+    expect(releaseNotesFromInput("New: a | Fixed: b\\nMore", "fr-FR")).toEqual([{ language: "fr-FR", text: "New: a\nFixed: b\nMore" }]);
+  });
+  it("blank keeps the copied notes, too long is refused", () => {
+    expect(releaseNotesFromInput("  ")).toBeUndefined();
+    expect(() => releaseNotesFromInput("x".repeat(501))).toThrow(/500/);
   });
 });

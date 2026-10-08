@@ -31,6 +31,16 @@ on:
         type: string
         required: false
         default: "100"
+      release_notes:
+        description: "Release notes, max 500 chars; '|' starts a new line (blank = copy the source release's notes)"
+        type: string
+        required: false
+        default: ""
+      release_notes_language:
+        description: Language of the release notes
+        type: string
+        required: false
+        default: en-US
       draft:
         description: Create a draft release to finish in Play Console instead
         type: boolean
@@ -68,5 +78,7 @@ jobs:
           TO_TRACK: ${{ inputs.to_track }}
           VERSION_CODE: ${{ inputs.version_code }}
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_NOTES_LANGUAGE: ${{ inputs.release_notes_language }}
           DRAFT: ${{ inputs.draft }}
           DRY_RUN: ${{ inputs.dry_run }}

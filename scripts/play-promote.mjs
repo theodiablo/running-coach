@@ -13,6 +13,8 @@
 //   ROLLOUT_PERCENT            1-100, default 100 (< 100 = staged rollout)
 //   DRAFT                      "true" = create a draft release to finish in Play Console
 //   DRY_RUN                    "true" = validate the edit, then discard it
+//   RELEASE_NOTES              optional; replaces the copied notes ("\n" or "|" = line break)
+//   RELEASE_NOTES_LANGUAGE     default en-US
 
 import crypto from "node:crypto";
 import { resolve } from "node:path";
@@ -56,6 +58,16 @@ export function promotedReleases(release, targetTrack, { rolloutPercent = 100, d
     (r) => r.status === "completed" && !r.versionCodes?.some((c) => codes.has(String(c))),
   );
   return live ? [live, next] : [next];
+}
+
+const PLAY_NOTES_MAX = 500;
+
+/** Release notes typed into a dispatch form: a single line, so "\n" and "|" stand for line breaks. */
+export function releaseNotesFromInput(text, language = "en-US") {
+  const body = (text ?? "").replace(/\\n|\|/g, "\n").split("\n").map((l) => l.trim()).join("\n").trim();
+  if (!body) return undefined;
+  if (body.length > PLAY_NOTES_MAX) throw new Error(`Release notes are ${body.length} characters; Play allows ${PLAY_NOTES_MAX}.`);
+  return [{ language, text: body }];
 }
 
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
@@ -104,7 +116,9 @@ async function main(env) {
   try {
     const source = await call("GET", `edits/${edit}/tracks/${from}`);
     const target = await call("GET", `edits/${edit}/tracks/${to}`).catch(() => ({ track: to, releases: [] }));
-    const release = pickRelease(source, env.VERSION_CODE?.trim());
+    const picked = pickRelease(source, env.VERSION_CODE?.trim());
+    const notes = releaseNotesFromInput(env.RELEASE_NOTES, env.RELEASE_NOTES_LANGUAGE?.trim() || "en-US");
+    const release = notes ? { ...picked, releaseNotes: notes } : picked;
     const releases = promotedReleases(release, target, {
       rolloutPercent: env.ROLLOUT_PERCENT?.trim() || 100,
       draft: env.DRAFT === "true",
