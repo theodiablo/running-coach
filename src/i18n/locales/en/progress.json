@@ -22,7 +22,11 @@
     "editRun": "Edit run",
     "deleteRun": "Delete run",
     "newBadge": "New",
-    "hrBadge": "❤ added"
+    "hrBadge": "❤ added",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "weekRange": "{{from}} – {{to}}",
+    "weekKm": "{{km}} km"
   },
   "stats": {
     "title": "Stats",

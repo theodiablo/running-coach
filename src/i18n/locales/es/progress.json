@@ -22,7 +22,11 @@
     "editRun": "Editar el entrenamiento",
     "deleteRun": "Eliminar el entrenamiento",
     "newBadge": "Nuevo",
-    "hrBadge": "❤ añadida"
+    "hrBadge": "❤ añadida",
+    "thisWeek": "Esta semana",
+    "lastWeek": "La semana pasada",
+    "weekRange": "{{from}} – {{to}}",
+    "weekKm": "{{km}} km"
   },
   "stats": {
     "title": "Estadísticas",

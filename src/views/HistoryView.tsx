@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { History, Pencil, Trash2, Map as MapIcon } from "lucide-react";
 import { currentLocaleTag } from "../i18n";
-import { fmt } from "../utils/format";
+import { fmt, weekKey, ymd } from "../utils/format";
 import { RunRow } from "../components/RunRow";
 import { RouteMap } from "../components/RouteMap";
 import { useRouteTrace } from "../hooks/useRouteTrace";
@@ -23,7 +23,7 @@ type HistoryViewProps = {
   // hub on a timeout, so it's transient.
   highlight?: RunHighlight | null;
 };
-type RunGroup = { key: string; items: Run[] };
+type RunGroup = { key: string; items: Run[]; km: number };
 
 // Lazy-loads and renders a run's saved GPS trace (kept out of the runs blob). A
 // synced run fetches from Supabase; one still pending upload reads the trace
@@ -45,7 +45,7 @@ function RouteMapLoader({run}: RouteMapLoaderProps) {
   );
 }
 
-// The full run log, newest first, grouped by month.
+// The full run log, newest first, grouped by Mon-Sun week.
 export function HistoryView({runs, deleteRun, updateRun, goTab, openRunDetail, highlight}: HistoryViewProps) {
   const { t } = useTranslation();
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -72,16 +72,30 @@ export function HistoryView({runs, deleteRun, updateRun, goTab, openRunDetail, h
     </div>
   );
 
-  // Runs arrive newest-first; bucket them into month sections in that order.
+  // Runs arrive newest-first; bucket them into week sections in that order.
   // Running kilometres only — a cross-training session's distance is not one.
-  const totKm  = runs.reduce((s, r) => s + (isCrossTraining(r) ? 0 : r.km || 0), 0);
+  const runKm = (r: Run) => isCrossTraining(r) ? 0 : r.km || 0;
+  const totKm  = runs.reduce((s, r) => s + runKm(r), 0);
   const groups: RunGroup[] = [];
   runs.forEach(r => {
-    const key = new Date(r.date + "T12:00:00").toLocaleDateString(currentLocaleTag(), {month:"long", year:"numeric"});
+    const key = weekKey(r.date);
     let g = groups[groups.length - 1];
-    if (!g || g.key !== key) { g = {key, items:[]}; groups.push(g); }
+    if (!g || g.key !== key) { g = {key, items:[], km:0}; groups.push(g); }
     g.items.push(r);
+    g.km += runKm(r);
   });
+  const now = new Date();
+  const thisWeek = weekKey(ymd(now));
+  const prev = new Date(now); prev.setDate(prev.getDate() - 7);
+  const lastWeek = weekKey(ymd(prev));
+  const weekLabel = (mon: string) => {
+    if (mon === thisWeek) return t("progress.history.thisWeek");
+    if (mon === lastWeek) return t("progress.history.lastWeek");
+    const sun = new Date(mon + "T12:00:00"); sun.setDate(sun.getDate() + 6);
+    const to = mon.slice(0, 4) === String(now.getFullYear()) ? fmt.sht(ymd(sun))
+      : sun.toLocaleDateString(currentLocaleTag(), {day:"numeric", month:"short", year:"numeric"});
+    return t("progress.history.weekRange", {from: fmt.sht(mon), to});
+  };
 
   return (
     <div className="max-w-lg mx-auto p-4">
@@ -95,7 +109,10 @@ export function HistoryView({runs, deleteRun, updateRun, goTab, openRunDetail, h
       <div className="space-y-5">
         {groups.map(g => (
           <div key={g.key}>
-            <p className="text-slate-400 text-xs uppercase tracking-widest mb-2">{g.key}</p>
+            <div className="flex items-baseline justify-between mb-2">
+              <p className="text-slate-400 text-xs uppercase tracking-widest">{weekLabel(g.key)}</p>
+              {g.km > 0 && <p className="text-slate-500 text-xs">{t("progress.history.weekKm", {km: g.km.toFixed(1)})}</p>}
+            </div>
             <div className="space-y-2">
               {g.items.map(r => (
                 <div key={r.id} id={"run-" + r.id} className="space-y-2 scroll-mt-20">
