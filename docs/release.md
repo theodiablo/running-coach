@@ -167,28 +167,35 @@ update prompt.
 
 `promote-ios.yml` (manual dispatch, phone-friendly) is the App Store twin of
 the Android promotion, through `scripts/asc-promote.mjs` (ASC API, same key as
-the upload, no deps, no rebuild). It picks the newest unexpired upload unless
-`version` / `build_number` name one, and **waits for it** (`wait_minutes`) to
-reach App Store Connect and finish processing, so it can be dispatched right
-after a release. A build Apple marked FAILED/INVALID stops it.
+the upload, no deps, no rebuild; request shapes checked against Apple's
+OpenAPI spec). It waits (`wait_minutes`, max 170 under the job's 180) for
+the build to finish processing, TestFlight's own beta pass included. **Name
+the `version` when dispatching right after a release**: a blank one means the
+newest build App Store Connect already lists, which until the new upload
+appears is the previous release. A build Apple marked FAILED/INVALID stops it.
 
-- **`testflight`**: adds the build to the named beta groups (default: every
-  external group), sets "What to Test" from `release_notes`, and submits it
-  for Beta App Review when any external group is involved. Internal testers
-  already get every upload.
+- **`testflight`**: submits for Beta App Review when the build is
+  `READY_FOR_BETA_SUBMISSION` and an external group is involved, sets "What
+  to Test" from `release_notes`, then adds the build to the named beta groups
+  (default: every external group; groups that already have it are skipped).
+  Internal groups with access to all builds get every upload anyway.
 - **`production`**: reuses the App Store version matching the build's version
   string, renames the one editable version, or creates it (Apple allows one
   version in flight, so anything already in review refuses); attaches the
   build, writes `release_notes` into every locale's "What's New" (ignored on
   the first release, which takes none), and submits through the
-  `reviewSubmissions` API. It refuses to submit while a locale's What's New is
-  empty, leaving the version prepared. `release_type` picks automatic or
-  manual release after approval, `phased_release` the 7-day rollout, `draft`
-  stops before submitting. Re-running once that build is in review is a no-op.
+  `reviewSubmissions` API, waiting for the version to reach
+  `READY_FOR_REVIEW` first. It refuses to submit while a locale's What's New
+  is empty (leaving the version prepared), while another review submission
+  is in progress, or into an open one holding other items. `release_type`
+  picks automatic or manual release after approval, `phased_release` turns
+  the 7-day rollout on (never off: that is App Store Connect's), `draft`
+  stops before submitting. A re-run resumes a submission that was never sent
+  and is a no-op once the build is in review.
 
-`dry_run` resolves and prints every write without making it. As on Android,
-promotion is not publication: run "Publish app version" once the release is
-live.
+`dry_run` resolves and prints every write without making it. Reads retry
+transient failures; writes never do. As on Android, promotion is not
+publication: run "Publish app version" once the release is live.
 
 ## Deploying Supabase edge functions
 

@@ -2,8 +2,9 @@ name: Promote iOS build
 
 # Sends a build App Store Connect already has (uploaded by "Release mobile
 # apps") to TestFlight testers or to App Store review, without rebuilding.
-# Waits for Apple to finish processing the build, so it can run right after a
-# release. Phone-friendly: Actions -> "Promote iOS build" -> Run workflow.
+# Waits for Apple to finish processing the build; name the version to also wait
+# for an upload App Store Connect doesn't list yet. Phone-friendly: Actions ->
+# "Promote iOS build" -> Run workflow.
 #
 # This does NOT flip the in-app update prompt: run "Publish app version" once
 # the App Store release is actually live. Detail: docs/release.md
@@ -17,7 +18,7 @@ on:
         default: testflight
         options: [testflight, production]
       version:
-        description: "Version to promote, e.g. 1.5.0 (blank = newest upload)"
+        description: "Version to promote, e.g. 1.5.0 (blank = newest build already in App Store Connect; name it to wait for an upload still in flight)"
         type: string
         required: false
         default: ""
@@ -42,7 +43,7 @@ on:
         default: after_approval
         options: [after_approval, manual]
       phased_release:
-        description: App Store only, roll out over 7 days
+        description: App Store only, turn on the 7-day phased release (never turns it off)
         type: boolean
         default: false
       draft:
@@ -50,7 +51,7 @@ on:
         type: boolean
         default: false
       wait_minutes:
-        description: How long to wait for the build to finish processing
+        description: "How long to wait for the build to appear and finish processing (0-170)"
         type: string
         required: false
         default: "60"
@@ -90,7 +91,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           BUILD_NUMBER: ${{ inputs.build_number }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
-          GROUPS: ${{ inputs.groups }}
+          BETA_GROUPS: ${{ inputs.groups }}
           RELEASE_TYPE: ${{ inputs.release_type }}
           PHASED_RELEASE: ${{ inputs.phased_release }}
           DRAFT: ${{ inputs.draft }}
