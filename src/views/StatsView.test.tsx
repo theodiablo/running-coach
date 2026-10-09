@@ -108,6 +108,23 @@ describe("StatsView race predictions", () => {
   });
 });
 
+describe("StatsView period filter", () => {
+  // Thursday: a rolling 28 days would start on a Thursday and cut the oldest week in half.
+  it("covers whole Mon-Sun weeks, this one included", () => {
+    vi.setSystemTime(new Date("2026-09-24T09:00:00"));
+    const runs = [
+      run("2026-09-24", 5, 1800, 140),
+      run("2026-09-07", 7, 2500, 140),
+      run("2026-08-31", 3, 1100, 140),
+      run("2026-08-30", 11, 4000, 140),
+    ];
+    view({ runs });
+    fireEvent.click(screen.getAllByRole("button", { name: "4w" })[0]);
+    expect(card("Total distance")).toHaveTextContent("15.0 km");
+    expect(card("Total distance")).toHaveTextContent("3 runs");
+  });
+});
+
 describe("StatsView stretching card", () => {
   const LOG = [
     { date: "2026-09-20", at: 3, routine: "cooldown" as const, sec: 430 },

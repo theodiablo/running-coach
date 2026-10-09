@@ -3,7 +3,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, ReferenceLine } from "recharts";
 import { VERT_COST } from "../constants";
-import { fmt, weekKey, ymd } from "../utils/format";
+import { fmt, weekKey, weekStart, ymd } from "../utils/format";
 import { effectiveMaxHR } from "../utils/hr";
 import { riegel, bestEffortAnchor, hrModelAnchor, hrModelUsable, hrModelBlocker, hrModelGap } from "../utils/predictions";
 import { raceTargets, goalGap } from "../utils/raceTargets";
@@ -25,6 +25,15 @@ type StatsViewProps = {
 };
 type StatCard = { l: string; v: string; s: string; c: string };
 type Period = "4w" | "12w" | "all";
+
+// Whole Mon-Sun weeks, this one included, so the oldest weekly bar is never a partial week.
+function periodRuns<T extends { date: string }>(items: T[], period: Period): T[] {
+  if (period === "all") return items;
+  const cut = weekStart(new Date());
+  cut.setDate(cut.getDate() - 7 * ((period === "4w" ? 4 : 12) - 1));
+  const from = ymd(cut);
+  return items.filter(r => r.date >= from);
+}
 
 export function StatsView(props: StatsViewProps) {
   const { t } = useTranslation();
@@ -49,11 +58,7 @@ function Overview({runs, settings, stretchLog = []}: StatsViewProps) {
   const goalPace = settings && settings.goalSec && settings.distanceKm
     ? Number(settings.goalSec) / Number(settings.distanceKm) : 0;
 
-  const fRuns = period === "all" ? runs : (() => {
-    const cut = new Date();
-    cut.setDate(cut.getDate() - (period === "4w" ? 28 : 84));
-    return runs.filter(r => new Date(r.date + "T00:00:00") >= cut);
-  })();
+  const fRuns = periodRuns(runs, period);
 
   // Everything on this screen except total TIME is a running measure: distance,
   // pace, elevation, the trends, the run count and the average HR. A
@@ -254,11 +259,7 @@ function RacePredictions({runs, settings, races, goTab}: StatsViewProps) {
   const [showLadder, setShowLadder] = useState(false);
 
   // Same period filter the Overview uses, so both halves of Stats agree.
-  const fRuns = period === "all" ? runs : (() => {
-    const cut = new Date();
-    cut.setDate(cut.getDate() - (period === "4w" ? 28 : 84));
-    return runs.filter(r => new Date(r.date + "T00:00:00") >= cut);
-  })();
+  const fRuns = periodRuns(runs, period);
 
   // Effective max HR: explicit setting → Tanaka from age → highest HR observed.
   const effMax = effectiveMaxHR(settings)
