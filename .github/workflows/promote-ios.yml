@@ -1,0 +1,98 @@
+name: Promote iOS build
+
+# Sends a build App Store Connect already has (uploaded by "Release mobile
+# apps") to TestFlight testers or to App Store review, without rebuilding.
+# Waits for Apple to finish processing the build, so it can run right after a
+# release. Phone-friendly: Actions -> "Promote iOS build" -> Run workflow.
+#
+# This does NOT flip the in-app update prompt: run "Publish app version" once
+# the App Store release is actually live. Detail: docs/release.md
+# ("Promoting an iOS build").
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to send the build
+        type: choice
+        default: testflight
+        options: [testflight, production]
+      version:
+        description: "Version to promote, e.g. 1.5.0 (blank = newest upload)"
+        type: string
+        required: false
+        default: ""
+      build_number:
+        description: "Build number (blank = newest build of that version)"
+        type: string
+        required: false
+        default: ""
+      release_notes:
+        description: "TestFlight 'What to Test' / App Store 'What's New', max 4000 chars; '|' starts a new line"
+        type: string
+        required: false
+        default: ""
+      groups:
+        description: "TestFlight only: comma-separated beta group names (blank = every external group)"
+        type: string
+        required: false
+        default: ""
+      release_type:
+        description: "App Store only: release once approved, or hold for a manual release"
+        type: choice
+        default: after_approval
+        options: [after_approval, manual]
+      phased_release:
+        description: App Store only, roll out over 7 days
+        type: boolean
+        default: false
+      draft:
+        description: App Store only, prepare the version without submitting it for review
+        type: boolean
+        default: false
+      wait_minutes:
+        description: How long to wait for the build to finish processing
+        type: string
+        required: false
+        default: "60"
+      dry_run:
+        description: Resolve the build and print the plan, change nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-ios
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Promote on App Store Connect
+        run: node scripts/asc-promote.mjs
+        env:
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          BUNDLE_ID: solutions.camboulive.run
+          TARGET: ${{ inputs.target }}
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          GROUPS: ${{ inputs.groups }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          PHASED_RELEASE: ${{ inputs.phased_release }}
+          DRAFT: ${{ inputs.draft }}
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+          DRY_RUN: ${{ inputs.dry_run }}

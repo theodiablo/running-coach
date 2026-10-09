@@ -163,6 +163,33 @@ Console. Promotion is still not publication: production goes through Play
 review, so "Publish app version" stays the separate step that flips the
 update prompt.
 
+## Promoting an iOS build
+
+`promote-ios.yml` (manual dispatch, phone-friendly) is the App Store twin of
+the Android promotion, through `scripts/asc-promote.mjs` (ASC API, same key as
+the upload, no deps, no rebuild). It picks the newest unexpired upload unless
+`version` / `build_number` name one, and **waits for it** (`wait_minutes`) to
+reach App Store Connect and finish processing, so it can be dispatched right
+after a release. A build Apple marked FAILED/INVALID stops it.
+
+- **`testflight`**: adds the build to the named beta groups (default: every
+  external group), sets "What to Test" from `release_notes`, and submits it
+  for Beta App Review when any external group is involved. Internal testers
+  already get every upload.
+- **`production`**: reuses the App Store version matching the build's version
+  string, renames the one editable version, or creates it (Apple allows one
+  version in flight, so anything already in review refuses); attaches the
+  build, writes `release_notes` into every locale's "What's New" (ignored on
+  the first release, which takes none), and submits through the
+  `reviewSubmissions` API. It refuses to submit while a locale's What's New is
+  empty, leaving the version prepared. `release_type` picks automatic or
+  manual release after approval, `phased_release` the 7-day rollout, `draft`
+  stops before submitting. Re-running once that build is in review is a no-op.
+
+`dry_run` resolves and prints every write without making it. As on Android,
+promotion is not publication: run "Publish app version" once the release is
+live.
+
 ## Deploying Supabase edge functions
 
 **On merge to `main` this is automatic** —
