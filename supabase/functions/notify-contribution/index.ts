@@ -2,7 +2,7 @@
 // contribution, report, or coach-feedback flag is written. Never on the
 // critical path; a no-op without SES credentials. Details: docs/races.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { AwsClient } from "npm:aws4fetch@1.0.20";
 
 const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "theo.camboulive.dev@gmail.com";

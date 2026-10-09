@@ -4,7 +4,7 @@
 // cloud) — verify end-to-end after registering a Polar app.
 // Architecture, actions, deploy/secrets: docs/integrations-polar.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 
 const POLAR_CLIENT_ID = Deno.env.get("POLAR_CLIENT_ID");
 const POLAR_CLIENT_SECRET = Deno.env.get("POLAR_CLIENT_SECRET");

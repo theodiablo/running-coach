@@ -35,7 +35,7 @@
 // never advances the cursor; the client acks only after runs are saved, so an
 // unacked page is re-served and a missed toast never loses history.
 
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.116.0";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
 
 const COROS_CLIENT_ID = Deno.env.get("COROS_CLIENT_ID");
 const COROS_CLIENT_SECRET = Deno.env.get("COROS_CLIENT_SECRET");

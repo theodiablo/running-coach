@@ -20,7 +20,7 @@
         "npm:@fontsource/archivo@^5.2.8",
         "npm:@pianissimoproject/capacitor-health-connect@~0.7.1",
         "npm:@resvg/resvg-js@^2.6.2",
-        "npm:@supabase/supabase-js@^2.116.0",
+        "npm:@supabase/supabase-js@^2.117.3",
         "npm:@tailwindcss/vite@^4.3.0",
         "npm:@testing-library/dom@^10.4.2",
         "npm:@testing-library/jest-dom@^7.0.1",

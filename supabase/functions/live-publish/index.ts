@@ -6,7 +6,7 @@
 // answers a uniform `{ live: false }`, which doubles as the uploader's stop
 // signal. Detail, incl. the three-way response contract: docs/live-sharing.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { isValidPublishToken, isValidPointBatch, sanitizeStats } from "../_shared/livePublish.mjs";
 
 // Stricter than live-watch's read budget: one uploader per run writes every
