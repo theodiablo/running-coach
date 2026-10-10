@@ -11,4 +11,11 @@ Allow: /
 # (see supabase/functions/live-watch/index.ts).
 Disallow: /watch/
 
+# Link-preview fetchers that obey robots.txt: blocked, a shared run link shows
+# no card at all. They read the page for that one post and don't index it, and
+# the page's own `noindex` still stands for anything that would.
+User-agent: LinkedInBot
+User-agent: Twitterbot
+Allow: /
+
 Sitemap: https://run.camboulive.solutions/sitemap.xml
