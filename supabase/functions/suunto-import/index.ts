@@ -19,7 +19,7 @@
 // each isolated below and marked CALIBRATE for the first live pass.
 // Architecture, protocol, deploy/secrets: docs/integrations-suunto.md.
 
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.116.0";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
 import { fitMissIsTerminal, fitPath, looksLikeFit } from "../_shared/suunto/fitExport.mjs";
 
 const SUUNTO_CLIENT_ID = Deno.env.get("SUUNTO_CLIENT_ID");
