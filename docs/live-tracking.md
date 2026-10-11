@@ -303,7 +303,9 @@ A GPS run saves its moving clock minus the idle ENDS only: `idleBounds`
 held over 60s at ≥0.5 m/s AND ≥40% of the speed the run held for three quarters
 of its time — warm-up GPS drift reads 0.7-0.9 m/s, so the absolute floor alone
 let it through; stationary fixes are jitter-dropped, so idling reads as one
-slow leg) and the stopped screen shows the trimmed time. The split table
+slow leg) and the stopped screen shows the trimmed time. `trimIdleEnds` also
+cuts the saved trace to the departure/arrival fixes, so the drift recorded while
+standing there is not distance either (the km is `distanceKm` of the cut trace). The split table
 (`buildSplits`, ported in `runDigest.mjs`) honours the same edges: km marks stay
 on the run's whole distance, but each split's pace is its moving time over its
 moving distance, so neither the idle time nor the drift distance lands in km 1

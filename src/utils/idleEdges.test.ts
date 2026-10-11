@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { idleEdgesSec, trimmedMovingSec } from "./idleEdges";
+import { idleEdgesSec, trimIdleEnds, trimmedMovingSec } from "./idleEdges";
+import { distanceKm } from "./geo";
 import type { TrackPointOrGap } from "./geo";
 
 const T0 = 1_700_000_000_000;
@@ -76,5 +77,24 @@ describe("trimmedMovingSec", () => {
     // Paused for the 200s at the start: the clock never counted them.
     const tr = track().stand(200).run(3600);
     expect(trimmedMovingSec(3600, tr.pts, T0, tr.t)).toEqual({ durationSec: 3600, trimmedSec: 0 });
+  });
+});
+
+describe("trimIdleEnds", () => {
+  it("cuts the trace to departure and arrival, so drift standing there isn't distance", () => {
+    const tr = track().stand(60, 30).stand(60, 50).stand(60, 50).run(600).gap().run(600).stand(120, 20);
+    const ran = track().run(600).gap().run(600);
+    const cut = trimIdleEnds(1500, tr.pts, T0, tr.t);
+    expect(cut.durationSec).toBe(1200);
+    expect(cut.points[0]).toEqual(tr.pts[3]);
+    expect(cut.points).toHaveLength(ran.pts.length);
+    expect(distanceKm(cut.points)).toBeCloseTo(distanceKm(ran.pts), 6);
+  });
+
+  it("keeps the whole trace when nothing is trimmed or the run window is unknown", () => {
+    const tr = track().stand(200).run(600);
+    expect(trimIdleEnds(800, tr.pts, null, tr.t).points).toBe(tr.pts);
+    const moving = track().run(600);
+    expect(trimIdleEnds(600, moving.pts, T0, moving.t).points).toEqual(moving.pts);
   });
 });
