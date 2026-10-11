@@ -121,6 +121,12 @@ own cache behavior so it never runs for assets); the browser keeps its
 `watch.html` in the bucket the SPA fallback serves `index.html`, so a gap only
 costs the run-link preview.
 
+`robots.txt` disallows `/watch/` for `*` but has its own `Allow: /` group for
+the preview fetchers that obey it (LinkedInBot, Twitterbot): a Disallow there
+means no card at all, however right the tags are (`src/marketing/robots.test.ts`).
+LinkedIn caches a link's preview for about a week; re-scrape it in the Post
+Inspector after a change.
+
 All the web-only SEO assets (both cards, `watch.html`, `robots.txt`, `sitemap.xml`) are `rm`'d in `release.yml`'s web-build job
 before the per-platform `cap sync`s so they don't bloat the native packages.
 
