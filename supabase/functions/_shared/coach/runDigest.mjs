@@ -168,6 +168,54 @@ function timeAtKm(pts, km) {
   return pts[pts.length - 1].t;
 }
 
+// Port of idleEdges.ts idleBounds: indices (into the real fixes) of the fix the
+// runner set off from and the one they stopped at for good; null if never moved.
+const IDLE_WINDOW_MS = 60_000, IDLE_MOVING_MPS = 0.5, IDLE_OWN_PACE_SHARE = 0.4;
+const legMps = (a, b) => haversineM(a, b) / ((Number(b[2]) - Number(a[2])) / 1000);
+function heldMps(points) {
+  const legs = [];
+  let prev = null, total = 0;
+  for (const p of points) {
+    if (prev && p && Number(p[2]) > Number(prev[2])) {
+      const dt = Number(p[2]) - Number(prev[2]);
+      legs.push({ v: legMps(prev, p), dt });
+      total += dt;
+    }
+    prev = p;
+  }
+  legs.sort((a, b) => a.v - b.v);
+  let acc = 0;
+  for (const l of legs) if ((acc += l.dt) >= total / 4) return l.v;
+  return 0;
+}
+export function idleBounds(points) {
+  const pts = points.filter((p) => !!p);
+  const n = pts.length;
+  if (n < 2) return null;
+  const minMps = Math.max(IDLE_MOVING_MPS, IDLE_OWN_PACE_SHARE * heldMps(points));
+  const t = (i) => Number(pts[i][2]);
+  const moving = (i, j) => t(j) > t(i) && legMps(pts[i], pts[j]) >= minMps;
+
+  let d = -1;
+  for (let i = 0, k = 0; i < n; i++) {
+    while (k < n && t(k) < t(i) + IDLE_WINDOW_MS) k++;
+    if (k >= n) break;
+    if (moving(i, k)) { d = i; break; }
+  }
+  if (d < 0) return null;
+  while (d + 1 < n && !moving(d, d + 1)) d++;
+
+  let a = n;
+  for (let j = n - 1, k = n - 1; j > d; j--) {
+    while (k >= 0 && t(k) > t(j) - IDLE_WINDOW_MS) k--;
+    if (k < 0) break;
+    if (moving(k, j)) { a = j; break; }
+  }
+  if (a === n) a = n - 1;
+  while (a - 1 > d && !moving(a - 1, a)) a--;
+  return { depart: d, arrive: a };
+}
+
 // Port of runSplits.ts buildSplits, minus the fastest/slowest flags (the model
 // can read them off the numbers). Rows are { km, distKm, durationSec,
 // paceSecPerKm, elevGainM, avgHr }.
@@ -176,6 +224,9 @@ export function buildSplitRows(points, hrSamples, opts) {
   const pts = flattenTrack(points, opts?.jitterM ?? 3);
   const totalKm = pts.length ? pts[pts.length - 1].cumKm : 0;
   if (pts.length < 2 || totalKm <= 0) return [];
+  const edges = idleBounds(points);
+  const from = edges ? pts[edges.depart] : pts[0], to = edges ? pts[edges.arrive] : pts[pts.length - 1];
+  const movingT = (t) => Math.min(Math.max(t, from.t), to.t);
 
   const avgHrBetween = (t0, t1) => {
     if (!hr) return null;
@@ -191,10 +242,11 @@ export function buildSplitRows(points, hrSamples, opts) {
   for (let k = 0; k < nFull || (k === nFull && totalKm - nFull > 0.001); k++) {
     const startKm = k;
     const endKm = Math.min(k + 1, totalKm);
-    const tStart = timeAtKm(pts, startKm);
-    const tEnd = timeAtKm(pts, endKm);
+    const tStart = movingT(timeAtKm(pts, startKm));
+    const tEnd = movingT(timeAtKm(pts, endKm));
     const durationSec = (tEnd - tStart) / 1000;
     const distKm = endKm - startKm;
+    const movingKm = Math.min(endKm, to.cumKm) - Math.max(startKm, from.cumKm);
     // Strip segStart so a mid-split gap doesn't reset the band — buildSplits
     // passes gap-free coordinate objects here, with no resets.
     const alts = pts.filter((pt) => pt.cumKm >= startKm && pt.cumKm <= endKm).map((pt) => ({ alt: pt.alt }));
@@ -202,7 +254,7 @@ export function buildSplitRows(points, hrSamples, opts) {
       km: k + 1,
       distKm,
       durationSec,
-      paceSecPerKm: distKm > 0 ? durationSec / distKm : 0,
+      paceSecPerKm: movingKm > 0 ? durationSec / movingKm : 0,
       elevGainM: Math.round(elevGainM(alts)),
       avgHr: avgHrBetween(tStart, tEnd),
     });

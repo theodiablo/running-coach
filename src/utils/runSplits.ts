@@ -3,9 +3,12 @@
 // the chart and the run total agree on where each km lands. Pure and unit-tested.
 //
 // Time at each exact km mark is linearly interpolated along the track, so a
-// split's duration isn't quantised to whole GPS fixes.
+// split's duration isn't quantised to whole GPS fixes. Idle ends (idleEdges.ts)
+// cost a split neither time nor distance: the km marks stay on the run's whole
+// distance, but pace is the moving time over the moving distance inside each.
 
 import { elevGainM, flattenTrack } from "./geo";
+import { idleBounds } from "./idleEdges";
 import type { FlatPoint, TrackPointOrGap } from "./geo";
 import type { HrSample } from "./runSeries";
 
@@ -46,6 +49,9 @@ export function buildSplits(
   const pts = flattenTrack(points, opts?.jitterM ?? 3);
   const totalKm = pts.length ? pts[pts.length - 1].cumKm : 0;
   if (pts.length < 2 || totalKm <= 0) return [];
+  const edges = idleBounds(points);
+  const from = edges ? pts[edges.depart] : pts[0], to = edges ? pts[edges.arrive] : pts[pts.length - 1];
+  const movingT = (t: number) => Math.min(Math.max(t, from.t), to.t);
 
   // Mean bpm over [t0, t1]. `hr` is time-sorted, so binary-search the lower bound
   // and sweep forward — O(log n + window) per split, not O(n) (avoids a full scan
@@ -64,16 +70,17 @@ export function buildSplits(
   for (let k = 0; k < nFull || (k === nFull && totalKm - nFull > 0.001); k++) {
     const startKm = k;
     const endKm = Math.min(k + 1, totalKm);
-    const tStart = timeAtKm(pts, startKm);
-    const tEnd = timeAtKm(pts, endKm);
+    const tStart = movingT(timeAtKm(pts, startKm));
+    const tEnd = movingT(timeAtKm(pts, endKm));
     const durationSec = (tEnd - tStart) / 1000;
     const distKm = endKm - startKm;
+    const movingKm = Math.min(endKm, to.cumKm) - Math.max(startKm, from.cumKm);
     const alts = pts.filter(pt => pt.cumKm >= startKm && pt.cumKm <= endKm).map(pt => ({ lat: 0, lng: 0, alt: pt.alt }));
     splits.push({
       km: k + 1,
       distKm,
       durationSec,
-      paceSecPerKm: distKm > 0 ? durationSec / distKm : 0,
+      paceSecPerKm: movingKm > 0 ? durationSec / movingKm : 0,
       elevGainM: Math.round(elevGainM(alts)),
       avgHr: avgHrBetween(tStart, tEnd),
       fastest: false,

@@ -99,6 +99,18 @@ describe("buildSplits", () => {
     expect(splits[0].fastest).toBe(false); // <2 full kms → no flags
   });
 
+  it("charges neither the standing before the start nor after the finish to a split", () => {
+    // 5 min of sparse warm-up drift (~0.8 m/s), 4.5 km at 3 m/s, then 2 min standing.
+    const M = 1 / 111_320; // degrees of longitude per metre at the equator
+    const pts: TrackPointOrGap[] = [p(0, 0, 0), p(0, 20 * M, 120), p(0, 50 * M, 180), p(0, 100 * M, 240), p(0, 150 * M, 300)];
+    for (let s = 2; s <= 1500; s += 2) pts.push(p(0, (150 + 3 * s) * M, 300 + s));
+    pts.push(p(0, 4658 * M, 1920));
+    const splits = buildSplits(pts);
+    expect(splits).toHaveLength(5);
+    for (const s of splits) expect(s.paceSecPerKm).toBeCloseTo(1000 / 3, 0);
+    expect(splits.reduce((a, s) => a + s.distKm, 0)).toBeCloseTo(distanceKm(pts), 6);
+  });
+
   it("returns [] for an empty or single-point track", () => {
     expect(buildSplits([])).toEqual([]);
     expect(buildSplits([p(0, 0, 0)])).toEqual([]);

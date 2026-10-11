@@ -97,6 +97,21 @@ describe("runDigest.mjs parity with the TS originals", () => {
     });
   });
 
+  it("split rows match buildSplits with idle ends trimmed", () => {
+    const idle: TrackPointOrGap[] = [p(0, 0, 0), p(0, 0.0002, 120), p(0, 0.0005, 180), p(0, 0.0009, 240)];
+    for (let i = 1; i <= 2000; i++) idle.push(p(0, 0.0009 + i * 0.00003, 240 + i));
+    idle.push(p(0, 0.0611, 2500));
+    const ours = digest.buildSplitRows(idle, hrStream);
+    const ref = buildSplits(idle, hrStream);
+    expect(ours).toHaveLength(ref.length);
+    ours.forEach((s: Record<string, number | null>, i: number) => {
+      expect(s.durationSec).toBeCloseTo(ref[i].durationSec, 6);
+      expect(s.paceSecPerKm).toBeCloseTo(ref[i].paceSecPerKm, 6);
+      expect(s.avgHr).toBe(ref[i].avgHr);
+    });
+    expect(digest.idleBounds(idle)).toMatchObject({ depart: 3, arrive: 2003 });
+  });
+
   it("timeInZones and effectiveMaxHR parity", () => {
     expect(digest.timeInZones(hrStream, 190, 55)).toEqual(timeInZones(hrStream, 190, 55));
     expect(digest.timeInZones(hrStream, 0, 55)).toEqual(timeInZones(hrStream, 0, 55));

@@ -14,7 +14,7 @@ function track() {
   push();
   const api = {
     pts,
-    stand(sec: number) { t += sec * 1000; lat += 6 / M_PER_DEG; push(); return api; },
+    stand(sec: number, m = 6) { t += sec * 1000; lat += m / M_PER_DEG; push(); return api; },
     run(sec: number, mps = 3) { for (let s = 2; s <= sec; s += 2) { t += 2000; lat += (2 * mps) / M_PER_DEG; push(); } return api; },
     gap() { pts.push(null); return api; },
     get t() { return t; },
@@ -44,6 +44,12 @@ describe("idleEdgesSec", () => {
   it("keeps a slow steep hike at the start", () => {
     const tr = track().run(600, 0.7).run(600);
     expect(idleEdgesSec(tr.pts, T0, tr.t).leadSec).toBe(0);
+  });
+
+  it("reads GPS warm-up drift as standing, measured against the run's own pace", () => {
+    // Drift legs at 0.5-0.8 m/s clear the absolute floor but not a 3 m/s run.
+    const tr = track().stand(60, 30).stand(60, 50).stand(60, 50).run(3600);
+    expect(idleEdgesSec(tr.pts, T0, tr.t).leadSec).toBe(180);
   });
 
   it("reads silence behind a gap marker as standing", () => {
