@@ -367,6 +367,28 @@ const cases = [
     },
   },
   {
+    name: "a taper refusal hands the model the reason the rule serves the runner",
+    async check() {
+      const context = makeContext("add one more hard session before the race");
+      const d = new Date(context.plan.raceDate + "T00:00:00");
+      d.setDate(d.getDate() - 7);
+      let secondCallMessages: unknown[] = [];
+      let calls = 0;
+      const inner = scriptedModel([[{ name: "add_session", input: { date: ymd(d), type: "TEMPO", km: 5 } }], []]);
+      await generateProposal({
+        baseline: context.plan,
+        context,
+        callModel: async (messages: unknown[]) => {
+          if (calls++ === 1) secondCallMessages = messages;
+          return inner();
+        },
+      });
+      const fed = JSON.stringify(secondCallMessages);
+      expect(fed).toContain("TAPER:");
+      expect(fed).toContain("Why this protects the runner: Race-day fitness is built weeks in advance");
+    },
+  },
+  {
     name: "get_run_detail digest reaches the model, is audited, and stays out of toolCalls",
     async check() {
       const context = makeContext("why was my heart rate so high on that hilly run?");

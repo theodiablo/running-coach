@@ -274,6 +274,13 @@ describe("applyToolCall", () => {
       .toThrow(/above week 1/);
   });
 
+  it("a taper refusal says when the week before's race isn't counted", () => {
+    const p = applyTool(nearRace(), "add_session", { date: "2026-01-14", type: "EASY", km: 11 });
+    p.weeks[0]!.sessions.push(sess("tune-up", "2026-01-10", "RACE", 10));
+    expect(() => applyTool(p, "add_session", { date: "2026-01-12", type: "EASY", km: 11 }))
+      .toThrow(/above week 1 \(21\.0 km of training, not counting its race\)/);
+  });
+
   it("the long run never grows in the final 7 days", () => {
     const p = nearRace();
     p.weeks[1]!.sessions.splice(1, 0, sess("w2d3", "2026-01-14", "LONG", 8));

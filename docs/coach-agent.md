@@ -268,6 +268,13 @@ injury or illness signal (including an unresolved one in Coach memory);
 alongside a refusal; past the plan's longest live training session plus a 10%
 margin; or a week near the race past the week before it.
 
+**A refusal carries its reason.** A guard that blocks load (`TAPER`,
+`RACE_EVE`, `TOO_LONG`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
+protects the runner" line from `RULE_WHY` (`tools.mjs`), and the prompt asks for
+the rule in training terms, its reason, the runner's own numbers, and what they
+can do instead, never "the app/validator requires". A rule cited without its
+why reads as the app getting in the runner's way.
+
 ## Validator rules (safety > consistency > peak performance)
 
 | Code | Severity | Rule |

@@ -54,6 +54,15 @@ export const READ_ONLY_TOOLS = [
   "get_run_detail",
 ];
 
+// Why each guard serves the runner, appended to its refusal so the coach can
+// explain the rule instead of just citing it.
+export const RULE_WHY = {
+  TAPER: "Race-day fitness is built weeks in advance. In the last weeks before a race, extra load can't add fitness that shows on race day, only fatigue that does; letting each week stay at or below the one before lets the body absorb the training already done, so the runner starts fresh and races faster. This is the taper, and it is in the runner's interest even when they feel strong.",
+  RACE_EVE: "Nothing run in the last two days can build fitness in time for the race, and any fatigue from it is carried onto the start line.",
+  TOO_LONG: "One run far past anything the plan has built up to is where overuse injuries come from: muscle adapts within weeks, tendons and bones more slowly, so distance grows in steps.",
+  CONTEXT_UNSAFE: "Adding running on top of pain, illness or a missed week is the usual road to an injury or a longer layoff; load comes back once the body is ready for it.",
+};
+
 export class CoachToolError extends Error {
   constructor(code, message) {
     super(message);
@@ -262,8 +271,9 @@ function guardTaperGrowth(p, week, { date, type, session = null }, addedKm, resu
   const ref = prev ? loadKm(prev) : Math.max(0, ...p.weeks.filter(w => w !== week && w.phase !== "TAPER" &&
     w.phase !== "RACE" && daysBetween(w.startDate, p.raceDate) > 14).map(loadKm));
   const after = loadKm(week) + addedKm;
+  const raceNote = prev?.sessions.some(s => s.type === "RACE") ? ", not counting its race" : "";
   if (ref > 0 && after > ref)
-    throw new CoachToolError("TAPER", `That would put week ${week.weekNumber} at ${after.toFixed(1)} km, above ${prev ? `week ${prev.weekNumber}` : "the plan's peak week"} (${ref.toFixed(1)} km) — near the race each week stays at or below the one before.`);
+    throw new CoachToolError("TAPER", `That would put week ${week.weekNumber} at ${after.toFixed(1)} km, above ${prev ? `week ${prev.weekNumber}` : "the plan's peak week"} (${ref.toFixed(1)} km of training${raceNote}) — near the race each week stays at or below the one before.`);
 }
 
 // A cross-training day's minutes follow its effort-equivalent km.
