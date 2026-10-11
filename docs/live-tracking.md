@@ -298,10 +298,16 @@ in `flattenTrack`, so the chart and splits skip it too). It is ported to
 `runDigest.mjs` and the native fold (`foldElevation` in the
 background-geolocation patch); keep all three in step.
 
-A GPS run saves its moving clock minus the idle ENDS only: `idleEdgesSec`
-(`src/utils/idleEdges.ts`) finds where the runner set off and arrived (≥0.5 m/s
-held over 60s; stationary fixes are jitter-dropped, so idling reads as one slow
-leg) and the stopped screen shows the trimmed time. Mid-run stops stay counted,
+A GPS run saves its moving clock minus the idle ENDS only: `idleBounds`
+(`src/utils/idleEdges.ts`) finds where the runner set off and arrived (movement
+held over 60s at ≥0.5 m/s AND ≥40% of the speed the run held for three quarters
+of its time — warm-up GPS drift reads 0.7-0.9 m/s, so the absolute floor alone
+let it through; stationary fixes are jitter-dropped, so idling reads as one
+slow leg) and the stopped screen shows the trimmed time. The split table
+(`buildSplits`, ported in `runDigest.mjs`) honours the same edges: km marks stay
+on the run's whole distance, but each split's pace is its moving time over its
+moving distance, so neither the idle time nor the drift distance lands in km 1
+or the last split. Mid-run stops stay counted,
 like an official race time; an end already moving at its first/last fix trims
 nothing, so GPS warm-up while running is never cut. Manual pauses aren't located
 in time, so their total is credited against the trim. Map basemap is MapTiler — needs `VITE_MAPTILER_KEY` (records fine without
