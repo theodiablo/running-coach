@@ -266,7 +266,9 @@ the last 2 days.
 **Never, whatever the evidence:** to make up missed volume; under any pain,
 injury or illness signal (including an unresolved one in Coach memory);
 alongside a refusal; past the plan's longest live training session plus a 10%
-margin; or a week near the race past the week before it.
+margin; or a week near the race past the week before it. "Load" there counts a
+tune-up race (any RACE before race day) as the km it is, and a week holding one
+was lightened around it, so the week before it stays the bar when it's higher.
 
 **A refusal carries its reason.** A guard that blocks load (`TAPER`,
 `RACE_EVE`, `TOO_LONG`, `CONTEXT_UNSAFE`) reaches the model with a "Why this

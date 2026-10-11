@@ -248,11 +248,15 @@ function guardEditable(session, verb, today) {
 }
 
 const TAPER_EASY_DAYS = 7;
-const loadKm = (w) => w.sessions.reduce((t, s) => t + (s.type === "RACE" || s.skipped ? 0 : s.km), 0);
+// A tune-up race is real load; only the goal race (on race day) is not training.
+const isTuneUp = (s, p) => s.type === "RACE" && s.date < p.raceDate;
+const loadKm = (w, p) => w.sessions.reduce((t, s) =>
+  t + (s.skipped || (s.type === "RACE" && !isTuneUp(s, p)) ? 0 : s.km), 0);
 
 // Load added near the race keeps the taper's shape: a week never outgrows the
 // one before it (or, with none, the plan's peak pre-taper week), and in the
-// final week a session is never more than an easy day.
+// final week a session is never more than an easy day. A week holding a tune-up
+// race is lightened around it, so it never lowers the bar below the week before.
 // `session` is the one being lengthened (null for an added session).
 function guardTaperGrowth(p, week, { date, type, session = null }, addedKm, resultKm, today) {
   const days = daysBetween(date, p.raceDate);
@@ -264,16 +268,18 @@ function guardTaperGrowth(p, week, { date, type, session = null }, addedKm, resu
     if (raceKm > 0 && resultKm > raceKm)
       throw new CoachToolError("TAPER", `In the final ${TAPER_EASY_DAYS} days no session goes past the race distance (${raceKm} km).`);
   }
+  const load = (w) => loadKm(w, p);
   const idx = p.weeks.indexOf(week);
   const prevWeek = idx > 0 ? p.weeks[idx - 1] : null;
   // A fully skipped week before carries no load, so it can't be the reference.
-  const prev = prevWeek && loadKm(prevWeek) > 0 ? prevWeek : null;
-  const ref = prev ? loadKm(prev) : Math.max(0, ...p.weeks.filter(w => w !== week && w.phase !== "TAPER" &&
-    w.phase !== "RACE" && daysBetween(w.startDate, p.raceDate) > 14).map(loadKm));
-  const after = loadKm(week) + addedKm;
-  const raceNote = prev?.sessions.some(s => s.type === "RACE") ? ", not counting its race" : "";
+  let refWeek = prevWeek && load(prevWeek) > 0 ? prevWeek : null;
+  const beforeRace = refWeek?.sessions.some(s => isTuneUp(s, p)) && idx > 1 ? p.weeks[idx - 2] : null;
+  if (beforeRace && load(beforeRace) > load(refWeek)) refWeek = beforeRace;
+  const ref = refWeek ? load(refWeek) : Math.max(0, ...p.weeks.filter(w => w !== week && w.phase !== "TAPER" &&
+    w.phase !== "RACE" && daysBetween(w.startDate, p.raceDate) > 14).map(load));
+  const after = load(week) + addedKm;
   if (ref > 0 && after > ref)
-    throw new CoachToolError("TAPER", `That would put week ${week.weekNumber} at ${after.toFixed(1)} km, above ${prev ? `week ${prev.weekNumber}` : "the plan's peak week"} (${ref.toFixed(1)} km of training${raceNote}) — near the race each week stays at or below the one before.`);
+    throw new CoachToolError("TAPER", `That would put week ${week.weekNumber} at ${after.toFixed(1)} km, above ${refWeek ? `week ${refWeek.weekNumber}` : "the plan's peak week"} (${ref.toFixed(1)} km) — near the race each week stays at or below the one before${refWeek && refWeek !== prevWeek ? ` (week ${prevWeek.weekNumber} was lightened around its race, so week ${refWeek.weekNumber} is the reference)` : ""}.`);
 }
 
 // A cross-training day's minutes follow its effort-equivalent km.
