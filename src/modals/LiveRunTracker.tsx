@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Link2, Check, RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
-import { ROUTE_SIMPLIFY_M, simplify } from "../utils/geo";
-import { trimmedMovingSec } from "../utils/idleEdges";
+import { ROUTE_SIMPLIFY_M, distanceKm, simplify } from "../utils/geo";
+import { trimIdleEnds } from "../utils/idleEdges";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
 import { shareLinkState, watchUrl } from "../live/shareLink";
@@ -393,11 +393,12 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     const stoppedAt = Date.now();
     rt.stop();
     // Measured exactly as handleSave will, so its best efforts are the ones saved.
-    const simplified = simplify(points, ROUTE_SIMPLIFY_M);
+    const cut = trimIdleEnds(stats.movingSec, points, startedAt, stoppedAt);
+    const simplified = simplify(cut.points, ROUTE_SIMPLIFY_M);
     const firstAt = points.find(Boolean)?.[2] || stoppedAt;
     const run: Run = {
-      date: ymd(new Date(firstAt)), type: "EASY", km: +stats.km.toFixed(2),
-      durationSec: trimmedMovingSec(stats.movingSec, points, startedAt, stoppedAt).durationSec,
+      date: ymd(new Date(firstAt)), type: "EASY", km: +distanceKm(cut.points).toFixed(2),
+      durationSec: cut.durationSec,
       elevation: stats.elevation, source: "gps", bestEfforts: bestEffortsFromTrack(simplified),
     };
     const c = celebrate({ run, runs, points: simplified, session, at: new Date(startedAt || firstAt) });
@@ -480,14 +481,16 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
 
   const live = state === "tracking" || state === "paused";
 
-  // Once stopped, the time that saves: standing at the start/finish trimmed off.
+  // Once stopped, the run that saves: standing at the start/finish trimmed off.
   const trim = useMemo(() => {
     if (state !== "stopped") return null;
     const { startedAt, stoppedAt } = rt.runWindow();
-    return trimmedMovingSec(stats.movingSec, points, startedAt, stoppedAt);
-  }, [state, stats.movingSec, points, rt]);
+    const cut = trimIdleEnds(stats.movingSec, points, startedAt, stoppedAt);
+    return { ...cut, km: cut.points === points ? stats.km : distanceKm(cut.points) };
+  }, [state, stats.movingSec, stats.km, points, rt]);
   const runSec = trim?.durationSec ?? stats.movingSec;
-  const avgPace = trim && stats.km > 0 ? runSec / stats.km : stats.avgPace;
+  const runKm = trim?.km ?? stats.km;
+  const avgPace = trim && runKm > 0 ? runSec / runKm : stats.avgPace;
 
   // Returning from a locked screen / app background snaps the live map back to the
   // current position at the default zoom (the requested reset). visibilitychange
@@ -607,7 +610,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     void publishLiveRun({
       status,
       points: simplify(points, 5),
-      stats: { km: +stats.km.toFixed(2), durationSec: runSec, elevation: stats.elevation,
+      stats: { km: +runKm.toFixed(2), durationSec: runSec, elevation: stats.elevation,
         avgPace: Math.round(avgPace), curPace: Math.round(stats.curPace) },
       startedAt: rt.runWindow().startedAt,
       sharePublic,
@@ -628,7 +631,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     });
     // `stats` is in the deps because the moving clock (and HR) can advance
     // without `points` changing — e.g. a paused runner resuming.
-  }, [shareLive, state, points, stats, runSec, avgPace, rt, sharePublic, showToast, t]);
+  }, [shareLive, state, points, stats, runSec, runKm, avgPace, rt, sharePublic, showToast, t]);
 
   // The single-writer handoff. Arm the native uploader when the page goes
   // hidden mid-broadcast (visibilitychange fires before Android freezes the
@@ -697,8 +700,8 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     // way, and a failed delete must never stand between the runner and a saved
     // run (the boot sweep clears an orphan row).
     endShare();
-    const simplified = simplify(points, ROUTE_SIMPLIFY_M);
-    const km = +stats.km.toFixed(2);
+    const simplified = simplify(trim?.points ?? points, ROUTE_SIMPLIFY_M);
+    const km = +runKm.toFixed(2);
     // Heart rate through the one shared resolver (src/hr/runHr.ts), the same
     // call the indoor recorder makes: a live source's stream folded together
     // with the native journal (JS only ever saw the beats it was awake for)
@@ -847,7 +850,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     {minimized && (
       <MinimizedRecorderBar state={state} onOpen={() => onRestore?.()}
         title={t(state === "stopped" ? "tracker.minimize.stopped" : state === "paused" ? "tracker.minimize.paused" : "tracker.minimize.tracking")}
-        detail={`${stats.km.toFixed(2)} km · ${fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)}`} />
+        detail={`${runKm.toFixed(2)} km · ${fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)}`} />
     )}
     <div className={"fixed inset-0 bg-slate-900 z-50 flex-col animate-slide-up " + (minimized ? "hidden" : "flex")}>
       <header className="flex items-center justify-between px-4 border-b border-slate-800"
@@ -1005,7 +1008,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
         {state !== "idle" && (
           <>
             <div className="grid grid-cols-4 gap-2">
-              <Stat label={t("tracker.stats.km")} value={stats.km.toFixed(2)} pulseKey={live ? Math.floor(stats.km) : undefined} />
+              <Stat label={t("tracker.stats.km")} value={runKm.toFixed(2)} pulseKey={live ? Math.floor(stats.km) : undefined} />
               <Stat label={t("tracker.stats.time")} value={fmt.dur(runSec) === "--" ? "0:00" : fmt.dur(runSec)} />
               <Stat label={t("tracker.stats.pace")} value={fmt.pace(state === "tracking" ? stats.curPace : avgPace)}
                 sub={liveHr ? `${stats.elevation} m` : undefined} />

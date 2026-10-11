@@ -83,3 +83,19 @@ export function trimmedMovingSec(movingSec: number, points: TrackPointOrGap[], s
   const trimmedSec = Math.round(Math.min(Math.max(0, leadSec + tailSec - pausedSec), movingSec));
   return { durationSec: movingSec - trimmedSec, trimmedSec };
 }
+
+// The run as it saves: the trimmed clock, and the trace cut to the fixes it
+// departed from and arrived at, so the drift standing there isn't distance.
+export function trimIdleEnds(movingSec: number, points: TrackPointOrGap[], startedAt: number | null, stoppedAt: number | null) {
+  const time = trimmedMovingSec(movingSec, points, startedAt, stoppedAt);
+  const b = startedAt && stoppedAt ? idleBounds(points) : null;
+  if (!b) return { ...time, points };
+  let from = 0, to = points.length - 1;
+  for (let i = 0, real = 0; i < points.length; i++) {
+    if (!points[i]) continue;
+    if (real === b.depart) from = i;
+    if (real === b.arrive) to = i;
+    real++;
+  }
+  return { ...time, points: points.slice(from, to + 1) };
+}
