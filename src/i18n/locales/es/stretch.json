@@ -35,7 +35,7 @@
     "restday": {
       "name": "Estiramientos del día de descanso",
       "when": "Un día libre, cuando tienes algo más de tiempo",
-      "why": "Dos rondas de 30 s por lado: cerca de un minuto por músculo, que es lo que mejora el rango de movimiento con el paso de las semanas."
+      "why": "Estiramientos en el suelo que no están en la vuelta a la calma, en dos rondas de 30 s: cerca de un minuto por músculo, que es lo que mejora el rango de movimiento con el paso de las semanas."
     }
   },
   "moves": {
@@ -129,6 +129,27 @@
       "cue1": "Redondea la espalda al soltar el aire",
       "cue2": "Arquéala al coger aire",
       "cue3": "Muévete despacio, sin forzar"
+    },
+    "downDog": {
+      "name": "Perro boca abajo",
+      "target": "Gemelos, isquios",
+      "cue1": "Manos y pies en el suelo, cadera alta",
+      "cue2": "Rodillas sueltas si tira la parte de atrás de las piernas",
+      "cue3": "Deja que los talones bajen hacia el suelo"
+    },
+    "pigeon": {
+      "name": "Paloma",
+      "target": "Glúteos, cadera externa",
+      "cue1": "Espinilla delantera en el suelo, pierna de atrás estirada",
+      "cue2": "Manos en el suelo, pecho alto",
+      "cue3": "Un cojín bajo la cadera si no llega"
+    },
+    "sideQuad": {
+      "name": "Cuádriceps tumbado de lado",
+      "target": "Parte delantera del muslo",
+      "cue1": "De lado, cabeza apoyada en el brazo",
+      "cue2": "Lleva el talón de arriba hacia el glúteo",
+      "cue3": "Rodillas juntas, cadera hacia delante"
     }
   },
   "sheet": {
@@ -214,7 +235,7 @@
   },
   "record": {
     "row": "Estirar",
-    "rowSub": "Rutinas guiadas, de 3 a 16 min",
+    "rowSub": "Rutinas guiadas, de 3 a 10 min",
     "or": "o"
   },
   "settings": {

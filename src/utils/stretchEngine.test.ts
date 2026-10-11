@@ -14,16 +14,22 @@ describe("routineSteps", () => {
 
   it("repeats rounds before the tail", () => {
     const steps = routineSteps(ROUTINES.restday);
-    expect(steps).toHaveLength(25);
-    expect(steps[12]).toEqual({ ...steps[0], prepSec: 15 });
-    expect(steps[24]).toEqual({ move: "child", sec: 60, side: null, prepSec: 10 });
+    expect(steps).toHaveLength(15);
+    expect(steps[7]).toEqual({ ...steps[0], prepSec: 10 });
+    expect(steps[14]).toEqual({ move: "child", sec: 60, side: null, prepSec: 10 });
   });
 
   it("quotes the minutes the routine cards promise", () => {
     expect(routineMinutes(ROUTINES.cooldown)).toBe(7);
     expect(routineMinutes(ROUTINES.recovery)).toBe(9);
     expect(routineMinutes(ROUTINES.warmup)).toBe(3);
-    expect(routineMinutes(ROUTINES.restday)).toBe(16);
+    expect(routineMinutes(ROUTINES.restday)).toBe(10);
+  });
+
+  it("gives the rest day its own moves, not the cool-down again", () => {
+    const moves = (id: keyof typeof ROUTINES) => new Set(ROUTINES[id].items.map(i => i.move));
+    const shared = [...moves("restday")].filter(m => moves("cooldown").has(m));
+    expect(shared.length).toBeLessThanOrEqual(1);
   });
 });
 

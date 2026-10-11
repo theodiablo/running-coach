@@ -35,7 +35,7 @@
     "restday": {
       "name": "Étirements du jour de repos",
       "when": "Un jour de repos, quand tu as un peu plus de temps",
-      "why": "Deux séries de 30 s par côté : environ une minute par muscle, ce qui améliore l'amplitude de mouvement au fil des semaines."
+      "why": "Des étirements au sol absents du retour au calme, en deux séries de 30 s : environ une minute par muscle, ce qui améliore l'amplitude de mouvement au fil des semaines."
     }
   },
   "moves": {
@@ -129,6 +129,27 @@
       "cue1": "Arrondis le dos en expirant",
       "cue2": "Creuse le dos en inspirant",
       "cue3": "Bouge lentement, sans forcer"
+    },
+    "downDog": {
+      "name": "Chien tête en bas",
+      "target": "Mollets, ischios",
+      "cue1": "Mains et pieds au sol, bassin haut",
+      "cue2": "Genoux souples si l'arrière des jambes tire",
+      "cue3": "Laisse les talons descendre vers le sol"
+    },
+    "pigeon": {
+      "name": "Pigeon",
+      "target": "Fessiers, extérieur de hanche",
+      "cue1": "Tibia avant au sol, jambe arrière allongée",
+      "cue2": "Mains au sol, buste droit",
+      "cue3": "Un coussin sous la hanche si elle ne touche pas"
+    },
+    "sideQuad": {
+      "name": "Quadriceps allongé sur le côté",
+      "target": "Avant de la cuisse",
+      "cue1": "Sur le côté, tête posée sur le bras",
+      "cue2": "Ramène le talon du dessus vers la fesse",
+      "cue3": "Genoux serrés, hanche poussée vers l'avant"
     }
   },
   "sheet": {
@@ -214,7 +235,7 @@
   },
   "record": {
     "row": "S'étirer",
-    "rowSub": "Routines guidées, de 3 à 16 min",
+    "rowSub": "Routines guidées, de 3 à 10 min",
     "or": "ou"
   },
   "settings": {

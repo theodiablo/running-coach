@@ -35,7 +35,7 @@
     "restday": {
       "name": "Rest-day stretch",
       "when": "A day off, when you have a bit more time",
-      "why": "Two rounds of 30 s a side: about a minute per muscle, which is what improves range of motion over the weeks."
+      "why": "Floor stretches the cool-down doesn't have, in two rounds of 30 s: about a minute per muscle, which is what improves range of motion over the weeks."
     }
   },
   "moves": {
@@ -129,6 +129,27 @@
       "cue1": "Round your back as you breathe out",
       "cue2": "Arch as you breathe in",
       "cue3": "Move slowly, nothing forced"
+    },
+    "downDog": {
+      "name": "Downward dog",
+      "target": "Calves, hamstrings",
+      "cue1": "Hands and feet on the floor, hips high",
+      "cue2": "Knees soft if the backs of your legs pull",
+      "cue3": "Let the heels sink toward the floor"
+    },
+    "pigeon": {
+      "name": "Pigeon",
+      "target": "Glutes, outer hip",
+      "cue1": "Front shin on the floor, back leg long",
+      "cue2": "Hands down beside you, chest tall",
+      "cue3": "Cushion under the hip if it doesn't reach"
+    },
+    "sideQuad": {
+      "name": "Side-lying quad stretch",
+      "target": "Front of thigh",
+      "cue1": "On your side, head on your arm",
+      "cue2": "Pull the top heel toward your glute",
+      "cue3": "Knees together, hip pushed forward"
     }
   },
   "sheet": {
@@ -214,7 +235,7 @@
   },
   "record": {
     "row": "Stretch",
-    "rowSub": "Guided routines, 3 to 16 min",
+    "rowSub": "Guided routines, 3 to 10 min",
     "or": "or"
   },
   "settings": {

@@ -53,7 +53,7 @@ import { RaceFormModal } from "./modals/RaceFormModal";
 import { LiveRunTracker } from "./modals/LiveRunTracker";
 import { IndoorTracker } from "./modals/IndoorTracker";
 import { RecordSheet } from "./modals/RecordSheet";
-import { appendStretchLog, readStretchLog, stretchesThisWeek } from "./utils/stretchSuggest";
+import { appendStretchLog, readStretchLog, stretchSuggestion, stretchesThisWeek } from "./utils/stretchSuggest";
 import type { StretchLogEntry } from "./utils/stretchSuggest";
 import type { StretchTarget } from "./modals/StretchSheet";
 import type { RoutineId } from "./stretch/routines";
@@ -189,10 +189,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // straight to the Log tab, which then had to offer every way of recording at
   // once; the sheet asks first so each destination does one thing.
   const [showRecordSheet, setShowRecordSheet] = useState(false);
-  // Stretching (docs/stretching.md): the sheet, and the Home
-  // suggestion it was opened from, if any.
+  // Stretching (docs/stretching.md): the sheet, and the suggestion it was opened
+  // from, if any. `afterRun` waits behind the post-run reward sheet.
   const [stretchLog, setStretchLog] = useState<StretchLogEntry[]>([]);
-  const [stretchOpen, setStretchOpen] = useState<{ target: StretchTarget | null } | null>(null);
+  const [stretchOpen, setStretchOpen] = useState<{ target: StretchTarget | null; afterRun?: boolean } | null>(null);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
   // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
   // a Dashboard banner so the runner doesn't have to know to reopen the recorder
@@ -1266,6 +1266,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (recorderOpen) return;
     setStretchOpen({ target: target ?? null });
   };
+  // A live run just saved: offer its cool-down straight away, by the same rules as Home's banner.
+  const offerStretchAfterRun = (saved: Run[]) => {
+    const s = stretchSuggestion({ runs: [...saved, ...runs], plan, log: stretchLog, now: new Date(),
+      enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed });
+    if (s?.routine === "cooldown" && !recorderOpen) setStretchOpen({ target: s, afterRun: true });
+  };
   const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
@@ -1354,7 +1360,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onManual={() => goLog()}
         onStretch={() => openStretch()}
         onClose={() => setShowRecordSheet(false)}/>}
-      {stretchOpen && (
+      {stretchOpen && !(stretchOpen.afterRun && achievement) && (
         <ChunkLoadBoundary fallback={null}
           onError={() => { setStretchOpen(null); showToast(t("stretch.loadError"), "err"); }}>
           <Suspense fallback={<div className="fixed inset-0 bg-slate-900 z-50"/>}>
@@ -1493,6 +1499,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
             // A saved single-run import review (prefill carries the provider
             // extId) confirms the cloud page — release its deferred ack.
             if (logPrefill?.extId) commitCloudScans();
+            if (logPrefill?.source === "gps") offerStretchAfterRun(saved);
           }}
           onDone={() => { setLogPrefill(null); setTab("dash"); }}/>}
         {tab === "races" && <RacesView {...shared}/>}
