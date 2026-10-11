@@ -266,7 +266,16 @@ the last 2 days.
 **Never, whatever the evidence:** to make up missed volume; under any pain,
 injury or illness signal (including an unresolved one in Coach memory);
 alongside a refusal; past the plan's longest live training session plus a 10%
-margin; or a week near the race past the week before it.
+margin; or a week near the race past the week before it. "Load" there counts a
+tune-up race (any RACE before race day) as the km it is, and a week holding one
+was lightened around it, so the week before it stays the bar when it's higher.
+
+**A refusal carries its reason.** A guard that blocks load (`TAPER`,
+`RACE_EVE`, `TOO_LONG`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
+protects the runner" line from `RULE_WHY` (`tools.mjs`), and the prompt asks for
+the rule in training terms, its reason, the runner's own numbers, and what they
+can do instead, never "the app/validator requires". A rule cited without its
+why reads as the app getting in the runner's way.
 
 ## Validator rules (safety > consistency > peak performance)
 

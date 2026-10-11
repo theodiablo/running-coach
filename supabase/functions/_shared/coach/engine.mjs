@@ -3,7 +3,7 @@
 // function injects the real Anthropic SDK call). Invariants: docs/coach-agent.md.
 
 import { validatePlan, formatValidation } from "./validation.mjs";
-import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, assessWeekAdherence, CoachToolError } from "./tools.mjs";
+import { TOOL_DEFS, applyToolCall, assessGoalFeasibility, assessWeekAdherence, CoachToolError, RULE_WHY } from "./tools.mjs";
 import { isElapsedWeek, todayYmd } from "./weeks.mjs";
 
 export const MAX_VALIDATOR_RETRIES = 3;
@@ -39,6 +39,7 @@ Rules:
 - Say it first, unprompted: if RECENT RUNS plainly outrun what the plan prescribes, propose the increase yourself even when they asked about something else. They still have to tap Confirm. The exception is a turn where you are REFUSING something (a jailbreak, another user's data, rewriting the record, moving a race) — a refusal travels alone; never staple a plan edit to one.
 - If their paces or stated capability also outrun the GOAL (threshold work at 4:10/km against a 4:30/km goal pace), adjust the sessions AND separately say the goal itself looks soft, linking it as [your goal](app:goal) — both levers, clearly distinguished. The sessions are yours to change; the goal is theirs.
 - Hard limits on adding load: never under any pain, injury or illness signal — including an unresolved one in Coach memory, where you ask whether it has cleared before adding anything; never to make up missed volume; never lengthen or add quality work (tempo, intervals) inside the final 14 days; nothing at all in the last 2 days before the race. The rest of the final 14 days is open: a plan built shortly before a race holds placeholder distances, not a taper of this runner's real training, so lengthening its easy and long days toward what they actually run IS the right taper. Keep its shape: each week near the race stays at or below the one before, and in the final 7 days the long run doesn't grow and no session goes past the race distance (the tools enforce this).
+- When a tool refuses part of what the runner asked for, explain it the way a coach would, not the way an error log would. Name the rule in training terms (the taper, race-week rest, building distance gradually), give the reason it is in THEIR interest in a sentence (the refusal's "Why" line is the substance; say it in your own words), put it in their numbers (which sessions, which weeks, how many km), and end with what they can do instead (the part you did apply, a smaller change that fits, or what will change after the race). Never pin it on "the app", "the system", "the validator" or "the tool", and never quote internal bookkeeping ("what the validator counts"): these are coaching rules you stand behind, and a rule given without its reason reads as the app getting in their way.
 - No log and no self-reported level, and the right amount hinges on how much they run now: still act on what they told you ("too short" earns meaningfully longer easy days now, not a promise), say you're going on their word, and ask ONE specific question — their usual weekly km or their longest recent run — to size it properly next turn. One question is not a menu.
 - When the runner criticises the plan, take it seriously first. If it looks the way it does because it was built without their history (no logged runs) or close to the race, say so plainly: the distances are a starting point, not a verdict on them. Never open a reply with a refusal ("I'm not changing the plan", "I hear you, but…"). If one part of a request is genuinely off-limits, do the rest, name that one part and why in a sentence, and say what would change your answer.
 - Something the app can't schedule (strength work, mobility, another sport): don't stop at "I can't". Give the practical how-to in text, and when a running day could reasonably become that activity (a bike, swim, elliptical or rowing session), make that edit with convert_to_cross_training.
@@ -411,7 +412,7 @@ export async function generateProposal({ baseline, context, history = [], messag
       } catch (err) {
         if (!(err instanceof CoachToolError)) throw err;
         results.push({ type: "tool_result", tool_use_id: tu.id, is_error: true,
-          content: `${err.code}: ${err.message}` });
+          content: `${err.code}: ${err.message}${RULE_WHY[err.code] ? `\nWhy this protects the runner: ${RULE_WHY[err.code]}` : ""}` });
       }
     }
 

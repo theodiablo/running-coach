@@ -274,6 +274,35 @@ describe("applyToolCall", () => {
       .toThrow(/above week 1/);
   });
 
+  it("a tune-up race counts as load, and its lightened week never lowers the bar", () => {
+    // Week 1: 2.5 + 2.5 + 5 + 11 = 21 km; week 2 holds a 10 km tune-up race and 8 km
+    // of easy running; week 3 (taper) holds 22 km. Goal race in week 4.
+    const p: TestPlan = {
+      raceDate: "2026-01-31", distanceKm: 21.1, goalSec: 6600, targetPace: 330, planSessions: [],
+      weeks: [
+        { weekNumber: 1, startDate: "2026-01-05", phase: "BUILD", sessions: [
+          sess("w1d0", "2026-01-05", "EASY", 2.5), sess("w1d2", "2026-01-07", "EASY", 2.5),
+          sess("w1d3", "2026-01-08", "TEMPO", 5), sess("w1d6", "2026-01-11", "LONG", 11),
+        ]},
+        { weekNumber: 2, startDate: "2026-01-12", phase: "PEAK", sessions: [
+          sess("w2d1", "2026-01-13", "EASY", 4), sess("w2d3", "2026-01-15", "EASY", 4),
+          sess("tune-up", "2026-01-18", "RACE", 10),
+        ]},
+        { weekNumber: 3, startDate: "2026-01-19", phase: "TAPER", sessions: [
+          sess("w3d1", "2026-01-20", "EASY", 6), sess("w3d6", "2026-01-25", "LONG", 12),
+        ]},
+        { weekNumber: 4, startDate: "2026-01-26", phase: "RACE", sessions: [
+          sess("w4d1", "2026-01-27", "EASY", 4), sess("race", "2026-01-31", "RACE", 21.1),
+        ]},
+      ],
+    };
+    // Reference is week 1 (21 km), not week 2's 8 km of easy running.
+    const ok = applyTool(p, "increase_session_distance", { session_id: "w3d1", factor: 1.5 });
+    expect(ok.weeks[2]!.sessions[0]!.km).toBe(9);
+    expect(() => applyTool(p, "increase_session_distance", { session_id: "w3d1", factor: 1.6 }))
+      .toThrow(/above week 1 \(21\.0 km\).*week 2 was lightened around its race/);
+  });
+
   it("the long run never grows in the final 7 days", () => {
     const p = nearRace();
     p.weeks[1]!.sessions.splice(1, 0, sess("w2d3", "2026-01-14", "LONG", 8));
