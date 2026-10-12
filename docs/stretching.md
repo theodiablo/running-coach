@@ -41,7 +41,9 @@ decides". Keep the two in step when a rule below changes.
   interpolated by `poseAt`. No image files: ~1 KB a pose, nothing to translate,
   works offline. `src/components/StretchFigure.tsx` is the one renderer.
 - `src/stretch/routines.ts`: the moves and the four routines (cool-down,
-  recovery, warm-up, rest-day). `cooldownFor(focus)` reshapes the cool-down for
+  recovery, warm-up, rest-day). The rest day is its own floor set (down dog,
+  pigeon, side-lying quad, hamstring), two rounds: never the cool-down repeated,
+  which made the two read as the same routine (`stretchEngine.test.ts`). `cooldownFor(focus)` reshapes the cool-down for
   the run it follows: hilly (15+ m climb per km) puts calves first at 45 s; a
   tempo, interval or race session gives hips and hamstrings 45 s.
 - `src/utils/stretchEngine.ts`: pure. A routine flattens into steps (a prep +
@@ -61,6 +63,9 @@ decides". Keep the two in step when a rule below changes.
      cool-down;
   2. else, a long run, a race or a 90+ min run yesterday, no hard session
      planned today and nothing logged today: recovery mobility.
+  Saving a live (GPS) run opens the sheet straight on that cool-down, by the
+  same rule, after the post-run reward sheet if one shows (`offerStretchAfterRun`
+  in `RunningCoach`); closing it leaves the Home banner as the way back.
   Off when `settings.stretchSuggest === false`, when `stretchDismissed` is today
   ("Not today", whose toast links to Training profile), and while a recorder is
   open: the player's audio and screen lock would fight the recorder's, so

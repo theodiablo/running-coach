@@ -11,6 +11,7 @@ export type MoveId = PoseId;
 export const MOVE_KIND: Record<MoveId, "hold" | "drill"> = {
   calfWall: "hold", calfBent: "hold", quad: "hold", hipFlexor: "hold",
   hamStrap: "hold", kneeChest: "hold", child: "hold", legsWall: "hold",
+  downDog: "hold", pigeon: "hold", sideQuad: "hold",
   legSwing: "drill", lunge: "drill", highKnees: "drill", calfRaise: "drill", catCow: "drill",
 };
 
@@ -20,6 +21,7 @@ export type Posture = "stand" | "kneel" | "lie";
 export const MOVE_POSTURE: Record<MoveId, Posture> = {
   calfWall: "stand", calfBent: "stand", quad: "stand", hipFlexor: "kneel",
   hamStrap: "lie", kneeChest: "lie", child: "kneel", legsWall: "lie",
+  downDog: "kneel", pigeon: "kneel", sideQuad: "lie",
   legSwing: "stand", lunge: "stand", highKnees: "stand", calfRaise: "stand", catCow: "kneel",
 };
 
@@ -56,7 +58,12 @@ export const ROUTINES: Record<RoutineId, Routine> = {
     id: "warmup",
     items: [item("legSwing", 30), item("lunge", 40, 1), item("highKnees", 20, 1), item("calfRaise", 30, 1)],
   },
-  restday: { id: "restday", items: COOLDOWN_ITEMS, rounds: 2, tail: [item("child", 60, 1)] },
+  restday: {
+    id: "restday",
+    items: [item("downDog", 30, 1), item("pigeon", 30), item("sideQuad", 30), item("hamStrap", 30)],
+    rounds: 2,
+    tail: [item("child", 60, 1)],
+  },
 };
 
 export const ROUTINE_ORDER: RoutineId[] = ["cooldown", "recovery", "warmup", "restday"];
