@@ -71,7 +71,8 @@ describe("useGuidedWorkout callouts", () => {
     rerender({ state: "tracking", stats: { km: 0.99, movingSec: 290, curPace: 300 } });
     expect(spoken("info")).toEqual([]);
     rerender({ state: "tracking", stats: { km: 1.01, movingSec: 300, curPace: 300 } });
-    expect(spoken("info")).toEqual(["1.0 kilometre done."]);
+    // A tempo block says what's left even with "What's left" unticked.
+    expect(spoken("info")).toEqual(["1.0 kilometre done. Still 4.0 kilometres to go."]);
   });
 
   it("per-km callouts count from where guidance started (a recovered run)", () => {

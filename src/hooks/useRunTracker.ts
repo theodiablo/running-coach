@@ -222,6 +222,10 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     const np: StoredTrackPoint = [latitude, longitude, t, altitude == null ? null : Math.round(altitude)];
     pointsRef.current = [...next, np];
     setPoints(pointsRef.current);
+    // The clock rides the fix too: the 1s tick is throttled in a hidden page, and
+    // a stale clock beside fresh distance anchors the guided steps late.
+    const atFix = startRef.current ? accRef.current + (Math.min(t, Date.now()) - startRef.current) / 1000 : accRef.current;
+    setMovingSec(m => Math.max(m, Math.round(atFix)));
     logTrack("fix", { t, acc: accuracy ?? null, sinceMs: sinceLastFix });
     persist();
   }, [persist]);

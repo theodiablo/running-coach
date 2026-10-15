@@ -71,6 +71,9 @@ distance, what's left), `freeOn`.
   `hrHi + margin`, at most every `HR_WARN_EVERY_SEC`; spoken at once.
 - The schedule is frozen once the run starts, so a synced prefs or HR-profile
   change landing mid-run can't restart it.
+- A work step (tempo block, rep) always says what's left, whatever `say.left`
+  holds: it is the figure the runner paces and plans the route by. The toggle
+  governs the other steps; the sheet says so when it's off.
 - `calloutContent` decides what the sentence holds; the hook words it
   (`tracker.guided.speak.*`). The old 25 s "too fast / too slow" nag is gone —
   the verdict lives inside the callout.
@@ -115,9 +118,14 @@ ranges the prose promises (tests pin this). Rules to keep:
 the tracker's cumulative distance and MOVING time (pauses excluded for free).
 It advances through every boundary crossed since the last call (screen-on
 catch-up can cross several; announce only the last), anchoring each boundary
-at its true km/sec — except a time step entered off a distance boundary,
-which anchors at "now" (a single snapshot can't say when the rep really
-ended; conservative beats early). It is driven by the renders the accepted
+at its true km/sec — except across kinds: a time step entered off a distance
+boundary anchors its clock at "now", and a distance step entered off a time
+boundary anchors its km at "now" (a single snapshot can't say when the step
+really ended). So the two inputs must be read at the same instant: the
+tracker refreshes `movingSec` on every accepted fix, not only on its 1s tick,
+which a hidden page throttles to a minute. A stale clock beside fresh distance
+anchors the next step late, and the re-seed carries that anchor into the
+native engine (a tempo block outliving its distance, the cool-down called "slow"). It is driven by the renders the accepted
 GPS fixes and the tracker's foreground 1s tick already produce — **never a
 timer of its own** (frozen in background, the repo rule).
 

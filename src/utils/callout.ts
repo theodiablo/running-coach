@@ -95,12 +95,14 @@ export function calloutContent(
 ): CalloutContent {
   const hasPace = now.curPace > 0;
   const hasLeft = now.left.m != null || now.left.sec != null;
+  // A tempo block or rep always says what's left: it's what the runner paces and routes by.
+  const sayLeft = say.left || step.kind === "work";
   return {
     km: say.dist || perKm ? now.km : null,
     verdict: say.pace ? paceVerdict(step, now.curPace) : null,
     pace: say.pace && hasPace ? now.curPace : null,
     target: step.pace ?? null,
     hr: say.hr && now.hr != null ? now.hr : null,
-    left: say.left && hasLeft ? now.left : null,
+    left: sayLeft && hasLeft ? now.left : null,
   };
 }

@@ -73,6 +73,7 @@ export function AudioGuideSheet({ on, prefs, pace, hr, hasHrSensor, sample, onTo
               </button>
             ))}
           </div>
+          {!prefs.say.left && <p className="text-xs text-slate-400">{t("tracker.audio.leftInWork")}</p>}
           <div className="flex items-start gap-2 rounded-xl bg-slate-900 px-3 py-2.5">
             <p className="flex-1 text-xs italic text-slate-300">{sample ? `“${sample}”` : t("tracker.audio.nothingSelected")}</p>
             <button onClick={onHear} disabled={!sample}

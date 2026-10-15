@@ -249,6 +249,18 @@ describe("useRunTracker — moving-time accounting", () => {
     act(() => result.current.stop());
     expect(result.current.stats.movingSec).toBe(15); // 10 + 5, paused gap excluded
   });
+
+  it("advances the clock with each accepted fix, not only on the (throttled) tick", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.start());
+    const w = recording();
+    feed(w, { latitude: 48.8566, longitude: 2.3522, accuracy: 5 }, START + 1_000);
+    // No timer runs: a hidden page's interval can sit a minute between wake-ups.
+    vi.setSystemTime(START + 45_000);
+    feed(w, { latitude: 48.8576, longitude: 2.3522, accuracy: 5 }, START + 44_000);
+    expect(result.current.stats.movingSec).toBe(44);
+    expect(result.current.stats.km).toBeGreaterThan(0.1);
+  });
 });
 
 describe("useRunTracker — recovery buffer", () => {

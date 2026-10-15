@@ -293,6 +293,7 @@
       "dist": "Distance",
       "left": "What's left"
     },
+    "leftInWork": "During a tempo block or a rep, what's left is always read out.",
     "nothingSelected": "Nothing selected to read out.",
     "hear": "Hear it"
   },

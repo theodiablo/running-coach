@@ -60,8 +60,14 @@ describe("calloutContent", () => {
   it("says what the runner picked", () => {
     expect(calloutContent({ pace: true, hr: true, dist: false, left: true }, step, now, false))
       .toEqual({ km: null, verdict: "slow", pace: 315, target: 300, hr: 160, left: { m: 400 } });
-    expect(calloutContent({ pace: false, hr: false, dist: false, left: false }, step, now, false))
-      .toEqual({ km: null, verdict: null, pace: null, target: 300, hr: null, left: null });
+    expect(calloutContent({ pace: false, hr: false, dist: false, left: false }, { kind: "steady", m: 5000 }, now, false))
+      .toEqual({ km: null, verdict: null, pace: null, target: null, hr: null, left: null });
+  });
+
+  it("a tempo block or rep always says what's left, whatever the runner unticked", () => {
+    const none = { pace: false, hr: false, dist: false, left: false };
+    expect(calloutContent(none, step, now, false).left).toEqual({ m: 400 });
+    expect(calloutContent(none, { kind: "cooldown", sec: 480 }, { ...now, left: { sec: 200 } }, false).left).toBeNull();
   });
 
   it("per-km callouts always name the distance", () => {

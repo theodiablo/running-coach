@@ -436,7 +436,8 @@ class WorkoutGuidePlugin : Plugin() {
             })
         }
         if (sayHr && bpm != null) parts.add(fill("heart", "bpm" to bpm.toString()))
-        if (sayLeft) {
+        // Mirrors calloutContent: a work step always says what's left.
+        if (sayLeft || step.kind == "work") {
             if (step.m != null) {
                 val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
                 parts.add(if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))

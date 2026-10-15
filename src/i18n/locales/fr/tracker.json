@@ -293,6 +293,7 @@
       "dist": "Distance",
       "left": "Ce qu'il reste"
     },
+    "leftInWork": "Pendant un bloc tempo ou une répétition, ce qu'il reste est toujours annoncé.",
     "nothingSelected": "Rien à annoncer.",
     "hear": "Écouter"
   },
