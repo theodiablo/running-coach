@@ -171,12 +171,16 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
       else parts.push(t("tracker.guided.speak.paceIs", { pace }));
     }
     if (c.hr != null) parts.push(t("tracker.guided.speak.heart", { bpm: c.hr }));
-    if (c.left?.m != null) parts.push(c.left.m >= 1000
-      ? t("tracker.guided.speak.leftKm", { count: kmCount(c.left.m / 1000), km: spokenKm(c.left.m / 1000) })
-      : t("tracker.guided.speak.leftM", { count: c.left.m }));
-    else if (c.left?.sec != null) parts.push(c.left.sec > 90
-      ? t("tracker.guided.speak.leftMin", { count: Math.round(c.left.sec / 60) })
-      : t("tracker.guided.speak.leftSec", { count: c.left.sec }));
+    const left = c.left?.m != null
+      ? (c.left.m >= 1000
+        ? t("tracker.guided.speak.leftKm", { count: kmCount(c.left.m / 1000), km: spokenKm(c.left.m / 1000) })
+        : t("tracker.guided.speak.leftM", { count: c.left.m }))
+      : c.left?.sec != null
+        ? (c.left.sec > 90
+          ? t("tracker.guided.speak.leftMin", { count: Math.round(c.left.sec / 60) })
+          : t("tracker.guided.speak.leftSec", { count: c.left.sec }))
+        : null;
+    if (left) { if (c.leftFirst) parts.unshift(left); else parts.push(left); }
     return parts.join(" ");
   }, [t, shortPace, spokenKm]);
 
@@ -281,6 +285,8 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
       if (seededRef.current) { seededRef.current = false; clearWorkoutGuide(); }
       return;
     }
+    // A page reload keeps the plugin alive with the last run's engine: drop it first.
+    if (!seededRef.current) clearWorkoutGuide();
     seededRef.current = true;
     const s = statsRef.current;
     // Callout templates keep {placeholders} for the numbers only the native

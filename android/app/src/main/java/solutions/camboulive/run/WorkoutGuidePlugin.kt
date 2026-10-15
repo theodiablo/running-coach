@@ -92,6 +92,7 @@ class WorkoutGuidePlugin : Plugin() {
     private val handler = Handler(Looper.getMainLooper())
     private var enabled = false
     private var steps: List<Step> = emptyList()
+    private var stepsSig = ""
     private var loopFrom = -1
     private var idx = 0
     private var stepStartKm = 0.0
@@ -111,7 +112,7 @@ class WorkoutGuidePlugin : Plugin() {
     private var sayPace = true
     private var sayHr = true
     private var sayDist = false
-    private var sayLeft = true
+    private var leftMode = "work"
     private var hrWarn = 0.0
     private var seedAtMs = 0L
     private var lastCurPace = 0.0
@@ -126,7 +127,7 @@ class WorkoutGuidePlugin : Plugin() {
     // Announcement dedupe is NATIVE state: JS never speaks on Android (its
     // playCue no-ops here), so a seed can't mean "already announced". It
     // survives re-seeds (pause/resume/mute are same-idx) and resets only on
-    // teardown or when the engine went backwards (a fresh run).
+    // teardown (JS clears before a fresh run's first seed).
     private var announcedIdx = -1
     private var doneCued = false
 
@@ -258,16 +259,27 @@ class WorkoutGuidePlugin : Plugin() {
             ))
         }
         if (parsed.isEmpty()) return
+        val sig = parsed.joinToString("|") { "${it.kind}:${it.m}:${it.sec}" }
+        val seedIdx = num(data, "idx")?.toInt() ?: 0
+        val seedFinished = data.optBoolean("finished", false)
+        val seedKm = num(data, "km") ?: 0.0
+        // The schedule only moves forward within a run: a seed behind this engine
+        // is a JS view that lagged (a stale clock), never a reason to un-finish.
+        val rewind = enabled && sig == stepsSig && (seedIdx < idx || (finished && !seedFinished))
         steps = parsed
+        stepsSig = sig
         loopFrom = num(data, "loopFrom")?.toInt() ?: -1
-        idx = num(data, "idx")?.toInt() ?: 0
-        stepStartKm = num(data, "stepStartKm") ?: 0.0
-        stepStartSec = num(data, "stepStartSec") ?: 0.0
-        km = num(data, "km") ?: 0.0
-        movingSec = num(data, "movingSec") ?: 0.0
+        if (!rewind) {
+            idx = seedIdx
+            stepStartKm = num(data, "stepStartKm") ?: 0.0
+            stepStartSec = num(data, "stepStartSec") ?: 0.0
+            finished = seedFinished
+        }
+        km = if (rewind) maxOf(km, seedKm) else seedKm
+        val seedMoving = num(data, "movingSec") ?: 0.0
+        movingSec = if (rewind) maxOf(currentMovingSec(), seedMoving) else seedMoving
         movingAnchorWall = System.currentTimeMillis()
         tracking = data.optBoolean("tracking", false)
-        finished = data.optBoolean("finished", false)
         muted = data.optBoolean("muted", false)
         texts = data.optJSONObject("texts") ?: JSONObject()
         notifTitle = texts.optString("notifTitle")
@@ -281,7 +293,12 @@ class WorkoutGuidePlugin : Plugin() {
         sayPace = say?.optBoolean("pace", true) ?: true
         sayHr = say?.optBoolean("hr", true) ?: true
         sayDist = say?.optBoolean("dist", false) ?: false
-        sayLeft = say?.optBoolean("left", true) ?: true
+        // Mirrors readLeft: the old boolean still reads (true = every step).
+        leftMode = when (val l = say?.optString("left", "work") ?: "work") {
+            "true" -> "always"
+            "off", "always" -> l
+            else -> "work"
+        }
         seedAtMs = System.currentTimeMillis()
         val wasEnabled = enabled
         enabled = true
@@ -315,6 +332,7 @@ class WorkoutGuidePlugin : Plugin() {
 
     private fun teardown() {
         enabled = false
+        stepsSig = ""
         announcedIdx = -1
         resetCalloutClock()
         lastCurPace = 0.0
@@ -421,7 +439,10 @@ class WorkoutGuidePlugin : Plugin() {
 
     private fun calloutText(step: Step, nowMoving: Double, bpm: Int?, perKm: Boolean): String {
         val parts = ArrayList<String>()
-        if (sayDist || perKm) parts.add(fill(kmKey("distDone", km), "km" to oneDecimal(km)))
+        // Mirrors calloutContent: in a work step what's left leads and replaces distance done.
+        val work = step.kind == "work"
+        val left = if (work && leftMode != "off" || leftMode == "always") leftText(step, nowMoving) else null
+        if ((sayDist || perKm) && !(work && left != null)) parts.add(fill(kmKey("distDone", km), "km" to oneDecimal(km)))
         // A standing runner emits no fixes: their last pace is not their pace now.
         val freshPace = System.currentTimeMillis() - lastFixWall <= PACE_FRESH_MS
         if (sayPace && lastCurPace > 0 && freshPace) {
@@ -436,21 +457,25 @@ class WorkoutGuidePlugin : Plugin() {
             })
         }
         if (sayHr && bpm != null) parts.add(fill("heart", "bpm" to bpm.toString()))
-        if (sayLeft) {
-            if (step.m != null) {
-                val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
-                parts.add(if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))
-                    else fill(if (leftM == 1L) "leftMOne" else "leftMOther", "n" to leftM.toString()))
-            } else if (step.sec != null) {
-                val leftSec = maxOf(0L, ceil(step.sec - (nowMoving - stepStartSec)).toLong())
-                parts.add(when {
-                    leftSec > 90 -> fill("leftMinOther", "n" to Math.round(leftSec / 60.0).toString())
-                    leftSec == 1L -> fill("leftSecOne", "n" to "1")
-                    else -> fill("leftSecOther", "n" to leftSec.toString())
-                })
+        if (left != null) { if (work) parts.add(0, left) else parts.add(left) }
+        return parts.joinToString(" ")
+    }
+
+    private fun leftText(step: Step, nowMoving: Double): String? {
+        if (step.m != null) {
+            val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
+            return if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))
+                else fill(if (leftM == 1L) "leftMOne" else "leftMOther", "n" to leftM.toString())
+        }
+        if (step.sec != null) {
+            val leftSec = maxOf(0L, ceil(step.sec - (nowMoving - stepStartSec)).toLong())
+            return when {
+                leftSec > 90 -> fill("leftMinOther", "n" to Math.round(leftSec / 60.0).toString())
+                leftSec == 1L -> fill("leftSecOne", "n" to "1")
+                else -> fill("leftSecOther", "n" to leftSec.toString())
             }
         }
-        return parts.joinToString(" ")
+        return null
     }
 
     private fun fill(key: String, vararg values: Pair<String, String>): String {

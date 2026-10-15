@@ -60,7 +60,7 @@ sheet asks for feedback through the Feedback button. Drop both once it's proven.
 `AudioPrefs` (`settings.audioGuide`, synced, read through `readAudioPrefs`):
 `freq` (30/60/90/120 s or each km; default 60 s), `band` (± s/km, default 10),
 `hrWarn` (`"off"`, above the zone, or 5 bpm above), `say` (pace, heart rate,
-distance, what's left), `freeOn`.
+distance done, what's left), `freeOn`.
 
 - `calloutDue`: time callouts run on **moving** time and wait
   `CALLOUT_MIN_INTO_STEP_SEC` into a step (GPS pace settling); per-km ones fire
@@ -71,6 +71,11 @@ distance, what's left), `freeOn`.
   `hrHi + margin`, at most every `HR_WARN_EVERY_SEC`; spoken at once.
 - The schedule is frozen once the run starts, so a synced prefs or HR-profile
   change landing mid-run can't restart it.
+- What's left is three-way (`say.left`: `off` | `work` | `always`, default
+  `work`; the old boolean reads as `true` → `always`, `false` → `work`). In a
+  work step (tempo block, rep) it leads the sentence and replaces distance
+  done, per-km callouts included: the run's total counts the warm-up, while
+  what's left is the figure the runner paces and routes by.
 - `calloutContent` decides what the sentence holds; the hook words it
   (`tracker.guided.speak.*`). The old 25 s "too fast / too slow" nag is gone —
   the verdict lives inside the callout.
@@ -115,9 +120,14 @@ ranges the prose promises (tests pin this). Rules to keep:
 the tracker's cumulative distance and MOVING time (pauses excluded for free).
 It advances through every boundary crossed since the last call (screen-on
 catch-up can cross several; announce only the last), anchoring each boundary
-at its true km/sec — except a time step entered off a distance boundary,
-which anchors at "now" (a single snapshot can't say when the rep really
-ended; conservative beats early). It is driven by the renders the accepted
+at its true km/sec — except across kinds: a time step entered off a distance
+boundary anchors its clock at "now", and a distance step entered off a time
+boundary anchors its km at "now" (a single snapshot can't say when the step
+really ended). So the two inputs must be read at the same instant: the
+tracker refreshes `movingSec` on every accepted fix, not only on its 1s tick,
+which a hidden page throttles to a minute. A stale clock beside fresh distance
+anchors the next step late, and the re-seed carries that anchor into the
+native engine (a tempo block outliving its distance, the cool-down called "slow"). It is driven by the renders the accepted
 GPS fixes and the tracker's foreground 1s tick already produce — **never a
 timer of its own** (frozen in background, the repo rule).
 
@@ -179,13 +189,18 @@ and the sentences as templates with `{pace}` `{target}` `{bpm}` `{km}` `{n}`
 holes the plugin fills; `decimalSep` localizes the km figure. The Handler
 deadline also covers the next time-based callout. The callout clock is
 native-owned like the announcement dedupe (JS never speaks on Android) and
-resets only on teardown or a seed that went backwards.
+resets only on teardown; JS clears before the first seed of each mount, since a
+page reload keeps the plugin (and the last run's engine) alive.
 
 **JS stays the authority.** `src/geo/workoutGuide.ts` re-seeds the full
 engine state (schedule + step index/anchors + km/movingSec + tracking/muted)
 on every material change — start, step transition, pause/resume, audio toggle — so
 native drift is bounded by one boundary and snaps back on the next foreground
-render. `seed`/`clear` mirror the JS engine's rules; **if `advanceWorkout`
+render. One exception: within a run (same schedule, no `clear` between) a
+seed never moves the native engine backwards: an index behind its own, or
+"not finished" after it finished, is a JS view that lagged, so its progress
+is ignored, and its clock is never taken lower. Otherwise a stale re-base un-finishes a completed workout and the
+cool-down gets the work step's verdicts. `seed`/`clear` mirror the JS engine's rules; **if `advanceWorkout`
 changes, change `evaluate()` with it.** Config is memory-only + self-expiring
 (6h), like LivePublish. Numbers are read `Number`-tolerantly (`optNumber`
 rule — epoch/whole values arrive as Long).

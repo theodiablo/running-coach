@@ -290,11 +290,21 @@
     "part": {
       "pace": "Allure",
       "hr": "Cardio",
-      "dist": "Distance",
-      "left": "Ce qu'il reste"
+      "dist": "Distance parcourue"
     },
     "nothingSelected": "Rien à annoncer.",
-    "hear": "Écouter"
+    "hear": "Écouter",
+    "left": {
+      "title": "Ce qu'il reste",
+      "off": "Jamais",
+      "work": "Tempo seul",
+      "always": "Toujours",
+      "hint": {
+        "off": "Jamais annoncé. L'écran affiche toujours ce qu'il reste de chaque étape.",
+        "work": "Seulement pendant un bloc tempo ou une répétition, la partie sur laquelle tu cales ton allure et ton parcours. Annoncé en premier, il y remplace la distance parcourue.",
+        "always": "À chaque étape, échauffement et retour au calme compris. Pendant un bloc tempo ou une répétition, annoncé en premier, il remplace la distance parcourue."
+      }
+    }
   },
   "options": {
     "off": "Désactivé",

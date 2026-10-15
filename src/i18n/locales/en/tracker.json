@@ -290,11 +290,21 @@
     "part": {
       "pace": "Pace",
       "hr": "Heart rate",
-      "dist": "Distance",
-      "left": "What's left"
+      "dist": "Distance done"
     },
     "nothingSelected": "Nothing selected to read out.",
-    "hear": "Hear it"
+    "hear": "Hear it",
+    "left": {
+      "title": "What's left",
+      "off": "Off",
+      "work": "Tempo only",
+      "always": "Always",
+      "hint": {
+        "off": "Never read out. The screen still shows what's left of each step.",
+        "work": "Only during a tempo block or a rep, the part you pace and plan your route by. There it comes first and replaces distance done.",
+        "always": "Every step, warm-up and cool-down included. In a tempo block or a rep it comes first and replaces distance done."
+      }
+    }
   },
   "options": {
     "off": "Off",

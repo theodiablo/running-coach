@@ -7,7 +7,9 @@ import { hrOver, paceVerdict, type PaceVerdict, type WorkoutStep } from "./worko
 
 export type CalloutFreq = 30 | 60 | 90 | 120 | "km";
 export type HrWarn = "off" | 0 | 5;
-export type CalloutParts = { pace: boolean; hr: boolean; dist: boolean; left: boolean };
+/** What's left of the step: never, only in a work step (tempo block, rep), or every step. */
+export type LeftMode = "off" | "work" | "always";
+export type CalloutParts = { pace: boolean; hr: boolean; dist: boolean; left: LeftMode };
 
 /** Synced preference (settings.audioGuide): how the coach talks, never what the run is. */
 export type AudioPrefs = {
@@ -23,12 +25,13 @@ export type AudioPrefs = {
 
 export const CALLOUT_FREQS: CalloutFreq[] = [30, 60, 90, 120, "km"];
 export const HR_WARNS: HrWarn[] = ["off", 0, 5];
+export const LEFT_MODES: LeftMode[] = ["off", "work", "always"];
 export const BAND_MIN = 5;
 export const BAND_MAX = 30;
 
 export const DEFAULT_AUDIO: AudioPrefs = {
   freq: 60, band: 10, hrWarn: 0,
-  say: { pace: true, hr: true, dist: false, left: true },
+  say: { pace: true, hr: true, dist: false, left: "work" },
   freeOn: false,
 };
 
@@ -39,7 +42,7 @@ export const HR_WARN_EVERY_SEC = 45;
 /** Sanitized read of the synced blob — anything malformed falls back to the default. */
 export function readAudioPrefs(raw: unknown): AudioPrefs {
   const r = (raw && typeof raw === "object" ? raw : {}) as Partial<AudioPrefs>;
-  const say = (r.say && typeof r.say === "object" ? r.say : {}) as Partial<CalloutParts>;
+  const say = (r.say && typeof r.say === "object" ? r.say : {}) as Partial<Record<keyof CalloutParts, unknown>>;
   const bool = (v: unknown, d: boolean) => typeof v === "boolean" ? v : d;
   return {
     freq: CALLOUT_FREQS.includes(r.freq as CalloutFreq) ? r.freq as CalloutFreq : DEFAULT_AUDIO.freq,
@@ -47,10 +50,17 @@ export function readAudioPrefs(raw: unknown): AudioPrefs {
     hrWarn: HR_WARNS.includes(r.hrWarn as HrWarn) ? r.hrWarn as HrWarn : DEFAULT_AUDIO.hrWarn,
     say: {
       pace: bool(say.pace, DEFAULT_AUDIO.say.pace), hr: bool(say.hr, DEFAULT_AUDIO.say.hr),
-      dist: bool(say.dist, DEFAULT_AUDIO.say.dist), left: bool(say.left, DEFAULT_AUDIO.say.left),
+      dist: bool(say.dist, DEFAULT_AUDIO.say.dist), left: readLeft(say.left),
     },
     freeOn: bool(r.freeOn, DEFAULT_AUDIO.freeOn),
   };
+}
+
+// The toggle it replaces: ticked keeps every step; unticked still hears the tempo's.
+function readLeft(v: unknown): LeftMode {
+  if (v === true) return "always";
+  if (v === false) return "work";
+  return LEFT_MODES.includes(v as LeftMode) ? v as LeftMode : DEFAULT_AUDIO.say.left;
 }
 
 export type CalloutClock = { lastAtSec: number; lastKm: number };
@@ -85,6 +95,8 @@ export type CalloutContent = {
   target: number | null;
   hr: number | null;
   left: { m?: number; sec?: number } | null;
+  /** Say what's left before anything else (a work step: it's what the runner acts on). */
+  leftFirst: boolean;
 };
 
 /** What the sentence says, given the runner's choices; the caller words it. */
@@ -94,13 +106,16 @@ export function calloutContent(
   perKm: boolean,
 ): CalloutContent {
   const hasPace = now.curPace > 0;
-  const hasLeft = now.left.m != null || now.left.sec != null;
+  const work = step.kind === "work";
+  const left = (work ? say.left !== "off" : say.left === "always") && (now.left.m != null || now.left.sec != null);
   return {
-    km: say.dist || perKm ? now.km : null,
+    // In a work step what's left replaces distance done: the run's total counts the warm-up.
+    km: (say.dist || perKm) && !(work && left) ? now.km : null,
     verdict: say.pace ? paceVerdict(step, now.curPace) : null,
     pace: say.pace && hasPace ? now.curPace : null,
     target: step.pace ?? null,
     hr: say.hr && now.hr != null ? now.hr : null,
-    left: say.left && hasLeft ? now.left : null,
+    left: left ? now.left : null,
+    leftFirst: work,
   };
 }
