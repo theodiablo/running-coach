@@ -48,7 +48,7 @@ export type GuideSeed = {
   callout: {
     /** Seconds between status callouts; 0 = once per kilometre. */
     freqSec: number;
-    say: { pace: boolean; hr: boolean; dist: boolean; left: boolean };
+    say: { pace: boolean; hr: boolean; dist: boolean; left: "off" | "work" | "always" };
     /** bpm over the zone top before warning; -1 = never. */
     hrWarn: number;
   };

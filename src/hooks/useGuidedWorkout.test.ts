@@ -40,11 +40,11 @@ describe("useGuidedWorkout callouts", () => {
     rerender({ state: "tracking", stats: { km: 0.15, movingSec: 45, curPace: 302 } });
     expect(spoken("info")).toEqual([]);
     rerender({ state: "tracking", stats: { km: 0.2, movingSec: 60, curPace: 302, hr: 160, hrAt: Date.now() } });
-    expect(spoken("info")).toEqual(["On pace, 5 02. Heart rate 160. Still 4.8 kilometres to go."]);
+    expect(spoken("info")).toEqual(["Still 4.8 kilometres to go. On pace, 5 02. Heart rate 160."]);
     rerender({ state: "tracking", stats: { km: 0.35, movingSec: 100, curPace: 330, hr: 160, hrAt: Date.now() } });
     expect(spoken("info")).toHaveLength(1);
     rerender({ state: "tracking", stats: { km: 0.4, movingSec: 120, curPace: 330, hr: 160, hrAt: Date.now() } });
-    expect(spoken("info")[1]).toBe("A bit slow, 5 30. Push to 5 00. Heart rate 160. Still 4.6 kilometres to go.");
+    expect(spoken("info")[1]).toBe("Still 4.6 kilometres to go. A bit slow, 5 30. Push to 5 00. Heart rate 160.");
   });
 
   it("warns at once when heart rate passes the zone top", () => {
@@ -66,13 +66,19 @@ describe("useGuidedWorkout callouts", () => {
   });
 
   it("per-km callouts fire on each kilometre and say the distance", () => {
-    const { rerender } = setup({ ...DEFAULT_AUDIO, freq: "km", say: { pace: false, hr: false, dist: false, left: false } });
+    const { rerender } = setup({ ...DEFAULT_AUDIO, freq: "km", say: { pace: false, hr: false, dist: false, left: "off" } });
     rerender({ state: "tracking", stats: { km: 0, movingSec: 0, curPace: 0 } });
     rerender({ state: "tracking", stats: { km: 0.99, movingSec: 290, curPace: 300 } });
     expect(spoken("info")).toEqual([]);
     rerender({ state: "tracking", stats: { km: 1.01, movingSec: 300, curPace: 300 } });
-    // A tempo block says what's left even with "What's left" unticked.
-    expect(spoken("info")).toEqual(["1.0 kilometre done. Still 4.0 kilometres to go."]);
+    expect(spoken("info")).toEqual(["1.0 kilometre done."]);
+  });
+
+  it("in the tempo, what's left comes first and replaces distance done", () => {
+    const { rerender } = setup({ ...DEFAULT_AUDIO, freq: 60, say: { pace: true, hr: false, dist: true, left: "work" } });
+    rerender({ state: "tracking", stats: { km: 0, movingSec: 0, curPace: 0 } });
+    rerender({ state: "tracking", stats: { km: 0.2, movingSec: 60, curPace: 300 } });
+    expect(spoken("info")).toEqual(["Still 4.8 kilometres to go. On pace, 5 00."]);
   });
 
   it("per-km callouts count from where guidance started (a recovered run)", () => {
@@ -95,6 +101,6 @@ describe("useGuidedWorkout callouts", () => {
 
   it("builds a sample callout for the settings sheet", () => {
     const { result } = setup();
-    expect(result.current.sample(DEFAULT_AUDIO)).toBe("On pace, 5 03. Heart rate 160. Still 2.5 kilometres to go.");
+    expect(result.current.sample(DEFAULT_AUDIO)).toBe("Still 2.5 kilometres to go. On pace, 5 03. Heart rate 160.");
   });
 });

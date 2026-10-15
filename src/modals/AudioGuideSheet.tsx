@@ -4,7 +4,7 @@ import { RecorderSheet, Segmented, SheetLabel, Stepper } from "../components/Rec
 import { ToggleSwitch } from "../components/ToggleSwitch";
 import { BetaBadge } from "../components/BetaBadge";
 import { fmt } from "../utils/format";
-import { BAND_MAX, BAND_MIN, CALLOUT_FREQS, HR_WARNS, type AudioPrefs, type CalloutParts } from "../utils/callout";
+import { BAND_MAX, BAND_MIN, CALLOUT_FREQS, HR_WARNS, LEFT_MODES, type AudioPrefs } from "../utils/callout";
 
 // How the coach TALKS about today's run (docs/guided-workouts.md). It has no
 // targets of its own: pace and heart rate come from the workout, which this
@@ -27,7 +27,7 @@ export function AudioGuideSheet({ on, prefs, pace, hr, hasHrSensor, sample, onTo
   const set = (patch: Partial<AudioPrefs>) => onPrefs({ ...prefs, ...patch });
   const targets = [pace ? `${fmt.pace(pace)} /km` : "", hr ? t("tracker.audio.heartRange", { lo: hr.lo, hi: hr.hi }) : ""].filter(Boolean).join(" · ");
   const hrWarnUsable = !!hr && hasHrSensor;
-  const parts: (keyof CalloutParts)[] = ["pace", "hr", "dist", "left"];
+  const parts = ["pace", "hr", "dist"] as const;
 
   return (
     <RecorderSheet title={t("tracker.audio.title")} onClose={onClose}
@@ -73,7 +73,12 @@ export function AudioGuideSheet({ on, prefs, pace, hr, hasHrSensor, sample, onTo
               </button>
             ))}
           </div>
-          {!prefs.say.left && <p className="text-xs text-slate-400">{t("tracker.audio.leftInWork")}</p>}
+
+          <SheetLabel>{t("tracker.audio.left.title")}</SheetLabel>
+          <Segmented label={t("tracker.audio.left.title")} value={prefs.say.left}
+            onChange={left => set({ say: { ...prefs.say, left } })}
+            options={LEFT_MODES.map(m => ({ value: m, label: t("tracker.audio.left." + m) }))} />
+          <p className="text-xs text-slate-400">{t("tracker.audio.left.hint." + prefs.say.left)}</p>
           <div className="flex items-start gap-2 rounded-xl bg-slate-900 px-3 py-2.5">
             <p className="flex-1 text-xs italic text-slate-300">{sample ? `“${sample}”` : t("tracker.audio.nothingSelected")}</p>
             <button onClick={onHear} disabled={!sample}

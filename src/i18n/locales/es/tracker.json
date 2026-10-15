@@ -290,12 +290,21 @@
     "part": {
       "pace": "Ritmo",
       "hr": "Pulso",
-      "dist": "Distancia",
-      "left": "Lo que queda"
+      "dist": "Distancia recorrida"
     },
-    "leftInWork": "Durante un bloque tempo o una repetición, siempre se anuncia lo que queda.",
     "nothingSelected": "Nada que anunciar.",
-    "hear": "Escuchar"
+    "hear": "Escuchar",
+    "left": {
+      "title": "Lo que queda",
+      "off": "Nunca",
+      "work": "Solo tempo",
+      "always": "Siempre",
+      "hint": {
+        "off": "Nunca se anuncia. La pantalla sigue mostrando lo que queda de cada fase.",
+        "work": "Solo durante un bloque tempo o una repetición, la parte con la que marcas tu ritmo y tu ruta. Ahí se anuncia primero y sustituye a la distancia recorrida.",
+        "always": "En cada fase, calentamiento y vuelta a la calma incluidos. En un bloque tempo o una repetición se anuncia primero y sustituye a la distancia recorrida."
+      }
+    }
   },
   "options": {
     "off": "Desactivado",

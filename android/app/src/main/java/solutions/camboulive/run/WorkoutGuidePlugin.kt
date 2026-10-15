@@ -112,7 +112,7 @@ class WorkoutGuidePlugin : Plugin() {
     private var sayPace = true
     private var sayHr = true
     private var sayDist = false
-    private var sayLeft = true
+    private var leftMode = "work"
     private var hrWarn = 0.0
     private var seedAtMs = 0L
     private var lastCurPace = 0.0
@@ -292,7 +292,12 @@ class WorkoutGuidePlugin : Plugin() {
         sayPace = say?.optBoolean("pace", true) ?: true
         sayHr = say?.optBoolean("hr", true) ?: true
         sayDist = say?.optBoolean("dist", false) ?: false
-        sayLeft = say?.optBoolean("left", true) ?: true
+        // Mirrors readLeft: the old boolean still reads (true = every step).
+        leftMode = when (val l = say?.optString("left", "work") ?: "work") {
+            "true" -> "always"
+            "off", "always" -> l
+            else -> "work"
+        }
         seedAtMs = System.currentTimeMillis()
         val wasEnabled = enabled
         enabled = true
@@ -433,7 +438,10 @@ class WorkoutGuidePlugin : Plugin() {
 
     private fun calloutText(step: Step, nowMoving: Double, bpm: Int?, perKm: Boolean): String {
         val parts = ArrayList<String>()
-        if (sayDist || perKm) parts.add(fill(kmKey("distDone", km), "km" to oneDecimal(km)))
+        // Mirrors calloutContent: in a work step what's left leads and replaces distance done.
+        val work = step.kind == "work"
+        val left = if (work && leftMode != "off" || leftMode == "always") leftText(step, nowMoving) else null
+        if ((sayDist || perKm) && !(work && left != null)) parts.add(fill(kmKey("distDone", km), "km" to oneDecimal(km)))
         // A standing runner emits no fixes: their last pace is not their pace now.
         val freshPace = System.currentTimeMillis() - lastFixWall <= PACE_FRESH_MS
         if (sayPace && lastCurPace > 0 && freshPace) {
@@ -448,22 +456,25 @@ class WorkoutGuidePlugin : Plugin() {
             })
         }
         if (sayHr && bpm != null) parts.add(fill("heart", "bpm" to bpm.toString()))
-        // Mirrors calloutContent: a work step always says what's left.
-        if (sayLeft || step.kind == "work") {
-            if (step.m != null) {
-                val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
-                parts.add(if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))
-                    else fill(if (leftM == 1L) "leftMOne" else "leftMOther", "n" to leftM.toString()))
-            } else if (step.sec != null) {
-                val leftSec = maxOf(0L, ceil(step.sec - (nowMoving - stepStartSec)).toLong())
-                parts.add(when {
-                    leftSec > 90 -> fill("leftMinOther", "n" to Math.round(leftSec / 60.0).toString())
-                    leftSec == 1L -> fill("leftSecOne", "n" to "1")
-                    else -> fill("leftSecOther", "n" to leftSec.toString())
-                })
+        if (left != null) { if (work) parts.add(0, left) else parts.add(left) }
+        return parts.joinToString(" ")
+    }
+
+    private fun leftText(step: Step, nowMoving: Double): String? {
+        if (step.m != null) {
+            val leftM = maxOf(0L, Math.round(step.m - (km - stepStartKm) * 1000.0))
+            return if (leftM >= 1000) fill(kmKey("leftKm", leftM / 1000.0), "km" to oneDecimal(leftM / 1000.0))
+                else fill(if (leftM == 1L) "leftMOne" else "leftMOther", "n" to leftM.toString())
+        }
+        if (step.sec != null) {
+            val leftSec = maxOf(0L, ceil(step.sec - (nowMoving - stepStartSec)).toLong())
+            return when {
+                leftSec > 90 -> fill("leftMinOther", "n" to Math.round(leftSec / 60.0).toString())
+                leftSec == 1L -> fill("leftSecOne", "n" to "1")
+                else -> fill("leftSecOther", "n" to leftSec.toString())
             }
         }
-        return parts.joinToString(" ")
+        return null
     }
 
     private fun fill(key: String, vararg values: Pair<String, String>): String {

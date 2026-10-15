@@ -13,8 +13,14 @@ describe("readAudioPrefs", () => {
   });
 
   it("keeps a valid blob", () => {
-    const p = { freq: "km", band: 20, hrWarn: "off", say: { pace: false, hr: true, dist: true, left: false }, freeOn: true };
+    const p = { freq: "km", band: 20, hrWarn: "off", say: { pace: false, hr: true, dist: true, left: "off" }, freeOn: true };
     expect(readAudioPrefs(p)).toEqual(p);
+  });
+
+  it("reads the old what's-left toggle: ticked keeps every step, unticked still hears the tempo's", () => {
+    expect(readAudioPrefs({ say: { left: true } }).say.left).toBe("always");
+    expect(readAudioPrefs({ say: { left: false } }).say.left).toBe("work");
+    expect(readAudioPrefs({ say: { left: "sometimes" } }).say.left).toBe("work");
   });
 });
 
@@ -57,21 +63,34 @@ describe("calloutContent", () => {
   const step: WorkoutStep = { kind: "work", m: 1000, pace: 300, band: 10 };
   const now = { km: 4.2, curPace: 315, hr: 160, left: { m: 400 } };
 
+  const say = (left: "off" | "work" | "always", rest = {}) => ({ pace: false, hr: false, dist: false, left, ...rest });
+  const cool: WorkoutStep = { kind: "cooldown", sec: 480 };
+  const coolNow = { ...now, left: { sec: 200 } };
+
   it("says what the runner picked", () => {
-    expect(calloutContent({ pace: true, hr: true, dist: false, left: true }, step, now, false))
-      .toEqual({ km: null, verdict: "slow", pace: 315, target: 300, hr: 160, left: { m: 400 } });
-    expect(calloutContent({ pace: false, hr: false, dist: false, left: false }, { kind: "steady", m: 5000 }, now, false))
-      .toEqual({ km: null, verdict: null, pace: null, target: null, hr: null, left: null });
+    expect(calloutContent(say("always", { pace: true, hr: true }), step, now, false))
+      .toEqual({ km: null, verdict: "slow", pace: 315, target: 300, hr: 160, left: { m: 400 }, leftFirst: true });
+    expect(calloutContent(say("off"), { kind: "steady", m: 5000 }, now, false))
+      .toEqual({ km: null, verdict: null, pace: null, target: null, hr: null, left: null, leftFirst: false });
   });
 
-  it("a tempo block or rep always says what's left, whatever the runner unticked", () => {
-    const none = { pace: false, hr: false, dist: false, left: false };
-    expect(calloutContent(none, step, now, false).left).toEqual({ m: 400 });
-    expect(calloutContent(none, { kind: "cooldown", sec: 480 }, { ...now, left: { sec: 200 } }, false).left).toBeNull();
+  it("what's left: off never, tempo only in a work step, always everywhere", () => {
+    expect(calloutContent(say("off"), step, now, false).left).toBeNull();
+    expect(calloutContent(say("work"), step, now, false).left).toEqual({ m: 400 });
+    expect(calloutContent(say("work"), cool, coolNow, false).left).toBeNull();
+    expect(calloutContent(say("always"), cool, coolNow, false).left).toEqual({ sec: 200 });
   });
 
-  it("per-km callouts always name the distance", () => {
-    expect(calloutContent({ pace: false, hr: false, dist: false, left: false }, step, now, true).km).toBe(4.2);
+  it("in a work step what's left replaces distance done; elsewhere both stay", () => {
+    expect(calloutContent(say("work", { dist: true }), step, now, false).km).toBeNull();
+    expect(calloutContent(say("off", { dist: true }), step, now, false).km).toBe(4.2);
+    expect(calloutContent(say("always", { dist: true }), cool, coolNow, false)).toMatchObject({ km: 4.2, left: { sec: 200 }, leftFirst: false });
+  });
+
+  it("per-km callouts name the distance, or what's left of a work step", () => {
+    expect(calloutContent(say("off"), step, now, true).km).toBe(4.2);
+    expect(calloutContent(say("work"), step, now, true)).toMatchObject({ km: null, left: { m: 400 } });
+    expect(calloutContent(say("work"), cool, coolNow, true).km).toBe(4.2);
   });
 
   it("gives no verdict without a pace target or before there is a pace", () => {

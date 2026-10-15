@@ -60,7 +60,7 @@ sheet asks for feedback through the Feedback button. Drop both once it's proven.
 `AudioPrefs` (`settings.audioGuide`, synced, read through `readAudioPrefs`):
 `freq` (30/60/90/120 s or each km; default 60 s), `band` (± s/km, default 10),
 `hrWarn` (`"off"`, above the zone, or 5 bpm above), `say` (pace, heart rate,
-distance, what's left), `freeOn`.
+distance done, what's left), `freeOn`.
 
 - `calloutDue`: time callouts run on **moving** time and wait
   `CALLOUT_MIN_INTO_STEP_SEC` into a step (GPS pace settling); per-km ones fire
@@ -71,9 +71,11 @@ distance, what's left), `freeOn`.
   `hrHi + margin`, at most every `HR_WARN_EVERY_SEC`; spoken at once.
 - The schedule is frozen once the run starts, so a synced prefs or HR-profile
   change landing mid-run can't restart it.
-- A work step (tempo block, rep) always says what's left, whatever `say.left`
-  holds: it is the figure the runner paces and plans the route by. The toggle
-  governs the other steps; the sheet says so when it's off.
+- What's left is three-way (`say.left`: `off` | `work` | `always`, default
+  `work`; the old boolean reads as `true` → `always`, `false` → `work`). In a
+  work step (tempo block, rep) it leads the sentence and replaces distance
+  done, per-km callouts included: the run's total counts the warm-up, while
+  what's left is the figure the runner paces and routes by.
 - `calloutContent` decides what the sentence holds; the hook words it
   (`tracker.guided.speak.*`). The old 25 s "too fast / too slow" nag is gone —
   the verdict lives inside the callout.
