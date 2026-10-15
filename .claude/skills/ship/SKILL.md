@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Take a finished PR all the way out — independent review, fix what's verified, merge, then release the mobile apps when the change reaches them. Use when the maintainer says "/ship", "ship it", or asks to review + merge + release a PR.
+description: Take a finished PR all the way out — independent review by one or more agents sized to the PR, fix what's verified, merge, then release the mobile apps when the change reaches them. Use when the maintainer says "/ship", "ship it", or asks to review + merge + release a PR.
 ---
 
 # Ship a PR
@@ -18,12 +18,26 @@ it there first (CLAUDE.md "Git / PR workflow").
 
 ## 2. Independent review
 
-Spawn ONE read-only reviewer agent (`opus` — a review that gates a release is
-where being wrong is costly). Give it: the diff command
-(`git diff origin/main...HEAD`), what the PR is for, CLAUDE.md and the
-relevant `docs/` page, and the risky seams to probe. Ask for findings with a
-concrete failure path each, severity (blocking / should-fix / nit), and what
-it checked and found fine. It must not edit, commit or push.
+Size the review to the PR. Every reviewer is read-only (never edits, commits
+or pushes) and gets: the diff command (`git diff origin/main...HEAD`), what
+the PR is for, CLAUDE.md and the relevant `docs/` page, and the seams its
+lens covers. Each reports findings with a concrete failure path, severity
+(blocking / should-fix / nit), and what it checked and found fine.
+
+- **Small, contained change** (one module, no native/server/data surface) →
+  one reviewer.
+- **Complex or sensitive work** → as many reviewers as the risk needs, in
+  parallel, each with ONE distinct lens so they don't overlap: e.g. the core
+  logic's correctness; JS ↔ native (Kotlin/Swift) or app ↔ edge-function
+  parity; persistence and migration of synced data (`app_state`, settings
+  blobs); security (RLS, auth callbacks, premium gating, secrets); copy and
+  i18n rules; test gaps. Split a large diff by area when one agent can't
+  hold all of it.
+- Model per CLAUDE.md "Sub-agents": `opus` for security-sensitive review and
+  anything adjudicating architecture or what a test protects; `sonnet` for
+  the other lenses. A review that gates a release leans `opus` when unsure.
+
+Merge the reports and drop duplicates before step 3.
 
 ## 3. Verify, then fix
 
