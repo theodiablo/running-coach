@@ -659,7 +659,9 @@ changes.
   the branch (push to it instead), or the maintainer said to hold off. Fill in
   `.github/pull_request_template.md` — keep its headings, drop the guidance
   comments and any section that doesn't apply.
-- **Never merge a PR unless explicitly asked.**
+- **Never merge a PR unless explicitly asked.** `/ship` (`.claude/skills/ship/`)
+  is that ask, in full: independent review → fix what's verified → merge →
+  mobile release when the change reaches the apps. A green PR alone never is.
 - **After opening a PR, track its CI and auto-fix failures:** call
   `subscribe_pr_activity`, then end the turn. On CI failure, investigate and
   push in-scope fixes until green; use `AskUserQuestion` for ambiguous or
