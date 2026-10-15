@@ -127,7 +127,7 @@ class WorkoutGuidePlugin : Plugin() {
     // Announcement dedupe is NATIVE state: JS never speaks on Android (its
     // playCue no-ops here), so a seed can't mean "already announced". It
     // survives re-seeds (pause/resume/mute are same-idx) and resets only on
-    // teardown or when the engine went backwards (a fresh run).
+    // teardown (JS clears before a fresh run's first seed).
     private var announcedIdx = -1
     private var doneCued = false
 
@@ -276,7 +276,8 @@ class WorkoutGuidePlugin : Plugin() {
             finished = seedFinished
         }
         km = if (rewind) maxOf(km, seedKm) else seedKm
-        movingSec = num(data, "movingSec") ?: 0.0
+        val seedMoving = num(data, "movingSec") ?: 0.0
+        movingSec = if (rewind) maxOf(currentMovingSec(), seedMoving) else seedMoving
         movingAnchorWall = System.currentTimeMillis()
         tracking = data.optBoolean("tracking", false)
         muted = data.optBoolean("muted", false)

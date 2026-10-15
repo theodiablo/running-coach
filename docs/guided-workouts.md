@@ -189,7 +189,8 @@ and the sentences as templates with `{pace}` `{target}` `{bpm}` `{km}` `{n}`
 holes the plugin fills; `decimalSep` localizes the km figure. The Handler
 deadline also covers the next time-based callout. The callout clock is
 native-owned like the announcement dedupe (JS never speaks on Android) and
-resets only on teardown or a seed that went backwards.
+resets only on teardown; JS clears before the first seed of each mount, since a
+page reload keeps the plugin (and the last run's engine) alive.
 
 **JS stays the authority.** `src/geo/workoutGuide.ts` re-seeds the full
 engine state (schedule + step index/anchors + km/movingSec + tracking/muted)
@@ -198,7 +199,7 @@ native drift is bounded by one boundary and snaps back on the next foreground
 render. One exception: within a run (same schedule, no `clear` between) a
 seed never moves the native engine backwards: an index behind its own, or
 "not finished" after it finished, is a JS view that lagged, so its progress
-is ignored. Otherwise a stale re-base un-finishes a completed workout and the
+is ignored, and its clock is never taken lower. Otherwise a stale re-base un-finishes a completed workout and the
 cool-down gets the work step's verdicts. `seed`/`clear` mirror the JS engine's rules; **if `advanceWorkout`
 changes, change `evaluate()` with it.** Config is memory-only + self-expiring
 (6h), like LivePublish. Numbers are read `Number`-tolerantly (`optNumber`

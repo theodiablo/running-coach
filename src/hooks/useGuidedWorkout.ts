@@ -285,6 +285,8 @@ export function useGuidedWorkout({ workout, audioOn, prefs, state, stats, kind }
       if (seededRef.current) { seededRef.current = false; clearWorkoutGuide(); }
       return;
     }
+    // A page reload keeps the plugin alive with the last run's engine: drop it first.
+    if (!seededRef.current) clearWorkoutGuide();
     seededRef.current = true;
     const s = statsRef.current;
     // Callout templates keep {placeholders} for the numbers only the native
