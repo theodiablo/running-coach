@@ -193,7 +193,11 @@ resets only on teardown or a seed that went backwards.
 engine state (schedule + step index/anchors + km/movingSec + tracking/muted)
 on every material change — start, step transition, pause/resume, audio toggle — so
 native drift is bounded by one boundary and snaps back on the next foreground
-render. `seed`/`clear` mirror the JS engine's rules; **if `advanceWorkout`
+render. One exception: within a run (same schedule, no `clear` between) a
+seed never moves the native engine backwards: an index behind its own, or
+"not finished" after it finished, is a JS view that lagged, so its progress
+is ignored. Otherwise a stale re-base un-finishes a completed workout and the
+cool-down gets the work step's verdicts. `seed`/`clear` mirror the JS engine's rules; **if `advanceWorkout`
 changes, change `evaluate()` with it.** Config is memory-only + self-expiring
 (6h), like LivePublish. Numbers are read `Number`-tolerantly (`optNumber`
 rule — epoch/whole values arrive as Long).

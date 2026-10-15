@@ -92,6 +92,7 @@ class WorkoutGuidePlugin : Plugin() {
     private val handler = Handler(Looper.getMainLooper())
     private var enabled = false
     private var steps: List<Step> = emptyList()
+    private var stepsSig = ""
     private var loopFrom = -1
     private var idx = 0
     private var stepStartKm = 0.0
@@ -258,16 +259,26 @@ class WorkoutGuidePlugin : Plugin() {
             ))
         }
         if (parsed.isEmpty()) return
+        val sig = parsed.joinToString("|") { "${it.kind}:${it.m}:${it.sec}" }
+        val seedIdx = num(data, "idx")?.toInt() ?: 0
+        val seedFinished = data.optBoolean("finished", false)
+        val seedKm = num(data, "km") ?: 0.0
+        // The schedule only moves forward within a run: a seed behind this engine
+        // is a JS view that lagged (a stale clock), never a reason to un-finish.
+        val rewind = enabled && sig == stepsSig && (seedIdx < idx || (finished && !seedFinished))
         steps = parsed
+        stepsSig = sig
         loopFrom = num(data, "loopFrom")?.toInt() ?: -1
-        idx = num(data, "idx")?.toInt() ?: 0
-        stepStartKm = num(data, "stepStartKm") ?: 0.0
-        stepStartSec = num(data, "stepStartSec") ?: 0.0
-        km = num(data, "km") ?: 0.0
+        if (!rewind) {
+            idx = seedIdx
+            stepStartKm = num(data, "stepStartKm") ?: 0.0
+            stepStartSec = num(data, "stepStartSec") ?: 0.0
+            finished = seedFinished
+        }
+        km = if (rewind) maxOf(km, seedKm) else seedKm
         movingSec = num(data, "movingSec") ?: 0.0
         movingAnchorWall = System.currentTimeMillis()
         tracking = data.optBoolean("tracking", false)
-        finished = data.optBoolean("finished", false)
         muted = data.optBoolean("muted", false)
         texts = data.optJSONObject("texts") ?: JSONObject()
         notifTitle = texts.optString("notifTitle")
@@ -315,6 +326,7 @@ class WorkoutGuidePlugin : Plugin() {
 
     private fun teardown() {
         enabled = false
+        stepsSig = ""
         announcedIdx = -1
         resetCalloutClock()
         lastCurPace = 0.0
