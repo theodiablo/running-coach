@@ -34,5 +34,6 @@ export const healthConnectProvider: ImportProvider = {
     "Works with any watch whose app writes workouts to Health Connect (Android 14+): " +
     "Garmin Connect (Settings → Health Connect) or Zepp/Amazfit (Profile → 3rd-party access → Health Connect). " +
     "Runs appear a few minutes after your watch syncs, with your heart-rate trace when the watch shares it. " +
-    "No route/map is included (watch apps don't write GPS routes to Health Connect).",
+    "Most imports have no map: a GPS route only comes through if your watch app writes one to Health Connect " +
+    "(few do today) and you switch on \"Exercise routes\" for this app in Health Connect itself.",
 };
