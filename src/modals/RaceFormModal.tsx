@@ -131,7 +131,7 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
             <>
               <div>
                 <label className={LABEL_CLS}>{t("races.form.name")}</label>
-                <input value={f.name} onChange={e => set("name", e.target.value)} placeholder={t("races.form.namePlaceholder")} className={INPUT_CLS}/>
+                <input value={f.name} onChange={e => set("name", e.target.value)} placeholder={t("races.form.namePlaceholder")} maxLength={120} className={INPUT_CLS}/>
               </div>
               {matches.length > 0 && (
                 <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-2 space-y-1">
@@ -147,12 +147,12 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={LABEL_CLS}>{t("races.form.city")}</label>
-                  <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} className={INPUT_CLS}/></div>
+                  <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
                 <div><label className={LABEL_CLS}>{t("races.form.country")}</label>
                   <input value={f.country} onChange={e => set("country", e.target.value)} placeholder={t("races.form.countryPlaceholder")} maxLength={2} className={INPUT_CLS}/></div>
               </div>
               <div><label className={LABEL_CLS}>{t("races.form.officialSite")}</label>
-                <input value={f.url} onChange={e => set("url", e.target.value)} placeholder={t("races.form.officialSitePlaceholder")} className={INPUT_CLS}/></div>
+                <input value={f.url} onChange={e => set("url", e.target.value)} placeholder={t("races.form.officialSitePlaceholder")} maxLength={300} className={INPUT_CLS}/></div>
               <div>
                 <label className={LABEL_CLS}>{t("races.form.location")}</label>
                 {loc ? (

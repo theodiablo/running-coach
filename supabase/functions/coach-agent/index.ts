@@ -382,7 +382,15 @@ async function handle(req: Request): Promise<any> {
     replyLanguage: settings.language === "es" || settings.language === "fr" ? settings.language : "en",
   };
 
-  const { model, callModel } = makeCallModel(context, message);
+  const { model, callModel: rawCallModel } = makeCallModel(context, message);
+  // Counted so a round that fails AFTER a billed model answer is never refunded.
+  let modelAnswers = 0;
+  // deno-lint-ignore no-explicit-any
+  const callModel = async (messages: any[], tools: any[]) => {
+    const resp = await rawCallModel(messages, tools);
+    modelAnswers++;
+    return resp;
+  };
   // get_run_detail's data access: resolve the run in the user's own blob, read
   // its run_routes row through the RLS-scoped userClient, and collapse it to a
   // coordinate-free digest (runDigest.mjs) — raw GPS points and the full HR
@@ -421,7 +429,9 @@ async function handle(req: Request): Promise<any> {
     });
   } catch (err) {
     // The model never answered (outage, exhausted credits): the runner got nothing, so it costs them nothing.
-    await refundUsage(admin, user.id, today).catch((e) => console.error("coach-agent: usage refund failed", e));
+    if (modelAnswers === 0) {
+      await refundUsage(admin, user.id, today).catch((e) => console.error("coach-agent: usage refund failed", e));
+    }
     throw err;
   }
 

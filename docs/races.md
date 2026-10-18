@@ -15,7 +15,9 @@ The catalogue is **shared, global, live**: Supabase tables `races` +
 `race_editions` (`supabase/migrations/20260629120000_races_catalogue.sql`;
 world-readable like `app_config`, owner-scoped writes like `run_routes`, with a
 hard `verified = false` with-check so a contributor can never self-verify —
-only the service role does). `src/races.ts` is the access module (mirrors
+only the service role does). Each account holds at most 25 unverified races and
+50 unverified editions, and fields are length-bounded (`*_field_bounds`), so one
+signup can't flood every client's catalogue download. `src/races.ts` is the access module (mirrors
 `src/routes.ts`: direct queries — `listRaces`/`addRace`/`addEdition`/
 `reportRace`). `notifyContribution` (the best-effort maintainer-email trigger)
 lives in `src/notify.ts` — generic, not race-specific, so other
