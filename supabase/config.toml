@@ -446,6 +446,12 @@ verify_jwt = false
 [functions.live-publish]
 verify_jwt = false
 
+# The weekly digest workflow authenticates with ADMIN_DIGEST_SECRET, not a JWT;
+# the dashboard door verifies the session itself (getUser + ADMIN_USER_ID +
+# aal2). See supabase/functions/admin-metrics/index.ts.
+[functions.admin-metrics]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

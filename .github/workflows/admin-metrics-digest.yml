@@ -1,0 +1,45 @@
+# Weekly product metrics digest — asks the admin-metrics edge function to email
+# the maintainer this week's aggregates (users, activity, runs, plans, coach use
+# and estimated spend, feedback). The function builds and sends the mail itself
+# with its existing SES secrets; this job only holds the trigger secret.
+#
+# Setup (the job skips itself until it exists): generate one secret,
+#   openssl rand -hex 32
+# and set the SAME value in both places:
+#   * repo secret  ADMIN_DIGEST_SECRET
+#   * function     supabase secrets set ADMIN_DIGEST_SECRET=<value>
+# Detail: docs/product-metrics.md.
+
+name: Metrics weekly digest
+
+on:
+  schedule:
+    - cron: "20 6 * * 1" # Mondays 06:20 UTC (off the hour: shared runner capacity)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request digest
+        env:
+          DIGEST_SECRET: ${{ secrets.ADMIN_DIGEST_SECRET }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DIGEST_SECRET" ] || [ -z "$PROJECT_REF" ]; then
+            echo "ADMIN_DIGEST_SECRET or SUPABASE_PROJECT_REF not set — skipping." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          status="$(curl -sS -o response.json -w '%{http_code}' -X POST \
+            -H "x-admin-digest-secret: $DIGEST_SECRET" \
+            "https://$PROJECT_REF.supabase.co/functions/v1/admin-metrics")"
+          echo "HTTP $status: $(cat response.json)"
+          if [ "$status" != "200" ]; then
+            echo "::error::admin-metrics digest failed (HTTP $status)"
+            exit 1
+          fi
+          echo "Digest sent." >> "$GITHUB_STEP_SUMMARY"
