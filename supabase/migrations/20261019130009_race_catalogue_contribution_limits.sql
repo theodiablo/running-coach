@@ -5,16 +5,14 @@
 -- Fail fast rather than queue every catalogue read behind a blocked ALTER.
 set local lock_timeout = '5s';
 
-drop policy if exists "races insert own unverified" on public.races;
-create policy "races insert own unverified" on public.races for insert to authenticated
+alter policy "races insert own unverified" on public.races
   with check (
     (select auth.uid()) = created_by and verified = false
     and (select count(*) from public.races r
          where r.created_by = (select auth.uid()) and not r.verified) < 25
   );
 
-drop policy if exists "race_editions insert own unverified" on public.race_editions;
-create policy "race_editions insert own unverified" on public.race_editions for insert to authenticated
+alter policy "race_editions insert own unverified" on public.race_editions
   with check (
     (select auth.uid()) = created_by and verified = false
     and (select count(*) from public.race_editions e
