@@ -2,6 +2,9 @@
 -- cap on unverified rows (verified rows free a slot) and field-size limits, so a
 -- single signup can't flood every client's catalogue download.
 
+-- Fail fast rather than queue every catalogue read behind a blocked ALTER.
+set local lock_timeout = '5s';
+
 drop policy if exists "races insert own unverified" on public.races;
 create policy "races insert own unverified" on public.races for insert to authenticated
   with check (
