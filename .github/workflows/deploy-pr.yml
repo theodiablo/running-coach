@@ -34,9 +34,7 @@ on:
         type: string
 
 permissions:
-  id-token: write       # OIDC: assume the AWS preview role (infra/preview_role.tf)
   contents: read
-  pull-requests: write  # post the preview URL as a PR comment
 
 # One preview per PR; a new push supersedes the in-flight deploy.
 concurrency:
@@ -53,9 +51,11 @@ env:
   PREVIEW_BASE_URL: https://run.camboulive.solutions
 
 jobs:
-  # ---- Deploy / update the preview on open, push, or reopen -----------------
-  deploy:
-    name: Deploy preview
+  # ---- Build the preview: PR code runs here, with no OIDC and a read-only token.
+  # A dispatch mints tokens with main's subject, which every AWS role trusts, so
+  # PR code must never share a job with id-token: write.
+  build:
+    name: Build preview
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.action != 'closed' &&
@@ -126,6 +126,30 @@ jobs:
           VITE_SUUNTO_CLIENT_ID: ${{ vars.VITE_SUUNTO_CLIENT_ID }}
           VITE_COROS_CLIENT_ID: ${{ vars.VITE_COROS_CLIENT_ID }}
           VITE_APP_ENV: preview
+
+      - name: Upload build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preview-dist
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
+  # ---- Deploy / update the preview on open, push, or reopen -----------------
+  deploy:
+    name: Deploy preview
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write       # OIDC: assume the AWS preview role (infra/preview_role.tf)
+      contents: read
+      pull-requests: write  # post the preview URL as a PR comment
+    steps:
+      - name: Download build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preview-dist
+          path: dist/
 
       - name: Resolve preview role
         id: role
@@ -210,6 +234,10 @@ jobs:
        github.event.pull_request.author_association == 'MEMBER' ||
        github.event.pull_request.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
     steps:
       - name: Resolve preview role
         id: role

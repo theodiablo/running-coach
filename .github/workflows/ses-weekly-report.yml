@@ -104,20 +104,23 @@ jobs:
             echo "| Max bounce rate (7 d) | $bounce_rate (AWS warns at 0.05) |"
             echo "| Max complaint rate (7 d) | $complaint_rate (AWS warns at 0.001) |"
             echo "| New suppressed addresses (7 d) | $sup_count |"
-            if [ "$sup_count" != "0" ]; then
+          } > report.md
+          # Run summaries are public on this repo: addresses go in the email only.
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ "$sup_count" != "0" ]; then
+            {
               echo
               echo "| Suppressed address | Reason | When |"
               echo "| --- | --- | --- |"
               jq -r '.[] | "| \(.EmailAddress) | \(.Reason) | \(.LastUpdateTime) |"' <<<"$suppressed"
-            fi
-          } > report.md
-          cat report.md >> "$GITHUB_STEP_SUMMARY"
+            } >> report.md
+          fi
 
           aws sesv2 send-email \
             --from-email-address "$FROM_EMAIL" \
             --destination "ToAddresses=$REPORT_EMAIL" \
             --content "{\"Simple\":{\"Subject\":{\"Data\":\"Running Coach - SES weekly report\"},\"Body\":{\"Text\":{\"Data\":$(jq -Rs . report.md)}}}}" \
-            || echo "::warning::report email failed to send (report is in the job summary)"
+            || echo "::warning::report email failed to send (counts are in the job summary; addresses are not)"
 
           # Loud failure => GitHub notifies the maintainer.
           fail=""
