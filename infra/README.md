@@ -62,7 +62,7 @@ bucket, replacement means the data goes away.
 | `GitHub-Actions-RunApp-tf-apply` | `AWS_TF_APPLY_ROLE_ARN` | `terraform-apply` environment | read/write, scoped |
 | `GitHub-Actions-RunApp-deploy` | `AWS_DEPLOY_ROLE_ARN` | `production` environment | write the site bucket, invalidate, security headers |
 | `GitHub-Actions-RunApp-backup` | `AWS_BACKUP_ROLE_ARN` | `backup` environment | write/prune/list backups (never read one) |
-| `GitHub-Actions-RunApp-preview` | derived from `AWS_DEPLOY_ROLE_ARN` | pull requests + `main` (dispatch) | write/delete under `pr/` in the previews bucket, invalidate |
+| `GitHub-Actions-RunApp-preview` | derived from `AWS_DEPLOY_ROLE_ARN` | pull requests + `main` (dispatch) | write/delete under `pr/` in the previews bucket, invalidate; also the site bucket's `pr/` until the legacy grants go (below) |
 
 The last three carry the **CI role boundary** (`run-app-ci-role-boundary`,
 `role_boundary.tf`): the union of what they need, with no IAM and no read of a
@@ -90,7 +90,9 @@ cannot modify either CI role (including itself), cannot attach
 cannot rewrite or delete either permissions boundary or remove one from a role,
 cannot delete the state bucket or either adopted bucket, and cannot change the
 policy, ACL, public-access block, versioning, encryption, lifecycle or
-replication of the state or backup bucket. Each of those means a local apply —
+replication of the state or backup bucket. Each of those means a local apply,
+including a provider or lock-file bump that merely produces a diff on one of the
+backup bucket's resources —
 deliberately, since bucket-level *configuration* on the other buckets is
 routine and none of these ever is.
 
@@ -341,10 +343,38 @@ get wrong:
   `workflow_dispatch` of `deploy-pr.yml` carries `main`'s identity.
 - Dispatching a deploy or backup from a topic branch now fails at the
   environment's branch rule, which is the point.
+- Secrets only one of those jobs needs belong in that environment's secrets,
+  not the repo's, where any same-repo PR workflow can read them:
+  `SUPABASE_DB_URL` (the read-everything `db_backup` login) in `backup`.
 
 If an assume-role call fails, decode the real token claims rather than guessing:
 add a throwaway workflow that curls
 `$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com` and prints `sub`.
+
+## Moving previews off the production origin
+
+Previews used to live under `pr/` in the site bucket, on the production origin,
+where a preview's JavaScript shares the live site's localStorage (Supabase
+session, offline state). `previews.tf` gives them their own origin; switching
+over:
+
+1. `gh variable set PREVIEW_DISTRIBUTION_ID --body "$(terraform output -raw preview_distribution_id)"`.
+   `deploy-pr.yml` then builds to `run-app-previews` and links
+   `https://previews.camboulive.solutions/pr/<n>/index.html`.
+2. Add `https://previews.camboulive.solutions/**` to Supabase Auth's redirect
+   allow-list and the domain to the MapTiler key's allowed origins, or sign-in
+   and maps fail on previews.
+3. Delete what is left on the production origin:
+   `aws s3 rm s3://run.camboulive.solutions/pr/ --recursive`. Nothing else ever
+   will: `deploy.yml` syncs with `--exclude "pr/*"` and the site bucket has no
+   expiry.
+4. In a follow-up PR, drop the three `Legacy*` statements from `preview_role.tf`
+   and the site ARNs the boundary keeps only for them, and `--exclude "pr/*"`
+   from `deploy.yml`. Until then the preview role, which any same-repo PR can
+   assume, can still write to the production origin's `pr/`.
+
+The previews origin has no SPA fallback: a bare `/pr/<n>/` or a deep link is a
+403, so previews are entered at their `index.html`.
 
 ## Rotating the SMTP credentials
 
@@ -353,7 +383,8 @@ deliberately **not** in Terraform (`removed` in `ses_sending.tf`): a managed key
 writes its secret into state, which the plan role, assumable from any same-repo
 pull request, can read. The user, its policy and its boundary stay managed;
 only the key is made by hand, the same exception as `SUPABASE_DB_URL` above.
-The apply role cannot mint one.
+The apply role can neither mint nor delete one, so removing the user is a local
+apply.
 
 ```bash
 aws iam create-access-key --user-name run-app-ses-smtp-auth > key.json

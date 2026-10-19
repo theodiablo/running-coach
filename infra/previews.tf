@@ -1,8 +1,8 @@
 # PR previews on their own origin. Served from the production site's origin, a
 # preview's JavaScript could read a signed-in runner's Supabase session and
 # offline state out of localStorage, and plant state production would restore.
-# A sibling subdomain is a different origin, so neither storage nor cookies
-# set for run.camboulive.solutions reach it.
+# A sibling subdomain is a different origin, so localStorage is isolated; it is
+# the same site, though, so cookies scoped to camboulive.solutions are shared.
 #
 # deploy-pr.yml switches here once the repo variable PREVIEW_DISTRIBUTION_ID is
 # set to this distribution's id (output preview_distribution_id).

@@ -515,10 +515,11 @@ same white page under the prefix), and the shells `./`, which is safe only
 because they load off a local origin root and serve no nested route at all.
 
 One consequence worth knowing before reaching for a preview to test this page:
-CloudFront's fallback returns the **bucket root** index.html, ignoring the
-prefix, so `/pr/<n>/watch/<token>` serves *production's* build. Deep-link
-routing is a production-only property; previews are entered at their
-`index.html`. Any future nested route inherits both halves of this.
+deep-link routing is a production-only property; previews are entered at their
+`index.html`. On the legacy preview origin CloudFront's fallback returns the
+**bucket root** index.html, so `/pr/<n>/watch/<token>` serves *production's*
+build; on the previews origin (`infra/previews.tf`) there is no fallback and it
+is a 403. Any future nested route inherits this.
 
 The display is `LiveWatchView`, shared with the in-app modal. That sharing is
 about the **staleness model**, not the layout: silence is ambiguous by

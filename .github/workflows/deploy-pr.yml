@@ -55,8 +55,8 @@ env:
 
 jobs:
   # ---- Build the preview: PR code runs here, with no OIDC and a read-only token.
-  # A dispatch mints tokens with main's subject, which every AWS role trusts, so
-  # PR code must never share a job with id-token: write.
+  # A dispatch mints tokens with main's subject, which the preview and plan
+  # roles trust, so PR code must never share a job with id-token: write.
   build:
     name: Build preview
     if: >-

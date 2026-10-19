@@ -230,6 +230,10 @@ data "aws_iam_policy_document" "tf_read" {
       "ses:ListExportJobs",
       "ses:GetImportJob",
       "ses:ListImportJobs",
+      # Sent messages' destinations, and the deliverability dashboard's.
+      "ses:GetMessageInsights",
+      "ses:GetDomainDeliverabilityCampaign",
+      "ses:ListDomainDeliverabilityCampaigns",
     ]
     resources = ["*"]
   }
@@ -400,13 +404,13 @@ data "aws_iam_policy_document" "tf_apply" {
   # permissions boundary that caps it. Scoped to its own name prefix, and
   # deliberately without iam:AttachUserPolicy — a user's permissions can only
   # ever be the inline policy Terraform writes, intersected with the boundary.
-  # No CreateAccessKey: the key is made by hand so its secret never enters
-  # state (infra/README.md), and CI has no reason to mint one.
+  # No access-key actions: the key is made by hand so its secret never enters
+  # state (infra/README.md), and CI must not be able to mint or delete the live
+  # one. Removing the user is therefore a local apply.
   statement {
     sid    = "ManageProjectSesUser"
     effect = "Allow"
     actions = [
-      "iam:DeleteAccessKey",
       "iam:DeleteUser",
       "iam:DeleteUserPolicy",
       "iam:TagUser",
@@ -532,6 +536,7 @@ data "aws_iam_policy_document" "tf_apply" {
       "iam:DeleteRole",
       "iam:DeleteRolePolicy",
       "iam:DetachRolePolicy",
+      "iam:PutRolePermissionsBoundary",
       "iam:PutRolePolicy",
       "iam:TagRole",
       "iam:UntagRole",

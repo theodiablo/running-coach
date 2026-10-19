@@ -130,7 +130,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   repo variable `SUPABASE_PROJECT_REF`. Don't hardcode project refs or
   credentials anywhere else.
 - **AWS resources are Terraform** (`infra/`, state in `s3://run-app-tfstate`) —
-  never the console or a one-off CLI call. `terraform.yml` plans on PRs and
+  never the console or a one-off CLI call (credentials excepted, so their
+  secrets stay out of state: `infra/README.md`). `terraform.yml` plans on PRs and
   **applies on merge to `main`**, so merging an `infra/` change changes AWS.
   Apply refuses any destroying/replacing plan unless dispatched with
   `allow_destroy`. Pre-Terraform resources are adopted with `import` blocks;

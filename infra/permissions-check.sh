@@ -176,7 +176,7 @@ check "mint an access key"           "$APPLY_ROLE" iam:CreateAccessKey "$SMTP_US
 check "read it back on refresh"      "$APPLY_ROLE" iam:GetUser         "$SMTP_USER" allowed
 check "delete the user"              "$APPLY_ROLE" iam:DeleteUser      "$SMTP_USER" allowed
 check "delete its inline policy"     "$APPLY_ROLE" iam:DeleteUserPolicy "$SMTP_USER" allowed
-check "delete its access key"        "$APPLY_ROLE" iam:DeleteAccessKey "$SMTP_USER" allowed
+check "delete the live access key"   "$APPLY_ROLE" iam:DeleteAccessKey "$SMTP_USER" denied
 check "create the boundary policy"   "$APPLY_ROLE" iam:CreatePolicy    "$SMTP_BOUNDARY" allowed
 
 echo
@@ -221,6 +221,8 @@ check "rewrite the boundary"       "$APPLY_ROLE" iam:CreatePolicyVersion   "$SMT
 check "delete the boundary"        "$APPLY_ROLE" iam:DeletePolicy          "$SMTP_BOUNDARY" explicitDeny
 check "rewrite the role boundary"  "$APPLY_ROLE" iam:CreatePolicyVersion   "$ROLE_BOUNDARY" explicitDeny
 check "lift a role's boundary"     "$APPLY_ROLE" iam:DeleteRolePermissionsBoundary "$BACKUP_ROLE" explicitDeny
+# Boxing either CI role in would lock CI out until a local apply.
+check "bound its own role"         "$APPLY_ROLE" iam:PutRolePermissionsBoundary "$APPLY_ROLE" explicitDeny "$ROLE_BOUNDARY"
 # Health data and possible secrets: nothing that could expose, replicate or
 # expire them is an apply CI may make.
 check "open the backup bucket"     "$APPLY_ROLE" s3:PutBucketPolicy        "$BACKUP_BUCKET" explicitDeny
