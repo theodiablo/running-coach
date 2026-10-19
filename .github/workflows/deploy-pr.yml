@@ -1,9 +1,9 @@
 name: Deploy PR preview to S3
 
 # Per-PR preview deploys. Each PR is built and synced to its own prefix in the
-# same bucket as production: s3://<bucket>/<PR_PREFIX>/<number>/, reachable at
-# https://<domain>/<PR_PREFIX>/<number>/. The folder is removed when the PR is
-# closed.
+# previews bucket: s3://<bucket>/<PR_PREFIX>/<number>/, reachable at
+# https://<domain>/<PR_PREFIX>/<number>/ on an origin of its own (see env
+# below). The folder is removed when the PR is closed.
 #
 # Security: this uses `pull_request` (NOT `pull_request_target`), so PRs opened
 # from forks run with a read-only token and cannot assume the OIDC preview role.
@@ -43,12 +43,15 @@ concurrency:
 
 env:
   AWS_REGION: eu-west-1
-  S3_BUCKET_NAME: run.camboulive.solutions
-  CLOUDFRONT_DISTRIBUTION_ID: E42OGU5IVYJ14
-  # Previews live under this prefix so they never collide with the production
-  # build synced to the bucket root by deploy.yml.
+  # Previews get their own origin (infra/previews.tf) once the repo variable
+  # PREVIEW_DISTRIBUTION_ID is set; until then, the legacy pr/ prefix on the
+  # production origin, where preview code shares the live site's storage.
+  S3_BUCKET_NAME: ${{ vars.PREVIEW_DISTRIBUTION_ID && 'run-app-previews' || 'run.camboulive.solutions' }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PREVIEW_DISTRIBUTION_ID || 'E42OGU5IVYJ14' }}
+  # Previews live under this prefix so they never collide with each other (or,
+  # on the legacy origin, with the production build at the bucket root).
   PR_PREFIX: pr
-  PREVIEW_BASE_URL: https://run.camboulive.solutions
+  PREVIEW_BASE_URL: ${{ vars.PREVIEW_DISTRIBUTION_ID && 'https://previews.camboulive.solutions' || 'https://run.camboulive.solutions' }}
 
 jobs:
   # ---- Build the preview: PR code runs here, with no OIDC and a read-only token.

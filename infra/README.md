@@ -59,10 +59,19 @@ bucket, replacement means the data goes away.
 | Role | Secret | Trust | Can |
 | --- | --- | --- | --- |
 | `GitHub-Actions-RunApp-tf-plan` | `AWS_TF_PLAN_ROLE_ARN` | pull requests + `main` | read only |
-| `GitHub-Actions-RunApp-tf-apply` | `AWS_TF_APPLY_ROLE_ARN` | `main` only | read/write, scoped |
-| `GitHub-Actions-RunApp-preview` | derived from `AWS_DEPLOY_ROLE_ARN` | pull requests + `main` (dispatch) | write/delete under `pr/` in the site bucket, invalidate |
+| `GitHub-Actions-RunApp-tf-apply` | `AWS_TF_APPLY_ROLE_ARN` | `terraform-apply` environment | read/write, scoped |
+| `GitHub-Actions-RunApp-deploy` | `AWS_DEPLOY_ROLE_ARN` | `production` environment | write the site bucket, invalidate, security headers |
+| `GitHub-Actions-RunApp-backup` | `AWS_BACKUP_ROLE_ARN` | `backup` environment | write/prune/list backups (never read one) |
+| `GitHub-Actions-RunApp-preview` | derived from `AWS_DEPLOY_ROLE_ARN` | pull requests + `main` (dispatch) | write/delete under `pr/` in the previews bucket, invalidate |
 
-Neither role can read the *contents* of any S3 object except the state file:
+The last three carry the **CI role boundary** (`run-app-ci-role-boundary`,
+`role_boundary.tf`): the union of what they need, with no IAM and no read of a
+backup. The apply role may create a project role, or write what one may do,
+only while it carries that boundary (`ManageProjectRolePermissions`), cannot
+remove a boundary, and cannot rewrite this one, so no role it creates or edits
+can exceed it. Widening the boundary is a local apply.
+
+No CI role can read the *contents* of any S3 object except the state file:
 the read policy grants bucket-level actions against bucket ARNs, never
 `bucket/*`. A CI role cannot download a backup tarball.
 
@@ -75,14 +84,15 @@ IAM writes to roles named `GitHub-Actions-RunApp-*`, plus users under
 allowed **only for a principal carrying the send-only permissions boundary** —
 without that condition, "CI can create an IAM user" would mean "CI can mint a
 durable administrative access key", which is worse than the role path because a
-static key outlives the OIDC role that made it. Four explicit Denys
-apply on top: it cannot
-modify either CI role (including itself), cannot attach `AdministratorAccess`,
-`IAMFullAccess` or `PowerUserAccess` to any role or user, cannot rewrite or
-delete the permissions boundary that caps the users it can create, and cannot
-delete the state bucket or either adopted bucket. Deleting one of those means a local apply —
-deliberately, since bucket-level *configuration* on them is routine and
-deletion never is.
+static key outlives the OIDC role that made it. Explicit Denys apply on top: it
+cannot modify either CI role (including itself), cannot attach
+`AdministratorAccess`, `IAMFullAccess` or `PowerUserAccess` to any role or user,
+cannot rewrite or delete either permissions boundary or remove one from a role,
+cannot delete the state bucket or either adopted bucket, and cannot change the
+policy, ACL, public-access block, versioning, encryption, lifecycle or
+replication of the state or backup bucket. Each of those means a local apply —
+deliberately, since bucket-level *configuration* on the other buckets is
+routine and none of these ever is.
 
 CloudFront and SES writes (`ManageCloudFront`, `ManageSes` in
 `terraform_roles.tf`) are mostly **not** resource-scoped: creates have no ARN
@@ -107,9 +117,15 @@ rather than a standing capability — but it is the widest of the scoped grants,
 and worth knowing before adding records here.
 
 **Be honest about the residual risk.** A role that can create IAM roles and
-users and attach policies is close to an administrative credential, and those Denys close
-the obvious escalation paths rather than proving containment. It could still
-mint a new `GitHub-Actions-RunApp-*` role with a broad inline policy. The
+users and attach policies is close to an administrative credential. The two
+boundaries cap what any role or user it creates can do, and
+`DenyDataBucketReconfiguration` keeps it from exposing, replicating or expiring
+the state and backup buckets (changing their policy, ACL, public-access block,
+versioning, encryption, lifecycle or replication is a local apply). What it can
+still do is re-trust a bounded role (`UpdateAssumeRolePolicy` takes no
+condition on the new policy), handing an outsider that role's bounded
+permissions, the deploy role's site writes included. That is why the apply role
+itself is reachable only from the `terraform-apply` environment. The
 CloudFront/SES widening adds a second, different kind of risk: for everything
 that can't be pinned to an ARN, a bug in a future `infra/` change could touch
 **any** SES identity or origin access control in the account, not just this
@@ -175,7 +191,8 @@ maintain them now.
 | --- | --- | --- |
 | S3 bucket | `run-app-db-backups` | Daily database dumps from `db-backup.yml`. Private, versioned, SSE. |
 | IAM role | `GitHub-Actions-RunApp-backup` | Assumed via OIDC by `db-backup.yml`. |
-| IAM inline policy | `GitHubAction-RunApp-Backup` | Put/Get/Delete on the bucket's objects, List on the bucket. |
+| IAM inline policy | `GitHubAction-RunApp-Backup` | Put/Delete on the bucket's objects, List on the bucket. No Get: uploads are verified from the listing. |
+| IAM policy | `run-app-ci-role-boundary` | Permissions boundary on the deploy, preview and backup roles, and the condition the apply role's role-permission grant is gated on. |
 | IAM role | `GitHub-Actions-RunApp-tf-plan` | Read-only role for `terraform plan` in CI. |
 | IAM role | `GitHub-Actions-RunApp-tf-apply` | Scoped read/write role for `terraform apply` on `main`. |
 | S3 bucket | `run.camboulive.solutions` | CloudFront origin for the built SPA. Private (OAC), world-readable only through CloudFront. Adopted. |
@@ -187,10 +204,13 @@ maintain them now.
 | S3 bucket | `ses-inbound-camboulive-solutions` | Inbound mail landing zone, 30-day expiry on `inbound/`. Adopted. |
 | SES domain identity | `mail.camboulive.solutions` | Sending identity for Supabase Auth mail, with a `bounce.mail.` custom MAIL FROM. |
 | SES configuration set | `runapp-auth` | Default config set for the identity above: reputation metrics on, bounce-only suppression. |
-| IAM user | `run-app-ses-smtp-auth` | Send-only SES credentials Supabase Auth signs in as over SMTP. Its access key is the SMTP username/password pair. |
+| IAM user | `run-app-ses-smtp-auth` | Send-only SES credentials Supabase Auth signs in as over SMTP. Its access key is the SMTP username/password pair, made by hand (see below). |
 | IAM policy | `run-app-ses-smtp-boundary` | Permissions boundary on that user, and the condition the apply role's user-creation grant is gated on. |
 | Route 53 records | 3 DKIM CNAMEs, MAIL FROM MX + SPF, DMARC + `_report._dmarc` | Verification and alignment for the auth sending domain. The zone itself is a `data` source. |
 | Route 53 record | `camboulive.solutions` TXT | Apex TXT set, adopted: the SES SPF value plus the Google Search Console proof for the Domain property (`dns.tf`). |
+| S3 bucket | `run-app-previews` | PR preview builds under `pr/<n>/`. Private (OAC), 60-day expiry as a net for missed cleanups. |
+| CloudFront distribution | `previews.camboulive.solutions` | Serves PR previews on an origin of their own (`previews.tf`), so preview code never shares the live site's localStorage. Its id is the repo variable `PREVIEW_DISTRIBUTION_ID`. |
+| ACM certificate | `previews.camboulive.solutions` | us-east-1, DNS-validated through the zone, with its validation and alias records. |
 
 Three deliberate non-decisions worth knowing before you change them:
 
@@ -296,27 +316,56 @@ while GitHub runners are IPv4-only. Full procedure in `../docs/backups.md`.
 
 ## OIDC trust
 
-Both roles are assumed from GitHub Actions via the account's OIDC provider. Two
-things about this repository's `sub` claim are easy to get wrong:
+Every role is assumed from GitHub Actions via the account's OIDC provider, with
+an exact (`StringEquals`) match on the token's `sub`. Things that are easy to
+get wrong:
 
 - GitHub mints it in the **ID-suffixed format**
   `repo:theodiablo@8282971/running-coach@1261827846:...` even though the OIDC
   customization API reports `use_default: true`. A trust condition on the plain
   `repo:owner/name:*` form alone does not match. Both are allowed here.
-- The backup role is restricted to the **default branch**
-  (`github_allowed_subjects`). Scheduled runs always use it, and the role can
-  delete objects, so a pull-request branch should not be able to assume it. If
-  you need to `workflow_dispatch` from a topic branch, widen that variable
-  temporarily.
-- The deploy role is restricted to `pull_request` and the default branch
-  (`github_deploy_subjects`) — production deploys and PR previews, which is all
-  that assumes it. It can overwrite the live site, so trusting every ref put
-  the whole gate in `deploy-pr.yml`'s `author_association` check, i.e. in YAML
-  rather than in IAM. Same "widen temporarily" escape hatch as the backup role.
+- **The roles that write to production trust one GitHub Environment each**, not
+  `ref:refs/heads/main`: deploy trusts `environment:production`, backup
+  `environment:backup`, tf-apply `environment:terraform-apply`. Every job on
+  `main` mints the same `ref:refs/heads/main` subject, so trusting it let any of
+  them, an npm install script included, assume all three. A job's subject
+  becomes `environment:<name>` when it declares `environment:`.
+- **Each environment's deployment-branch rule must allow `main` only**
+  (Settings → Environments → the environment → Deployment branches and tags →
+  Selected → `main`). Without it, any branch could declare the environment and
+  assume its role. GitHub creates an environment the first time a job names
+  it, with no rule, so create all three with the rule **before** the trust
+  change is applied. A required reviewer on `terraform-apply` is optional.
+- tf-plan and the preview role still trust `pull_request` and `main`: plan is
+  read-only (and `terraform-permissions.yml` runs on `main`), and a
+  `workflow_dispatch` of `deploy-pr.yml` carries `main`'s identity.
+- Dispatching a deploy or backup from a topic branch now fails at the
+  environment's branch rule, which is the point.
 
 If an assume-role call fails, decode the real token claims rather than guessing:
 add a throwaway workflow that curls
 `$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com` and prints `sub`.
+
+## Rotating the SMTP credentials
+
+The SES user's access key is the Supabase Auth SMTP credential, and it is
+deliberately **not** in Terraform (`removed` in `ses_sending.tf`): a managed key
+writes its secret into state, which the plan role, assumable from any same-repo
+pull request, can read. The user, its policy and its boundary stay managed;
+only the key is made by hand, the same exception as `SUPABASE_DB_URL` above.
+The apply role cannot mint one.
+
+```bash
+aws iam create-access-key --user-name run-app-ses-smtp-auth > key.json
+jq -r .AccessKey.SecretAccessKey key.json | python3 -I infra/ses-smtp-password.py eu-west-1
+```
+
+Put the access key id (username) and that output (password; the raw secret will
+not authenticate) into Supabase → Authentication → Emails → SMTP Settings, send
+a real password reset, then delete the old key
+(`aws iam delete-access-key --user-name run-app-ses-smtp-auth --access-key-id <old>`)
+and `key.json`. A key Terraform once managed sits in earlier versions of the
+state object, so rotate it rather than trusting it was never read.
 
 ## Adopting existing resources
 

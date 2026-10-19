@@ -304,10 +304,12 @@ Account dashboard says which.
    configure Supabase before that and every auth email fails.
 3. Dashboard → Authentication → Emails → **SMTP Settings**:
    host `email-smtp.eu-west-1.amazonaws.com`, port 587, sender
-   `noreply@mail.camboulive.solutions`, username/password from
-   `terraform output -raw auth_smtp_username` / `auth_smtp_password` (the
-   password is the access-key secret run through the SES SigV4 transform — the
-   provider computes it; the raw secret will not authenticate).
+   `noreply@mail.camboulive.solutions`, username/password from a hand-made
+   access key on `run-app-ses-smtp-auth` (`infra/README.md`, "Rotating the SMTP
+   credentials": the password is the secret run through the SES SigV4
+   transform, which `infra/ses-smtp-password.py` computes; the raw secret will
+   not authenticate). Terraform no longer holds the key, so its secret never
+   reaches state.
 4. Dashboard → Authentication → **Rate Limits** → "Emails sent per hour". With
    custom SMTP the default becomes 30/hour and the field unlocks; raise it to
    whatever the signup volume needs. `[auth.rate_limit] email_sent` in

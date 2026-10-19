@@ -111,8 +111,16 @@ resource "aws_iam_user_policy" "ses_smtp_auth" {
   policy = data.aws_iam_policy_document.ses_smtp_auth.json
 }
 
-resource "aws_iam_access_key" "ses_smtp_auth" {
-  user = aws_iam_user.ses_smtp_auth.name
+# The user's access key IS the SMTP password, and Terraform records a key's
+# secret in state, which the plan role can read. So the key is made by hand and
+# never enters state; rotation is in infra/README.md. destroy = false: dropping
+# the resource must not delete the live key Supabase Auth signs in with.
+removed {
+  from = aws_iam_access_key.ses_smtp_auth
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # --- DNS -------------------------------------------------------------------

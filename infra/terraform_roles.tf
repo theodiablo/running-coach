@@ -24,16 +24,23 @@ locals {
 data "aws_caller_identity" "current" {}
 
 # Both repo subject formats, for the reason documented on github_repo_immutable.
-# Also used by the deploy role (deploy_role.tf).
+# Also used by the deploy, preview and backup roles.
+#
+# The roles that can write to production are each pinned to one GitHub
+# Environment, not to `ref:refs/heads/main`: every job on main mints that one
+# subject, so trusting it let any of them (an npm install script included)
+# assume all three. Each environment's deployment-branch rule must allow `main`
+# only, or any branch could claim it; see infra/README.md.
 locals {
   oidc_subjects = {
     for scope, suffixes in {
       # Pull requests get `:pull_request`, not a branch ref. Fork PRs never
       # receive an id-token in the first place, so this cannot be used to plan
-      # from an untrusted fork.
+      # from an untrusted fork. main is terraform-permissions.yml.
       plan   = ["pull_request", "ref:refs/heads/main"]
-      apply  = ["ref:refs/heads/main"]
-      deploy = var.github_deploy_subjects
+      apply  = ["environment:terraform-apply"]
+      deploy = ["environment:production"]
+      backup = ["environment:backup"]
       # main too: a workflow_dispatch of deploy-pr.yml carries main's identity.
       preview = ["pull_request", "ref:refs/heads/main"]
       } : scope => flatten([
@@ -61,7 +68,7 @@ data "aws_iam_policy_document" "tf_plan_assume" {
     }
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = local.oidc_subjects.plan
     }
@@ -85,7 +92,7 @@ data "aws_iam_policy_document" "tf_apply_assume" {
     }
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = local.oidc_subjects.apply
     }
@@ -113,6 +120,7 @@ data "aws_iam_policy_document" "tf_read" {
   # Bucket configuration only. Note the resources are bucket ARNs, never
   # `bucket/*`, so neither role can read the contents of a backup tarball —
   # which is the whole reason the backup bucket is private in the first place.
+  # This project's buckets only: ListBucket on `*` would list other projects'.
   statement {
     sid    = "ReadBucketConfiguration"
     effect = "Allow"
@@ -136,7 +144,11 @@ data "aws_iam_policy_document" "tf_read" {
       "s3:GetReplicationConfiguration",
       "s3:ListBucket",
     ]
-    resources = ["arn:aws:s3:::*"]
+    resources = [
+      "arn:aws:s3:::run-app-*",
+      "arn:aws:s3:::${local.site_bucket_name}",
+      "arn:aws:s3:::${local.ses_inbound_bucket}",
+    ]
   }
 
   statement {
@@ -195,6 +207,29 @@ data "aws_iam_policy_document" "tf_read" {
       "ses:Describe*",
       "ses:Get*",
       "ses:List*",
+      # The previews certificate (previews.tf).
+      "acm:DescribeCertificate",
+      "acm:ListCertificates",
+      "acm:ListTagsForCertificate",
+    ]
+    resources = ["*"]
+  }
+
+  # ses:Get*/List* above would otherwise reach the suppression list and contact
+  # lists, which hold users' email addresses. Terraform reads neither, and the
+  # plan role is assumable from any same-repo pull request.
+  statement {
+    sid    = "DenyRecipientAddresses"
+    effect = "Deny"
+    actions = [
+      "ses:GetSuppressedDestination",
+      "ses:ListSuppressedDestinations",
+      "ses:GetContact",
+      "ses:ListContacts",
+      "ses:GetExportJob",
+      "ses:ListExportJobs",
+      "ses:GetImportJob",
+      "ses:ListImportJobs",
     ]
     resources = ["*"]
   }
@@ -268,8 +303,8 @@ data "aws_iam_policy_document" "tf_apply" {
   }
 
   # Distributions DO take resource-level ARNs, so the two actions that can
-  # break or delete a live site are pinned to this project's distribution. The
-  # cost is that adding a second distribution means widening this list first —
+  # break or delete a live site are pinned to this project's distributions. The
+  # cost is that adding another distribution means widening this list first —
   # and because of DenySelfModification, from a workstation.
   statement {
     sid    = "ManageSiteDistribution"
@@ -278,7 +313,23 @@ data "aws_iam_policy_document" "tf_apply" {
       "cloudfront:UpdateDistribution",
       "cloudfront:DeleteDistribution",
     ]
-    resources = [aws_cloudfront_distribution.site.arn]
+    resources = [
+      aws_cloudfront_distribution.site.arn,
+      aws_cloudfront_distribution.previews.arn,
+    ]
+  }
+
+  # The previews certificate (previews.tf). RequestCertificate has no ARN yet.
+  statement {
+    sid    = "ManageCertificates"
+    effect = "Allow"
+    actions = [
+      "acm:RequestCertificate",
+      "acm:DeleteCertificate",
+      "acm:AddTagsToCertificate",
+      "acm:RemoveTagsFromCertificate",
+    ]
+    resources = ["*"]
   }
 
   # Everything but the create takes a function ARN, so it is pinned to the one
@@ -349,17 +400,17 @@ data "aws_iam_policy_document" "tf_apply" {
   # permissions boundary that caps it. Scoped to its own name prefix, and
   # deliberately without iam:AttachUserPolicy — a user's permissions can only
   # ever be the inline policy Terraform writes, intersected with the boundary.
+  # No CreateAccessKey: the key is made by hand so its secret never enters
+  # state (infra/README.md), and CI has no reason to mint one.
   statement {
     sid    = "ManageProjectSesUser"
     effect = "Allow"
     actions = [
-      "iam:CreateAccessKey",
       "iam:DeleteAccessKey",
       "iam:DeleteUser",
       "iam:DeleteUserPolicy",
       "iam:TagUser",
       "iam:UntagUser",
-      "iam:UpdateAccessKey",
     ]
     resources = ["arn:aws:iam::${local.account_id}:user/system/${local.managed_user_prefix}*"]
   }
@@ -422,18 +473,36 @@ data "aws_iam_policy_document" "tf_apply" {
     sid    = "ManageProjectRoles"
     effect = "Allow"
     actions = [
-      "iam:AttachRolePolicy",
-      "iam:CreateRole",
       "iam:DeleteRole",
-      "iam:DeleteRolePolicy",
-      "iam:DetachRolePolicy",
-      "iam:PutRolePolicy",
       "iam:TagRole",
       "iam:UntagRole",
       "iam:UpdateAssumeRolePolicy",
       "iam:UpdateRole",
     ]
     resources = ["arn:aws:iam::${local.account_id}:role/${local.managed_prefix}*"]
+  }
+
+  # What a role may DO is writable only on a role carrying the CI role boundary
+  # (role_boundary.tf), the same delegation pattern as the SES user: without it,
+  # this role could mint a prefixed role with an `Action: *` policy.
+  statement {
+    sid    = "ManageProjectRolePermissions"
+    effect = "Allow"
+    actions = [
+      "iam:AttachRolePolicy",
+      "iam:CreateRole",
+      "iam:DeleteRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:PutRolePermissionsBoundary",
+      "iam:PutRolePolicy",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:role/${local.managed_prefix}*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.role_boundary_arn]
+    }
   }
 
   # --- Guardrails -----------------------------------------------------------
@@ -504,7 +573,38 @@ data "aws_iam_policy_document" "tf_apply" {
       "iam:DeletePolicyVersion",
       "iam:SetDefaultPolicyVersion",
     ]
-    resources = [local.ses_smtp_boundary_arn]
+    resources = [local.ses_smtp_boundary_arn, local.role_boundary_arn]
+  }
+
+  # Removing a role's boundary would lift the cap above in one call.
+  statement {
+    sid       = "DenyRoleBoundaryRemoval"
+    effect    = "Deny"
+    actions   = ["iam:DeleteRolePermissionsBoundary"]
+    resources = ["*"]
+  }
+
+  # The state (which can hold secrets) and the backups (users' health data):
+  # anything that could expose, replicate or quietly expire either is a local
+  # apply. ManageProjectBuckets covers them only because they match run-app-*.
+  statement {
+    sid    = "DenyDataBucketReconfiguration"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteBucketPolicy",
+      "s3:PutBucketAcl",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+      "s3:PutLifecycleConfiguration",
+      "s3:PutReplicationConfiguration",
+    ]
+    resources = [
+      "arn:aws:s3:::${local.state_bucket}",
+      aws_s3_bucket.backups.arn,
+    ]
   }
 
   # Deleting any of these is unrecoverable in a way an apply should never be

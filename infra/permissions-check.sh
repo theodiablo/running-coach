@@ -22,6 +22,9 @@ ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 PLAN_ROLE="arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-tf-plan"
 APPLY_ROLE="arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-tf-apply"
 BACKUP_ROLE="arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-backup"
+DEPLOY_ROLE="arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-deploy"
+PREVIEW_ROLE="arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-preview"
+ROLE_BOUNDARY="arn:aws:iam::${ACCOUNT}:policy/run-app-ci-role-boundary"
 
 STATE="arn:aws:s3:::run-app-tfstate/run-app/terraform.tfstate"
 LOCK="${STATE}.tflock"
@@ -29,6 +32,7 @@ STATE_BUCKET="arn:aws:s3:::run-app-tfstate"
 BACKUP_BUCKET="arn:aws:s3:::run-app-db-backups"
 BACKUP_OBJECT="${BACKUP_BUCKET}/supabase/run-app-20260101T000000Z.tar.gz"
 SITE_BUCKET="arn:aws:s3:::run.camboulive.solutions"
+PREVIEW_BUCKET="arn:aws:s3:::run-app-previews"
 SES_BUCKET="arn:aws:s3:::ses-inbound-camboulive-solutions"
 OTHER_BUCKET="arn:aws:s3:::luffashop-backups"
 SMTP_USER="arn:aws:iam::${ACCOUNT}:user/system/run-app-ses-smtp-auth"
@@ -120,10 +124,14 @@ check "release lock"               "$APPLY_ROLE" s3:DeleteObject "$LOCK"  allowe
 
 echo
 echo "tf-apply: managing project resources"
-check "configure the backup bucket" "$APPLY_ROLE" s3:PutBucketVersioning "$BACKUP_BUCKET"              allowed
+check "configure the previews bucket" "$APPLY_ROLE" s3:PutBucketVersioning "$PREVIEW_BUCKET"           allowed
 check "create a run-app-* bucket"   "$APPLY_ROLE" s3:CreateBucket        "arn:aws:s3:::run-app-future" allowed
-check "create a prefixed role"      "$APPLY_ROLE" iam:CreateRole   "arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-future" allowed
-check "write the backup role policy" "$APPLY_ROLE" iam:PutRolePolicy "$BACKUP_ROLE" allowed
+check "request a certificate"       "$APPLY_ROLE" acm:RequestCertificate "*" allowed
+# Roles follow the same delegation pattern as the SMTP user: what a role may do
+# is writable only while it carries the CI role boundary.
+check "create a bounded role"       "$APPLY_ROLE" iam:CreateRole    "arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-future" allowed "$ROLE_BOUNDARY"
+check "write the backup role policy" "$APPLY_ROLE" iam:PutRolePolicy "$BACKUP_ROLE" allowed "$ROLE_BOUNDARY"
+check "create the role boundary"    "$APPLY_ROLE" iam:CreatePolicy  "$ROLE_BOUNDARY" allowed
 
 echo
 echo "tf-apply: the adopted site, CloudFront and SES resources"
@@ -163,7 +171,8 @@ echo "tf-apply: the SES SMTP user and its boundary"
 # access key would outlive the role that made it.
 check "create the SMTP user"         "$APPLY_ROLE" iam:CreateUser      "$SMTP_USER" allowed "$SMTP_BOUNDARY"
 check "write its inline policy"      "$APPLY_ROLE" iam:PutUserPolicy   "$SMTP_USER" allowed "$SMTP_BOUNDARY"
-check "rotate its access key"        "$APPLY_ROLE" iam:CreateAccessKey "$SMTP_USER" allowed
+# The key is made by hand so its secret never enters state (infra/README.md).
+check "mint an access key"           "$APPLY_ROLE" iam:CreateAccessKey "$SMTP_USER" denied
 check "read it back on refresh"      "$APPLY_ROLE" iam:GetUser         "$SMTP_USER" allowed
 check "delete the user"              "$APPLY_ROLE" iam:DeleteUser      "$SMTP_USER" allowed
 check "delete its inline policy"     "$APPLY_ROLE" iam:DeleteUserPolicy "$SMTP_USER" allowed
@@ -210,6 +219,15 @@ check "delete the SES bucket"      "$APPLY_ROLE" s3:DeleteBucket           "$SES
 # DenySelfModification: raising it needs a local apply.
 check "rewrite the boundary"       "$APPLY_ROLE" iam:CreatePolicyVersion   "$SMTP_BOUNDARY" explicitDeny
 check "delete the boundary"        "$APPLY_ROLE" iam:DeletePolicy          "$SMTP_BOUNDARY" explicitDeny
+check "rewrite the role boundary"  "$APPLY_ROLE" iam:CreatePolicyVersion   "$ROLE_BOUNDARY" explicitDeny
+check "lift a role's boundary"     "$APPLY_ROLE" iam:DeleteRolePermissionsBoundary "$BACKUP_ROLE" explicitDeny
+# Health data and possible secrets: nothing that could expose, replicate or
+# expire them is an apply CI may make.
+check "open the backup bucket"     "$APPLY_ROLE" s3:PutBucketPolicy        "$BACKUP_BUCKET" explicitDeny
+check "unblock backup public access" "$APPLY_ROLE" s3:PutBucketPublicAccessBlock "$BACKUP_BUCKET" explicitDeny
+check "expire the backups"         "$APPLY_ROLE" s3:PutLifecycleConfiguration "$BACKUP_BUCKET" explicitDeny
+check "replicate the backups"      "$APPLY_ROLE" s3:PutReplicationConfiguration "$BACKUP_BUCKET" explicitDeny
+check "open the state bucket"      "$APPLY_ROLE" s3:PutBucketPolicy        "$STATE_BUCKET" explicitDeny
 
 echo
 echo "tf-apply: out of scope (must not be granted)"
@@ -219,7 +237,11 @@ check "read a backup tarball"      "$APPLY_ROLE" s3:GetObject    "$BACKUP_OBJECT
 # contents are the deploy role's business, not Terraform's.
 check "write to the site bucket"   "$APPLY_ROLE" s3:PutObject    "${SITE_BUCKET}/index.html" denied
 check "touch another project"      "$APPLY_ROLE" s3:DeleteBucket "$OTHER_BUCKET"  denied
-check "create an unprefixed role"  "$APPLY_ROLE" iam:CreateRole  "arn:aws:iam::${ACCOUNT}:role/Unrelated" denied
+check "create an unprefixed role"  "$APPLY_ROLE" iam:CreateRole  "arn:aws:iam::${ACCOUNT}:role/Unrelated" denied "$ROLE_BOUNDARY"
+# Without the boundary in the request there is no Allow to match: a prefixed
+# role cannot be created unbounded, nor given a policy.
+check "create an unbounded role"   "$APPLY_ROLE" iam:CreateRole    "arn:aws:iam::${ACCOUNT}:role/GitHub-Actions-RunApp-future" denied
+check "write an unbounded role policy" "$APPLY_ROLE" iam:PutRolePolicy "$BACKUP_ROLE" denied
 check "create an unprefixed user"  "$APPLY_ROLE" iam:CreateUser  "arn:aws:iam::${ACCOUNT}:user/Unrelated" denied "$SMTP_BOUNDARY"
 # The two that turn "can create a user" into "can mint an admin credential".
 # Without the boundary in the request there is no Allow to match, so a plain
@@ -252,6 +274,9 @@ check "read the watch function"    "$PLAN_ROLE" cloudfront:DescribeFunction "$WA
 check "change the watch function"  "$PLAN_ROLE" cloudfront:UpdateFunction "$WATCH_FUNCTION" denied
 check "delete a receipt rule"      "$PLAN_ROLE" ses:DeleteReceiptRule "*" denied
 check "rotate the SMTP key"        "$PLAN_ROLE" iam:CreateAccessKey "$SMTP_USER" denied
+# Users' email addresses: the plan role is assumable from any same-repo PR.
+check "list suppressed recipients" "$PLAN_ROLE" ses:ListSuppressedDestinations "*" explicitDeny
+check "list another project's bucket" "$PLAN_ROLE" s3:ListBucket "$OTHER_BUCKET" denied
 check "create the SMTP user"       "$PLAN_ROLE" iam:CreateUser "$SMTP_USER" denied "$SMTP_BOUNDARY"
 check "configure the site bucket"  "$PLAN_ROLE" s3:PutBucketPolicy "$SITE_BUCKET" denied
 if [ -n "$MAIL_ZONE_ID" ] && [ "$MAIL_ZONE_ID" != "None" ]; then
@@ -263,9 +288,21 @@ echo
 echo "backup role: scoped to its own bucket"
 check "write a backup"             "$BACKUP_ROLE" s3:PutObject    "$BACKUP_OBJECT" allowed
 check "prune a backup"             "$BACKUP_ROLE" s3:DeleteObject "$BACKUP_OBJECT" allowed
+check "list the backups"           "$BACKUP_ROLE" s3:ListBucket   "$BACKUP_BUCKET" allowed
+# It verifies uploads from the listing, so nothing that can assume it can
+# download a dump.
+check "read a backup tarball"      "$BACKUP_ROLE" s3:GetObject    "$BACKUP_OBJECT" denied
 check "delete its bucket"          "$BACKUP_ROLE" s3:DeleteBucket "$BACKUP_BUCKET" denied
 check "read terraform state"       "$BACKUP_ROLE" s3:GetObject    "$STATE"         denied
 check "write to the site bucket"   "$BACKUP_ROLE" s3:PutObject    "${SITE_BUCKET}/index.html" denied
+
+echo
+echo "deploy and preview roles"
+check "deploy the site"            "$DEPLOY_ROLE"  s3:PutObject   "${SITE_BUCKET}/index.html" allowed
+check "deploy reads a backup"      "$DEPLOY_ROLE"  s3:GetObject   "$BACKUP_OBJECT" denied
+check "deploy edits IAM"           "$DEPLOY_ROLE"  iam:PutRolePolicy "$BACKUP_ROLE" denied
+check "publish a preview"          "$PREVIEW_ROLE" s3:PutObject   "${PREVIEW_BUCKET}/pr/1/index.html" allowed
+check "preview overwrites the site" "$PREVIEW_ROLE" s3:PutObject  "${SITE_BUCKET}/index.html" denied
 
 echo
 echo "$pass passed, $fail failed"

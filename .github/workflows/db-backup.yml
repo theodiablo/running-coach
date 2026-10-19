@@ -88,6 +88,8 @@ env:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    # The backup role trusts only this environment (infra/backup.tf).
+    environment: backup
     steps:
       - name: Check configuration
         id: cfg
@@ -281,8 +283,10 @@ jobs:
           aws s3 cp "$ARCHIVE" "s3://$BUCKET/$key" --sse AES256
 
           # Read it back: a cp that "succeeded" but stored a truncated object is
-          # exactly the failure this job exists to prevent.
-          remote="$(aws s3api head-object --bucket "$BUCKET" --key "$key" --query ContentLength --output text)"
+          # exactly the failure this job exists to prevent. From the listing, not
+          # head-object: the role has no GetObject, so it can't download a dump.
+          remote="$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$key" \
+            --query "Contents[?Key=='$key'].Size | [0]" --output text)"
           local="$(stat -c %s "$ARCHIVE")"
           if [ "$remote" != "$local" ]; then
             echo "::error::uploaded size $remote != local size $local for $key"

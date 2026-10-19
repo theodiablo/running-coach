@@ -18,16 +18,15 @@ resource "aws_iam_role" "deploy" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        StringLike = {
-          # Both subject formats — see github_repo_immutable in variables.tf.
-          # main only (github_deploy_subjects): this role can overwrite the
-          # production site. PR previews use the preview role.
+          # The production environment only (terraform_roles.tf): this role can
+          # overwrite the live site. PR previews use the preview role.
           "token.actions.githubusercontent.com:sub" = local.oidc_subjects.deploy
         }
       }
     }]
   })
+
+  permissions_boundary = aws_iam_policy.role_boundary.arn
 }
 
 resource "aws_iam_role_policy" "deploy" {
