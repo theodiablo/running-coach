@@ -196,7 +196,7 @@
       "intro": "Tus zonas siguen el <0>método de Karvonen</0>: cada zona es una parte de tu reserva de frecuencia cardíaca, la diferencia entre tu FC en reposo y tu FC máxima. Las mismas zonas marcan los objetivos de las sesiones de tu plan, la zona que muestra el registro en directo, el tiempo por zona de cada entrenamiento y lo que ve el coach.",
       "formulaTitle": "La fórmula",
       "formula": "FC de zona = FC reposo + % × (FC máx − FC reposo)",
-      "formulaP": "Partir de la reserva en lugar de un simple porcentaje de la FC máxima sitúa tus zonas más arriba que las apps basadas en % de la máxima, y las hace tuyas: una FC en reposo más baja amplía la reserva, lo que separa las zonas y las baja ligeramente.",
+      "formulaP": "Partir de la reserva en lugar de un simple porcentaje de la FC máxima sitúa tus zonas más arriba que las apps basadas en % de la máxima, y las hace tuyas: una FC en reposo más baja amplía la reserva, lo que separa las zonas y las baja, sobre todo en las zonas bajas.",
       "yours": "Con tu perfil: reserva = {{max}} − {{rest}} = {{hrr}} ppm, así que el límite superior de la zona 2 es {{rest}} + {{pct}} % × {{hrr}} = {{top}} ppm.",
       "noProfile": "Añade tu FC máxima y en reposo en Ajustes → Perfil de entrenamiento para ver aquí tus propios valores.",
       "badProfile": "Tu FC en reposo tiene que ser inferior a tu FC máxima para poder calcular las zonas.",

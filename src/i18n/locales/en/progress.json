@@ -196,7 +196,7 @@
       "intro": "Your zones use the <0>Karvonen method</0>: each zone is a share of your heart-rate reserve, the gap between your resting and maximum heart rate. The same zones set your plan's session targets, the live recorder's zone readout, each run's time in zones and what the coach sees.",
       "formulaTitle": "The formula",
       "formula": "Zone bpm = Rest HR + % × (Max HR − Rest HR)",
-      "formulaP": "Working from the reserve rather than a plain percentage of max HR puts your zones higher than %-of-max apps do, and makes them your own: a lower resting heart rate widens the reserve, which spreads the zones out and moves them down slightly.",
+      "formulaP": "Working from the reserve rather than a plain percentage of max HR puts your zones higher than %-of-max apps do, and makes them your own: a lower resting heart rate widens the reserve, which spreads the zones out and moves them down, most of all in the lower zones.",
       "yours": "On your profile: reserve = {{max}} − {{rest}} = {{hrr}} bpm, so the top of Zone 2 is {{rest}} + {{pct}}% × {{hrr}} = {{top}} bpm.",
       "noProfile": "Add your max and resting heart rate in Settings → Training profile to see your own numbers here.",
       "badProfile": "Your resting heart rate needs to be below your max heart rate for the zones to be calculated.",

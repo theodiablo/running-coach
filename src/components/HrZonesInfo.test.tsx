@@ -25,9 +25,8 @@ describe("HrZonesInfoBody", () => {
   });
 
   it("uses the same fallbacks as the zones: rest 60 when blank, Tanaka when max is blank", () => {
-    const settings = { birthYear: 1990 } as SettingsState;
-    const today = new Date();
-    const max = effectiveMaxHR(settings, today);
+    const settings = { birthYear: new Date().getFullYear() - 36 } as SettingsState;
+    const max = effectiveMaxHR(settings);
     render(<HrZonesInfoBody settings={settings}/>);
     const z2 = hrZoneBpm(HR_ZONES[1].lo, HR_ZONES[1].hi, max, 60)!;
     expect(screen.getByText(new RegExp(`reserve = ${max} − 60 = ${max - 60} bpm.*= ${z2.hi} bpm`))).toBeInTheDocument();

@@ -196,7 +196,7 @@
       "intro": "Tes zones suivent la <0>méthode de Karvonen</0> : chaque zone est une part de ta réserve cardiaque, l'écart entre ta FC au repos et ta FC max. Ces mêmes zones fixent les cibles des séances de ton plan, la zone affichée par l'enregistreur en direct, le temps passé par zone de chaque sortie et ce que voit le coach.",
       "formulaTitle": "La formule",
       "formula": "FC de zone = FC repos + % × (FC max − FC repos)",
-      "formulaP": "Partir de la réserve plutôt que d'un simple pourcentage de la FC max place tes zones plus haut que dans les apps en % de la FC max, et les rend personnelles : une FC au repos plus basse élargit la réserve, ce qui étale les zones et les abaisse légèrement.",
+      "formulaP": "Partir de la réserve plutôt que d'un simple pourcentage de la FC max place tes zones plus haut que dans les apps en % de la FC max, et les rend personnelles : une FC au repos plus basse élargit la réserve, ce qui étale les zones et les abaisse, surtout dans les zones basses.",
       "yours": "Sur ton profil : réserve = {{max}} − {{rest}} = {{hrr}} bpm, donc le haut de la zone 2 est à {{rest}} + {{pct}} % × {{hrr}} = {{top}} bpm.",
       "noProfile": "Renseigne ta FC max et ta FC au repos dans Paramètres → Profil d'entraînement pour voir tes propres valeurs ici.",
       "badProfile": "Ta FC au repos doit être inférieure à ta FC max pour que les zones puissent être calculées.",
