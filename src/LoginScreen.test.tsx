@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn } = vi.hoisted(() => ({
+const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn, browserOpen, env } = vi.hoisted(() => ({
+  env: { isNative: false },
+  browserOpen: vi.fn(),
   nativeAppleSignIn: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
@@ -12,7 +14,8 @@ vi.mock("./supabase", () => ({
   supabase: { auth: { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail } },
   authRedirectTo: () => "http://localhost/",
 }));
-vi.mock("./native", () => ({ isNative: false, isAndroid: false }));
+vi.mock("./native", () => ({ get isNative() { return env.isNative; }, isAndroid: false }));
+vi.mock("@capacitor/browser", () => ({ Browser: { open: browserOpen } }));
 vi.mock("./auth/appleSignIn", () => ({ nativeAppleSignIn }));
 
 import LoginScreen from "./LoginScreen";
@@ -30,6 +33,7 @@ const invalidCredentials = () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  env.isNative = false;
   signUp.mockResolvedValue({ error: null });
   signInWithPassword.mockResolvedValue({ error: null });
   resetPasswordForEmail.mockResolvedValue({ error: null });
@@ -324,6 +328,26 @@ describe("LoginScreen — Apple's native sheet", () => {
     expect(await screen.findByText("Apple is unavailable")).toBeInTheDocument();
     expect(apple()).not.toBeDisabled();
     expect(signInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it("on iOS, falls back to the in-app browser when the sheet can't sign in", async () => {
+    env.isNative = true;
+    signInWithOAuth.mockResolvedValue({ data: { url: "https://example.supabase.co/auth/v1/authorize?provider=apple" }, error: null });
+    browserOpen.mockResolvedValue(undefined);
+    render(<LoginScreen />);
+    fireEvent.click(apple());
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalledWith({ url: "https://example.supabase.co/auth/v1/authorize?provider=apple" }));
+    await vi.waitFor(() => expect(apple()).not.toBeDisabled());
+  });
+
+  it("on iOS, shows a browser that can't open rather than throwing it", async () => {
+    env.isNative = true;
+    signInWithOAuth.mockResolvedValue({ data: { url: "https://example.supabase.co/auth/v1/authorize?provider=apple" }, error: null });
+    browserOpen.mockRejectedValue(new Error("Unable to display URL"));
+    render(<LoginScreen />);
+    fireEvent.click(apple());
+    expect(await screen.findByText("Unable to display URL")).toBeInTheDocument();
+    expect(apple()).not.toBeDisabled();
   });
 
   it("leaves a native sign-in to the auth listener, without the browser flow", async () => {

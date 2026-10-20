@@ -82,6 +82,22 @@ describe("nativeAppleSignIn", () => {
     expect(await nativeAppleSignIn()).toBe("cancelled");
   });
 
+  it("trusts the plugin's code over a message that happens to contain 1001", async () => {
+    authorize.mockRejectedValue(Object.assign(
+      new Error("The operation couldn’t be completed. (NSURLErrorDomain error -1001.)"),
+      { code: "1004" },
+    ));
+    const { nativeAppleSignIn } = await load();
+    expect(await nativeAppleSignIn()).toBeNull();
+  });
+
+  it("falls back to the browser flow when Apple returns no identity token", async () => {
+    authorize.mockRejectedValue(Object.assign(new Error("Apple returned no identity token"), { code: "missing_identity_token" }));
+    const { nativeAppleSignIn } = await load();
+    expect(await nativeAppleSignIn()).toBeNull();
+    expect(signInWithIdToken).not.toHaveBeenCalled();
+  });
+
   it("does not mistake an error that merely mentions cancelling for a dismissed sheet", async () => {
     authorize.mockRejectedValue(new Error("The request was cancelled by the system"));
     const { nativeAppleSignIn } = await load();

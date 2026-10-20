@@ -535,7 +535,7 @@ English-only (a debug surface, not wired through i18n), mirroring
 Applied by `postinstall` → `patch-package`; native plugin modules compile
 straight out of `node_modules` (`android/capacitor.settings.gradle`, and
 `ios/App/CapApp-SPM/Package.swift` on iOS), so a committed patch reaches every
-local and CI build. Every patched dependency is pinned exact.
+local and CI build. A patch only applies to the exact version it was cut from.
 
 ### `@capacitor-community/bluetooth-le` (HR journal + live relay + autoConnect)
 

@@ -21,7 +21,8 @@ async function sha256Hex(raw: string): Promise<string> {
 // ASAuthorizationError.canceled (1001): the patched plugin rejects with it as the
 // code; an unpatched one leaves it only in the localized NSError description.
 function isUserCancelled(err: unknown): boolean {
-  if ((err as { code?: unknown } | null)?.code === "1001") return true;
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === "string") return code === "1001";
   const text = err instanceof Error ? err.message : String(err ?? "");
   return /\b1001\b/.test(text);
 }
