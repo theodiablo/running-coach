@@ -3,11 +3,11 @@
 import type { RunType, SettingsState } from "../types";
 
 export const HR_ZONES = [
-  {n:1,name:"Recovery",     lo:0.50,hi:0.60,clr:"#60a5fa",type:"Aerobic",   desc:"Very easy — active recovery, warm-up/cool-down"},
-  {n:2,name:"Aerobic Base", lo:0.60,hi:0.70,clr:"#34d399",type:"Aerobic",   desc:"Easy runs, fat burning, building endurance base"},
-  {n:3,name:"Aerobic Tempo",lo:0.70,hi:0.80,clr:"#facc15",type:"Aerobic",   desc:"Moderate effort — marathon and long-run pace"},
-  {n:4,name:"Threshold",    lo:0.80,hi:0.90,clr:"#fb923c",type:"Anaerobic", desc:"Comfortably hard — lactate threshold, tempo runs"},
-  {n:5,name:"VO2 Max",      lo:0.90,hi:1.00,clr:"#f87171",type:"Anaerobic", desc:"Maximum effort — short intervals, race pace"},
+  {n:1,name:"Recovery",     lo:0.50,hi:0.60,clr:"#60a5fa",type:"Aerobic"},
+  {n:2,name:"Aerobic Base", lo:0.60,hi:0.70,clr:"#34d399",type:"Aerobic"},
+  {n:3,name:"Aerobic Tempo",lo:0.70,hi:0.80,clr:"#facc15",type:"Aerobic"},
+  {n:4,name:"Threshold",    lo:0.80,hi:0.90,clr:"#fb923c",type:"Anaerobic"},
+  {n:5,name:"VO2 Max",      lo:0.90,hi:1.00,clr:"#f87171",type:"Anaerobic"},
 ];
 
 // Each session type maps onto one (or a span of) HR_ZONES — the bpm range shown

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { fmt } from "../utils/format";
 import { HR_ZONES, effectiveMaxHR, hrZoneBpm, runZoneIndex } from "../utils/hr";
 import { HRZoneBar } from "./HRZoneBar";
+import { HrZonesInfo } from "./HrZonesInfo";
 import type { Run, SettingsState } from "../types";
 
 type HRZonesCardProps = { runs: Run[]; settings: SettingsState };
@@ -13,15 +14,17 @@ export function HRZonesCard({runs, settings}: HRZonesCardProps) {
   const { t } = useTranslation();
   const effMax = effectiveMaxHR(settings);
   const restHR = settings.restHR || 60;
-  const hrr    = effMax - restHR;
-  if (!(effMax > 0 && hrr > 0)) return null;
+  if (!(effMax > 0 && effMax - restHR > 0)) return null;
 
   const hrRuns = runs.filter(r => r.hr).slice(0, 6);
 
   return (
     <div className="p-4 space-y-5">
       <div className="bg-slate-800 rounded-2xl p-4">
-        <p className="text-sm font-semibold text-slate-200 mb-4">{t("progress.zones.title")}</p>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <p className="text-sm font-semibold text-slate-200">{t("progress.zones.title")}</p>
+          <HrZonesInfo settings={settings}/>
+        </div>
         <div className="mb-4"><HRZoneBar effMax={effMax} restHR={restHR}/></div>
         <div className="space-y-1">
           {HR_ZONES.map(z => {
@@ -47,11 +50,6 @@ export function HRZonesCard({runs, settings}: HRZonesCardProps) {
             );
           })}
         </div>
-      </div>
-
-      <div className="bg-slate-800 rounded-xl p-3 text-xs text-slate-500 leading-relaxed">
-        <span className="text-slate-300 font-medium">{t("progress.zones.karvonenTitle")}</span>
-        {t("progress.zones.karvonenBody", {max: effMax, rest: restHR, hrr})}
       </div>
 
       {hrRuns.length > 0 && (

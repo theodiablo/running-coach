@@ -311,6 +311,10 @@ Always re-verify a finding before acting on it; agents report false positives.
   degrade when `km` is 0. The recorder is its own screen over
   `useRunTracker({indoor:true})` (no geo watch, own recovery key) — never a
   branch inside `LiveRunTracker`. Detail: `docs/indoor-sessions.md`.
+- **Heart-rate zones have one definition**: `HR_ZONES` + `hrZoneBpm`
+  (`src/utils/hr.ts`, Karvonen % of heart-rate reserve), ported by
+  `runDigest.mjs` and explained in-app by `HrZonesInfoBody` — change the bands
+  and you change all three. `docs/hr-zones.md`.
 - **Race predictions project to the runner's own upcoming races**, not a fixed
   distance ladder — `raceTargets` (`src/utils/raceTargets.ts`) is the one source
   of targets, and `elevationKnown` keeps "flat" and "we don't know" apart,
@@ -696,6 +700,7 @@ changes.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/run-celebration.md` — the finish-screen celebration: headline pools, own-log facts, the rare draw.
 - `docs/run-analysis.md` — the running-only (run/walk) breakdown on a run's detail screen.
+- `docs/hr-zones.md` — the zone method, its inputs, what the bands do and don't claim.
 - `docs/race-predictions.md` — the two race projections, the HR model's prior, gating.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.

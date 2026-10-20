@@ -1,21 +1,24 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Calendar, ChevronDown, PersonStanding, TrendingUp } from "lucide-react";
+import { Calendar, ChevronDown, HeartPulse, PersonStanding, TrendingUp } from "lucide-react";
 import { PlanInfoBody } from "../../components/PlanInfo";
 import { PredictionsInfoBody } from "../../components/PredictionsInfo";
+import { HrZonesInfoBody } from "../../components/HrZonesInfo";
 import { StretchInfoBody } from "../../components/StretchInfo";
+import type { SettingsState } from "../../types";
 
 type Topic = { id: string; Icon: typeof Calendar; title: string; body: ReactNode };
 
 // Help & FAQ: the app's explainers gathered in one place. Each topic is the
 // same body its in-context "info" link opens, so the two never drift.
-export function HelpPage() {
+export function HelpPage({ settings }: { settings?: SettingsState }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState<string | null>(null);
   const topics: Topic[] = [
     { id: "plan", Icon: Calendar, title: t("settings.help.plan"), body: <PlanInfoBody/> },
     { id: "predictions", Icon: TrendingUp, title: t("settings.help.predictions"), body: <PredictionsInfoBody/> },
+    { id: "hrZones", Icon: HeartPulse, title: t("settings.help.hrZones"), body: <HrZonesInfoBody settings={settings}/> },
     { id: "stretching", Icon: PersonStanding, title: t("settings.help.stretching"), body: <StretchInfoBody/> },
   ];
   return (
