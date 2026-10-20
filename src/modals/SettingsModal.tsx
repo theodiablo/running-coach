@@ -105,7 +105,7 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
             <TrainingProfilePage settings={settings} saveSettings={saveSettings}
               userContext={userContext} saveUserContext={saveUserContext} onOpenCoach={onOpenCoach} plan={plan}/>
           )}
-          {page === "help" && <HelpPage/>}
+          {page === "help" && <HelpPage settings={settings}/>}
         </SubPage>
       )}
     </div>

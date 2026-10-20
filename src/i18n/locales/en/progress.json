@@ -140,7 +140,7 @@
       "bestTitle": "Best-effort estimate",
       "bestBody": "Picks your single <0>strongest run</0> (≥ 3 km with a time) and projects it to every distance. It isn't simply your fastest pace — a quick 1 km blip shouldn't outrank a strong 12 km — so each run is first normalised to its Riegel-equivalent 10 km time, and the best one wins.",
       "hrTitle": "HR-modelled estimate",
-      "hrP1": "Fits a line through <0>pace vs. heart rate</0> across your runs that recorded HR, then reads off the pace you could hold at threshold effort (~88–90% of max HR, roughly a one-hour race) and projects that with Riegel. Recovery-zone sessions sit out — they're walk-paced, so a couple of them would tilt the whole line — and so does any run far slower than your own median, since walk breaks and long stops drop the pace without dropping the heart rate.",
+      "hrP1": "Fits a line through <0>pace vs. heart rate</0> across your runs that recorded HR, then reads off the pace you could hold at threshold effort (~88–90% of your heart-rate reserve, roughly a one-hour race) and projects that with Riegel. Recovery-zone sessions sit out — they're walk-paced, so a couple of them would tilt the whole line — and so does any run far slower than your own median, since walk breaks and long stops drop the pace without dropping the heart rate.",
       "hrP2": "This rewards efficiency: a fast pace held at a low HR pulls the estimate quicker, so your easy runs count too — not just your single best day. Most logs are all easy runs inside a 15–20 bpm window, where the line your data draws is mostly noise, so its steepness is blended with a typical physiological one — the more spread and the cleaner your efforts, the more your own data decides. Reading a line off past the end of your data is still the risky part, so the estimate never reaches more than 8 bpm beyond your hardest logged effort, and it only appears once ≥ 8 HR runs, a real spread of efforts, and a tight enough result back it up.",
       "elevTitle": "Elevation adjustment",
       "elevBody": "Hills make a run slower than its flat twin, so each metre climbed is credited as ~8 extra flat metres before the maths runs. This stops hilly runs from looking unfit. Listed times are for a flat course; the <0>race-day row</0> adds back your course's climb once you set it in the Plan.",
@@ -175,23 +175,39 @@
     },
     "descs": {
       "1": "Very easy — active recovery, warm-up/cool-down",
-      "2": "Easy runs, fat burning, building endurance base",
-      "3": "Moderate effort — marathon and long-run pace",
+      "2": "Easy and long runs: building your aerobic base",
+      "3": "Moderate, steady effort: around marathon pace",
       "4": "Comfortably hard — lactate threshold, tempo runs",
-      "5": "Maximum effort — short intervals, race pace"
+      "5": "Very hard: short interval reps"
     },
     "types": {
       "Aerobic": "Aerobic",
       "Anaerobic": "Anaerobic"
     },
-    "karvonenTitle": "Karvonen method: ",
-    "karvonenBody": "Zone HR = ((MaxHR - RestHR) x intensity%) + RestHR. HRR = {{max}} - {{rest}} = {{hrr}} bpm. Accounts for your resting HR and fitness, so it's more accurate than plain % of Max HR.",
     "recentTitle": "Recent runs — zone analysis",
     "runLine": "{{date}} · {{km}} km",
     "avgHrLabel": "Avg HR: ",
     "bpmValue": "{{bpm}} bpm",
     "restLabel": "{{bpm}} bpm (rest)",
-    "maxLabel": "{{bpm}} bpm (max)"
+    "maxLabel": "{{bpm}} bpm (max)",
+    "info": {
+      "title": "How heart-rate zones work",
+      "label": "How are they calculated?",
+      "intro": "Your zones use the <0>Karvonen method</0>: each zone is a share of your heart-rate reserve, the gap between your resting and maximum heart rate. The same zones set your plan's session targets, the live recorder's zone readout, each run's time in zones and what the coach sees.",
+      "formulaTitle": "The formula",
+      "formula": "Zone bpm = Rest HR + % × (Max HR − Rest HR)",
+      "formulaP": "Working from the reserve rather than a plain percentage of max HR lifts the zones for someone with a low resting heart rate, which usually comes with aerobic fitness.",
+      "yours": "On your profile: reserve = {{max}} − {{rest}} = {{hrr}} bpm, so the top of Zone 2 is {{rest}} + {{pct}}% × {{hrr}} = {{top}} bpm.",
+      "noProfile": "Add your max and resting heart rate in Settings → Training profile to see your own numbers here.",
+      "zonesTitle": "The five zones (% of reserve)",
+      "sessions": "Easy runs, long runs and cross-training target Zone 2, tempo runs Zones 3–4, interval reps Zones 4–5, and walks Zone 1.",
+      "inputsTitle": "Where the numbers come from",
+      "inputsMax": "Max HR is the value you entered. If you left it blank or chose \"I don't know my heart rate\", it's estimated from your age with Tanaka's formula (208 − 0.7 × age), which can be off by 10 bpm or more either way. The highest heart rate you've seen at the end of a hard race or an all-out hill effort is a better value.",
+      "inputsRest": "Rest HR is your heart rate on waking, before you get up; 60 bpm is assumed when it's blank. A lower resting HR raises every zone.",
+      "otherTitle": "Why another app may disagree",
+      "otherP1": "There's no single standard. Apps that use a plain percentage of max HR put the top of Zone 2 lower (often 70% of max). Apps and coaches that anchor on your lactate threshold, from a lab test or a watch's threshold test, usually put it higher, near the point where your breathing first deepens: often around 75–80% of reserve in a trained runner.",
+      "otherP2": "Ours sit at the cautious end on purpose: they keep easy runs truly easy, which is where most of your aerobic base is built. If staying in Zone 2 feels too easy for a run where you can still talk in full sentences, your real threshold probably sits higher than the formula assumes."
+    }
   },
   "planInfo": {
     "title": "How your plan is built",

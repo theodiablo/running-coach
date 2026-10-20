@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { HelpPage } from "./HelpPage";
+import type { SettingsState } from "../../types";
 
 afterEach(cleanup);
 
@@ -21,5 +22,11 @@ describe("HelpPage", () => {
     expect(screen.getByText("Will stretching stop me getting injured?")).toBeInTheDocument();
     expect(screen.getByText("How the app decides")).toBeInTheDocument();
     expect(screen.queryByText(/isn't available to the public yet/)).toBeNull();
+  });
+
+  it("explains heart-rate zones on the runner's own numbers", () => {
+    render(<HelpPage settings={{ maxHR: 188, restHR: 50 } as SettingsState}/>);
+    fireEvent.click(screen.getByRole("button", { name: "Heart-rate zones" }));
+    expect(screen.getByText(/top of Zone 2 is 50 \+ 70% × 138 = 147 bpm/)).toBeInTheDocument();
   });
 });

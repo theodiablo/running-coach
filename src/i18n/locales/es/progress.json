@@ -140,7 +140,7 @@
       "bestTitle": "Estimación por mejor esfuerzo",
       "bestBody": "Elige tu <0>mejor entrenamiento</0> de al menos 3 km con tiempo y lo proyecta a cada distancia. No se limita a buscar el ritmo más rápido: cada actividad se convierte primero en un tiempo equivalente de 10 km según Riegel y se conserva la mejor.",
       "hrTitle": "Estimación por modelo de FC",
-      "hrP1": "Traza una recta entre <0>ritmo y frecuencia cardíaca</0> con tus entrenamientos que registraron FC, luego deduce el ritmo que aguantarías en esfuerzo de umbral (~88–90% de la FC máxima, más o menos una carrera de una hora) y lo proyecta con Riegel. Los entrenamientos en zona de recuperación quedan fuera (van a ritmo de caminata y bastarían dos para inclinar toda la recta), igual que los mucho más lentos que tu mediana: las caminatas y las paradas largas hunden el ritmo sin hundir la FC.",
+      "hrP1": "Traza una recta entre <0>ritmo y frecuencia cardíaca</0> con tus entrenamientos que registraron FC, luego deduce el ritmo que aguantarías en esfuerzo de umbral (~88–90% de tu reserva de FC, más o menos una carrera de una hora) y lo proyecta con Riegel. Los entrenamientos en zona de recuperación quedan fuera (van a ritmo de caminata y bastarían dos para inclinar toda la recta), igual que los mucho más lentos que tu mediana: las caminatas y las paradas largas hunden el ritmo sin hundir la FC.",
       "hrP2": "Esto premia la eficiencia: un ritmo rápido con FC baja acelera la estimación, así que tus entrenamientos suaves también cuentan, no solo tu mejor día. Casi todos los registros son solo entrenamientos suaves dentro de una ventana de 15 a 20 bpm, donde la recta que dibujan tus datos es casi solo ruido: su pendiente se mezcla con una pendiente fisiológica típica, y cuanto más variados y limpios sean tus esfuerzos, más deciden tus propios datos. Prolongar una recta más allá de tus datos sigue siendo lo delicado: la estimación nunca pasa de 8 bpm por encima de tu esfuerzo más intenso registrado, y solo aparece con al menos 8 entrenamientos con FC, un rango real de esfuerzos y un resultado bastante preciso.",
       "elevTitle": "Ajuste por desnivel",
       "elevBody": "Las cuestas hacen que un entrenamiento sea más lento que su equivalente en llano. Antes del cálculo, cada metro ascendido se convierte en unos 8 metros llanos adicionales para que los recorridos con cuestas no hagan parecer que estás en peor forma. Los tiempos indicados son para un recorrido llano; la <0>fila del día de carrera</0> vuelve a sumar el desnivel cuando lo configuras en el plan.",
@@ -175,23 +175,39 @@
     },
     "descs": {
       "1": "Muy suave: recuperación activa, calentamiento y vuelta a la calma",
-      "2": "Rodajes suaves y desarrollo de la base aeróbica",
-      "3": "Esfuerzo moderado: ritmo de maratón y de tirada larga",
+      "2": "Rodajes suaves y tiradas largas: desarrollo de la base aeróbica",
+      "3": "Esfuerzo moderado y constante: en torno al ritmo de maratón",
       "4": "Exigente pero controlado: umbral de lactato y sesiones tempo",
-      "5": "Esfuerzo máximo: series cortas y ritmo de competición"
+      "5": "Muy duro: series cortas"
     },
     "types": {
       "Aerobic": "Aeróbico",
       "Anaerobic": "Anaeróbico"
     },
-    "karvonenTitle": "Método de Karvonen: ",
-    "karvonenBody": "FC objetivo = ((FC máxima − FC en reposo) × intensidad) + FC en reposo. Reserva de FC = {{max}} − {{rest}} = {{hrr}} ppm. Tiene en cuenta tu FC en reposo y tu forma física, por lo que es más preciso que un simple porcentaje de la FC máxima.",
     "recentTitle": "Entrenamientos recientes: análisis por zonas",
     "runLine": "{{date}} · {{km}} km",
     "avgHrLabel": "FC media: ",
     "bpmValue": "{{bpm}} ppm",
     "restLabel": "{{bpm}} ppm (reposo)",
-    "maxLabel": "{{bpm}} ppm (máx)"
+    "maxLabel": "{{bpm}} ppm (máx)",
+    "info": {
+      "title": "Cómo funcionan tus zonas",
+      "label": "¿Cómo se calculan?",
+      "intro": "Tus zonas siguen el <0>método de Karvonen</0>: cada zona es una parte de tu reserva de frecuencia cardíaca, la diferencia entre tu FC en reposo y tu FC máxima. Las mismas zonas marcan los objetivos de las sesiones de tu plan, la zona que muestra el registro en directo, el tiempo por zona de cada entrenamiento y lo que ve el coach.",
+      "formulaTitle": "La fórmula",
+      "formula": "FC de zona = FC reposo + % × (FC máx − FC reposo)",
+      "formulaP": "Partir de la reserva en lugar de un simple porcentaje de la FC máxima sube las zonas cuando tu FC en reposo es baja, algo que suele ir de la mano de una buena forma aeróbica.",
+      "yours": "Con tu perfil: reserva = {{max}} − {{rest}} = {{hrr}} ppm, así que el límite superior de la zona 2 es {{rest}} + {{pct}} % × {{hrr}} = {{top}} ppm.",
+      "noProfile": "Añade tu FC máxima y en reposo en Ajustes → Perfil de entrenamiento para ver aquí tus propios valores.",
+      "zonesTitle": "Las cinco zonas (% de la reserva)",
+      "sessions": "Los rodajes suaves, las tiradas largas y el entrenamiento cruzado apuntan a la zona 2, las sesiones tempo a las zonas 3–4, las series a las zonas 4–5 y las caminatas a la zona 1.",
+      "inputsTitle": "De dónde salen los valores",
+      "inputsMax": "La FC máxima es la que introdujiste. Si la dejaste vacía o elegiste «No sé cuál es mi frecuencia cardíaca máxima», se estima según tu edad con la fórmula de Tanaka (208 − 0,7 × edad), que puede fallar por 10 ppm o más hacia arriba o hacia abajo. La FC más alta que hayas visto al final de una carrera dura o en un esfuerzo a tope en cuesta es un valor mejor.",
+      "inputsRest": "La FC en reposo se mide al despertar, antes de levantarte; si el campo está vacío se usan 60 ppm. Una FC en reposo más baja sube todas las zonas.",
+      "otherTitle": "Por qué otra app puede no coincidir",
+      "otherP1": "No hay un estándar único. Las apps que usan un simple porcentaje de la FC máxima sitúan el límite de la zona 2 más abajo (a menudo el 70 % de la máxima). Las que parten de tu umbral de lactato, medido en laboratorio o con un test del reloj, suelen situarlo más arriba, cerca del punto en que la respiración se acelera por primera vez: a menudo hacia el 75–80 % de la reserva en un corredor entrenado.",
+      "otherP2": "Las nuestras están a propósito en el lado prudente: mantienen los rodajes suaves de verdad suaves, y ahí es donde se construye la mayor parte de tu base aeróbica. Si mantenerte en zona 2 te resulta demasiado fácil para un rodaje en el que aún puedes hablar con frases completas, tu umbral real probablemente está por encima de lo que supone la fórmula."
+    }
   },
   "planInfo": {
     "title": "Cómo se construye tu plan",

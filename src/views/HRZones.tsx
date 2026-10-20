@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { INPUT_CLS } from "../constants";
 import { HRZoneBar } from "../components/HRZoneBar";
+import { HrZonesInfo } from "../components/HrZonesInfo";
 import { deriveAge, runnerAge, tanakaMaxHR } from "../utils/hr";
 import type { SettingsState } from "../types";
 
@@ -51,7 +52,10 @@ export function HRZones({settings, saveSettings}: HRZonesProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide pt-1">{t("settings.hr.title")}</p>
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t("settings.hr.title")}</p>
+        <HrZonesInfo settings={settings}/>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className="text-xs text-slate-400 block mb-1.5">{t("settings.hr.birthYear")}</label>
           <input type="number" min={thisYear - 90} max={thisYear - 10} placeholder="1990" value={birthYear} onChange={e => setBirthYear(e.target.value)} onBlur={commit} className={INPUT_CLS}/></div>
