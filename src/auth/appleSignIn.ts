@@ -4,7 +4,8 @@ import { supabase, AUTH_DEEP_LINK, NATIVE_BUNDLE_ID } from "../supabase";
 import { isNative, isIos } from "../native";
 
 // "cancelled" is the sheet dismissed by the user: nothing failed, so the caller
-// says nothing. null means this install can't show the sheet — use the browser flow.
+// says nothing. null means use the browser flow: this install can't show the
+// sheet, or the sheet itself failed (no Apple Account on the device, an iPad quirk).
 export type NativeAppleOutcome = "signed-in" | "cancelled" | null;
 
 const hex = (bytes: Uint8Array) =>
@@ -17,9 +18,10 @@ async function sha256Hex(raw: string): Promise<string> {
   return hex(new Uint8Array(digest));
 }
 
-// ASAuthorizationError.canceled (1001) surfaces only as the NSError description,
-// whose wording is localized but whose code is not.
+// ASAuthorizationError.canceled (1001): the patched plugin rejects with it as the
+// code; an unpatched one leaves it only in the localized NSError description.
 function isUserCancelled(err: unknown): boolean {
+  if ((err as { code?: unknown } | null)?.code === "1001") return true;
   const text = err instanceof Error ? err.message : String(err ?? "");
   return /\b1001\b/.test(text);
 }
@@ -84,7 +86,8 @@ export async function nativeAppleSignIn(): Promise<NativeAppleOutcome> {
     response = await authorize(await sha256Hex(rawNonce));
   } catch (err) {
     if (isUserCancelled(err)) return "cancelled";
-    throw err;
+    console.warn("Apple sheet failed, using the browser flow", err);
+    return null;
   }
   if (!response) return null;
 

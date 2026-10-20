@@ -76,10 +76,16 @@ describe("nativeAppleSignIn", () => {
     expect(signInWithIdToken).not.toHaveBeenCalled();
   });
 
+  it("reads the patched plugin's error code, whatever the localized wording", async () => {
+    authorize.mockRejectedValue(Object.assign(new Error("Vorgang abgebrochen"), { code: "1001" }));
+    const { nativeAppleSignIn } = await load();
+    expect(await nativeAppleSignIn()).toBe("cancelled");
+  });
+
   it("does not mistake an error that merely mentions cancelling for a dismissed sheet", async () => {
     authorize.mockRejectedValue(new Error("The request was cancelled by the system"));
     const { nativeAppleSignIn } = await load();
-    await expect(nativeAppleSignIn()).rejects.toThrow("cancelled by the system");
+    expect(await nativeAppleSignIn()).toBeNull();
   });
 
   it("falls back to the browser flow when the plugin chunk fails to load", async () => {
@@ -91,10 +97,14 @@ describe("nativeAppleSignIn", () => {
     expect(authorize).not.toHaveBeenCalled();
   });
 
-  it("throws a real authorization failure for the caller to show", async () => {
-    authorize.mockRejectedValue(new Error("authorization attempt failed"));
+  it("falls back to the browser flow when the sheet itself fails", async () => {
+    authorize.mockRejectedValue(Object.assign(
+      new Error("The operation couldn’t be completed. (com.apple.AuthenticationServices.AuthorizationError error 1000.)"),
+      { code: "1000" },
+    ));
     const { nativeAppleSignIn } = await load();
-    await expect(nativeAppleSignIn()).rejects.toThrow("authorization attempt failed");
+    expect(await nativeAppleSignIn()).toBeNull();
+    expect(signInWithIdToken).not.toHaveBeenCalled();
   });
 
   it("throws a Supabase rejection of the identity token", async () => {

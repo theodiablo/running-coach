@@ -533,8 +533,9 @@ English-only (a debug surface, not wired through i18n), mirroring
 ## npm dependency patches (`patches/`)
 
 Applied by `postinstall` → `patch-package`; native plugin modules compile
-straight out of `node_modules` (`android/capacitor.settings.gradle`), so a
-committed patch reaches every local and CI build. Three packages are patched.
+straight out of `node_modules` (`android/capacitor.settings.gradle`, and
+`ios/App/CapApp-SPM/Package.swift` on iOS), so a committed patch reaches every
+local and CI build. Every patched dependency is pinned exact.
 
 ### `@capacitor-community/bluetooth-le` (HR journal + live relay + autoConnect)
 
@@ -565,6 +566,16 @@ leaves it, behind the same armed flag. That is what keeps heart rate on the
 lock-screen run notification once JS is frozen; the receiving half is change (6)
 of the background-geolocation patch below, which explains why a JS push could
 never do it.
+
+### `@capacitor-community/apple-sign-in` (iPad sheet + error codes)
+
+Upstream 7.1.0 builds its `ASAuthorizationController` off the main thread with
+no `presentationContextProvider`, which App Review hit on an iPad as an error
+in place of the sheet. The patch performs the request on the main queue
+anchored to the WebView's window, rejects with the `ASAuthorizationError` code
+(`1001` = cancelled; the description is localized), and replaces the
+force-unwrapped token fields with a rejection. Detail: `docs/release.md`
+("Sign in with Apple").
 
 ### `mdast-util-gfm-autolink-literal` (iOS 15 regex lookbehind)
 
