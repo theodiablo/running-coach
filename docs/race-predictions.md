@@ -54,7 +54,7 @@ wins, so a quick 1 km blip can't outrank a strong 12 km. Projected out with
 ## HR-modelled estimate
 
 `hrModelAnchor` fits grade-adjusted pace (s/km) against average HR and reads off
-the pace held at threshold HR (bottom of Z4, Karvonen), anchored as
+the pace held at threshold HR (88–90% of heart-rate reserve, Karvonen), anchored as
 {km covered in 3600 s, 3600 s} for Riegel. It exists to credit efficiency —
 easy runs handled well, not just the best day.
 

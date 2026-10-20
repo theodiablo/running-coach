@@ -196,17 +196,18 @@
       "intro": "Tes zones suivent la <0>méthode de Karvonen</0> : chaque zone est une part de ta réserve cardiaque, l'écart entre ta FC au repos et ta FC max. Ces mêmes zones fixent les cibles des séances de ton plan, la zone affichée par l'enregistreur en direct, le temps passé par zone de chaque sortie et ce que voit le coach.",
       "formulaTitle": "La formule",
       "formula": "FC de zone = FC repos + % × (FC max − FC repos)",
-      "formulaP": "Partir de la réserve plutôt que d'un simple pourcentage de la FC max remonte les zones quand ta FC au repos est basse, ce qui va souvent de pair avec une bonne forme aérobie.",
+      "formulaP": "Partir de la réserve plutôt que d'un simple pourcentage de la FC max place tes zones plus haut que dans les apps en % de la FC max, et les rend personnelles : une FC au repos plus basse élargit la réserve, ce qui étale les zones et les abaisse légèrement.",
       "yours": "Sur ton profil : réserve = {{max}} − {{rest}} = {{hrr}} bpm, donc le haut de la zone 2 est à {{rest}} + {{pct}} % × {{hrr}} = {{top}} bpm.",
       "noProfile": "Renseigne ta FC max et ta FC au repos dans Paramètres → Profil d'entraînement pour voir tes propres valeurs ici.",
+      "badProfile": "Ta FC au repos doit être inférieure à ta FC max pour que les zones puissent être calculées.",
       "zonesTitle": "Les cinq zones (% de la réserve)",
       "sessions": "Footings, sorties longues et activités croisées visent la zone 2, les séances tempo les zones 3–4, les répétitions de fractionné les zones 4–5 et la marche la zone 1.",
       "inputsTitle": "D'où viennent les valeurs",
       "inputsMax": "La FC max est celle que tu as saisie. Si tu l'as laissée vide ou choisi « Je ne connais pas ma FC max », elle est estimée d'après ton âge avec la formule de Tanaka (208 − 0,7 × âge), qui peut se tromper de 10 bpm ou plus dans un sens comme dans l'autre. La FC la plus haute que tu as vue à la fin d'une course difficile ou d'un effort à fond en côte est une meilleure valeur.",
-      "inputsRest": "La FC au repos se mesure au réveil, avant de te lever ; 60 bpm sont retenus si le champ est vide. Une FC au repos plus basse remonte toutes les zones.",
+      "inputsRest": "La FC au repos se mesure au réveil, avant de te lever ; 60 bpm sont retenus si le champ est vide.",
       "otherTitle": "Pourquoi une autre app peut donner d'autres valeurs",
       "otherP1": "Il n'existe pas de norme unique. Les apps qui utilisent un simple pourcentage de la FC max placent le haut de la zone 2 plus bas (souvent 70 % de la FC max). Celles qui partent de ton seuil lactique, mesuré en laboratoire ou par un test de ta montre, le placent en général plus haut, près du moment où ta respiration s'accélère pour la première fois : souvent vers 75–80 % de la réserve chez un coureur entraîné.",
-      "otherP2": "Les nôtres se situent volontairement du côté prudent : elles gardent les footings vraiment faciles, et c'est là que se construit l'essentiel de ta base aérobie. Si rester en zone 2 te paraît trop facile pour une sortie où tu peux encore parler en phrases complètes, ton vrai seuil est sans doute plus haut que ce que suppose la formule."
+      "otherP2": "Les nôtres se situent du côté prudent : elles gardent les footings vraiment faciles, et c'est là que se construit l'essentiel de ta base aérobie. Si rester en zone 2 te paraît trop facile pour une sortie où tu peux encore parler en phrases complètes, ton vrai seuil est sans doute plus haut que ce que suppose la formule."
     }
   },
   "planInfo": {

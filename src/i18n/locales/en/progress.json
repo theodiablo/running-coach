@@ -196,17 +196,18 @@
       "intro": "Your zones use the <0>Karvonen method</0>: each zone is a share of your heart-rate reserve, the gap between your resting and maximum heart rate. The same zones set your plan's session targets, the live recorder's zone readout, each run's time in zones and what the coach sees.",
       "formulaTitle": "The formula",
       "formula": "Zone bpm = Rest HR + % × (Max HR − Rest HR)",
-      "formulaP": "Working from the reserve rather than a plain percentage of max HR lifts the zones for someone with a low resting heart rate, which usually comes with aerobic fitness.",
+      "formulaP": "Working from the reserve rather than a plain percentage of max HR puts your zones higher than %-of-max apps do, and makes them your own: a lower resting heart rate widens the reserve, which spreads the zones out and moves them down slightly.",
       "yours": "On your profile: reserve = {{max}} − {{rest}} = {{hrr}} bpm, so the top of Zone 2 is {{rest}} + {{pct}}% × {{hrr}} = {{top}} bpm.",
       "noProfile": "Add your max and resting heart rate in Settings → Training profile to see your own numbers here.",
+      "badProfile": "Your resting heart rate needs to be below your max heart rate for the zones to be calculated.",
       "zonesTitle": "The five zones (% of reserve)",
       "sessions": "Easy runs, long runs and cross-training target Zone 2, tempo runs Zones 3–4, interval reps Zones 4–5, and walks Zone 1.",
       "inputsTitle": "Where the numbers come from",
       "inputsMax": "Max HR is the value you entered. If you left it blank or chose \"I don't know my heart rate\", it's estimated from your age with Tanaka's formula (208 − 0.7 × age), which can be off by 10 bpm or more either way. The highest heart rate you've seen at the end of a hard race or an all-out hill effort is a better value.",
-      "inputsRest": "Rest HR is your heart rate on waking, before you get up; 60 bpm is assumed when it's blank. A lower resting HR raises every zone.",
+      "inputsRest": "Rest HR is your heart rate on waking, before you get up; 60 bpm is assumed when it's blank.",
       "otherTitle": "Why another app may disagree",
       "otherP1": "There's no single standard. Apps that use a plain percentage of max HR put the top of Zone 2 lower (often 70% of max). Apps and coaches that anchor on your lactate threshold, from a lab test or a watch's threshold test, usually put it higher, near the point where your breathing first deepens: often around 75–80% of reserve in a trained runner.",
-      "otherP2": "Ours sit at the cautious end on purpose: they keep easy runs truly easy, which is where most of your aerobic base is built. If staying in Zone 2 feels too easy for a run where you can still talk in full sentences, your real threshold probably sits higher than the formula assumes."
+      "otherP2": "Ours sit at the cautious end: they keep easy runs truly easy, which is where most of your aerobic base is built. If staying in Zone 2 feels too easy for a run where you can still talk in full sentences, your real threshold probably sits higher than the formula assumes."
     }
   },
   "planInfo": {

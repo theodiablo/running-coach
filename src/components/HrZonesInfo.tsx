@@ -33,7 +33,7 @@ export function HrZonesInfoBody({settings}: HrZonesInfoProps) {
             {t("progress.zones.info.yours", {max, rest, hrr, pct: pct(z2.hi), top: z2Top})}
           </p>
         ) : (
-          <p>{t("progress.zones.info.noProfile")}</p>
+          <p>{t(max > 0 ? "progress.zones.info.badProfile" : "progress.zones.info.noProfile")}</p>
         )}
       </InfoSection>
 
