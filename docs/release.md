@@ -432,6 +432,15 @@ keep straight: Apple is handed the **SHA-256 hash** and embeds it in the identit
 token, Supabase the **raw** value it hashes to compare. Swapping them fails with
 an opaque "invalid nonce".
 
+**A failed sheet falls back to the browser flow, never to an error.** Only a
+dismissal (`1001`) stays silent; any other sheet failure (no Apple Account on
+the device, an iPad presentation quirk) returns `null` from
+`nativeAppleSignIn` and `LoginScreen` opens the same OAuth flow the web uses.
+A Supabase rejection of the token is still shown. Review tests on an **iPad**
+even though the app is iPhone-only (`TARGETED_DEVICE_FAMILY = 1`): it runs
+there in compatibility mode, and an Apple sign-in error on it rejected 1.19.4
+under 2.1(a). The plugin is patched (`docs/live-tracking.md`, patches).
+
 The `com.apple.developer.applesignin` entitlement only works if the App ID grants
 the capability; `ios-appstore-profile.mjs` preflights that, since a profile
 minted without it fails the archive with a bare "doesn't match the entitlements

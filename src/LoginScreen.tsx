@@ -125,7 +125,11 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       // iOS: SFSafariViewController is the correct pattern (no WebViewClient
       // intent interception there) and stays over the app until the deep link
       // lands, when App.tsx closes it.
-      await Browser.open({ url: data.url });
+      try {
+        await Browser.open({ url: data.url });
+      } catch (err) {
+        noteError(err);
+      }
       // The external tab handles the rest; the WebView itself is NOT redirected, so
       // re-enable the form. Otherwise dismissing/cancelling the OAuth tab (no
       // appUrlOpen, no auth event) would leave the UI locked until a restart. On

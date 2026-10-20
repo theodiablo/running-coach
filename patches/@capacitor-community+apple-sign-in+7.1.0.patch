@@ -1,0 +1,76 @@
+diff --git a/node_modules/@capacitor-community/apple-sign-in/ios/Sources/SignInWithApple/Plugin.swift b/node_modules/@capacitor-community/apple-sign-in/ios/Sources/SignInWithApple/Plugin.swift
+index f53087c..cf0a942 100755
+--- a/node_modules/@capacitor-community/apple-sign-in/ios/Sources/SignInWithApple/Plugin.swift
++++ b/node_modules/@capacitor-community/apple-sign-in/ios/Sources/SignInWithApple/Plugin.swift
+@@ -1,4 +1,5 @@
+ import Foundation
++import UIKit
+ import Capacitor
+ import AuthenticationServices
+ 
+@@ -22,9 +23,13 @@ public class SignInWithApple: CAPPlugin, CAPBridgedPlugin {
+ 
+         self.bridge?.saveCall(call)
+ 
+-        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+-        authorizationController.delegate = self
+-        authorizationController.performRequests()
++        // UIKit work: plugin calls arrive off the main thread, and iPad needs an anchor to present the sheet.
++        DispatchQueue.main.async {
++            let authorizationController = ASAuthorizationController(authorizationRequests: [request])
++            authorizationController.delegate = self
++            authorizationController.presentationContextProvider = self
++            authorizationController.performRequests()
++        }
+     }
+ 
+     func getRequestedScopes(from call: CAPPluginCall) -> [ASAuthorization.Scope]? {
+@@ -50,13 +55,19 @@ public class SignInWithApple: CAPPlugin, CAPBridgedPlugin {
+ 
+ extension SignInWithApple: ASAuthorizationControllerDelegate {
+     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+-        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else { return }
+-
+         let defaults = UserDefaults()
+         let id = defaults.string(forKey: "callbackId") ?? ""
+         guard let call = self.bridge?.savedCall(withID: id) else {
+             return
+         }
++        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
++              let tokenData = appleIDCredential.identityToken,
++              let identityToken = String(data: tokenData, encoding: .utf8) else {
++            call.reject("Apple returned no identity token", "missing_identity_token")
++            self.bridge?.releaseCall(call)
++            return
++        }
++        let authorizationCode = appleIDCredential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
+ 
+         let result = [
+             "response": [
+@@ -64,8 +75,8 @@ extension SignInWithApple: ASAuthorizationControllerDelegate {
+                 "email": appleIDCredential.email,
+                 "givenName": appleIDCredential.fullName?.givenName,
+                 "familyName": appleIDCredential.fullName?.familyName,
+-                "identityToken": String(data: appleIDCredential.identityToken!, encoding: .utf8),
+-                "authorizationCode": String(data: appleIDCredential.authorizationCode!, encoding: .utf8)
++                "identityToken": identityToken,
++                "authorizationCode": authorizationCode
+             ]
+         ]
+ 
+@@ -79,7 +90,14 @@ extension SignInWithApple: ASAuthorizationControllerDelegate {
+         guard let call = self.bridge?.savedCall(withID: id) else {
+             return
+         }
+-        call.reject(error.localizedDescription)
++        // The ASAuthorizationError code (1001 = canceled) is what JS branches on; the description is localized.
++        call.reject(error.localizedDescription, String((error as NSError).code))
+         self.bridge?.releaseCall(call)
+     }
+ }
++
++extension SignInWithApple: ASAuthorizationControllerPresentationContextProviding {
++    public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
++        return self.bridge?.webView?.window ?? UIWindow()
++    }
++}
