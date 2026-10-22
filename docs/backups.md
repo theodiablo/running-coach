@@ -71,8 +71,10 @@ The bucket is private and deliberately separate from `S3_BUCKET_NAME`, which is
 the CloudFront origin for the site and world-readable — these dumps contain
 personal health data (runs, heart rate, notes). The role is separate from the
 deploy role so that permission to delete backups stays out of the path that runs
-on every push to `main`, and it is scoped to the default branch, so the job
-cannot be dispatched from a topic branch.
+on every push to `main`. It trusts only the `backup` GitHub Environment, whose
+branch rule allows `main` alone, so the job cannot be dispatched from a topic
+branch and no other job on `main` can assume it (`infra/README.md`). It cannot
+read a dump either: uploads are verified from the bucket listing.
 
 ### The `db_backup` database role
 

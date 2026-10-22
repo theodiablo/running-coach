@@ -116,16 +116,12 @@ data "aws_iam_policy_document" "backup_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # See github_repo_immutable: both subject formats are allowed because
-    # GitHub mints the ID-suffixed one for this repository.
+    # The backup environment only (terraform_roles.tf): this role writes and
+    # prunes the backups, so no other job on main may assume it.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = flatten([
-        for repo in [var.github_repo, var.github_repo_immutable] : [
-          for subject in var.github_allowed_subjects : "repo:${repo}:${subject}"
-        ]
-      ])
+      values   = local.oidc_subjects.backup
     }
   }
 }
@@ -141,16 +137,17 @@ resource "aws_iam_role" "backup" {
   # stripping them.
   description = "OIDC role for db-backup.yml: writes and prunes database dumps in ${var.backup_bucket_name}."
 
-  assume_role_policy = data.aws_iam_policy_document.backup_assume_role.json
+  assume_role_policy   = data.aws_iam_policy_document.backup_assume_role.json
+  permissions_boundary = aws_iam_policy.role_boundary.arn
 }
 
 data "aws_iam_policy_document" "backup" {
-  # GetObject covers the workflow's head-object read-back, which verifies the
-  # uploaded object is not truncated.
+  # No GetObject: the workflow verifies an upload's size from the listing, so
+  # nothing that can assume this role can download a dump.
   statement {
     sid       = "WriteAndPruneBackups"
     effect    = "Allow"
-    actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+    actions   = ["s3:PutObject", "s3:DeleteObject"]
     resources = ["${aws_s3_bucket.backups.arn}/*"]
   }
 

@@ -47,6 +47,10 @@ concurrency:
 jobs:
   terraform:
     runs-on: ubuntu-latest
+    # The apply role trusts only this environment (infra/terraform_roles.tf),
+    # whose deployment-branch rule allows main alone. Pull requests plan
+    # without one, as `pull_request`, under the read-only plan role.
+    environment: ${{ github.event_name != 'pull_request' && 'terraform-apply' || '' }}
     permissions:
       id-token: write
       contents: read

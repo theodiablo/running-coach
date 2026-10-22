@@ -69,6 +69,8 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # The deploy role trusts only this environment (infra/deploy_role.tf).
+    environment: production
     permissions:
       id-token: write
       contents: read

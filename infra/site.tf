@@ -18,7 +18,8 @@ resource "aws_cloudfront_function" "watch_page" {
   runtime = "cloudfront-js-2.0"
   comment = "Rewrite /watch/* to /watch.html for run-link previews"
   publish = true
-  code    = file("${path.module}/functions/watch-page.js")
+  # LF-normalized so a Windows checkout (core.autocrlf) doesn't plan a rewrite.
+  code = replace(file("${path.module}/functions/watch-page.js"), "\r\n", "\n")
 }
 
 # Owned by deploy.yml (see default_cache_behavior below); read by name so the

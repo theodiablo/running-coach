@@ -38,3 +38,17 @@ provider "aws" {
     }
   }
 }
+
+# CloudFront only accepts certificates from us-east-1, wherever the site lives.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project   = "running-coach"
+      ManagedBy = "terraform"
+      Repo      = "theodiablo/running-coach"
+    }
+  }
+}

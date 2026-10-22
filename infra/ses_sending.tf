@@ -70,8 +70,7 @@ resource "aws_sesv2_email_identity_mail_from_attributes" "auth" {
 
 # Supabase Auth speaks SMTP only, and SES SMTP credentials are an IAM access
 # key transformed by a published algorithm — hence a user rather than a role.
-# The password is only ever derivable from the secret, so it lives in state
-# (private, encrypted bucket) and is read back with `terraform output`.
+# The key itself is made by hand (removed block below; infra/README.md).
 resource "aws_iam_user" "ses_smtp_auth" {
   name = "${local.managed_user_prefix}ses-smtp-auth"
   path = "/system/"
@@ -111,8 +110,16 @@ resource "aws_iam_user_policy" "ses_smtp_auth" {
   policy = data.aws_iam_policy_document.ses_smtp_auth.json
 }
 
-resource "aws_iam_access_key" "ses_smtp_auth" {
-  user = aws_iam_user.ses_smtp_auth.name
+# The user's access key IS the SMTP password, and Terraform records a key's
+# secret in state, which the plan role can read. So the key is made by hand and
+# never enters state; rotation is in infra/README.md. destroy = false: dropping
+# the resource must not delete the live key Supabase Auth signs in with.
+removed {
+  from = aws_iam_access_key.ses_smtp_auth
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # --- DNS -------------------------------------------------------------------
