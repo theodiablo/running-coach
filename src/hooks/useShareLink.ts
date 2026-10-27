@@ -19,6 +19,11 @@ export type ShareLinkHandle = {
   send: () => Promise<boolean>;
 };
 
+// Every mounted view of the link (recorder, Home) shows one address: a create or
+// replace in one must reach the others, or a stale view sends a revoked link.
+const listeners = new Set<(token: string) => void>();
+const announce = (token: string) => listeners.forEach(l => l(token));
+
 // The runner's standing share link (docs/live-sharing.md). The cache is only a
 // copy for offline rendering: it is confirmed against the ledger on mount and on
 // every return to the foreground, since a link replaced on another device would
@@ -37,6 +42,12 @@ export function useShareLink(showToast?: (msg: string, type?: string) => void): 
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(false), 2500);
   };
+
+  useEffect(() => {
+    const onToken = (next: string) => { setToken(next); setConfirmed(true); setError(false); setCopied(false); };
+    listeners.add(onToken);
+    return () => { listeners.delete(onToken); };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -62,8 +73,7 @@ export function useShareLink(showToast?: (msg: string, type?: string) => void): 
     const next = await ensureShareLink();
     setBusy(false);
     if (!next) { setError(true); return false; }
-    setToken(next);
-    setConfirmed(true);
+    announce(next);
     track("live_share_link_created", {});
     return true;
   };
@@ -74,9 +84,7 @@ export function useShareLink(showToast?: (msg: string, type?: string) => void): 
     const { token: next, limit } = await rotateShareLink();
     setBusy(false);
     if (!next) { setError(limit ? "limit" : true); return; }
-    setToken(next);
-    setConfirmed(true);
-    setCopied(false);
+    announce(next);
     track("live_share_link_rotated", {});
   };
 

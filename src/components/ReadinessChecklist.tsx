@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Loader } from "lucide-react";
-import { checkReadiness, fixReadiness, READINESS_ORDER, type Readiness, type ReadinessId } from "../geo/readiness";
+import { checkReadiness, fixReadiness, needsDisclosure, READINESS_ORDER, type Readiness, type ReadinessId } from "../geo/readiness";
 import { isBgLocationDisclosed } from "../geo/disclosure";
 import { BgLocationDisclosure } from "../modals/BgLocationDisclosure";
 
@@ -11,7 +11,8 @@ export function ReadinessChecklist() {
   const { t } = useTranslation();
   const [state, setState] = useState<Readiness | null>(null);
   const [busy, setBusy] = useState<ReadinessId | null>(null);
-  const [disclose, setDisclose] = useState(false);
+  // The row waiting on the disclosure, run once it is accepted.
+  const [disclose, setDisclose] = useState<ReadinessId | null>(null);
 
   const recheck = useCallback(() => {
     void checkReadiness().then(setState).catch(() => setState({}));
@@ -30,9 +31,9 @@ export function ReadinessChecklist() {
     setBusy(null);
     recheck();
   };
-  // Play requires the disclosure before any location prompt.
+  // Play requires the disclosure before any location prompt, "Allow all the time" included.
   const onFix = (id: ReadinessId) => {
-    if (id === "location" && !isBgLocationDisclosed()) { setDisclose(true); return; }
+    if (needsDisclosure(id) && !isBgLocationDisclosed()) { setDisclose(id); return; }
     void fix(id);
   };
 
@@ -71,8 +72,8 @@ export function ReadinessChecklist() {
       })}
       {disclose && (
         <BgLocationDisclosure
-          onAccept={() => { setDisclose(false); void fix("location"); }}
-          onCancel={() => setDisclose(false)}/>
+          onAccept={() => { const id = disclose; setDisclose(null); void fix(id); }}
+          onCancel={() => setDisclose(null)}/>
       )}
     </div>
   );

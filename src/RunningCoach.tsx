@@ -45,6 +45,7 @@ import { FeedbackSheet, FeedbackButton } from "./modals/FeedbackSheet";
 import { feedbackSourceForTab, type FeedbackSource } from "./betaFeedback";
 import { usePresence } from "./hooks/usePresence";
 import { OnboardingWizard } from "./modals/OnboardingWizard";
+import { onboardedSettings, onboardingBuildsPlan } from "./utils/onboarding";
 import { BackupModal } from "./modals/BackupModal";
 import { RestoreModal } from "./modals/RestoreModal";
 import { SettingsModal } from "./modals/SettingsModal";
@@ -914,7 +915,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   const closeRaceBridge = () => {
     setRaceBridge(null);
-    saveSettings({...settings, raceBridgeSeen: true});
+    patchSettings({raceBridgeSeen: true});
   };
 
   // `opts.skipDetect` is set when the run is created by the Races "log result"
@@ -1334,22 +1335,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         catalogue={catalogue} addRace={addRace} addEdition={addEdition}
         refreshCatalogue={refreshCatalogue} showToast={showToast}
         onSaveProgress={(partial, step) => saveSettings({...settings, ...partial, onboardStep: step})}
-        onComplete={({name, plan, hr, hrMethod, healthAck, live}) => {
-          // `plan` carries the race-shaped fields incl. targetEditionId (set when
-          // a catalogue edition was picked, null otherwise). Clear the onboarding
-          // scaffolding (onboardStep/intent) so it doesn't linger in the blob.
-          // Seeding the coach signposts `false` here (rather than reading an
-          // absent flag as "not yet shown") keeps them to accounts that onboard
-          // from this version on — see the SettingsState comment.
-          const next = {...settings, name, onboarded: true, onboardStep: 0, intent: null, healthAck,
-            coachIntroSeen: false, coachOverdueIntroSeen: false, feedbackIntroSeen: false, ...plan, ...(hr || {}),
-            ...(hrMethod ? {hrMethod} : {}),
-            // The live branch's race is a participation, never the plan target.
-            ...(live ? {liveFirst: true, liveLinkSent: live.linkSent, raceBridgeSeen: false, targetEditionId: null} : {})};
+        onComplete={result => {
+          const { live } = result;
+          const next = onboardedSettings(settings, result);
           saveSettings(next);
-          // Only build a plan if the race was actually set up (the user may have
-          // skipped straight to the health gate) — buildPlan needs date+distance.
-          if (next.raceDate && next.distanceKm)
+          if (onboardingBuildsPlan(next, !!live))
             savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next}));
           // A catalogue race picked in onboarding is the training target — also
           // surface it in the Races tab as a wishlist participation (the tab lists

@@ -16,7 +16,7 @@
   "intent": {
     "title": "Qu'est-ce qui t'amène ?",
     "titleNamed": "Salut {{name}} ! Qu'est-ce qui t'amène ?",
-    "subtitle": "On prépare tout en fonction.",
+    "subtitle": "On prépare tout en fonction de ça.",
     "race": {
       "title": "Je m'entraîne pour une course",
       "sub": "Choisis ta course et on construit un plan qui t'amène au meilleur de ta forme le jour J."

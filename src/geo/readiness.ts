@@ -1,5 +1,6 @@
 import { isNative } from "../native";
 import { geoSource } from "./source";
+import { checkPreciseLocation } from "./native";
 import { checkBackgroundLocation, requestBackgroundLocation } from "./background";
 import { checkRunNotifications, requestRunNotifications } from "./notifications";
 import { checkBatteryExempt, markBatteryNudgeDismissed, openBatteryOptimizationSettings } from "./battery";
@@ -13,10 +14,13 @@ export type ReadinessId = "location" | "background" | "notifications" | "battery
 export const READINESS_ORDER: ReadinessId[] = ["location", "background", "notifications", "battery"];
 export type Readiness = Partial<Record<ReadinessId, boolean>>;
 
+export const needsDisclosure = (id: ReadinessId) => id === "location" || id === "background";
+
 export async function checkReadiness(): Promise<Readiness> {
   if (!isNative) return {};
   const [location, background, notifications, battery] = await Promise.all([
-    geoSource.checkPermissions().catch(() => false),
+    // Precise, not just any grant: an approximate one still prompts at Start.
+    checkPreciseLocation(),
     checkBackgroundLocation(),
     checkRunNotifications(),
     checkBatteryExempt(),
@@ -28,14 +32,15 @@ export async function checkReadiness(): Promise<Readiness> {
   return out;
 }
 
-// The location row runs only after the caller has shown the bg-location
-// disclosure, so a grant here is a disclosed grant.
+// Both location rows run only after the caller has shown the bg-location
+// disclosure (`needsDisclosure`), so a grant here is a disclosed grant.
 export async function fixReadiness(id: ReadinessId): Promise<void> {
   switch (id) {
     case "location":
       if (await geoSource.requestPermissions().catch(() => false)) markBgLocationDisclosed();
       return;
     case "background":
+      markBgLocationDisclosed();
       await requestBackgroundLocation();
       return;
     case "notifications":
