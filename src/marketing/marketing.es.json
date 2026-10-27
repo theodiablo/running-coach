@@ -14,7 +14,7 @@
     "body": "Elige tu carrera, fija tu tiempo objetivo y consigue un plan de entrenamiento semana a semana. Cuando surjan imprevistos, consulta a tu entrenador: te propondrá un ajuste seguro en segundos y nada cambiará hasta que lo apruebes.",
     "ctaPrimary": "Empezar gratis",
     "ctaSecondary": "Ya tengo una cuenta",
-    "freeNote": "Todo lo que necesitas para entrenar es gratis: planes, seguimiento por GPS, carreras y entrenador, con un límite diario de uso responsable para mantener la gratuidad del servicio.",
+    "freeNote": "Todo lo que necesitas para entrenar es gratis: planes, seguimiento por GPS, compartir en directo, carreras y entrenador, con un límite diario de uso responsable para mantener la gratuidad del servicio.",
     "iosBeta": "Únete a la beta de iOS",
     "android": "Descargar en Google Play"
   },
@@ -46,8 +46,8 @@
       "body": "Base, desarrollo, pico y descarga, según la fecha de tu carrera, tu tiempo objetivo y los días que realmente puedes entrenar. Elige tu método: Polarizado 80/20, estilo Hansons, 3 días de calidad o Correr/Caminar. Sin cajas negras: abre cualquier sesión para ver exactamente cómo se estructura."
     },
     "track": {
-      "title": "Registra cada entrenamiento",
-      "body": "GPS en tiempo real con ritmo, distancia y desnivel en un mapa. Conecta un sensor de frecuencia cardíaca en Android y cada entrenamiento se clasificará por zona para que sepas si te has pasado de intensidad."
+      "title": "Registra cada entrenamiento y compártelo en directo",
+      "body": "GPS en tiempo real con ritmo, distancia y desnivel en un mapa. Conecta un sensor de frecuencia cardíaca en Android y cada entrenamiento se clasificará por zona para que sepas si te has pasado de intensidad. Comparte tu entrenamiento en directo y tus amigos te seguirán en el mapa con un solo enlace, sin app."
     },
     "races": {
       "title": "Encuentra tu carrera",

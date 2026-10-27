@@ -45,6 +45,7 @@ import { FeedbackSheet, FeedbackButton } from "./modals/FeedbackSheet";
 import { feedbackSourceForTab, type FeedbackSource } from "./betaFeedback";
 import { usePresence } from "./hooks/usePresence";
 import { OnboardingWizard } from "./modals/OnboardingWizard";
+import { onboardedSettings, onboardingBuildsPlan } from "./utils/onboarding";
 import { BackupModal } from "./modals/BackupModal";
 import { RestoreModal } from "./modals/RestoreModal";
 import { SettingsModal } from "./modals/SettingsModal";
@@ -60,6 +61,8 @@ import type { RoutineId } from "./stretch/routines";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
+import { RaceBridgeSheet } from "./modals/RaceBridgeSheet";
+import { RACE_DAY_SOURCE, inRaceDayMode, wishlistRaceCandidates } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
 import { PlanView } from "./views/PlanView";
 import { LogView } from "./views/LogView";
@@ -160,6 +163,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // three for a standard distance. Null the rest of the time — there is no
   // "nothing to report" sheet.
   const [achievement, setAchievement] = useState<{ run: Run; efforts: EffortRank[]; confetti: boolean } | null>(null);
+  // The race label for the one-time post-race "plan your next one" sheet.
+  const [raceBridge, setRaceBridge] = useState<string | null>(null);
   const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { session?: SessionWithWeek | null; sessionOffered?: boolean }) | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
   const [logImportOpen, setLogImportOpen] = useState(false);
@@ -885,6 +890,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (settings.targetEditionId && settings.raceDate && settings.distanceKm && !seen.has(settings.targetEditionId)) {
       cands.push({ editionId: settings.targetEditionId, date: settings.raceDate, distanceKm: Number(settings.distanceKm) });
     }
+    // Race-day mode has no plan to stamp a RACE session, so the wishlist is the
+    // race list, and any of its races is the race they came for.
+    const raceDay = inRaceDayMode(settings, plan);
+    if (raceDay) cands.push(...wishlistRaceCandidates(baseRaces.participations).filter(c => !seen.has(c.editionId)));
     if (!cands.length) return null;
     let match = null, edId = null;
     for (const r of added) {
@@ -901,7 +910,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     const snapshot = { editionId: edId, raceId: joined?.raceId, label, raceDate: ed.date, distanceKm: ed.distanceKm };
     const done = { ...(prev || snapshot), status: "done", timeSec: match.durationSec, runId: match.id, source: "auto", notes: prev?.notes || "" };
     const next = prev ? parts.map(p => p.editionId === edId ? done : p) : [...parts, done];
-    return { nextRaces: { ...baseRaces, participations: next }, undoParts: parts, label, isMain: edId === settings.targetEditionId };
+    return { nextRaces: { ...baseRaces, participations: next }, undoParts: parts, label, isMain: raceDay || edId === settings.targetEditionId, raceDay };
+  };
+
+  const closeRaceBridge = () => {
+    setRaceBridge(null);
+    patchSettings({raceBridgeSeen: true});
   };
 
   // `opts.skipDetect` is set when the run is created by the Races "log result"
@@ -924,6 +938,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (det) {
       track("race_completed", { source: "auto" });
       if (det.isMain) setCelebrate(true);
+      if (det.raceDay && settings.raceBridgeSeen === false) setRaceBridge(det.label);
       showToast(t("app.toasts.loggedAsRace", { label: det.label }), "ok",
         { label: t("common.undo"), onClick: () => commitRaces(reconcileBadges(nextRuns, { ...merged, participations: det.undoParts })) });
     }
@@ -1320,35 +1335,27 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         catalogue={catalogue} addRace={addRace} addEdition={addEdition}
         refreshCatalogue={refreshCatalogue} showToast={showToast}
         onSaveProgress={(partial, step) => saveSettings({...settings, ...partial, onboardStep: step})}
-        onComplete={({name, plan, hr, hrMethod, healthAck}) => {
-          // `plan` carries the race-shaped fields incl. targetEditionId (set when
-          // a catalogue edition was picked, null otherwise). Clear the onboarding
-          // scaffolding (onboardStep/intent) so it doesn't linger in the blob.
-          // Seeding the coach signposts `false` here (rather than reading an
-          // absent flag as "not yet shown") keeps them to accounts that onboard
-          // from this version on — see the SettingsState comment.
-          const next = {...settings, name, onboarded: true, onboardStep: 0, intent: null, healthAck,
-            coachIntroSeen: false, coachOverdueIntroSeen: false, feedbackIntroSeen: false, ...plan, ...(hr || {}),
-            ...(hrMethod ? {hrMethod} : {})};
+        onComplete={result => {
+          const { live } = result;
+          const next = onboardedSettings(settings, result);
           saveSettings(next);
-          // Only build a plan if the race was actually set up (the user may have
-          // skipped straight to the health gate) — buildPlan needs date+distance.
-          if (next.raceDate && next.distanceKm)
+          if (onboardingBuildsPlan(next, !!live))
             savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next}));
           // A catalogue race picked in onboarding is the training target — also
           // surface it in the Races tab as a wishlist participation (the tab lists
           // participations, not the settings target). Skip if already present.
-          const joined = findEdition(next.targetEditionId);
-          if (joined && !(races.participations || []).some(p => p.editionId === next.targetEditionId)) {
+          const pickedEdition = live ? live.editionId : next.targetEditionId;
+          const joined = findEdition(pickedEdition);
+          if (joined && !(races.participations || []).some(p => p.editionId === pickedEdition)) {
             const ed = joined.edition;
             saveRaces({ ...races, participations: [...(races.participations || []), {
               editionId: ed.id, raceId: joined.raceId, label: editionLabel({ name: String(joined.name) }, ed),
               raceDate: ed.date, distanceKm: ed.distanceKm,
-              status: "wishlist", timeSec: null, runId: null, source: "onboarding", notes: "",
+              status: "wishlist", timeSec: null, runId: null, source: live ? RACE_DAY_SOURCE : "onboarding", notes: "",
             }] });
           }
           setOnboarding(false);
-          track("onboarding_completed", {});
+          track("onboarding_completed", {intent: live ? "live" : settings.intent || "race"});
         }}/>}
       {/* Unlinked opens: a run recorded from here is OFFERED whatever plan
           session it plausibly settles (offeredSession), to confirm on the save
@@ -1426,6 +1433,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
+      {/* After the achievement sheet, never stacked on it. Spent on either answer. */}
+      {raceBridge && !achievement && <RaceBridgeSheet label={raceBridge}
+        onPlan={() => { closeRaceBridge(); setTab("races"); track("race_bridge", {action: "plan"}); }}
+        onClose={() => { closeRaceBridge(); track("race_bridge", {action: "dismiss"}); }}/>}
 
       {/* The one-time pointer at the header's Coach pill (seeded at onboarding
           completion). Home only, and gated on `plan` exactly like the pill it

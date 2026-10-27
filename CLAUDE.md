@@ -591,10 +591,14 @@ changes.
 - Dates are `YYYY-MM-DD` strings; use `ymd()` and `fmt.*`
   (`src/utils/format.ts`). Parse local dates as `new Date(s + "T00:00:00")`.
 - **Onboarding (`src/modals/OnboardingWizard.tsx`):** branches on
-  `settings.intent` (`"race"` | `"fitness"`) via the pure `onboardingSteps`
+  `settings.intent` (`"race"` | `"fitness"` | `"live"`) via the pure `onboardingSteps`
   (`src/utils/onboarding.ts`). The **Health & safety** step is the unskippable
-  medical gate — "Skip" jumps *to* it, never around it; only the summary's
-  "Get started" calls `onComplete` (records `settings.healthAck`). The screening
+  medical gate — "Skip" jumps *to* it, never around it; only the last step
+  (the plan branches' summary, the live branch's gate) calls `onComplete`
+  (records `settings.healthAck`). The `"live"` branch builds **no plan**: its
+  race is a participation, never `targetEditionId`, and `settings.liveFirst`
+  puts Home in race-day mode until a plan exists (`src/utils/raceDay.ts`,
+  `docs/live-sharing.md`). The screening
   answer is GDPR health data — never persisted. Progress persists per-step via
   `onSaveProgress`, capped at the health step; clear `onboardStep`/`intent` on
   complete/skip, and set `onboarded: true` on any first-run completion/dismissal.

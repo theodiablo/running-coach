@@ -31,6 +31,13 @@ export async function requestRunNotifications(): Promise<boolean> {
   catch { return false; }
 }
 
+// Null off-Android, where there is no runtime permission to show.
+export async function checkRunNotifications(): Promise<boolean | null> {
+  if (!isAndroid) return null;
+  try { return !!(await plugin().checkNotifications())?.granted; }
+  catch { return null; }
+}
+
 // Ask at most once per install (the first time a run starts), so a denial never
 // re-nags on later runs — the user can still enable it from system settings.
 // Fire-and-awaitable; a no-op after the first call or off-Android.

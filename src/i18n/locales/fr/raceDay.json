@@ -1,0 +1,32 @@
+{
+  "card": {
+    "eyebrow": "Jour de course",
+    "today": "Aujourd'hui !",
+    "liveEyebrow": "Partage en direct",
+    "liveTitle": "Partage ta prochaine sortie en direct",
+    "liveSub": "Tes proches te suivent avec ton lien, sans appli.",
+    "linkSent": "Lien de suivi envoyé",
+    "linkTodo": "Envoie ton lien de suivi",
+    "testTitle": "Fais un test de 2 minutes",
+    "testSub": "Fais le tour du pâté de maisons avec le partage activé, et ouvre ton lien sur un autre téléphone.",
+    "testCta": "Tester",
+    "shareOff": "Le partage est désactivé sur ce téléphone. Active-le avant de partir.",
+    "startRace": "Lancer ma course",
+    "startRun": "Lancer une sortie",
+    "sharedLive": "en direct"
+  },
+  "plan": {
+    "beforeTitle": "Envie d'arriver en meilleure forme ?",
+    "beforeSub": "Crée un plan d'entraînement pour cette course",
+    "afterTitle": "Une autre course en tête ?",
+    "afterSub": "Choisis-la et obtiens un plan qui t'amène au top le jour J"
+  },
+  "bridge": {
+    "title": "{{label}}, c'est fait !",
+    "followers": "Bien couru. Ton lien reste silencieux jusqu'à ta prochaine sortie partagée.",
+    "nextTitle": "Une autre course en tête ?",
+    "nextBody": "Choisis-la et on construit un plan qui t'amène au meilleur de ta forme le jour J.",
+    "cta": "Trouver ma prochaine course",
+    "notNow": "Pas maintenant"
+  }
+}

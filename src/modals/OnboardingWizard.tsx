@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, Trophy, Navigation, Loader, Bluetooth } from "lucide-react";
-import { INPUT_CLS, DISCLAIMER_VERSION, DISCLAIMER_URL } from "../constants";
+import { Activity, ChevronLeft, ShieldAlert, AlertTriangle, Search, Check, Target, Sparkles, MapPin, Trophy, Navigation, Loader, Bluetooth, Radio } from "lucide-react";
+import { INPUT_CLS, DISCLAIMER_VERSION, DISCLAIMER_URL, LIVE_SHARE_KEY } from "../constants";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../i18n";
 import { AvailabilityEditor } from "../components/AvailabilityEditor";
 import { GoalConfigurator } from "../components/GoalConfigurator";
@@ -22,7 +22,11 @@ import { RaceFormModal } from "./RaceFormModal";
 import { AddRaceCard } from "../components/AddRaceCard";
 import { Confetti } from "../components/Confetti";
 import { CoachAvatar } from "../components/CoachAvatar";
-import { onboardingSteps } from "../utils/onboarding";
+import { onboardingSteps, type OnboardingStep } from "../utils/onboarding";
+import { ReadinessChecklist } from "../components/ReadinessChecklist";
+import { ShareLinkPanel } from "../components/ShareLinkPanel";
+import { ToggleSwitch } from "../components/ToggleSwitch";
+import { useShareLink } from "../hooks/useShareLink";
 import { isNative } from "../native";
 import { useBlePairing, type BleDevice } from "../hooks/useBlePairing";
 import { BleScanList } from "../components/BleScanList";
@@ -34,11 +38,10 @@ import type { PlanSessionInput } from "../utils/plan";
 import { addWeeks, ymd, fmt } from "../utils/format";
 import type { CatalogueEdition, CatalogueRace, HealthAck, HrMethod, Intent, JoinedEdition, SettingsState } from "../types";
 
-
-type OnboardingStepKey = "welcome" | "intent" | "race" | "raceGoal" | "training" | "hr" | "health" | "summary";
 type OnboardingProgress = Partial<SettingsState>;
 type OnboardingCompletePayload = {
   name: string;
+  // Null on the live branch, which builds no plan.
   plan: {
     raceDate: string;
     goalSec: string | number;
@@ -53,12 +56,15 @@ type OnboardingCompletePayload = {
     availabilityMode: AvailabilityMode;
     availDays: number;
     availTime: DurationBand;
-  };
+  } | null;
   hr: Pick<SettingsState, "birthYear" | "age" | "maxHR" | "restHR"> | null;
   // Set only when a strap was paired here — pairing IS choosing it as the HR
   // source, the same rule the Connections card follows.
   hrMethod: HrMethod | null;
   healthAck: NonNullable<HealthAck>;
+  // The live branch's race (a catalogue edition, saved as a participation, never
+  // a plan target) and whether the share link already went out.
+  live: { editionId: string | null; linkSent: boolean } | null;
 };
 type OnboardingWizardProps = {
   settings: SettingsState;
@@ -90,7 +96,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const today = ymd(new Date());
 
   const [intent, setIntent] = useState<Intent>(settings.intent || null); // null | "race" | "fitness"
-  const seq = onboardingSteps(intent);
+  const seq = onboardingSteps(intent, { native: isNative });
 
   const [stepIdx, setStepIdx] = useState(() =>
     Math.min(Math.max(0, settings.onboardStep || 0), seq.length - 1));
@@ -174,6 +180,13 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // GDPR special-category health data, so it lives ONLY in local state and is
   // never persisted; we persist only the acknowledgment record (timestamp +
   // disclaimer version) at completion via onComplete.
+  // Live branch: the per-device share switch (armed by default, it is why they
+  // came) and whether the link went out from here, for Home's race-day card.
+  const live = intent === "live";
+  const [shareOn, setShareOn] = useState(true);
+  const [linkSent, setLinkSent] = useState(false);
+  const nextAfter = (key: OnboardingStep) => seq[seq.indexOf(key) + 1];
+
   const [screenApplies, setScreenApplies] = useState<boolean | null>(null); // null | false | true
   const [ackChecked, setAckChecked] = useState(false);
   const [medConfirm, setMedConfirm] = useState(false);
@@ -214,8 +227,8 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // gate so `summary` is never persisted — a refresh on it resumes at the gate
   // and the acknowledgment is always captured fresh. `intent` is persisted too
   // so a mid-flow refresh rebuilds the right branch.
-  const go = (key: OnboardingStepKey, partial: OnboardingProgress = {}, nextIntent: Intent = intent) => {
-    const ns = onboardingSteps(nextIntent);
+  const go = (key: OnboardingStep, partial: OnboardingProgress = {}, nextIntent: Intent = intent) => {
+    const ns = onboardingSteps(nextIntent, { native: isNative });
     const idx = ns.indexOf(key);
     if (idx < 0) return;
     if (nextIntent !== intent) setIntent(nextIntent);
@@ -274,11 +287,18 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // Complete from the summary. HR is included only if the user entered any.
   // The derived age rides along so old app versions keep a consistent `age`.
   const complete = () => {
+    const healthAck = {v: DISCLAIMER_VERSION, at: new Date().toISOString()};
+    if (live) {
+      try { localStorage.setItem(LIVE_SHARE_KEY, shareOn ? "1" : "0"); } catch { /* quota — non-fatal */ }
+      onComplete({name: trimmedName, plan: null, hr: null, hrMethod: null, healthAck,
+        live: {editionId: targetEditionId || null, linkSent}});
+      return;
+    }
     const mhrN = parseInt(maxHR) || 0;
     const hasHR = ageN != null || mhrN > 0;
     const hr = hasHR ? {birthYear: byN, age: ageN ?? 0, maxHR: mhrN || tanakaMax || 0, restHR: parseInt(restHR) || 60} : null;
     const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta};
-    onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck: {v: DISCLAIMER_VERSION, at: new Date().toISOString()}});
+    onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck, live: null});
   };
 
   // Text + band narrow the catalogue, same as the Races tab; a match passes the
@@ -366,10 +386,11 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 {[
                   {Icon: Target, text: t("onboarding.welcome.featurePlan")},
                   {Icon: MapPin, text: t("onboarding.welcome.featureGps")},
+                  {Icon: Radio, text: t("onboarding.welcome.featureLive"), live: true},
                   {Icon: Trophy, text: t("onboarding.welcome.featureBadges")},
-                ].map(({Icon, text}, i) => (
+                ].map(({Icon, text, live: isLive}, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm text-slate-300">
-                    <Icon size={16} className="text-orange-400 shrink-0 mt-0.5"/>{text}
+                    <Icon size={16} className={(isLive ? "text-emerald-400" : "text-orange-400") + " shrink-0 mt-0.5"}/>{text}
                   </li>
                 ))}
               </ul>
@@ -424,15 +445,25 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                     <p className="text-xs text-slate-400 mt-0.5">{t("onboarding.intent.fitness.sub")}</p>
                   </div>
                 </button>
+                <button onClick={() => go("liveRace", {}, "live")}
+                  className="w-full text-left bg-emerald-500/5 rounded-2xl p-4 border border-emerald-500/40 hover:border-emerald-400/70 transition-colors flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                    <Radio size={20} className="text-emerald-300"/>
+                  </div>
+                  <div>
+                    <p className="font-semibold">{t("onboarding.intent.live.title")}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{t("onboarding.intent.live.sub")}</p>
+                  </div>
+                </button>
               </div>
             </div>
           )}
 
-          {cur === "race" && (
+          {(cur === "race" || cur === "liveRace") && (
             <div className="space-y-5">
               <div>
-                <p className="font-bold text-lg">{t("onboarding.race.title")}</p>
-                <p className="text-sm text-slate-400 mt-1">{t("onboarding.race.subtitle")}</p>
+                <p className="font-bold text-lg">{t(live ? "onboarding.liveRace.title" : "onboarding.race.title")}</p>
+                <p className="text-sm text-slate-400 mt-1">{t(live ? "onboarding.liveRace.subtitle" : "onboarding.race.subtitle")}</p>
               </div>
 
               {pickedLabel ? (
@@ -501,8 +532,10 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                     </div>
                   )}
 
-                  <AddRaceCard onClick={() => setShowAddRace(true)} subtitle={t("onboarding.race.addSubtitle")}>
-                    {!manual ? (
+                  {/* A participation is keyed by its catalogue edition, so the live
+                      branch has no "just for myself" entry: adding the race is the way. */}
+                  <AddRaceCard onClick={() => setShowAddRace(true)} subtitle={t(live ? "onboarding.liveRace.addSubtitle" : "onboarding.race.addSubtitle")}>
+                    {live ? null : !manual ? (
                       <button onClick={() => setManual(true)} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
                         {t("onboarding.race.manualLink")}
                       </button>
@@ -532,11 +565,44 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 </>
               )}
 
-              <button onClick={() => go("raceGoal", {raceDate, distanceKm, raceElevation: Number(raceElevation) || 0, targetEditionId})} disabled={!raceDate || !distanceKm}
-                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+              {live ? (
+                <div className="space-y-3">
+                  {pickedLabel && <p className="text-xs text-slate-400">{t("onboarding.liveRace.savedNote")}</p>}
+                  <button onClick={() => go(nextAfter("liveRace"), {targetEditionId: targetEditionId || null})} disabled={!targetEditionId}
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                    {t("onboarding.continue")}
+                  </button>
+                  <button onClick={() => { clearPick(); go(nextAfter("liveRace"), {targetEditionId: null}); }}
+                    className="w-full text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                    {t("onboarding.liveRace.noRace")}
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => go("raceGoal", {raceDate, distanceKm, raceElevation: Number(raceElevation) || 0, targetEditionId})} disabled={!raceDate || !distanceKm}
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  {t("onboarding.continue")}
+                </button>
+              )}
+            </div>
+          )}
+
+          {cur === "liveReady" && (
+            <div className="space-y-5">
+              <div>
+                <p className="font-bold text-lg">{t("onboarding.liveReady.title")}</p>
+                <p className="text-sm text-slate-400 mt-1">{t("onboarding.liveReady.subtitle")}</p>
+              </div>
+              <ReadinessChecklist/>
+              <button onClick={() => go(nextAfter("liveReady"))}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
                 {t("onboarding.continue")}
               </button>
             </div>
+          )}
+
+          {cur === "liveLink" && (
+            <LiveLinkStep shareOn={shareOn} onShareOn={setShareOn} onSent={() => setLinkSent(true)}
+              showToast={showToast} onContinue={() => go(nextAfter("liveLink"))}/>
           )}
 
           {cur === "raceGoal" && (
@@ -734,7 +800,8 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                 </label>
               </div>
 
-              <button onClick={() => go("summary")} disabled={!canPassHealth}
+              {/* The live branch has no plan to summarise, so the gate is its last step. */}
+              <button onClick={() => (seq.includes("summary") ? go("summary") : complete())} disabled={!canPassHealth}
                 className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
                 {t("onboarding.continue")}
               </button>
@@ -808,6 +875,43 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
         prefill={{date: raceDate, distanceKm, elevation: Number(raceElevation) || 0}}
         onCreated={onRaceCreated}
         onClose={() => setShowAddRace(false)}/>}
+    </div>
+  );
+}
+
+// The live branch's link step. Its own component so the link is only fetched
+// once someone reaches it. Creating needs no confirm: this screen is the
+// explanation the recorder's confirm otherwise carries.
+function LiveLinkStep({ shareOn, onShareOn, onSent, showToast, onContinue }: {
+  shareOn: boolean; onShareOn: (on: boolean) => void; onSent: () => void;
+  showToast: (msg: string, type?: string) => void; onContinue: () => void;
+}) {
+  const { t } = useTranslation();
+  const link = useShareLink(showToast);
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="font-bold text-lg">{t("onboarding.liveLink.title")}</p>
+        <p className="text-sm text-slate-400 mt-1">{t("onboarding.liveLink.subtitle")}</p>
+      </div>
+      <ShareLinkPanel link={link} active={shareOn} confirmCreate={false} onSent={onSent}/>
+      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-3 space-y-1">
+        <p className="text-[10px] uppercase tracking-widest text-slate-500">{t("onboarding.liveLink.previewLabel")}</p>
+        <p className="text-sm font-semibold text-slate-200">{t("onboarding.liveLink.previewTitle")}</p>
+        <p className="text-xs text-slate-400">{t("onboarding.liveLink.previewBody")}</p>
+      </div>
+      <div className="bg-slate-800 rounded-2xl p-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{t("onboarding.liveLink.toggleTitle")}</p>
+          <p className="text-xs text-slate-400">{t("onboarding.liveLink.toggleSub")}</p>
+        </div>
+        <ToggleSwitch on={shareOn} onToggle={() => onShareOn(!shareOn)} label={t("onboarding.liveLink.toggleTitle")}/>
+      </div>
+      <p className="text-xs text-slate-500">{t("liveShare.toggle.hint")}</p>
+      <button onClick={onContinue}
+        className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+        {t("onboarding.continue")}
+      </button>
     </div>
   );
 }

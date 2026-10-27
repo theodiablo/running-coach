@@ -1,6 +1,6 @@
 import type { PlanSessionInput } from "./utils/plan";
 
-export type Intent = "race" | "fitness" | null;
+export type Intent = "race" | "fitness" | "live" | null;
 // "healthconnect" is Android-only, "healthkit" iOS-only; the preference syncs
 // across devices, so readers must degrade an off-platform value to "off"
 // (getHrSource returns null for it) rather than assume it's usable locally.
@@ -46,6 +46,14 @@ export type SettingsState = Record<string, unknown> & {
   coachIntroSeen?: boolean;
   coachOverdueIntroSeen?: boolean;
   feedbackIntroSeen?: boolean;
+  // Onboarded through "Let people follow my race": Home leads with the
+  // race-day card instead of asking for a plan, until they build one.
+  liveFirst?: boolean;
+  // Whether the share link went out from onboarding or Home's race-day card.
+  liveLinkSent?: boolean;
+  // The one-time "plan your next race" offer after the race. Seeded `false` on
+  // the live branch only, so it never reaches a runner who already has a plan.
+  raceBridgeSeen?: boolean;
   // The recorder's audio-guidance preferences (AudioPrefs, read through
   // readAudioPrefs) and the last free run's "Today's run" setup (read through
   // readSpec). Both synced; docs/guided-workouts.md.

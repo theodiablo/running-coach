@@ -18,6 +18,12 @@ and requests **`ACCESS_BACKGROUND_LOCATION`** ("Allow all the time") for all use
   3. `POST_NOTIFICATIONS` for the recording notification.
 - **Asked once per install** (`BG_LOC_ASKED_KEY`); a denial never re-nags and
   **never blocks recording** — a run still records while the screen is on.
+- **The one other request site is the race-day onboarding checklist**
+  (`src/geo/readiness.ts`, `ReadinessChecklist`), an explicit tap per row ahead
+  of race day. Its location AND "Allow all the time" rows show the same
+  `BgLocationDisclosure` first unless this install already accepted it
+  (`src/geo/disclosure.ts`, shared with the tracker); the background row is a
+  deliberate re-ask, since the runner came there to fix it.
 - The disclosure shows an explicit, bolded step-by-step walkthrough of those three
   prompts (`login.bgLocation.step1/2/3`), gated on `isBackgroundLocationAvailable()`
   so it only appears where the permission exists (Android, not web/iOS).

@@ -21,9 +21,12 @@ import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
+import { RaceDayCard, RaceDayPlanRow } from "../components/RaceDayCard";
+import { hasTestRun, inRaceDayMode, upcomingRace } from "../utils/raceDay";
+import { findEdition } from "../utils/races";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
-import type { CoachSource, Plan, PlanSession, RacesState, Run, RunActivity, RunType, SettingsPage, SettingsState } from "../types";
+import type { CoachSource, JoinedEdition, Plan, PlanSession, RacesState, Run, RunActivity, RunType, SettingsPage, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
 type DashboardProps = {
@@ -68,6 +71,7 @@ type DashboardProps = {
   openStretch?: (target?: StretchSuggestion) => void;
   saveSettings?: (s: SettingsState) => void;
   recorderOpen?: boolean;
+  promoteEdition?: (joined: JoinedEdition) => void;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
@@ -82,7 +86,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -104,6 +108,15 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       .sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)))[0];
   // Both selectors carry the week number so the cards' actions can target the
   // right session via openTracker / goLog / toggleSess.
+  // Race-day mode (src/utils/raceDay.ts): Home leads with the race and the link
+  // instead of asking for a plan.
+  const raceDay = inRaceDayMode(settings, plan);
+  const raceDayRace = raceDay ? upcomingRace(races?.participations, todayStr) : null;
+  const planRaceDay = () => {
+    const joined = raceDayRace?.editionId ? findEdition(raceDayRace.editionId) : null;
+    if (joined && promoteEdition) promoteEdition(joined);
+    else goTab(raceDayRace ? "plan" : "races");
+  };
   const nextSess = nextSession(plan, today) as DashboardSession | null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
   // A session dated in the future can't already be done — ungated, the card
@@ -271,6 +284,11 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           }}/>
       )}
 
+      {raceDay ? (
+        <RaceDayCard race={raceDayRace} today={todayStr} linkSent={!!settings.liveLinkSent} testDone={hasTestRun(runs)}
+          onLinkSent={() => { if (!settings.liveLinkSent) saveSettings?.({ ...settings, liveLinkSent: true }); }}
+          onStart={() => openTracker?.()} showToast={showToast}/>
+      ) : (
       <div className="rounded-2xl p-5 border border-orange-500/30"
         style={{background:"linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))"}}>
         {settings.raceDate && settings.distanceKm ? (
@@ -307,6 +325,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           </button>
         )}
       </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         {statCards.map(card => (
@@ -520,6 +539,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             )}
           </div>
         </div>
+      ) : raceDay ? (
+        <RaceDayPlanRow upcoming={!!raceDayRace} onClick={planRaceDay}/>
       ) : !plan ? (
         <div className="bg-slate-800 rounded-xl p-5 text-center space-y-3">
           <p className="text-slate-400 text-sm">{t("dashboard.noPlan")}</p>

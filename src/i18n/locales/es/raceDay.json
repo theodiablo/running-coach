@@ -1,0 +1,32 @@
+{
+  "card": {
+    "eyebrow": "Día de carrera",
+    "today": "¡Hoy!",
+    "liveEyebrow": "Compartir en directo",
+    "liveTitle": "Comparte tu próximo entrenamiento en directo",
+    "liveSub": "Tus amigos te siguen con tu enlace, sin app.",
+    "linkSent": "Enlace de seguimiento enviado",
+    "linkTodo": "Envía tu enlace de seguimiento",
+    "testTitle": "Haz una prueba de 2 minutos",
+    "testSub": "Da una vuelta a la manzana compartiendo en directo y abre tu enlace en otro teléfono.",
+    "testCta": "Probar",
+    "shareOff": "Compartir está desactivado en este teléfono. Actívalo antes de salir.",
+    "startRace": "Empezar mi carrera",
+    "startRun": "Empezar un entrenamiento",
+    "sharedLive": "en directo"
+  },
+  "plan": {
+    "beforeTitle": "¿Quieres llegar en mejor forma?",
+    "beforeSub": "Crea un plan de entrenamiento para esta carrera",
+    "afterTitle": "¿Tienes otra carrera en mente?",
+    "afterSub": "Elígela y consigue un plan que te lleve a tu mejor forma el día de la carrera"
+  },
+  "bridge": {
+    "title": "¡{{label}}, completada!",
+    "followers": "Bien corrido. Tu enlace queda en silencio hasta tu próximo entrenamiento compartido.",
+    "nextTitle": "¿Tienes otra carrera en mente?",
+    "nextBody": "Elígela y crearemos un plan que te lleve a tu mejor forma el día de la carrera.",
+    "cta": "Buscar mi próxima carrera",
+    "notNow": "Ahora no"
+  }
+}
