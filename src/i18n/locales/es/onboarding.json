@@ -9,13 +9,14 @@
     "subtitle": "Un entrenador en tu bolsillo. Vamos a configurarlo todo en menos de un minuto.",
     "featurePlan": "Un plan de entrenamiento que se adapta a tu objetivo y a tu semana",
     "featureGps": "Registra todos tus entrenamientos con GPS",
+    "featureLive": "Comparte un entrenamiento en directo: tus amigos te siguen en el mapa con un solo enlace, sin app",
     "featureBadges": "Gana insignias mientras consolidas el hábito",
     "namePlaceholder": "Tu nombre (opcional)"
   },
   "intent": {
     "title": "¿Qué te trae por aquí?",
     "titleNamed": "¡Hola, {{name}}! ¿Qué te trae por aquí?",
-    "subtitle": "Adaptaremos el plan a tus necesidades.",
+    "subtitle": "Lo preparamos todo en función de eso.",
     "race": {
       "title": "Estoy entrenando para una carrera",
       "sub": "Elige tu carrera y crearemos un plan que te haga llegar en tu mejor momento."
@@ -23,6 +24,10 @@
     "fitness": {
       "title": "Estoy empezando",
       "sub": "Sin carrera todavía. Mejora tu forma física y crea el hábito de correr a tu ritmo."
+    },
+    "live": {
+      "title": "Que sigan mi carrera en directo",
+      "sub": "Graba tu carrera y comparte un enlace en directo. No necesitas plan de entrenamiento."
     }
   },
   "race": {
@@ -45,6 +50,46 @@
   "raceGoal": {
     "title": "Objetivo y días de entrenamiento",
     "subtitle": "Te proponemos un objetivo realista. Ajústalo si quieres."
+  },
+  "liveRace": {
+    "title": "¿Qué carrera?",
+    "subtitle": "Opcional. Verás la cuenta atrás en tu pantalla de inicio.",
+    "addSubtitle": "La añade a tus carreras y ayuda a otros a encontrarla.",
+    "savedNote": "Se guarda en tu pestaña Carreras. No se crea ningún plan de entrenamiento.",
+    "noRace": "Sin carrera en mente, solo un entrenamiento →"
+  },
+  "liveReady": {
+    "title": "Listo para el día de la carrera",
+    "subtitle": "Resuélvelo ahora y no en la línea de salida. Tu teléfono pasará la carrera en un bolsillo, con la pantalla apagada.",
+    "location": {
+      "title": "Ubicación",
+      "sub": "Graba tu recorrido y te sitúa en el mapa",
+      "action": "Permitir"
+    },
+    "background": {
+      "title": "Ubicación con la pantalla apagada",
+      "sub": "El mapa sigue avanzando para quienes te siguen",
+      "action": "Permitir"
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "sub": "Tu entrenamiento sigue en la pantalla de bloqueo mientras se graba",
+      "action": "Permitir"
+    },
+    "battery": {
+      "title": "Batería sin restricciones",
+      "sub": "Si no, Android puede detener una grabación larga para ahorrar batería",
+      "action": "Abrir ajustes"
+    }
+  },
+  "liveLink": {
+    "title": "Tu enlace de seguimiento",
+    "subtitle": "Envíalo ya. Es el mismo enlace el día de la carrera, y se activa en cuanto empiezas a grabar.",
+    "previewLabel": "Lo que ven hasta que empiezas",
+    "previewTitle": "Nada en directo ahora mismo",
+    "previewBody": "El mapa y tus datos en directo aparecen solos en cuanto sales.",
+    "toggleTitle": "Compartir mis entrenamientos desde este teléfono",
+    "toggleSub": "Puedes desactivarlo cuando quieras antes de empezar un entrenamiento."
   },
   "daysLabel": "Días de entrenamiento y duraciones",
   "styleLabel": "Estilo de entrenamiento",

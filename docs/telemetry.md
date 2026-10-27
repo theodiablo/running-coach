@@ -149,9 +149,10 @@ choice either way.
 - `ErrorBoundary` around `<App/>` — `src/main.tsx` / `src/components/ErrorBoundary.tsx`.
 - First-run opt-in `ConsentBanner` (native: the full-screen `ConsentScreen`) +
   `identifyUser` / `resetUser` on auth — `src/App.tsx`.
-- Events (`onboarding_completed`, `run_logged`, `plan_generated`,
+- Events (`onboarding_completed` `{intent:"race"|"fitness"|"live"}`, `run_logged`, `plan_generated`,
   `race_target_set`, `race_completed` `{source:"manual"|"auto"}`,
-  `plan_race_added` — a secondary race folded into the plan) —
+  `plan_race_added` — a secondary race folded into the plan, `race_bridge`
+  `{action:"plan"|"dismiss"}` — the post-race offer in race-day mode) —
   `src/RunningCoach.tsx`. Limited: counts/enums only, never race
   names/notes/times. `plan_race_added` carries no properties (there is no race
   priority/tier). **`run_logged` `{count, source}` is the "new run tracked"

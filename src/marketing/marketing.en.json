@@ -11,7 +11,7 @@
     "body": "Pick your race, set your goal time, and get a week-by-week training plan. When life gets in the way, ask your coach — it proposes a safe adjustment in seconds, and nothing changes until you approve it.",
     "ctaPrimary": "Get started — it's free",
     "ctaSecondary": "I already have an account",
-    "freeNote": "Everything you need to train is free — plans, GPS tracking, races, and the coach (with a daily fair-use limit so it stays free).",
+    "freeNote": "Everything you need to train is free — plans, GPS tracking, live sharing, races, and the coach (with a daily fair-use limit so it stays free).",
     "iosBeta": "Join the iOS beta",
     "android": "Get it on Google Play"
   },
@@ -43,8 +43,8 @@
       "body": "Base, build, peak, taper — around your race date, goal time, and the days you can actually train. Choose your method: Polarized 80/20, Hansons-style, 3-Day Quality, or Run/Walk. No black box — open any session to see exactly how it's built."
     },
     "track": {
-      "title": "Track every run",
-      "body": "Live GPS with pace, distance, and elevation on a map. Pair heart rate on Android and every run is classified into training zones — so you know if you went too hard."
+      "title": "Track every run, share it live",
+      "body": "Live GPS with pace, distance, and elevation on a map. Pair heart rate on Android and every run is classified into training zones — so you know if you went too hard. Switch on live sharing and friends and family follow you on the map from one link, no app needed."
     },
     "races": {
       "title": "Find your race",

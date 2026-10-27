@@ -32,6 +32,8 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Claiming / replacing / caching the link | `src/live/shareLinkStore.ts` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` (link UI in `LiveShareSheet`) |
+| Link state + panel (recorder, onboarding, Home) | `src/hooks/useShareLink.ts`, `src/components/ShareLinkPanel.tsx` |
+| Race-day onboarding and Home | `src/utils/raceDay.ts`, `src/components/RaceDayCard.tsx`, `src/geo/readiness.ts` |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
 | Dashboard banner | `src/views/Dashboard.tsx` |
 | Watch display (shared by both surfaces) | `src/components/LiveWatchView.tsx` |
@@ -567,6 +569,36 @@ French on purpose, because both surfaces render it.
 - **No native deep link.** If the shells ever claim the domain with universal
   links, tapping `/watch/...` would open an app that has no route for it. Nothing
   to do until then; note it in `docs/live-tracking.md` when that day comes.
+
+## Race-day onboarding
+
+The third onboarding answer, **"Let people follow my race"**, is for someone
+who installs the app to be followed on one race, not to train. Its branch is
+welcome → intent → race (optional) → readiness (native only) → link → health
+gate, and it builds no plan.
+
+- **The race is a participation, never the plan target.** It is saved
+  wishlisted with `source: "raceDay"`; `targetEditionId` stays null, so
+  `buildPlan` never runs. Picking one needs a catalogue edition (participations
+  are keyed by it), so the branch has no free-text race.
+- **Readiness** (`src/geo/readiness.ts`, `ReadinessChecklist`) checks location,
+  "Allow all the time", notifications and battery optimisation with the
+  recorder's own helpers, so they are fixed before race day instead of at the
+  start line. Never blocks Continue. The location row shows
+  `BgLocationDisclosure` first (Play), sharing the per-install marker in
+  `src/geo/disclosure.ts` with the recorder.
+- **The link step** claims the link without the recorder's create-confirm: the
+  screen is that explanation. The share switch (`LIVE_SHARE_KEY`, per device)
+  is armed by default and shown as a toggle.
+- **Race-day mode** (`settings.liveFirst` and no plan, `inRaceDayMode`): Home's
+  race card becomes `RaceDayCard` (countdown, link, a test run until any GPS run
+  exists, Start) and the "no plan" prompt becomes a quiet `RaceDayPlanRow`.
+  Race auto-detect matches against the wishlist, since there is no RACE session
+  to stamp; detecting the race fires the one-time `RaceBridgeSheet`
+  (`raceBridgeSeen`, seeded `false` on this branch only).
+- The link UI is one hook and one panel (`useShareLink`, `ShareLinkPanel`)
+  shared by the recorder, onboarding and Home; its confirm dialogs are
+  portalled, since the panel sits inside animated sheets.
 
 ## The public page promotes the app
 
