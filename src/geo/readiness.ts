@@ -40,7 +40,7 @@ export async function fixReadiness(id: ReadinessId): Promise<void> {
       if (await geoSource.requestPermissions().catch(() => false)) markBgLocationDisclosed();
       return;
     case "background":
-      markBgLocationDisclosed();
+      if (await checkPreciseLocation()) markBgLocationDisclosed();
       await requestBackgroundLocation();
       return;
     case "notifications":

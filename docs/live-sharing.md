@@ -584,9 +584,10 @@ gate, and it builds no plan.
 - **Readiness** (`src/geo/readiness.ts`, `ReadinessChecklist`) checks location,
   "Allow all the time", notifications and battery optimisation with the
   recorder's own helpers, so they are fixed before race day instead of at the
-  start line. Never blocks Continue. The location row shows
-  `BgLocationDisclosure` first (Play), sharing the per-install marker in
-  `src/geo/disclosure.ts` with the recorder.
+  start line. Never blocks Continue. Both location rows (location and "Allow
+  all the time") show `BgLocationDisclosure` first (Play), sharing the
+  per-install marker in `src/geo/disclosure.ts` with the recorder; the location
+  row counts only a precise grant, which is what the recorder needs.
 - **The link step** claims the link without the recorder's create-confirm: the
   screen is that explanation. The share switch (`LIVE_SHARE_KEY`, per device)
   is armed by default and shown as a toggle.
