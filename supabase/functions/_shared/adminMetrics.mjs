@@ -56,6 +56,12 @@ const tally = (obj) =>
     .join(", ") || "none";
 const row = (label, value) => `  ${label.padEnd(18)}${value}`;
 
+// Says which windows an unpriced model touched, so past usage doesn't read as current.
+function unpricedNote(tokens, model) {
+  const scope = tokens?.["7d"]?.[model] ? "incl. this week" : tokens?.["30d"]?.[model] ? "last 30 days" : "all time only";
+  return `${model}, ${tokens?.all?.[model]?.rounds ?? 0} turns, ${scope}`;
+}
+
 export function formatDigest(m) {
   const day = String(m.generated_at).slice(0, 10);
   const cost = Object.fromEntries(
@@ -95,7 +101,7 @@ export function formatDigest(m) {
     ),
     row("All time", `${m.coach.conversations_total} conversations`),
     row("Est. spend", `${usd(cost["7d"].usd)} this week, ${usd(cost["30d"].usd)} / 30 days, ${usd(cost.all.usd)} all time`),
-    ...(unpriced.length ? [row("Unpriced models", unpriced.join(", "))] : []),
+    ...unpriced.map((model) => row("Not in spend", unpricedNote(m.coach.tokens, model))),
     "",
     "Feedback",
     row("Beta feedback", `${m.feedback.beta_7d} this week (${m.feedback.beta_total} total)`),
