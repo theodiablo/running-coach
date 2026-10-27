@@ -85,9 +85,16 @@ describe("formatDigest", () => {
     expect(text).toContain("New this week     2 (prev 11)");
     expect(text).toContain("This week         9 by 4 runners (prev 14)");
     expect(text).toContain("$3.00 this week, $0.00 / 30 days, $3.00 all time");
-    expect(text).toContain("Unpriced models   mistral-large-latest");
+    expect(text).toContain("Not in spend      mistral-large-latest, 15 turns, all time only");
     expect(text).toContain("By style          balanced 14, lowfreq 12, hansons 2");
     expect(text).toContain("Integrations      suunto 2, polar 1");
+  });
+
+  it("flags an unpriced model used this week as current", () => {
+    const mistral = { rounds: 2, input: 10, output: 10 };
+    const tokens = { "7d": { "mistral-large-latest": mistral }, "30d": { "mistral-large-latest": mistral }, all: { "mistral-large-latest": mistral } };
+    const { text } = formatDigest({ ...METRICS, coach: { ...METRICS.coach, tokens } });
+    expect(text).toContain("Not in spend      mistral-large-latest, 2 turns, incl. this week");
   });
 
   it("says none rather than leaving a tally blank", () => {
