@@ -708,6 +708,7 @@ changes.
 - `docs/feedback.md` — the beta feedback button (and why voice input was removed).
 - `docs/stretching.md` — stretching (free): the research and what copy may claim, routines, poses-as-data figures, Home suggestion rules, the player.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
+- `docs/product-metrics.md` — maintainer metrics: `admin_metrics()`, the `admin-metrics` function's two doors, the weekly digest.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
 - `docs/integrations-polar.md` — Polar cloud import.
 - `docs/integrations-suunto.md` — Suunto cloud import.
