@@ -251,7 +251,8 @@ choice either way.
 
 ## Cookieless public pages
 
-The public live-run page (`/watch/:token`, `docs/live-sharing.md`) is read by
+The public live-run pages (`/watch/:token` and the follow list at `/watch/`,
+`docs/live-sharing.md`) are read by
 people who have no account and never see the consent banner, so opt-in analytics
 would count nobody there. It measures its audience **cookieless** instead:
 `main.tsx` calls `initPublicPageTelemetry()` *instead of* `initTelemetry()`, and
@@ -260,7 +261,8 @@ the adapter inits PostHog with `cookieless_mode: "always"` + `persistence:
 
 - **No consent is needed because nothing touches the device** (ePrivacy art.
   5(3) is about storage/access on the terminal). The SDK writes no cookie and no
-  local/session storage; unique visitors come from PostHog's server-side hash of
+  local/session storage, and never reads the follow list (the page's one stored
+  item, written only on an explicit Follow); unique visitors come from PostHog's server-side hash of
   IP + user agent with a daily-rotating salt, so a visitor is never linkable
   across days. The project's **Discard client IP data** (`anonymize_ips`) is on,
   so the IP is not stored either.

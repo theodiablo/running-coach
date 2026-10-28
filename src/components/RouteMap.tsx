@@ -64,6 +64,9 @@ type RouteMapProps = {
   // Told when the map enters/leaves full screen, so a caller that floats its own
   // control over the map (the tracker's recenter button) can follow it out.
   onExpandedChange?: (expanded: boolean) => void;
+  // False only on the public watch page, which stores nothing on a visitor's
+  // device that they didn't ask for (docs/live-sharing.md).
+  cacheTiles?: boolean;
 };
 
 const GUIDE_COLOR = "#38bdf8"; // sky — visually distinct from the orange record line
@@ -79,7 +82,7 @@ const EXPANDED_Z = 1000;
 export function RouteMap({ points = [], follow = false, interactive = true, location = null, className = "", style,
   endpoints = false, highlight = null, onPick, recenterSignal = 0, onFollowingChange,
   guidePoints = null, guides, fitGuides = false, onGuidePick,
-  expandable = false, onExpandedChange }: RouteMapProps) {
+  expandable = false, onExpandedChange, cacheTiles = true }: RouteMapProps) {
   const { t } = useTranslation();
   const onGuidePickRef = useRef(onGuidePick);
   useEffect(() => { onGuidePickRef.current = onGuidePick; });
@@ -158,7 +161,7 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       zoomControl: false,
       attributionControl: true,
     }).setView([0, 0], 2);
-    cachedTileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
+    (cacheTiles ? cachedTileLayer : L.tileLayer)(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
     // A dedicated low-z pane so guide lines (suggested/planned loops) always sit
     // UNDER the recorded track (overlayPane z=400) and its markers, no matter the
     // order the two effects run in.
@@ -182,6 +185,8 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
       zoomCtrlRef.current = null;
       locCenteredRef.current = false;
     };
+    // Tile caching is fixed for the map's life; a caller never flips it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Nav-follow: a manual pan or zoom suspends auto-follow so the map stays where

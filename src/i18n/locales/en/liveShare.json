@@ -82,6 +82,46 @@
       "playAria": "Get it on Google Play",
       "iosAria": "Get it on iPhone, free beta",
       "iosNote": "Free beta through Apple's TestFlight app. App Store release coming."
+    },
+    "follow": {
+      "cta": "Follow",
+      "following": "Following",
+      "title": "Follow this runner",
+      "body": "See everyone you follow on one map. You can follow up to {{max}} runners.",
+      "nameLabel": "Who is this?",
+      "namePlaceholder": "Their name (optional)",
+      "confirm": "Follow",
+      "cancel": "Cancel",
+      "seeAll": "Everyone you follow ({{count}})",
+      "replaceQ": "You already follow someone called {{name}}. Is this their new link?",
+      "replaceYes": "Yes, replace their old link",
+      "replaceNo": "No, it's someone else",
+      "full": "You already follow {{max}} runners. Remove one to add another.",
+      "savedHere": "Saved in this browser only, and the names you type never leave this device. You can remove anyone at any time.",
+      "unnamed": "Runner {{n}}"
+    },
+    "multi": {
+      "docTitle": "Runners you follow · Running Coach",
+      "docTitleLive": "({{count}}) Live · Running Coach",
+      "headerNone": "Runners you follow",
+      "everyone": "Everyone",
+      "km": "km",
+      "quiet": "No update for {{mins}} min",
+      "emptyTitle": "You don't follow anyone in this browser yet",
+      "emptyBody": "Open a runner's live link and tap Follow, or paste their link below.",
+      "add": "Add a runner",
+      "addPlaceholder": "Paste a live-run link",
+      "addButton": "Add",
+      "addInvalid": "That isn't a live-run link. Paste the whole link you received.",
+      "tapHint": "Tap a runner to see their route and stats.",
+      "notLiveYet": "Nothing live for {{name}} right now. This page keeps checking.",
+      "remove": "Remove",
+      "removeQ": "Stop following {{name}} in this browser?",
+      "forgetAll": "Remove everyone",
+      "forgetQ": "Remove every runner from this browser?",
+      "savedHere": "Saved in this browser only.",
+      "header_one": "{{count}} following · {{live}} live",
+      "header_other": "{{count}} following · {{live}} live"
     }
   }
 }

@@ -563,7 +563,9 @@ changes.
   `highlight`) rather than re-rolling the markup.
 - **Map tiles go through `cachedTileLayer`** (`src/components/cachedTileLayer.ts`;
   cache-first IndexedDB, 30-day TTL, stale fallback offline) — never a bare
-  `L.tileLayer`, or the map goes blank without a connection.
+  `L.tileLayer`, or the map goes blank without a connection. The one exception
+  is the public `/watch/` pages (`cacheTiles={false}`): a stranger's device gets
+  nothing stored they didn't ask for (`docs/live-sharing.md`).
 - **Surfacing an async run change** (HR relink, watch import): go through
   `goToRuns(ids, label)` (`RunningCoach.tsx`) — transient highlight + navigate
   + scroll — not a bare text toast.
@@ -697,7 +699,7 @@ changes.
 - `docs/indoor-sessions.md` — indoor/static cardio (bike, elliptical): the
   cross-training run shape, the GPS-free recorder, live HR zones.
 - `docs/background-location.md` — Android background-location policy.
-- `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger.
+- `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger, following several runners at `/watch/`.
 - `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
