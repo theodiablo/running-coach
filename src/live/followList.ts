@@ -79,8 +79,9 @@ export function readFollows(now = Date.now()): FollowedRunner[] {
 
 function storedCount(raw: string): number {
   try {
-    const runners = (JSON.parse(raw) as { runners?: unknown }).runners;
-    return Array.isArray(runners) ? runners.length : 0;
+    // Another version's shape is not ours to prune.
+    const data = JSON.parse(raw) as { v?: unknown; runners?: unknown };
+    return data?.v === VERSION && Array.isArray(data.runners) ? data.runners.length : 0;
   } catch { return 0; }
 }
 

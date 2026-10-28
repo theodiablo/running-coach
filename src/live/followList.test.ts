@@ -61,9 +61,13 @@ describe("followList", () => {
     expect(readFollows(now)).toEqual([{ token: tok("b"), name: "ok", color: FOLLOW_COLORS[0], addedAt: now }]);
   });
 
-  it("ignores another version's shape rather than misreading it", () => {
+  it("ignores another version's shape rather than misreading or deleting it", () => {
     localStorage.setItem(FOLLOW_KEY, JSON.stringify([{ token: tok("a") }]));
     expect(readFollows()).toEqual([]);
+    const v2 = JSON.stringify({ v: 2, runners: [{ token: tok("a") }] });
+    localStorage.setItem(FOLLOW_KEY, v2);
+    expect(readFollows()).toEqual([]);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBe(v2);
   });
 
   it("merges with what another tab wrote since this one read", () => {

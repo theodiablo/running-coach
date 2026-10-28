@@ -118,7 +118,7 @@ function useFollowedRuns(list: FollowedRunner[], focus: string | null) {
       timer = null;
       if (stopped || inFlight || document.visibilityState !== "visible") return;
       inFlight = true;
-      const wait = await load().finally(() => { inFlight = false; });
+      const wait = await load().catch(() => LIVE_POLL_MS).finally(() => { inFlight = false; });
       if (stopped || document.visibilityState !== "visible") return;
       timer = setTimeout(tick, wait);
     };
