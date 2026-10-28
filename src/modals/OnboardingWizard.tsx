@@ -813,8 +813,9 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
           )}
 
           {cur === "summary" && (() => {
-            const preview = buildPlan(raceDate, goalSec, planSessions, distanceKm, raceElevation, {style: effectiveStyle, level, runWalk: ratioMeta});
-            const weeks = preview?.weeks?.length || 0;
+            const preview = buildPlan(raceDate, goalSec, planSessions, distanceKm, raceElevation, {style: effectiveStyle, level, runWalk: ratioMeta, recovery: true});
+            // Through the race week: the recovery after it isn't training to count.
+            const weeks = preview?.weeks?.filter(w => w.phase !== "RECOVERY").length || 0;
             const label = pickedLabel || (intent === "fitness" ? t("onboarding.summary.fallbackFitness") : t("onboarding.summary.fallbackRace"));
             return (
               <div className="space-y-5 text-center">

@@ -230,7 +230,7 @@ export function coachSessionKey(ctx?: CoachSessionContext | null): string | null
 // never changes what the coach is told. Pass one at every call site so the
 // entry points stay comparable; "other" is the defensive fallback for a bare
 // `onClick={openCoach}` wiring that hands us a click event instead.
-export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "other";
+export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "recovery" | "other";
 
 export type PlanWeek = Record<string, unknown> & {
   weekNumber: number;
@@ -239,7 +239,19 @@ export type PlanWeek = Record<string, unknown> & {
   sessions: PlanSession[];
 };
 
+// What a plan is for. Absent = "race" (every plan written before goals existed);
+// goalKind (utils/recovery.ts) is the one reader. docs/training-plan.md.
+export type PlanGoal = { kind: "race" | "block" | "open" } & Record<string, unknown>;
+// A recovery window after a race: easy-only through `until` (inclusive).
+// Build-time facts like raceDate, never derived from the clock.
+export type RecoveryWindow = { race: string; km: number; until: string };
+
 export type Plan = Record<string, unknown> & {
+  goal?: PlanGoal;
+  // Written by buildPlan's opts.recovery when it appends the tail after race day.
+  recovery?: RecoveryWindow;
+  // Written when a new plan opens inside the previous race's recovery.
+  openedAfter?: RecoveryWindow;
   raceDate?: unknown;
   goalSec?: unknown;
   distanceKm?: unknown;

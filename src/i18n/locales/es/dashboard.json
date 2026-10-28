@@ -41,6 +41,26 @@
     "subtitle": "Elige tu próximo objetivo cuando quieras. No hay prisa.",
     "races": "Ver carreras"
   },
+  "recoveryCard": {
+    "title": "Recuperación",
+    "headline": "Días suaves hasta el {{date}}",
+    "sub_one": "Queda {{count}} día. Solo entrenamientos suaves, sin prisa por volver a la velocidad.",
+    "sub_other": "Quedan {{count}} días. Solo entrenamientos suaves, sin prisa por volver a la velocidad.",
+    "lastDay": "Último día suave. Después, vuelta a la normalidad."
+  },
+  "sore": {
+    "row": "¿Molestias o lesión?",
+    "title": "¿Molestias o lesión?",
+    "body": "La recuperación debe sentirse fácil. Si algo te duele, quita carga.",
+    "lighter": "Aligerar el resto",
+    "lighterHint": "Acorta las sesiones de recuperación que aún no has hecho.",
+    "coach": "Hablar con tu entrenador",
+    "caveat": "Dolor agudo o que no se va: consulta a un profesional.",
+    "toast": {
+      "lighter": "Recuperación aligerada",
+      "nothing": "No queda nada que aligerar"
+    }
+  },
   "stats": {
     "thisWeek": "Esta semana",
     "runsRecorded": "Entrenamientos registrados",

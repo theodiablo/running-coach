@@ -1,11 +1,11 @@
-import type { Participation, Plan, PlanSession, Run, SettingsState } from "../types";
+import type { Participation, Plan, PlanSession, RecoveryWindow, Run, SettingsState } from "../types";
 
 // Where the runner stands relative to the plan's main race. Derived on every
 // read, never stored: the plan is the source of truth, so a rebuild, an undo or
 // a restore can't leave a stale phase behind. Date arithmetic is on YYYY-MM-DD
 // strings and the clock comes in as `today`, so the core stays free of Date and
 // i18n. docs/training-plan.md.
-export type PlanPhase = "active" | "raceWeek" | "debrief" | "choosing";
+export type PlanPhase = "active" | "raceWeek" | "debrief" | "choosing" | "recovery";
 
 export type MainRace = {
   wNum: number;
@@ -24,6 +24,9 @@ export type PhaseInfo = {
   daysSince: number;
   settled: "done" | "skipped" | null;
   debrief?: "ask" | "result";
+  // The easy-only window still ahead (or running), whatever the phase: only a
+  // plan written with a recovery has one. daysLeft is 0 on its last day.
+  recovery: { until: string; daysLeft: number } | null;
   resultSec: number | null;
   raceRunId: string | null;
 };
@@ -74,6 +77,9 @@ type PhaseInput = {
   runs: Run[] | null | undefined;
 };
 
+const windowLeft = (w: RecoveryWindow | undefined, today: string): PhaseInfo["recovery"] =>
+  w && typeof w.until === "string" && w.until >= today ? { until: w.until, daysLeft: daysBetween(today, w.until) } : null;
+
 export function planPhase({ plan, settings, participations, runs }: PhaseInput, today: string): PhaseInfo | null {
   const race = mainRace(plan, settings);
   if (!race) return null;
@@ -87,16 +93,18 @@ export function planPhase({ plan, settings, participations, runs }: PhaseInput, 
   const run = raceRunId ? (runs || []).find(r => r.id === raceRunId) : undefined;
   const resultSec = part?.timeSec ?? run?.durationSec ?? null;
   const base = { race, catalogue: !!race.editionId, daysSince, settled, resultSec, raceRunId };
+  const own = windowLeft(plan?.recovery, today);
 
-  if (settled === "skipped") return { ...base, phase: "choosing" };
-  if (daysSince < 0) return { ...base, phase: -daysSince <= RACE_WEEK_DAYS ? "raceWeek" : "active" };
+  if (settled === "skipped") return { ...base, phase: "choosing", recovery: null };
+  // A plan opened right after a race carries that race's recovery into its run-up.
+  if (daysSince < 0) return { ...base, phase: -daysSince <= RACE_WEEK_DAYS ? "raceWeek" : "active", recovery: windowLeft(plan?.openedAfter, today) };
   if (settled === "done") {
-    return run && run.effort == null && daysSince <= DEBRIEF_RESULT_DAYS
-      ? { ...base, phase: "debrief", debrief: "result" }
-      : { ...base, phase: "choosing" };
+    if (run && run.effort == null && daysSince <= DEBRIEF_RESULT_DAYS)
+      return { ...base, phase: "debrief", debrief: "result", recovery: own };
+    return own ? { ...base, phase: "recovery", recovery: own } : { ...base, phase: "choosing", recovery: null };
   }
-  if (daysSince === 0) return { ...base, phase: "raceWeek" };
+  if (daysSince === 0) return { ...base, phase: "raceWeek", recovery: null };
   return daysSince <= DEBRIEF_ASK_DAYS
-    ? { ...base, phase: "debrief", debrief: "ask" }
-    : { ...base, phase: "choosing" };
+    ? { ...base, phase: "debrief", debrief: "ask", recovery: own }
+    : { ...base, phase: "choosing", recovery: null };
 }

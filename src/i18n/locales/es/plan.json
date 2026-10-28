@@ -306,6 +306,7 @@
       "taperVolume": "La semana {{week}} debería ser más suave. La puesta a punto es lo que te permite llegar fresco a la carrera.",
       "sameDay": "Dos sesiones el {{date}}.",
       "raceAdjacent": "Una sesión dura justo al lado de una carrera.",
+      "recoveryHard": "Esta sesión cae en tu recuperación tras la carrera. Quédate con entrenamientos suaves por ahora, para que tus piernas se recuperen.",
       "generic": "Este cambio va en contra de una de las reglas de entrenamiento del plan."
     },
     "toast": {

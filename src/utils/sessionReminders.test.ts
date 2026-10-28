@@ -154,3 +154,18 @@ describe("DEFAULT_REMINDER_PREFS", () => {
     expect(DEFAULT_REMINDER_PREFS.enabled).toBe(false);
   });
 });
+
+describe("reminderSchedule · recovery after the race", () => {
+  it("reminds for the easy days after the race like any other untouched session", () => {
+    const plan = {
+      raceDate: "2026-03-14", recovery: { race: "2026-03-14", km: 10, until: "2026-03-20" },
+      weeks: [
+        {weekNumber: 1, startDate: "2026-03-09", phase: "RACE", sessions: [
+          sess("race", "2026-03-14", {type: "RACE", km: 10}), sess("w1d6", "2026-03-15", {sd: {kind: "recovery"}})]},
+        {weekNumber: 2, startDate: "2026-03-16", phase: "RECOVERY", sessions: [sess("w2d2", "2026-03-18", {sd: {kind: "recovery"}})]},
+      ],
+    } as unknown as Plan;
+    expect(reminderSchedule(plan, on, now).map(r => r.sessionId)).toContain("w1d6");
+    expect(reminderSchedule(plan, on, now).map(r => r.sessionId)).toContain("w2d2");
+  });
+});

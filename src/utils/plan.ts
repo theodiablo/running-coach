@@ -6,10 +6,11 @@ import {
   type StyleId,
 } from "./planStyles";
 import { runWalkConfig, runwalkRunSec, type RunWalkConfig } from "./runwalk";
+import { FIRST_WEEK_BACK_KM, recoveryRule } from "./recovery";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
-import type { Plan, PlanProgress, RunActivity, SessionSd } from "../types";
+import type { Plan, PlanProgress, RecoveryWindow, RunActivity, SessionSd } from "../types";
 
 export type PlanSessionInput = { dayOffset: number; minutes: number };
 type PlanSession = {
@@ -40,6 +41,11 @@ export type BuildPlanOptions = {
   // Run/Walk style only: the runner's ratio ceiling (settings.runWalkRunSec /
   // runWalkWalkSec). Absent = the 3 min / 1 min default.
   runWalk?: { runWalkRunSec?: number; runWalkWalkSec?: number } | null;
+  // Write the easy-only recovery after race day (docs/training-plan.md).
+  recovery?: boolean;
+  // A race the runner has just run (recentRace): the plan opens inside its
+  // recovery, and its race run is no measure of fitness.
+  afterRace?: { date: string; km: number } | null;
 };
 type BuiltPlan = {
   raceDate: unknown;
@@ -52,6 +58,8 @@ type BuiltPlan = {
   planSessions: PlanSessionInput[];
   style: StyleId;
   weeks: PlanWeek[];
+  recovery?: RecoveryWindow;
+  openedAfter?: RecoveryWindow;
 };
 
 // Everything a style's week composer needs from the buildPlan closure. One
@@ -101,6 +109,14 @@ function baseCredit(recentRuns: RecentRun[], today: Date, weekKmFloor: number) {
   return trainedWeeks >= 3 ? 2 : trainedWeeks >= 2 ? 1 : 0;
 }
 
+const plusDays = (s: string, n: number) => {
+  const d = new Date(s + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+};
+const daysBetween = (a: string, b: string) =>
+  Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
+
 const median = (xs: number[]) => {
   if (!xs.length) return 0;
   const v = xs.slice().sort((a, b) => a - b);
@@ -133,13 +149,23 @@ export function buildPlan(
   if (!planSessions?.length) planSessions = [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}];
   const goal = Number(goalSec);
   const dist = Number(distanceKm);
-  const recentRuns = planOpts.recentRuns || [];
+  const afterRace = planOpts.afterRace && /^\d{4}-\d{2}-\d{2}$/.test(planOpts.afterRace.date) && Number(planOpts.afterRace.km) > 0
+    ? planOpts.afterRace : null;
+  // The race run says nothing about the fitness the next block starts from.
+  const recentRuns = (planOpts.recentRuns || []).filter(r => !(afterRace && r && r.date === afterRace.date
+    && (String(r.type).toUpperCase() === "RACE" || Math.abs((r.km ?? 0) - afterRace.km) <= Math.max(1, 0.25 * afterRace.km))));
   const today = new Date(); today.setHours(0,0,0,0);
   const raceDateText = String(raceDate || "");
   const race  = new Date(raceDateText + "T00:00:00");
   const dow   = today.getDay();
   const toMon = dow === 1 ? 0 : dow === 0 ? 1 : (8 - dow) % 7;
-  const w0    = new Date(today); w0.setDate(today.getDate() + toMon);
+  const mon0  = new Date(today); mon0.setDate(today.getDate() + toMon);
+  // Whole RECOVERY weeks come first when the race just run still has recovery
+  // ahead of the next Monday; training then starts after them.
+  const afterRule = afterRace ? recoveryRule(afterRace.km) : null;
+  const afterUntil = afterRace && afterRule ? plusDays(afterRace.date, afterRule.days) : "";
+  const lead = afterUntil && afterUntil >= ymd(mon0) ? Math.ceil((daysBetween(ymd(mon0), afterUntil) + 1) / 7) : 0;
+  const w0    = new Date(mon0); w0.setDate(mon0.getDate() + lead * 7);
   const N     = Math.max(4, Math.min(24, Math.floor((race.getTime() - w0.getTime()) / 86400000 / 7)));
   // Training paces target the *flat-equivalent* effort: finishing a hilly course
   // in the goal time needs the flat fitness of a faster runner, so each metre of
@@ -242,7 +268,7 @@ export function buildPlan(
       const d = new Date(wS); d.setDate(wS.getDate() + dOff);
       if (d >= race) return;
       ss.push({
-        id: "w" + (w+1) + "d" + dOff,
+        id: "w" + (w+1+lead) + "d" + dOff,
         date: ymd(d),
         type, desc, sd,
         km: Math.round(Math.max(1.5, km) * 10) / 10,
@@ -277,7 +303,7 @@ export function buildPlan(
     });
 
     ss.sort((a, b) => a.date.localeCompare(b.date));
-    weeks.push({weekNumber: w+1, startDate: ymd(wS), phase, sessions: ss});
+    weeks.push({weekNumber: w+1+lead, startDate: ymd(wS), phase, sessions: ss});
   }
 
   // Belt-and-braces hard-day spacing for the styled composers: demote the
@@ -303,6 +329,16 @@ export function buildPlan(
       demote.pace = easy;
       demote.desc = "Easy run — relaxed aerobic effort";
       demote.sd = { kind: "easy", variant: "relaxed" };
+    }
+  }
+
+  // First week back from a long race: no quality, volume as planned.
+  if (afterRace && afterRace.km > FIRST_WEEK_BACK_KM) {
+    for (const s of weeks[0]?.sessions ?? []) {
+      if (s.type !== "TEMPO" && s.type !== "INTERVALS") continue;
+      s.type = "EASY"; s.pace = easy;
+      s.desc = "Easy run — relaxed aerobic effort";
+      s.sd = { kind: "easy", variant: "relaxed" };
     }
   }
 
@@ -388,8 +424,8 @@ export function buildPlan(
   });
 
   const rWS = new Date(w0); rWS.setDate(w0.getDate() + N * 7);
-  weeks.push({
-    weekNumber: N + 1,
+  const raceWeek: PlanWeek = {
+    weekNumber: N + 1 + lead,
     startDate: ymd(rWS),
     phase: "RACE",
     sessions: [{
@@ -404,9 +440,92 @@ export function buildPlan(
       // which then stays un-detected, exactly as before.
       editionId: planOpts.mainEditionId ?? null,
     }],
-  });
+  };
+  weeks.push(raceWeek);
+
+  // ── Recovery ───────────────────────────────────────────────────────────────
+  // Easy-only sessions on the runner's own training days, after the race (own
+  // tail) and, for a plan opened right after one, before the first training
+  // week. Slot-shaped ids, so carryProgress matches them by date.
+  const keyDays = new Set([longSess.dayOffset, ...pickHardDays(qualSessions.map(q => q.dayOffset), longSess.dayOffset, 2)]);
+  const recRunSec = runwalkRunSec(runWalk, "BASE");
+  const recDate = (from: Date, i: number) => { const d = new Date(from); d.setDate(from.getDate() + i); return d; };
+  // Candidate days of a window on configured weekdays, past its rest days.
+  const recSlots = (from: Date, rule: { days: number; rest: number }) => {
+    const out: { d: Date; dOff: number; minutes: number }[] = [];
+    for (let i = rule.rest + 1; i <= rule.days; i++) {
+      const d = recDate(from, i), dOff = (d.getDay() + 6) % 7;
+      const minutes = Math.max(0, ...planSessions.filter(q => q.dayOffset === dOff).map(q => q.minutes));
+      if (minutes) out.push({ d, dOff, minutes });
+    }
+    return out;
+  };
+  const recSess = (slot: { d: Date; dOff: number; minutes: number }, i: number, n: number, ref: number, wNum: number): PlanSession => {
+    const base = { id: "w" + wNum + "d" + slot.dOff, date: ymd(slot.d), done: false, runId: null };
+    const kmFor = (pace: number) => {
+      const ramped = Math.min(8, Math.max(1.5, ref * (n > 1 ? 0.6 + 0.3 * i / (n - 1) : 0.6)));
+      return Math.round(Math.max(1.5, Math.min(ramped, slot.minutes * 60 / pace)) * 10) / 10;
+    };
+    if (style === "lowfreq" && !keyDays.has(slot.dOff))
+      return { ...base, type: "OTHER", km: kmFor(easy), pace: easy, sd: { kind: "cross", minutes: slot.minutes },
+        desc: "Optional cross-training — " + fmt.mins(slot.minutes) + " easy bike, swim or elliptical (skip if tired)" };
+    if (style === "runwalk") {
+      const walkSec = runWalk.walkSec;
+      return { ...base, type: "WALK", km: kmFor(walkP), pace: walkP,
+        desc: "Run/walk — run " + fmt.interval(recRunSec) + " / walk " + fmt.interval(walkSec) + ", short and relaxed",
+        sd: { kind: "runwalk", variant: "shortTaper", runSec: recRunSec, walkSec,
+          ...(recRunSec % 60 === 0 && walkSec % 60 === 0 ? { runMin: recRunSec / 60, walkMin: walkSec / 60 } : {}) } };
+    }
+    return { ...base, type: "EASY", km: kmFor(easy), pace: easy, sd: { kind: "recovery" },
+      desc: "Recovery run — very easy effort, walk breaks welcome" };
+  };
+
+  let recovery: RecoveryWindow | undefined;
+  const rEnd = new Date(rWS); rEnd.setDate(rWS.getDate() + 7);
+  // A race before its week (a very close one) or past it (a capped plan) has no tail to hang on the grid.
+  if (planOpts.recovery && race >= rWS && race < rEnd) {
+    const rule = recoveryRule(dist);
+    recovery = { race: raceDateText, km: dist, until: plusDays(raceDateText, rule.days) };
+    const taperEasy = (weeks.slice().reverse().find(wk => wk.phase === "TAPER")?.sessions ?? [])
+      .filter(s => s.type === "EASY" || s.type === "WALK").map(s => s.km);
+    const ref = median(taperEasy) || 3;
+    const slots = recSlots(race, rule);
+    const lastWeek = (d: Date) => Math.floor((d.getTime() - rEnd.getTime()) / (7 * 86400000));
+    slots.forEach((slot, i) => {
+      if (slot.d < rEnd) {
+        raceWeek.sessions.push(recSess(slot, i, slots.length, ref, raceWeek.weekNumber));
+        return;
+      }
+      const j = lastWeek(slot.d);
+      while (weeks.length < N + 1 + j + 1) {
+        const k = weeks.length - N - 1;
+        const startDate = new Date(rEnd); startDate.setDate(rEnd.getDate() + 7 * k);
+        weeks.push({ weekNumber: weeks.length + 1 + lead, startDate: ymd(startDate), phase: "RECOVERY", sessions: [] });
+      }
+      weeks[N + 1 + j].sessions.push(recSess(slot, i, slots.length, ref, weeks[N + 1 + j].weekNumber));
+    });
+    for (const wk of weeks) wk.sessions.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  let openedAfter: RecoveryWindow | undefined;
+  if (afterRace && afterRule) {
+    if (afterUntil >= ymd(today)) openedAfter = { race: afterRace.date, km: afterRace.km, until: afterUntil };
+    if (lead > 0) {
+      const slots = recSlots(new Date(afterRace.date + "T00:00:00"), afterRule).filter(s => s.d >= mon0);
+      const ref = easyFloor || 3;
+      const leadWeeks: PlanWeek[] = Array.from({ length: lead }, (_, j) => {
+        const startDate = new Date(mon0); startDate.setDate(mon0.getDate() + 7 * j);
+        const end = new Date(startDate); end.setDate(startDate.getDate() + 7);
+        return { weekNumber: j + 1, startDate: ymd(startDate), phase: "RECOVERY",
+          sessions: slots.map((slot, i) => ({ slot, i })).filter(({ slot }) => slot.d >= startDate && slot.d < end)
+            .map(({ slot, i }) => recSess(slot, i, slots.length, ref, j + 1)) };
+      });
+      weeks.unshift(...leadWeeks);
+    }
+  }
   return {raceDate, goalSec, distanceKm, raceElevation: gain, targetPace: tgt, racePace,
-    longRunPeakKm: Math.round(peakLong * 10) / 10, planSessions, style, weeks};
+    longRunPeakKm: Math.round(peakLong * 10) / 10, planSessions, style, weeks,
+    ...(recovery ? { recovery } : {}), ...(openedAfter ? { openedAfter } : {})};
 }
 
 // The easy day's distance: each style's own growth line, started at the runner's

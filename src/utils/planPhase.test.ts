@@ -177,3 +177,79 @@ describe.each(ANCHORS)("planPhase (%s)", (_label, anchor) => {
     expect(mainRace(renamed)?.sId).toBe("x-race");
   });
 });
+
+// The recovery window after the race. Only a plan written with one has it: an
+// older plan goes from debrief straight to choosing, as before.
+describe.each(ANCHORS)("planPhase · recovery (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterEach(() => vi.useRealTimers());
+
+  const raceDate = dayAfter(anchor, 84);
+  const at = (k: number) => dayAfter(raceDate, k);
+  const buildRec = (race = raceDate) =>
+    buildPlan(race, 3000, SESSIONS, 10, 0, { style: "balanced", recovery: true }) as unknown as Plan;
+  const untilOf = (p: Plan) => (p.recovery as { until: string }).until;
+  const input = (plan: Plan, over: Record<string, unknown> = {}) => ({
+    plan, settings: settingsFor(raceDate), participations: [] as Participation[], runs: [] as Run[], ...over,
+  });
+  // A finished race the runner has already told how it felt about.
+  const settled = () => ({
+    plan: withRaceSession(buildRec(), { done: true, runId: "r1" }),
+    runs: [run("r1", raceDate, { effort: 6 })],
+  });
+
+  it("is recovery from the day after a settled race through `until`, then choosing", () => {
+    const { plan, runs } = settled();
+    const until = untilOf(plan);
+    const last = Math.round((new Date(until + "T00:00:00").getTime() - new Date(raceDate + "T00:00:00").getTime()) / 86400000);
+    const first = planPhase(input(plan, { runs }), at(1))!;
+    expect(first.phase).toBe("recovery");
+    expect(first.recovery).toEqual({ until, daysLeft: last - 1 });
+    expect(planPhase(input(plan, { runs }), until)).toMatchObject({ phase: "recovery", recovery: { until, daysLeft: 0 } });
+    const over = planPhase(input(plan, { runs }), at(last + 1))!;
+    expect(over.phase).toBe("choosing");
+    expect(over.recovery).toBeNull();
+  });
+
+  it("overlaps the debrief: asking and the result both carry the window", () => {
+    const plan = buildRec();
+    const ask = planPhase(input(plan), at(1))!;
+    expect(ask).toMatchObject({ phase: "debrief", debrief: "ask" });
+    expect(ask.recovery?.until).toBe(untilOf(plan));
+    // Once the window has run out the question is still open, but nothing is left to ease.
+    const late = planPhase(input(plan), dayAfter(untilOf(plan), 2))!;
+    expect(late).toMatchObject({ phase: "debrief", debrief: "ask", recovery: null });
+    const fresh = planPhase(input(withRaceSession(plan, { done: true, runId: "r1" }), { runs: [run("r1", raceDate)] }), at(1))!;
+    expect(fresh).toMatchObject({ phase: "debrief", debrief: "result" });
+    expect(fresh.recovery?.until).toBe(untilOf(plan));
+  });
+
+  it("has no recovery before the race, on race day, or for a race that wasn't run", () => {
+    const plan = buildRec();
+    expect(planPhase(input(plan), at(-3))!.recovery).toBeNull();
+    expect(planPhase(input(plan), at(0))!.recovery).toBeNull();
+    const skipped = planPhase(input(withRaceSession(plan, { skipped: true })), at(1))!;
+    expect(skipped).toMatchObject({ phase: "choosing", recovery: null });
+  });
+
+  it("gives a plan written before recovery existed none: debrief, then choosing", () => {
+    const old = build(raceDate);
+    expect(old).not.toHaveProperty("recovery");
+    const done = withRaceSession(old, { done: true, runId: "r1" });
+    const info = planPhase(input(done, { runs: [run("r1", raceDate, { effort: 6 })] }), at(1))!;
+    expect(info).toMatchObject({ phase: "choosing", recovery: null });
+    expect(planPhase(input(old), at(1))!.recovery).toBeNull();
+  });
+
+  it("a plan opened behind a race is active, with that race's recovery running", () => {
+    const raceRun = dayAfter(anchor, -3);
+    const next = dayAfter(anchor, 84);
+    const opened = buildPlan(next, 3000, SESSIONS, 10, 0, { style: "balanced", recovery: true, afterRace: { date: raceRun, km: 42.2 } }) as unknown as Plan;
+    const until = (opened.openedAfter as { until: string }).until;
+    const info = planPhase(input(opened, { settings: settingsFor(next) }), anchor)!;
+    expect(info.phase).toBe("active");
+    expect(info.recovery).toMatchObject({ until });
+    expect(info.recovery!.daysLeft).toBeGreaterThan(0);
+    expect(planPhase(input(opened, { settings: settingsFor(next) }), dayAfter(until, 1))!.recovery).toBeNull();
+  });
+});

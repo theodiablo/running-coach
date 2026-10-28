@@ -14,7 +14,8 @@ import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from 
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress } from "./utils/plan";
-import { applySessionEdit, findSession, type SessionEdit } from "./utils/planEdit";
+import { applySessionEdit, findSession, lightenRecovery, type SessionEdit } from "./utils/planEdit";
+import { recentRace } from "./utils/recovery";
 import type { CoachLinkTarget } from "./utils/coachLinks";
 import { bestSessionForRun, canMoveSessionTo, claimedElsewhere, releaseRun } from "./utils/sessionMatch";
 import { mainRace, type MainRace } from "./utils/planPhase";
@@ -812,7 +813,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (!plan || !s.raceDate || !s.distanceKm) return false;
     const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
       { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
-        style: s.planStyle, level: s.trainingLevel, runWalk: s });
+        style: s.planStyle, level: s.trainingLevel, runWalk: s, recovery: true,
+        afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
     savePlan(carryProgress(plan, np, "rebuild"));
     return true;
   };
@@ -1033,6 +1035,22 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       } : {}),
     });
     showToast(t("plan.editor.toast." + edit.kind), "ok", { label: t("common.undo"), onClick: () => {
+      if (planRef.current !== next) return;
+      restorePlan(before);
+      planRef.current = before;
+      showToast(t("plan.toast.restored"));
+    } });
+  };
+
+  // "Sore or injured?" during the recovery after a race: shorten what's left.
+  const lightenRecoveryPlan = () => {
+    const before = planRef.current;
+    const next = before ? lightenRecovery(before, ymd(new Date())) : null;
+    if (!before || !next) { showToast(t("dashboard.sore.toast.nothing")); return; }
+    setPlan(next);
+    db.set(STORAGE_KEYS.PLAN, next);
+    planRef.current = next;
+    showToast(t("dashboard.sore.toast.lighter"), "ok", { label: t("common.undo"), onClick: () => {
       if (planRef.current !== next) return;
       restorePlan(before);
       planRef.current = before;
@@ -1305,7 +1323,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed });
     if (s?.routine === "cooldown" && !recorderOpen) setStretchOpen({ target: s, afterRun: true });
   };
-  const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1358,7 +1376,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           const next = onboardedSettings(settings, result);
           saveSettings(next);
           if (onboardingBuildsPlan(next, !!live))
-            savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next}));
+            savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next, recovery: true,
+              afterRace: recentRace({ plan: null, participations: races.participations, runs, settings: next }, ymd(new Date()))}));
           // A catalogue race picked in onboarding is the training target — also
           // surface it in the Races tab as a wishlist participation (the tab lists
           // participations, not the settings target). Skip if already present.

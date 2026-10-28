@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Flag, Target } from "lucide-react";
+import { Flag, HeartPulse, Target } from "lucide-react";
 import { fmt } from "../utils/format";
 import type { PhaseInfo } from "../utils/planPhase";
 
@@ -95,5 +95,33 @@ export function NextGoalCard({ onSetGoal, onBrowse }: { onSetGoal: () => void; o
         <Flag size={13}/>{t("dashboard.next.races")}
       </button>
     </div>
+  );
+}
+
+// The race is done and the plan was written with a recovery after it: easy days
+// until a date, nothing to answer. The next-session card below stays as normal.
+export function RecoveryCard({ info }: { info: PhaseInfo }) {
+  const { t } = useTranslation();
+  const rec = info.recovery;
+  if (!rec) return null;
+  return (
+    <div className={CARD + "border-emerald-500/30 bg-emerald-500/5"}>
+      <p className="text-emerald-300 text-xs font-semibold uppercase tracking-widest mb-1">{t("dashboard.recoveryCard.title")}</p>
+      <p className="font-semibold">{t("dashboard.recoveryCard.headline", { date: fmt.date(rec.until) })}</p>
+      <p className="text-slate-400 text-sm mt-1">
+        {rec.daysLeft > 0 ? t("dashboard.recoveryCard.sub", { count: rec.daysLeft }) : t("dashboard.recoveryCard.lastDay")}
+      </p>
+    </div>
+  );
+}
+
+// Offered for as long as a recovery is running, debrief included.
+export function SoreRow({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button onClick={onOpen}
+      className="w-full -mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors py-1.5">
+      <HeartPulse size={13}/>{t("dashboard.sore.row")}
+    </button>
   );
 }

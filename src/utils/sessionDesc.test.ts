@@ -59,6 +59,19 @@ describe("renderSd reproduces the English desc for every generated sd", () => {
       ]);
     }
   }
+  // The easy-only tail after race day: recovery runs, run/walk intervals at the
+  // base ratio, and low-frequency cross-training days.
+  for (const style of STYLE_IDS) {
+    cases.push([
+      `${style} +recovery`,
+      buildPlan("2026-11-29", 6340, DAYS_4, 21.1, 0, { style, recovery: true }),
+    ]);
+  }
+  cases.push([
+    "runwalk sub-minute ratio +recovery",
+    buildPlan("2026-11-29", 3600, DAYS_3, 10, 0,
+      { style: "runwalk", recovery: true, runWalk: { runWalkRunSec: 90, runWalkWalkSec: 45 } }),
+  ]);
   // A sub-minute run/walk ratio: the sentence carries "1 min 30 s"/"45 s" tokens
   // rather than whole minutes, in the template as well as the generator.
   cases.push([

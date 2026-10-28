@@ -958,3 +958,179 @@ describe.each([
       .toEqual(buildPlan(raceIn(84), 6600, DAYS, 21.1, 150));
   });
 });
+
+// Recovery after the race (opts.recovery / opts.afterRace). The clock is pinned
+// and both alignments run; every date is derived from the anchor or read off
+// the plan.
+describe.each([
+  ["monday anchor", "2026-09-14"],
+  ["midweek anchor", "2026-09-16"],
+])("buildPlan · recovery after the race (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const dayAfter = (from: string, n: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + n); return ymd(d); };
+  // The first date on `dow` (0 = Sunday) at least `weeks` weeks out.
+  const raceOn = (dow: number, weeks = 12) => {
+    let d = dayAfter(anchor, weeks * 7);
+    while (new Date(d + "T00:00:00").getDay() !== dow) d = dayAfter(d, 1);
+    return d;
+  };
+  const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6].map(dayOffset => ({ dayOffset, minutes: 60 }));
+  const HARD = ["TEMPO", "INTERVALS", "LONG"];
+  const after = (p: ReturnType<typeof buildPlan>, race: string) =>
+    p.weeks.flatMap(w => w.sessions).filter(s => s.type !== "RACE" && s.date > race);
+
+  it.each([
+    [5, 4, 1], [10, 6, 2], [21.1, 12, 2], [42.2, 21, 3], [50, 26, 4],
+  ])("a %s km race leaves %i easy-only days after a %i-day rest", (km, days, rest) => {
+    for (const dow of [3, 0]) { // a Wednesday race, then a Sunday one
+      const race = raceOn(dow);
+      const p = buildPlan(race, 3600, EVERY_DAY, km, 0, { recovery: true });
+      expect(p.recovery).toEqual({ race, km, until: dayAfter(race, days) });
+      const tail = after(p, race);
+      // Every configured day is a session, from the first day past the rest to the last.
+      expect(tail.map(s => s.date)).toEqual(Array.from({ length: days - rest }, (_, i) => dayAfter(race, rest + 1 + i)));
+      expect(tail.some(s => HARD.includes(s.type))).toBe(false);
+      expect(tail.every(s => s.type === "EASY" && s.sd?.kind === "recovery" && s.km >= 1.5 && s.km <= 8)).toBe(true);
+      const ids = p.weeks.flatMap(w => w.sessions.map(s => s.id));
+      expect(new Set(ids).size).toBe(ids.length);
+      // Distance ramps up through the tail, never down.
+      expect(tail.map(s => s.km)).toEqual([...tail.map(s => s.km)].sort((a, b) => a - b));
+    }
+  });
+
+  it("puts days left in the race week in it, and later days in RECOVERY weeks Monday to Monday", () => {
+    const race = raceOn(3);
+    const p = buildPlan(race, 6600, EVERY_DAY, 21.1, 0, { recovery: true });
+    const raceWeek = p.weeks.find(w => w.phase === "RACE")!;
+    expect(raceWeek.sessions.map(s => s.type)).toContain("RACE");
+    expect(raceWeek.sessions.filter(s => s.date > race).length).toBeGreaterThan(0);
+    const rec = p.weeks.filter(w => w.phase === "RECOVERY");
+    expect(rec.length).toBeGreaterThan(0);
+    rec.forEach((w, i) => {
+      expect(new Date(w.startDate + "T00:00:00").getDay()).toBe(1);
+      expect(w.startDate).toBe(dayAfter(raceWeek.startDate, 7 * (i + 1)));
+      expect(w.sessions.every(s => s.date >= w.startDate && s.date < dayAfter(w.startDate, 7))).toBe(true);
+    });
+    expect(p.weeks.map(w => w.weekNumber)).toEqual(p.weeks.map((_, i) => i + 1));
+  });
+
+  it("leaves a plan without the opt byte-identical and unstamped", () => {
+    const race = raceOn(0);
+    const plain = buildPlan(race, 3600, EVERY_DAY, 10, 0, { style: "balanced" });
+    expect(plain).not.toHaveProperty("recovery");
+    expect(plain).not.toHaveProperty("openedAfter");
+    expect(buildPlan(race, 3600, EVERY_DAY, 10, 0, { style: "balanced", recovery: false })).toEqual(plain);
+    // The training weeks themselves don't change with a tail appended.
+    const withTail = buildPlan(race, 3600, EVERY_DAY, 10, 0, { style: "balanced", recovery: true });
+    expect(withTail.weeks.filter(w => w.phase !== "RECOVERY").map(w => w.sessions.filter(s => s.date <= race)))
+      .toEqual(plain.weeks.map(w => w.sessions));
+  });
+
+  it("writes no tail for a race that falls before its race week or beyond it", () => {
+    for (const race of [dayAfter(anchor, 10), dayAfter(anchor, 40 * 7)]) {
+      const p = buildPlan(race, 3600, EVERY_DAY, 10, 0, { recovery: true });
+      expect(p).not.toHaveProperty("recovery");
+      expect(p.weeks.some(w => w.phase === "RECOVERY")).toBe(false);
+      expect(after(p, race)).toEqual([]);
+    }
+  });
+
+  it("sizes the tail off the last taper week's easy days and the day's time budget", () => {
+    const race = raceOn(0);
+    const p = buildPlan(race, 3600, EVERY_DAY, 10, 0, { recovery: true });
+    const taper = p.weeks.filter(w => w.phase === "TAPER").at(-1)!;
+    const easy = taper.sessions.filter(s => s.type === "EASY").map(s => s.km).sort((a, b) => a - b);
+    const ref = easy.length % 2 ? easy[easy.length >> 1]! : (easy[easy.length / 2 - 1]! + easy[easy.length / 2]!) / 2;
+    const tail = after(p, race);
+    expect(tail[0]!.km).toBeCloseTo(Math.max(1.5, ref * 0.6), 1);
+    const tight = buildPlan(race, 3600, [{ dayOffset: 2, minutes: 15 }, { dayOffset: 6, minutes: 60 }], 10, 0, { recovery: true });
+    for (const s of after(tight, race)) expect(s.km).toBeLessThanOrEqual(Math.max(1.5, 15 * 60 / s.pace) + 0.05);
+  });
+
+  it("run/walk recovery sessions are WALK at the base ratio, never past the runner's ceiling", () => {
+    const race = raceOn(0);
+    const runWalk = { runWalkRunSec: 90, runWalkWalkSec: 45 };
+    const p = buildPlan(race, 3600, EVERY_DAY, 10, 0, { recovery: true, style: "runwalk", runWalk });
+    const tail = after(p, race);
+    expect(tail.length).toBeGreaterThan(0);
+    for (const s of tail) {
+      const sd = s.sd as { kind: string; runSec: number; walkSec: number };
+      expect(s.type).toBe("WALK");
+      expect(sd.kind).toBe("runwalk");
+      expect(sd.runSec).toBe(30); // a third of the 90 s ceiling
+      expect(sd.runSec).toBeLessThanOrEqual(runWalk.runWalkRunSec);
+      expect(sd.walkSec).toBe(45);
+      expect(s.desc).toContain("run 30 s / walk 45 s");
+    }
+  });
+
+  it("low-frequency recovery keeps the extra days as cross-training", () => {
+    const race = raceOn(0);
+    const days = [{ dayOffset: 1, minutes: 40 }, { dayOffset: 2, minutes: 40 }, { dayOffset: 3, minutes: 40 }, { dayOffset: 4, minutes: 40 }, { dayOffset: 6, minutes: 90 }];
+    const tail = after(buildPlan(race, 6600, days, 21.1, 0, { recovery: true, style: "lowfreq" }), race);
+    expect(tail.some(s => s.type === "OTHER")).toBe(true);
+    expect(tail.some(s => s.type === "EASY")).toBe(true);
+    expect(tail.every(s => !HARD.includes(s.type))).toBe(true);
+  });
+
+  describe("a plan opened right after a race", () => {
+    const DAYS = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 4, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
+    const nextRace = () => dayAfter(anchor, 12 * 7);
+
+    it("starts with whole RECOVERY weeks when the race's recovery runs past the next Monday", () => {
+      const raceRun = dayAfter(anchor, -3);
+      const until = dayAfter(raceRun, 21);
+      const p = buildPlan(nextRace(), 6600, DAYS, 21.1, 0, { recovery: true, afterRace: { date: raceRun, km: 42.2 } });
+      expect(p.openedAfter).toEqual({ race: raceRun, km: 42.2, until });
+      const lead = p.weeks.findIndex(w => w.phase !== "RECOVERY");
+      expect(lead).toBeGreaterThan(0);
+      expect(p.weeks[lead - 1]!.startDate <= until).toBe(true);
+      expect(p.weeks[lead]!.startDate > until).toBe(true);
+      expect(p.weeks[lead]!.startDate).toBe(dayAfter(p.weeks[lead - 1]!.startDate, 7));
+      for (const w of p.weeks.slice(0, lead)) {
+        expect(w.sessions.every(s => s.date <= until && s.date >= w.startDate && !HARD.includes(s.type))).toBe(true);
+      }
+      expect(p.weeks.map(w => w.weekNumber)).toEqual(p.weeks.map((_, i) => i + 1));
+      const ids = p.weeks.flatMap(w => w.sessions.map(s => s.id));
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("adds no recovery weeks after a 5K run well over a week ago", () => {
+      const raceRun = dayAfter(anchor, -10);
+      const p = buildPlan(nextRace(), 6600, DAYS, 21.1, 0, { recovery: true, afterRace: { date: raceRun, km: 5 } });
+      expect(p.weeks[0]!.phase).not.toBe("RECOVERY");
+      expect(p).not.toHaveProperty("openedAfter");
+    });
+
+    it("keeps the first training week free of quality after a long race", () => {
+      const raceRun = dayAfter(anchor, -13); // half marathon: recovery ended before the next Monday
+      const trained = Array.from({ length: 4 }, (_, wk) => [1, 3, 5].map(d => ({
+        date: dayAfter(anchor, -(wk * 7 + d)), type: "EASY", km: 8,
+      }))).flat();
+      const race = dayAfter(anchor, 33); // a short runway puts quality in the first week
+      const plain = buildPlan(race, 3000, DAYS, 10, 0, { recentRuns: trained });
+      const quality = (p: typeof plain) => p.weeks[0]!.sessions.filter(s => s.type === "TEMPO" || s.type === "INTERVALS");
+      expect(quality(plain).length).toBeGreaterThan(0);
+      const demoted = buildPlan(race, 3000, DAYS, 10, 0, { recentRuns: trained, afterRace: { date: raceRun, km: 21.1 } });
+      expect(demoted.weeks[0]!.phase).not.toBe("RECOVERY");
+      expect(quality(demoted)).toEqual([]);
+      expect(demoted.weeks[0]!.sessions.map(s => s.km)).toEqual(plain.weeks[0]!.sessions.map(s => s.km));
+      // A 10 km race carries no such rule.
+      const short = buildPlan(race, 3000, DAYS, 10, 0, { recentRuns: trained, afterRace: { date: raceRun, km: 10 } });
+      expect(quality(short).length).toBe(quality(plain).length);
+    });
+
+    it("leaves the race run out of the fitness floors", () => {
+      const raceRun = dayAfter(anchor, -6);
+      const runs = [{ date: raceRun, type: "RACE", km: 42.2 }, { date: dayAfter(anchor, -20), type: "EASY", km: 6 }];
+      const firstLong = (p: ReturnType<typeof buildPlan>) => p.weeks.flatMap(w => w.sessions).find(s => s.type === "LONG")!.km;
+      const build = (recentRuns: typeof runs, afterRace?: { date: string; km: number }) =>
+        buildPlan(nextRace(), 6600, DAYS, 21.1, 0, { recentRuns, recovery: true, ...(afterRace ? { afterRace } : {}) });
+      const ran = { date: raceRun, km: 42.2 };
+      expect(firstLong(build(runs))).toBeGreaterThan(firstLong(build(runs, ran)));
+      expect(firstLong(build(runs, ran))).toBe(firstLong(build([runs[1]!], ran)));
+    });
+  });
+});

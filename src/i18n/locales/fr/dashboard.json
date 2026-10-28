@@ -41,6 +41,26 @@
     "subtitle": "Choisis ton prochain objectif quand tu veux. Rien ne presse.",
     "races": "Parcourir les courses"
   },
+  "recoveryCard": {
+    "title": "Récupération",
+    "headline": "Des sorties faciles jusqu'au {{date}}",
+    "sub_one": "Encore {{count}} jour. Que du facile, pas de retour précipité à la vitesse.",
+    "sub_other": "Encore {{count}} jours. Que du facile, pas de retour précipité à la vitesse.",
+    "lastDay": "Dernier jour tranquille. Ensuite, retour à la normale."
+  },
+  "sore": {
+    "row": "Une douleur ou une blessure ?",
+    "title": "Une douleur ou une blessure ?",
+    "body": "La récupération doit rester facile. Si quelque chose fait mal, allège la charge.",
+    "lighter": "Alléger le reste",
+    "lighterHint": "Raccourcit les séances de récupération que tu n'as pas encore faites.",
+    "coach": "En parler au coach",
+    "caveat": "Douleur vive ou qui dure : consulte un professionnel.",
+    "toast": {
+      "lighter": "Récupération allégée",
+      "nothing": "Plus rien à alléger"
+    }
+  },
   "stats": {
     "thisWeek": "Cette semaine",
     "runsRecorded": "Sorties enregistrées",

@@ -41,6 +41,26 @@
     "subtitle": "Pick your next goal when you're ready. There's no rush.",
     "races": "Browse races"
   },
+  "recoveryCard": {
+    "title": "Recovery",
+    "headline": "Easy days until {{date}}",
+    "sub_one": "{{count}} day to go. Easy running only, no rush back to speed.",
+    "sub_other": "{{count}} days to go. Easy running only, no rush back to speed.",
+    "lastDay": "Last easy day. Back to normal after this."
+  },
+  "sore": {
+    "row": "Sore or injured?",
+    "title": "Sore or injured?",
+    "body": "Recovery is meant to feel easy. If something hurts, take the load off.",
+    "lighter": "Make the rest lighter",
+    "lighterHint": "Shortens the recovery sessions you haven't done yet.",
+    "coach": "Talk to the coach",
+    "caveat": "Sharp or lasting pain: see a professional.",
+    "toast": {
+      "lighter": "Recovery made lighter",
+      "nothing": "Nothing left to lighten"
+    }
+  },
   "stats": {
     "thisWeek": "This week",
     "runsRecorded": "Runs recorded",

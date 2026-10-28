@@ -173,6 +173,9 @@ choice either way.
 - `debrief_answered` `{answer:"ran"|"didnt"|"moved"|"feel"}` — the post-race
   debrief card on Home (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
   An enum only: never the time, the race or the effort chosen.
+- `recovery_sore` `{action:"lighter"|"coach"}` — the "Sore or injured?" sheet in
+  the recovery after a race (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
+  An enum only: never what hurts.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.

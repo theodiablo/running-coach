@@ -158,8 +158,12 @@ participation (catalogue races only) and the plan's RACE session.
   the run (`raceRunCandidates`, race day ±1, unclaimed, running only, through
   `ReconcileSheet`) or sends the runner to the log; "Didn't run it" skips. Both
   go through the hub's `settleRace` / `skipRace`, which write the session and
-  the participation together under one Undo. See `docs/training-plan.md`
-  ("Where the runner stands").
+  the participation together under one Undo. A settled race on a plan written
+  with a recovery then moves Home to the recovery card and its "Sore or
+  injured?" row, until the window ends. See `docs/training-plan.md` ("Where the
+  runner stands", "Recovery after the race"). The same race is what
+  `recentRace` hands the next plan build, so a rebuild within two weeks opens
+  inside that recovery.
 - **Manual "log result"** (RacesView, optionally also adds a RACE run via
   `addRuns(..., {skipDetect:true})`, with no effort: `null`, never a guess). For the plan's
   main race it delegates to `settleRace` so the RACE session is ticked too.

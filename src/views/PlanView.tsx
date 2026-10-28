@@ -22,6 +22,7 @@ import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, Rac
 import { canRecordSession, carryProgress, isElapsedWeek, planSessionPrefill, sessionRecorderActivity, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 import { planPhase } from "../utils/planPhase";
+import { recentRace } from "../utils/recovery";
 import { diffPlans } from "../utils/planDiff";
 
 // The plan list shows weeks still ahead first and pushes finished ones to the
@@ -212,6 +213,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
       runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec, ...availMeta};
     const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
     const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel,
+      recovery: true, afterRace: recentRace({plan, participations: races?.participations, runs, settings}, ymd(new Date())),
       runWalk: {runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec}});
     // A rebuild re-anchors progress on the calendar date and keeps the weeks
     // buildPlan's next-Monday start can't reach, so the completed count really
@@ -370,23 +372,26 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const longestSessMin = ps.reduce((m, s) => Math.max(m, s.minutes || 0), 0);
   const longRunNudge = peakLongMin > longestSessMin + 20;
 
-  const weeksTotal = plan.weeks.length;
+  // "Week n of m" runs through the race week; the recovery after it is a tail.
+  const raceWeekIdx = plan.weeks.findIndex(w => w.phase === "RACE");
+  const weeksTotal = raceWeekIdx >= 0 ? raceWeekIdx + 1 : plan.weeks.length;
   // Outside every week window: before the plan starts show week 1, after it
   // ends (race passed) show the final week — never "Week 1" of a finished plan.
-  const curWeekNum = focusWeek(plan) ?? 1;
+  const curWeekNum = Math.min(focusWeek(plan) ?? 1, weeksTotal);
   const raceMs = new Date(String(plan.raceDate || "") + "T00:00:00").getTime();
   const daysToRace = Number.isFinite(raceMs) ? Math.max(0, Math.round((raceMs - today.getTime()) / 86400000)) : 0;
 
   // The runner's own goal: buildPlan substitutes 7200 for an empty one, which is not a goal they set.
   const goalSummary = goalSummaryOf(plan.distanceKm || 20, settings.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
   const phase = planPhase({ plan, settings, participations: races?.participations, runs }, todayStr);
-  const afterRace = phase?.phase === "debrief" || phase?.phase === "choosing";
+  const afterRace = phase?.phase === "debrief" || phase?.phase === "choosing" || phase?.phase === "recovery";
   const availSummary = settings.availabilityMode === "simple" && settings.availDays
     ? t("plan.availRow.simpleSummary", { count: settings.availDays, duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
     : sessInfo;
 
   const phaseClass = (phase?: string) => {
     if (phase === "TAPER") return "bg-emerald-500/15 text-emerald-400";
+    if (phase === "RECOVERY") return "bg-teal-500/15 text-teal-400";
     if (phase === "PEAK" || phase === "RACE") return "bg-red-500/15 text-red-400";
     if (phase === "BUILD") return "bg-yellow-500/15 text-yellow-400";
     return "bg-sky-500/15 text-sky-400";

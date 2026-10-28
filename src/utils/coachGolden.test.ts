@@ -193,6 +193,33 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(without[0].content).not.toContain("RUNNER AGE");
   });
 
+  it("buildMessages adds a RECOVERY line only while a recovery window still covers today or later", () => {
+    const base = makeContext("my legs are heavy");
+    const day = (n: number) => ymd(new Date(Date.now() + n * 86400000));
+    const withWindow = (key: "recovery" | "openedAfter", win: { race: string; km: number; until: string }) =>
+      ({ ...base, plan: { ...base.plan, [key]: win } });
+    const text = (c: unknown) => buildMessages(c, [], null)[0].content as string;
+    // No window: the context is byte-identical to what it always was.
+    expect(text(base)).not.toContain("RECOVERY:");
+    // Still ahead of the race: the plan says what follows it.
+    expect(text(withWindow("recovery", { race: day(30), km: 21.1, until: day(42) })))
+      .toContain(`RECOVERY: after the race on ${day(30)} the plan holds easy running only through ${day(42)}.`);
+    // Running now, whichever way the plan came by it.
+    for (const key of ["recovery", "openedAfter"] as const)
+      expect(text(withWindow(key, { race: day(-3), km: 42.2, until: day(18) })))
+        .toContain(`RECOVERY: easy running only through ${day(18)}, after the 42.2 km race on ${day(-3)}.`);
+    // Ended yesterday: gone again.
+    expect(text(withWindow("recovery", { race: day(-20), km: 10, until: day(-1) }))).not.toContain("RECOVERY:");
+    // Last day still counts, and the line sits right after GOAL.
+    const lastDay = text(withWindow("openedAfter", { race: day(-5), km: 10, until: day(0) }));
+    expect(lastDay).toMatch(/GOAL: .*\nRECOVERY: .*\nPLAN STYLE/);
+  });
+
+  it("system prompt keeps recovery easy-only and points soreness at the softening tools", () => {
+    expect(SYSTEM_PROMPT).toMatch(/RECOVERY .*easy running only/);
+    expect(SYSTEM_PROMPT).toContain("insert_recovery_week, convert_to_cross_training or reduce_session_distance");
+  });
+
   // ── the plan context window ───────────────────────────────────────────────
   // A rebuild keeps up to 8 elapsed weeks. The model gets the live weeks in
   // full (they are what it edits) plus a bounded, compacted tail of history —

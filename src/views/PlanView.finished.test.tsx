@@ -82,3 +82,28 @@ describe("PlanView · after the race", () => {
     expect(dateInput(view.container).value).toBe("2026-10-20");
   });
 });
+
+describe("PlanView · the recovery after the race", () => {
+  const recoveryPlan = () => ({
+    raceDate: "2026-09-26", distanceKm: 10, goalSec: 7200,
+    recovery: { race: "2026-09-26", km: 10, until: "2026-10-02" },
+    weeks: [
+      { weekNumber: 1, startDate: "2026-09-14", phase: "TAPER", sessions: [sess("w1d2", "2026-09-16", "EASY", { done: true })] },
+      { weekNumber: 2, startDate: "2026-09-21", phase: "RACE", sessions: [
+        sess("race", "2026-09-26", "RACE", { done: true, runId: "r1" }), sess("w2d6", "2026-09-27", "EASY", { sd: { kind: "recovery" } })] },
+      { weekNumber: 3, startDate: "2026-09-28", phase: "RECOVERY", sessions: [sess("w3d2", "2026-09-30", "EASY", { sd: { kind: "recovery" } })] },
+    ],
+  }) as unknown as Plan;
+
+  it("counts weeks through the race week and reads as finished while recovering", () => {
+    renderPlan({ plan: recoveryPlan(), runs: [{ id: "r1", date: "2026-09-26", type: "RACE", km: 10, durationSec: 3000, effort: 6 }] });
+    expect(screen.getByText("Week 2 of 2")).toBeInTheDocument();
+    expect(screen.queryByText(/Race in \d+ days/)).toBeNull();
+    expect(screen.getByText(/Race day was/)).toBeInTheDocument();
+  });
+
+  it("labels the recovery week", () => {
+    renderPlan({ plan: recoveryPlan(), runs: [{ id: "r1", date: "2026-09-26", type: "RACE", km: 10, durationSec: 3000, effort: 6 }] });
+    expect(screen.getByText("RECOVERY")).toBeInTheDocument();
+  });
+});

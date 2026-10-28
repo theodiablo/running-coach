@@ -294,6 +294,7 @@
       "taperVolume": "Week {{week}} should be easing off. Tapering is what lets you race fresh.",
       "sameDay": "Two sessions on {{date}}.",
       "raceAdjacent": "A hard session right next to a race.",
+      "recoveryHard": "This lands in your recovery after the race. Easy running only for now, so your legs can finish repairing.",
       "generic": "This goes against one of the plan's training rules."
     },
     "toast": {

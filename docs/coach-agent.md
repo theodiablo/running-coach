@@ -270,8 +270,20 @@ margin; or a week near the race past the week before it. "Load" there counts a
 tune-up race (any RACE before race day) as the km it is, and a week holding one
 was lightened around it, so the week before it stays the bar when it's higher.
 
+**Recovery after the race.** Past race day the taper rules end and one rule
+takes over: inside the recovery (`inRecovery`) only easy running is added,
+lengthened or moved in. `add_session` and `increase_session_distance` take EASY
+or WALK only, never past the longest recovery session; `swap_session` refuses
+TEMPO/INTERVALS/LONG and `shift_workout` refuses to move those into the window
+(code `RECOVERY`, with its `RULE_WHY`); `shift_workout` and `add_session` read
+`canHoldTraining` for the dates the plan can hold. Soreness is met with
+`insert_recovery_week`, `convert_to_cross_training` or `reduce_session_distance`,
+and the engine adds a `RECOVERY:` context line (right after `GOAL`) only while a
+window covers today or later, so contexts without one stay byte-identical.
+Re-run `npm run eval:live` after prompt or tool-description changes.
+
 **A refusal carries its reason.** A guard that blocks load (`TAPER`,
-`RACE_EVE`, `TOO_LONG`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
+`RACE_EVE`, `TOO_LONG`, `RECOVERY`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
 protects the runner" line from `RULE_WHY` (`tools.mjs`), and the prompt asks for
 the rule in training terms, its reason, the runner's own numbers, and what they
 can do instead, never "the app/validator requires". A rule cited without its
@@ -281,10 +293,11 @@ why reads as the app getting in the runner's way.
 
 | Code | Severity | Rule |
 | --- | --- | --- |
-| `MALFORMED` / `DUPLICATE_ID` / `OUT_OF_WEEK` / `AFTER_RACE` / `SESSION_TOO_LONG` | error | structural soundness (RACE sessions are exempt from the week window — the generator caps plans at 24 weeks) |
+| `MALFORMED` / `DUPLICATE_ID` / `OUT_OF_WEEK` / `AFTER_RACE` / `SESSION_TOO_LONG` | error | structural soundness (RACE sessions are exempt from the week window — the generator caps plans at 24 weeks). `MALFORMED` asks for a race date only of race-kind plans. `AFTER_RACE` is `!canHoldTraining`: a training session on race day, or after it outside the recovery the plan was written with (`plan.recovery.until`); a RACE session after the main race stays an error |
+| `RECOVERY_HARD` | error | no TEMPO/INTERVALS/LONG inside a recovery after a race (`inRecovery`: the plan's own window, the window of the race it opened behind, or a `RECOVERY` week); live weeks only, RACE sessions exempt. The runner's own edits only get a heads-up |
 | `RAMP_EXCEEDED` | error | weekly volume ≤ max(prev, week-before) × 1.3 + 3 km; waived when the week didn't grow vs the baseline (recovery-week false positive) |
 | `HARD_BACK_TO_BACK` | error | no two hard sessions (TEMPO/INTERVALS/LONG) on consecutive days |
-| `TAPER_INTERVALS` / `TAPER_TEMPO` / `TAPER_VOLUME` | error | no intervals in the final 14 days, no tempo in the final 7, final two weeks well below peak volume |
+| `TAPER_INTERVALS` / `TAPER_TEMPO` / `TAPER_VOLUME` | error | no intervals in the final 14 days, no tempo in the final 7, final two weeks well below peak volume (before race day only; `RECOVERY` weeks count neither as peak nor as a taper week) |
 | `RACE_ADJACENT` / `SAME_DAY` | warn | surfaced to the model, never blocking |
 
 Elapsed weeks split these in two, and the line is what each rule is *about*

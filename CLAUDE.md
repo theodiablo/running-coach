@@ -249,6 +249,10 @@ Always re-verify a finding before acting on it; agents report false positives.
   guided schedule; sentence figures come from `fmt.interval`.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
   semantics, the ratio): `docs/training-plan.md`.
+- **Recovery after the race is written by `opts.recovery` (`plan.recovery`);
+  `canHoldTraining` (`_shared/coach/recovery.mjs`) is the one date rule for the
+  validator, `planEdit` and the coach tools.** Plans built before it have none
+  and get no derived recovery. Detail: `docs/training-plan.md`.
 - **Where the runner stands relative to the race is `planPhase`**
   (`src/utils/planPhase.ts`: active, raceWeek, debrief, choosing), derived from
   the plan on every read and never stored. The goal is `settings.goalSec`, never

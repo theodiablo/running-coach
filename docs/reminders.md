@@ -42,7 +42,9 @@ and nothing else, so a plan rebuild or a coach edit can never leave a stale
   always see a session the app is still showing the runner as open.
   A RACE session is never overdue, and once the main race has passed neither is
   any session dated on or before it (`mainRace`, `docs/training-plan.md`): the
-  post-race debrief owns that moment, not the backlog.
+  post-race debrief owns that moment, not the backlog. The recovery sessions
+  *after* the race are ordinary plan sessions: they appear here, in
+  `nextSession` and in the reminder schedule like any other.
 - `nextSession(plan, today)` — the soonest untouched session from today onward.
   Extracted from Dashboard so the two selectors are tested against each other:
   a session must never appear in both.

@@ -59,7 +59,7 @@ function Overview({runs, settings, stretchLog = [], plan, races}: StatsViewProps
   // their actual target rather than a hardcoded 6:00. Dropped once the race is
   // behind them: a finished goal is not a line to chase.
   const phase = plan ? planPhase({ plan, settings, participations: races?.participations, runs }, ymd(new Date())) : null;
-  const racePassed = phase?.phase === "debrief" || phase?.phase === "choosing";
+  const racePassed = phase?.phase === "debrief" || phase?.phase === "choosing" || phase?.phase === "recovery";
   const goalPace = !racePassed && settings && settings.goalSec && settings.distanceKm
     ? Number(settings.goalSec) / Number(settings.distanceKm) : 0;
 
