@@ -4,7 +4,7 @@ import { WhatsNextSheet } from "./WhatsNextSheet";
 import { track } from "../telemetry";
 import { dismissTop } from "../utils/backDismiss";
 import { hydrateCatalogue } from "../utils/races";
-import type { BlockRecap } from "../utils/whatsNext";
+import type { BlockRecap } from "../utils/blockRecap";
 import type { Participation, Run } from "../types";
 
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
@@ -13,7 +13,7 @@ vi.setSystemTime(new Date("2026-10-20T09:00:00"));
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); hydrateCatalogue([]); });
 
-const recap: BlockRecap = { from: "2026-08-17", to: "2026-10-03", sessionsDone: 18, sessionsPlanned: 22, km: 142.5, longestKm: 17, runs: 20 };
+const recap: BlockRecap = { from: "2026-08-17", to: "2026-10-03", sessionsDone: 18, sessionsPlanned: 22, km: 142.5, longestKm: 17, runs: 20, easyPace: null };
 
 const mount = (over: Record<string, unknown> = {}) => {
   const onAnswer = vi.fn();

@@ -9,6 +9,7 @@ import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
 import { createMockModel } from "../_shared/coach/mock.mjs";
 import { goalKind } from "../_shared/coach/recovery.mjs";
+import { raceStatus } from "../_shared/coach/phase.mjs";
 import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
 import { isPremiumActive } from "../_shared/premium.mjs";
 
@@ -379,6 +380,11 @@ async function handle(req: Request): Promise<any> {
       kind: goalKind(workingPlan),
       target: workingPlan.goal?.target ?? null,
     },
+    // Where the runner stands after the race (null while heading for it).
+    raceStatus: raceStatus(
+      { plan: workingPlan, settings, participations: blob.rc_races?.participations, runs: blob.rc_runs },
+      today, settings.goalSec,
+    ),
     userContext,
     targetPace: workingPlan.targetPace,
     // Reply-language preference from the synced settings blob (validated to the
@@ -487,6 +493,7 @@ async function handle(req: Request): Promise<any> {
     proposed_plan: failed ? context.plan : result.plan,
     input_context: {
       report, goal: context.goal, today, recentRuns, userContext, trainingLevel: context.trainingLevel,
+      raceStatus: context.raceStatus,
       baselinePlan, planSeenByModel: workingPlan,
       memorySuggestions: result.memorySuggestions ?? [],
       // Digests the model fetched via get_run_detail — part of what it saw,

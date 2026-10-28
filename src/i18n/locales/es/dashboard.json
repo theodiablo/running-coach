@@ -136,6 +136,8 @@
     "light": "{{target}} · plan ligero",
     "blockCheckpoint": "Bloque {{block}} · sesión de control el {{date}}",
     "block": "Bloque {{block}}",
+    "blockDone": "Bloque {{block}} terminado",
+    "blockDoneSub": "Tu sesión de control está hecha. Aquí tienes el bloque.",
     "autoStarted": "Empezamos un plan tranquilo para que sigas en movimiento, más o menos al volumen que venías corriendo. Puedes cambiarlo cuando quieras.",
     "change": "Cambiar mi objetivo",
     "changeAuto": "Cambiar este plan"

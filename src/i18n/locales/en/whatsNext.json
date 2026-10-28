@@ -10,7 +10,11 @@
     "sessionsValue": "{{done}} of {{planned}}",
     "distance": "Distance run",
     "longest": "Longest run",
-    "km": "{{km}} km"
+    "km": "{{km}} km",
+    "easyPace": "Easy pace",
+    "easyPaceValue": "{{from}} → {{to}} /km",
+    "easyPaceHr": "Start to end of the block, at the same heart rate (about {{hr}} bpm)",
+    "easyPaceNoHr": "Median of your easy runs, start to end of the block"
   },
   "feeling": {
     "title": "How are you feeling about running?",

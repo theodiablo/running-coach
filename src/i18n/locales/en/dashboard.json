@@ -136,6 +136,8 @@
     "light": "{{target}} · lighter plan",
     "blockCheckpoint": "Block {{block}} · checkpoint run {{date}}",
     "block": "Block {{block}}",
+    "blockDone": "Block {{block}} done",
+    "blockDoneSub": "Your checkpoint run is in. Here is the block.",
     "autoStarted": "We started a gentle plan to keep you going, at about the volume you have been running. You can change it any time.",
     "change": "Change what I'm training for",
     "changeAuto": "Change this plan"

@@ -288,10 +288,28 @@ or WALK only, never past the longest recovery session; `swap_session` refuses
 TEMPO/INTERVALS/LONG and `shift_workout` refuses to move those into the window
 (code `RECOVERY`, with its `RULE_WHY`); `shift_workout` and `add_session` read
 `canHoldTraining` for the dates the plan can hold. Soreness is met with
-`insert_recovery_week`, `convert_to_cross_training` or `reduce_session_distance`,
-and the engine adds a `RECOVERY:` context line (right after `GOAL`) only while a
-window covers today or later, so contexts without one stay byte-identical.
+`insert_recovery_week`, `convert_to_cross_training` or `reduce_session_distance`.
 Re-run `npm run eval:live` after prompt or tool-description changes.
+
+**RACE STATUS (once the race has passed).** `coach-agent/index.ts` derives
+`context.raceStatus` from `rc_plan`, `rc_settings`, `rc_races` and `rc_runs`
+through `raceStatus` (`_shared/coach/phase.mjs`, the same `planPhase` core the
+app uses), and the engine writes one line right after `GOAL`:
+`RACE STATUS: passed (the 21.1 km race on D), result 1:48:00, 2:00 under the
+1:50:00 goal; easy running only through D2; next goal not chosen yet.` It reads
+*passed* (with the result against `settings.goalSec`: under, over, on, or "no
+goal time set"; or "no result logged yet"), *not run* (skipped), or, on a plan
+with no race, "open plan, no race (started after the X km race on D)"; the
+recovery clause appears while a window runs, "next goal not chosen yet" in the
+recovery and choosing phases. It is null, so no line, while the plan is heading
+for the race (`active`/`raceWeek`) unless a plan opened behind an earlier race
+is still in that race's recovery, and for an open plan outside one: existing
+contexts stay byte-identical (`coachGolden`). It replaces the earlier
+`RECOVERY:` line (the "recovery ahead of a race" sentence is gone with it). The
+audit log keeps it in `input_context.raceStatus`. One prompt rule goes with it:
+acknowledge the result **once**; when asked what's next, talk it through and
+hand off with `[choose your next goal](app:next)`; the coach never builds or
+rebuilds a plan.
 
 **A refusal carries its reason.** A guard that blocks load (`TAPER`,
 `RACE_EVE`, `TOO_LONG`, `RECOVERY`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
@@ -636,7 +654,8 @@ through `src/coach.ts`.
   non-error "not available" tool_result, so no DB is ever needed.
 - **Live model eval** — `npm run eval:live` (`evals/coach/`, needs
   `ANTHROPIC_API_KEY`; `COACH_EVAL_MOCK=1` for a free plumbing check) replays
-  10 realistic scenarios through the real `generateProposal` loop against the
+  the realistic scenarios (the after-the-race set: `after-race-whats-next`,
+  `recovery-sore`, `recovery-wants-intervals`, `open-plan-free-day`) through the real `generateProposal` loop against the
   real API and grades in two tiers: **safety** invariants that fail the run
   (validator passes, done/RACE untouched, volume never up, pain never adds
   intensity) and **quality** metrics that are scored but non-blocking (right

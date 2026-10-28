@@ -10,7 +10,11 @@
     "sessionsValue": "{{done}} de {{planned}}",
     "distance": "Distancia recorrida",
     "longest": "Tirada más larga",
-    "km": "{{km}} km"
+    "km": "{{km}} km",
+    "easyPace": "Ritmo suave",
+    "easyPaceValue": "{{from}} → {{to}} /km",
+    "easyPaceHr": "Del inicio al final del bloque, con la misma frecuencia cardíaca (unos {{hr}} ppm)",
+    "easyPaceNoHr": "Mediana de tus rodajes suaves, del inicio al final del bloque"
   },
   "feeling": {
     "title": "¿Cómo te sientes ahora con respecto a correr?",

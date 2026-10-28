@@ -1,13 +1,11 @@
-// "What's next?": the recap of the block just trained, how the runner feels
-// about running, and the goals offered in the order that answer suggests.
+// "What's next?": how the runner feels about running, and the goals offered in
+// the order that answer suggests. The block recap is blockRecap.ts.
 // Pure; WhatsNextSheet renders it. docs/races.md.
 import { haversineM } from "./geo";
 import { effortsFor, type BestEffortKey } from "./bestEfforts";
 import { raceKey } from "./openPlan";
-import { goalKind } from "./recovery";
 import { upcomingRace } from "./raceDay";
 import { DEBRIEF_ASK_DAYS, type PhaseInfo } from "./planPhase";
-import { isCrossTraining } from "../types";
 import type { JoinedEdition, Participation, Plan, Run } from "../types";
 
 export type WhatsNextVariant = "afterRace" | "raceFirst" | "manual";
@@ -32,59 +30,8 @@ export function goalOrder(feeling: Feeling | null, variant: WhatsNextVariant): G
   return ["lighter", "improve"];
 }
 
-const shift = (date: string, n: number) => {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b + "T00:00:00Z").getTime() - new Date(a + "T00:00:00Z").getTime()) / 86400000);
-
-// ── Recap ────────────────────────────────────────────────────────────────────
-
-export type BlockRecap = {
-  from: string;
-  to: string;
-  sessionsDone: number;
-  sessionsPlanned: number;
-  km: number;
-  longestKm: number;
-  runs: number;
-};
-
-type RecapInput = {
-  plan: Plan | null | undefined;
-  runs: Run[] | null | undefined;
-  today: string;
-  // The race this block led to: the recap stops the day before it and leaves the race run out.
-  race?: { date: string; runId?: string | null } | null;
-};
-
-// How the training block went (the race is not part of it). A race plan's
-// block is the plan up to race day; an open plan's is its last four weeks.
-export function blockRecap({ plan, runs, today, race }: RecapInput): BlockRecap | null {
-  const weeks = (plan?.weeks || []).filter(w => w.phase !== "RECOVERY" && w.startDate);
-  if (!plan || !weeks.length) return null;
-  const open = goalKind(plan) !== "race";
-  const to = race ? shift(race.date, -1) < today ? shift(race.date, -1) : today : today;
-  let from = weeks[0].startDate as string;
-  if (open) {
-    const trail = shift(today, -28);
-    if (from < trail) from = trail;
-  }
-  if (from > to) return null;
-  const sessions = weeks.flatMap(w => w.sessions)
-    .filter(s => s.date >= from && s.date <= to && s.type !== "RACE" && !s.skipped);
-  const mine = (runs || []).filter(r => r.date >= from && r.date <= to && !isCrossTraining(r)
-    && String(r.type).toUpperCase() !== "RACE" && r.id !== race?.runId && (Number(r.km) || 0) > 0);
-  if (!sessions.length && !mine.length) return null;
-  const km = mine.reduce((t, r) => t + (Number(r.km) || 0), 0);
-  return {
-    from, to, sessionsDone: sessions.filter(s => s.done).length, sessionsPlanned: sessions.length,
-    km: Math.round(km * 10) / 10, longestKm: Math.round(Math.max(0, ...mine.map(r => Number(r.km) || 0)) * 10) / 10,
-    runs: mine.length,
-  };
-}
 
 // ── Races to offer ───────────────────────────────────────────────────────────
 

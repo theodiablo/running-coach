@@ -178,14 +178,29 @@ the past races and still offers "Add your time".
 a race. It only collects an answer; the hub's `startNextGoal` acts on it.
 
 - **Steps.** A recap of the **training block** (not the race: sessions done of
-  planned, distance, longest run, from the plan's weeks up to the day before
-  race day, the race run left out; an open plan's recap is its last four
-  weeks) -> "How are you feeling about running?" (fired up / steady / need a
+  planned, distance, longest run and the easy-pace trend, from the plan's weeks
+  up to the day before race day, the race run left out; an open plan's recap is
+  its last four weeks; `src/utils/blockRecap.ts`, rendered by
+  `components/BlockRecap.tsx`, below) -> "How are you feeling about running?" (fired up / steady / need a
   breather; there is no pause mode) -> the goals in the order the answer
   suggests: fired up: next race, keep improving; steady: keep improving, next
   race; need a breather: a lighter plan (about 2 easy runs a week), keep
   improving. A runner already on blocks of their own sees the race option as
-  "Try a real race". Step 4 adds an easy-pace trend to the recap.
+  "Try a real race".
+- **The recap's easy pace** claims no more than the log supports. It compares
+  the median pace of the block's EASY runs at its start and at its end (the first
+  and last 3 pre-taper weeks, fewer on a short block: each end spans half the
+  block at most and the block needs 4 pre-taper weeks), grade-adjusted like the
+  HR fit (`flatEqKm`). Each end needs 3 easy runs, else the line is hidden. When
+  3+ runs at each end carry a heart rate (and max HR is known) every pace is
+  moved to the block's median HR on the prior slope (`PRIOR_PACE_PER_RESERVE`,
+  `docs/race-predictions.md`), so a run that was only harder does not read as
+  fitness, and the line says "at the same heart rate, about N bpm". Without
+  that it is the plain median and the copy makes no same-effort claim. After an
+  open plan's checkpoint run Home also shows a "Block n done" row
+  (`finishedBlock`, `BlockDoneCard`) with the same numbers for
+  `BLOCK_DONE_DAYS` (10). Free: a one-moment summary, not a history surface
+  (`docs/monetization.md`).
 - **Next race** leads with a wishlisted race at least 3 weeks out, else the
   catalogue's top 3 (6-24 weeks out, near the distance just raced, soonest
   first, nearest first once "Near me" has a fix, `useNearMeFilter`); each opens

@@ -429,7 +429,9 @@ stands relative to the plan's main race: `active`, `raceWeek` (the 7 days up to
 and including race day), `debrief`, `recovery`, `choosing`. **Derived on every read, never
 stored**: the plan is the source of truth, so a rebuild, undo or restore can't
 leave a phase behind. The core takes `today` as a `YYYY-MM-DD` string and does
-no `Date` or i18n work, so it could move to `_shared/coach`.
+no `Date` or i18n work, so it lives in `_shared/coach/phase.mjs` and
+`planPhase.ts` is its typed wrapper; the coach reads the same phase for its
+`RACE STATUS:` line (`docs/coach-agent.md`).
 
 - The main race is the session with id `race` (fallback: the RACE session dated
   `plan.raceDate`); carried `past-*` sessions are history and never count, which

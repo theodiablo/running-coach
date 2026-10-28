@@ -17,7 +17,8 @@ import { buildPlan, carryProgress } from "./utils/plan";
 import { applySessionEdit, findSession, lightenRecovery, type SessionEdit } from "./utils/planEdit";
 import { recentRace, goalKind } from "./utils/recovery";
 import { autoStartDue, buildOpenPlan, extendedOpenPlan, extensionDue, openSettingsPatch, raceKey, type OpenChoice } from "./utils/openPlan";
-import { blockRecap, whatsNextDue, type Feeling, type WhatsNextVariant } from "./utils/whatsNext";
+import { whatsNextDue, type Feeling, type WhatsNextVariant } from "./utils/whatsNext";
+import { blockRecap } from "./utils/blockRecap";
 import type { CoachLinkTarget } from "./utils/coachLinks";
 import { bestSessionForRun, canMoveSessionTo, claimedElsewhere, releaseRun } from "./utils/sessionMatch";
 import { mainRace, planPhase, type MainRace } from "./utils/planPhase";
@@ -1573,7 +1574,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {/* After the achievement sheet, never stacked on it. Spent on any answer. */}
       {nextSheet && !achievement && <WhatsNextSheet key={nextSheet.variant} variant={nextSheet.variant}
         label={"label" in nextSheet ? nextSheet.label : undefined} kmRef={nextSheetKm}
-        recap={nextSheet.variant === "raceFirst" ? null : blockRecap({ plan, runs, today: todayStr,
+        recap={nextSheet.variant === "raceFirst" ? null : blockRecap({ plan, runs, today: todayStr, settings,
           race: phaseInfo?.race ? { date: phaseInfo.race.date, runId: phaseInfo.raceRunId } : null })}
         blockRunner={!!plan && goalKind(plan) !== "race"} participations={races.participations || []} runs={runs}
         onAnswer={(a, f) => startNextGoal(a, f, nextSheet.variant, nextSheetKm)}/>}

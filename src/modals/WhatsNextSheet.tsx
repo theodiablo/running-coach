@@ -6,9 +6,11 @@ import { useNearMeFilter } from "../hooks/useNearMeFilter";
 import { track } from "../telemetry";
 import { findEdition, searchEditions } from "../utils/races";
 import { fmt, ymd } from "../utils/format";
+import { BlockRecap } from "../components/BlockRecap";
+import type { BlockRecap as Recap } from "../utils/blockRecap";
 import {
   FASTER_OPTIONS, FEELINGS, bestSecByKey, goalOrder, raceSuggestions, wishlistLead,
-  type BlockRecap, type Feeling, type GoalOption, type WhatsNextVariant,
+  type Feeling, type GoalOption, type WhatsNextVariant,
 } from "../utils/whatsNext";
 import type { OpenTarget, Participation, Run } from "../types";
 
@@ -31,7 +33,7 @@ type Props = {
   label?: string;
   // The distance just raced, else the plan's reference distance; 0 when unknown.
   kmRef: number;
-  recap: BlockRecap | null;
+  recap: Recap | null;
   // On a plan with no race already: the race option reads "Try a real race".
   blockRunner: boolean;
   participations: Participation[];
@@ -186,20 +188,7 @@ export function WhatsNextSheet({ variant, label, kmRef, recap, blockRunner, part
               <h3 className="text-base font-bold">{t(blockRunner ? "whatsNext.recap.titleOpen" : "whatsNext.recap.title")}</h3>
               <p className="text-xs text-slate-400 mt-0.5">{t("whatsNext.recap.sub")}</p>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-slate-900/60 rounded-xl p-3">
-                <p className="text-lg font-bold text-orange-300">{t("whatsNext.recap.sessionsValue", { done: recap.sessionsDone, planned: recap.sessionsPlanned })}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{t("whatsNext.recap.sessions")}</p>
-              </div>
-              <div className="bg-slate-900/60 rounded-xl p-3">
-                <p className="text-lg font-bold text-orange-300">{t("whatsNext.recap.km", { km: recap.km })}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{t("whatsNext.recap.distance")}</p>
-              </div>
-              <div className="bg-slate-900/60 rounded-xl p-3">
-                <p className="text-lg font-bold text-orange-300">{t("whatsNext.recap.km", { km: recap.longestKm })}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{t("whatsNext.recap.longest")}</p>
-              </div>
-            </div>
+            <BlockRecap recap={recap}/>
             <button onClick={() => setStep("feeling")}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
               {t("whatsNext.continue")}

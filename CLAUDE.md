@@ -262,7 +262,9 @@ Always re-verify a finding before acting on it; agents report false positives.
 - **Where the runner stands relative to the race is `planPhase`**
   (`src/utils/planPhase.ts`: active, raceWeek, debrief, choosing, recovery, and
   open for a plan with no race), derived from
-  the plan on every read and never stored. The goal is `settings.goalSec`, never
+  the plan on every read and never stored; its core is
+  `_shared/coach/phase.mjs`, so the coach's `RACE STATUS:` line reads the same
+  phase the app shows. The goal is `settings.goalSec`, never
   `plan.goalSec` (buildPlan substitutes 7200 for an empty one). Detail:
   `docs/training-plan.md` ("Where the runner stands"), `docs/races.md`.
 - **The runner's own plan edits warn, never block.** Move/swap, retype,

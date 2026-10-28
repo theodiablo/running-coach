@@ -10,7 +10,11 @@
     "sessionsValue": "{{done}} sur {{planned}}",
     "distance": "Distance parcourue",
     "longest": "Plus longue sortie",
-    "km": "{{km}} km"
+    "km": "{{km}} km",
+    "easyPace": "Allure facile",
+    "easyPaceValue": "{{from}} → {{to}} /km",
+    "easyPaceHr": "Du début à la fin du bloc, à fréquence cardiaque égale (environ {{hr}} bpm)",
+    "easyPaceNoHr": "Médiane de tes sorties faciles, du début à la fin du bloc"
   },
   "feeling": {
     "title": "Comment te sens-tu en ce moment pour courir ?",

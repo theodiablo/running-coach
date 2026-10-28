@@ -19,6 +19,8 @@ import { UpdateCard } from "../components/UpdatePrompt";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import { DebriefCard, NextGoalCard, RecoveryCard, SoreRow } from "../components/DebriefCard";
 import { OpenPlanCard } from "../components/OpenPlanCard";
+import { BlockDoneCard } from "../components/BlockRecap";
+import { blockRecap, finishedBlock } from "../utils/blockRecap";
 import { StretchBanner } from "../components/StretchBanner";
 import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
@@ -136,6 +138,9 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const phase = raceDay ? null : planPhase({ plan, settings, participations: races?.participations || [], runs }, todayStr);
   const racePhase = phase && phase.phase !== "open" ? phase : null;
   const openPhase = phase?.phase === "open" ? phase : null;
+  // The block whose checkpoint run was just done, for its "Block n done" row.
+  const doneBlock = openPhase ? finishedBlock(plan, todayStr) : null;
+  const doneRecap = doneBlock ? blockRecap({ plan, runs, today: todayStr, span: doneBlock, settings }) : null;
   const debriefing = racePhase?.phase === "debrief" && !(racePhase.debrief === "ask" && dateChanges?.some(c => c.isTarget));
   const choosing = racePhase?.phase === "choosing";
   const recovering = racePhase?.phase === "recovery";
@@ -338,11 +343,14 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       ) : choosing ? (
         <NextGoalCard onSetGoal={() => (openWhatsNext ?? openPlanGoalEdit)?.()} onBrowse={() => goTab("races")}/>
       ) : openPhase ? (
-        <OpenPlanCard info={openPhase} distanceKm={Number(plan?.goal?.distanceKm) || Number(settings.distanceKm) || 0}
-          nextRace={nextRace ? { label: String(nextRace.label || ""), distanceKm: Number(nextRace.distanceKm) || 0, date: String(nextRace.raceDate) } : null}
-          autoStarted={autoNotice}
-          onNoticeSeen={() => { if (plan?.goal?.autoFor) saveSettings?.({ ...settings, autoStartNoticeFor: plan.goal.autoFor }); }}
-          onChange={() => openWhatsNext?.()} onRaces={() => goTab("races")}/>
+        <>
+          <OpenPlanCard info={openPhase} distanceKm={Number(plan?.goal?.distanceKm) || Number(settings.distanceKm) || 0}
+            nextRace={nextRace ? { label: String(nextRace.label || ""), distanceKm: Number(nextRace.distanceKm) || 0, date: String(nextRace.raceDate) } : null}
+            autoStarted={autoNotice}
+            onNoticeSeen={() => { if (plan?.goal?.autoFor) saveSettings?.({ ...settings, autoStartNoticeFor: plan.goal.autoFor }); }}
+            onChange={() => openWhatsNext?.()} onRaces={() => goTab("races")}/>
+          {doneBlock && doneRecap && <BlockDoneCard block={doneBlock.block} recap={doneRecap}/>}
+        </>
       ) : (
       <div className="rounded-2xl p-5 border border-orange-500/30"
         style={{background:"linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))"}}>

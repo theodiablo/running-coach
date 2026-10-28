@@ -4,7 +4,7 @@ import { planPhase } from "./planPhase";
 import { buildOpenPlan, raceKey } from "./openPlan";
 import { ymd } from "./format";
 import {
-  FASTER_OPTIONS, SUGGEST_MAX_DAYS, SUGGEST_MIN_DAYS, bestSecByKey, blockRecap, goalOrder, raceSuggestions, whatsNextDue, wishlistLead,
+  FASTER_OPTIONS, SUGGEST_MAX_DAYS, SUGGEST_MIN_DAYS, bestSecByKey, goalOrder, raceSuggestions, whatsNextDue, wishlistLead,
 } from "./whatsNext";
 import type { JoinedEdition, Participation, Plan, Run, SettingsState } from "../types";
 import type { PlanSessionInput } from "./plan";
@@ -22,51 +22,6 @@ describe("goalOrder", () => {
 
   it("the race-first variant leads with races whatever the feeling", () => {
     for (const f of ["fired", "steady", "breather", null] as const) expect(goalOrder(f, "raceFirst")).toEqual(["race", "improve"]);
-  });
-});
-
-describe("blockRecap", () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-08-17T09:00:00")); });
-  afterEach(() => vi.useRealTimers());
-
-  const raceDate = "2026-10-04";
-  const racePlan = () => buildPlan(raceDate, 3000, SESSIONS, 10, 0, { recovery: true }) as unknown as Plan;
-  const run = (id: string, date: string, km: number, extra: Partial<Run> = {}) => ({ id, date, type: "EASY", km, durationSec: km * 330, ...extra }) as Run;
-
-  it("covers the block up to the day before the race and leaves the race run out", () => {
-    const plan = racePlan();
-    const done = plan.weeks.flatMap(w => w.sessions).filter(s => s.type !== "RACE" && s.date < raceDate).slice(0, 4);
-    for (const s of done) s.done = true;
-    const runs = [run("a", day(-30, raceDate), 8), run("b", day(-9, raceDate), 12), run("c", day(-2, raceDate), 5),
-      run("race", raceDate, 10, { type: "RACE" }), run("after", day(2, raceDate), 4)];
-    const r = blockRecap({ plan, runs, today: day(8, raceDate), race: { date: raceDate, runId: "race" } })!;
-    expect(r.sessionsDone).toBe(4);
-    expect(r.sessionsPlanned).toBeGreaterThan(4);
-    expect(r.km).toBe(25);
-    expect(r.longestKm).toBe(12);
-    expect(r.runs).toBe(3);
-    expect(r.to).toBe(day(-1, raceDate));
-  });
-
-  it("an open plan's recap is its last four weeks", () => {
-    vi.setSystemTime(new Date("2026-09-16T09:00:00"));
-    const plan = buildOpenPlan({ planSessions: SESSIONS } as unknown as SettingsState, { target: "healthy", distanceKm: 10 }, { runs: [] });
-    const today = day(40, plan.goal!.startDate as string);
-    const r = blockRecap({ plan, runs: [run("x", day(-3, today), 6), run("old", day(-40, today), 20)], today })!;
-    expect(r.from).toBe(day(-28, today));
-    expect(r.km).toBe(6);
-  });
-
-  it("is null with no plan, or nothing in it", () => {
-    expect(blockRecap({ plan: null, runs: [], today: TODAY })).toBeNull();
-    expect(blockRecap({ plan: racePlan(), runs: [], today: "2026-08-01" })).toBeNull();
-  });
-
-  it("cross-training is not distance run", () => {
-    const plan = racePlan();
-    const r = blockRecap({ plan, runs: [run("bike", day(-5, raceDate), 30, { type: "OTHER" }), run("run", day(-4, raceDate), 5)], today: day(3, raceDate),
-      race: { date: raceDate } })!;
-    expect(r.km).toBe(5);
   });
 });
 

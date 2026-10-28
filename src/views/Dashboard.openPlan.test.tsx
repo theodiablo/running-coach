@@ -43,6 +43,25 @@ describe("Dashboard · a plan with no race", () => {
     expect(screen.queryByText("Set up your race")).toBeNull();
   });
 
+  it("shows a Block n done row only once the checkpoint run is done", () => {
+    renderDash();
+    expect(screen.queryByText(/Block \d done/)).toBeNull();
+    cleanup();
+    const plan = openPlan();
+    const cp = plan.weeks.flatMap(w => w.sessions).find(x => x.sd?.kind === "checkpoint")!;
+    cp.done = true;
+    vi.setSystemTime(new Date(cp.date + "T09:00:00"));
+    try {
+      const day = (n: number) => new Date(new Date(cp.date + "T00:00:00").getTime() - n * 86400000).toLocaleDateString("sv");
+      const runs = [4, 5, 6].map(n => ({ id: "e" + n, date: day(n), type: "EASY", km: 8, durationSec: 8 * 360 })) as unknown as Run[];
+      renderDash({ plan, runs });
+      expect(screen.getByText("Block 1 done")).toBeInTheDocument();
+      expect(screen.getByText("Distance run")).toBeInTheDocument();
+    } finally {
+      vi.setSystemTime(new Date("2026-09-16T09:00:00"));
+    }
+  });
+
   it("a block plan reads as the runner's own training", () => {
     renderDash({ plan: openPlan({ goal: { kind: "block" } }) });
     expect(screen.getByText("Your training")).toBeInTheDocument();
