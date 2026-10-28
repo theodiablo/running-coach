@@ -89,7 +89,7 @@
       "title": "Follow this runner",
       "body": "See everyone you follow on one map. You can follow up to {{max}} runners.",
       "nameLabel": "Who is this?",
-      "namePlaceholder": "Their name",
+      "namePlaceholder": "Their name (optional)",
       "confirm": "Follow",
       "cancel": "Cancel",
       "seeAll": "Everyone you follow ({{count}})",
@@ -97,17 +97,15 @@
       "replaceYes": "Yes, replace their old link",
       "replaceNo": "No, it's someone else",
       "full": "You already follow {{max}} runners. Remove one to add another.",
-      "savedHere": "Saved in this browser only, not sent to us. You can remove anyone at any time.",
+      "savedHere": "Saved in this browser only, and the names you type never leave this device. You can remove anyone at any time.",
       "unnamed": "Runner {{n}}"
     },
     "multi": {
       "docTitle": "Runners you follow · Running Coach",
       "docTitleLive": "({{count}}) Live · Running Coach",
-      "header": "{{count}} following · {{live}} live",
       "headerNone": "Runners you follow",
       "everyone": "Everyone",
       "km": "km",
-      "finished": "Finished",
       "quiet": "No update for {{mins}} min",
       "emptyTitle": "You don't follow anyone in this browser yet",
       "emptyBody": "Open a runner's live link and tap Follow, or paste their link below.",
@@ -121,7 +119,9 @@
       "removeQ": "Stop following {{name}} in this browser?",
       "forgetAll": "Remove everyone",
       "forgetQ": "Remove every runner from this browser?",
-      "savedHere": "Saved in this browser only."
+      "savedHere": "Saved in this browser only.",
+      "header_one": "{{count}} following · {{live}} live",
+      "header_other": "{{count}} following · {{live}} live"
     }
   }
 }

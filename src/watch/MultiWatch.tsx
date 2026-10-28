@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useTranslation } from "react-i18next";
 import { Flag, Loader, Pause, Users } from "lucide-react";
 import { BrandLogo } from "../components/BrandLogo";
-import { LiveRunStats } from "../components/LiveWatchView";
+import { LiveRunStats, LiveRunStatus } from "../components/LiveWatchView";
 import { useNow } from "../hooks/useNow";
 import { RunChart } from "../components/RunChart";
 import { buildRunSeries } from "../utils/runSeries";
@@ -89,7 +89,8 @@ function useFollowedRuns(list: FollowedRunner[], focus: string | null) {
       if (r.kind === "full") next = { run: summaryOf(r.run), full: r.run };
       else if (r.kind === "summary") {
         // A trace from a different run (or a resumed one) is no longer this run's.
-        const sameRun = prev.full && prev.full.started_at === r.run.started_at;
+        // A live answer also clears the ended latch.
+        const sameRun = prev.full && prev.full.started_at === r.run.started_at && prev.full.status !== "ended";
         next = { run: r.run, full: sameRun ? prev.full : null };
       } else if (r.kind === "none") {
         // Seen ending, then swept by the runner's Save: hold the finished run on
@@ -110,10 +111,15 @@ function useFollowedRuns(list: FollowedRunner[], focus: string | null) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
+    let inFlight = false;
+    // `timer` is null whenever no read is scheduled, and `inFlight` stops a
+    // return to the tab from starting a second chain beside a pending read.
     const tick = async () => {
+      timer = null;
+      if (stopped || inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      const wait = await load().finally(() => { inFlight = false; });
       if (stopped || document.visibilityState !== "visible") return;
-      const wait = await load();
-      if (stopped) return;
       timer = setTimeout(tick, wait);
     };
     const onVis = () => {
@@ -122,7 +128,7 @@ function useFollowedRuns(list: FollowedRunner[], focus: string | null) {
         timer = null;
         return;
       }
-      if (!timer) void tick();
+      if (!timer && !inFlight) void tick();
     };
     void tick();
     document.addEventListener("visibilitychange", onVis);
@@ -140,7 +146,7 @@ function useFollowedRuns(list: FollowedRunner[], focus: string | null) {
 function StatusLine({ data, state }: { data: RunnerData; state: LiveRowState }) {
   const { t } = useTranslation();
   if (!data.run) return <span>{t("liveShare.public.notLive")}</span>;
-  if (state.ended) return <span className="inline-flex items-center gap-1"><Flag size={11} aria-hidden />{t("liveShare.public.multi.finished")}</span>;
+  if (state.ended) return <span className="inline-flex items-center gap-1"><Flag size={11} aria-hidden />{t("liveShare.public.finished")}</span>;
   if (state.paused) return <span className="inline-flex items-center gap-1 text-amber-300"><Pause size={11} aria-hidden />{t("liveShare.watch.paused")}</span>;
   if (state.quiet) return <span className="text-amber-300">{t("liveShare.public.multi.quiet", { mins: Math.round(state.quietMs / 60000) })}</span>;
   const fresh = freshness(state);
@@ -188,7 +194,7 @@ function ConfirmInline({ question, confirm, onConfirm, onCancel }:
     <div role="group" aria-label={question} className="rounded-xl border border-slate-700 bg-slate-800/60 p-3 space-y-2">
       <p className="text-xs text-slate-200">{question}</p>
       <div className="flex gap-2">
-        <button type="button" onClick={onConfirm} className="flex-1 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-xs font-bold py-2">{confirm}</button>
+        <button type="button" onClick={onConfirm} autoFocus className="flex-1 rounded-lg bg-red-500/90 hover:bg-red-500 text-white text-xs font-bold py-2">{confirm}</button>
         <button type="button" onClick={onCancel} className="flex-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold py-2">{t("liveShare.public.follow.cancel")}</button>
       </div>
     </div>
@@ -220,8 +226,9 @@ export default function MultiWatch() {
     ? t("liveShare.public.multi.docTitleLive", { count: liveCount })
     : t("liveShare.public.multi.docTitle"));
 
-  const pick = useCallback((token: string | null) => {
-    setFocus(f => (f === token ? null : token));
+  // `toggle`: a second tap on the focused row (or its marker) unfocuses it.
+  const pick = useCallback((token: string | null, toggle = true) => {
+    setFocus(f => (toggle && f === token ? null : token));
     setConfirm(null);
     setRefit(n => n + 1);
   }, []);
@@ -263,7 +270,7 @@ export default function MultiWatch() {
 
   const addSheet = adding && (
     <FollowSheet token={adding} list={list}
-      onDone={next => { setList(next); setAdding(null); pick(adding); }} onClose={() => setAdding(null)} />
+      onDone={next => { setList(next); setAdding(null); pick(adding, false); }} onClose={() => setAdding(null)} />
   );
 
   if (!list.length) {
@@ -302,8 +309,8 @@ export default function MultiWatch() {
             <MultiRunnerMap runners={mapRunners} focus={focused} track={selTrack} onPick={pick} refit={refit} />
             <div className="absolute left-12 top-2.5 z-[500] flex gap-1.5">
               <button type="button" onClick={() => pick(null)} aria-pressed={!focused}
-                className={"rounded-full px-3 py-1 text-xs font-semibold border bg-slate-900/90 "
-                  + (!focused ? "border-orange-500 text-orange-300" : "border-slate-700 text-slate-200")}>
+                className={"min-h-9 rounded-full px-3 text-xs font-semibold border bg-slate-900 "
+                  + (!focused ? "border-orange-500 text-orange-300 shadow-[inset_0_0_0_999px_rgba(249,115,22,0.2)]" : "border-slate-700 text-slate-200")}>
                 {t("liveShare.public.multi.everyone")}
               </button>
             </div>
@@ -360,6 +367,7 @@ export default function MultiWatch() {
                           <RunChart series={series} show={{ elev: true, pace: true, hr: false }} hasElev={hasSeriesElev} hasHr={false} />
                         </div>
                       )}
+                      <LiveRunStatus state={sel.state} />
                     </>
                   ) : (
                     <p className="text-sm text-slate-400">{t("liveShare.public.multi.notLiveYet", { name: sel.name })}</p>
@@ -370,7 +378,7 @@ export default function MultiWatch() {
                       onConfirm={() => { setList(unfollowRunner(sel.r.token)); setFocus(null); setConfirm(null); }}
                       onCancel={() => setConfirm(null)} />
                   ) : (
-                    <button type="button" onClick={() => setConfirm("remove")} className="text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2">
+                    <button type="button" onClick={() => setConfirm("remove")} className="min-h-9 px-1 text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2">
                       {t("liveShare.public.multi.remove")}
                     </button>
                   )}
@@ -386,12 +394,12 @@ export default function MultiWatch() {
                 </button>
               )}
 
-              <AddRunner onToken={token => (list.some(r => r.token === token) ? pick(token) : setAdding(token))} />
+              <AddRunner onToken={token => (list.some(r => r.token === token) ? pick(token, false) : setAdding(token))} />
 
               <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
                 <span>{t("liveShare.public.multi.savedHere")}</span>
                 {confirm !== "forget" && (
-                  <button type="button" onClick={() => setConfirm("forget")} className="shrink-0 underline underline-offset-2 hover:text-slate-300">
+                  <button type="button" onClick={() => setConfirm("forget")} className="shrink-0 min-h-9 px-1 underline underline-offset-2 hover:text-slate-300">
                     {t("liveShare.public.multi.forgetAll")}
                   </button>
                 )}

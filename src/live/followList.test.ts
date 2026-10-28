@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   FOLLOW_COLORS, FOLLOW_KEY, FOLLOW_MAX, FOLLOW_TTL_MS, followRunner, forgetAllRunners, readFollows,
   sameNameAs, unfollowRunner,
@@ -81,4 +81,28 @@ describe("followList", () => {
     expect(forgetAllRunners()).toEqual([]);
     expect(localStorage.getItem(FOLLOW_KEY)).toBeNull();
   });
+
+  it("deletes expired links from storage, not just from the list it returns", () => {
+    const now = Date.now();
+    localStorage.setItem(FOLLOW_KEY, JSON.stringify({ v: 1, runners: [
+      { token: tok("a"), name: "old", color: FOLLOW_COLORS[0], addedAt: now - FOLLOW_TTL_MS - 1 },
+    ] }));
+    expect(readFollows(now)).toEqual([]);
+    expect(localStorage.getItem(FOLLOW_KEY)).toBeNull();
+  });
+
+  it("keeps every runner for the visit when storage is blocked", async () => {
+    // A fresh module: once storage fails, the list stays in memory for the visit.
+    vi.resetModules();
+    const m = await import("./followList");
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    try {
+      m.followRunner(tok("a"), "A");
+      m.followRunner(tok("b"), "B");
+      expect(m.readFollows().map(r => r.name)).toEqual(["A", "B"]);
+    } finally {
+      set.mockRestore();
+    }
+  });
 });
+

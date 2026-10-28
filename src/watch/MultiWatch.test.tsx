@@ -71,16 +71,16 @@ describe("MultiWatch", () => {
     try {
       fetchLiveWatchBatch.mockResolvedValueOnce({ kind: "ok", results: [full({ status: "ended" })] });
       render(<PublicWatch token={null} />);
-      expect(await screen.findByText("Finished")).toBeInTheDocument();
+      expect(await screen.findByText("Run finished")).toBeInTheDocument();
 
       // The runner saves: the row is gone. Hold the finished run.
       fetchLiveWatchBatch.mockResolvedValueOnce({ kind: "ok", results: [{ kind: "none" }] });
       await act(async () => { await vi.advanceTimersByTimeAsync(61000); });
-      expect(screen.getByText("Finished")).toBeInTheDocument();
+      expect(screen.getByText("Run finished")).toBeInTheDocument();
 
       fetchLiveWatchBatch.mockResolvedValueOnce({ kind: "error" });
       await act(async () => { await vi.advanceTimersByTimeAsync(61000); });
-      expect(screen.getByText("Finished")).toBeInTheDocument();
+      expect(screen.getByText("Run finished")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -126,6 +126,25 @@ describe("MultiWatch", () => {
     fireEvent.click(within(screen.getByRole("group")).getByRole("button", { name: "Remove" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /Iñaki/ })).toBeNull());
     expect(JSON.parse(localStorage.getItem(FOLLOW_KEY)!).runners.map((r: { name: string }) => r.name)).toEqual(["Marie"]);
+  });
+
+  it("lets a later live answer clear a finished run, so a revoke afterwards goes dark", async () => {
+    followRunner(A, "Léa");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fetchLiveWatchBatch.mockResolvedValueOnce({ kind: "ok", results: [full({ status: "ended" })] });
+      render(<PublicWatch token={null} />);
+      expect(await screen.findByText("Run finished")).toBeInTheDocument();
+      // Resumed under the same started_at, then the link is replaced mid-run.
+      fetchLiveWatchBatch.mockResolvedValueOnce({ kind: "ok", results: [summary()] });
+      await act(async () => { await vi.advanceTimersByTimeAsync(61000); });
+      fetchLiveWatchBatch.mockResolvedValueOnce({ kind: "ok", results: [{ kind: "none" }] });
+      await act(async () => { await vi.advanceTimersByTimeAsync(31000); });
+      expect(screen.queryByText("Run finished")).toBeNull();
+      expect(screen.getByText("Not live")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

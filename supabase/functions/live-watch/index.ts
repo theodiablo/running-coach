@@ -146,6 +146,26 @@ async function serveRun(
   return json({ live: true, run });
 }
 
+// The body, or null past `max` bytes — counted as it streams, since a chunked
+// request carries no Content-Length to check first.
+async function readCapped(req: Request, max: number): Promise<string | null> {
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) { await reader.cancel().catch(() => {}); return null; }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) { all.set(c, at); at += c.byteLength; }
+  return new TextDecoder().decode(all);
+}
+
 type Row = Record<string, unknown>;
 type Entry = { t: string; full: boolean; since: string | null };
 
@@ -179,17 +199,15 @@ async function serveBatch(admin: Admin, entries: Entry[]): Promise<Response> {
   const byUser = new Map<string, Row>();
   if (userIds.length) {
     const { data, error } = await admin.from("live_runs").select(`user_id, share_public, ${summary}`).in("user_id", userIds);
-    if (error?.code === "42703") console.error("live-watch: live_runs column missing — apply the pending live-sharing migration");
-    else if (error) throw error;
-    else for (const r of rows(data)) byUser.set(String(r.user_id), r);
+    if (error) throw error;
+    for (const r of rows(data)) byUser.set(String(r.user_id), r);
   }
   // Legacy path never names share_public (see serveRun).
   const byLegacy = new Map<string, Row>();
   if (legacy.length) {
     const { data, error } = await admin.from("live_runs").select(`share_token, ${summary}`).in("share_token", legacy);
-    if (error?.code === "42703") console.error("live-watch: live_runs.share_token missing");
-    else if (error) throw error;
-    else for (const r of rows(data)) byLegacy.set(String(r.share_token), r);
+    if (error) throw error;
+    for (const r of rows(data)) byLegacy.set(String(r.share_token), r);
   }
   const rowFor = (t: string) => userOf.has(t) ? byUser.get(userOf.get(t)!) : byLegacy.get(t);
 
@@ -238,14 +256,14 @@ Deno.serve(async (req) => {
     // A batch is a POST whose body names `tokens`. The body is read as text
     // under a hard cap first: this endpoint takes anonymous POSTs.
     if (req.method === "POST") {
-      const declared = Number(req.headers.get("content-length") ?? 0);
-      if (declared > BATCH_MAX_BODY) return json({ error: "bad request" }, 400);
-      const text = await req.text();
-      if (text.length > BATCH_MAX_BODY) return json({ error: "bad request" }, 400);
+      const text = await readCapped(req, BATCH_MAX_BODY);
+      if (text === null) return json({ error: "bad request" }, 400);
       if (text.includes('"tokens"')) {
         const entries = parseBatchBody(text) as Entry[] | null;
         if (!entries) return json({ error: "bad request" }, 400);
-        if (rateLimited(req, Math.max(1, validTokens(entries).length))) return limited();
+        // Budgeted per statement load, not per token: the token's entropy is the
+        // control, and a race-day page on a shared NAT must not trip it.
+        if (rateLimited(req, Math.max(1, Math.ceil(validTokens(entries).length / 5)))) return limited();
         return await serveBatch(makeAdmin(), entries);
       }
       req = new Request(req.url, { method: "POST", headers: req.headers, body: text });

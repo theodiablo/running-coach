@@ -48,30 +48,18 @@ export function LiveWatchDot({ ended, paused }: { ended: boolean; paused: boolea
   );
 }
 
-// The stats grid + the one status line, shared by the single-runner view and
-// the follow list's focused runner. `elevGain` is the caller's, because only it
-// knows whether a trace is there to fall back on.
+// The stats grid, shared by the single-runner view and the follow list's
+// focused runner. `elevGain` is the caller's: only it knows whether a trace is
+// there to fall back on.
 export function LiveRunStats(
   { stats, state, elevGain, hasElev }:
   { stats: PublicLiveRun["stats"]; state: LiveRowState; elevGain: number; hasElev: boolean },
 ) {
   const { t } = useTranslation();
-  const { ended, paused, quiet } = state;
+  const { ended, paused } = state;
   // Current pace only means something while the run is moving: an ended or
   // paused run's last window is history, not "now".
   const showCurPace = !ended && !paused && stats.curPace != null;
-  const fresh = freshness(state);
-  const statusLine = ended ? (
-    <p className="text-sm text-center text-slate-400">{t("liveShare.watch.ended")}</p>
-  ) : quiet ? (
-    <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-snug text-amber-100 text-center">
-      {t("liveShare.watch.signalLost")}
-    </p>
-  ) : (
-    <p className="text-[11px] text-center text-slate-500">
-      {paused ? t("liveShare.watch.paused") + " · " : ""}{fresh ? t(fresh.key, fresh.params) : ""}
-    </p>
-  );
   return (
     <>
       <div className="grid grid-cols-3 gap-2">
@@ -86,8 +74,25 @@ export function LiveRunStats(
           {hasElev && <Stat label={t("liveShare.watch.stats.elevGain")} value={elevGain + " m"} />}
         </div>
       )}
-      {statusLine}
     </>
+  );
+}
+
+// The one status line, under the chart on both views.
+export function LiveRunStatus({ state }: { state: LiveRowState }) {
+  const { t } = useTranslation();
+  const { ended, paused, quiet } = state;
+  const fresh = freshness(state);
+  return ended ? (
+    <p className="text-sm text-center text-slate-400">{t("liveShare.watch.ended")}</p>
+  ) : quiet ? (
+    <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-snug text-amber-100 text-center">
+      {t("liveShare.watch.signalLost")}
+    </p>
+  ) : (
+    <p className="text-[11px] text-center text-slate-500">
+      {paused ? t("liveShare.watch.paused") + " · " : ""}{fresh ? t(fresh.key, fresh.params) : ""}
+    </p>
   );
 }
 
@@ -179,6 +184,7 @@ export function LiveWatchView(
             </div>
           )}
 
+          <LiveRunStatus state={state} />
           {panelFooter}
         </div>
       </div>

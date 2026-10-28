@@ -654,7 +654,9 @@ page asks about, as it always did, and stores nothing about who follows whom.
   never shows. The ended latch is in memory only, exactly as on the single page.
 - Capped at `FOLLOW_MAX` (10, one batch) and pruned 60 days after being
   **added** (not after last seen live, which isn't kept), so a link sent weeks
-  before a race survives to race day. Every write re-reads and merges, so two
+  before a race survives to race day. Expired entries are deleted from storage
+  on the next read, not just hidden: they are still live links. With storage
+  blocked (private mode) the list lives in memory for the visit. Every write re-reads and merges, so two
   tabs don't drop each other's runners; other tabs follow through the
   `storage` event.
 - **Names are the viewer's.** The page still never learns who a runner is. A
@@ -703,8 +705,11 @@ course, since unfocused runners are drawn as labelled heads.
   ledger, the rows, the legacy column, then the traces). Any failure fails the
   whole batch: one runner's error must never read as "not live".
 - Bounds: at most `BATCH_MAX` (10) entries and a 4 KB body, refused as a 400
-  (a shape error, never a token answer); the per-IP budget is spent per valid
-  token. Tokens ride in the body, out of URLs and function logs.
+  (a shape error, never a token answer), the body counted as it streams (a
+  chunked request has no Content-Length). The per-IP budget is spent one unit
+  per five valid tokens: the token's entropy is the control, and a race-day page
+  on a shared NAT must not trip a courtesy limit. Tokens ride in the body, out
+  of URLs and function logs.
 - **Old function, new page**: a function deployed before the batch answers a
   POST with one `{ live: false }`. `fetchLiveWatchBatch` accepts only a list of
   exactly n well-formed answers and otherwise falls back to one GET per token,

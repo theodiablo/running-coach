@@ -57,7 +57,7 @@ export function FollowSheet(
           <div className="space-y-3">
             <p className="text-sm text-slate-200">{t("liveShare.public.follow.replaceQ", { name: replace.name })}</p>
             <div className="grid gap-2">
-              <button type="button" onClick={() => commit(replace.token)}
+              <button type="button" onClick={() => commit(replace.token)} autoFocus
                 className="rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-bold py-2.5 text-sm">
                 {t("liveShare.public.follow.replaceYes")}
               </button>

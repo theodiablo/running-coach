@@ -80,6 +80,9 @@ export function MultiRunnerMap(
     };
   }, []);
 
+  // Effects key on the content: the caller rebuilds `runners` every render.
+  const sig = JSON.stringify(runners);
+
   // Heads.
   useEffect(() => {
     const map = mapRef.current;
@@ -99,7 +102,8 @@ export function MultiRunnerMap(
       }
     }
     for (const [token, m] of markersRef.current) if (!live.has(token)) { m.remove(); markersRef.current.delete(token); }
-  }, [runners, focus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, focus]);
 
   // The focused route, under the heads.
   const color = runners.find(r => r.token === focus)?.color ?? "#a78bfa";
@@ -142,7 +146,8 @@ export function MultiRunnerMap(
     if (pts.length === 1) map.setView(pts[0], Math.max(map.getZoom(), 15), { animate: false });
     else map.fitBounds(L.latLngBounds(pts).pad(0.2), { animate: false });
     programmaticRef.current = false;
-  }, [runners, focus, track, refit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, focus, track, refit]);
 
   // Leaflet only notices window resizes; the panel beside it can change too.
   useEffect(() => {

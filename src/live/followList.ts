@@ -51,19 +51,48 @@ function parse(raw: string | null, now: number): FollowedRunner[] {
   return out.slice(0, FOLLOW_MAX);
 }
 
-// Reads never write, so a visitor who never taps Follow never gets the key.
+// Where the list lives for this visit once a write to storage has failed
+// (private mode); never consulted while storage works, or it would resurrect
+// what another tab removed.
+let memory: string | null = null;
+let storageBroken = false;
+
+// Reads never add anything, so a visitor who never taps Follow never gets the
+// key; they do delete what has expired, since those are still live links.
 export function readFollows(now = Date.now()): FollowedRunner[] {
-  try { return parse(localStorage.getItem(FOLLOW_KEY), now); } catch { return []; }
+  let raw: string | null = memory;
+  if (!storageBroken) {
+    try { raw = localStorage.getItem(FOLLOW_KEY); } catch { storageBroken = true; }
+  }
+  const list = parse(raw, now);
+  if (raw && list.length < storedCount(raw)) {
+    memory = list.length ? JSON.stringify({ v: VERSION, runners: list }) : null;
+    if (!storageBroken) {
+      try {
+        if (memory) localStorage.setItem(FOLLOW_KEY, memory);
+        else localStorage.removeItem(FOLLOW_KEY);
+      } catch { storageBroken = true; }
+    }
+  }
+  return list;
+}
+
+function storedCount(raw: string): number {
+  try {
+    const runners = (JSON.parse(raw) as { runners?: unknown }).runners;
+    return Array.isArray(runners) ? runners.length : 0;
+  } catch { return 0; }
 }
 
 // Read-modify-write against the CURRENT stored list, so two open tabs merge
 // rather than one silently dropping the other's runner.
 function update(fn: (list: FollowedRunner[]) => FollowedRunner[], now = Date.now()): FollowedRunner[] {
   const next = fn(readFollows(now)).slice(0, FOLLOW_MAX);
+  memory = next.length ? JSON.stringify({ v: VERSION, runners: next }) : null;
   try {
-    if (next.length) localStorage.setItem(FOLLOW_KEY, JSON.stringify({ v: VERSION, runners: next }));
+    if (memory) localStorage.setItem(FOLLOW_KEY, memory);
     else localStorage.removeItem(FOLLOW_KEY);
-  } catch { /* private mode / blocked storage: the page still works for this visit */ }
+  } catch { storageBroken = true; }
   return next;
 }
 
