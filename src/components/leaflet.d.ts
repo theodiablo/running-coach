@@ -9,6 +9,7 @@ declare module "leaflet" {
   export type Marker = Layer & {
     setLatLng: (latlng: LatLngExpression) => Marker;
     setIcon: (icon: DivIcon) => Marker;
+    setZIndexOffset: (offset: number) => Marker;
     getLatLng: () => LatLng;
     on: (event: string, cb: () => void) => Marker;
   };

@@ -17,9 +17,11 @@ import { Flag, Loader, Radio } from "lucide-react";
 import { BrandLogo } from "../components/BrandLogo";
 import { LiveWatchDot, LiveWatchView, type LiveWatchStatus } from "../components/LiveWatchView";
 import { fetchLiveWatch, type PublicLiveRun } from "../live/shareLink";
-import { dismissTop } from "../utils/backDismiss";
 import { AboutSheet, AppFeatures, EndedPromo, LivePromo, PinnedPromo, SiteLink, StoreButtons } from "./AppPromo";
 import { siteLink, visitorPlatform } from "./storeLinks";
+import { FollowControl } from "./Follow";
+import MultiWatch from "./MultiWatch";
+import { useEscapeDismiss, useUnlistedPage } from "./unlisted";
 
 // Matches the publisher's cadence: reading faster than the phone writes can
 // only return what we already have.
@@ -125,49 +127,13 @@ function useWatchedRun(token: string) {
   return { run, settled, unreachable, refresh: load };
 }
 
-// Keep the page out of search results, and keep the token out of the Referer
-// header on the way to any outbound link. A link pasted into a public forum
-// would otherwise get indexed and then crawled — the one realistic way a
-// stranger ever reaches a live run without being handed the link. Paired with
-// `Disallow: /watch/` in public/robots.txt: the meta tag covers a crawler that
-// already has the URL, robots.txt covers one that would go looking.
-function useUnlistedPage(title: string) {
-  useEffect(() => {
-    const tags: HTMLMetaElement[] = [];
-    const add = (attr: "name", key: string, content: string) => {
-      const el = document.createElement("meta");
-      el.setAttribute(attr, key);
-      el.setAttribute("content", content);
-      document.head.appendChild(el);
-      tags.push(el);
-    };
-    // The static index.html ships `robots: index, follow` for the marketing
-    // landing; ours has to override it, so drop the existing tag while we're up.
-    const existing = document.querySelector('meta[name="robots"]');
-    const previous = existing?.getAttribute("content") ?? null;
-    existing?.setAttribute("content", "noindex, nofollow");
-    if (!existing) add("name", "robots", "noindex, nofollow");
-    add("name", "referrer", "no-referrer");
-    const priorTitle = document.title;
-    document.title = title;
-    return () => {
-      tags.forEach(el => el.remove());
-      if (previous !== null) existing?.setAttribute("content", previous);
-      document.title = priorTitle;
-    };
-  }, [title]);
+// One lazy chunk for both public pages: `/watch/<token>` is one runner, and
+// `/watch/` (token null) is everyone this browser follows.
+export default function PublicWatch({ token }: { token: string | null }) {
+  return token ? <OneRunnerWatch token={token} /> : <MultiWatch />;
 }
 
-// RunningCoach owns the app's Escape dispatcher, and it never mounts here.
-function useEscapeDismiss() {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && dismissTop()) e.preventDefault(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-}
-
-export default function PublicWatch({ token }: { token: string }) {
+function OneRunnerWatch({ token }: { token: string }) {
   const { t } = useTranslation();
   const { run, settled, unreachable, refresh } = useWatchedRun(token);
   const [status, setStatus] = useState<LiveWatchStatus | null>(null);
@@ -205,7 +171,7 @@ export default function PublicWatch({ token }: { token: string }) {
             <span className="text-[15px] font-bold text-slate-100 truncate">Running Coach</span>
           </div>
         )}
-        {run ? getApp : settled && (
+        {run ? <div className="flex items-center gap-2"><FollowControl token={token} />{getApp}</div> : settled && (
           <span className="shrink-0 flex items-center gap-1.5 text-xs text-slate-400">
             <span className="w-1.5 h-1.5 rounded-full bg-slate-500" aria-hidden />{t("liveShare.public.notLive")}
           </span>
@@ -214,7 +180,7 @@ export default function PublicWatch({ token }: { token: string }) {
 
       {run ? (
         <>
-          <LiveWatchView run={run} onStatus={onStatus} bottomInset={false}
+          <LiveWatchView run={run} onStatus={onStatus} bottomInset={false} cacheTiles={false}
             panelFooter={<div className="hidden @3xl:block">
               {ended ? <EndedPromo platform={platform} /> : <LivePromo platform={platform} />}
             </div>} />
@@ -239,6 +205,7 @@ export default function PublicWatch({ token }: { token: string }) {
                   a link shared the night before a race. */}
               <h1 className="mt-1.5 text-[22px] md:text-3xl font-extrabold tracking-tight">{t("liveShare.public.nothing")}</h1>
               <p className="text-sm md:text-base leading-relaxed text-slate-300 max-w-sm">{t("liveShare.public.nothingHint")}</p>
+              <div className="mt-3"><FollowControl token={token} large /></div>
               {unreachable ? (
                 <button onClick={() => { void refresh(); }}
                   className="mt-1.5 rounded-xl bg-slate-800 border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700">

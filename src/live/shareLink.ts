@@ -134,3 +134,94 @@ export async function fetchLiveWatch(token: string, signal?: AbortSignal): Promi
     return { kind: "error" };
   }
 }
+
+// ── The batch read (following several runners) ──────────────────────────────
+
+type TrackPointOrGap = PublicLiveRun["points"][number];
+
+// What an unfocused runner costs: state, stats and where they are now. No
+// trace: that is the whole saving (docs/live-sharing.md, "Following several
+// runners").
+export type WatchSummary = Omit<PublicLiveRun, "points"> & { head: TrackPointOrGap };
+
+export type BatchRequestEntry = { token: string; full?: boolean; since?: string | null };
+
+export type BatchEntryResult =
+  | { kind: "none" }
+  | { kind: "summary"; run: WatchSummary }
+  | { kind: "full"; run: PublicLiveRun }
+  // The full trace the caller already holds (its `since`) is still current.
+  | { kind: "unchanged" };
+
+export type BatchResult =
+  | { kind: "ok"; results: BatchEntryResult[] }
+  | { kind: "error"; retryAfterMs?: number };
+
+function readBatchEntry(raw: unknown): BatchEntryResult | null {
+  if (!raw || typeof raw !== "object") return null;
+  const e = raw as { live?: unknown; unchanged?: unknown; run?: Record<string, unknown> };
+  if (e.live === false) return { kind: "none" };
+  if (e.live !== true) return null;
+  if (e.unchanged === true) return { kind: "unchanged" };
+  if (!e.run || typeof e.run !== "object") return null;
+  if (Array.isArray(e.run.points)) return { kind: "full", run: e.run as unknown as PublicLiveRun };
+  return { kind: "summary", run: { ...(e.run as unknown as WatchSummary), head: (e.run.head ?? null) as TrackPointOrGap } };
+}
+
+// One POST for every followed runner. Anything but exactly one well-formed
+// answer per entry is NOT read as "nobody is live": a function deployed before
+// the batch existed answers a single `{ live: false }`, which is the one lie
+// this page must never tell. That shape falls back to one read per token.
+export async function fetchLiveWatchBatch(entries: BatchRequestEntry[], signal?: AbortSignal): Promise<BatchResult> {
+  if (!entries.length) return { kind: "ok", results: [] };
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/live-watch`, {
+      method: "POST",
+      signal,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tokens: entries.map(e => ({ t: e.token, ...(e.full ? { full: true } : {}), ...(e.since ? { since: e.since } : {}) })),
+      }),
+    });
+    if (res.status === 429) {
+      const secs = Number(res.headers.get("Retry-After"));
+      return { kind: "error", retryAfterMs: Number.isFinite(secs) && secs > 0 ? secs * 1000 : undefined };
+    }
+    if (!res.ok) return { kind: "error" };
+    const body = await res.json().catch(() => null) as { runs?: unknown } | null;
+    const results = Array.isArray(body?.runs) && body.runs.length === entries.length
+      ? body.runs.map(readBatchEntry) : null;
+    if (results && results.every(r => r !== null)) return { kind: "ok", results: results as BatchEntryResult[] };
+    return await fetchEachLiveWatch(entries, signal);
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+async function fetchEachLiveWatch(entries: BatchRequestEntry[], signal?: AbortSignal): Promise<BatchResult> {
+  const each = await Promise.all(entries.map(e => fetchLiveWatch(e.token, signal)));
+  const failed = each.find(r => r.kind === "error");
+  if (failed) return failed as BatchResult;
+  return { kind: "ok", results: each.map(r => r.kind === "live" ? { kind: "full", run: r.run } : { kind: "none" }) };
+}
+
+// `/watch/` (and a bare `/watch`) is the follow list; `/watch/<token>` stays one
+// runner. The trailing-slash form is canonical: it is the one CloudFront serves
+// watch.html for, and robots.txt's `Disallow: /watch/` covers.
+export const WATCH_LIST_PATH = WATCH_PATH_PREFIX;
+export const isWatchListPath = (pathname: string): boolean => pathname === "/watch" || pathname === WATCH_PATH_PREFIX;
+
+// A pasted link, or a bare token, → the token. Anything else → null.
+export function tokenFromInput(value: string): string | null {
+  const v = value.trim();
+  if (isValidShareToken(v)) return v;
+  try {
+    return parseWatchToken(new URL(v, "https://x.invalid").pathname.replace(/\/+$/, ""));
+  } catch {
+    return null;
+  }
+}

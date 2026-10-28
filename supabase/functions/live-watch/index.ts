@@ -15,6 +15,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
+import { answerEntry, BATCH_MAX_BODY, HEAD_COLUMNS, parseBatchBody, validTokens, wantsFull } from "../_shared/liveWatchBatch.mjs";
 
 // Mirrors RESUME_MAX_AGE_MS / useLiveRun's MAX_AGE_MS on the client. Enforced
 // HERE too, not just in the UI: a row left behind by a phone that never opens
@@ -39,6 +40,9 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  // Every read is preflighted (it carries apikey headers); without this the
+  // browser re-asks every poll. Chrome caps it at 2h.
+  "Access-Control-Max-Age": "7200",
 };
 
 // no-store, because a shared CDN/proxy cache keyed on the URL would go on
@@ -55,7 +59,8 @@ const notLive = () => json({ live: false });
 
 const hits = new Map<string, { count: number; resetAt: number }>();
 
-function rateLimited(req: Request): boolean {
+// `weight` is how many runs the request reads: a batch spends one per token.
+function rateLimited(req: Request, weight = 1): boolean {
   // Supabase sits behind a proxy, so the socket address is useless; the first
   // hop in x-forwarded-for is the client. Spoofable, which is fine — this is a
   // courtesy limit, not an authorization boundary.
@@ -67,10 +72,10 @@ function rateLimited(req: Request): boolean {
       for (const [key, v] of hits) if (now >= v.resetAt) hits.delete(key);
       if (hits.size >= RATE_MAX_KEYS) hits.clear(); // still full: start over rather than leak
     }
-    hits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
+    hits.set(ip, { count: weight, resetAt: now + RATE_WINDOW_MS });
+    return weight > RATE_MAX;
   }
-  entry.count += 1;
+  entry.count += weight;
   return entry.count > RATE_MAX;
 }
 
@@ -141,16 +146,112 @@ async function serveRun(
   return json({ live: true, run });
 }
 
+type Row = Record<string, unknown>;
+type Entry = { t: string; full: boolean; since: string | null };
+
+// The batch read: several tokens, one request, one uniform answer per entry in
+// request order. Summaries carry the head, not the trace; a full trace goes only
+// to entries that need one (wantsFull). Three to five statements however many
+// tokens, and any failure fails the whole batch — one runner's error must never
+// read as "not live". Detail: docs/live-sharing.md ("Following several runners").
+async function serveBatch(admin: Admin, entries: Entry[]): Promise<Response> {
+  const tokens = validTokens(entries) as string[];
+  const gate = { now: Date.now(), maxAgeMs: MAX_AGE_MS };
+  const answers = () => entries.map(() => ({ live: false }));
+  if (!tokens.length) return json({ runs: answers() });
+
+  const claims = await admin.from("live_share_tokens").select("token, user_id, revoked_at").in("token", tokens);
+  if (isMissingRelation(claims.error)) {
+    console.error("live-watch: live_share_tokens missing — apply the standing-link migration");
+    return json({ runs: answers() });
+  }
+  if (claims.error) throw claims.error;
+  const claimed = new Map((claims.data ?? []).map(c => [String(c.token), c]));
+  // Ledger rows decide existence: retired or orphaned is terminal, never legacy.
+  const userOf = new Map<string, string>();
+  for (const [token, c] of claimed) if (!c.revoked_at && c.user_id) userOf.set(token, String(c.user_id));
+  const legacy = tokens.filter(t => !claimed.has(t));
+  const userIds = [...new Set(userOf.values())];
+
+  // Widened to string: supabase-js's select parser can't read `->-1`.
+  const summary: string = "status, started_at, updated_at, stats, " + HEAD_COLUMNS;
+  const rows = (data: unknown) => (data ?? []) as Row[];
+  const byUser = new Map<string, Row>();
+  if (userIds.length) {
+    const { data, error } = await admin.from("live_runs").select(`user_id, share_public, ${summary}`).in("user_id", userIds);
+    if (error?.code === "42703") console.error("live-watch: live_runs column missing — apply the pending live-sharing migration");
+    else if (error) throw error;
+    else for (const r of rows(data)) byUser.set(String(r.user_id), r);
+  }
+  // Legacy path never names share_public (see serveRun).
+  const byLegacy = new Map<string, Row>();
+  if (legacy.length) {
+    const { data, error } = await admin.from("live_runs").select(`share_token, ${summary}`).in("share_token", legacy);
+    if (error?.code === "42703") console.error("live-watch: live_runs.share_token missing");
+    else if (error) throw error;
+    else for (const r of rows(data)) byLegacy.set(String(r.share_token), r);
+  }
+  const rowFor = (t: string) => userOf.has(t) ? byUser.get(userOf.get(t)!) : byLegacy.get(t);
+
+  // Second read, points only where an entry is owed a trace it doesn't have.
+  const fullUsers = new Set<string>(), fullLegacy = new Set<string>();
+  for (const e of entries) {
+    const row = rowFor(e.t);
+    if (!row || !wantsFull(e, row) || (e.since !== null && e.since === row.updated_at)) continue;
+    if (userOf.has(e.t)) fullUsers.add(userOf.get(e.t)!); else fullLegacy.add(e.t);
+  }
+  const full = "status, started_at, updated_at, stats, points";
+  const fullByUser = new Map<string, Row>(), fullByLegacy = new Map<string, Row>();
+  if (fullUsers.size) {
+    const { data, error } = await admin.from("live_runs").select(`user_id, share_public, ${full}`).in("user_id", [...fullUsers]);
+    if (error) throw error;
+    for (const r of rows(data)) fullByUser.set(String(r.user_id), r);
+  }
+  if (fullLegacy.size) {
+    const { data, error } = await admin.from("live_runs").select(`share_token, ${full}`).in("share_token", [...fullLegacy]);
+    if (error) throw error;
+    for (const r of rows(data)) fullByLegacy.set(String(r.share_token), r);
+  }
+
+  const runs = entries.map(e => {
+    if (!isValidShareToken(e.t)) return { live: false };
+    const ledger = userOf.has(e.t);
+    if (!ledger && claimed.has(e.t)) return { live: false };
+    const row = rowFor(e.t);
+    const fullRow = ledger ? fullByUser.get(userOf.get(e.t)!) : fullByLegacy.get(e.t);
+    // share_public is read to decide and then dropped: answerEntry copies only
+    // whitelisted fields, never user_id or share_token.
+    return answerEntry(e, row, fullRow, { ...gate, requireShare: ledger });
+  });
+  return json({ runs });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     // A refusal here is the one response that is NOT uniform, and it must not
     // be: a viewer whose household hit the limit needs to know to wait rather
     // than believe the run ended.
-    if (rateLimited(req)) {
-      return json({ error: "too many requests", code: "RATE_LIMIT" }, 429,
-        { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) });
+    const limited = () => json({ error: "too many requests", code: "RATE_LIMIT" }, 429,
+      { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) });
+
+    // A batch is a POST whose body names `tokens`. The body is read as text
+    // under a hard cap first: this endpoint takes anonymous POSTs.
+    if (req.method === "POST") {
+      const declared = Number(req.headers.get("content-length") ?? 0);
+      if (declared > BATCH_MAX_BODY) return json({ error: "bad request" }, 400);
+      const text = await req.text();
+      if (text.length > BATCH_MAX_BODY) return json({ error: "bad request" }, 400);
+      if (text.includes('"tokens"')) {
+        const entries = parseBatchBody(text) as Entry[] | null;
+        if (!entries) return json({ error: "bad request" }, 400);
+        if (rateLimited(req, Math.max(1, validTokens(entries).length))) return limited();
+        return await serveBatch(makeAdmin(), entries);
+      }
+      req = new Request(req.url, { method: "POST", headers: req.headers, body: text });
     }
+
+    if (rateLimited(req)) return limited();
 
     const token = await readToken(req);
     // Reject a malformed token before touching the database — a crawler walking

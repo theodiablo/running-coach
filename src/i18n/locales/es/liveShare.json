@@ -82,6 +82,46 @@
       "playAria": "Disponible en Google Play",
       "iosAria": "Disponible en iPhone, beta gratuita",
       "iosNote": "Beta gratuita con la app TestFlight de Apple. Pronto en la App Store."
+    },
+    "follow": {
+      "cta": "Seguir",
+      "following": "Siguiendo",
+      "title": "Seguir a este corredor",
+      "body": "Mira a todas las personas que sigues en un solo mapa. Puedes seguir hasta {{max}}.",
+      "nameLabel": "¿Quién es?",
+      "namePlaceholder": "Su nombre",
+      "confirm": "Seguir",
+      "cancel": "Cancelar",
+      "seeAll": "Todas las personas que sigues ({{count}})",
+      "replaceQ": "Ya sigues a alguien llamado {{name}}. ¿Es su nuevo enlace?",
+      "replaceYes": "Sí, reemplazar su enlace anterior",
+      "replaceNo": "No, es otra persona",
+      "full": "Ya sigues a {{max}} corredores. Quita a alguien para añadir a otra persona.",
+      "savedHere": "Guardado solo en este navegador, nunca se nos envía. Puedes quitar a cualquiera en cualquier momento.",
+      "unnamed": "Corredor {{n}}"
+    },
+    "multi": {
+      "docTitle": "Corredores que sigues · Running Coach",
+      "docTitleLive": "({{count}}) En directo · Running Coach",
+      "header": "{{count}} seguidos · {{live}} en directo",
+      "headerNone": "Corredores que sigues",
+      "everyone": "Todos",
+      "km": "km",
+      "finished": "Terminado",
+      "quiet": "Sin novedades desde hace {{mins}} min",
+      "emptyTitle": "Todavía no sigues a nadie en este navegador",
+      "emptyBody": "Abre el enlace en directo de un corredor y toca Seguir, o pega su enlace aquí abajo.",
+      "add": "Añadir un corredor",
+      "addPlaceholder": "Pega un enlace de entrenamiento en directo",
+      "addButton": "Añadir",
+      "addInvalid": "Eso no es un enlace de entrenamiento en directo. Pega el enlace completo que recibiste.",
+      "tapHint": "Toca a un corredor para ver su recorrido y sus datos.",
+      "notLiveYet": "Nada en directo para {{name}} por ahora. Esta página sigue comprobando.",
+      "remove": "Quitar",
+      "removeQ": "¿Dejar de seguir a {{name}} en este navegador?",
+      "forgetAll": "Quitar a todos",
+      "forgetQ": "¿Quitar a todos los corredores de este navegador?",
+      "savedHere": "Guardado solo en este navegador."
     }
   }
 }

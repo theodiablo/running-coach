@@ -82,6 +82,46 @@
       "playAria": "Disponible sur Google Play",
       "iosAria": "Disponible sur iPhone, bêta gratuite",
       "iosNote": "Bêta gratuite via l'app TestFlight d'Apple. Sortie sur l'App Store à venir."
+    },
+    "follow": {
+      "cta": "Suivre",
+      "following": "Vous suivez",
+      "title": "Suivre ce coureur",
+      "body": "Suivez tous vos coureurs sur une seule carte. Vous pouvez en suivre jusqu'à {{max}}.",
+      "nameLabel": "Qui est-ce ?",
+      "namePlaceholder": "Son prénom",
+      "confirm": "Suivre",
+      "cancel": "Annuler",
+      "seeAll": "Tous vos coureurs ({{count}})",
+      "replaceQ": "Vous suivez déjà quelqu'un nommé {{name}}. Est-ce son nouveau lien ?",
+      "replaceYes": "Oui, remplacer l'ancien lien",
+      "replaceNo": "Non, c'est quelqu'un d'autre",
+      "full": "Vous suivez déjà {{max}} coureurs. Retirez-en un pour en ajouter un autre.",
+      "savedHere": "Enregistré dans ce navigateur uniquement, jamais envoyé chez nous. Vous pouvez retirer quelqu'un à tout moment.",
+      "unnamed": "Coureur {{n}}"
+    },
+    "multi": {
+      "docTitle": "Vos coureurs · Running Coach",
+      "docTitleLive": "({{count}}) En direct · Running Coach",
+      "header": "{{count}} suivis · {{live}} en direct",
+      "headerNone": "Vos coureurs",
+      "everyone": "Tout le monde",
+      "km": "km",
+      "finished": "Terminé",
+      "quiet": "Pas de nouvelles depuis {{mins}} min",
+      "emptyTitle": "Vous ne suivez encore personne dans ce navigateur",
+      "emptyBody": "Ouvrez le lien en direct d'un coureur et touchez Suivre, ou collez son lien ci-dessous.",
+      "add": "Ajouter un coureur",
+      "addPlaceholder": "Collez un lien de sortie en direct",
+      "addButton": "Ajouter",
+      "addInvalid": "Ce n'est pas un lien de sortie en direct. Collez le lien complet que vous avez reçu.",
+      "tapHint": "Touchez un coureur pour voir son parcours et ses stats.",
+      "notLiveYet": "Rien en direct pour {{name}} pour l'instant. Cette page continue de vérifier.",
+      "remove": "Retirer",
+      "removeQ": "Ne plus suivre {{name}} dans ce navigateur ?",
+      "forgetAll": "Retirer tout le monde",
+      "forgetQ": "Retirer tous les coureurs de ce navigateur ?",
+      "savedHere": "Enregistré dans ce navigateur uniquement."
     }
   }
 }
