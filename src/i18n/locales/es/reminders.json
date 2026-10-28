@@ -1,7 +1,9 @@
 {
   "notif": {
     "today": "Entrenamiento hoy",
-    "tomorrow": "Entrenamiento mañana"
+    "tomorrow": "Entrenamiento mañana",
+    "whatsNext": "¿Y ahora qué?",
+    "whatsNextBody": "Tu recuperación ha terminado. Elige para qué entrenar ahora, o sigue mejorando sin más."
   },
   "settings": {
     "title": "Recordatorios de entrenamiento",

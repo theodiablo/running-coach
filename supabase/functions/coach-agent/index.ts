@@ -8,6 +8,7 @@ import { isMistralModel, makeMistralModel } from "../_shared/coach/mistral.mjs";
 import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";
 import { createMockModel } from "../_shared/coach/mock.mjs";
+import { goalKind } from "../_shared/coach/recovery.mjs";
 import { buildRunDigest } from "../_shared/coach/runDigest.mjs";
 import { isPremiumActive } from "../_shared/premium.mjs";
 
@@ -374,6 +375,9 @@ async function handle(req: Request): Promise<any> {
       raceDate: settings.raceDate || workingPlan.raceDate,
       distanceKm: Number(settings.distanceKm || workingPlan.distanceKm),
       goalSec: Number(settings.goalSec || workingPlan.goalSec) || null,
+      // A plan with no race says what it is for instead (engine.mjs GOAL line).
+      kind: goalKind(workingPlan),
+      target: workingPlan.goal?.target ?? null,
     },
     userContext,
     targetPace: workingPlan.targetPace,

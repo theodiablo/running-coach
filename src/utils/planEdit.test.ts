@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { buildPlan } from "./plan";
 import { ymd } from "./format";
-import { applySessionEdit, addSlot, canPlaceOn, defaultKm, editIssues, findSession, isEditableSession, lightenRecovery } from "./planEdit";
+import { applySessionEdit, addSlot, canPlaceOn, defaultKm, editIssues, findSession, isEditableSession, lightenRecovery, weekOfDate } from "./planEdit";
+import { buildOpenPlan } from "./openPlan";
 import { stylePacing } from "./planStyles";
 import { runwalkRatio } from "./sessionSteps";
 import { compileWorkout } from "./workout";
-import type { Plan, PlanSession } from "../types";
+import type { Plan, PlanSession, SettingsState } from "../types";
 
 const dayAfter = (s: string, n: number) => {
   const d = new Date(s + "T00:00:00");
@@ -281,5 +282,41 @@ describe.each(ANCHORS)("planEdit · recovery after the race (%s)", (_label, anch
     expect(findSession(next, first.id)!.session.km).toBe(first.km);
     for (const s of tail(p)) s.km = 1.5;
     expect(lightenRecovery(p, anchor)).toBeNull();
+  });
+});
+
+describe.each(ANCHORS)("planEdit on a plan with no race (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  const build = (): Plan => buildOpenPlan(
+    { planSessions: [{ dayOffset: 1, minutes: 45 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 6, minutes: 90 }], planStyle: "balanced" } as unknown as SettingsState,
+    { target: "healthy", distanceKm: 10 }, { runs: [] });
+  const checkpoint = (p: Plan) => p.weeks.flatMap(w => w.sessions).find(s => s.sd?.kind === "checkpoint")!;
+
+  it("resizing a checkpoint run rewrites its sentence", () => {
+    const p = build();
+    const c = checkpoint(p);
+    const next = applySessionEdit(p, { kind: "update", sessionId: c.id, date: c.date, type: String(c.type), km: 4.5 }, anchor)!;
+    const edited = findSession(next, c.id)!.session;
+    expect(edited.km).toBe(4.5);
+    expect(edited.sd).toMatchObject({ kind: "checkpoint", km: 4.5 });
+    expect(edited.desc).toContain("4.5 km");
+  });
+
+  it("moving it keeps the marker; retyping it loses it", () => {
+    const p = build();
+    const c = checkpoint(p);
+    const week = weekOfDate(p, c.date)!;
+    const moved = applySessionEdit(p, { kind: "update", sessionId: c.id, date: c.date, type: String(c.type), km: Number(c.km) }, anchor)!;
+    expect(findSession(moved, c.id)!.session.sd?.kind).toBe("checkpoint");
+    expect(week.sessions.length).toBeGreaterThan(0);
+    const retyped = applySessionEdit(p, { kind: "update", sessionId: c.id, date: c.date, type: "LONG", km: Number(c.km) }, anchor)!;
+    expect(findSession(retyped, c.id)!.session.sd?.kind).toBe("long");
+  });
+
+  it("any day of an open plan can hold training", () => {
+    const p = build();
+    expect(canPlaceOn(p, p.weeks[2].startDate!, anchor)).toBe(true);
   });
 });

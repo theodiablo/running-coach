@@ -723,3 +723,49 @@ describe("applyToolCall · recovery after the race", () => {
     expect(applyTool(recoveryPlan(), "convert_to_cross_training", { session_id: "w4d2", activity: "bike" }).weeks[3]!.sessions[0]!.type).toBe("OTHER");
   });
 });
+
+describe("plans with no race", () => {
+  const checkpoint = (): TestPlan => {
+    const p = plan();
+    p.raceDate = "";
+    (p as unknown as { goal: unknown }).goal = { kind: "open", target: "healthy", distanceKm: 10, blockWeeks: 4 };
+    p.weeks = [{ weekNumber: 1, startDate: "2026-01-05", phase: "BASE", sessions: [
+      sess("w1d2", "2026-01-07", "EASY", 4), sess("w1d4", "2026-01-09", "EASY", 9),
+      { ...sess("w1d6", "2026-01-11", "EASY", 6), desc: "Checkpoint run — 6 km, steady and comfortable. Notice how it feels compared with a month ago", sd: { kind: "checkpoint", variant: "easy", km: 6 } } as TestSession,
+    ] }];
+    return p;
+  };
+  const sdOf = (p: TestPlan, id: string) => (p.weeks[0].sessions.find(s => s.id === id) as unknown as { sd: { km: number }; desc: string });
+
+  it("a shortened or lengthened checkpoint run keeps its sentence in step", () => {
+    const shorter = applyTool(checkpoint(), "reduce_session_distance", { session_id: "w1d6", factor: 0.5 });
+    expect(sdOf(shorter, "w1d6").sd.km).toBe(3);
+    expect(sdOf(shorter, "w1d6").desc).toBe("Checkpoint run — 3 km, steady and comfortable. Notice how it feels compared with a month ago");
+    const longer = applyTool(checkpoint(), "increase_session_distance", { session_id: "w1d6", factor: 1.1 });
+    expect(sdOf(longer, "w1d6").sd.km).toBe(6.6);
+    expect(sdOf(longer, "w1d6").desc).toContain("6.6 km");
+  });
+
+  it("a run/walk checkpoint keeps its ratio", () => {
+    const p = checkpoint();
+    const s = p.weeks[0].sessions[2] as unknown as { desc: string; sd: Record<string, unknown> };
+    s.desc = "Checkpoint run/walk — 6 km, run 1 min 30 s / walk 45 s, steady and comfortable";
+    s.sd = { kind: "checkpoint", variant: "runwalk", km: 6, runSec: 90, walkSec: 45 };
+    const out = applyTool(p, "reduce_session_distance", { session_id: "w1d6", factor: 0.5 });
+    expect(sdOf(out, "w1d6").desc).toBe("Checkpoint run/walk — 3 km, run 1 min 30 s / walk 45 s, steady and comfortable");
+  });
+
+  it("the coach does not judge a goal there is none of", () => {
+    const text = (assessGoalFeasibility as (c: unknown) => string)({
+      plan: checkpoint(), goal: { goalSec: 3370, distanceKm: 10, raceDate: "" }, targetPace: 337, recentRuns: [],
+    });
+    expect(text).toContain("no race and no goal time");
+    expect(text).toContain("keep improving, stay healthy and consistent");
+    expect(text).toContain("app:next");
+  });
+
+  it("retyping a checkpoint run drops the marker with the sentence", () => {
+    const out = applyTool(checkpoint(), "swap_session", { session_id: "w1d6", new_type: "LONG" });
+    expect((out.weeks[0].sessions[2] as unknown as { sd: { kind: string } }).sd.kind).toBe("long");
+  });
+});

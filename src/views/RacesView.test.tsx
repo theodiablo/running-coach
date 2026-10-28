@@ -77,3 +77,23 @@ describe("RacesView · results", () => {
     expect(props.settleRace).toHaveBeenCalledWith(expect.any(String), 3300, expect.anything());
   });
 });
+
+describe("RacesView · a plan with no race", () => {
+  const FUTURE = "2026-04-02";
+  const openPlan = (): Plan => ({
+    raceDate: "", goal: { kind: "open", target: "healthy" },
+    weeks: [{ weekNumber: 1, startDate: "2026-03-09", phase: "BASE", sessions: [] }, { weekNumber: 2, startDate: "2026-03-16", phase: "BASE", sessions: [] },
+      { weekNumber: 3, startDate: "2026-03-23", phase: "BASE", sessions: [] }, { weekNumber: 4, startDate: "2026-03-30", phase: "BASE", sessions: [] }],
+  }) as unknown as Plan;
+  const upcoming = (raceDate: string) => part({ raceDate, editionId: "ed-2", label: "Park 10K 2026" });
+
+  it("offers to add a race that falls inside the plan's weeks", () => {
+    renderRaces([upcoming(FUTURE)], { plan: openPlan(), settings: { raceDate: "", distanceKm: 10 } as unknown as SettingsState });
+    expect(screen.getByRole("button", { name: "Add to plan" })).toBeInTheDocument();
+  });
+
+  it("not one that falls after them", () => {
+    renderRaces([upcoming("2026-04-20")], { plan: openPlan(), settings: { raceDate: "", distanceKm: 10 } as unknown as SettingsState });
+    expect(screen.queryByRole("button", { name: "Add to plan" })).toBeNull();
+  });
+});

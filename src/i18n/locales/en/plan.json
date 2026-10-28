@@ -182,7 +182,9 @@
       "race": "Race",
       "after": "After",
       "run": "Run",
-      "finish": "Finish"
+      "finish": "Finish",
+      "checkpoint": "Checkpoint",
+      "afterwards": "Afterwards"
     },
     "stretch": "5 min of gentle stretching — calves, quads, hamstrings, hips.",
     "recPhrase": {
@@ -232,6 +234,12 @@
       "runPace": "Fully conversational — around {{pace}}; walking breaks are fine.",
       "runNoPace": "Fully conversational; walking breaks are fine.",
       "finish": "A few minutes of walking, then light stretching."
+    },
+    "checkpoint": {
+      "warmup": "5 min of easy walking, then a few relaxed minutes of jogging.",
+      "main": "~{{km}} km at a steady, comfortable effort. Run it the same way every block, so the checkpoints can be compared.",
+      "mainRatio": "~{{km}} km as run {{run}} / walk {{walk}}, steady and comfortable. Keep the effort the same every block so the checkpoints can be compared.",
+      "after": "Note how long it took and how it felt. Next block's checkpoint is the one to compare it with."
     }
   },
   "crosswalk": "Cross-training / brisk walk — no impact, easy effort",
@@ -303,5 +311,33 @@
       "delete": "Session deleted",
       "failed": "That change couldn't be applied."
     }
+  },
+  "checkpoint": {
+    "easy": "Checkpoint run — {{km}} km, steady and comfortable. Notice how it feels compared with a month ago",
+    "runwalk": "Checkpoint run/walk — {{km}} km, run {{run}} / walk {{walk}}, steady and comfortable"
+  },
+  "openHeader": "Block {{block}} · checkpoint {{date}}",
+  "openHeaderNoCheckpoint": "Block {{block}}",
+  "goalMode": {
+    "race": "Race",
+    "improve": "Keep improving"
+  },
+  "improve": {
+    "intro": "No race date. Four-week blocks, each ending in a checkpoint run so you can see how far you have come.",
+    "target": {
+      "faster": "Get faster",
+      "further": "Run further",
+      "healthy": "Stay healthy and consistent"
+    },
+    "targetSub": {
+      "faster": "Quality sessions in the middle of each block",
+      "further": "The long run grows, block by block",
+      "healthy": "Easy, steady running that keeps the habit going"
+    },
+    "distance": "Distance you train for (km)",
+    "distanceHelp": "Sets your paces and how long the long runs get.",
+    "light": "A lighter plan",
+    "lightSub": "About two easy runs a week",
+    "lightShort": "lighter plan"
   }
 }

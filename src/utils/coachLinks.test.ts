@@ -6,6 +6,11 @@ describe("coachLinkTarget", () => {
     for (const t of COACH_LINK_TARGETS) expect(coachLinkTarget(`app:${t}`)).toBe(t);
   });
 
+  it("includes the what's-next sheet", () => {
+    expect(COACH_LINK_TARGETS).toContain("next");
+    expect(coachLinkTarget("app:next")).toBe("next");
+  });
+
   it("is tolerant of case and surrounding space", () => {
     expect(coachLinkTarget(" APP:Goal ")).toBe("goal");
   });

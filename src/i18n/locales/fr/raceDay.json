@@ -20,13 +20,5 @@
     "beforeSub": "Crée un plan d'entraînement pour cette course",
     "afterTitle": "Une autre course en tête ?",
     "afterSub": "Choisis-la et obtiens un plan qui t'amène au top le jour J"
-  },
-  "bridge": {
-    "title": "{{label}}, c'est fait !",
-    "followers": "Bien couru. Ton lien reste silencieux jusqu'à ta prochaine sortie partagée.",
-    "nextTitle": "Une autre course en tête ?",
-    "nextBody": "Choisis-la et on construit un plan qui t'amène au meilleur de ta forme le jour J.",
-    "cta": "Trouver ma prochaine course",
-    "notNow": "Pas maintenant"
   }
 }

@@ -18,11 +18,13 @@ import { addSlot, isEditableSession, type SessionEdit } from "../utils/planEdit"
 import { RebuildPreview } from "../components/RebuildPreview";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
+import type { CoachSessionContext, CoachSource, OpenTarget, Plan, PlanPrefill, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
 import { canRecordSession, carryProgress, isElapsedWeek, planSessionPrefill, sessionRecorderActivity, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 import { planPhase } from "../utils/planPhase";
-import { recentRace } from "../utils/recovery";
+import { recentRace, goalKind } from "../utils/recovery";
+import { buildOpenPlan, openSettingsPatch } from "../utils/openPlan";
+import { OPEN_TARGETS } from "../utils/openBlocks";
 import { diffPlans } from "../utils/planDiff";
 
 // The plan list shows weeks still ahead first and pushes finished ones to the
@@ -82,6 +84,8 @@ type PlanViewProps = {
   // "Find a route" is premium-only; free users reach the teaser inside the
   // tracker, except on iOS where the entry point is hidden entirely.
   isPremium?: boolean;
+  // Opens the "What's next?" sheet (manual variant) from the finished-plan button.
+  openWhatsNext?: () => void;
 };
 
 // A race date already behind us is not a draft worth keeping: the editor opens empty.
@@ -92,7 +96,7 @@ type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 type PendingBuild = { plan: Plan; settings: SettingsState };
 
-export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false, openWhatsNext}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -106,6 +110,8 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     });
   const goalDraftSummary = (dist: number | string, goalSec: number | string, date: string, elev: number | string): string =>
     (!dist || !date) ? t("plan.notConfigured") : goalSummaryOf(dist, goalSec, Number(elev) || 0, String(date));
+  const improveSummary = (target: OpenTarget, dist: number | string, light: boolean): string =>
+    [t("plan.improve.target." + target), Number(dist) > 0 ? Number(dist) + " km" : "", light ? t("plan.improve.lightShort") : ""].filter(Boolean).join(" · ");
   const availDraftSummary = (mode: AvailabilityMode, days: number, band: DurationBand, sessions: PlanSessionInput[]): string =>
     mode === "simple"
       ? t("plan.availRow.simpleSummary", { count: clampDays(days), duration: t("plan.avail.simple.band." + band + ".word") })
@@ -137,6 +143,11 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const [draftMode,    setDraftMode]   = useState<AvailabilityMode>(settings.availabilityMode === "simple" ? "simple" : "custom");
   const [draftDays,    setDraftDays]   = useState<number>(clampDays(Number(settings.availDays) || (settings.planSessions?.length ?? 3)));
   const [draftBand,    setDraftBand]   = useState<DurationBand>(isBand(settings.availTime) ? settings.availTime : "med");
+  // The goal editor's one switch: train for a race, or keep improving with none.
+  const openNow = !!plan && goalKind(plan) !== "race";
+  const [draftKind,    setDraftKind]   = useState<"race" | "improve">(openNow && !planPrefill ? "improve" : "race");
+  const [draftTarget,  setDraftTarget] = useState<OpenTarget>(settings.openTarget ?? "healthy");
+  const [draftLight,   setDraftLight]  = useState(!!settings.lightPlan);
 
   const recommendedStyle = recommendStyle({
     intent: settings.intent, planSessions: draft, distanceKm: draftDist, recentRuns: runs,
@@ -163,6 +174,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   if (planPrefill !== prevPrefill) {
     setPrevPrefill(planPrefill);
     if (planPrefill) {
+      setDraftKind("race");
       setDraftDate(planPrefill.raceDate);
       setDraftDist(planPrefill.distanceKm);
       setDraftElev(planPrefill.raceElevation || 0);
@@ -189,6 +201,9 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     setDraftMode(settings.availabilityMode === "simple" ? "simple" : "custom");
     setDraftDays(clampDays(Number(settings.availDays) || ps.length || 3));
     setDraftBand(isBand(settings.availTime) ? settings.availTime : "med");
+    setDraftKind(openNow ? "improve" : "race");
+    setDraftTarget(plan?.goal?.target ?? settings.openTarget ?? "healthy");
+    setDraftLight(!!(plan?.goal?.light ?? settings.lightPlan));
     setEditSection(section);
     setEditing(true);
   };
@@ -197,24 +212,34 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   // through the preview first; nothing is persisted until it is applied.
   const genPlan = () => {
     const ps   = resolvedSessions;
-    const date = draftDate    || settings.raceDate;
-    const goal = draftGoal    || settings.goalSec;
-    const dist = draftDist    || settings.distanceKm || 20;
-    const elev = draftElev    ?? settings.raceElevation ?? 0;
-    // Keep the catalogue link only when building the promoted/target race unchanged.
-    const sameAsPrefill = planPrefill && date === planPrefill.raceDate && Number(dist) === Number(planPrefill.distanceKm);
-    const sameAsTarget  = date === settings.raceDate && Number(dist) === Number(settings.distanceKm);
-    const targetEditionId = sameAsPrefill ? planPrefill.editionId : (sameAsTarget ? (settings.targetEditionId ?? null) : null);
     const style = effectiveStyle;
     const availMeta = draftMode === "simple"
       ? { availabilityMode: "simple" as const, availDays: clampDays(draftDays), availTime: draftBand }
       : { availabilityMode: "custom" as const, availDays: ps.length, availTime: draftBand };
-    const nextSettings: SettingsState = {...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style,
-      runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec, ...availMeta};
-    const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
-    const built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel,
-      recovery: true, afterRace: recentRace({plan, participations: races?.participations, runs, settings}, ymd(new Date())),
-      runWalk: {runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec}});
+    const ratio = { runWalkRunSec: draftRatio.runSec, runWalkWalkSec: draftRatio.walkSec };
+    const afterRace = recentRace({plan, participations: races?.participations, runs, settings}, ymd(new Date()));
+    let built: Plan, nextSettings: SettingsState;
+    if (draftKind === "improve") {
+      // Keep improving: no race, no date. The reference distance sets the pace and the long runs.
+      const choice = { kind: (plan?.goal?.kind === "block" ? "block" : "open") as "block" | "open", target: draftTarget, light: draftLight,
+        distanceKm: Number(draftDist) || Number(settings.distanceKm) || 10 };
+      nextSettings = {...settings, planSessions: ps, planStyle: style, ...ratio, ...availMeta, ...openSettingsPatch(choice)};
+      built = buildOpenPlan(nextSettings, choice, {runs, races: secondaryRaces(races?.participations || [], null), afterRace});
+    } else {
+      const date = draftDate    || settings.raceDate;
+      const goal = draftGoal    || settings.goalSec;
+      const dist = draftDist    || settings.distanceKm || 20;
+      const elev = draftElev    ?? settings.raceElevation ?? 0;
+      // Keep the catalogue link only when building the promoted/target race unchanged.
+      const sameAsPrefill = planPrefill && date === planPrefill.raceDate && Number(dist) === Number(planPrefill.distanceKm);
+      const sameAsTarget  = date === settings.raceDate && Number(dist) === Number(settings.distanceKm);
+      const targetEditionId = sameAsPrefill ? planPrefill.editionId : (sameAsTarget ? (settings.targetEditionId ?? null) : null);
+      nextSettings = {...settings, planSessions: ps, raceDate: date, goalSec: goal, distanceKm: dist, raceElevation: Number(elev) || 0, targetEditionId, planStyle: style,
+        ...ratio, ...availMeta, ...(openNow ? {goalKind: "race" as const, openTarget: undefined, lightPlan: false} : {})};
+      const secRaces = secondaryRaces(races?.participations || [], targetEditionId);
+      built = buildPlan(date, goal, ps, dist, elev, {recentRuns: runs, races: secRaces, mainEditionId: targetEditionId, style, level: settings.trainingLevel,
+        recovery: true, afterRace, runWalk: ratio});
+    }
     // A rebuild re-anchors progress on the calendar date and keeps the weeks
     // buildPlan's next-Monday start can't reach, so the completed count really
     // does survive. A promote is deliberately fresh ("Builds a fresh plan for
@@ -240,7 +265,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   };
 
   const dateInPast = !!draftDate && draftDate <= ymd(new Date());
-  const canBuild = !!draftDate && !dateInPast && !!draftDist;
+  const canBuild = draftKind === "improve" ? !!draftDist : !!draftDate && !dateInPast && !!draftDist;
 
   if (plan && pending) {
     return <RebuildPreview diff={diffPlans(plan, pending.plan, startOfToday())} raceDate={String(pending.settings.raceDate)}
@@ -283,8 +308,45 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
         <div className="space-y-3">
           {/* 1 · Goal */}
           <AccordionSection num={1} title={t("plan.edit.goalTitle")}
-            summary={goalDraftSummary(draftDist, draftGoal, draftDate, draftElev)}
+            summary={draftKind === "improve" ? improveSummary(draftTarget, draftDist, draftLight) : goalDraftSummary(draftDist, draftGoal, draftDate, draftElev)}
             expanded={editSection === "goal"} onToggle={() => setEditSection(editSection === "goal" ? null : "goal")}>
+            <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5 mb-4">
+              {(["race", "improve"] as const).map(k => (
+                <button key={k} type="button" onClick={() => setDraftKind(k)} aria-pressed={draftKind === k}
+                  className={"flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors " +
+                    (draftKind === k ? "bg-orange-500 text-slate-900" : "text-slate-400 hover:text-slate-200")}>
+                  {t("plan.goalMode." + k)}
+                </button>
+              ))}
+            </div>
+            {draftKind === "improve" ? (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400">{t("plan.improve.intro")}</p>
+                <div className="space-y-2">
+                  {OPEN_TARGETS.map(tg => (
+                    <button key={tg} type="button" onClick={() => setDraftTarget(tg)} aria-pressed={draftTarget === tg}
+                      className={"w-full text-left rounded-xl border px-3 py-2.5 transition-colors " + (draftTarget === tg
+                        ? "text-orange-300 bg-orange-500/10 border-orange-500/50" : "text-slate-300 border-slate-700 hover:border-slate-600")}>
+                      <span className="block text-sm font-semibold">{t("plan.improve.target." + tg)}</span>
+                      <span className="block text-xs text-slate-400 mt-0.5">{t("plan.improve.targetSub." + tg)}</span>
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1.5">{t("plan.improve.distance")}</label>
+                  <input type="number" min="1" max="200" step="0.1" value={draftDist} placeholder={t("plan.setup.distancePlaceholder")}
+                    onChange={e => { const n = parseFloat(e.target.value); setDraftDist(isNaN(n) ? "" : n); }}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500"/>
+                  <p className="text-slate-500 text-xs mt-1">{t("plan.improve.distanceHelp")}</p>
+                </div>
+                <button type="button" onClick={() => setDraftLight(v => !v)} aria-pressed={draftLight}
+                  className={"w-full text-left rounded-xl border px-3 py-2.5 transition-colors " + (draftLight
+                    ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/40" : "text-slate-300 border-slate-700 hover:border-slate-600")}>
+                  <span className="block text-sm font-semibold">{t("plan.improve.light")}</span>
+                  <span className="block text-xs text-slate-400 mt-0.5">{t("plan.improve.lightSub")}</span>
+                </button>
+              </div>
+            ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -310,6 +372,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               </div>
               <GoalConfigurator distanceKm={draftDist} goalSec={draftGoal} onChange={setDraftGoal}/>
             </div>
+            )}
           </AccordionSection>
 
           {/* 2 · Availability */}
@@ -382,9 +445,13 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const daysToRace = Number.isFinite(raceMs) ? Math.max(0, Math.round((raceMs - today.getTime()) / 86400000)) : 0;
 
   // The runner's own goal: buildPlan substitutes 7200 for an empty one, which is not a goal they set.
-  const goalSummary = goalSummaryOf(plan.distanceKm || 20, settings.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
   const phase = planPhase({ plan, settings, participations: races?.participations, runs }, todayStr);
-  const afterRace = phase?.phase === "debrief" || phase?.phase === "choosing" || phase?.phase === "recovery";
+  const racePhase = phase && phase.phase !== "open" ? phase : null;
+  const openPhase = phase?.phase === "open" ? phase : null;
+  const goalSummary = openPhase
+    ? improveSummary(openPhase.target, plan.goal?.distanceKm ?? settings.distanceKm, openPhase.light)
+    : goalSummaryOf(plan.distanceKm || 20, settings.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
+  const afterRace = racePhase?.phase === "debrief" || racePhase?.phase === "choosing" || racePhase?.phase === "recovery";
   const availSummary = settings.availabilityMode === "simple" && settings.availDays
     ? t("plan.availRow.simpleSummary", { count: settings.availDays, duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
     : sessInfo;
@@ -491,10 +558,12 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
           </div>
           <div className="flex justify-between text-[11px] text-slate-500 mt-2">
             <span>{t("plan.progress.weekOf", {n: curWeekNum, total: weeksTotal})}</span>
-            <span>{afterRace && phase ? t("plan.progress.finished", {date: fmt.sht(phase.race.date)}) : t("plan.progress.raceIn", {days: daysToRace})}</span>
+            <span>{openPhase
+              ? (openPhase.checkpoint ? t("plan.openHeader", {block: openPhase.block, date: dayName((new Date(openPhase.checkpoint + "T12:00:00").getDay() + 6) % 7) + " " + fmt.sht(openPhase.checkpoint)}) : t("plan.openHeaderNoCheckpoint", {block: openPhase.block}))
+              : afterRace && racePhase ? t("plan.progress.finished", {date: fmt.sht(racePhase.race.date)}) : t("plan.progress.raceIn", {days: daysToRace})}</span>
           </div>
           {afterRace && (
-            <button onClick={() => openEdit("goal")}
+            <button onClick={() => (openWhatsNext ? openWhatsNext() : openEdit("goal"))}
               className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
               {t("plan.next.cta")}
             </button>

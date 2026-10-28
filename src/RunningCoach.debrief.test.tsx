@@ -13,6 +13,8 @@ vi.mock("./db", () => ({
   },
   currentUserId: () => "test-user",
   flushNow: async () => {},
+  isStoreLoaded: () => true,
+  isStoreReconciled: () => true,
 }));
 
 vi.mock("./races", () => ({

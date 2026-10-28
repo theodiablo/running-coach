@@ -73,6 +73,16 @@ Web gets nothing here, and the card is **absent** rather than disabled — there
 nothing a browser user could do with it. Native reach is roughly 10 of 25 users
 today; that limitation is understood and accepted for v1.
 
+### One non-session reminder: what's next
+
+`reminderSchedule` appends one entry, id `reminderId("whatsnext:" + race date)`,
+for a plan that carries a recovery (`plan.recovery.until`): the evening before /
+morning of the day after the last easy day (the same `fireAt` and lead-time
+preference), only when reminders are on and the time is still ahead. It lives on
+the plan that carries the recovery, so answering "what's next" with a new plan
+drops it on the next sync; "Not now" leaves it, which is fine for a one-off.
+Copy: `reminders.notif.whatsNext*`.
+
 ### The split: pure math, thin bridge
 
 - `src/utils/sessionReminders.ts` — everything that can be got wrong, device-free

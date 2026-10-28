@@ -124,5 +124,20 @@
     "move": "Déplacer aussi la séance au {{date}}, pour que ton plan colle aux jours où tu as couru",
     "confirm": "C'est celle-là",
     "note": "Rien ne change tant que tu n'as pas confirmé."
+  },
+  "openPlan": {
+    "eyebrow": "Progresser",
+    "eyebrowBlock": "Ton entraînement",
+    "target": {
+      "faster": "Plus vite sur {{km}} km",
+      "further": "Courir plus loin",
+      "healthy": "Rester en bonne santé et régulier"
+    },
+    "light": "{{target}} · plan léger",
+    "blockCheckpoint": "Bloc {{block}} · séance test le {{date}}",
+    "block": "Bloc {{block}}",
+    "autoStarted": "On a lancé un plan tranquille pour te garder en mouvement, à peu près au volume que tu courais. Tu peux le changer quand tu veux.",
+    "change": "Changer d'objectif",
+    "changeAuto": "Changer ce plan"
   }
 }

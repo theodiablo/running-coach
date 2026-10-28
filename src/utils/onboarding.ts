@@ -43,10 +43,11 @@ export function onboardedSettings(settings: SettingsState, { name, plan, hr, hrM
     // The live branch's race is a participation, never the plan target, and
     // race fields left by a plan branch the runner backed out of are dropped.
     ...(live ? {liveFirst: true, liveLinkSent: live.linkSent, raceBridgeSeen: false, targetEditionId: null,
-      raceDate: "", distanceKm: "", goalSec: "", raceElevation: 0} : {})};
+      raceDate: "", distanceKm: "", goalSec: "", raceElevation: 0, goalKind: "race" as const} : {})};
 }
 
 // buildPlan needs a date and a distance (a plan branch may have skipped straight
-// to the gate), and the live branch never builds one.
+// to the gate), and the live branch never builds one. A block plan (the fitness
+// branch) has no date, only the distance its blocks build towards.
 export const onboardingBuildsPlan = (next: SettingsState, live: boolean) =>
-  !live && !!next.raceDate && !!next.distanceKm;
+  !live && !!next.distanceKm && (next.goalKind === "block" || !!next.raceDate);

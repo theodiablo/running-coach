@@ -20,13 +20,5 @@
     "beforeSub": "Build a training plan for this race",
     "afterTitle": "Got another race in mind?",
     "afterSub": "Pick it and get a plan that peaks on the day"
-  },
-  "bridge": {
-    "title": "{{label}}, done!",
-    "followers": "Well run. Your link goes quiet until your next shared run.",
-    "nextTitle": "Got another race in mind?",
-    "nextBody": "Pick it and we'll build a plan that peaks on the day.",
-    "cta": "Find my next race",
-    "notNow": "Not now"
   }
 }

@@ -194,7 +194,9 @@
       "race": "Carrera",
       "after": "Después",
       "run": "Correr",
-      "finish": "Final"
+      "finish": "Final",
+      "checkpoint": "Sesión de control",
+      "afterwards": "Después"
     },
     "stretch": "5 min de estiramientos suaves para gemelos, cuádriceps, isquiotibiales y caderas.",
     "recPhrase": {
@@ -244,6 +246,12 @@
       "runPace": "A un ritmo que te permita conversar, en torno a {{pace}}. Puedes hacer pausas para caminar.",
       "runNoPace": "Totalmente conversacional; las pausas para caminar están bien.",
       "finish": "Unos minutos de caminata y luego estiramientos suaves."
+    },
+    "checkpoint": {
+      "warmup": "5 min de caminata suave y luego unos minutos de trote relajado.",
+      "main": "~{{km}} km a un esfuerzo constante y cómodo. Hazla igual cada bloque, para poder comparar las sesiones de control.",
+      "mainRatio": "~{{km}} km alternando {{run}} corriendo y {{walk}} caminando, constante y cómodo. Mantén el mismo esfuerzo cada bloque para poder comparar las sesiones de control.",
+      "after": "Anota cuánto tardaste y cómo te sentiste. La sesión de control del próximo bloque es la que sirve para compararla."
     }
   },
   "crosswalk": "Entrenamiento cruzado o caminata a paso ligero, sin impacto y a esfuerzo suave",
@@ -315,5 +323,33 @@
       "delete": "Sesión eliminada",
       "failed": "No se pudo aplicar ese cambio."
     }
+  },
+  "checkpoint": {
+    "easy": "Sesión de control: {{km}} km, constante y cómoda. Fíjate en cómo te sientes comparado con hace un mes",
+    "runwalk": "Sesión de control corriendo y caminando: {{km}} km, corre {{run}} y camina {{walk}}; constante y cómoda"
+  },
+  "openHeader": "Bloque {{block}} · sesión de control {{date}}",
+  "openHeaderNoCheckpoint": "Bloque {{block}}",
+  "goalMode": {
+    "race": "Carrera",
+    "improve": "Seguir mejorando"
+  },
+  "improve": {
+    "intro": "Sin fecha de carrera. Bloques de cuatro semanas, cada uno con una sesión de control al final para ver cuánto has avanzado.",
+    "target": {
+      "faster": "Ser más rápido",
+      "further": "Correr más lejos",
+      "healthy": "Mantenerme sano y constante"
+    },
+    "targetSub": {
+      "faster": "Sesiones de calidad en medio de cada bloque",
+      "further": "La tirada larga crece, bloque a bloque",
+      "healthy": "Carrera suave y constante que mantiene el hábito"
+    },
+    "distance": "Distancia para la que entrenas (km)",
+    "distanceHelp": "Ajusta tus ritmos y cuán largas se hacen las tiradas largas.",
+    "light": "Un plan más ligero",
+    "lightSub": "Unos dos entrenamientos suaves a la semana",
+    "lightShort": "plan ligero"
   }
 }

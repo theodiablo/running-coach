@@ -14,7 +14,8 @@
 
 import { HARD_TYPES } from "./validation.mjs";
 import { stylePacing } from "./styles.mjs";
-import { canHoldTraining, inRecovery } from "./recovery.mjs";
+import { canHoldTraining, goalKind, inRecovery } from "./recovery.mjs";
+import { checkpointDesc, openGoalLine } from "./open.mjs";
 import { addDays, isElapsedWeek, todayYmd } from "./weeks.mjs";
 
 const SWAP_TYPES = ["EASY", "TEMPO", "INTERVALS", "LONG", "WALK"];
@@ -293,6 +294,13 @@ function guardTaperGrowth(p, week, { date, type, session = null }, addedKm, resu
 
 // A cross-training day's minutes follow its effort-equivalent km.
 function refreshCross(session, plan) {
+  // A checkpoint run's sentence names its distance.
+  if (session.sd?.kind === "checkpoint") {
+    const ratio = session.desc.match(/run \d[^/]*\/ walk [^,]+/)?.[0];
+    session.sd = { ...session.sd, km: session.km };
+    session.desc = checkpointDesc(session.km, ratio);
+    return;
+  }
   if (session.sd?.kind !== "crossActivity") return;
   const easySec = (plan && paceFor(plan, "EASY")) || 390;
   const minutes = Math.min(120, Math.max(20, Math.round(session.km * easySec / 60 / 5) * 5));
@@ -610,6 +618,9 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
 export function assessGoalFeasibility(ctx) {
   const { goal, targetPace, recentRuns = [] } = ctx;
   const { goalSec, distanceKm, raceDate } = goal || {};
+  // No race to be realistic about: the plan keeps improving in 4-week blocks.
+  if (ctx.plan && goalKind(ctx.plan) !== "race")
+    return `This plan has no race and no goal time to judge: it is "${openGoalLine(ctx.plan)}". Progress shows in the checkpoint runs (the last session of each 4-week block): compare how long the same effort took and how it felt block to block. If the runner wants a race to train for, send them to [choose what's next](app:next).`;
   if (!goalSec || !distanceKm) return "No race goal is configured — nothing to assess.";
   // Feasibility is judged on RACE pace — the ground pace the runner has to hold
   // on the day — never on plan.targetPace, which is the hill-adjusted

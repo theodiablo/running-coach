@@ -43,6 +43,11 @@ describe("detectRaceCompletion", () => {
     expect(out?.isMain).toBe(false); // no confetti for a race the catalogue doesn't know
   });
 
+  it("reports the distance of the race that was run (the what's-next sheet suggests races near it)", () => {
+    expect(detect()?.km).toBe(10);
+    expect(detect({ added: [ran({ km: 10.4 })] })?.km).toBe(10);
+  });
+
   it("does both for a catalogue race stamped on the session", () => {
     const out = detect({ plan: planOf([raceSess("race", RACE_DAY, { editionId: "city-10k-2026" })]),
       settings: settings({ targetEditionId: "city-10k-2026" }), races: races([wish()]) });

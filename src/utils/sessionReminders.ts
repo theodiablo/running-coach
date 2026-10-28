@@ -1,6 +1,6 @@
 import { t } from "../i18n";
 import { describeSession } from "./sessionDesc";
-import { estMin } from "./format";
+import { estMin, ymd } from "./format";
 import type { Plan, PlanSession, SettingsState } from "../types";
 
 // Pure scheduling math for plan-session reminders. Device-free on purpose: the
@@ -100,6 +100,19 @@ export function reminderSchedule(
       if (at.getTime() <= now.getTime()) continue;
       const {title, body, largeBody} = textFor(s, prefs);
       out.push({id: reminderId(s.id), at, sessionId: s.id, title, body, largeBody});
+    }
+  }
+  // The one non-session reminder: the recovery after the race is over. It lives
+  // on the plan that carries the recovery, so a new plan (the answer to it) drops it.
+  const until = plan.recovery?.until;
+  if (until && plan.recovery?.race) {
+    // The day after the last easy day, so "your recovery is over" is true when it fires.
+    const [y, m, d] = until.split("-").map(Number);
+    const at = fireAt(ymd(new Date(y, (m || 1) - 1, (d || 1) + 1)), prefs);
+    const key = "whatsnext:" + plan.recovery.race;
+    if (at.getTime() > now.getTime()) {
+      const body = t("reminders.notif.whatsNextBody");
+      out.push({id: reminderId(key), at, sessionId: key, title: t("reminders.notif.whatsNext"), body, largeBody: body});
     }
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, Math.max(0, max));

@@ -16,6 +16,8 @@ import { reportRace } from "../races";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import type { RaceDateChange } from "../utils/races";
 import { mainRace } from "../utils/planPhase";
+import { planEndYmd } from "../utils/plan";
+import { goalKind } from "../utils/recovery";
 import type { CatalogueEdition, CatalogueRace, JoinedEdition, Participation, Plan, RacesState, Run, SettingsState } from "../types";
 
 const SEGMENTS = [["mine", "races.segments.mine"], ["find", "races.segments.find"]];
@@ -74,6 +76,8 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = ymd(today);
   const parts = races?.participations || [];
+  // Where a plan with no race ends: only a race inside it can be folded in.
+  const openEnd = plan && goalKind(plan) !== "race" ? planEndYmd(plan) : null;
   const byId = Object.fromEntries(parts.filter(p => p.editionId).map(p => [p.editionId as string, p]));
   const cat = catalogue || [];
 
@@ -176,7 +180,10 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
                 // — a checkpoint along the way. We key off settings.raceDate rather
                 // than targetEditionId so a hand-entered main race (no catalogue
                 // edition) can still have tune-ups added.
-                const inPlannable = settings.raceDate && !isTarget && String(p.raceDate) < settings.raceDate;
+                // A plan with no race date holds a race that falls inside its weeks.
+                const inPlannable = settings.raceDate
+                  ? !isTarget && String(p.raceDate) < settings.raceDate
+                  : !!openEnd && String(p.raceDate) < openEnd;
                 return (
                   <div key={p.editionId} className="rounded-2xl p-4 border border-orange-500/30"
                     style={{ background: "linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))" }}>

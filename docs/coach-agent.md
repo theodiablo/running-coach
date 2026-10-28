@@ -270,6 +270,17 @@ margin; or a week near the race past the week before it. "Load" there counts a
 tune-up race (any RACE before race day) as the km it is, and a week holding one
 was lightened around it, so the week before it stays the bar when it's higher.
 
+**Plans with no race.** For a plan whose `goal.kind` is open/block there is no
+race to train for: the context's `GOAL:` line reads "keep improving, faster at
+10 km (4-week blocks ending in a checkpoint run, no race date)" (`openGoalLine`,
+`_shared/coach/open.mjs`; the edge function passes `goal.kind`/`target`),
+`reassess_goal_feasibility` answers that there is no goal to judge and points
+at the checkpoint runs and `app:next`, and the taper rules never fire (their
+`raceDate` comparisons are all false for `""`). `app:next` opens the "What's
+next?" sheet, the hand-off for a runner who wants a race. The tools that change
+a distance (`refreshCross`) keep a checkpoint run's `sd.km` and sentence in
+step. See `docs/training-plan.md` ("Open plans and blocks").
+
 **Recovery after the race.** Past race day the taper rules end and one rule
 takes over: inside the recovery (`inRecovery`) only easy running is added,
 lengthened or moved in. `add_session` and `increase_session_distance` take EASY
@@ -449,7 +460,7 @@ because ~9% of logged rounds end in a "go here" nudge with no way to get there,
 and the most common one is structural — the coach can never change the goal
 itself (`buildPlan` is the author), so "adjust it in the plan settings" is its
 designated hand-off and was a dead end. `src/utils/coachLinks.ts` holds the
-allowlist (`goal`, `log`, `training`, `integrations`, `history`) and is the only
+allowlist (`goal`, `log`, `training`, `integrations`, `history`, `next`) and is the only
 gate: an invented target degrades to plain text, exactly like an external URL.
 Adding one means touching three places — the allowlist, `goCoachLink` in
 `RunningCoach.tsx`, and the prompt's list of tokens (the only place the model

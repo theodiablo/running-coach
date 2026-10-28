@@ -124,5 +124,20 @@
     "move": "Move the session to {{date}} too, so your plan matches the days you ran",
     "confirm": "Count it",
     "note": "Nothing changes until you confirm."
+  },
+  "openPlan": {
+    "eyebrow": "Keep improving",
+    "eyebrowBlock": "Your training",
+    "target": {
+      "faster": "Faster at {{km}} km",
+      "further": "Running further",
+      "healthy": "Staying healthy and consistent"
+    },
+    "light": "{{target}} · lighter plan",
+    "blockCheckpoint": "Block {{block}} · checkpoint run {{date}}",
+    "block": "Block {{block}}",
+    "autoStarted": "We started a gentle plan to keep you going, at about the volume you have been running. You can change it any time.",
+    "change": "Change what I'm training for",
+    "changeAuto": "Change this plan"
   }
 }

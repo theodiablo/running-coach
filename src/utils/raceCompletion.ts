@@ -18,6 +18,8 @@ export type RaceCompletion = {
   nextRaces: RacesState;
   undoParts: Participation[];
   label: string;
+  // The distance of the race that was run.
+  km: number;
   // Catalogue only: hand-entered races settle quietly, no confetti.
   isMain: boolean;
   raceDay: boolean;
@@ -82,7 +84,7 @@ export function detectRaceCompletion(
     nextRaces = { ...races, participations: prev ? parts.map(p => p.editionId === edId ? done : p) : [...parts, done] };
   }
   return {
-    nextRaces, undoParts: parts, label, raceDay,
+    nextRaces, undoParts: parts, label, raceDay, km: Number(cand.distanceKm) || match.km,
     isMain: needsPart && (raceDay || edId === settings.targetEditionId),
     link: needsSess && cand.sess && match.id ? { wNum: cand.sess.wNum, sId: cand.sess.sId, runId: match.id } : null,
   };

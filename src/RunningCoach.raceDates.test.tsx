@@ -13,6 +13,8 @@ vi.mock("./db", () => ({
   },
   currentUserId: () => "test-user",
   flushNow: async () => {},
+  isStoreLoaded: () => true,
+  isStoreReconciled: () => true,
 }));
 
 // The catalogue now lists the Barcelona half a week earlier than the user planned.

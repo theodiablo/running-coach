@@ -63,6 +63,8 @@ vi.mock("./db", () => ({
   db: { get: vi.fn(async (k: string) => (k in store ? store[k] : null)), set: vi.fn() },
   currentUserId: () => "u1",
   flushNow: vi.fn(async () => {}),
+  isStoreLoaded: () => true,
+  isStoreReconciled: () => true,
   subscribeStoreRefresh: () => () => {},
   clearOfflineMirror: vi.fn(),
 }));

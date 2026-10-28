@@ -119,3 +119,39 @@ describe("OnboardingWizard: race date", () => {
     expect(screen.getByText("Continue")).toBeEnabled();
   });
 });
+
+describe("OnboardingWizard: the fitness branch trains in blocks, not towards a date", () => {
+  it("asks no 'over how long?', and saves a block plan with no race date", () => {
+    const { onSaveProgress } = setup({ onboardStep: 1 });
+    fireEvent.click(screen.getByText("I'm just getting started"));
+    expect(screen.getByText("Your training")).toBeInTheDocument();
+    expect(screen.queryByText("Over how long?")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("10K"));
+    fireEvent.click(screen.getByText("Continue"));
+    const saved = onSaveProgress.mock.calls[onSaveProgress.mock.calls.length - 1][0];
+    expect(saved).toMatchObject({ raceDate: "", distanceKm: 10, goalSec: "", goalKind: "block", openTarget: "further", targetEditionId: null });
+  });
+
+  it("completes as a block plan, and the summary speaks of blocks", () => {
+    const { onComplete } = setup({ onboardStep: 1 });
+    fireEvent.click(screen.getByText("I'm just getting started"));
+    fireEvent.click(screen.getByText("Continue"));
+    // Heart rate, then the health gate.
+    fireEvent.click(screen.getByText("Continue"));
+    passHealthGate();
+    expect(screen.getByText("weeks per block")).toBeInTheDocument();
+    expect(screen.queryByText("week plan")).not.toBeInTheDocument();
+    expect(screen.getByText(/Keep improving · 5 km/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Get started"));
+    expect(onComplete.mock.calls[0][0].plan).toMatchObject({ raceDate: "", distanceKm: 5, goalKind: "block", openTarget: "further" });
+  });
+
+  it("the race branch is still a race plan", () => {
+    const { onComplete } = setup({ onboardStep: 4, intent: "race", raceDate: "2099-05-01", distanceKm: 10 });
+    expect(screen.getByText("Heart rate")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Continue"));
+    passHealthGate();
+    fireEvent.click(screen.getByText("Get started"));
+    expect(onComplete.mock.calls[0][0].plan).toMatchObject({ raceDate: "2099-05-01", goalKind: "race" });
+  });
+});

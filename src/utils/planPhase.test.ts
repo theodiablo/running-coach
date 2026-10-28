@@ -137,12 +137,12 @@ describe.each(ANCHORS)("planPhase (%s)", (_label, anchor) => {
 
   describe("which races are catalogue races", () => {
     it("via the session's own editionId", () => {
-      expect(planPhase(input({ plan: build(raceDate, "ed-1") }), at(1))?.race.editionId).toBe("ed-1");
+      expect(planPhase(input({ plan: build(raceDate, "ed-1") }), at(1))?.race?.editionId).toBe("ed-1");
     });
 
     it("via settings.targetEditionId alone (onboarding builds without mainEditionId)", () => {
       const info = planPhase(input({ settings: settingsFor(raceDate, "ed-2") }), at(1));
-      expect(info?.race.editionId).toBe("ed-2");
+      expect(info?.race?.editionId).toBe("ed-2");
       expect(info?.catalogue).toBe(true);
     });
 
@@ -153,7 +153,7 @@ describe.each(ANCHORS)("planPhase (%s)", (_label, anchor) => {
 
     it("a hand-entered race is neutral", () => {
       const info = planPhase(input(), at(1));
-      expect(info?.race.editionId).toBeNull();
+      expect(info?.race?.editionId).toBeNull();
       expect(info?.catalogue).toBe(false);
     });
   });
@@ -167,7 +167,7 @@ describe.each(ANCHORS)("planPhase (%s)", (_label, anchor) => {
     expect(rebuilt.weeks.some(w => w.sessions.some(s => s.id === "past-race"))).toBe(true);
     const info = planPhase(input({ plan: rebuilt, settings: settingsFor(nextRace), runs: [run("r1", raceDate)] }), after);
     expect(info?.phase).toBe("active");
-    expect(info?.race.date).toBe(nextRace);
+    expect(info?.race?.date).toBe(nextRace);
     expect(info?.settled).toBeNull();
   });
 

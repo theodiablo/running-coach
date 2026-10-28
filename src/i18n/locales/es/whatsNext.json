@@ -1,0 +1,69 @@
+{
+  "eyebrow": "¿Y ahora qué?",
+  "later": "Ahora no",
+  "continue": "Continuar",
+  "recap": {
+    "title": "Tu bloque de entrenamiento",
+    "titleOpen": "Tus últimas cuatro semanas",
+    "sub": "Antes de elegir lo siguiente, mira lo que has hecho.",
+    "sessions": "Sesiones hechas",
+    "sessionsValue": "{{done}} de {{planned}}",
+    "distance": "Distancia recorrida",
+    "longest": "Tirada más larga",
+    "km": "{{km}} km"
+  },
+  "feeling": {
+    "title": "¿Cómo te sientes ahora con respecto a correr?",
+    "sub": "No hay respuestas incorrectas. Solo decide qué te mostramos primero.",
+    "fired": "Con muchas ganas",
+    "firedSub": "Con ganas del siguiente reto",
+    "steady": "Con calma",
+    "steadySub": "Me va bien seguir así",
+    "breather": "Necesito un respiro",
+    "breatherSub": "Quiero algo más ligero por un tiempo"
+  },
+  "goals": {
+    "title": "¿Y ahora, adónde?",
+    "raceFirstTitle": "¡{{label}}, hecho!",
+    "raceFirstSub": "Bien corrido. Tu enlace se queda en silencio hasta tu próximo entrenamiento compartido."
+  },
+  "race": {
+    "title": "Elegir mi próxima carrera",
+    "titleBlock": "Probar una carrera de verdad",
+    "sub": "Un plan que llega a su punto máximo el día de la carrera.",
+    "wishlist": "En tu lista",
+    "suggested": "Carreras que encajan",
+    "weeks_one": "dentro de {{count}} semana",
+    "weeks_other": "dentro de {{count}} semanas",
+    "train": "Prepararla",
+    "nearMe": "Cerca de mí",
+    "locating": "Buscando tu ubicación...",
+    "denied": "No pudimos obtener tu ubicación",
+    "none": "Nada en el catálogo encaja por ahora.",
+    "browse": "Ver todas las carreras"
+  },
+  "improve": {
+    "title": "Seguir mejorando",
+    "sub": "Sin fecha de carrera. Bloques de cuatro semanas, cada uno con una sesión de control al final para ver cuánto has avanzado.",
+    "d5": "5 km",
+    "d10": "10 km",
+    "dHalf": "Media maratón",
+    "faster": "Más rápido en {{distance}}",
+    "best": "Tu mejor marca: {{time}}",
+    "noBest": "Aún no hay un tiempo registrado",
+    "further": "Correr más lejos",
+    "furtherSub": "Alargar la tirada larga, bloque a bloque",
+    "healthy": "Mantenerme sano y constante",
+    "healthySub": "Conservar el hábito y evitar lesiones"
+  },
+  "lighter": {
+    "title": "Un plan más ligero",
+    "sub": "Unos dos entrenamientos suaves a la semana. Un respiro que mantiene el hábito.",
+    "cta": "Empezar el plan ligero"
+  },
+  "toast": {
+    "started": "Tu nuevo plan está listo",
+    "lighter": "Tu plan ligero está listo",
+    "undone": "Volvemos a tu plan anterior"
+  }
+}

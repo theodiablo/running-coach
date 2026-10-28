@@ -169,3 +169,36 @@ describe("reminderSchedule · recovery after the race", () => {
     expect(reminderSchedule(plan, on, now).map(r => r.sessionId)).toContain("w2d2");
   });
 });
+
+describe("reminderSchedule · what's next", () => {
+  // Race 2026-03-14, easy through 2026-03-20: the prompt follows the last easy day.
+  const withRecovery = (extra: Record<string, unknown> = {}) => ({
+    raceDate: "2026-03-14", recovery: {race: "2026-03-14", km: 10, until: "2026-03-20"}, ...extra,
+    weeks: [{weekNumber: 1, startDate: "2026-03-09", phase: "RACE", sessions: [sess("race", "2026-03-14", {type: "RACE", km: 10, done: true})]}],
+  } as unknown as Plan);
+
+  it("adds one reminder the evening the recovery ends", () => {
+    const due = reminderSchedule(withRecovery(), on, now);
+    expect(due).toHaveLength(1);
+    expect(due[0].id).toBe(reminderId("whatsnext:2026-03-14"));
+    expect(due[0].sessionId).toBe("whatsnext:2026-03-14");
+    expect(due[0].title).toBe("What's next?");
+    // The evening before 2026-03-21, i.e. the day the last easy day ends.
+    expect([due[0].at.getMonth(), due[0].at.getDate(), due[0].at.getHours()]).toEqual([2, 20, 18]);
+  });
+
+  it("morning-of preference fires the morning after the last easy day", () => {
+    const at = reminderSchedule(withRecovery(), {...on, leadDays: 0}, now)[0].at;
+    expect([at.getDate(), at.getHours()]).toEqual([21, 18]);
+  });
+
+  it("only when reminders are on, and not once it has passed", () => {
+    expect(reminderSchedule(withRecovery(), {...on, enabled: false}, now)).toEqual([]);
+    expect(reminderSchedule(withRecovery(), on, new Date(2026, 2, 25, 9, 0))).toEqual([]);
+  });
+
+  it("is gone with the plan that carried the recovery", () => {
+    const replacement = {goal: {kind: "open"}, weeks: [{weekNumber: 1, startDate: "2026-03-23", phase: "BASE", sessions: [sess("w1d2", "2026-03-25")]}]} as unknown as Plan;
+    expect(reminderSchedule(replacement, on, now).map(r => r.sessionId)).toEqual(["w1d2"]);
+  });
+});

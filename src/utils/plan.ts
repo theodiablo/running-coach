@@ -7,10 +7,12 @@ import {
 } from "./planStyles";
 import { runWalkConfig, runwalkRunSec, type RunWalkConfig } from "./runwalk";
 import { FIRST_WEEK_BACK_KM, recoveryRule } from "./recovery";
+import { OPEN_BLOCK_WEEKS, checkpointDesc } from "./openBlocks";
+import { resolveOpenPace } from "./openPace";
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { isCrossTraining } from "../types";
-import type { Plan, PlanProgress, RecoveryWindow, RunActivity, SessionSd } from "../types";
+import type { OpenTarget, PaceSource, Plan, PlanGoal, PlanProgress, RecoveryWindow, RunActivity, SessionSd } from "../types";
 
 export type PlanSessionInput = { dayOffset: number; minutes: number };
 type PlanSession = {
@@ -28,7 +30,9 @@ type PlanSession = {
   editionId?: string | null;
 };
 type PlanWeek = { weekNumber: number; startDate: string; phase: string; sessions: PlanSession[] };
-type RecentRun = { date?: string; km?: number; type?: string };
+// Open plans also read durations and measured efforts off the same runs (openPace.ts).
+type RecentRun = { date?: string; km?: number; type?: string; durationSec?: number; bestEfforts?: Record<string, number> };
+export type OpenGoalOpts = { kind: "block" | "open"; target?: OpenTarget; light?: boolean };
 type OverlayRace = { editionId: string; date: string; distanceKm: number; elevation?: number };
 export type BuildPlanOptions = {
   recentRuns?: RecentRun[];
@@ -46,6 +50,11 @@ export type BuildPlanOptions = {
   // A race the runner has just run (recentRace): the plan opens inside its
   // recovery, and its race run is no measure of fitness.
   afterRace?: { date: string; km: number } | null;
+  // A plan with no race: 4-week blocks ending in a checkpoint run. Absent or
+  // kind "race" = the race plan, whose output is frozen by snapshot tests.
+  goal?: OpenGoalOpts | { kind: "race" } | null;
+  // Weeks since block 1 began, so an extension's blocks line up with the plan's.
+  blockOffset?: number;
 };
 type BuiltPlan = {
   raceDate: unknown;
@@ -60,6 +69,7 @@ type BuiltPlan = {
   weeks: PlanWeek[];
   recovery?: RecoveryWindow;
   openedAfter?: RecoveryWindow;
+  goal?: PlanGoal;
 };
 
 // Everything a style's week composer needs from the buildPlan closure. One
@@ -144,16 +154,28 @@ export function buildPlan(
   raceElevation?: unknown,
   planOpts: BuildPlanOptions = {}
 ): BuiltPlan {
-  if (!goalSec) goalSec = 7200;
-  if (!distanceKm) distanceKm = 20;
+  const openGoal = isOpenGoal(planOpts.goal) ? planOpts.goal : null;
+  const open = !!openGoal;
+  if (!distanceKm) distanceKm = open ? 10 : 20;
   if (!planSessions?.length) planSessions = [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}];
-  const goal = Number(goalSec);
-  const dist = Number(distanceKm);
+  const light = !!openGoal?.light;
+  // About two easy runs a week: the two longest of the configured days.
+  if (light) planSessions = planSessions.slice().sort((a, b) => b.minutes - a.minutes).slice(0, 2);
   const afterRace = planOpts.afterRace && /^\d{4}-\d{2}-\d{2}$/.test(planOpts.afterRace.date) && Number(planOpts.afterRace.km) > 0
     ? planOpts.afterRace : null;
   // The race run says nothing about the fitness the next block starts from.
   const recentRuns = (planOpts.recentRuns || []).filter(r => !(afterRace && r && r.date === afterRace.date
     && (String(r.type).toUpperCase() === "RACE" || Math.abs((r.km ?? 0) - afterRace.km) <= Math.max(1, 0.25 * afterRace.km))));
+  // No race to train a goal time for: the pace comes from the runner's own
+  // goal, their recent efforts or the mid-pack suggestion (openPace.ts).
+  let paceSource: PaceSource | undefined;
+  if (open) {
+    const r = resolveOpenPace(goalSec, Number(distanceKm), recentRuns);
+    goalSec = r.goalSec; paceSource = r.source;
+  }
+  if (!goalSec) goalSec = 7200;
+  const goal = Number(goalSec);
+  const dist = Number(distanceKm);
   const today = new Date(); today.setHours(0,0,0,0);
   const raceDateText = String(raceDate || "");
   const race  = new Date(raceDateText + "T00:00:00");
@@ -166,7 +188,9 @@ export function buildPlan(
   const afterUntil = afterRace && afterRule ? plusDays(afterRace.date, afterRule.days) : "";
   const lead = afterUntil && afterUntil >= ymd(mon0) ? Math.ceil((daysBetween(ymd(mon0), afterUntil) + 1) / 7) : 0;
   const w0    = new Date(mon0); w0.setDate(mon0.getDate() + lead * 7);
-  const N     = Math.max(4, Math.min(24, Math.floor((race.getTime() - w0.getTime()) / 86400000 / 7)));
+  const blockOffset = Math.max(0, Math.floor(Number(planOpts.blockOffset) || 0));
+  const N     = open ? 2 * OPEN_BLOCK_WEEKS - (blockOffset % OPEN_BLOCK_WEEKS)
+    : Math.max(4, Math.min(24, Math.floor((race.getTime() - w0.getTime()) / 86400000 / 7)));
   // Training paces target the *flat-equivalent* effort: finishing a hilly course
   // in the goal time needs the flat fitness of a faster runner, so each metre of
   // climb stretches the effective distance (same VERT_COST grade-adjust as the
@@ -259,9 +283,11 @@ export function buildPlan(
 
   for (let w = 0; w < N; w++) {
     const wS = new Date(w0); wS.setDate(w0.getDate() + w * 7);
-    const isTaper = w >= N - 3;
-    const isBase  = w < baseW && !isTaper;
-    const phase   = isTaper ? "TAPER" : isBase ? "BASE" : w >= peakW ? "PEAK" : "BUILD";
+    const isTaper = !open && w >= N - 3;
+    const ow      = openGoal ? openWeekShape({ a: blockOffset + w, target: openGoal.target ?? "healthy", light, style,
+      level0: startLong, ceil0: peakLong, floorKm: shape.floorKm }) : null;
+    const isBase  = ow ? ow.isBase : w < baseW && !isTaper;
+    const phase   = ow ? ow.phase : isTaper ? "TAPER" : isBase ? "BASE" : w >= peakW ? "PEAK" : "BUILD";
     const ss: PlanSession[] = [];
 
     const addS = (dOff: number, type: string, km: number, desc: string, pace: number, sd: SessionSd) => {
@@ -276,7 +302,7 @@ export function buildPlan(
       });
     };
 
-    const rampFrac = lastBuildW > 0 ? Math.min(1, w / lastBuildW) : 1;
+    const rampFrac = ow ? ow.rampFrac : lastBuildW > 0 ? Math.min(1, w / lastBuildW) : 1;
     // The week's shed multiplier: one ladder per style, applied to every
     // session the taper shrinks, so a taper can never out-volume the peak.
     const taperIdx = w - (N - 3);
@@ -284,7 +310,9 @@ export function buildPlan(
       ? shape.taperMults[taperIdx] ?? shape.taperMults[2]
       : null;
     let longKm;
-    if (isTaper) {
+    if (ow) {
+      longKm = ow.longKm;
+    } else if (isTaper) {
       // Taper long runs scale off the peak — shed volume, keep some endurance.
       longKm = peakLong * taperMult!;
     } else {
@@ -297,11 +325,29 @@ export function buildPlan(
     }
 
     COMPOSERS[style]({
-      w, N, phase, isBase, isTaper, buildW: w - baseW, rampFrac, easyFloor, taperMult,
+      w: ow ? ow.w : w, N, phase, isBase, isTaper, buildW: ow ? ow.buildW : w - baseW, rampFrac, easyFloor, taperMult,
       longSess, qualSessions, longKm,
       addS, paces: { easy, tmpo, intv, long: longP, walk: walkP }, tgt, dist, runWalk,
     });
 
+    if (ow) for (const s of ss) {
+      if (s.type !== "LONG") continue;
+      // The checkpoint takes the cutback week's long-run slot. A lighter plan
+      // has no long run, only easy ones.
+      if (ow.checkpoint) {
+        const rw = style === "runwalk";
+        const ratio = rw && s.sd?.runSec != null && s.sd.walkSec != null
+          ? "run " + fmt.interval(s.sd.runSec) + " / walk " + fmt.interval(s.sd.walkSec) : undefined;
+        s.desc = checkpointDesc(s.km, ratio);
+        s.sd = { kind: "checkpoint", km: s.km, variant: rw ? "runwalk" : "easy",
+          ...(rw ? { runSec: s.sd?.runSec, walkSec: s.sd?.walkSec, runMin: s.sd?.runMin, walkMin: s.sd?.walkMin } : {}) };
+        s.type = rw ? "WALK" : "EASY"; s.pace = rw ? walkP : easy;
+      } else if (light && style !== "runwalk") {
+        s.type = "EASY"; s.pace = easy;
+        s.desc = "Easy run — relaxed aerobic effort";
+        s.sd = { kind: "easy", variant: "relaxed" };
+      }
+    }
     ss.sort((a, b) => a.date.localeCompare(b.date));
     weeks.push({weekNumber: w+1+lead, startDate: ymd(wS), phase, sessions: ss});
   }
@@ -313,7 +359,7 @@ export function buildPlan(
   // Balanced is exempt on purpose — its output predates styles and a
   // user-picked back-to-back day pair is a pre-existing, validator-waived
   // condition we must not silently rewrite.
-  if (style !== DEFAULT_STYLE) {
+  if (style !== DEFAULT_STYLE || open) {
     const HARD_PRIO: Record<string, number> = { LONG: 3, TEMPO: 2, INTERVALS: 1 };
     const all = weeks.flatMap(wk => wk.sessions)
       .filter(s => HARD_PRIO[s.type])
@@ -441,7 +487,7 @@ export function buildPlan(
       editionId: planOpts.mainEditionId ?? null,
     }],
   };
-  weeks.push(raceWeek);
+  if (!open) weeks.push(raceWeek);
 
   // ── Recovery ───────────────────────────────────────────────────────────────
   // Easy-only sessions on the runner's own training days, after the race (own
@@ -525,7 +571,47 @@ export function buildPlan(
   }
   return {raceDate, goalSec, distanceKm, raceElevation: gain, targetPace: tgt, racePace,
     longRunPeakKm: Math.round(peakLong * 10) / 10, planSessions, style, weeks,
-    ...(recovery ? { recovery } : {}), ...(openedAfter ? { openedAfter } : {})};
+    ...(recovery ? { recovery } : {}), ...(openedAfter ? { openedAfter } : {}),
+    ...(openGoal ? { goal: {
+      kind: openGoal.kind, target: openGoal.target ?? "healthy", distanceKm: dist, ...(light ? { light: true } : {}),
+      blockWeeks: OPEN_BLOCK_WEEKS, startDate: plusDays(ymd(w0), -7 * blockOffset), paceSource,
+    } } : {})};
+}
+
+export const isOpenGoal = (g: BuildPlanOptions["goal"]): g is OpenGoalOpts =>
+  !!g && (g.kind === "block" || g.kind === "open");
+
+// One week of an open plan, by its position since block 1 began (`a`, 0-based).
+// Weeks 1-3 of a block ramp the long run from where the block starts to where
+// it ends; week 4 is a cutback (long run x0.8) whose long-run slot buildPlan
+// turns into the checkpoint. A block starts a little under where the last one
+// ended and never ends lower, so the long run only ever creeps up: slowly for
+// "healthy" and "faster" (whose weeks 2-3 carry the quality), block over block
+// for "further", whose ceiling itself grows 10% a block from the race-scaled one.
+type OpenShapeIn = { a: number; target: OpenTarget; light: boolean; style: StyleId; level0: number; ceil0: number; floorKm: number };
+function openWeekShape(i: OpenShapeIn) {
+  const b = Math.floor(i.a / OPEN_BLOCK_WEEKS), pos = i.a % OPEN_BLOCK_WEEKS;
+  let start = i.level0, end = i.level0;
+  for (let k = 0; k <= b; k++) {
+    if (k > 0) start = end * 0.85;
+    const ceil = i.light ? Math.max(i.floorKm, Math.min(i.level0, 7))
+      : i.target === "further" ? Math.min(36, i.ceil0 * (1 + 0.1 * k)) : i.ceil0;
+    const step = i.light ? 1 : i.target === "further" ? 1.25 : 1.1;
+    end = Math.max(Math.min(ceil, start * step + 2), end);
+  }
+  const ramp = (p: number) => start + (end - start) * (p + 1) / (OPEN_BLOCK_WEEKS - 1);
+  const checkpoint = pos === OPEN_BLOCK_WEEKS - 1;
+  const quality = i.target === "faster" && !i.light && (pos === 1 || pos === 2);
+  return {
+    b, pos, checkpoint,
+    longKm: checkpoint ? 0.8 * end : ramp(pos),
+    isBase: !quality,
+    // Run/walk ramps its ratio with the phase, so its later blocks read BUILD.
+    phase: quality || (i.style === "runwalk" && b >= 1 && !checkpoint) ? "BUILD" : "BASE",
+    buildW: quality ? b * 2 + pos - 1 : 0,
+    rampFrac: Math.min(1, (pos + 1) / (OPEN_BLOCK_WEEKS - 1)),
+    w: Math.min(i.a, 8),
+  };
 }
 
 // The easy day's distance: each style's own growth line, started at the runner's
@@ -1038,4 +1124,48 @@ export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | 
   // coach's week_number tools all address the merged plan coherently.
   return { ...np, weeks: [...history, ...np.weeks.map(w => ({ ...w, sessions: w.sessions.map(stamp) }))]
     .map((w, i) => ({ ...w, weekNumber: i + 1 })) };
+}
+
+// ── Open plans ───────────────────────────────────────────────────────────────
+
+// buildPlan anchors week 1 here: today when it is a Monday, else the next one.
+export function nextMondayYmd(now: Date = new Date()): string {
+  const d = startOfDay(now);
+  const dow = d.getDay();
+  d.setDate(d.getDate() + (dow === 1 ? 0 : dow === 0 ? 1 : (8 - dow) % 7));
+  return ymd(d);
+}
+
+export const weeksBetween = (from: string, to: string) => Math.round(daysBetween(from, to) / 7);
+
+// The first date after the plan's last week.
+export const planEndYmd = (plan: Plan | null | undefined): string | null => {
+  const last = plan?.weeks?.[plan.weeks.length - 1];
+  return last?.startDate ? plusDays(last.startDate, 7) : null;
+};
+
+// Append the weeks `built` adds past the end of an open plan. Append-only: the
+// runner's edits and ticks to the weeks already there survive untouched, and
+// `built` (made with the plan's blockOffset, so its blocks line up) is read
+// only from the plan's end on. Weeks are renumbered after the last one and slot
+// ids re-minted to match; a collision gets a suffix, as DUPLICATE_ID would
+// otherwise reject the plan. Pure.
+export function extendOpenPlan(plan: Plan, built: Pick<Plan, "weeks">): Plan {
+  const end = planEndYmd(plan);
+  if (!end) return plan;
+  const fresh = built.weeks.filter(w => (w.startDate || "") >= end && w.phase !== "RECOVERY");
+  if (!fresh.length) return plan;
+  const taken = new Set(plan.weeks.flatMap(w => w.sessions.map(s => s.id)));
+  const last = plan.weeks[plan.weeks.length - 1];
+  const added = fresh.map((w, i) => {
+    const weekNumber = last.weekNumber + i + 1;
+    return { ...w, weekNumber, sessions: w.sessions.map(s => {
+      let id = isSlotId(s.id) ? "w" + weekNumber + "d" + (new Date(s.date + "T00:00:00").getDay() + 6) % 7 : s.id;
+      while (taken.has(id)) id += "x";
+      taken.add(id);
+      return { ...s, id };
+    }) };
+  });
+  const through = plusDays(added[added.length - 1].startDate || end, 6);
+  return { ...plan, weeks: [...plan.weeks, ...added], goal: { ...(plan.goal as PlanGoal), extendedThrough: through } };
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Flag, HeartPulse, Target } from "lucide-react";
 import { fmt } from "../utils/format";
-import type { PhaseInfo } from "../utils/planPhase";
+import type { RacePhaseInfo } from "../utils/planPhase";
 
 // After the race: the Home slot the race countdown held. Asks how it went, then
 // (once settled) how it felt, then points at what's next. The forgiving stance
@@ -15,7 +15,7 @@ const CARD = "rounded-2xl p-5 border ";
 const BTN = "flex-1 min-w-[40%] py-2.5 px-3 rounded-xl text-sm font-semibold transition-colors ";
 
 type DebriefCardProps = {
-  info: PhaseInfo;
+  info: RacePhaseInfo;
   // The catalogue name of the race, null for a hand-entered one (neutral copy).
   label: string | null;
   // settings.goalSec as a number; 0 when the runner never set one.
@@ -100,7 +100,7 @@ export function NextGoalCard({ onSetGoal, onBrowse }: { onSetGoal: () => void; o
 
 // The race is done and the plan was written with a recovery after it: easy days
 // until a date, nothing to answer. The next-session card below stays as normal.
-export function RecoveryCard({ info }: { info: PhaseInfo }) {
+export function RecoveryCard({ info }: { info: RacePhaseInfo }) {
   const { t } = useTranslation();
   const rec = info.recovery;
   if (!rec) return null;

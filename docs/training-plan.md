@@ -211,7 +211,7 @@ exists only for plans built with it.
   dropped from the fitness floors and the base credit. `plan.openedAfter`
   mirrors `plan.recovery` while the window is still running.
 - **Goals** gain `plan.goal?: {kind: "race" | "block" | "open"}`; absent means
-  `"race"` (`goalKind`). Nothing writes it yet.
+  `"race"` (`goalKind`). Open plans write it ("Open plans and blocks" below).
 - **One date rule.** `canHoldTraining(plan, date)` (before race day always, race
   day never, after it only through `recovery.until`; any other goal kind always)
   decides AFTER_RACE in the validator, `canPlaceOn` in `planEdit` and the coach
@@ -225,6 +225,87 @@ exists only for plans built with it.
   Undo toast) or the coach (`openCoach(null, "recovery")`), and a one-line
   caveat to see a professional for sharp or lasting pain. PlanView counts
   "week n of m" through the race week.
+
+## Open plans and blocks
+
+Not every runner trains for a race, and a plan that ends on a finish line they
+never chose is the wrong shape for them. A plan with `plan.goal.kind` `"open"`
+("Keep improving") or `"block"` (a fitness runner's first blocks; the same
+engine, different copy and telemetry) has **no race date**: `plan.raceDate` and
+`settings.raceDate` are `""`, nothing in it is a RACE session of its own, and
+there is no taper and no recovery tail. **`goal.kind` absent means race**, and
+every reader of `settings.raceDate` tolerates `""`.
+
+- **Shape.** `buildPlan("", goalSec || "", planSessions, distanceKm, 0,
+  {goal: {kind, target, light}, blockOffset, ...})` is the same function as for
+  a race (one author), taking a branch only when `opts.goal.kind` is not
+  `race`; the race path, `balanced` snapshots included, is byte-identical.
+  Two 4-week **blocks** are built from the next Monday (`8 - blockOffset % 4`
+  weeks). Weeks 1-3 ramp the long run; week 4 is a cutback (long run x0.8)
+  whose long-run slot is the **checkpoint**. The goal is stamped on the plan:
+  `{kind, target, distanceKm, light?, blockWeeks: 4, startDate, paceSource,
+  autoFor?, extendedThrough?}` (`startDate` is the Monday block 1 began).
+- **Targets** (`settings.openTarget`, `plan.goal.target`). `healthy` stays easy
+  (`isBase` throughout), `further` is easy with a long-run ceiling that starts
+  at the style's `peakLong(distanceKm)` and grows 10% a block, `faster` puts
+  tempo/intervals in weeks 2-3 of every block (phase BUILD, the only open
+  target that does). `light` (`settings.lightPlan`) keeps the two longest
+  configured days, all easy, the long run a plain EASY (run/walk keeps its
+  ratio). Run/walk reads BUILD from its second block so the ratio keeps
+  ramping.
+- **The checkpoint** is the style's own easy type (`EASY`; `WALK` for run/walk;
+  never `RACE`, never `TEMPO`) with `sd: {kind: "checkpoint", km, variant}` and
+  a ratio for run/walk. `checkpointDesc` (`_shared/coach/open.mjs`) writes the
+  English sentence, `renderSd` the localized one (fr "séance test", es "sesión
+  de control"), `sessionSteps` branches on `sd.kind`. It is a marker of the
+  `sd`, not a type: retyping replaces `sd` and the marker goes; resizing
+  (`planEdit`, the coach's distance tools) rewrites `sd.km` and the sentence.
+- **Pace** (`src/utils/openPace.ts`): the runner's own goal time if set, else
+  the fastest of their last 8 weeks' efforts projected (Riegel) to the plan's
+  distance (`effortsFor`, 3 km and up), else `suggestedGoalSec`. Recorded as
+  `goal.paceSource`.
+- **Races inside the window** fold in exactly as for a race plan (the overlay
+  and its mini-taper, relative to `distanceKm`); only the "before the main
+  race" bound is gone. A plan opened behind a race keeps `afterRace` (lead
+  `RECOVERY` weeks, `openedAfter`).
+- **Extension.** `extendOpenPlan(plan, built)` (pure, `plan.ts`) appends the
+  weeks of a build (made with the plan's `blockOffset`, weeks since
+  `goal.startDate`) dated from the plan's end, renumbered after the last week
+  with slot ids re-minted; earlier weeks are untouched, so a runner's edits
+  and ticks survive. It is due once today is inside the last block
+  (`extensionDue`); the plan's own end is the idempotence, so a second call, or
+  a second device that has synced the extension, finds nothing due
+  (`goal.extendedThrough` records how far it went). Written by
+  `runPlanAutomation`, below.
+- **Validator, edits, coach.** `canHoldTraining` is always true for a plan that
+  isn't a race plan; the ramp and back-to-back rules still apply and there is
+  nothing to taper to. The coach's GOAL line says "keep improving, faster at 10
+  km (4-week blocks ending in a checkpoint run, no race date)", and
+  `reassess_goal_feasibility` answers that there is no goal to judge.
+- **Automatic writes: one function.** `runPlanAutomation` in `RunningCoach.tsx`
+  is the only place the app changes a plan on its own. It runs at store-ready
+  boot and on every return to the foreground (latest-ref, so no setState in an
+  effect), and only when `isStoreLoaded() && isStoreReconciled()` (`db.ts`: an
+  offline-booted cache is not reconciled until the live row has been read),
+  never while a recorder is open, reading the refs so a second call in the same
+  tick sees the first one's write. It does two things: extend an open plan, and
+  **start one for a runner who never answered** "what's next": phase `choosing`,
+  `plan.recovery.until + AUTO_START_DAYS` (3) passed, neither `whatsNextFor` nor
+  `plan.goal.autoFor` equal to the race key, and (`AUTO_START_NEEDS_RECOVERY_RUN`)
+  a running, non-race run logged between race day and `until`. It builds
+  `healthy` at about their recent volume through
+  `savePlan(carryProgress(plan, built, "rebuild"))` and stamps `autoFor`; Home
+  says it can be changed (`autoStartNoticeFor`, spent through `useSeenOnScreen`).
+  A plan written before recovery existed has no `until`, so can never start
+  itself.
+- **Surfaces.** `planPhase` returns `open` (kind, target, block number, next
+  checkpoint) for these plans; Home shows `OpenPlanCard` and never "Race Day";
+  PlanView heads the plan "Block 2 · checkpoint Sun 23 Nov" and the one goal
+  editor has a Race / Keep improving switch (not a second editor). Onboarding's
+  fitness branch builds a `block` plan (`goalKind: "block"`, `openTarget:
+  "further"`, `distanceKm` the chosen distance, `raceDate: ""`) and no longer
+  asks "Over how long?"; there is no recovery tail after a block. "What's
+  next?" (`docs/races.md`) is how a race plan becomes an open one.
 
 ## Rebuilds and retained history
 
@@ -367,9 +448,13 @@ no `Date` or i18n work, so it could move to `_shared/coach`.
   phase that overlaps a window, the debrief included, and is null for a plan with
   no `plan.recovery` and for a race that wasn't run. A plan opened behind a race
   is `active` with `recovery` read from `plan.openedAfter`.
-- Consumers: the Home race slot (`DebriefCard`, `NextGoalCard`; race-day mode,
-  `inRaceDayMode`, is checked first and untouched), PlanView (finished line and
-  "Set your next goal" in place of "Race in 0 days"), StatsView's goal-pace line
+- A plan with no race (`plan.goal.kind` open/block) is phase `open`, with
+  `race: null` ("Open plans and blocks" above); the race-only fields are absent
+  there, so race readers narrow on them.
+- Consumers: the Home race slot (`DebriefCard`, `NextGoalCard`, which opens the
+  "What's next?" sheet; race-day mode, `inRaceDayMode`, is checked first and
+  untouched), PlanView (finished line and "Set your next goal", which opens the
+  same sheet, in place of "Race in 0 days"), StatsView's goal-pace line
   (only before the race). A catalogue date change on the target
   (`dateChanges` with `isTarget`) keeps today's race card instead of the question.
 - `overdueSessions` drops every RACE session and, once the main race has passed,

@@ -1,0 +1,69 @@
+{
+  "eyebrow": "Et maintenant ?",
+  "later": "Pas maintenant",
+  "continue": "Continuer",
+  "recap": {
+    "title": "Ton bloc d'entraînement",
+    "titleOpen": "Tes quatre dernières semaines",
+    "sub": "Avant de choisir la suite, voici ce que tu as accompli.",
+    "sessions": "Séances faites",
+    "sessionsValue": "{{done}} sur {{planned}}",
+    "distance": "Distance parcourue",
+    "longest": "Plus longue sortie",
+    "km": "{{km}} km"
+  },
+  "feeling": {
+    "title": "Comment te sens-tu en ce moment pour courir ?",
+    "sub": "Il n'y a pas de mauvaise réponse. Ça décide seulement de ce qu'on te montre en premier.",
+    "fired": "Plein d'élan",
+    "firedSub": "Envie d'un nouveau défi",
+    "steady": "Régulier",
+    "steadySub": "Envie de continuer sur ma lancée",
+    "breather": "Besoin de souffler",
+    "breatherSub": "J'aimerais alléger pendant un temps"
+  },
+  "goals": {
+    "title": "Et ensuite ?",
+    "raceFirstTitle": "{{label}}, c'est fait !",
+    "raceFirstSub": "Bien couru. Ton lien reste silencieux jusqu'à ta prochaine sortie partagée."
+  },
+  "race": {
+    "title": "Choisir ma prochaine course",
+    "titleBlock": "Tenter une vraie course",
+    "sub": "Un plan qui culmine le jour J.",
+    "wishlist": "Sur ta liste",
+    "suggested": "Des courses qui conviennent",
+    "weeks_one": "dans {{count}} semaine",
+    "weeks_other": "dans {{count}} semaines",
+    "train": "S'y préparer",
+    "nearMe": "Près de moi",
+    "locating": "Localisation en cours...",
+    "denied": "Impossible d'obtenir ta position",
+    "none": "Rien dans le catalogue ne convient pour l'instant.",
+    "browse": "Parcourir toutes les courses"
+  },
+  "improve": {
+    "title": "Progresser",
+    "sub": "Pas de date de course. Des blocs de quatre semaines, chacun terminé par une séance test pour voir le chemin parcouru.",
+    "d5": "5 km",
+    "d10": "10 km",
+    "dHalf": "Semi-marathon",
+    "faster": "Plus vite sur {{distance}}",
+    "best": "Ton meilleur temps : {{time}}",
+    "noBest": "Pas encore de temps enregistré",
+    "further": "Courir plus loin",
+    "furtherSub": "Allonger la sortie longue, bloc après bloc",
+    "healthy": "Rester en bonne santé et régulier",
+    "healthySub": "Garder l'habitude et éviter les blessures"
+  },
+  "lighter": {
+    "title": "Un plan plus léger",
+    "sub": "Environ deux sorties faciles par semaine. Une pause qui garde l'habitude.",
+    "cta": "Démarrer le plan léger"
+  },
+  "toast": {
+    "started": "Ton nouveau plan est prêt",
+    "lighter": "Ton plan léger est prêt",
+    "undone": "Retour à ton plan précédent"
+  }
+}

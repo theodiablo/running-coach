@@ -171,6 +171,48 @@ participation (catalogue races only) and the plan's RACE session.
 `status: "skipped"` ("Didn't run") is a real participation state: it lists with
 the past races and still offers "Add your time".
 
+## What's next?
+
+`WhatsNextSheet` (`src/modals/WhatsNextSheet.tsx`, logic in
+`src/utils/whatsNext.ts`) is the one screen for choosing what to train for after
+a race. It only collects an answer; the hub's `startNextGoal` acts on it.
+
+- **Steps.** A recap of the **training block** (not the race: sessions done of
+  planned, distance, longest run, from the plan's weeks up to the day before
+  race day, the race run left out; an open plan's recap is its last four
+  weeks) -> "How are you feeling about running?" (fired up / steady / need a
+  breather; there is no pause mode) -> the goals in the order the answer
+  suggests: fired up: next race, keep improving; steady: keep improving, next
+  race; need a breather: a lighter plan (about 2 easy runs a week), keep
+  improving. A runner already on blocks of their own sees the race option as
+  "Try a real race". Step 4 adds an easy-pace trend to the recap.
+- **Next race** leads with a wishlisted race at least 3 weeks out, else the
+  catalogue's top 3 (6-24 weeks out, near the distance just raced, soonest
+  first, nearest first once "Near me" has a fix, `useNearMeFilter`); each opens
+  `promoteEdition`, so the plan is built in Plan setup as ever. **Keep
+  improving** (fr "Progresser", es "Seguir mejorando") has the target chips:
+  faster at 5K/10K/half (each showing the runner's best effort), run further,
+  stay healthy and consistent. No "run more often".
+- **Applying** an open choice: `startNextGoal` writes the settings
+  (`openSettingsPatch`: `goalKind`, `openTarget`, `lightPlan`, no race date or
+  target), builds the open plan over the old one through `carryProgress` (with
+  `afterRace`) and toasts an Undo.
+- **When it shows.** By itself on Home when the phase is `choosing`,
+  `settings.whatsNextFor` is not the race's key (`raceKey`: edition id and
+  date), the race (plus its recovery) is at most 28 days back, and nothing else
+  is up (achievement sheet, coachmark, recorder, settings, other sheets).
+  **Any answer spends it**, "Not now" and back/Escape included
+  (`whatsNextFor` is written). Afterwards the quiet row (`NextGoalCard`, and
+  PlanView's "Set your next goal") opens it by hand; so does the coach's
+  `app:next`.
+- **Race-first variant** (race-day mode). A live-first runner's race, detected
+  on race day with `raceBridgeSeen === false`, opens the same sheet with no
+  recap and no question and races first (`RaceBridgeSheet` is gone); any answer
+  sets `raceBridgeSeen`. Spent after the post-run achievement sheet, never
+  stacked on it.
+- A runner who never answers gets the automatic start in
+  `docs/training-plan.md` ("Open plans and blocks").
+
 ## Badges
 
 **Pure & derived** (`computeBadges(runs, participations)` in

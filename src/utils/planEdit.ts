@@ -9,6 +9,7 @@ import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { validatePlan } from "./coachValidation";
 import { fmt } from "./format";
 import { canHoldTraining, inRecovery } from "./recovery";
+import { checkpointDesc } from "./openBlocks";
 import { runWalkConfig, runwalkRunSec } from "./runwalk";
 import { runwalkRatio, type RunWalkRatio } from "./sessionSteps";
 import type { Plan, PlanSession, PlanWeek, SessionSd } from "../types";
@@ -153,6 +154,11 @@ export function applySessionEdit(plan: Plan, edit: SessionEdit, today: string, o
         Object.assign(s, shapeFor(p, edit.type, weekOfDate(p, edit.date) ?? home, s, opts), { type: edit.type });
       }
       s.km = round1(edit.km);
+      if (s.sd?.kind === "checkpoint") {
+        const r = ratioOf(s);
+        s.sd = { ...s.sd, km: s.km };
+        s.desc = checkpointDesc(s.km, r ? "run " + fmt.interval(r.runSec) + " / walk " + fmt.interval(r.walkSec) : undefined);
+      }
       if (edit.date === from) return edit.swapWith ? null : p;
       if (!canPlaceOn(p, edit.date, today)) return null;
       if (edit.swapWith) {
