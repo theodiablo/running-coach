@@ -45,7 +45,8 @@
     "distancePlaceholder": "ex. 21,1",
     "elevationLabel": "Dénivelé positif de la course (m)",
     "elevationHint": "Dénivelé positif total du parcours ; il permet d'ajuster les allures d'entraînement à l'effort équivalent sur le plat.",
-    "addedToast": "Ajoutée au catalogue et définie comme ta course objectif."
+    "addedToast": "Ajoutée au catalogue et définie comme ta course objectif.",
+    "dateInPast": "Choisis une date de course après aujourd'hui."
   },
   "raceGoal": {
     "title": "Objectif et jours d'entraînement",

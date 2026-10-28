@@ -289,6 +289,41 @@ the run it removes; and `carryProgress` nulls `runId` on any session whose
 for a re-date lives in `linkSess` itself, not only in the sheet that offers the
 move.
 
+## Where the runner stands
+
+`planPhase` (`src/utils/planPhase.ts`) is the one definition of how the runner
+stands relative to the plan's main race: `active`, `raceWeek` (the 7 days up to
+and including race day), `debrief`, `choosing`. **Derived on every read, never
+stored**: the plan is the source of truth, so a rebuild, undo or restore can't
+leave a phase behind. The core takes `today` as a `YYYY-MM-DD` string and does
+no `Date` or i18n work, so it could move to `_shared/coach`.
+
+- The main race is the session with id `race` (fallback: the RACE session dated
+  `plan.raceDate`); carried `past-*` sessions are history and never count, which
+  is why a rebuild after the race reads as `active` again. Its edition is the
+  session's `editionId`, else `settings.targetEditionId` when the settings name
+  the same date (onboarding builds without `mainEditionId`). No edition means a
+  hand-entered race and neutral copy.
+- Settled = the session is done/skipped, else the main race's participation is
+  (races detected before sessions were ticked have only the latter). Skipped goes
+  straight to `choosing`. Unsettled: after race day the debrief **asks** for 28
+  days, then `choosing`. Done: "How did it feel?" is offered for 2 days while the
+  linked run's `effort` is null (four chips: easy 4, hard 6, very hard 8, all out
+  10, on the existing 1-10 field), then `choosing`.
+- Consumers: the Home race slot (`DebriefCard`, `NextGoalCard`; race-day mode,
+  `inRaceDayMode`, is checked first and untouched), PlanView (finished line and
+  "Set your next goal" in place of "Race in 0 days"), StatsView's goal-pace line
+  (only before the race). A catalogue date change on the target
+  (`dateChanges` with `isTarget`) keeps today's race card instead of the question.
+- `overdueSessions` drops every RACE session and, once the main race has passed,
+  every session dated on or before it, so the plan never reports the finish line
+  or its own run-up as "still open".
+- Read the goal from `settings.goalSec`, never `plan.goalSec`: `buildPlan`
+  substitutes 7200 for an empty goal.
+- The Plan editor opens with an empty race date when the stored one is past, and
+  needs a date after today (`min`, an inline message, and `canBuild`);
+  onboarding's race step enforces the same.
+
 ## Manual edits
 
 The runner can edit their own plan: move a session (or swap it with the one on

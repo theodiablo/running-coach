@@ -45,7 +45,8 @@
     "distancePlaceholder": "e.g. 21.1",
     "elevationLabel": "Race elevation gain (m)",
     "elevationHint": "Total climb on the course — sets training paces to the flat-equivalent effort.",
-    "addedToast": "Added to the catalogue — set as your race."
+    "addedToast": "Added to the catalogue — set as your race.",
+    "dateInPast": "Pick a race date after today."
   },
   "raceGoal": {
     "title": "Goal & training days",

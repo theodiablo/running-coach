@@ -94,6 +94,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const uiLang: LangId = isLangId(settings.language) ? settings.language : currentLang();
   const pickLang = (id: LangId) => { void setLocale(id); onSaveProgress({ language: id }, Math.min(stepIdx, seq.indexOf("health"))); };
   const today = ymd(new Date());
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); })();
 
   const [intent, setIntent] = useState<Intent>(settings.intent || null); // null | "race" | "fitness"
   const seq = onboardingSteps(intent, { native: isNative });
@@ -543,7 +544,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                       <div className="space-y-4 pt-1">
                         <div>
                           <label className="text-xs text-slate-400 block mb-1.5">{t("onboarding.race.dateLabel")}</label>
-                          <input type="date" value={raceDate} onChange={e => { setRaceDate(e.target.value); onManualEdit(); }}
+                          <input type="date" value={raceDate} min={tomorrow} onChange={e => { setRaceDate(e.target.value); onManualEdit(); }}
                             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-orange-400"/>
                         </div>
                         <div>
@@ -578,10 +579,13 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                   </button>
                 </div>
               ) : (
-                <button onClick={() => go("raceGoal", {raceDate, distanceKm, raceElevation: Number(raceElevation) || 0, targetEditionId})} disabled={!raceDate || !distanceKm}
-                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                  {t("onboarding.continue")}
-                </button>
+                <>
+                  {raceDate && raceDate <= today && <p role="alert" className="text-amber-300 text-xs">{t("onboarding.race.dateInPast")}</p>}
+                  <button onClick={() => go("raceGoal", {raceDate, distanceKm, raceElevation: Number(raceElevation) || 0, targetEditionId})} disabled={!raceDate || raceDate <= today || !distanceKm}
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                    {t("onboarding.continue")}
+                  </button>
+                </>
               )}
             </div>
           )}

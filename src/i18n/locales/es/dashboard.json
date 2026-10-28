@@ -5,11 +5,41 @@
   "race": {
     "title": "Día de carrera",
     "summary": "{{distance}} km · objetivo: menos de {{goal}} · {{pace}}/km",
+    "summaryNoGoal": "{{distance}} km · sin objetivo de tiempo",
     "daysToGo": "días restantes",
     "nextUp": "Próxima: ",
     "daysShort": "{{days}} d",
     "setupTitle": "Configura tu carrera",
     "setupHint": "Elige fecha y distancia para crear tu plan de entrenamiento →"
+  },
+  "debrief": {
+    "askTitle": "¿Qué tal fue {{label}}?",
+    "neutralTitle": "Tu plan terminó el {{date}}. ¿Corriste una carrera?",
+    "ranIt": "Esa fue mi carrera",
+    "didntRun": "No la corrí",
+    "moved": "La cambiaron de fecha",
+    "neutralYes": "Sí, corrí una",
+    "neutralNo": "No",
+    "result": "Resultado de la carrera",
+    "underGoal": "{{time}}, por debajo de tu objetivo de {{goal}}. Bien corrido.",
+    "overGoal": "{{time}} frente a tu objetivo de {{goal}}. La terminaste, y eso es lo difícil.",
+    "noGoal": "Terminaste en {{time}}.",
+    "feelTitle": "¿Cómo te sentiste?",
+    "feel": {
+      "easy": "Fácil",
+      "hard": "Duro",
+      "veryHard": "Muy duro",
+      "allOut": "A tope"
+    },
+    "toast": {
+      "linked": "Contada como tu carrera",
+      "skipped": "Marcada como no corrida"
+    }
+  },
+  "next": {
+    "title": "¿Y ahora qué?",
+    "subtitle": "Elige tu próximo objetivo cuando quieras. No hay prisa.",
+    "races": "Ver carreras"
   },
   "stats": {
     "thisWeek": "Esta semana",

@@ -138,11 +138,34 @@ move a user's date silently: the catalogue is community-editable.
 
 ## Completion
 
-Two ways to complete: manual "log result" (RacesView, optionally also adds a
-RACE run via `addRuns(..., {skipDetect:true})`), or **auto-detect** — a saved
-run on `settings.raceDate` within ±18% of the target distance triggers an
-undoable "mark done" toast (`detectAnyRace` + `detectCompletion` in
-`RunningCoach.tsx`), which matches against every race on the plan.
+Three ways to complete a race, all settling the same two things: the
+participation (catalogue races only) and the plan's RACE session.
+
+- **Auto-detect.** A saved run on a plan race's date within ±18% of its
+  distance triggers an undoable toast. The pure logic is
+  `detectRaceCompletion` (`src/utils/raceCompletion.ts`); its candidates are
+  every RACE session on the plan (the main race first, secondary ones after),
+  the settings target for plans built before sessions carried an edition, and
+  the wishlist in race-day mode. A match ticks the RACE session with
+  `linkSess` (not re-dated: the race happened on its own day) and, when the
+  candidate has an `editionId`, marks the participation done. A **hand-entered
+  race** has no edition, so only the session is ticked, with the neutral
+  `app.toasts.yourRace` label and **no confetti** (`isMain` stays
+  catalogue-only). Undo reverses both. Something already settled is never
+  marked twice. `sessionMatch`'s `isOpen` stays RACE-blind on purpose: a race is
+  never "the run you did on Wednesday".
+- **The debrief** (Home, `DebriefCard`): after the race, "How did it go?" names
+  the run (`raceRunCandidates`, race day ±1, unclaimed, running only, through
+  `ReconcileSheet`) or sends the runner to the log; "Didn't run it" skips. Both
+  go through the hub's `settleRace` / `skipRace`, which write the session and
+  the participation together under one Undo. See `docs/training-plan.md`
+  ("Where the runner stands").
+- **Manual "log result"** (RacesView, optionally also adds a RACE run via
+  `addRuns(..., {skipDetect:true})`, with no effort: `null`, never a guess). For the plan's
+  main race it delegates to `settleRace` so the RACE session is ticked too.
+
+`status: "skipped"` ("Didn't run") is a real participation state: it lists with
+the past races and still offers "Add your time".
 
 ## Badges
 

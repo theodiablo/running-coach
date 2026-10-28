@@ -72,7 +72,8 @@
     "notesPlaceholder": "Notas (opcional)",
     "alsoLog": "Añadir también a mi diario de entrenamiento",
     "save": "Guardar resultado",
-    "defaultNote": "{{label}} (carrera)"
+    "defaultNote": "{{label}} (carrera)",
+    "skipped": "No la corriste"
   },
   "report": {
     "title": "Informar de un problema",

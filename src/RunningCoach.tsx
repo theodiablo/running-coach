@@ -16,7 +16,9 @@ import { track } from "./telemetry";
 import { buildPlan, carryProgress } from "./utils/plan";
 import { applySessionEdit, findSession, type SessionEdit } from "./utils/planEdit";
 import type { CoachLinkTarget } from "./utils/coachLinks";
-import { bestSessionForRun, canMoveSessionTo, releaseRun } from "./utils/sessionMatch";
+import { bestSessionForRun, canMoveSessionTo, claimedElsewhere, releaseRun } from "./utils/sessionMatch";
+import { mainRace, type MainRace } from "./utils/planPhase";
+import { detectRaceCompletion } from "./utils/raceCompletion";
 import type { SessionWithWeek } from "./utils/overdue";
 import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
 import { distanceKm } from "./utils/geo";
@@ -26,7 +28,7 @@ import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEf
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
 import { syncSessionReminders, clearSessionReminders } from "./notify/sessionReminders";
 import { prefsFrom } from "./utils/sessionReminders";
-import { detectAnyRace, findEdition, editionLabel, loadCatalogue, raceDateChanges, secondaryRaces } from "./utils/races";
+import { findEdition, editionLabel, loadCatalogue, raceDateChanges, secondaryRaces } from "./utils/races";
 import type { RaceDateChange } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
@@ -62,7 +64,7 @@ import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
 import { RaceBridgeSheet } from "./modals/RaceBridgeSheet";
-import { RACE_DAY_SOURCE, inRaceDayMode, wishlistRaceCandidates } from "./utils/raceDay";
+import { RACE_DAY_SOURCE } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
 import { PlanView } from "./views/PlanView";
 import { LogView } from "./views/LogView";
@@ -300,6 +302,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // the `settings` captured this render, so two calls in a tick would leave
   // only the second one's flag set and silently revive the other pointer.
   const setTab = (next: string) => {
+    // The editor request is one-shot: left set, every later Plan visit would reopen it.
+    if (next !== "plan") setPlanEditNonce(0);
     if (next !== "dash") {
       const spend = {...settings};
       let spent = false;
@@ -868,50 +872,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     track("race_target_set", {});
   };
 
-  // Race-day auto-detect: when a just-saved run matches the date + distance of any
-  // race on the plan (main or secondary), return the races object with that edition
-  // marked done (plus the pre-change participations for Undo). `isMain` flags the
-  // training target so the caller can prompt for the next race only then. null when
-  // nothing matches.
-  const detectCompletion = (added: Run[], baseRaces: RacesState) => {
-    // Candidate races = every RACE session on the plan carrying an editionId,
-    // deduped. This covers the main race (stamped from targetEditionId) and any
-    // secondary races; a hand-entered target has no editionId and stays undetected.
-    const cands: { editionId: string; date: string; distanceKm: number }[] = [];
-    const seen = new Set<string>();
-    (plan?.weeks || []).forEach(w => w.sessions.forEach(s => {
-      if (s.type === "RACE" && s.editionId && !seen.has(s.editionId)) {
-        seen.add(s.editionId);
-        cands.push({ editionId: s.editionId, date: s.date, distanceKm: Number(s.km) });
-      }
-    }));
-    // Fallback for plans built before RACE sessions carried editionId: detect the
-    // main target off settings so existing users keep race-day auto-detect.
-    if (settings.targetEditionId && settings.raceDate && settings.distanceKm && !seen.has(settings.targetEditionId)) {
-      cands.push({ editionId: settings.targetEditionId, date: settings.raceDate, distanceKm: Number(settings.distanceKm) });
-    }
-    // Race-day mode has no plan to stamp a RACE session, so the wishlist is the
-    // race list, and any of its races is the race they came for.
-    const raceDay = inRaceDayMode(settings, plan);
-    if (raceDay) cands.push(...wishlistRaceCandidates(baseRaces.participations).filter(c => !seen.has(c.editionId)));
-    if (!cands.length) return null;
-    let match = null, edId = null;
-    for (const r of added) {
-      const id = detectAnyRace(r, cands);
-      if (id) { match = r; edId = id; break; }
-    }
-    if (!match) return null;
-    const parts = baseRaces.participations || [];
-    const prev = parts.find(p => p.editionId === edId) || null;
-    if (prev?.status === "done") return null; // already logged — don't double-mark
-    const joined = findEdition(edId);
-    const ed = joined?.edition || { id: edId, date: match.date, distanceKm: match.km };
-    const label = prev?.label || (joined ? editionLabel({ name: String(joined.name) }, ed) : t("app.toasts.yourRace"));
-    const snapshot = { editionId: edId, raceId: joined?.raceId, label, raceDate: ed.date, distanceKm: ed.distanceKm };
-    const done = { ...(prev || snapshot), status: "done", timeSec: match.durationSec, runId: match.id, source: "auto", notes: prev?.notes || "" };
-    const next = prev ? parts.map(p => p.editionId === edId ? done : p) : [...parts, done];
-    return { nextRaces: { ...baseRaces, participations: next }, undoParts: parts, label, isMain: raceDay || edId === settings.targetEditionId, raceDay };
-  };
+  // Race-day auto-detect (src/utils/raceCompletion.ts): when a just-saved run
+  // matches the date + distance of any race on the plan, the result carries the
+  // races with that edition marked done (plus the pre-change participations for
+  // Undo) and the RACE session to tick. `isMain` gates the confetti: the
+  // catalogue's main race only. null when nothing matches.
+  const detectCompletion = (added: Run[], baseRaces: RacesState) =>
+    detectRaceCompletion({ added, plan, settings, races: baseRaces, yourRaceLabel: t("app.toasts.yourRace") });
 
   const closeRaceBridge = () => {
     setRaceBridge(null);
@@ -939,8 +906,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       track("race_completed", { source: "auto" });
       if (det.isMain) setCelebrate(true);
       if (det.raceDay && settings.raceBridgeSeen === false) setRaceBridge(det.label);
-      showToast(t("app.toasts.loggedAsRace", { label: det.label }), "ok",
-        { label: t("common.undo"), onClick: () => commitRaces(reconcileBadges(nextRuns, { ...merged, participations: det.undoParts })) });
+      // Not re-dated: the race happened on its own day.
+      const link = det.link;
+      if (link) linkSess(link.wNum, link.sId, link.runId);
+      showToast(t("app.toasts.loggedAsRace", { label: det.label }), "ok", { label: t("common.undo"), onClick: () => {
+        commitRaces(reconcileBadges(nextRuns, { ...merged, participations: det.undoParts }));
+        if (link) unlinkSess(link.wNum, link.sId);
+      } });
     }
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
@@ -956,9 +928,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // One writer for every session-progress edit, so done/skipped/runId/date can
   // never drift apart across the handlers below.
-  const patchSess = (wNum: number, sId: string, patch: (s: PlanSession) => PlanSession) => {
+  const patchSess = (wNum: number, sId: string, patch: (s: PlanSession) => PlanSession, allow?: (plan: Plan) => boolean) => {
     setPlan(prev => {
-      if (!prev) return prev;
+      if (!prev || (allow && !allow(prev))) return prev;
       const p = {...prev,
         weeks: prev.weeks.map(w => {
           if (w.weekNumber !== wNum) return w;
@@ -985,7 +957,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // offers the move: a session re-dated out of its own week would be filed
     // under a week it no longer falls in (src/utils/sessionMatch.ts).
     const moveTo = date && canMoveSessionTo(planRef.current, wNum, date) ? date : null;
-    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(moveTo ? {date: moveTo} : {})}));
+    // One run settles one session: a run another session already claims is refused.
+    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(moveTo ? {date: moveTo} : {})}),
+      p => !runId || !claimedElsewhere(p, runId, wNum, sId));
   };
 
   // The inverse, for the confirmation card's Undo: `date` puts back whatever the
@@ -995,6 +969,50 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   const skipSess = (wNum: number, sId: string) =>
     patchSess(wNum, sId, s => ({...s, skipped: !s.skipped, done: false, runId: null}));
+
+  // The main race's outcome from outside the recorder (the debrief, Races): the
+  // RACE session is ticked and, for a catalogue race, its participation written.
+  // One Undo puts both back; `quiet` leaves the toast to the caller.
+  const racesWith = (race: MainRace, fields: Partial<Participation>): RacesState => {
+    const parts = races.participations || [];
+    const prev = parts.find(p => p.editionId === race.editionId);
+    if (prev) return { ...races, participations: parts.map(p => p === prev ? { ...p, ...fields } : p) };
+    const joined = findEdition(race.editionId);
+    return { ...races, participations: [...parts, {
+      editionId: race.editionId, raceId: joined?.raceId, raceDate: race.date, distanceKm: race.km,
+      label: joined ? editionLabel({ name: String(joined.name) }, joined.edition) : t("app.toasts.yourRace"),
+      status: "wishlist", timeSec: null, runId: null, source: "manual", notes: "", ...fields }] };
+  };
+  const settleRace = (runId: string | null, timeSec: number | null, opts: { notes?: string; quiet?: boolean } = {}) => {
+    const race = mainRace(planRef.current, settings);
+    if (!race) return false;
+    const prevRaces = races;
+    if (race.editionId) {
+      const prev = (races.participations || []).find(p => p.editionId === race.editionId);
+      saveRaces(racesWith(race, { status: "done", timeSec: timeSec ?? prev?.timeSec ?? null, runId,
+        source: prev?.status === "done" ? prev.source : "manual", notes: opts.notes ?? prev?.notes ?? "" }));
+    }
+    linkSess(race.wNum, race.sId, runId);
+    if (!opts.quiet) showToast(t("dashboard.debrief.toast.linked"), "ok", { label: t("common.undo"), onClick: () => {
+      commitRaces(prevRaces);
+      unlinkSess(race.wNum, race.sId);
+    } });
+    return true;
+  };
+  const skipRace = () => {
+    const race = mainRace(planRef.current, settings);
+    if (!race) return;
+    const prevRaces = races;
+    if (race.editionId) saveRaces(racesWith(race, { status: "skipped", timeSec: null, runId: null }));
+    patchSess(race.wNum, race.sId, s => ({...s, skipped: true, done: false, runId: null}));
+    showToast(t("dashboard.debrief.toast.skipped"), "ok", { label: t("common.undo"), onClick: () => {
+      commitRaces(prevRaces);
+      patchSess(race.wNum, race.sId, s => ({...s, skipped: false}));
+    } });
+  };
+  // Opens the Plan tab straight on its goal editor (the one-shot request is
+  // cleared by setTab on the way out).
+  const openPlanGoalEdit = () => { setPlanEditNonce(n => n + 1); setTab("plan"); };
 
   // The runner's own plan edit (src/utils/planEdit.ts). Warnings were already
   // shown and accepted in the sheet; the toast's Undo restores the plan as it
@@ -1199,7 +1217,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const goCoachLink = (target: CoachLinkTarget) => {
     setShowCoach(false);
     switch (target) {
-      case "goal":         setPlanEditNonce(n => n + 1); setTab("plan"); break;
+      case "goal":         openPlanGoalEdit(); break;
       case "log":          goLog(); break;
       case "training":     openSettings("training"); break;
       case "integrations": openSettings("integrations"); break;
@@ -1287,7 +1305,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed });
     if (s?.routine === "cooldown" && !recorderOpen) setStretchOpen({ target: s, afterRun: true });
   };
-  const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.

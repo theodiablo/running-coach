@@ -5,11 +5,41 @@
   "race": {
     "title": "Race Day",
     "summary": "{{distance}}km · target sub {{goal}} · {{pace}}/km",
+    "summaryNoGoal": "{{distance}}km · no time goal set",
     "daysToGo": "days to go",
     "nextUp": "Next up: ",
     "daysShort": "{{days}}d",
     "setupTitle": "Set up your race",
     "setupHint": "Pick a date and distance to build your training plan →"
+  },
+  "debrief": {
+    "askTitle": "How did {{label}} go?",
+    "neutralTitle": "Your plan ended on {{date}}. Did you run a race?",
+    "ranIt": "That was my race",
+    "didntRun": "Didn't run it",
+    "moved": "It was moved",
+    "neutralYes": "Yes, I ran one",
+    "neutralNo": "No",
+    "result": "Race result",
+    "underGoal": "{{time}}, inside your {{goal}} goal. Well run.",
+    "overGoal": "{{time}} against your {{goal}} goal. You finished it, and that's the hard part.",
+    "noGoal": "You finished in {{time}}.",
+    "feelTitle": "How did it feel?",
+    "feel": {
+      "easy": "Easy",
+      "hard": "Hard",
+      "veryHard": "Very hard",
+      "allOut": "All out"
+    },
+    "toast": {
+      "linked": "Counted as your race",
+      "skipped": "Marked as not run"
+    }
+  },
+  "next": {
+    "title": "What's next?",
+    "subtitle": "Pick your next goal when you're ready. There's no rush.",
+    "races": "Browse races"
   },
   "stats": {
     "thisWeek": "This week",

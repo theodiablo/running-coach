@@ -21,6 +21,7 @@ import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type Dura
 import type { CoachSessionContext, CoachSource, Plan, PlanPrefill, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
 import { canRecordSession, carryProgress, isElapsedWeek, planSessionPrefill, sessionRecorderActivity, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
+import { planPhase } from "../utils/planPhase";
 import { diffPlans } from "../utils/planDiff";
 
 // The plan list shows weeks still ahead first and pushes finished ones to the
@@ -82,6 +83,10 @@ type PlanViewProps = {
   isPremium?: boolean;
 };
 
+// A race date already behind us is not a draft worth keeping: the editor opens empty.
+const futureDate = (d: string) => (d && d < ymd(new Date()) ? "" : d);
+const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); };
+
 type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 type PendingBuild = { plan: Plan; settings: SettingsState };
@@ -119,7 +124,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
 
   // ── Edit drafts ─────────────────────────────────────────────────────────
   const [draft,        setDraft]       = useState<PlanSessionInput[]>(settings.planSessions || [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}]);
-  const [draftDate,    setDraftDate]   = useState<string>(planPrefill?.raceDate ?? settings.raceDate);
+  const [draftDate,    setDraftDate]   = useState<string>(planPrefill?.raceDate ?? futureDate(settings.raceDate));
   const [draftGoal,    setDraftGoal]   = useState<PlanDraftValue>(planPrefill ? "" : settings.goalSec);
   const [draftDist,    setDraftDist]   = useState<PlanDraftValue>(planPrefill?.distanceKm ?? (settings.distanceKm || ""));
   const [draftElev,    setDraftElev]   = useState<PlanDraftValue>(planPrefill?.raceElevation ?? (settings.raceElevation || 0));
@@ -174,7 +179,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const openEdit = (section: EditSection) => {
     const ps = plan?.planSessions || settings.planSessions || [];
     setDraft(ps.slice());
-    setDraftDate(settings.raceDate);
+    setDraftDate(futureDate(settings.raceDate));
     setDraftGoal(settings.goalSec);
     setDraftDist(settings.distanceKm || "");
     setDraftElev(settings.raceElevation || 0);
@@ -232,7 +237,8 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     } });
   };
 
-  const canBuild = !!draftDate && !!draftDist;
+  const dateInPast = !!draftDate && draftDate <= ymd(new Date());
+  const canBuild = !!draftDate && !dateInPast && !!draftDist;
 
   if (plan && pending) {
     return <RebuildPreview diff={diffPlans(plan, pending.plan, startOfToday())} raceDate={String(pending.settings.raceDate)}
@@ -281,8 +287,10 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceDate")}</label>
-                  <input type="date" value={draftDate || ""} onChange={e => setDraftDate(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400"/>
+                  <input type="date" value={draftDate || ""} min={tomorrow()} onChange={e => setDraftDate(e.target.value)}
+                    aria-invalid={dateInPast || undefined}
+                    className={"w-full bg-slate-700 border rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 " + (dateInPast ? "border-amber-500/60" : "border-slate-600")}/>
+                  {dateInPast && <p role="alert" className="text-amber-300 text-xs mt-1">{t("plan.setup.dateInPast")}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.distance")}</label>
@@ -369,7 +377,10 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const raceMs = new Date(String(plan.raceDate || "") + "T00:00:00").getTime();
   const daysToRace = Number.isFinite(raceMs) ? Math.max(0, Math.round((raceMs - today.getTime()) / 86400000)) : 0;
 
-  const goalSummary = goalSummaryOf(plan.distanceKm || 20, plan.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
+  // The runner's own goal: buildPlan substitutes 7200 for an empty one, which is not a goal they set.
+  const goalSummary = goalSummaryOf(plan.distanceKm || 20, settings.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
+  const phase = planPhase({ plan, settings, participations: races?.participations, runs }, todayStr);
+  const afterRace = phase?.phase === "debrief" || phase?.phase === "choosing";
   const availSummary = settings.availabilityMode === "simple" && settings.availDays
     ? t("plan.availRow.simpleSummary", { count: settings.availDays, duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
     : sessInfo;
@@ -475,8 +486,14 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
           </div>
           <div className="flex justify-between text-[11px] text-slate-500 mt-2">
             <span>{t("plan.progress.weekOf", {n: curWeekNum, total: weeksTotal})}</span>
-            <span>{t("plan.progress.raceIn", {days: daysToRace})}</span>
+            <span>{afterRace && phase ? t("plan.progress.finished", {date: fmt.sht(phase.race.date)}) : t("plan.progress.raceIn", {days: daysToRace})}</span>
           </div>
+          {afterRace && (
+            <button onClick={() => openEdit("goal")}
+              className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+              {t("plan.next.cta")}
+            </button>
+          )}
         </div>
         {/* Goal row */}
         <PlanInputRow icon="🎯" tint="bg-orange-500/15" title={t("plan.edit.goalTitle")}

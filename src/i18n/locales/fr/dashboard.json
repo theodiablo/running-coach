@@ -5,11 +5,41 @@
   "race": {
     "title": "Jour de course",
     "summary": "{{distance}} km · objectif : moins de {{goal}} · {{pace}}/km",
+    "summaryNoGoal": "{{distance}} km · pas d'objectif de temps",
     "daysToGo": "jours restants",
     "nextUp": "À suivre : ",
     "daysShort": "{{days}} j",
     "setupTitle": "Configure ton objectif",
     "setupHint": "Choisis une date et une distance pour créer ton plan d'entraînement →"
+  },
+  "debrief": {
+    "askTitle": "Comment ça s'est passé pour {{label}} ?",
+    "neutralTitle": "Ton plan s'est terminé le {{date}}. Tu as couru une course ?",
+    "ranIt": "C'était ma course",
+    "didntRun": "Je ne l'ai pas courue",
+    "moved": "Elle a été déplacée",
+    "neutralYes": "Oui, j'en ai couru une",
+    "neutralNo": "Non",
+    "result": "Résultat de la course",
+    "underGoal": "{{time}}, sous ton objectif de {{goal}}. Bien couru.",
+    "overGoal": "{{time}} pour un objectif de {{goal}}. Tu l'as terminée, et c'est le plus dur.",
+    "noGoal": "Tu as terminé en {{time}}.",
+    "feelTitle": "Comment c'était ?",
+    "feel": {
+      "easy": "Facile",
+      "hard": "Dur",
+      "veryHard": "Très dur",
+      "allOut": "À fond"
+    },
+    "toast": {
+      "linked": "Comptée comme ta course",
+      "skipped": "Notée comme non courue"
+    }
+  },
+  "next": {
+    "title": "Et maintenant ?",
+    "subtitle": "Choisis ton prochain objectif quand tu veux. Rien ne presse.",
+    "races": "Parcourir les courses"
   },
   "stats": {
     "thisWeek": "Cette semaine",

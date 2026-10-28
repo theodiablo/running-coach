@@ -95,3 +95,27 @@ describe("OnboardingWizard: live sharing", () => {
     expect(screen.getByText("You're all set!")).toBeInTheDocument();
   });
 });
+
+describe("OnboardingWizard: race date", () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-12T10:00:00")); });
+  afterEach(() => vi.useRealTimers());
+
+  it("won't continue on a race date that is today or behind us", () => {
+    const { container } = render(<OnboardingWizard settings={{ onboardStep: 1, intent: null } as SettingsState}
+      onSaveProgress={vi.fn()} onComplete={vi.fn()} catalogue={[]}
+      addRace={vi.fn()} addEdition={vi.fn()} refreshCatalogue={vi.fn()} showToast={vi.fn()}/>);
+    fireEvent.click(screen.getByText("I'm training for a race"));
+    fireEvent.click(screen.getByText("Just enter it for myself →"));
+    const date = container.querySelector('input[type="date"]') as HTMLInputElement;
+    expect(date.min).toBe("2026-10-13");
+    fireEvent.change(container.querySelector('input[type="number"]') as HTMLInputElement, { target: { value: "10" } });
+
+    fireEvent.change(date, { target: { value: "2026-10-12" } });
+    expect(screen.getByText("Pick a race date after today.")).toBeInTheDocument();
+    expect(screen.getByText("Continue")).toBeDisabled();
+
+    fireEvent.change(date, { target: { value: "2026-11-15" } });
+    expect(screen.queryByText("Pick a race date after today.")).toBeNull();
+    expect(screen.getByText("Continue")).toBeEnabled();
+  });
+});

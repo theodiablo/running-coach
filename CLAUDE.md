@@ -249,6 +249,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   guided schedule; sentence figures come from `fmt.interval`.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
   semantics, the ratio): `docs/training-plan.md`.
+- **Where the runner stands relative to the race is `planPhase`**
+  (`src/utils/planPhase.ts`: active, raceWeek, debrief, choosing), derived from
+  the plan on every read and never stored. The goal is `settings.goalSec`, never
+  `plan.goalSec` (buildPlan substitutes 7200 for an empty one). Detail:
+  `docs/training-plan.md` ("Where the runner stands"), `docs/races.md`.
 - **The runner's own plan edits warn, never block.** Move/swap, retype,
   resize, add and delete go through `src/utils/planEdit.ts` (free for
   everyone); `editIssues` runs the shared validator and the sheet shows what an

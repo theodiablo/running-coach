@@ -104,3 +104,53 @@ describe("overdueByWeek", () => {
     expect(overdueByWeek(plan, today)).toEqual({1: 2, 2: 1});
   });
 });
+
+// The finish line: a race is never "still open", and neither is the training
+// that led up to a race that has passed. `today` is explicit, so no clock is read.
+describe("overdueSessions around the main race", () => {
+  const race = (date: string, extra: Record<string, unknown> = {}) =>
+    sess("race", date, {type: "RACE", ...extra});
+  const after = (days: number) => new Date(new Date("2026-03-10T09:30:00").getTime() + days * 86400000);
+
+  it("never reports a RACE session, passed or not", () => {
+    const plan = planOf([{weekNumber: 1, sessions: [race("2026-03-08"), sess("easy", "2026-03-07")]}]);
+    // The race is yesterday: both the race and the run-up to it are history.
+    expect(overdueSessions(plan, today)).toEqual([]);
+    const secondary = planOf([{weekNumber: 1, sessions: [
+      sess("main", "2026-03-20", {type: "RACE", id: "race"}),
+      sess("race-ed1", "2026-03-08", {type: "RACE"}),
+    ]}]);
+    expect(overdueSessions(secondary, today)).toEqual([]);
+  });
+
+  it("drops every session dated on or before a passed main race", () => {
+    const plan = planOf([{weekNumber: 1, sessions: [
+      sess("a", "2026-03-04"), sess("b", "2026-03-07"), race("2026-03-08"),
+    ]}]);
+    expect(overdueSessions(plan, today)).toEqual([]);
+  });
+
+  it("still counts a session after the race", () => {
+    const plan = planOf([
+      {weekNumber: 1, sessions: [sess("before", "2026-03-04"), race("2026-03-06")]},
+      {weekNumber: 2, sessions: [sess("after", "2026-03-08")]},
+    ]);
+    expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["after"]);
+    expect(overdueByWeek(plan, today)).toEqual({2: 1});
+  });
+
+  it("keeps the run-up open while the race is still ahead, race day included", () => {
+    const plan = planOf([{weekNumber: 1, sessions: [sess("missed", "2026-03-08"), race("2026-03-10")]}]);
+    expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["missed"]);
+    // The day after, the race has passed and takes the run-up with it.
+    expect(overdueSessions(plan, after(1))).toEqual([]);
+  });
+
+  it("ignores carried history ids when finding the main race", () => {
+    const plan = planOf([{weekNumber: 1, sessions: [
+      sess("past-race", "2026-03-06", {type: "RACE"}), sess("open", "2026-03-07"),
+    ]}]);
+    // No live "race" session: only the RACE type itself is dropped.
+    expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["open"]);
+  });
+});

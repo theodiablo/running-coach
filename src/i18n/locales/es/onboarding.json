@@ -45,7 +45,8 @@
     "distancePlaceholder": "p. ej. 21,1",
     "elevationLabel": "Desnivel positivo de la carrera (m)",
     "elevationHint": "Desnivel positivo total del recorrido; se usa para ajustar los ritmos de entrenamiento al esfuerzo equivalente en llano.",
-    "addedToast": "Añadida al catálogo y definida como tu carrera objetivo."
+    "addedToast": "Añadida al catálogo y definida como tu carrera objetivo.",
+    "dateInPast": "Elige una fecha de carrera posterior a hoy."
   },
   "raceGoal": {
     "title": "Objetivo y días de entrenamiento",

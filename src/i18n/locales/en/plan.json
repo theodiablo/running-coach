@@ -91,7 +91,11 @@
     "goal": "{{dist}}km{{elev}} · sub {{goal}}",
     "race": "Race: {{date}}",
     "weekOf": "Week {{n}} of {{total}}",
-    "raceIn": "Race in {{days}} days"
+    "raceIn": "Race in {{days}} days",
+    "finished": "Race day was {{date}}"
+  },
+  "next": {
+    "cta": "Set your next goal"
   },
   "toast": {
     "rebuilt": "Plan updated",
@@ -115,7 +119,8 @@
     "buildMyPlan": "Build my plan",
     "previewChanges": "Preview changes",
     "rebuildNote": "You will see what changes before anything is saved.",
-    "promoteNote": "Builds a fresh plan for this race."
+    "promoteNote": "Builds a fresh plan for this race.",
+    "dateInPast": "Pick a race date after today."
   },
   "long": {
     "easy": "Long run — easy effort at {{pace}}/km",

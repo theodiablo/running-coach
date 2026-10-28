@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bestSessionForRun, candidateRuns, canMoveSessionTo, claimedRunIds, MATCH_WINDOW_DAYS, releaseRun, runFitsSession } from "./sessionMatch";
+import { bestSessionForRun, candidateRuns, canMoveSessionTo, claimedElsewhere, claimedRunIds, MATCH_WINDOW_DAYS, raceRunCandidates, releaseRun, runFitsSession } from "./sessionMatch";
 import type { Plan, PlanSession, Run } from "../types";
 
 const sess = (id: string, date: string, extra: Partial<PlanSession> = {}): PlanSession =>
@@ -188,5 +188,45 @@ describe("releaseRun", () => {
     const plan = planOf([sess("a", "2026-03-10")]);
     expect(releaseRun(plan, "r1")).toBe(plan);
     expect(releaseRun(null, "r1")).toBeNull();
+  });
+});
+
+describe("raceRunCandidates", () => {
+  const race = { date: "2026-03-15", km: 21.1 };
+  const plan = planOf([sess("race", race.date, { type: "RACE", km: 21.1 })]);
+
+  it("offers runs from race day and a day either side, closest first", () => {
+    const runs = [
+      run("day-after", "2026-03-16", { km: 21.1 }),
+      run("same-day-short", "2026-03-15", { km: 5 }),
+      run("same-day", "2026-03-15", { km: 21 }),
+      run("two-days", "2026-03-17", { km: 21.1 }),
+    ];
+    expect(raceRunCandidates(plan, runs, race).map(r => r.id)).toEqual(["same-day", "same-day-short", "day-after"]);
+  });
+
+  it("leaves out cross-training and runs another session already claims", () => {
+    const claimed = planOf([sess("race", race.date, { type: "RACE" }), sess("e", "2026-03-14", { done: true, runId: "taken" })]);
+    const runs = [
+      run("bike", "2026-03-15", { type: "OTHER", km: 0, activity: "bike" }),
+      run("taken", "2026-03-14"),
+      run("free", "2026-03-14"),
+    ];
+    expect(raceRunCandidates(claimed, runs, race).map(r => r.id)).toEqual(["free"]);
+  });
+
+  it("is empty with no runs", () => {
+    expect(raceRunCandidates(plan, [], race)).toEqual([]);
+    expect(raceRunCandidates(plan, null, race)).toEqual([]);
+  });
+});
+
+describe("claimedElsewhere", () => {
+  const plan = planOf([sess("a", "2026-03-10", { done: true, runId: "r1" }), sess("b", "2026-03-11")]);
+
+  it("is true only for a session other than the one asking", () => {
+    expect(claimedElsewhere(plan, "r1", 3, "b")).toBe(true);
+    expect(claimedElsewhere(plan, "r1", 3, "a")).toBe(false);
+    expect(claimedElsewhere(plan, "r2", 3, "b")).toBe(false);
   });
 });

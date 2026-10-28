@@ -1,4 +1,6 @@
 import { startOfDay } from "./plan";
+import { ymd } from "./format";
+import { mainRace } from "./planPhase";
 import type { Plan, PlanSession } from "../types";
 
 // Plan-session selection for the Dashboard. Both selectors carry the week number
@@ -28,13 +30,17 @@ const dayOf = (s: SessionWithWeek) => new Date(s.date + "T00:00:00");
 // Untouched sessions inside the lookback window, most recent first — the
 // freshest miss is the one worth acting on. Returns every match; capping the
 // count is the caller's call (the Dashboard shows a few, PlanView counts them
-// all).
+// all). A race is never overdue (the debrief owns it), and once the main race
+// has passed nothing dated on or before it is: that block of training is over.
 export function overdueSessions(plan: Plan | null, today: Date): SessionWithWeek[] {
   const start = startOfDay(today);
   const floor = startOfDay(today);
   floor.setDate(floor.getDate() - OVERDUE_LOOKBACK_DAYS);
+  const raceDate = mainRace(plan)?.date;
+  const over = raceDate && raceDate < ymd(start) ? raceDate : null;
   return withWeek(plan)
-    .filter(s => untouched(s) && dayOf(s) < start && dayOf(s) >= floor)
+    .filter(s => s.type !== "RACE" && !(over && s.date <= over)
+      && untouched(s) && dayOf(s) < start && dayOf(s) >= floor)
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 

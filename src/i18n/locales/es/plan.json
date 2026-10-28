@@ -103,7 +103,11 @@
     "goal": "{{dist}} km{{elev}} · objetivo: menos de {{goal}}",
     "race": "Carrera: {{date}}",
     "weekOf": "Semana {{n}} de {{total}}",
-    "raceIn": "Carrera en {{days}} días"
+    "raceIn": "Carrera en {{days}} días",
+    "finished": "La carrera fue el {{date}}"
+  },
+  "next": {
+    "cta": "Fija tu próximo objetivo"
   },
   "toast": {
     "rebuilt": "Plan actualizado",
@@ -127,7 +131,8 @@
     "buildMyPlan": "Crear mi plan",
     "previewChanges": "Ver los cambios",
     "rebuildNote": "Verás qué cambia antes de guardar nada.",
-    "promoteNote": "Crea un plan nuevo para esta carrera."
+    "promoteNote": "Crea un plan nuevo para esta carrera.",
+    "dateInPast": "Elige una fecha de carrera posterior a hoy."
   },
   "long": {
     "easy": "Tirada larga: esfuerzo suave a {{pace}}/km",

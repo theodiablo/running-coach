@@ -170,6 +170,9 @@ choice either way.
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
+- `debrief_answered` `{answer:"ran"|"didnt"|"moved"|"feel"}` — the post-race
+  debrief card on Home (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
+  An enum only: never the time, the race or the effort chosen.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.

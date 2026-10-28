@@ -40,6 +40,9 @@ and nothing else, so a plan rebuild or a coach edit can never leave a stale
   "still open" is still true; past that the plan has moved on. The coach's
   context window is sized to match (`docs/coach-agent.md`), so the coach can
   always see a session the app is still showing the runner as open.
+  A RACE session is never overdue, and once the main race has passed neither is
+  any session dated on or before it (`mainRace`, `docs/training-plan.md`): the
+  post-race debrief owns that moment, not the backlog.
 - `nextSession(plan, today)` — the soonest untouched session from today onward.
   Extracted from Dashboard so the two selectors are tested against each other:
   a session must never appear in both.
