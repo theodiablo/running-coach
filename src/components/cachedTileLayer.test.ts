@@ -17,7 +17,7 @@ vi.mock("../utils/tileCache", async (importOriginal) => ({
   putTile: h.putTile,
 }));
 
-import { resolveTileSrc, fetchTileBlob } from "./cachedTileLayer";
+import { resolveTileSrc, fetchTileBlob, uncachedTileLayer } from "./cachedTileLayer";
 import { TILE_TTL_MS } from "../utils/tileCache";
 
 const NOW = 1_800_000_000_000;
@@ -99,5 +99,19 @@ describe("fetchTileBlob", () => {
   it("rejects a non-ok response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => response(false, "image/png")));
     await expect(fetchTileBlob(URL_WITH_KEY)).rejects.toThrow();
+  });
+});
+
+describe("uncachedTileLayer", () => {
+  // The public watch page sets no-referrer; only a CORS image request still
+  // carries the Origin MapTiler's domain-restricted key is checked against.
+  it("loads tiles as CORS images", () => {
+    const layer = uncachedTileLayer(URL_WITH_KEY) as unknown as {
+      createTile: (coords: unknown, done: () => void) => HTMLImageElement;
+      getTileUrl: (coords: unknown) => string;
+    };
+    layer.getTileUrl = () => URL_WITH_KEY;
+    const tile = layer.createTile({ x: 1, y: 2, z: 12 }, () => {});
+    expect(tile.getAttribute("crossorigin")).toBe("");
   });
 });

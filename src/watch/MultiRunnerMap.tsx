@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import L, { type DivIcon, type LatLngExpression, type Map, type Marker, type Polyline } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "../constants";
+import { uncachedTileLayer } from "../components/cachedTileLayer";
 import { haversineM, segments, type TrackPointOrGap } from "../utils/geo";
 
 export type MapRunner = {
@@ -66,7 +67,7 @@ export function MultiRunnerMap(
   useEffect(() => {
     if (!elRef.current) return;
     const map = L.map(elRef.current, { zoomControl: true, attributionControl: true }).setView([43.3, -1.9], 11);
-    L.tileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
+    uncachedTileLayer(MAP_TILE_URL, { attribution: MAP_ATTRIBUTION, maxZoom: 20 }).addTo(map);
     const onGesture = () => { if (!programmaticRef.current) userMovedRef.current = true; };
     map.on("dragstart", onGesture);
     map.on("zoomstart", onGesture);
