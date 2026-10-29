@@ -71,7 +71,7 @@ function collectIssues(plan, today) {
       const off = daysBetween(w.startDate, s.date);
       if (s.type !== "RACE" && (off < 0 || off >= 7))
         err("OUT_OF_WEEK", `Session ${s.id} (${s.date}) is outside week ${w.weekNumber} (${w.startDate}).`, ctx);
-      if (s.type !== "RACE" && !canHoldTraining(plan, s.date))
+      if (s.type !== "RACE" && !canHoldTraining(plan, s.date, !!s.done))
         err("AFTER_RACE", `Training session ${s.id} falls on/after race day, outside the recovery the plan was written with.`, ctx);
       if (raceDate && s.type === "RACE" && s.date > raceDate)
         err("AFTER_RACE", `Race session ${s.id} falls after the main race day.`, ctx);

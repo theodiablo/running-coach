@@ -16,7 +16,7 @@ type RecoveryExports = {
   recoveryRule: (km: unknown) => RecoveryRule;
   goalKind: (plan: Plan | null | undefined) => "race" | "block" | "open";
   inRecovery: (plan: Plan | null | undefined, date: string) => boolean;
-  canHoldTraining: (plan: Plan | null | undefined, date: string) => boolean;
+  canHoldTraining: (plan: Plan | null | undefined, date: string, settled?: boolean) => boolean;
 };
 
 export const { RECOVERY_RULES, FIRST_WEEK_BACK_KM, recoveryRule, goalKind, inRecovery, canHoldTraining } =

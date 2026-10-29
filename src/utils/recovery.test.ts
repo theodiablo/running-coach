@@ -53,6 +53,12 @@ describe("canHoldTraining", () => {
     expect(canHoldTraining(marathon, "2026-06-18")).toBe(true);
   });
 
+  it("lets a run already done stand on a rest day, but never past the recovery", () => {
+    expect(canHoldTraining(withTail, "2026-06-15", true)).toBe(true);
+    expect(canHoldTraining(withTail, "2026-06-14", true)).toBe(false);
+    expect(canHoldTraining(withTail, "2026-06-21", true)).toBe(false);
+  });
+
   it("is not about a race for any other kind of plan", () => {
     for (const kind of ["block", "open"]) {
       expect(canHoldTraining(plan({ goal: { kind } }), "2026-06-14")).toBe(true);

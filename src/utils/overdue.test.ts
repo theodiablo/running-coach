@@ -161,11 +161,13 @@ describe("overdueSessions around the main race", () => {
     expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["w2d0"]);
   });
 
-  it("also cuts at the race a plan opened behind, or its own recovery race", () => {
+  it("also cuts at an open plan's opening race, or a race plan's own recovery race", () => {
     const base = planOf([{weekNumber: 1, sessions: [sess("old", "2026-03-04"), sess("new", "2026-03-09")]}]);
-    for (const key of ["openedAfter", "recovery"])
-      expect(overdueSessions({...base, [key]: {race: "2026-03-07", km: 10, until: "2026-03-13"}} as Plan, today)
-        .map(s => s.id)).toEqual(["new"]);
+    const ran = {race: "2026-03-07", km: 10, until: "2026-03-13"};
+    expect(overdueSessions({...base, goal: {kind: "open"}, openedAfter: ran} as Plan, today).map(s => s.id)).toEqual(["new"]);
+    expect(overdueSessions({...base, recovery: ran} as Plan, today).map(s => s.id)).toEqual(["new"]);
+    // A live race plan rebuilt after a tune-up keeps its own misses.
+    expect(overdueSessions({...base, openedAfter: ran} as Plan, today).map(s => s.id)).toEqual(["new", "old"]);
     // A race still ahead cuts nothing.
     expect(overdueSessions({...base, openedAfter: {race: "2026-03-20", km: 10, until: "2026-03-26"}} as Plan, today)
       .map(s => s.id)).toEqual(["new", "old"]);

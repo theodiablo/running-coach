@@ -827,7 +827,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       return true;
     }
     // A race already run is not rebuilt: it would collapse the plan and drop its recovery.
-    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate < ymd(new Date())) return false;
+    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate <= ymd(new Date())) return false;
     const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
       { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
         style: s.planStyle, level: s.trainingLevel, runWalk: s, recovery: true,
@@ -860,13 +860,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     const parts = (races.participations || []).map(p => p.editionId === c.editionId
       ? { ...p, raceDate: c.newDate, ...(label ? { label } : {}) } : p);
     saveRaces({ ...races, participations: parts });
-    const nextSettings = c.isTarget ? { ...settings, raceDate: c.newDate } : settings;
-    if (c.isTarget) saveSettings(nextSettings);
-    const inPlan = c.isTarget || parts.some(p => p.editionId === c.editionId && p.inPlan);
+    // A target moved to a date already run can't be rebuilt, so the plan's race date stays put too.
+    const moveTarget = c.isTarget && c.newDate > ymd(new Date());
+    const nextSettings = moveTarget ? { ...settings, raceDate: c.newDate } : settings;
+    if (moveTarget) saveSettings(nextSettings);
+    const inPlan = c.isTarget ? moveTarget : parts.some(p => p.editionId === c.editionId && p.inPlan);
     const rebuilt = inPlan && rebuildPlanWith(nextSettings, parts);
     showToast(t(rebuilt ? "races.dateChange.planUpdated" : "races.dateChange.updated"), "ok", { label: t("common.undo"), onClick: () => {
       commitRaces(prevRaces);
-      if (c.isTarget) saveSettings(prevSettings);
+      if (moveTarget) saveSettings(prevSettings);
       if (rebuilt && prevPlan) restorePlan(prevPlan);
     } });
   };

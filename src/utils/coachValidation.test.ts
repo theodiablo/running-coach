@@ -268,6 +268,12 @@ describe("validatePlan · recovery after the race", () => {
     expect(validate(p).errors.filter(e => e.code === "AFTER_RACE").map(e => e.sessionId)).toEqual(["w6d6"]);
   });
 
+  it("accepts a run already done on a rest day (a shakeout jog the runner linked)", () => {
+    const p = withTail();
+    p.weeks[5]!.sessions.push({ ...sess("w6d6", "2026-02-15", "EASY", 2.5), done: true });
+    expect(validate(p).errors).toEqual([]);
+  });
+
   it.each(["TEMPO", "INTERVALS", "LONG"])("flags a %s inside the recovery as RECOVERY_HARD", (type) => {
     const p = withTail();
     p.weeks[6]!.sessions[1]!.type = type;

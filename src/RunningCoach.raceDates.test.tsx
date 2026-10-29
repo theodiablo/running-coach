@@ -72,6 +72,8 @@ describe("RunningCoach race date changes", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Update my plan" }));
     expect((store[STORAGE_KEYS.RACES] as RacesState).participations[0]!.raceDate).toBe("2026-09-20");
     expect(store[STORAGE_KEYS.PLAN]).toBe(PLAN);
+    // The plan's race and the settings' race date stay together.
+    expect((store[STORAGE_KEYS.SETTINGS] as SettingsState).raceDate).toBe("2027-02-21");
   });
 
   it("keeps the user's date and stops asking", async () => {
