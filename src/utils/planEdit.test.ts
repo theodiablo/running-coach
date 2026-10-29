@@ -229,6 +229,7 @@ describe.each(ANCHORS)("planEdit · recovery after the race (%s)", (_label, anch
     const p = build();
     expect(canPlaceOn(p, tail(p)[0]!.date, anchor)).toBe(true);
     expect(canPlaceOn(p, race, anchor)).toBe(false);
+    expect(canPlaceOn(p, dayAfter(race, 1), anchor)).toBe(false); // a rest day
     expect(canPlaceOn(p, dayAfter(until(p), 1), anchor)).toBe(false);
     expect(canPlaceOn(p, dayAfter(race, -1), anchor)).toBe(true);
   });
@@ -236,7 +237,7 @@ describe.each(ANCHORS)("planEdit · recovery after the race (%s)", (_label, anch
   it("moves a recovery session within the window, and refuses a move past it", () => {
     const p = build();
     const s = tail(p)[0]!;
-    const free = Array.from({ length: until(p) > s.date ? 14 : 0 }, (_, i) => dayAfter(race, i + 1))
+    const free = Array.from({ length: until(p) > s.date ? 14 : 0 }, (_, i) => dayAfter(race, i + 3)) // past the rest days
       .find(d => d <= until(p) && !tail(p).some(x => x.date === d))!;
     const moved = applySessionEdit(p, { kind: "update", sessionId: s.id, date: free, type: String(s.type), km: Number(s.km) }, anchor);
     expect(moved && findSession(moved, s.id)!.session.date).toBe(free);

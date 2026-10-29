@@ -111,7 +111,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const goalDraftSummary = (dist: number | string, goalSec: number | string, date: string, elev: number | string): string =>
     (!dist || !date) ? t("plan.notConfigured") : goalSummaryOf(dist, goalSec, Number(elev) || 0, String(date));
   const improveSummary = (target: OpenTarget, dist: number | string, light: boolean): string =>
-    [t("plan.improve.target." + target), Number(dist) > 0 ? Number(dist) + " km" : "", light ? t("plan.improve.lightShort") : ""].filter(Boolean).join(" · ");
+    [t("plan.improve.target." + target), Number(dist) > 0 ? fmt.km(dist) + " km" : "", light ? t("plan.improve.lightShort") : ""].filter(Boolean).join(" · ");
   const availDraftSummary = (mode: AvailabilityMode, days: number, band: DurationBand, sessions: PlanSessionInput[]): string =>
     mode === "simple"
       ? t("plan.availRow.simpleSummary", { count: clampDays(days), duration: t("plan.avail.simple.band." + band + ".word") })

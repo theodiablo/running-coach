@@ -32,7 +32,7 @@ vi.mock("./supabase", () => ({
   },
 }));
 
-import { db, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
+import { db, isCached, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
 import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
 const loadOk = (data: unknown, updatedAt?: string) => {
@@ -73,6 +73,18 @@ describe("db store", () => {
       user_id: "u1",
       data: { rc_runs: ["real run"], rc_plan: { weeks: [] } },
     });
+  });
+
+  it("isCached: the held value or a defaults-extended copy of it, not one from before an adopted row", async () => {
+    const held = { a: 1, nested: { x: 1 } };
+    loadOk({ rc_settings: held });
+    await initStore("u1");
+    expect(isCached("rc_settings", held)).toBe(true);
+    expect(isCached("rc_settings", { ...held, extraDefault: false })).toBe(true);
+    expect(isCached("rc_settings", { ...held, a: 2 })).toBe(false);
+    expect(isCached("rc_settings", { ...held, nested: { x: 1 } })).toBe(false);
+    expect(isCached("rc_settings", null)).toBe(false);
+    expect(isCached("rc_missing", held)).toBe(false);
   });
 
   it("treats an absent row as a loaded, writable empty store (new user)", async () => {

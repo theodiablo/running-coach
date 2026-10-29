@@ -8,7 +8,7 @@ import { dismissAll, dismissTop } from "./utils/backDismiss";
 import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
-import { db, currentUserId, isStoreLoaded, isStoreReconciled } from "./db";
+import { db, currentUserId, isCached, isStoreLoaded, isStoreReconciled } from "./db";
 import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
@@ -303,14 +303,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // the pointer without running `onDismiss`. Left unspent, the flag stays
   // `false` and the dimmer comes back on every later Home visit and every launch.
   //
-  // ONE write, not one per pointer: saveSettings replaces the whole blob from
-  // the `settings` captured this render, so two calls in a tick would leave
-  // only the second one's flag set and silently revive the other pointer.
+  // ONE write, and a patch of only the flags it spends: a whole-blob write from
+  // this render's `settings` would clobber a patchSettings queued in the same tick.
   const setTab = (next: string) => {
     // The editor request is one-shot: left set, every later Plan visit would reopen it.
     if (next !== "plan") setPlanEditNonce(0);
     if (next !== "dash") {
-      const spend = {...settings};
+      const spend: Partial<SettingsState> = {};
       let spent = false;
       if (settings.coachIntroSeen === false) { spend.coachIntroSeen = true; spent = true; }
       // Only if it could actually have been on screen: the feedback pointer
@@ -319,7 +318,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       if (settings.feedbackIntroSeen === false && settings.coachIntroSeen !== false) {
         spend.feedbackIntroSeen = true; spent = true;
       }
-      if (spent) saveSettings(spend);
+      if (spent) patchSettings(spend);
     }
     setTabState(next);
   };
@@ -671,7 +670,6 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       // A watch run often lands in Health Connect minutes after the run (once the
       // watch syncs to Garmin Connect), so re-scan on foreground too.
       checkWatchRef.current().catch(() => {});
-      planAutomationRef.current();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
@@ -828,7 +826,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       savePlan(carryProgress(plan, built, "rebuild"));
       return true;
     }
-    if (!plan || !s.raceDate || !s.distanceKm) return false;
+    // A race already run is not rebuilt: it would collapse the plan and drop its recovery.
+    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate < ymd(new Date())) return false;
     const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
       { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
         style: s.planStyle, level: s.trainingLevel, runWalk: s, recovery: true,
@@ -907,7 +906,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const startNextGoal = (a: WhatsNextAnswer, feeling: Feeling | null, variant: WhatsNextVariant, km: number) => {
     const info = planPhase({ plan, settings, participations: races.participations || [], runs }, ymd(new Date()));
     const key = info?.race ? raceKey(info.race) : "";
-    const stamp: Partial<SettingsState> = { ...(key ? { whatsNextFor: key } : {}), ...(variant === "raceFirst" ? { raceBridgeSeen: true } : {}) };
+    // Only a race that is over is answered for: before it, a dismissed manual sheet must not spend the real one.
+    const over = info?.phase === "debrief" || info?.phase === "recovery" || info?.phase === "choosing";
+    const stamp: Partial<SettingsState> = { ...(key && over ? { whatsNextFor: key } : {}), ...(variant === "raceFirst" ? { raceBridgeSeen: true } : {}) };
     track("whats_next_answered", {
       variant, choice: a.choice, ...(feeling ? { feeling } : {}),
       ...(a.choice === "improve" ? { target: a.target } : a.choice === "lighter" ? { target: "healthy" } : {}),
@@ -921,30 +922,40 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     const choice: OpenChoice = a.choice === "lighter"
       ? { target: "healthy", light: true, distanceKm: km || Number(settings.distanceKm) || 10 }
       : { target: a.target, distanceKm: a.distanceKm || km || Number(settings.distanceKm) || 10 };
-    const prevSettings = settings, prevPlan = plan;
+    const prevPlan = plan;
     const built = buildOpenPlan(settings, choice, {
       runs, races: secondaryRaces(races.participations || [], null),
       afterRace: recentRace({ plan, participations: races.participations, runs, settings }, ymd(new Date())),
     });
-    saveSettings({ ...settings, ...stamp, ...openSettingsPatch(choice) });
-    savePlan(carryProgress(plan, built, "rebuild"));
+    // Undo reverts only the fields the plan start changed; the stamp stays so it can't re-open the prompt.
+    const patch = openSettingsPatch(choice);
+    const before = Object.fromEntries(Object.keys(patch).map(k => [k, settings[k as keyof SettingsState]])) as Partial<SettingsState>;
+    const next = carryProgress(plan, built, "rebuild");
+    patchSettings({ ...stamp, ...patch });
+    savePlan(next);
+    planRef.current = next;
     showToast(t(a.choice === "lighter" ? "whatsNext.toast.lighter" : "whatsNext.toast.started"), "ok",
       prevPlan ? { label: t("common.undo"), onClick: () => {
-        saveSettings(prevSettings);
+        if (planRef.current !== next) return;
+        patchSettings(before);
         restorePlan(prevPlan);
+        planRef.current = prevPlan;
         showToast(t("whatsNext.toast.undone"));
       } } : undefined);
   };
 
-  // The only automatic plan writes. They wait for a store that is loaded AND
-  // reconciled (an offline boot's first write would race the reconcile), and
-  // never run over a recording. Reads the refs, so a second call in the same
-  // tick sees the first one's write.
+  // The only automatic plan writes, once per boot (never on a foreground: a
+  // long-lived WebView's cache can be stale). They wait for a store that is
+  // loaded AND reconciled (an offline boot's first write would race the
+  // reconcile), and never run over a recording. Reads the refs, so a second
+  // call in the same tick sees the first one's write.
   const runPlanAutomation = () => {
     if (loading || onboarding || recorderOpen || !isStoreLoaded() || !isStoreReconciled()) return;
     const p = planRef.current;
     if (!p) return;
     const s = settingsRef.current, today = ymd(new Date());
+    // Refs older than the cache (a newer server row adopted without a remount) must not be written back.
+    if (!isCached(STORAGE_KEYS.PLAN, p) || !isCached(STORAGE_KEYS.SETTINGS, s)) return;
     const parts = racesRef.current.participations || [];
     const rs = runsRef.current;
     if (goalKind(p) !== "race") {
@@ -1418,7 +1429,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const calm = tab === "dash" && !onboarding && !recorderOpen && !achievement && !showSettings && !showCoach && !showRecordSheet
     && !stretchOpen && !detailRun && !feedbackSource && !showRaceForm && !showLiveWatch && !showBackup && !showRestore && !showDeleteAccount
     && settings.coachIntroSeen !== false && settings.feedbackIntroSeen !== false;
-  const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr) ? { variant: "afterRace" as const } : null);
+  const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
+    && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
   const shared = {openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved

@@ -92,7 +92,7 @@ describe("Dashboard · recovery after the race", () => {
       const props = open();
       fireEvent.click(screen.getByRole("button", { name: /Make the rest lighter/ }));
       expect(props.lightenRecovery).toHaveBeenCalledTimes(1);
-      expect(track).toHaveBeenCalledWith("recovery_sore", { action: "lighter" });
+      expect(track).not.toHaveBeenCalledWith("recovery_sore", expect.anything()); // soreness is health data
       expect(screen.queryByText("Recovery is meant to feel easy. If something hurts, take the load off.")).toBeNull();
     });
 
@@ -100,7 +100,7 @@ describe("Dashboard · recovery after the race", () => {
       const props = open();
       fireEvent.click(screen.getByRole("button", { name: /Talk to the coach/ }));
       expect(props.openCoach).toHaveBeenCalledWith(null, "recovery");
-      expect(track).toHaveBeenCalledWith("recovery_sore", { action: "coach" });
+      expect(track).not.toHaveBeenCalledWith("recovery_sore", expect.anything());
     });
 
     it("carries the caveat about sharp or lasting pain, and closes on back", () => {

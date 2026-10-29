@@ -12,8 +12,7 @@ const ANCHORS: [string, string][] = [
   ["midweek anchor", "2026-09-16"],
 ];
 
-const dayAfter = (from: string, days: number) =>
-  ymd(new Date(new Date(from + "T00:00:00").getTime() + days * 86400000));
+const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
 
 const SESSIONS = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
 

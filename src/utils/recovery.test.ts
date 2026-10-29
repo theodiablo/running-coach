@@ -38,9 +38,19 @@ describe("canHoldTraining", () => {
 
   it("holds the days after it only inside the recovery the plan was written with", () => {
     expect(canHoldTraining(plan(), "2026-06-15")).toBe(false);
-    expect(canHoldTraining(withTail, "2026-06-15")).toBe(true);
+    expect(canHoldTraining(withTail, "2026-06-17")).toBe(true);
     expect(canHoldTraining(withTail, "2026-06-20")).toBe(true);
     expect(canHoldTraining(withTail, "2026-06-21")).toBe(false);
+  });
+
+  it("keeps the rest days just after the race empty", () => {
+    // 10 km: two rest days, so the first easy day is the 17th.
+    expect(canHoldTraining(withTail, "2026-06-15")).toBe(false);
+    expect(canHoldTraining(withTail, "2026-06-16")).toBe(false);
+    expect(canHoldTraining(withTail, "2026-06-17")).toBe(true);
+    const marathon = plan({ raceDate: "2026-06-14", recovery: { race: "2026-06-14", km: 42.2, until: "2026-07-05" } });
+    expect(canHoldTraining(marathon, "2026-06-17")).toBe(false);
+    expect(canHoldTraining(marathon, "2026-06-18")).toBe(true);
   });
 
   it("is not about a race for any other kind of plan", () => {

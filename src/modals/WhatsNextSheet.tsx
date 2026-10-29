@@ -43,7 +43,7 @@ type Props = {
 
 type Step = "recap" | "feeling" | "goals";
 
-const PANEL = "w-full max-w-lg mx-auto max-h-full overflow-y-auto bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4 space-y-4 animate-slide-up";
+const PANEL = "w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto bg-slate-800 border-t border-slate-700 rounded-t-2xl p-4 space-y-4 animate-slide-up";
 const OPTION = "w-full text-left rounded-xl border p-3 transition-colors ";
 const CTA = "flex-shrink-0 rounded-lg bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 text-xs font-semibold transition-colors";
 

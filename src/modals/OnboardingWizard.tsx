@@ -280,9 +280,10 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // Leaving the no-race step: a "block" plan has no race and no date, only the
   // distance the blocks build towards. The pace comes from the mid-pack
   // suggestion until runs say otherwise, so a beginner is never asked for a finish time.
+  const fitTarget = selKey === "more" ? "healthy" as const : "further" as const;
   const finishTraining = () => {
     setRaceDate(""); setDist(fitDist); setGoal(""); setElev(0); setTargetEditionId(undefined); setPickedLabel("");
-    go("hr", {raceDate: "", distanceKm: fitDist, goalSec: "", raceElevation: 0, targetEditionId: null, goalKind: "block", openTarget: "further", planSessions, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta});
+    go("hr", {raceDate: "", distanceKm: fitDist, goalSec: "", raceElevation: 0, targetEditionId: null, goalKind: "block", openTarget: fitTarget, planSessions, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta});
   };
 
   // Complete from the summary. HR is included only if the user entered any.
@@ -300,7 +301,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     const hr = hasHR ? {birthYear: byN, age: ageN ?? 0, maxHR: mhrN || tanakaMax || 0, restHR: parseInt(restHR) || 60} : null;
     const block = intent === "fitness";
     const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta,
-      goalKind: block ? "block" as const : "race" as const, ...(block ? {openTarget: "further" as const} : {})};
+      goalKind: block ? "block" as const : "race" as const, ...(block ? {openTarget: fitTarget} : {})};
     onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck, live: null});
   };
 

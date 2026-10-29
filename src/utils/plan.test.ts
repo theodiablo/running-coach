@@ -870,8 +870,8 @@ describe("carryProgress", () => {
       const starts = merged.weeks.map(w => w.startDate);
       expect(starts).toEqual([...starts].sort());
       for (let i = 1; i < starts.length; i++) {
-        const gap = (new Date(starts[i] + "T00:00:00").getTime()
-          - new Date(starts[i - 1] + "T00:00:00").getTime()) / 86400000;
+        const gap = Math.round((new Date(starts[i] + "T00:00:00").getTime()
+          - new Date(starts[i - 1] + "T00:00:00").getTime()) / 86400000);
         expect(gap).toBe(7);
       }
       // Retained history is re-keyed: buildPlan mints "w1d2" every time, and a
@@ -1075,6 +1075,18 @@ describe.each([
     expect(tail.every(s => !HARD.includes(s.type))).toBe(true);
   });
 
+  // Pinned dates across the EU spring-forward: a day count off raw ms put a
+  // tail session in the wrong week under TZ=Europe/Paris.
+  it.each(["2027-03-14", "2027-03-17"])("keeps the tail in its own weeks across a clock change (marathon %s)", (race) => {
+    vi.setSystemTime(new Date("2027-01-04T09:00:00"));
+    const layout = [0, 2, 4, 6].map(dayOffset => ({ dayOffset, minutes: 60 }));
+    const p = buildPlan(race, 14400, layout, 42.2, 0, { recovery: true });
+    const ids = p.weeks.flatMap(w => w.sessions.map(s => s.id));
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const w of p.weeks)
+      expect(w.sessions.every(s => s.date >= w.startDate && s.date < dayAfter(w.startDate, 7))).toBe(true);
+  });
+
   describe("a plan opened right after a race", () => {
     const DAYS = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 4, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
     const nextRace = () => dayAfter(anchor, 12 * 7);
@@ -1095,6 +1107,15 @@ describe.each([
       expect(p.weeks.map(w => w.weekNumber)).toEqual(p.weeks.map((_, i) => i + 1));
       const ids = p.weeks.flatMap(w => w.sessions.map(s => s.id));
       expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("writes no recovery session on or past the race it leads into", () => {
+      const raceRun = dayAfter(anchor, -3);
+      const race = dayAfter(anchor, 13);
+      const p = buildPlan(race, 6600, EVERY_DAY, 21.1, 0, { recovery: true, afterRace: { date: raceRun, km: 42.2 } });
+      const sessions = p.weeks.flatMap(w => w.sessions);
+      expect(sessions.filter(s => s.date >= race).map(s => s.type)).toEqual(["RACE"]);
+      expect(sessions.some(s => s.type === "EASY" && s.date > race && s.date <= p.openedAfter!.until)).toBe(false);
     });
 
     it("adds no recovery weeks after a 5K run well over a week ago", () => {

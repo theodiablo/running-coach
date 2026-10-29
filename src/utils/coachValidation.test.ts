@@ -233,14 +233,13 @@ describe("validatePlan rules", () => {
 });
 
 // ── recovery after the race ───────────────────────────────────────────────────
-// The fixture's race is Sat 2026-02-14, so Sunday's tail day sits in the race
-// week and the rest in a RECOVERY week.
+// The fixture's race is Sat 2026-02-14; 20 km rests the 15th and 16th, so the
+// tail starts Tuesday in a RECOVERY week.
 describe("validatePlan · recovery after the race", () => {
   const RECOVERY = { race: "2026-02-14", km: 20, until: "2026-02-26" };
   const withTail = (): TestPlan => {
     const p = cleanPlan();
     (p as TestPlan & { recovery: unknown }).recovery = RECOVERY;
-    p.weeks[5]!.sessions.push(sess("w6d6", "2026-02-15", "EASY", 2.5, { sd: { kind: "recovery" } }));
     p.weeks.push(wk(7, "2026-02-16", "RECOVERY", [
       sess("w7d2", "2026-02-18", "EASY", 3), sess("w7d4", "2026-02-20", "EASY", 3.5), sess("w7d6", "2026-02-22", "EASY", 4),
     ]));
@@ -261,6 +260,12 @@ describe("validatePlan · recovery after the race", () => {
     const late = withTail();
     late.weeks.push(wk(8, "2026-02-23", "RECOVERY", [sess("w8d4", "2026-02-27", "EASY", 3)]));
     expect(validate(late).errors.map(e => e.code)).toContain("AFTER_RACE");
+  });
+
+  it("refuses the rest days just after the race", () => {
+    const p = withTail();
+    p.weeks[5]!.sessions.push(sess("w6d6", "2026-02-15", "EASY", 2.5));
+    expect(validate(p).errors.filter(e => e.code === "AFTER_RACE").map(e => e.sessionId)).toEqual(["w6d6"]);
   });
 
   it.each(["TEMPO", "INTERVALS", "LONG"])("flags a %s inside the recovery as RECOVERY_HARD", (type) => {
@@ -324,8 +329,7 @@ describe("validatePlan · recovery after the race", () => {
 // appeared on Mondays, which is how a runwalk taper that fails TAPER_VOLUME sat
 // on main visible one day in seven. The clock is pinned and BOTH alignments are
 // covered on purpose.
-const dayAfter = (from: string, days: number) =>
-  ymd(new Date(new Date(from + "T00:00:00").getTime() + days * 86400000));
+const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
 
 const ANCHORS: [string, string][] = [
   ["monday anchor", "2026-09-14"],  // race falls in an extra, (n+1)-th week

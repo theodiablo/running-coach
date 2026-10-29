@@ -39,11 +39,11 @@ export const inRecovery = (plan, date) =>
     typeof w.startDate === "string" && date >= w.startDate && date < addDays(w.startDate, 7)));
 
 // Whether training may sit on `date`: before race day always, race day never,
-// after it only inside the recovery the plan was written with.
+// after it only inside the recovery the plan was written with, past its rest days.
 export const canHoldTraining = (plan, date) => {
   if (goalKind(plan) !== "race") return true;
   const race = String(plan.raceDate || "");
   if (date < race) return true;
   if (date === race) return false;
-  return !!plan.recovery && date <= plan.recovery.until;
+  return !!plan.recovery && date <= plan.recovery.until && date > addDays(race, recoveryRule(plan.recovery.km).rest);
 };

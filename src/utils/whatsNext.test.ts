@@ -10,7 +10,7 @@ import type { JoinedEdition, Participation, Plan, Run, SettingsState } from "../
 import type { PlanSessionInput } from "./plan";
 
 const TODAY = "2026-10-20";
-const day = (n: number, from = TODAY) => ymd(new Date(new Date(from + "T00:00:00").getTime() + n * 86400000));
+const day = (n: number, from = TODAY) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + n); return ymd(d); };
 const SESSIONS: PlanSessionInput[] = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
 
 describe("goalOrder", () => {

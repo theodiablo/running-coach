@@ -43,6 +43,11 @@ describe("Dashboard · a plan with no race", () => {
     expect(screen.queryByText("Set up your race")).toBeNull();
   });
 
+  it("rounds a standard distance for display", () => {
+    renderDash({ plan: openPlan({ goal: { distanceKm: 21.0975 } }), settings: settings({ distanceKm: 21.0975 }) });
+    expect(screen.getByText("Faster at 21.1 km")).toBeInTheDocument();
+  });
+
   it("shows a Block n done row only once the checkpoint run is done", () => {
     renderDash();
     expect(screen.queryByText(/Block \d done/)).toBeNull();
@@ -52,7 +57,7 @@ describe("Dashboard · a plan with no race", () => {
     cp.done = true;
     vi.setSystemTime(new Date(cp.date + "T09:00:00"));
     try {
-      const day = (n: number) => new Date(new Date(cp.date + "T00:00:00").getTime() - n * 86400000).toLocaleDateString("sv");
+      const day = (n: number) => { const d = new Date(cp.date + "T00:00:00"); d.setDate(d.getDate() - n); return d.toLocaleDateString("sv"); };
       const runs = [4, 5, 6].map(n => ({ id: "e" + n, date: day(n), type: "EASY", km: 8, durationSec: 8 * 360 })) as unknown as Run[];
       renderDash({ plan, runs });
       expect(screen.getByText("Block 1 done")).toBeInTheDocument();
@@ -98,6 +103,6 @@ describe("Dashboard · a plan with no race", () => {
 
   it("lists a wishlisted race that falls inside the plan, whatever the missing race date", () => {
     renderDash({ races: { participations: [{ editionId: "e", status: "wishlist", inPlan: true, label: "Park 10K", raceDate: "2026-10-18", distanceKm: 10 }], seenBadges: null } });
-    expect(screen.getByText(/Park 10K · 10km/)).toBeInTheDocument();
+    expect(screen.getByText(/Park 10K · 10 km/)).toBeInTheDocument();
   });
 });

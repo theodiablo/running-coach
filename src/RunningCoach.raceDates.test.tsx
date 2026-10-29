@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from "./constants";
 import type { Participation, Plan, RacesState, SettingsState } from "./types";
 
 let store: Record<string, unknown> = {};
+let catalogueDate = "2027-02-14";
 
 vi.mock("./db", () => ({
   db: {
@@ -15,13 +16,14 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => true,
   isStoreReconciled: () => true,
+  isCached: () => true,
 }));
 
 // The catalogue now lists the Barcelona half a week earlier than the user planned.
 vi.mock("./races", () => ({
   listRaces: async () => [{
     id: "barcelona-half-marathon", name: "Mitja Barcelona", verified: true,
-    editions: [{ id: "barcelona-half-marathon-2027-02-21", date: "2027-02-14", distanceKm: 21.1 }],
+    editions: [{ id: "barcelona-half-marathon-2027-02-21", date: catalogueDate, distanceKm: 21.1 }],
   }],
   addRace: vi.fn(),
   addEdition: vi.fn(),
@@ -46,6 +48,7 @@ describe("RunningCoach race date changes", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-28T10:00:00"));
+    catalogueDate = "2027-02-14";
     store = { [STORAGE_KEYS.SETTINGS]: SETTINGS, [STORAGE_KEYS.PLAN]: PLAN, [STORAGE_KEYS.RACES]: RACES };
   });
   afterEach(() => { vi.useRealTimers(); });
@@ -61,6 +64,14 @@ describe("RunningCoach race date changes", () => {
     const race = plan.weeks.flatMap(w => w.sessions).find(s => s.type === "RACE");
     expect(race?.date).toBe("2027-02-14");
     expect(screen.queryByRole("button", { name: "Update my plan" })).not.toBeInTheDocument();
+  });
+
+  it("adopts a date already behind us without rebuilding the plan around a race that is over", async () => {
+    catalogueDate = "2026-09-20";
+    render(<RunningCoach onSignOut={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Update my plan" }));
+    expect((store[STORAGE_KEYS.RACES] as RacesState).participations[0]!.raceDate).toBe("2026-09-20");
+    expect(store[STORAGE_KEYS.PLAN]).toBe(PLAN);
   });
 
   it("keeps the user's date and stops asking", async () => {

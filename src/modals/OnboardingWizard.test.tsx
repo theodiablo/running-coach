@@ -146,6 +146,18 @@ describe("OnboardingWizard: the fitness branch trains in blocks, not towards a d
     expect(onComplete.mock.calls[0][0].plan).toMatchObject({ raceDate: "", distanceKm: 5, goalKind: "block", openTarget: "further" });
   });
 
+  it("'Just run more' builds towards staying healthy, a distance pick towards running further", () => {
+    const { onSaveProgress, onComplete } = setup({ onboardStep: 1 });
+    fireEvent.click(screen.getByText("I'm just getting started"));
+    fireEvent.click(screen.getByText("Just run more"));
+    fireEvent.click(screen.getByText("Continue"));
+    expect(onSaveProgress.mock.calls[onSaveProgress.mock.calls.length - 1][0]).toMatchObject({ goalKind: "block", openTarget: "healthy" });
+    fireEvent.click(screen.getByText("Continue"));
+    passHealthGate();
+    fireEvent.click(screen.getByText("Get started"));
+    expect(onComplete.mock.calls[0][0].plan).toMatchObject({ goalKind: "block", openTarget: "healthy" });
+  });
+
   it("the race branch is still a race plan", () => {
     const { onComplete } = setup({ onboardStep: 4, intent: "race", raceDate: "2099-05-01", distanceKm: 10 });
     expect(screen.getByText("Heart rate")).toBeInTheDocument();

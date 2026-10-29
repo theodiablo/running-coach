@@ -661,7 +661,6 @@ describe("applyToolCall · recovery after the race", () => {
     const p = plan() as TestPlan & { recovery: unknown };
     p.raceDate = "2026-01-24";
     p.recovery = { race: "2026-01-24", km: 20, until: "2026-02-05" };
-    p.weeks[2]!.sessions.push(sess("w3d6", "2026-01-25", "EASY", 2.5));
     p.weeks.push(
       { weekNumber: 4, startDate: "2026-01-26", phase: "RECOVERY", sessions: [sess("w4d2", "2026-01-28", "EASY", 3), sess("w4d4", "2026-01-30", "EASY", 3.5)] },
       { weekNumber: 5, startDate: "2026-02-02", phase: "RECOVERY", sessions: [sess("w5d2", "2026-02-04", "EASY", 4)] },
@@ -675,12 +674,19 @@ describe("applyToolCall · recovery after the race", () => {
   const sessionsOf = (p: TestPlan) => p.weeks.flatMap(w => w.sessions);
 
   it("RACE_EVE and the taper rules stop at race day", () => {
-    const out = applyTool(recoveryPlan(), "add_session", { date: "2026-01-26", type: "EASY", km: 3 });
-    expect(sessionsOf(out).some(s => s.date === "2026-01-26")).toBe(true);
+    const out = applyTool(recoveryPlan(), "add_session", { date: "2026-01-27", type: "EASY", km: 3 });
+    expect(sessionsOf(out).some(s => s.date === "2026-01-27")).toBe(true);
     const grown = applyTool(recoveryPlan(), "increase_session_distance", { session_id: "w4d2", factor: 1.1 });
     expect(sessionsOf(grown).find(s => s.id === "w4d2")!.km).toBe(3.3);
     // ...and still hold before it.
     expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-01-23", type: "EASY", km: 3 }))).toBe("RACE_EVE");
+  });
+
+  it("add_session and move_session refuse the rest days just after the race", () => {
+    for (const date of ["2026-01-25", "2026-01-26"]) {
+      expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date, type: "EASY", km: 3 }))).toBe("AFTER_RACE");
+      expect(codeOf(() => applyTool(recoveryPlan(), "shift_workout", { session_id: "w4d2", new_date: date }))).toBe("AFTER_RACE");
+    }
   });
 
   it("add_session: easy or walk only, inside the window, no longer than the longest recovery session", () => {

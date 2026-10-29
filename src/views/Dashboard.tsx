@@ -665,8 +665,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
 
       {soreOpen && (
         <RecoverySoreSheet
-          onLighter={() => { track("recovery_sore", { action: "lighter" }); setSoreOpen(false); lightenRecovery?.(); }}
-          onCoach={() => { track("recovery_sore", { action: "coach" }); setSoreOpen(false); openCoach(null, "recovery"); }}
+          onLighter={() => { setSoreOpen(false); lightenRecovery?.(); }}
+          onCoach={() => { setSoreOpen(false); openCoach(null, "recovery"); }}
           onClose={() => setSoreOpen(false)}/>
       )}
 

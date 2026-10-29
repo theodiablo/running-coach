@@ -24,7 +24,7 @@ export function OpenPlanCard({ info, distanceKm, nextRace, autoStarted, onNotice
   const { t } = useTranslation();
   // Spent when it has really been on screen, not at mount (the card sits above the fold, but not always).
   const noticeRef = useSeenOnScreen<HTMLDivElement>(autoStarted, onNoticeSeen);
-  const title = t("dashboard.openPlan.target." + info.target, { km: distanceKm });
+  const title = t("dashboard.openPlan.target." + info.target, { km: fmt.km(distanceKm) });
   return (
     <div className="rounded-2xl p-5 border border-orange-500/30"
       style={{ background: "linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))" }}>
@@ -47,7 +47,7 @@ export function OpenPlanCard({ info, distanceKm, nextRace, autoStarted, onNotice
           className="w-full text-left mt-3 pt-3 border-t border-orange-500/20 flex justify-between items-center gap-2">
           <span className="text-xs text-slate-300 truncate">
             <span className="text-orange-300/80 font-semibold">{t("dashboard.race.nextUp")}</span>
-            {nextRace.label + " · " + nextRace.distanceKm + "km"}
+            {nextRace.label + " · " + fmt.km(nextRace.distanceKm) + " km"}
           </span>
           <span className="text-xs text-slate-400 flex-shrink-0">{fmt.sht(nextRace.date)}</span>
         </button>

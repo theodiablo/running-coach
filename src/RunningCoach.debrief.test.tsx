@@ -15,6 +15,7 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => true,
   isStoreReconciled: () => true,
+  isCached: () => true,
 }));
 
 vi.mock("./races", () => ({

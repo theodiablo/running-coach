@@ -190,7 +190,7 @@ export function buildPlan(
   const w0    = new Date(mon0); w0.setDate(mon0.getDate() + lead * 7);
   const blockOffset = Math.max(0, Math.floor(Number(planOpts.blockOffset) || 0));
   const N     = open ? 2 * OPEN_BLOCK_WEEKS - (blockOffset % OPEN_BLOCK_WEEKS)
-    : Math.max(4, Math.min(24, Math.floor((race.getTime() - w0.getTime()) / 86400000 / 7)));
+    : Math.max(4, Math.min(24, Math.floor(daysBetween(ymd(w0), raceDateText) / 7)));
   // Training paces target the *flat-equivalent* effort: finishing a hilly course
   // in the goal time needs the flat fitness of a faster runner, so each metre of
   // climb stretches the effective distance (same VERT_COST grade-adjust as the
@@ -234,8 +234,7 @@ export function buildPlan(
   // ~5 weeks sets a starting long run so a fit athlete isn't sent back to square
   // one — but never above the race-scaled peak (don't inflate a 10 km block off
   // big long runs). Empty recentRuns → 0 floor → today's gentle default start.
-  const RECENT_MS = 35 * 86400000;
-  const cutoff = ymd(new Date(today.getTime() - RECENT_MS));
+  const cutoff = plusDays(ymd(today), -35);
   // Running only: a cross-training session's distance is not a long run, and
   // a logged bike ride would otherwise set the plan's starting long run.
   const runsInWindow = recentRuns.filter(
@@ -367,8 +366,7 @@ export function buildPlan(
     for (let i = 1; i < all.length; i++) {
       const prev = all[i - 1], cur = all[i];
       if (!HARD_PRIO[prev.type] || !HARD_PRIO[cur.type]) continue;
-      const gapDays = (new Date(cur.date + "T00:00:00").getTime()
-        - new Date(prev.date + "T00:00:00").getTime()) / 86400000;
+      const gapDays = daysBetween(prev.date, cur.date);
       if (gapDays > 1) continue;
       const demote = HARD_PRIO[cur.type] > HARD_PRIO[prev.type] ? prev : cur;
       demote.type = "EASY";
@@ -394,15 +392,14 @@ export function buildPlan(
   // extra checkpoints. Pace is a Riegel estimate off the main goal and never
   // feeds back into the prescribed training paces. Phase 3 adds taper/recovery
   // around them. `opts.races`: [{editionId, date, distanceKm, elevation}].
-  const MIN_GAP_MS = 7 * 86400000; // keep a hard race out of the final taper days
   const seenDates = new Set<string>();
   (planOpts.races || []).forEach(r => {
     if (!r || !r.date || !r.distanceKm) return;
     const d = new Date(r.date + "T00:00:00");
     if (d < w0 || d >= race) return;          // outside the plan window
-    if (race.getTime() - d.getTime() < MIN_GAP_MS) return;        // too close to the main race
+    if (daysBetween(r.date, raceDateText) < 7) return;            // too close to the main race (keep a hard race out of the final taper days)
     if (seenDates.has(r.date)) return;        // one race per date
-    const wi = Math.floor((d.getTime() - w0.getTime()) / (7 * 86400000));
+    const wi = Math.floor(daysBetween(ymd(w0), r.date) / 7);
     if (wi < 0 || wi >= weeks.length) return;
     seenDates.add(r.date);
     const secKm = r.distanceKm;
@@ -536,7 +533,7 @@ export function buildPlan(
       .filter(s => s.type === "EASY" || s.type === "WALK").map(s => s.km);
     const ref = median(taperEasy) || 3;
     const slots = recSlots(race, rule);
-    const lastWeek = (d: Date) => Math.floor((d.getTime() - rEnd.getTime()) / (7 * 86400000));
+    const lastWeek = (d: Date) => Math.floor(daysBetween(ymd(rEnd), ymd(d)) / 7);
     slots.forEach((slot, i) => {
       if (slot.d < rEnd) {
         raceWeek.sessions.push(recSess(slot, i, slots.length, ref, raceWeek.weekNumber));
@@ -557,7 +554,7 @@ export function buildPlan(
   if (afterRace && afterRule) {
     if (afterUntil >= ymd(today)) openedAfter = { race: afterRace.date, km: afterRace.km, until: afterUntil };
     if (lead > 0) {
-      const slots = recSlots(new Date(afterRace.date + "T00:00:00"), afterRule).filter(s => s.d >= mon0);
+      const slots = recSlots(new Date(afterRace.date + "T00:00:00"), afterRule).filter(s => s.d >= mon0 && (open || s.d < race));
       const ref = easyFloor || 3;
       const leadWeeks: PlanWeek[] = Array.from({ length: lead }, (_, j) => {
         const startDate = new Date(mon0); startDate.setDate(mon0.getDate() + 7 * j);

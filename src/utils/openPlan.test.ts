@@ -26,7 +26,7 @@ const DAYS_4: PlanSessionInput[] = [
 const LAYOUTS: [string, PlanSessionInput[]][] = [["3 days", DAYS_3], ["4 days", DAYS_4]];
 const TARGETS: OpenTarget[] = ["faster", "further", "healthy"];
 
-const dayAfter = (from: string, days: number) => ymd(new Date(new Date(from + "T00:00:00").getTime() + days * 86400000));
+const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
 const settingsFor = (planSessions: PlanSessionInput[], over: Record<string, unknown> = {}) =>
   ({ planSessions, planStyle: "balanced", trainingLevel: "occasional", goalSec: "", distanceKm: 10, raceDate: "", ...over }) as unknown as SettingsState;
 const sessions = (p: Plan) => p.weeks.flatMap(w => w.sessions);

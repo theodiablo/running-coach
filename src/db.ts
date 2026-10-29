@@ -372,6 +372,15 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Whether `value` is what the cache holds, or a defaults-extended copy of it
+// (shallow). A state copy that fails this predates a row adopted underneath it.
+export function isCached(k: string, value: unknown) {
+  const held = cache[k];
+  if (held === value) return true;
+  if (!held || !value || typeof held !== "object" || typeof value !== "object") return false;
+  return Object.entries(held).every(([key, v]) => (value as Record<string, unknown>)[key] === v);
+}
+
 export const db = {
   async get<T = unknown>(k: string): Promise<T | null> {
     return k in cache ? cache[k] as T : null;

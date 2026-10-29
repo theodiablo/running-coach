@@ -213,7 +213,8 @@ exists only for plans built with it.
 - **Goals** gain `plan.goal?: {kind: "race" | "block" | "open"}`; absent means
   `"race"` (`goalKind`). Open plans write it ("Open plans and blocks" below).
 - **One date rule.** `canHoldTraining(plan, date)` (before race day always, race
-  day never, after it only through `recovery.until`; any other goal kind always)
+  day never, after it only from the day past the rule's `rest` days through
+  `recovery.until`; any other goal kind always)
   decides AFTER_RACE in the validator, `canPlaceOn` in `planEdit` and the coach
   tools; `inRecovery` marks the easy-only days (the two windows plus `RECOVERY`
   weeks) for `RECOVERY_HARD` and the tools' refusals.
@@ -283,11 +284,15 @@ every reader of `settings.raceDate` tolerates `""`.
   km (4-week blocks ending in a checkpoint run, no race date)", and
   `reassess_goal_feasibility` answers that there is no goal to judge.
 - **Automatic writes: one function.** `runPlanAutomation` in `RunningCoach.tsx`
-  is the only place the app changes a plan on its own. It runs at store-ready
-  boot and on every return to the foreground (latest-ref, so no setState in an
-  effect), and only when `isStoreLoaded() && isStoreReconciled()` (`db.ts`: an
-  offline-booted cache is not reconciled until the live row has been read),
-  never while a recorder is open, reading the refs so a second call in the same
+  is the only place the app changes a plan on its own. It runs once per boot,
+  from the `[loading]` effect after the load (it calls into the latest closure
+  through a ref), never on a foreground: a WebView kept alive for days holds a
+  stale cache, and an automatic write from it would clobber another device's
+  newer blob. It runs only when `isStoreLoaded() && isStoreReconciled()` (`db.ts`:
+  an offline-booted cache is not reconciled until the live row has been read)
+  and only when the plan and settings refs are still what the cache holds
+  (`isCached`: a newer row adopted without a remount leaves them stale), never
+  while a recorder is open, reading the refs so a second call in the same
   tick sees the first one's write. It does two things: extend an open plan, and
   **start one for a runner who never answered** "what's next": phase `choosing`,
   `plan.recovery.until + AUTO_START_DAYS` (3) passed, neither `whatsNextFor` nor
@@ -425,8 +430,8 @@ move.
 ## Where the runner stands
 
 `planPhase` (`src/utils/planPhase.ts`) is the one definition of how the runner
-stands relative to the plan's main race: `active`, `raceWeek` (the 7 days up to
-and including race day), `debrief`, `recovery`, `choosing`. **Derived on every read, never
+stands relative to the plan's main race: `active`, `raceWeek` (the 7 days
+before race day, and race day itself), `debrief`, `recovery`, `choosing`. **Derived on every read, never
 stored**: the plan is the source of truth, so a rebuild, undo or restore can't
 leave a phase behind. The core takes `today` as a `YYYY-MM-DD` string and does
 no `Date` or i18n work, so it lives in `_shared/coach/phase.mjs` and

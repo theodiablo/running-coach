@@ -15,6 +15,7 @@ import type { PlanSessionInput } from "./utils/plan";
 let store: Record<string, unknown> = {};
 let reconciled = true;
 let loaded = true;
+let cached = true;
 
 vi.mock("./db", () => ({
   db: {
@@ -25,12 +26,16 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => loaded,
   isStoreReconciled: () => reconciled,
+  isCached: () => cached,
 }));
 vi.mock("./races", () => ({ listRaces: async () => [], addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
 vi.mock("./telemetry", () => ({ track: vi.fn() }));
+vi.mock("./modals/CoachChat", () => ({
+  CoachChat: ({ onNavigate }: { onNavigate: (t: string) => void }) => <button onClick={() => onNavigate("next")}>Open what's next</button>,
+}));
 
 const SESSIONS: PlanSessionInput[] = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
-const day = (n: number, from: string) => ymd(new Date(new Date(from + "T00:00:00").getTime() + n * 86400000));
+const day = (n: number, from: string) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + n); return ymd(d); };
 const at = (date: string) => vi.setSystemTime(new Date(date + "T10:00:00"));
 
 const RACE_DATE = "2026-10-04";
@@ -59,7 +64,7 @@ const stored = () => store[STORAGE_KEYS.SETTINGS] as SettingsState;
 const foreground = () => act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
 const boot = async () => { render(<RunningCoach onSignOut={() => {}}/>); await act(async () => {}); await act(async () => {}); };
 
-beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); reconciled = true; loaded = true; });
+beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); reconciled = true; loaded = true; cached = true; });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("RunningCoach · plan automation", () => {
@@ -95,17 +100,36 @@ describe("RunningCoach · plan automation", () => {
       expect(plan()).toBe(p);
     });
 
-    it("waits for a reconciled store: an offline boot writes nothing, then does on the next foreground", async () => {
+    it("waits for a reconciled store: an offline boot writes nothing, a later boot does", async () => {
       const p = open();
       seed(p, [], settings({ raceDate: "", goalKind: "open" }));
       at(startOfLastBlock(p));
       reconciled = false;
       await boot();
+      expect(plan()).toBe(p);
+      cleanup();
+      reconciled = true;
+      await boot();
+      expect(plan().weeks.length).toBeGreaterThan(p.weeks.length);
+    });
+
+    it("never runs on a foreground: a long-lived WebView holds a stale cache", async () => {
+      const p = open();
+      seed(p, [], settings({ raceDate: "", goalKind: "open" }));
+      at(day(-22, p.weeks[p.weeks.length - 1].startDate as string));
+      await boot();
+      at(startOfLastBlock(p));
       await foreground();
       expect(plan()).toBe(p);
-      reconciled = true;
-      await foreground();
-      expect(plan().weeks.length).toBeGreaterThan(p.weeks.length);
+    });
+
+    it("writes nothing from state older than the cache (a newer row adopted without a remount)", async () => {
+      const p = open();
+      seed(p, [], settings({ raceDate: "", goalKind: "open" }));
+      at(startOfLastBlock(p));
+      cached = false;
+      await boot();
+      expect(plan()).toBe(p);
     });
 
     it("waits for a loaded store", async () => {
@@ -131,6 +155,7 @@ describe("RunningCoach · plan automation", () => {
       expect(track).toHaveBeenCalledWith("open_plan_autostarted", { hadRuns: true });
       // The old plan stays as history, and the race is not a session of the new one.
       expect(next.weeks.some(w => w.sessions.some(s => s.id === "past-race"))).toBe(true);
+      expect(track).not.toHaveBeenCalledWith("whats_next_shown", expect.anything());
       // Nothing more happens on the next foreground.
       vi.mocked(track).mockClear();
       await foreground();
@@ -220,6 +245,32 @@ describe("RunningCoach · plan automation", () => {
       fireEvent.click(screen.getByRole("button", { name: "Undo" }));
       expect(plan()).toEqual(p);
       expect(stored().raceDate).toBe(RACE_DATE);
+      // The answer stays spent: Undo must not re-open the prompt or the auto-start.
+      expect(stored().whatsNextFor).toBe(raceKey({ editionId: null, date: RACE_DATE }));
+    });
+
+    it("answering and leaving Home in one tap keeps both the stamp and the spent pointer", async () => {
+      const p = racePlan();
+      seed(p, [raceRun, easyRun], settings({ coachIntroSeen: false }));
+      at(day(1, p.recovery!.until));
+      await boot();
+      fireEvent.click(screen.getByRole("button", { name: /Set your next goal/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      fireEvent.click(screen.getByRole("button", { name: /Fired up/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Browse all races/ }));
+      expect(stored()).toMatchObject({ whatsNextFor: raceKey({ editionId: null, date: RACE_DATE }), coachIntroSeen: true });
+    });
+
+    it("a sheet opened before race day does not spend the real one", async () => {
+      at("2026-08-17");
+      const p = buildPlan(RACE_DATE, 3000, SESSIONS, 10, 0, { recovery: true }) as unknown as Plan;
+      seed(p, [], settings());
+      at(day(-3, RACE_DATE));
+      await boot();
+      fireEvent.click(screen.getByRole("button", { name: "Coach" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Open what's next" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Not now" }));
+      expect(stored().whatsNextFor).toBeUndefined();
     });
 
     it("a lighter plan is about two easy runs a week", async () => {

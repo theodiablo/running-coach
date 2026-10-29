@@ -110,7 +110,7 @@ describe("overdueByWeek", () => {
 describe("overdueSessions around the main race", () => {
   const race = (date: string, extra: Record<string, unknown> = {}) =>
     sess("race", date, {type: "RACE", ...extra});
-  const after = (days: number) => new Date(new Date("2026-03-10T09:30:00").getTime() + days * 86400000);
+  const after = (days: number) => { const d = new Date("2026-03-10T09:30:00"); d.setDate(d.getDate() + days); return d; };
 
   it("never reports a RACE session, passed or not", () => {
     const plan = planOf([{weekNumber: 1, sessions: [race("2026-03-08"), sess("easy", "2026-03-07")]}]);
@@ -152,5 +152,22 @@ describe("overdueSessions around the main race", () => {
     ]}]);
     // No live "race" session: only the RACE type itself is dropped.
     expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["open"]);
+  });
+
+  it("keeps the cutoff after a rebuild renamed the passed race past-race", () => {
+    const plan = planOf([{weekNumber: 1, sessions: [
+      sess("past-w1d2", "2026-03-04"), sess("past-race", "2026-03-08", {type: "RACE"}), sess("w2d0", "2026-03-09"),
+    ]}]);
+    expect(overdueSessions(plan, today).map(s => s.id)).toEqual(["w2d0"]);
+  });
+
+  it("also cuts at the race a plan opened behind, or its own recovery race", () => {
+    const base = planOf([{weekNumber: 1, sessions: [sess("old", "2026-03-04"), sess("new", "2026-03-09")]}]);
+    for (const key of ["openedAfter", "recovery"])
+      expect(overdueSessions({...base, [key]: {race: "2026-03-07", km: 10, until: "2026-03-13"}} as Plan, today)
+        .map(s => s.id)).toEqual(["new"]);
+    // A race still ahead cuts nothing.
+    expect(overdueSessions({...base, openedAfter: {race: "2026-03-20", km: 10, until: "2026-03-26"}} as Plan, today)
+      .map(s => s.id)).toEqual(["new", "old"]);
   });
 });

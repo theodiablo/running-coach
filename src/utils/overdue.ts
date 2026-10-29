@@ -36,8 +36,11 @@ export function overdueSessions(plan: Plan | null, today: Date): SessionWithWeek
   const start = startOfDay(today);
   const floor = startOfDay(today);
   floor.setDate(floor.getDate() - OVERDUE_LOOKBACK_DAYS);
-  const raceDate = mainRace(plan)?.date;
-  const over = raceDate && raceDate < ymd(start) ? raceDate : null;
+  const todayStr = ymd(start);
+  // A rebuild renames the passed race `past-race`, so mainRace no longer sees it.
+  const over = [mainRace(plan)?.date, plan?.openedAfter?.race, plan?.recovery?.race,
+    ...(plan?.weeks ?? []).flatMap(w => w.sessions.filter(s => s.type === "RACE" && s.id === "past-race").map(s => s.date))]
+    .filter((d): d is string => !!d && d < todayStr).sort().pop() ?? null;
   return withWeek(plan)
     .filter(s => s.type !== "RACE" && !(over && s.date <= over)
       && untouched(s) && dayOf(s) < start && dayOf(s) >= floor)
