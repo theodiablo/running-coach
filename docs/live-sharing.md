@@ -648,8 +648,13 @@ page asks about, as it always did, and stores nothing about who follows whom.
   inside ePrivacy art. 5(3)'s strictly-necessary exemption with no banner:
   storage the visitor asked for, used only to remember their own list. That
   argument needed the map's IndexedDB tile cache gone from these pages
-  (`cacheTiles={false}` on `RouteMap`, a plain tile layer in `MultiRunnerMap`);
-  the page is useless offline anyway. Telemetry never reads the list.
+  (`cacheTiles={false}` on `RouteMap`, `uncachedTileLayer` in `MultiRunnerMap`);
+  the page is useless offline anyway. **An uncached layer must load tiles in
+  CORS mode** (`crossOrigin`, which `uncachedTileLayer` sets): under the page's
+  `no-referrer` a plain `<img>` sends neither `Origin` nor `Referer`, so
+  MapTiler can't match the domain-restricted key and serves "Invalid key"
+  tiles. The cached layer never hit this because `fetch()` always sends
+  `Origin`. Telemetry never reads the list.
 - **It keeps the minimum**: token, the viewer's own label, a colour, when it
   was added. Never a head, a trace, a finish time or a "last seen live": those
   would build a local record of when a third party runs, which the link itself

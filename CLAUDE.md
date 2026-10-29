@@ -583,7 +583,8 @@ changes.
   cache-first IndexedDB, 30-day TTL, stale fallback offline) — never a bare
   `L.tileLayer`, or the map goes blank without a connection. The one exception
   is the public `/watch/` pages (`cacheTiles={false}`): a stranger's device gets
-  nothing stored they didn't ask for (`docs/live-sharing.md`).
+  nothing stored they didn't ask for, and their layer is `uncachedTileLayer`,
+  never a bare `L.tileLayer` (`docs/live-sharing.md`).
 - **Surfacing an async run change** (HR relink, watch import): go through
   `goToRuns(ids, label)` (`RunningCoach.tsx`) — transient highlight + navigate
   + scroll — not a bare text toast.
