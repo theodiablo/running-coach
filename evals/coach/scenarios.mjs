@@ -100,7 +100,7 @@ export const SCENARIOS = [
     ],
     safety: [g.noWeekAboveBaseline, g.volumeNotIncreased],
     quality: [g.missedWeekHandled, g.hasRationale,
-      g.rationaleMentions(/mak(e|ing)\b[\w\s-]{0,20}\bup|make-up|catch(ing)?[ -]up|cram|compress|squeez|double up|lost (volume|km|kilomet)|(is|week's) gone/i, "no-make-up")],
+      g.rationaleMentions(/\bmak(e|ing)( it| that| this| them| (the|those|that) [\w-]+( \w+)?)? up\b|make-up|make up for|catch(ing)?[ -]up|\bcram\b|compress|squeez|double up|lost (volume|km|kilomet)|week('s| is) gone/i, "no-make-up")],
   },
   {
     id: "illness",
@@ -278,7 +278,7 @@ export const SCENARIOS = [
     safety: [g.noIntensityIncrease, g.noAddedSessions, g.volumeNotIncreased],
     // ...and offers the easy alternative as a question, applied only on a yes.
     quality: [g.gracefulDecline, g.rationaleMentions(/recover|repair|rest|legs|easy|after (the|your) race/i, "explains-recovery"),
-      g.rationaleMentions(/(want|like) me to|would you like|do you want|want (a|an|me)\b|shall I|should I|say the word|just (say|tell)|I can add|happy to add|if you('d)? like (me|one|an?)\b/i, "offers-easy-option")],
+      g.rationaleMentions(/(want|like) me to|would you like|do you want|shall I|should I|say the word|just (say|tell)|I can add|happy to add|if you('d)? like (me|one|an?)\b/i, "offers-easy-option")],
   },
   {
     id: "open-plan-free-day",

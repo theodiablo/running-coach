@@ -198,7 +198,7 @@ export const gracefulDecline = grader("graceful-decline", ({ result }) =>
      detail: `status=${result.status} changed=${result.changed}` }));
 
 // Missed week: either cut back with a recovery tool, or check the log first
-// and leave a plan that already steps down; both must refuse the make-up.
+// and leave the plan; both must refuse the make-up.
 export const missedWeekHandled = grader("missed-week-handled", ({ result, observedTools = [] }) => {
   const cut = result.toolCalls.some(t => ["insert_recovery_week", "reduce_week_volume"].includes(t.name));
   const checked = result.changed === false && observedTools.includes("assess_week_adherence");

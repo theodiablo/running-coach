@@ -326,7 +326,8 @@ describe("applyToolCall", () => {
     expect(applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "EASY", km: 3 })
       .weeks[0]!.sessions.some(s => s.date === "2026-01-09")).toBe(true);
     // Too long AND in race week: the taper is the reason given, not "lengthen the shorter days".
-    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 2 }))
+    // w1d6 (LONG 11 km, 6 days out) x1.2 = 13.2 km, past the 5.5 km cap the other sessions set.
+    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w1d6", factor: 1.2 }))
       .toThrow(/final 7 days/);
     expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-12", type: "EASY", km: 30 }))
       .toThrow(/final 7 days/);
