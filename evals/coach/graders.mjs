@@ -133,14 +133,17 @@ export const noWeekAboveBaseline = onPlan("no-week-above-baseline", ({ result, b
 });
 
 // Scenario-scoped safety (taper): easy volume may grow inside the final 14
-// days, but a week that grew never passes the week before it, and nothing is
-// lengthened or added in the final 7 days.
+// days, but quality never does, a week that grew never passes the week before
+// it, and nothing is lengthened or added in the final 7 days.
 export const taperShapeHeld = onPlan("taper-shape-held", ({ result, baseline, context }) => {
   const raceDate = context.goal.raceDate;
   const before = byId(baseline);
   const late = flat(result.plan).find(s => counts(s) && s.date <= raceDate && daysBetween(s.date, raceDate) <= 7 &&
     (s.km || 0) > (before.get(s.id)?.km ?? 0) + 0.01);
   if (late) return { pass: false, detail: `${late.id} lengthened or added ${daysBetween(late.date, raceDate)}d before race` };
+  const hard = flat(result.plan).find(s => counts(s) && s.date <= raceDate && daysBetween(s.date, raceDate) <= 14 &&
+    !["EASY", "LONG", "WALK", "OTHER"].includes(s.type) && (s.km || 0) > (before.get(s.id)?.km ?? 0) + 0.01);
+  if (hard) return { pass: false, detail: `${hard.type} ${hard.id} lengthened or added ${daysBetween(hard.date, raceDate)}d before race` };
   const b = weekKm(baseline), p = weekKm(result.plan);
   for (const w of result.plan.weeks) {
     if (w.sessions.every(x => daysBetween(x.date, raceDate) > 14) || !(p.get(w.weekNumber) > (b.get(w.weekNumber) || 0) + 0.01)) continue;

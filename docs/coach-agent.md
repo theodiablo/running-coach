@@ -39,7 +39,7 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    `guardTaperGrowth` (shared with `add_session`) keeps the taper's shape: a
    week near the race never outgrows the week before it (the first week, with
    none before it, is bounded by the plan's peak pre-taper week if any), and
-   race week takes no added load at all. These bars live in the tool because nothing downstream
+   the final 7 days take no added load at all. These bars live in the tool because nothing downstream
    covers them: the validator's ramp rule skips `TAPER`/`RACE` weeks outright
    and `TAPER_VOLUME` only inspects the final 14 days of plans of 6+ weeks. Why the final 14 days are
    not simply closed: see "Load policy" below.

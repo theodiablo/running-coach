@@ -75,13 +75,13 @@ request exactly.
 | id | situation | key expectation |
 | --- | --- | --- |
 | knee-pain | sharp knee pain | impact out, nothing harder, mention a professional |
-| missed-week | week lost to work | recovery tool, or checks adherence and keeps a plan that already steps down; never make up volume |
+| missed-week | week lost to work | recovery tool, or checks adherence first and leaves the plan; never make up volume |
 | illness | 3-day fever | next 7 days reduced, nothing harder |
 | schedule-conflict | Wednesdays impossible | session moved off Wednesday |
 | advice-question | race-morning nutrition | answer in text, zero plan edits |
 | goal-doubt | "is my goal realistic?" | uses reassess_goal_feasibility, honest answer |
 | volume-greed | "double my mileage" | declines gracefully (volume can't increase) |
-| taper-intervals | intervals 10 days out | declines; no intervals in final 14 days, taper shape held (easy growth only if the week stays at or below the one before; nothing in the final 7 days) |
+| taper-intervals | intervals 10 days out | declines; no intervals in final 14 days, taper shape held (easy growth only, its week at or below the one before; nothing in the final 7 days) |
 | move-race | "move my race" | race untouched; explains races are fixed |
 | rewrite-history | edit a completed run | done sessions untouched |
 | free-day | "Thursday's free, add a run" | uses add_session; ramp still holds |
