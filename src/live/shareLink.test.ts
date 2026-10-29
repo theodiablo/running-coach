@@ -6,8 +6,8 @@ const native = vi.hoisted(() => ({ isNative: false }));
 vi.mock("../native", () => native);
 
 import {
-  SHARE_TOKEN_BYTES, fetchLiveWatch, isValidShareToken, mintShareToken,
-  parseWatchToken, shareLinkState, watchUrl,
+  SHARE_TOKEN_BYTES, fetchLiveWatch, fetchLiveWatchBatch, isValidShareToken, isWatchListPath, mintShareToken,
+  parseWatchToken, shareLinkState, tokenFromInput, watchUrl,
 } from "./shareLink";
 
 // The share token is the ENTIRE authorization for a public /watch/:token page,
@@ -185,5 +185,72 @@ describe("fetchLiveWatch", () => {
       json: async () => { throw new Error("not json"); },
     } as unknown as Response);
     await expect(fetchLiveWatch(token)).resolves.toEqual({ kind: "none" });
+  });
+});
+
+describe("fetchLiveWatchBatch", () => {
+  const a = "a".repeat(22), b = "b".repeat(22);
+  const ok = (body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) => ({
+    ok: (init.status ?? 200) < 400,
+    status: init.status ?? 200,
+    headers: { get: (k: string) => init.headers?.[k] ?? null },
+    json: async () => body,
+  }) as unknown as Response;
+
+  beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("posts every token in one request and reads one answer per entry", async () => {
+    const summary = { status: "live", started_at: "s", updated_at: "u", stats: {}, head: [1, 2, 3, null] };
+    const full = { status: "live", started_at: "s", updated_at: "u", stats: {}, points: [] };
+    vi.mocked(fetch).mockResolvedValue(ok({ runs: [{ live: true, run: summary }, { live: true, run: full }, { live: false }, { live: true, unchanged: true }] }));
+    const res = await fetchLiveWatchBatch([{ token: a }, { token: b, full: true, since: "u0" }, { token: a }, { token: b }]);
+    expect(res).toEqual({ kind: "ok", results: [
+      { kind: "summary", run: summary }, { kind: "full", run: full }, { kind: "none" }, { kind: "unchanged" },
+    ] });
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    // The tokens ride in the body, not the URL.
+    expect(String(url)).not.toContain(a);
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      tokens: [{ t: a }, { t: b, full: true, since: "u0" }, { t: a }, { t: b }],
+    });
+  });
+
+  it("never reads an older function's single answer as 'nobody is live'", async () => {
+    // A function deployed before the batch existed answers a POST with one
+    // `{ live: false }`. Read naively that would blank every runner.
+    const run = { status: "live", started_at: "s", updated_at: "u", stats: {}, points: [] };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(ok({ live: false }))
+      .mockResolvedValueOnce(ok({ live: true, run }))
+      .mockResolvedValueOnce(ok({ live: false }));
+    await expect(fetchLiveWatchBatch([{ token: a }, { token: b }])).resolves.toEqual({
+      kind: "ok", results: [{ kind: "full", run }, { kind: "none" }],
+    });
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toContain(`t=${a}`);
+  });
+
+  it("reports a failure as an error, never as 'not live'", async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error("offline"));
+    await expect(fetchLiveWatchBatch([{ token: a }])).resolves.toEqual({ kind: "error" });
+    vi.mocked(fetch).mockResolvedValue(ok({}, { status: 500 }));
+    await expect(fetchLiveWatchBatch([{ token: a }])).resolves.toEqual({ kind: "error" });
+    vi.mocked(fetch).mockResolvedValue(ok({}, { status: 429, headers: { "Retry-After": "60" } }));
+    await expect(fetchLiveWatchBatch([{ token: a }])).resolves.toEqual({ kind: "error", retryAfterMs: 60000 });
+  });
+
+  it("reads a token out of a pasted link or a bare token, and nothing else", () => {
+    expect(tokenFromInput(`  https://runningcoach.app/watch/${a}  `)).toBe(a);
+    expect(tokenFromInput(`https://runningcoach.app/watch/${a}/`)).toBe(a);
+    expect(tokenFromInput(a)).toBe(a);
+    expect(tokenFromInput("https://runningcoach.app/watch/")).toBeNull();
+    expect(tokenFromInput("hello")).toBeNull();
+  });
+
+  it("treats /watch and /watch/ as the follow list, and a token path as one runner", () => {
+    expect(isWatchListPath("/watch/")).toBe(true);
+    expect(isWatchListPath("/watch")).toBe(true);
+    expect(isWatchListPath(`/watch/${a}`)).toBe(false);
+    expect(parseWatchToken("/watch/")).toBeNull();
   });
 });

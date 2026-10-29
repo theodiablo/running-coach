@@ -17,11 +17,8 @@ import { RunChart, Readout } from "./RunChart";
 import { buildRunSeries } from "../utils/runSeries";
 import { flattenTrack, elevGainM } from "../utils/geo";
 import type { PublicLiveRun } from "../live/shareLink";
-
-// How long without an update before we say so. Generously above the publisher's
-// 30s cadence: a couple of missed uploads is a red light, not an incident.
-const QUIET_MS = 180000;
-const TICK_MS = 10000; // relabel "x ago" locally — no network, no DB read
+import { freshness, liveRowState, type LiveRowState } from "../live/liveStatus";
+import { useNow } from "../hooks/useNow";
 
 export type LiveWatchStatus = {
   ended: boolean;
@@ -51,39 +48,72 @@ export function LiveWatchDot({ ended, paused }: { ended: boolean; paused: boolea
   );
 }
 
+// The stats grid, shared by the single-runner view and the follow list's
+// focused runner. `elevGain` is the caller's: only it knows whether a trace is
+// there to fall back on.
+export function LiveRunStats(
+  { stats, state, elevGain, hasElev }:
+  { stats: PublicLiveRun["stats"]; state: LiveRowState; elevGain: number; hasElev: boolean },
+) {
+  const { t } = useTranslation();
+  const { ended, paused } = state;
+  // Current pace only means something while the run is moving: an ended or
+  // paused run's last window is history, not "now".
+  const showCurPace = !ended && !paused && stats.curPace != null;
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label={t("liveShare.watch.stats.distance")} value={(stats.km ?? 0).toFixed(2)} />
+        <Stat label={t("liveShare.watch.stats.time")}
+          value={fmt.dur(stats.durationSec ?? 0) === "--" ? "0:00" : fmt.dur(stats.durationSec ?? 0)} />
+        <Stat label={t("liveShare.watch.stats.pace")} value={fmt.pace(Math.round(stats.avgPace ?? 0))} />
+      </div>
+      {(showCurPace || hasElev) && (
+        <div className={"grid gap-2 " + (showCurPace && hasElev ? "grid-cols-2" : "grid-cols-1")}>
+          {showCurPace && <Stat label={t("liveShare.watch.stats.curPace")} value={fmt.pace(Math.round(stats.curPace ?? 0))} />}
+          {hasElev && <Stat label={t("liveShare.watch.stats.elevGain")} value={elevGain + " m"} />}
+        </div>
+      )}
+    </>
+  );
+}
+
+// The one status line, under the chart on both views.
+export function LiveRunStatus({ state }: { state: LiveRowState }) {
+  const { t } = useTranslation();
+  const { ended, paused, quiet } = state;
+  const fresh = freshness(state);
+  return ended ? (
+    <p className="text-sm text-center text-slate-400">{t("liveShare.watch.ended")}</p>
+  ) : quiet ? (
+    <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-snug text-amber-100 text-center">
+      {t("liveShare.watch.signalLost")}
+    </p>
+  ) : (
+    <p className="text-[11px] text-center text-slate-500">
+      {paused ? t("liveShare.watch.paused") + " · " : ""}{fresh ? t(fresh.key, fresh.params) : ""}
+    </p>
+  );
+}
+
 // Map + stats + chart + the one status line. The caller owns the chrome around
 // it (the modal's close button, the public page's masthead), because that is
 // the only part the two surfaces legitimately disagree about.
 export function LiveWatchView(
-  { run, onStatus, bottomInset = true, panelFooter }:
+  { run, onStatus, bottomInset = true, panelFooter, cacheTiles = true }:
   // `bottomInset` false when the caller renders its own chrome below this (the
   // public page's footer), so the iOS home-indicator gap is padded once.
   // `panelFooter` closes the stats panel (the public page's app promo).
-  { run: PublicLiveRun | null; onStatus?: (s: LiveWatchStatus) => void; bottomInset?: boolean; panelFooter?: ReactNode },
+  // `cacheTiles` false on the public page, which stores nothing it wasn't asked to.
+  { run: PublicLiveRun | null; onStatus?: (s: LiveWatchStatus) => void; bottomInset?: boolean; panelFooter?: ReactNode; cacheTiles?: boolean },
 ) {
   const { t } = useTranslation();
-
-  // "Now", held in state and advanced on a slow tick, so the freshness line
-  // stays honest while the view sits open between pushes. Local only: no
-  // network, no read — reading the clock during render would make this
-  // component impure and the label would drift with unrelated re-renders.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), TICK_MS);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow();
 
   const points = useMemo(() => run?.points || [], [run?.points]);
   const stats = run?.stats || {};
-  const updatedAt = run ? Date.parse(run.updated_at) : NaN;
-  const quietMs = Number.isFinite(updatedAt) ? Math.max(0, now - updatedAt) : 0;
-  const ended = !run || run.status === "ended";
-  const paused = run?.status === "paused";
-  // A paused run publishes nothing BY DESIGN — it drops fixes, and the pause was
-  // itself pushed through as a status change. So silence after one is expected,
-  // not a lost signal: the row already says exactly what is going on, and the
-  // freshness line below still reports how old that answer is.
-  const quiet = !ended && !paused && quietMs >= QUIET_MS;
+  const state = liveRowState(run, now);
+  const { ended, paused, quiet } = state;
   const hasTrack = points.some(Boolean);
 
   // Chart data, straight off the published points — per-point altitude and
@@ -115,34 +145,10 @@ export function LiveWatchView(
   const highlight = active != null ? { lat: flat[active].lat, lng: flat[active].lng } : null;
   const onCursor = useCallback((i: number | null) => setCursor(i), []);
 
-  // Current pace only means something while the run is moving: an ended or
-  // paused run's last window is history, not "now".
-  const showCurPace = !ended && !paused && stats.curPace != null;
-
   // Report the derived state up so the caller's header can show the same dot
   // without recomputing (and re-deriving) it. Effect rather than render-time so
   // the parent's setState never lands during this component's render.
   useEffect(() => { onStatus?.({ ended, paused, quiet, hasTrack }); }, [ended, paused, quiet, hasTrack, onStatus]);
-
-  const freshness = () => {
-    if (!Number.isFinite(updatedAt)) return "";
-    const secs = Math.round(quietMs / 1000);
-    if (secs < 15) return t("liveShare.watch.updatedNow");
-    if (secs < 60) return t("liveShare.watch.updatedSecs", { secs });
-    return t("liveShare.watch.updatedMins", { mins: Math.round(secs / 60) });
-  };
-
-  const statusLine = ended ? (
-    <p className="text-sm text-center text-slate-400">{t("liveShare.watch.ended")}</p>
-  ) : quiet ? (
-    <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-snug text-amber-100 text-center">
-      {t("liveShare.watch.signalLost")}
-    </p>
-  ) : (
-    <p className="text-[11px] text-center text-slate-500">
-      {paused ? t("liveShare.watch.paused") + " · " : ""}{freshness()}
-    </p>
-  );
 
   return (
     // The query container must be an ancestor: an element's own @-variants never
@@ -151,7 +157,7 @@ export function LiveWatchView(
     <div className="flex-1 min-h-0 flex flex-col @3xl:flex-row">
       <div className="flex-1 min-h-0 relative">
         <RouteMap points={points} follow={!ended} endpoints={ended && hasTrack} highlight={highlight}
-          interactive className="h-full w-full" style={{}} />
+          interactive cacheTiles={cacheTiles} className="h-full w-full" style={{}} />
         {!hasTrack && (
           <div className="absolute inset-x-0 bottom-3 flex justify-center pointer-events-none">
             <span className="rounded-full bg-slate-900/85 border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
@@ -168,18 +174,7 @@ export function LiveWatchView(
           @3xl:border-t-0 @3xl:border-l @3xl:w-96 @3xl:max-h-none"
         style={bottomInset ? { paddingBottom: "var(--safe-bottom)" } : undefined}>
         <div className="p-4 space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            <Stat label={t("liveShare.watch.stats.distance")} value={(stats.km ?? 0).toFixed(2)} />
-            <Stat label={t("liveShare.watch.stats.time")}
-              value={fmt.dur(stats.durationSec ?? 0) === "--" ? "0:00" : fmt.dur(stats.durationSec ?? 0)} />
-            <Stat label={t("liveShare.watch.stats.pace")} value={fmt.pace(Math.round(stats.avgPace ?? 0))} />
-          </div>
-          {(showCurPace || hasElev) && (
-            <div className={"grid gap-2 " + (showCurPace && hasElev ? "grid-cols-2" : "grid-cols-1")}>
-              {showCurPace && <Stat label={t("liveShare.watch.stats.curPace")} value={fmt.pace(Math.round(stats.curPace ?? 0))} />}
-              {hasElev && <Stat label={t("liveShare.watch.stats.elevGain")} value={elevGain + " m"} />}
-            </div>
-          )}
+          <LiveRunStats stats={stats} state={state} elevGain={elevGain} hasElev={hasElev} />
 
           {hasChart && (
             <div className="bg-slate-800 rounded-2xl p-3 space-y-2">
@@ -189,7 +184,7 @@ export function LiveWatchView(
             </div>
           )}
 
-          {statusLine}
+          <LiveRunStatus state={state} />
           {panelFooter}
         </div>
       </div>

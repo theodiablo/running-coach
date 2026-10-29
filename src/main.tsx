@@ -13,7 +13,7 @@ import { initI18n, detectInitialLocale } from './i18n'
 import { initTelemetry, initPublicPageTelemetry, installGlobalErrorHandlers } from './telemetry'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ChunkLoadBoundary } from './components/ChunkLoadBoundary'
-import { parseWatchToken } from './live/shareLink'
+import { isWatchListPath, parseWatchToken } from './live/shareLink'
 import App from './App'
 
 // The app's one route. `/watch/:token` is a public page for people who may have
@@ -28,11 +28,13 @@ const PublicWatch = import.meta.env.VITE_NATIVE_BUILD
   ? null
   : lazy(() => import('./watch/PublicWatch'))
 const watchToken = PublicWatch ? parseWatchToken(window.location.pathname) : null
+// `/watch/` is the follow list: the same public page, with no token.
+const watchPage = !!PublicWatch && (watchToken !== null || isWatchListPath(window.location.pathname))
 
 // Start telemetry (no-op until a provider is wired in and the user consents)
 // and catch foreground errors that escape React. Both honour the consent flag.
 // The public watch page instead counts anonymous, storage-free pageviews.
-if (watchToken) initPublicPageTelemetry()
+if (watchPage) initPublicPageTelemetry()
 else initTelemetry()
 installGlobalErrorHandlers()
 
@@ -43,7 +45,7 @@ if (!root) throw new Error('Root element not found')
 // visitor lands on the marketing page, which is a worse answer than the run
 // they clicked for, but it is an answer.
 const tree = () =>
-  watchToken && PublicWatch ? (
+  watchPage && PublicWatch ? (
     <ChunkLoadBoundary fallback={<App />}>
       <Suspense fallback={<div className="h-screen bg-slate-900" />}>
         <PublicWatch token={watchToken} />
