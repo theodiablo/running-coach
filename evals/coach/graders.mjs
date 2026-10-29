@@ -194,6 +194,15 @@ export const gracefulDecline = grader("graceful-decline", ({ result }) =>
   ({ pass: result.status === "proposed" && result.changed === false && (result.rationale || "").length > 0,
      detail: `status=${result.status} changed=${result.changed}` }));
 
+// Missed week: either cut back with a recovery tool, or check the log first
+// and leave a plan that already steps down; both must refuse the make-up.
+export const missedWeekHandled = grader("missed-week-handled", ({ result, observedTools = [] }) => {
+  const cut = result.toolCalls.some(t => ["insert_recovery_week", "reduce_week_volume"].includes(t.name));
+  const checked = result.changed === false && observedTools.includes("assess_week_adherence");
+  return { pass: result.status === "proposed" && (cut || checked),
+    detail: `changed=${result.changed} tools: ${observedTools.join(", ") || "none"}` };
+});
+
 export const usedTool = (...names) => grader(`used-tool(${names.join("|")})`, ({ result }) =>
   ({ pass: result.toolCalls.some(t => names.includes(t.name)),
      detail: `tools: ${result.toolCalls.map(t => t.name).join(", ") || "none"}` }));

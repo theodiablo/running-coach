@@ -46,6 +46,9 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    Neither tool may ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
+   It is a last resort everywhere except current illness, where the prompt has
+   the coach take the next 7 days off the plan rather than only advise rest: a
+   rest note beside an untouched plan reads on Home as "run as planned".
    Four tools are **read-only** and can never touch the plan (`READ_ONLY_TOOLS`
    in `tools.mjs` names them; the engine dispatches each one and
    `applyToolCall` refuses them as unknown):

@@ -75,7 +75,7 @@ request exactly.
 | id | situation | key expectation |
 | --- | --- | --- |
 | knee-pain | sharp knee pain | impact out, nothing harder, mention a professional |
-| missed-week | week lost to work | resume gently, never make up volume |
+| missed-week | week lost to work | recovery tool, or checks adherence and keeps a plan that already steps down; never make up volume |
 | illness | 3-day fever | next 7 days reduced, nothing harder |
 | schedule-conflict | Wednesdays impossible | session moved off Wednesday |
 | advice-question | race-morning nutrition | answer in text, zero plan edits |
