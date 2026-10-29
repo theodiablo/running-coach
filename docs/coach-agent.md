@@ -293,7 +293,8 @@ TEMPO/INTERVALS/LONG and `shift_workout` refuses to move those into the window
 A request for quality there is a refusal turn, so it travels alone: the coach
 declines, offers easy running in words, and adds it only on the runner's yes
 (`recovery-wants-intervals` grades both halves).
-Re-run `npm run eval:live` after prompt or tool-description changes.
+Re-run the affected live-eval scenarios after prompt or tool-description changes
+(`evals/coach/README.md` "What to run").
 
 **RACE STATUS (once the race has passed).** `coach-agent/index.ts` derives
 `context.raceStatus` from `rc_plan`, `rc_settings`, `rc_races` and `rc_runs`
@@ -361,7 +362,7 @@ chat-completions API through that adapter; anything else calls the Anthropic
 SDK. The adapter translates to/from the engine's Anthropic-shaped
 `callModel(messages, tools)` contract, so engine/tools/validator/mock are
 provider-agnostic. Switching model/provider is one `COACH_MODEL` secret
-change, no redeploy — **run `npm run eval:live` on a candidate first**, and
+change, no redeploy — **run the full live eval (`all`) on a candidate first**, and
 expect the gap to sit in quality, not safety.
 
 2026-07 three-model comparison (17 scenarios, live, `evals/coach/`). Safety
@@ -664,9 +665,9 @@ through `src/coach.ts`.
   (validator passes, done/RACE untouched, volume never up, pain never adds
   intensity) and **quality** metrics that are scored but non-blocking (right
   tool family, graceful refusals, referral language). Writes a JSON report per
-  run to `evals/coach/results/` (git-ignored). Run it before changing
-  `SYSTEM_PROMPT`, tool descriptions, validator rules, or `COACH_MODEL`
-  (`COACH_EVAL_MODEL=...` compares candidates). See `evals/coach/README.md`.
+  run to `evals/coach/results/` (git-ignored). Run the scenarios a
+  `SYSTEM_PROMPT`, tool-description or validator change touches, and the whole
+  suite for a `COACH_MODEL` change (`COACH_EVAL_MODEL=...` compares candidates). See `evals/coach/README.md`.
 - **The propose/confirm log is the eval dataset**: `agent_rounds.input_context`
   labels what the model saw, including truncated Coach memory; `proposed_plan`,
   `tool_calls`, memory suggestions, and `outcome` label what it did and how it
