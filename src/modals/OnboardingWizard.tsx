@@ -31,12 +31,12 @@ import { isNative } from "../native";
 import { useBlePairing, type BleDevice } from "../hooks/useBlePairing";
 import { BleScanList } from "../components/BleScanList";
 import { searchEditions, editionLabel, findEdition } from "../utils/races";
-import { suggestedGoalSec } from "../utils/goal";
 import { deriveAge, runnerAge, tanakaMaxHR } from "../utils/hr";
 import { buildPlan } from "../utils/plan";
 import type { PlanSessionInput } from "../utils/plan";
-import { addWeeks, ymd, fmt } from "../utils/format";
-import type { CatalogueEdition, CatalogueRace, HealthAck, HrMethod, Intent, JoinedEdition, SettingsState } from "../types";
+import { ymd, fmt } from "../utils/format";
+import { OPEN_BLOCK_WEEKS } from "../utils/openBlocks";
+import type { CatalogueEdition, CatalogueRace, GoalKind, HealthAck, HrMethod, Intent, JoinedEdition, OpenTarget, SettingsState } from "../types";
 
 type OnboardingProgress = Partial<SettingsState>;
 type OnboardingCompletePayload = {
@@ -56,6 +56,9 @@ type OnboardingCompletePayload = {
     availabilityMode: AvailabilityMode;
     availDays: number;
     availTime: DurationBand;
+    // "block" for the fitness branch: no race, no date, blocks of four weeks.
+    goalKind: GoalKind;
+    openTarget?: OpenTarget;
   } | null;
   hr: Pick<SettingsState, "birthYear" | "age" | "maxHR" | "restHR"> | null;
   // Set only when a strap was paired here — pairing IS choosing it as the HR
@@ -94,6 +97,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const uiLang: LangId = isLangId(settings.language) ? settings.language : currentLang();
   const pickLang = (id: LangId) => { void setLocale(id); onSaveProgress({ language: id }, Math.min(stepIdx, seq.indexOf("health"))); };
   const today = ymd(new Date());
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); })();
 
   const [intent, setIntent] = useState<Intent>(settings.intent || null); // null | "race" | "fitness"
   const seq = onboardingSteps(intent, { native: isNative });
@@ -154,7 +158,6 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // and "Just run more" both map to 5 km but stay visually distinct).
   const [fitDist, setFitDist] = useState(5);
   const [selKey,  setSelKey]  = useState("5");
-  const [horizon, setHorizon] = useState(12);
 
   // Heart rate (optional). Birth year, not age, so it never goes stale; a
   // legacy-age resume seeds a derived year (±1 yr is fine for Tanaka).
@@ -274,14 +277,13 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     showToast(t("onboarding.race.addedToast"));
   };
 
-  // Leaving the no-race step: synthesize a race-shaped target so buildPlan has a
-  // timeline. Goal comes from the mid-pack suggestion (always defined for a valid
-  // distance) so paces are sensible without asking a beginner for a finish time.
+  // Leaving the no-race step: a "block" plan has no race and no date, only the
+  // distance the blocks build towards. The pace comes from the mid-pack
+  // suggestion until runs say otherwise, so a beginner is never asked for a finish time.
+  const fitTarget = selKey === "more" ? "healthy" as const : "further" as const;
   const finishTraining = () => {
-    const g = suggestedGoalSec(fitDist) || "";
-    const rd = addWeeks(horizon);
-    setRaceDate(rd); setDist(fitDist); setGoal(g); setElev(0); setTargetEditionId(undefined); setPickedLabel("");
-    go("hr", {raceDate: rd, distanceKm: fitDist, goalSec: g, raceElevation: 0, targetEditionId: null, planSessions, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta});
+    setRaceDate(""); setDist(fitDist); setGoal(""); setElev(0); setTargetEditionId(undefined); setPickedLabel("");
+    go("hr", {raceDate: "", distanceKm: fitDist, goalSec: "", raceElevation: 0, targetEditionId: null, goalKind: "block", openTarget: fitTarget, planSessions, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta});
   };
 
   // Complete from the summary. HR is included only if the user entered any.
@@ -297,7 +299,9 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     const mhrN = parseInt(maxHR) || 0;
     const hasHR = ageN != null || mhrN > 0;
     const hr = hasHR ? {birthYear: byN, age: ageN ?? 0, maxHR: mhrN || tanakaMax || 0, restHR: parseInt(restHR) || 60} : null;
-    const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta};
+    const block = intent === "fitness";
+    const plan = {raceDate, goalSec, distanceKm, raceElevation: Number(raceElevation) || 0, planSessions, targetEditionId: targetEditionId || null, planStyle: effectiveStyle, ...ratioMeta, trainingLevel: level, ...availMeta,
+      goalKind: block ? "block" as const : "race" as const, ...(block ? {openTarget: fitTarget} : {})};
     onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck, live: null});
   };
 
@@ -543,7 +547,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                       <div className="space-y-4 pt-1">
                         <div>
                           <label className="text-xs text-slate-400 block mb-1.5">{t("onboarding.race.dateLabel")}</label>
-                          <input type="date" value={raceDate} onChange={e => { setRaceDate(e.target.value); onManualEdit(); }}
+                          <input type="date" value={raceDate} min={tomorrow} onChange={e => { setRaceDate(e.target.value); onManualEdit(); }}
                             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-orange-400"/>
                         </div>
                         <div>
@@ -578,10 +582,13 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                   </button>
                 </div>
               ) : (
-                <button onClick={() => go("raceGoal", {raceDate, distanceKm, raceElevation: Number(raceElevation) || 0, targetEditionId})} disabled={!raceDate || !distanceKm}
-                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                  {t("onboarding.continue")}
-                </button>
+                <>
+                  {raceDate && raceDate <= today && <p role="alert" className="text-amber-300 text-xs">{t("onboarding.race.dateInPast")}</p>}
+                  <button onClick={() => go("raceGoal", {raceDate, distanceKm, raceElevation: Number(raceElevation) || 0, targetEditionId})} disabled={!raceDate || raceDate <= today || !distanceKm}
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                    {t("onboarding.continue")}
+                  </button>
+                </>
               )}
             </div>
           )}
@@ -651,19 +658,6 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                       </button>
                     );
                   })}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 block mb-2">{t("onboarding.training.horizonLabel")}</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[8, 12, 16].map(w => (
-                    <button key={w} onClick={() => setHorizon(w)}
-                      className={"py-2.5 rounded-xl border text-sm font-semibold transition-colors " + (horizon === w
-                        ? "bg-orange-500 text-white border-orange-500"
-                        : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white")}>
-                      {t("onboarding.training.weeks", {count: w})}
-                    </button>
-                  ))}
                 </div>
               </div>
               <AvailabilityStep mode={availMode} setMode={setAvailMode} days={availDays} band={availBand}
@@ -809,8 +803,11 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
           )}
 
           {cur === "summary" && (() => {
-            const preview = buildPlan(raceDate, goalSec, planSessions, distanceKm, raceElevation, {style: effectiveStyle, level, runWalk: ratioMeta});
-            const weeks = preview?.weeks?.length || 0;
+            // A fitness runner's plan is blocks of a set length, not a count of weeks to a race.
+            const block = intent === "fitness";
+            const preview = block ? null : buildPlan(raceDate, goalSec, planSessions, distanceKm, raceElevation, {style: effectiveStyle, level, runWalk: ratioMeta, recovery: true});
+            // Through the race week: the recovery after it isn't training to count.
+            const weeks = block ? OPEN_BLOCK_WEEKS : preview?.weeks?.filter(w => w.phase !== "RECOVERY").length || 0;
             const label = pickedLabel || (intent === "fitness" ? t("onboarding.summary.fallbackFitness") : t("onboarding.summary.fallbackRace"));
             return (
               <div className="space-y-5 text-center">
@@ -827,13 +824,13 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                     <Target size={18} className="text-orange-400 shrink-0"/>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold truncate">{label}</p>
-                      <p className="text-xs text-slate-400">{t(intent === "fitness" ? "onboarding.summary.metaGoal" : "onboarding.summary.meta", {km: distanceKm, date: fmt.date(raceDate)})}</p>
+                      <p className="text-xs text-slate-400">{block ? t("onboarding.summary.metaBlock", {km: distanceKm}) : t("onboarding.summary.meta", {km: distanceKm, date: fmt.date(raceDate)})}</p>
                     </div>
                   </div>
                   <div className="border-t border-slate-700/50 pt-3 grid grid-cols-2 gap-3">
                     <div>
                       <p className="text-xl font-bold text-orange-300">{weeks}</p>
-                      <p className="text-xs text-slate-400">{t("onboarding.summary.weekPlan")}</p>
+                      <p className="text-xs text-slate-400">{t(block ? "onboarding.summary.blockWeeks" : "onboarding.summary.weekPlan")}</p>
                     </div>
                     <div>
                       <p className="text-xl font-bold text-orange-300">{planSessions.length}</p>

@@ -8,15 +8,21 @@ import { dismissAll, dismissTop } from "./utils/backDismiss";
 import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
-import { db, currentUserId } from "./db";
+import { db, currentUserId, isCached, isStoreLoaded, isStoreReconciled } from "./db";
 import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
 import { track } from "./telemetry";
 import { buildPlan, carryProgress } from "./utils/plan";
-import { applySessionEdit, findSession, type SessionEdit } from "./utils/planEdit";
+import { applySessionEdit, findSession, lightenRecovery, type SessionEdit } from "./utils/planEdit";
+import { recentRace, goalKind } from "./utils/recovery";
+import { autoStartDue, buildOpenPlan, extendedOpenPlan, extensionDue, openSettingsPatch, raceKey, type OpenChoice } from "./utils/openPlan";
+import { whatsNextDue, type Feeling, type WhatsNextVariant } from "./utils/whatsNext";
+import { blockRecap } from "./utils/blockRecap";
 import type { CoachLinkTarget } from "./utils/coachLinks";
-import { bestSessionForRun, canMoveSessionTo, releaseRun } from "./utils/sessionMatch";
+import { bestSessionForRun, canMoveSessionTo, claimedElsewhere, releaseRun } from "./utils/sessionMatch";
+import { mainRace, planPhase, type MainRace } from "./utils/planPhase";
+import { detectRaceCompletion } from "./utils/raceCompletion";
 import type { SessionWithWeek } from "./utils/overdue";
 import { readRecoveryBuffer, type RecoveryBuffer } from "./utils/runRecovery";
 import { distanceKm } from "./utils/geo";
@@ -26,7 +32,7 @@ import { runAchievements, isPersonalBest, type EffortRank } from "./utils/bestEf
 import { backfillBestEfforts, backfillDone } from "./bestEffortsBackfill";
 import { syncSessionReminders, clearSessionReminders } from "./notify/sessionReminders";
 import { prefsFrom } from "./utils/sessionReminders";
-import { detectAnyRace, findEdition, editionLabel, loadCatalogue, raceDateChanges, secondaryRaces } from "./utils/races";
+import { findEdition, editionLabel, loadCatalogue, raceDateChanges, secondaryRaces } from "./utils/races";
 import type { RaceDateChange } from "./utils/races";
 import { addRace, addEdition } from "./races";
 import { deleteRoute, removePendingRoute, getAllRoutes, restoreRoutes, flushPendingRoutes } from "./routes";
@@ -61,8 +67,8 @@ import type { RoutineId } from "./stretch/routines";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
-import { RaceBridgeSheet } from "./modals/RaceBridgeSheet";
-import { RACE_DAY_SOURCE, inRaceDayMode, wishlistRaceCandidates } from "./utils/raceDay";
+import { WhatsNextSheet, type Promotable, type WhatsNextAnswer } from "./modals/WhatsNextSheet";
+import { RACE_DAY_SOURCE } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
 import { PlanView } from "./views/PlanView";
 import { LogView } from "./views/LogView";
@@ -93,7 +99,6 @@ import type {
 } from "./types";
 
 type ProgressSub = "log" | "stats" | "badges";
-type PromotableEdition = { name: string; raceId?: string; edition: { id: string; date: string; distanceKm: number; elevation?: number } };
 
 // Lazy: pulls in react-markdown + remark-gfm (~47 KB gzipped) for rendering
 // the coach's markdown replies. On the web that weight only belongs on the
@@ -163,8 +168,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // three for a standard distance. Null the rest of the time — there is no
   // "nothing to report" sheet.
   const [achievement, setAchievement] = useState<{ run: Run; efforts: EffortRank[]; confetti: boolean } | null>(null);
-  // The race label for the one-time post-race "plan your next one" sheet.
-  const [raceBridge, setRaceBridge] = useState<string | null>(null);
+  // "What's next?" opened by something other than the post-race trigger: the
+  // race-first variant (a live-first runner's race just ran) or the manual one.
+  // Home opens the post-race variant itself, derived from the plan phase below.
+  const [whatsNext, setWhatsNext] = useState<{ variant: WhatsNextVariant; label?: string; km?: number } | null>(null);
   const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { session?: SessionWithWeek | null; sessionOffered?: boolean }) | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
   const [logImportOpen, setLogImportOpen] = useState(false);
@@ -296,12 +303,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // the pointer without running `onDismiss`. Left unspent, the flag stays
   // `false` and the dimmer comes back on every later Home visit and every launch.
   //
-  // ONE write, not one per pointer: saveSettings replaces the whole blob from
-  // the `settings` captured this render, so two calls in a tick would leave
-  // only the second one's flag set and silently revive the other pointer.
+  // ONE write, and a patch of only the flags it spends: a whole-blob write from
+  // this render's `settings` would clobber a patchSettings queued in the same tick.
   const setTab = (next: string) => {
+    // The editor request is one-shot: left set, every later Plan visit would reopen it.
+    if (next !== "plan") setPlanEditNonce(0);
     if (next !== "dash") {
-      const spend = {...settings};
+      const spend: Partial<SettingsState> = {};
       let spent = false;
       if (settings.coachIntroSeen === false) { spend.coachIntroSeen = true; spent = true; }
       // Only if it could actually have been on screen: the feedback pointer
@@ -310,7 +318,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       if (settings.feedbackIntroSeen === false && settings.coachIntroSeen !== false) {
         spend.feedbackIntroSeen = true; spent = true;
       }
-      if (spent) saveSettings(spend);
+      if (spent) patchSettings(spend);
     }
     setTabState(next);
   };
@@ -320,6 +328,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // foreground listeners always call a closure with current runs, plan and
   // addRuns/goLog (not a stale mount-time one).
   const checkWatchRef = useRef<(opts?: { days?: number; manual?: boolean }) => Promise<number>>(async () => 0);
+  // Same pattern for the plan automation (runPlanAutomation below).
+  const planAutomationRef = useRef<() => void>(() => {});
   // Auto-surface the "found a run" toast at most once per app session so a run the
   // user chooses to ignore doesn't nag on every foreground (it re-surfaces on the
   // next launch, and the manual Settings scan is always available).
@@ -673,6 +683,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   useEffect(() => {
     if (loading) return;
     checkWatchRef.current().catch(() => {});
+    planAutomationRef.current();
   }, [loading]);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
@@ -805,10 +816,22 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Rebuild the active plan around `s` + `parts`, keeping done/skipped. False
   // when there's no plan (or race) to rebuild.
   const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
-    if (!plan || !s.raceDate || !s.distanceKm) return false;
+    // A plan with no race folds the races in too: rebuilt from what it was built for.
+    if (plan && goalKind(plan) !== "race") {
+      const g = plan.goal;
+      const built = buildOpenPlan(s, {
+        kind: goalKind(plan) as "block" | "open", target: g?.target ?? "healthy", light: !!g?.light,
+        distanceKm: Number(g?.distanceKm) || Number(s.distanceKm) || 10, goalSec: g?.paceSource === "goal" ? s.goalSec : "",
+      }, { runs, races: secondaryRaces(parts, null), afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
+      savePlan(carryProgress(plan, built, "rebuild"));
+      return true;
+    }
+    // A race already run is not rebuilt: it would collapse the plan and drop its recovery.
+    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate <= ymd(new Date())) return false;
     const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
       { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
-        style: s.planStyle, level: s.trainingLevel, runWalk: s });
+        style: s.planStyle, level: s.trainingLevel, runWalk: s, recovery: true,
+        afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
     savePlan(carryProgress(plan, np, "rebuild"));
     return true;
   };
@@ -837,13 +860,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     const parts = (races.participations || []).map(p => p.editionId === c.editionId
       ? { ...p, raceDate: c.newDate, ...(label ? { label } : {}) } : p);
     saveRaces({ ...races, participations: parts });
-    const nextSettings = c.isTarget ? { ...settings, raceDate: c.newDate } : settings;
-    if (c.isTarget) saveSettings(nextSettings);
-    const inPlan = c.isTarget || parts.some(p => p.editionId === c.editionId && p.inPlan);
+    // A target moved to a date already run can't be rebuilt, so the plan's race date stays put too.
+    const moveTarget = c.isTarget && c.newDate > ymd(new Date());
+    const nextSettings = moveTarget ? { ...settings, raceDate: c.newDate } : settings;
+    if (moveTarget) saveSettings(nextSettings);
+    const inPlan = c.isTarget ? moveTarget : parts.some(p => p.editionId === c.editionId && p.inPlan);
     const rebuilt = inPlan && rebuildPlanWith(nextSettings, parts);
     showToast(t(rebuilt ? "races.dateChange.planUpdated" : "races.dateChange.updated"), "ok", { label: t("common.undo"), onClick: () => {
       commitRaces(prevRaces);
-      if (c.isTarget) saveSettings(prevSettings);
+      if (moveTarget) saveSettings(prevSettings);
       if (rebuilt && prevPlan) restorePlan(prevPlan);
     } });
   };
@@ -861,62 +886,105 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // and a fresh realistic goal suggestion. Nothing is committed (no settings or
   // plan change) until the user picks a goal and builds — so we never leave an
   // unrealistic auto-goal behind. targetEditionId is set by PlanView on build.
-  const promoteEdition = (joined: JoinedEdition | PromotableEdition) => {
+  const promoteEdition = (joined: JoinedEdition | Promotable) => {
     const e = joined.edition;
     setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e) });
     setTab("plan");
     track("race_target_set", {});
   };
 
-  // Race-day auto-detect: when a just-saved run matches the date + distance of any
-  // race on the plan (main or secondary), return the races object with that edition
-  // marked done (plus the pre-change participations for Undo). `isMain` flags the
-  // training target so the caller can prompt for the next race only then. null when
-  // nothing matches.
-  const detectCompletion = (added: Run[], baseRaces: RacesState) => {
-    // Candidate races = every RACE session on the plan carrying an editionId,
-    // deduped. This covers the main race (stamped from targetEditionId) and any
-    // secondary races; a hand-entered target has no editionId and stays undetected.
-    const cands: { editionId: string; date: string; distanceKm: number }[] = [];
-    const seen = new Set<string>();
-    (plan?.weeks || []).forEach(w => w.sessions.forEach(s => {
-      if (s.type === "RACE" && s.editionId && !seen.has(s.editionId)) {
-        seen.add(s.editionId);
-        cands.push({ editionId: s.editionId, date: s.date, distanceKm: Number(s.km) });
-      }
-    }));
-    // Fallback for plans built before RACE sessions carried editionId: detect the
-    // main target off settings so existing users keep race-day auto-detect.
-    if (settings.targetEditionId && settings.raceDate && settings.distanceKm && !seen.has(settings.targetEditionId)) {
-      cands.push({ editionId: settings.targetEditionId, date: settings.raceDate, distanceKm: Number(settings.distanceKm) });
+  // Race-day auto-detect (src/utils/raceCompletion.ts): when a just-saved run
+  // matches the date + distance of any race on the plan, the result carries the
+  // races with that edition marked done (plus the pre-change participations for
+  // Undo) and the RACE session to tick. `isMain` gates the confetti: the
+  // catalogue's main race only. null when nothing matches.
+  const detectCompletion = (added: Run[], baseRaces: RacesState) =>
+    detectRaceCompletion({ added, plan, settings, races: baseRaces, yourRaceLabel: t("app.toasts.yourRace") });
+
+  // The one place a "what's next?" answer is acted on. Every answer spends the
+  // prompt (whatsNextFor records which race it was for); a race goes to the
+  // Plan setup via promoteEdition, Keep improving / a lighter plan build an
+  // open plan over the old one, with an Undo.
+  const startNextGoal = (a: WhatsNextAnswer, feeling: Feeling | null, variant: WhatsNextVariant, km: number) => {
+    const info = planPhase({ plan, settings, participations: races.participations || [], runs }, ymd(new Date()));
+    const key = info?.race ? raceKey(info.race) : "";
+    // Only a race that is over is answered for: before it, a dismissed manual sheet must not spend the real one.
+    const over = info?.phase === "debrief" || info?.phase === "recovery" || info?.phase === "choosing";
+    const stamp: Partial<SettingsState> = { ...(key && over ? { whatsNextFor: key } : {}), ...(variant === "raceFirst" ? { raceBridgeSeen: true } : {}) };
+    track("whats_next_answered", {
+      variant, choice: a.choice, ...(feeling ? { feeling } : {}),
+      ...(a.choice === "improve" ? { target: a.target } : a.choice === "lighter" ? { target: "healthy" } : {}),
+    });
+    setWhatsNext(null);
+    if (a.choice === "later" || a.choice === "race") {
+      patchSettings(stamp);
+      if (a.choice === "race") { if (a.edition) promoteEdition(a.edition); else setTab("races"); }
+      return;
     }
-    // Race-day mode has no plan to stamp a RACE session, so the wishlist is the
-    // race list, and any of its races is the race they came for.
-    const raceDay = inRaceDayMode(settings, plan);
-    if (raceDay) cands.push(...wishlistRaceCandidates(baseRaces.participations).filter(c => !seen.has(c.editionId)));
-    if (!cands.length) return null;
-    let match = null, edId = null;
-    for (const r of added) {
-      const id = detectAnyRace(r, cands);
-      if (id) { match = r; edId = id; break; }
-    }
-    if (!match) return null;
-    const parts = baseRaces.participations || [];
-    const prev = parts.find(p => p.editionId === edId) || null;
-    if (prev?.status === "done") return null; // already logged — don't double-mark
-    const joined = findEdition(edId);
-    const ed = joined?.edition || { id: edId, date: match.date, distanceKm: match.km };
-    const label = prev?.label || (joined ? editionLabel({ name: String(joined.name) }, ed) : t("app.toasts.yourRace"));
-    const snapshot = { editionId: edId, raceId: joined?.raceId, label, raceDate: ed.date, distanceKm: ed.distanceKm };
-    const done = { ...(prev || snapshot), status: "done", timeSec: match.durationSec, runId: match.id, source: "auto", notes: prev?.notes || "" };
-    const next = prev ? parts.map(p => p.editionId === edId ? done : p) : [...parts, done];
-    return { nextRaces: { ...baseRaces, participations: next }, undoParts: parts, label, isMain: raceDay || edId === settings.targetEditionId, raceDay };
+    const choice: OpenChoice = a.choice === "lighter"
+      ? { target: "healthy", light: true, distanceKm: km || Number(settings.distanceKm) || 10 }
+      : { target: a.target, distanceKm: a.distanceKm || km || Number(settings.distanceKm) || 10 };
+    const prevPlan = plan;
+    const built = buildOpenPlan(settings, choice, {
+      runs, races: secondaryRaces(races.participations || [], null),
+      afterRace: recentRace({ plan, participations: races.participations, runs, settings }, ymd(new Date())),
+    });
+    // Undo reverts only the fields the plan start changed; the stamp stays so it can't re-open the prompt.
+    const patch = openSettingsPatch(choice);
+    const before = Object.fromEntries(Object.keys(patch).map(k => [k, settings[k as keyof SettingsState]])) as Partial<SettingsState>;
+    const next = carryProgress(plan, built, "rebuild");
+    patchSettings({ ...stamp, ...patch });
+    savePlan(next);
+    planRef.current = next;
+    showToast(t(a.choice === "lighter" ? "whatsNext.toast.lighter" : "whatsNext.toast.started"), "ok",
+      prevPlan ? { label: t("common.undo"), onClick: () => {
+        if (planRef.current !== next) return;
+        patchSettings(before);
+        restorePlan(prevPlan);
+        planRef.current = prevPlan;
+        showToast(t("whatsNext.toast.undone"));
+      } } : undefined);
   };
 
-  const closeRaceBridge = () => {
-    setRaceBridge(null);
-    patchSettings({raceBridgeSeen: true});
+  // The only automatic plan writes, once per boot (never on a foreground: a
+  // long-lived WebView's cache can be stale). They wait for a store that is
+  // loaded AND reconciled (an offline boot's first write would race the
+  // reconcile), and never run over a recording. Reads the refs, so a second
+  // call in the same tick sees the first one's write.
+  const runPlanAutomation = () => {
+    if (loading || onboarding || recorderOpen || !isStoreLoaded() || !isStoreReconciled()) return;
+    const p = planRef.current;
+    if (!p) return;
+    const s = settingsRef.current, today = ymd(new Date());
+    // Refs older than the cache (a newer server row adopted without a remount) must not be written back.
+    if (!isCached(STORAGE_KEYS.PLAN, p) || !isCached(STORAGE_KEYS.SETTINGS, s)) return;
+    const parts = racesRef.current.participations || [];
+    const rs = runsRef.current;
+    if (goalKind(p) !== "race") {
+      // An open plan keeps a block ahead of the runner: append the next ones.
+      if (!extensionDue(p, today)) return;
+      const next = extendedOpenPlan(p, s, rs, secondaryRaces(parts, null), today);
+      if (!next) return;
+      setPlan(next); db.set(STORAGE_KEYS.PLAN, next); planRef.current = next;
+      track("open_plan_extended", {});
+      return;
+    }
+    // A runner who never answered "what's next" gets a gentle plan that keeps them going.
+    const due = autoStartDue({ plan: p, settings: s, participations: parts, runs: rs }, today);
+    if (!due) return;
+    const choice: OpenChoice = { target: "healthy", distanceKm: due.info.race.km || Number(s.distanceKm) || 10 };
+    const built = buildOpenPlan(s, choice, {
+      runs: rs, races: secondaryRaces(parts, null),
+      afterRace: recentRace({ plan: p, participations: parts, runs: rs, settings: s }, today),
+    });
+    const np = carryProgress(p, { ...built, goal: { ...built.goal!, autoFor: due.key } }, "rebuild");
+    const ns = { ...s, ...openSettingsPatch(choice) };
+    saveSettings(ns); settingsRef.current = ns;
+    savePlan(np); planRef.current = np;
+    track("open_plan_autostarted", { hadRuns: due.hadRuns });
   };
+  // eslint-disable-next-line react-hooks/refs
+  planAutomationRef.current = runPlanAutomation;
 
   // `opts.skipDetect` is set when the run is created by the Races "log result"
   // flow, which already marks the race done — so we don't double-detect it.
@@ -938,9 +1006,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     if (det) {
       track("race_completed", { source: "auto" });
       if (det.isMain) setCelebrate(true);
-      if (det.raceDay && settings.raceBridgeSeen === false) setRaceBridge(det.label);
-      showToast(t("app.toasts.loggedAsRace", { label: det.label }), "ok",
-        { label: t("common.undo"), onClick: () => commitRaces(reconcileBadges(nextRuns, { ...merged, participations: det.undoParts })) });
+      if (det.raceDay && settings.raceBridgeSeen === false) setWhatsNext({ variant: "raceFirst", label: det.label, km: det.km });
+      // Not re-dated: the race happened on its own day.
+      const link = det.link;
+      if (link) linkSess(link.wNum, link.sId, link.runId);
+      showToast(t("app.toasts.loggedAsRace", { label: det.label }), "ok", { label: t("common.undo"), onClick: () => {
+        commitRaces(reconcileBadges(nextRuns, { ...merged, participations: det.undoParts }));
+        if (link) unlinkSess(link.wNum, link.sId);
+      } });
     }
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
@@ -956,9 +1029,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // One writer for every session-progress edit, so done/skipped/runId/date can
   // never drift apart across the handlers below.
-  const patchSess = (wNum: number, sId: string, patch: (s: PlanSession) => PlanSession) => {
+  const patchSess = (wNum: number, sId: string, patch: (s: PlanSession) => PlanSession, allow?: (plan: Plan) => boolean) => {
     setPlan(prev => {
-      if (!prev) return prev;
+      if (!prev || (allow && !allow(prev))) return prev;
       const p = {...prev,
         weeks: prev.weeks.map(w => {
           if (w.weekNumber !== wNum) return w;
@@ -985,7 +1058,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // offers the move: a session re-dated out of its own week would be filed
     // under a week it no longer falls in (src/utils/sessionMatch.ts).
     const moveTo = date && canMoveSessionTo(planRef.current, wNum, date) ? date : null;
-    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(moveTo ? {date: moveTo} : {})}));
+    // One run settles one session: a run another session already claims is refused.
+    patchSess(wNum, sId, s => ({...s, done: true, skipped: false, runId: runId || null, ...(moveTo ? {date: moveTo} : {})}),
+      p => !runId || !claimedElsewhere(p, runId, wNum, sId));
   };
 
   // The inverse, for the confirmation card's Undo: `date` puts back whatever the
@@ -995,6 +1070,50 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   const skipSess = (wNum: number, sId: string) =>
     patchSess(wNum, sId, s => ({...s, skipped: !s.skipped, done: false, runId: null}));
+
+  // The main race's outcome from outside the recorder (the debrief, Races): the
+  // RACE session is ticked and, for a catalogue race, its participation written.
+  // One Undo puts both back; `quiet` leaves the toast to the caller.
+  const racesWith = (race: MainRace, fields: Partial<Participation>): RacesState => {
+    const parts = races.participations || [];
+    const prev = parts.find(p => p.editionId === race.editionId);
+    if (prev) return { ...races, participations: parts.map(p => p === prev ? { ...p, ...fields } : p) };
+    const joined = findEdition(race.editionId);
+    return { ...races, participations: [...parts, {
+      editionId: race.editionId, raceId: joined?.raceId, raceDate: race.date, distanceKm: race.km,
+      label: joined ? editionLabel({ name: String(joined.name) }, joined.edition) : t("app.toasts.yourRace"),
+      status: "wishlist", timeSec: null, runId: null, source: "manual", notes: "", ...fields }] };
+  };
+  const settleRace = (runId: string | null, timeSec: number | null, opts: { notes?: string; quiet?: boolean } = {}) => {
+    const race = mainRace(planRef.current, settings);
+    if (!race) return false;
+    const prevRaces = races;
+    if (race.editionId) {
+      const prev = (races.participations || []).find(p => p.editionId === race.editionId);
+      saveRaces(racesWith(race, { status: "done", timeSec: timeSec ?? prev?.timeSec ?? null, runId,
+        source: prev?.status === "done" ? prev.source : "manual", notes: opts.notes ?? prev?.notes ?? "" }));
+    }
+    linkSess(race.wNum, race.sId, runId);
+    if (!opts.quiet) showToast(t("dashboard.debrief.toast.linked"), "ok", { label: t("common.undo"), onClick: () => {
+      commitRaces(prevRaces);
+      unlinkSess(race.wNum, race.sId);
+    } });
+    return true;
+  };
+  const skipRace = () => {
+    const race = mainRace(planRef.current, settings);
+    if (!race) return;
+    const prevRaces = races;
+    if (race.editionId) saveRaces(racesWith(race, { status: "skipped", timeSec: null, runId: null }));
+    patchSess(race.wNum, race.sId, s => ({...s, skipped: true, done: false, runId: null}));
+    showToast(t("dashboard.debrief.toast.skipped"), "ok", { label: t("common.undo"), onClick: () => {
+      commitRaces(prevRaces);
+      patchSess(race.wNum, race.sId, s => ({...s, skipped: false}));
+    } });
+  };
+  // Opens the Plan tab straight on its goal editor (the one-shot request is
+  // cleared by setTab on the way out).
+  const openPlanGoalEdit = () => { setPlanEditNonce(n => n + 1); setTab("plan"); };
 
   // The runner's own plan edit (src/utils/planEdit.ts). Warnings were already
   // shown and accepted in the sheet; the toast's Undo restores the plan as it
@@ -1015,6 +1134,22 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       } : {}),
     });
     showToast(t("plan.editor.toast." + edit.kind), "ok", { label: t("common.undo"), onClick: () => {
+      if (planRef.current !== next) return;
+      restorePlan(before);
+      planRef.current = before;
+      showToast(t("plan.toast.restored"));
+    } });
+  };
+
+  // "Sore or injured?" during the recovery after a race: shorten what's left.
+  const lightenRecoveryPlan = () => {
+    const before = planRef.current;
+    const next = before ? lightenRecovery(before, ymd(new Date())) : null;
+    if (!before || !next) { showToast(t("dashboard.sore.toast.nothing")); return; }
+    setPlan(next);
+    db.set(STORAGE_KEYS.PLAN, next);
+    planRef.current = next;
+    showToast(t("dashboard.sore.toast.lighter"), "ok", { label: t("common.undo"), onClick: () => {
       if (planRef.current !== next) return;
       restorePlan(before);
       planRef.current = before;
@@ -1199,11 +1334,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const goCoachLink = (target: CoachLinkTarget) => {
     setShowCoach(false);
     switch (target) {
-      case "goal":         setPlanEditNonce(n => n + 1); setTab("plan"); break;
+      case "goal":         openPlanGoalEdit(); break;
       case "log":          goLog(); break;
       case "training":     openSettings("training"); break;
       case "integrations": openSettings("integrations"); break;
       case "history":      goProgress("log"); break;
+      case "next":         setWhatsNext({ variant: "manual" }); break;
     }
   };
 
@@ -1287,7 +1423,18 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed });
     if (s?.routine === "cooldown" && !recorderOpen) setStretchOpen({ target: s, afterRun: true });
   };
-  const shared = {openFeedback, isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, editSession, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  // "What's next?": the post-race trigger is derived from where the runner
+  // stands (and waits for anything else that is up); the race-first and manual
+  // variants are opened by state. An answer of any kind spends the trigger.
+  const todayStr = ymd(new Date());
+  const phaseInfo = planPhase({ plan, settings, participations: races.participations || [], runs }, todayStr);
+  const calm = tab === "dash" && !onboarding && !recorderOpen && !achievement && !showSettings && !showCoach && !showRecordSheet
+    && !stretchOpen && !detailRun && !feedbackSource && !showRaceForm && !showLiveWatch && !showBackup && !showRestore && !showDeleteAccount
+    && settings.coachIntroSeen !== false && settings.feedbackIntroSeen !== false;
+  const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
+    && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
+  const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
+  const shared = {openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1339,8 +1486,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           const { live } = result;
           const next = onboardedSettings(settings, result);
           saveSettings(next);
-          if (onboardingBuildsPlan(next, !!live))
-            savePlan(buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next}));
+          if (onboardingBuildsPlan(next, !!live)) {
+            const afterRace = recentRace({ plan: null, participations: races.participations, runs, settings: next }, ymd(new Date()));
+            // A fitness runner trains in blocks of their own, not towards an invented race.
+            savePlan(next.goalKind === "block"
+              ? buildOpenPlan(next, { kind: "block", target: next.openTarget ?? "further", distanceKm: Number(next.distanceKm) || 5 }, { runs, afterRace })
+              : buildPlan(next.raceDate, next.goalSec, next.planSessions, next.distanceKm, next.raceElevation, {recentRuns: runs, style: next.planStyle, level: next.trainingLevel, runWalk: next, recovery: true, afterRace}));
+          }
           // A catalogue race picked in onboarding is the training target — also
           // surface it in the Races tab as a wishlist participation (the tab lists
           // participations, not the settings target). Skip if already present.
@@ -1433,10 +1585,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
-      {/* After the achievement sheet, never stacked on it. Spent on either answer. */}
-      {raceBridge && !achievement && <RaceBridgeSheet label={raceBridge}
-        onPlan={() => { closeRaceBridge(); setTab("races"); track("race_bridge", {action: "plan"}); }}
-        onClose={() => { closeRaceBridge(); track("race_bridge", {action: "dismiss"}); }}/>}
+      {/* After the achievement sheet, never stacked on it. Spent on any answer. */}
+      {nextSheet && !achievement && <WhatsNextSheet key={nextSheet.variant} variant={nextSheet.variant}
+        label={"label" in nextSheet ? nextSheet.label : undefined} kmRef={nextSheetKm}
+        recap={nextSheet.variant === "raceFirst" ? null : blockRecap({ plan, runs, today: todayStr, settings,
+          race: phaseInfo?.race ? { date: phaseInfo.race.date, runId: phaseInfo.raceRunId } : null })}
+        blockRunner={!!plan && goalKind(plan) !== "race"} participations={races.participations || []} runs={runs}
+        onAnswer={(a, f) => startNextGoal(a, f, nextSheet.variant, nextSheetKm)}/>}
 
       {/* The one-time pointer at the header's Coach pill (seeded at onboarding
           completion). Home only, and gated on `plan` exactly like the pill it

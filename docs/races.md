@@ -138,11 +138,95 @@ move a user's date silently: the catalogue is community-editable.
 
 ## Completion
 
-Two ways to complete: manual "log result" (RacesView, optionally also adds a
-RACE run via `addRuns(..., {skipDetect:true})`), or **auto-detect** — a saved
-run on `settings.raceDate` within ±18% of the target distance triggers an
-undoable "mark done" toast (`detectAnyRace` + `detectCompletion` in
-`RunningCoach.tsx`), which matches against every race on the plan.
+Three ways to complete a race, all settling the same two things: the
+participation (catalogue races only) and the plan's RACE session.
+
+- **Auto-detect.** A saved run on a plan race's date within ±18% of its
+  distance triggers an undoable toast. The pure logic is
+  `detectRaceCompletion` (`src/utils/raceCompletion.ts`); its candidates are
+  every RACE session on the plan (the main race first, secondary ones after),
+  the settings target for plans built before sessions carried an edition, and
+  the wishlist in race-day mode. A match ticks the RACE session with
+  `linkSess` (not re-dated: the race happened on its own day) and, when the
+  candidate has an `editionId`, marks the participation done. A **hand-entered
+  race** has no edition, so only the session is ticked, with the neutral
+  `app.toasts.yourRace` label and **no confetti** (`isMain` stays
+  catalogue-only). Undo reverses both. Something already settled is never
+  marked twice. `sessionMatch`'s `isOpen` stays RACE-blind on purpose: a race is
+  never "the run you did on Wednesday".
+- **The debrief** (Home, `DebriefCard`): after the race, "How did it go?" names
+  the run (`raceRunCandidates`, race day ±1, unclaimed, running only, through
+  `ReconcileSheet`) or sends the runner to the log; "Didn't run it" skips. Both
+  go through the hub's `settleRace` / `skipRace`, which write the session and
+  the participation together under one Undo. A settled race on a plan written
+  with a recovery then moves Home to the recovery card and its "Sore or
+  injured?" row, until the window ends. See `docs/training-plan.md` ("Where the
+  runner stands", "Recovery after the race"). The same race is what
+  `recentRace` hands the next plan build, so a rebuild within two weeks opens
+  inside that recovery.
+- **Manual "log result"** (RacesView, optionally also adds a RACE run via
+  `addRuns(..., {skipDetect:true})`, with no effort: `null`, never a guess). For the plan's
+  main race it delegates to `settleRace` so the RACE session is ticked too.
+
+`status: "skipped"` ("Didn't run") is a real participation state: it lists with
+the past races and still offers "Add your time".
+
+## What's next?
+
+`WhatsNextSheet` (`src/modals/WhatsNextSheet.tsx`, logic in
+`src/utils/whatsNext.ts`) is the one screen for choosing what to train for after
+a race. It only collects an answer; the hub's `startNextGoal` acts on it.
+
+- **Steps.** A recap of the **training block** (not the race: sessions done of
+  planned, distance, longest run and the easy-pace trend, from the plan's weeks
+  up to the day before race day, the race run left out; an open plan's recap is
+  its last four weeks; `src/utils/blockRecap.ts`, rendered by
+  `components/BlockRecap.tsx`, below) -> "How are you feeling about running?" (fired up / steady / need a
+  breather; there is no pause mode) -> the goals in the order the answer
+  suggests: fired up: next race, keep improving; steady: keep improving, next
+  race; need a breather: a lighter plan (about 2 easy runs a week), keep
+  improving. A runner already on blocks of their own sees the race option as
+  "Try a real race".
+- **The recap's easy pace** claims no more than the log supports. It compares
+  the median pace of the block's EASY runs at its start and at its end (the first
+  and last 3 pre-taper weeks, fewer on a short block: each end spans half the
+  block at most and the block needs 4 pre-taper weeks), grade-adjusted like the
+  HR fit (`flatEqKm`). Each end needs 3 easy runs, else the line is hidden. When
+  3+ runs at each end carry a heart rate (and max HR is known) every pace is
+  moved to the block's median HR on the prior slope (`PRIOR_PACE_PER_RESERVE`,
+  `docs/race-predictions.md`), so a run that was only harder does not read as
+  fitness, and the line says "at the same heart rate, about N bpm". Without
+  that it is the plain median and the copy makes no same-effort claim. After an
+  open plan's checkpoint run Home also shows a "Block n done" row
+  (`finishedBlock`, `BlockDoneCard`) with the same numbers for
+  `BLOCK_DONE_DAYS` (10). Free: a one-moment summary, not a history surface
+  (`docs/monetization.md`).
+- **Next race** leads with a wishlisted race at least 3 weeks out, else the
+  catalogue's top 3 (6-24 weeks out, near the distance just raced, soonest
+  first, nearest first once "Near me" has a fix, `useNearMeFilter`); each opens
+  `promoteEdition`, so the plan is built in Plan setup as ever. **Keep
+  improving** (fr "Progresser", es "Seguir mejorando") has the target chips:
+  faster at 5K/10K/half (each showing the runner's best effort), run further,
+  stay healthy and consistent. No "run more often".
+- **Applying** an open choice: `startNextGoal` writes the settings
+  (`openSettingsPatch`: `goalKind`, `openTarget`, `lightPlan`, no race date or
+  target), builds the open plan over the old one through `carryProgress` (with
+  `afterRace`) and toasts an Undo.
+- **When it shows.** By itself on Home when the phase is `choosing`,
+  `settings.whatsNextFor` is not the race's key (`raceKey`: edition id and
+  date), the race (plus its recovery) is at most 28 days back, and nothing else
+  is up (achievement sheet, coachmark, recorder, settings, other sheets).
+  **Any answer spends it**, "Not now" and back/Escape included
+  (`whatsNextFor` is written). Afterwards the quiet row (`NextGoalCard`, and
+  PlanView's "Set your next goal") opens it by hand; so does the coach's
+  `app:next`.
+- **Race-first variant** (race-day mode). A live-first runner's race, detected
+  on race day with `raceBridgeSeen === false`, opens the same sheet with no
+  recap and no question and races first (`RaceBridgeSheet` is gone); any answer
+  sets `raceBridgeSeen`. Spent after the post-run achievement sheet, never
+  stacked on it.
+- A runner who never answers gets the automatic start in
+  `docs/training-plan.md` ("Open plans and blocks").
 
 ## Badges
 

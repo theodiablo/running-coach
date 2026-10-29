@@ -35,7 +35,8 @@
     "BUILD": "BUILD",
     "PEAK": "PEAK",
     "TAPER": "TAPER",
-    "RACE": "RACE"
+    "RACE": "RACE",
+    "RECOVERY": "RECOVERY"
   },
   "hrTargetNudge": "Add your HR profile in Settings to see a target zone",
   "hrRowZone": {

@@ -35,7 +35,8 @@
     "BUILD": "DÉVELOPPEMENT",
     "PEAK": "PIC DE FORME",
     "TAPER": "AFFÛTAGE",
-    "RACE": "COURSE"
+    "RACE": "COURSE",
+    "RECOVERY": "RÉCUPÉRATION"
   },
   "hrTargetNudge": "Ajoute ton profil de FC dans les Paramètres pour voir une zone cible",
   "hrRowZone": {

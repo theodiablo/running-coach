@@ -45,7 +45,8 @@
     "distancePlaceholder": "p. ej. 21,1",
     "elevationLabel": "Desnivel positivo de la carrera (m)",
     "elevationHint": "Desnivel positivo total del recorrido; se usa para ajustar los ritmos de entrenamiento al esfuerzo equivalente en llano.",
-    "addedToast": "Añadida al catálogo y definida como tu carrera objetivo."
+    "addedToast": "Añadida al catálogo y definida como tu carrera objetivo.",
+    "dateInPast": "Elige una fecha de carrera posterior a hoy."
   },
   "raceGoal": {
     "title": "Objetivo y días de entrenamiento",
@@ -112,10 +113,7 @@
     "dMore": {
       "label": "Solo correr más",
       "sub": "crea el hábito"
-    },
-    "horizonLabel": "¿En cuánto tiempo?",
-    "weeks_one": "{{count}} semana",
-    "weeks_other": "{{count}} semanas"
+    }
   },
   "hr": {
     "title": "Frecuencia cardiaca",
@@ -157,7 +155,6 @@
     "fallbackFitness": "Construye tu base",
     "fallbackRace": "Tu carrera",
     "meta": "{{km}} km · {{date}}",
-    "metaGoal": "Meta {{km}} km · {{date}}",
     "weekPlan": "semanas de entrenamiento",
     "sessionsPerWeek": "sesiones / semana",
     "coach": {
@@ -166,7 +163,9 @@
       "ex2": "«Me he saltado toda la semana»",
       "ex3": "«Me molesta la rodilla»",
       "guarantee": "Propone los cambios y tú los aceptas. Nada cambia hasta que lo confirmes."
-    }
+    },
+    "metaBlock": "Seguir mejorando · {{km}} km",
+    "blockWeeks": "semanas por bloque"
   },
   "level": {
     "label": "¿Con qué frecuencia corres actualmente?"

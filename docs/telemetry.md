@@ -151,8 +151,8 @@ choice either way.
   `identifyUser` / `resetUser` on auth — `src/App.tsx`.
 - Events (`onboarding_completed` `{intent:"race"|"fitness"|"live"}`, `run_logged`, `plan_generated`,
   `race_target_set`, `race_completed` `{source:"manual"|"auto"}`,
-  `plan_race_added` — a secondary race folded into the plan, `race_bridge`
-  `{action:"plan"|"dismiss"}` — the post-race offer in race-day mode) —
+  `plan_race_added` — a secondary race folded into the plan; the old
+  `race_bridge` event is superseded by `whats_next_*` below) —
   `src/RunningCoach.tsx`. Limited: counts/enums only, never race
   names/notes/times. `plan_race_added` carries no properties (there is no race
   priority/tier). **`run_logged` `{count, source}` is the "new run tracked"
@@ -170,6 +170,17 @@ choice either way.
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
+- "What's next?" (`docs/races.md`): `whats_next_shown` `{variant:"afterRace"|
+  "raceFirst"|"manual"}` when the sheet mounts; `whats_next_answered`
+  `{variant, feeling?:"fired"|"steady"|"breather", choice:"race"|"improve"|
+  "lighter"|"later", target?:"faster"|"further"|"healthy"}` for any answer
+  (`later` is "Not now" and back); `open_plan_extended` `{}` when
+  `runPlanAutomation` appends the next blocks; `open_plan_autostarted`
+  `{hadRuns:boolean}` when it starts a plan for a runner who never answered
+  (`src/RunningCoach.tsx`). Enums only, never a race or a time.
+- `debrief_answered` `{answer:"ran"|"didnt"|"moved"|"feel"}` — the post-race
+  debrief card on Home (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
+  An enum only: never the time, the race or the effort chosen.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.

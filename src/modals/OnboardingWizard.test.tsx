@@ -95,3 +95,75 @@ describe("OnboardingWizard: live sharing", () => {
     expect(screen.getByText("You're all set!")).toBeInTheDocument();
   });
 });
+
+describe("OnboardingWizard: race date", () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-12T10:00:00")); });
+  afterEach(() => vi.useRealTimers());
+
+  it("won't continue on a race date that is today or behind us", () => {
+    const { container } = render(<OnboardingWizard settings={{ onboardStep: 1, intent: null } as SettingsState}
+      onSaveProgress={vi.fn()} onComplete={vi.fn()} catalogue={[]}
+      addRace={vi.fn()} addEdition={vi.fn()} refreshCatalogue={vi.fn()} showToast={vi.fn()}/>);
+    fireEvent.click(screen.getByText("I'm training for a race"));
+    fireEvent.click(screen.getByText("Just enter it for myself →"));
+    const date = container.querySelector('input[type="date"]') as HTMLInputElement;
+    expect(date.min).toBe("2026-10-13");
+    fireEvent.change(container.querySelector('input[type="number"]') as HTMLInputElement, { target: { value: "10" } });
+
+    fireEvent.change(date, { target: { value: "2026-10-12" } });
+    expect(screen.getByText("Pick a race date after today.")).toBeInTheDocument();
+    expect(screen.getByText("Continue")).toBeDisabled();
+
+    fireEvent.change(date, { target: { value: "2026-11-15" } });
+    expect(screen.queryByText("Pick a race date after today.")).toBeNull();
+    expect(screen.getByText("Continue")).toBeEnabled();
+  });
+});
+
+describe("OnboardingWizard: the fitness branch trains in blocks, not towards a date", () => {
+  it("asks no 'over how long?', and saves a block plan with no race date", () => {
+    const { onSaveProgress } = setup({ onboardStep: 1 });
+    fireEvent.click(screen.getByText("I'm just getting started"));
+    expect(screen.getByText("Your training")).toBeInTheDocument();
+    expect(screen.queryByText("Over how long?")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("10K"));
+    fireEvent.click(screen.getByText("Continue"));
+    const saved = onSaveProgress.mock.calls[onSaveProgress.mock.calls.length - 1][0];
+    expect(saved).toMatchObject({ raceDate: "", distanceKm: 10, goalSec: "", goalKind: "block", openTarget: "further", targetEditionId: null });
+  });
+
+  it("completes as a block plan, and the summary speaks of blocks", () => {
+    const { onComplete } = setup({ onboardStep: 1 });
+    fireEvent.click(screen.getByText("I'm just getting started"));
+    fireEvent.click(screen.getByText("Continue"));
+    // Heart rate, then the health gate.
+    fireEvent.click(screen.getByText("Continue"));
+    passHealthGate();
+    expect(screen.getByText("weeks per block")).toBeInTheDocument();
+    expect(screen.queryByText("week plan")).not.toBeInTheDocument();
+    expect(screen.getByText(/Keep improving · 5 km/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Get started"));
+    expect(onComplete.mock.calls[0][0].plan).toMatchObject({ raceDate: "", distanceKm: 5, goalKind: "block", openTarget: "further" });
+  });
+
+  it("'Just run more' builds towards staying healthy, a distance pick towards running further", () => {
+    const { onSaveProgress, onComplete } = setup({ onboardStep: 1 });
+    fireEvent.click(screen.getByText("I'm just getting started"));
+    fireEvent.click(screen.getByText("Just run more"));
+    fireEvent.click(screen.getByText("Continue"));
+    expect(onSaveProgress.mock.calls[onSaveProgress.mock.calls.length - 1][0]).toMatchObject({ goalKind: "block", openTarget: "healthy" });
+    fireEvent.click(screen.getByText("Continue"));
+    passHealthGate();
+    fireEvent.click(screen.getByText("Get started"));
+    expect(onComplete.mock.calls[0][0].plan).toMatchObject({ goalKind: "block", openTarget: "healthy" });
+  });
+
+  it("the race branch is still a race plan", () => {
+    const { onComplete } = setup({ onboardStep: 4, intent: "race", raceDate: "2099-05-01", distanceKm: 10 });
+    expect(screen.getByText("Heart rate")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Continue"));
+    passHealthGate();
+    fireEvent.click(screen.getByText("Get started"));
+    expect(onComplete.mock.calls[0][0].plan).toMatchObject({ raceDate: "2099-05-01", goalKind: "race" });
+  });
+});

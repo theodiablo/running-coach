@@ -51,9 +51,20 @@ export type SettingsState = Record<string, unknown> & {
   liveFirst?: boolean;
   // Whether the share link went out from onboarding or Home's race-day card.
   liveLinkSent?: boolean;
-  // The one-time "plan your next race" offer after the race. Seeded `false` on
-  // the live branch only, so it never reaches a runner who already has a plan.
+  // The one-time race-first "What's next?" sheet after the race. Seeded `false`
+  // on the live branch only, so it never reaches a runner who already has a plan.
   raceBridgeSeen?: boolean;
+  // What the plan is for (plan.goal.kind mirror, for readers that only have
+  // settings). Absent = a race plan; "block" and "open" have no raceDate.
+  goalKind?: GoalKind;
+  // Keep improving: what the blocks aim at, and the lighter (~2 easy runs a
+  // week) variant. Absent = "healthy" / off.
+  openTarget?: OpenTarget;
+  lightPlan?: boolean;
+  // The race key (utils/whatsNext.ts) the "What's next?" sheet was last
+  // answered for, and the one the automatic start's Home notice was shown for.
+  whatsNextFor?: string;
+  autoStartNoticeFor?: string;
   // The recorder's audio-guidance preferences (AudioPrefs, read through
   // readAudioPrefs) and the last free run's "Today's run" setup (read through
   // readSpec). Both synced; docs/guided-workouts.md.
@@ -124,7 +135,7 @@ export type HrPending = { start: string | number; end: string | number; source: 
 // _shared/coach/tools.mjs) both stamp this; sessionDesc.test.ts proves both
 // render to the canonical English `desc` byte-for-byte.
 export type SessionSd = {
-  kind: "long" | "easy" | "recovery" | "tempo" | "intervals" | "runwalk" | "cross" | "crosswalk" | "crossActivity" | "race" | "raceday";
+  kind: "long" | "easy" | "recovery" | "tempo" | "intervals" | "runwalk" | "cross" | "crosswalk" | "crossActivity" | "race" | "raceday" | "checkpoint";
   activity?: "bike" | "elliptical" | "swim" | "rower"; // coach-converted cross-training
   variant?: string;      // sentence flavor within a kind (1:1 with the English templates)
   reps?: number;         // rep/set count
@@ -140,7 +151,7 @@ export type SessionSd = {
   runMin?: number;
   walkMin?: number;
   minutes?: number;      // lowfreq cross-training day budget
-  km?: number;           // race / raceday sentence figures
+  km?: number;           // race / raceday / checkpoint sentence figures
   elevM?: number;
 };
 
@@ -230,7 +241,7 @@ export function coachSessionKey(ctx?: CoachSessionContext | null): string | null
 // never changes what the coach is told. Pass one at every call site so the
 // entry points stay comparable; "other" is the defensive fallback for a bare
 // `onClick={openCoach}` wiring that hands us a click event instead.
-export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "other";
+export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "recovery" | "other";
 
 export type PlanWeek = Record<string, unknown> & {
   weekNumber: number;
@@ -239,7 +250,36 @@ export type PlanWeek = Record<string, unknown> & {
   sessions: PlanSession[];
 };
 
+// What a plan is for. Absent = "race" (every plan written before goals existed);
+// goalKind (utils/recovery.ts) is the one reader. docs/training-plan.md.
+export type GoalKind = "race" | "block" | "open";
+export type OpenTarget = "faster" | "further" | "healthy";
+export type PaceSource = "goal" | "anchor" | "suggested";
+// kind block = a fitness runner's first blocks, open = "Keep improving": one
+// engine, different copy. startDate is the Monday block 1 began.
+export type PlanGoal = {
+  kind: GoalKind;
+  target?: OpenTarget;
+  distanceKm?: number;
+  light?: boolean;
+  blockWeeks?: number;
+  startDate?: string;
+  paceSource?: PaceSource;
+  // The race key an automatic start was made for (utils/planAutomation.ts).
+  autoFor?: string;
+  // The last day the plan was extended through (idempotence stamp).
+  extendedThrough?: string;
+} & Record<string, unknown>;
+// A recovery window after a race: easy-only through `until` (inclusive).
+// Build-time facts like raceDate, never derived from the clock.
+export type RecoveryWindow = { race: string; km: number; until: string };
+
 export type Plan = Record<string, unknown> & {
+  goal?: PlanGoal;
+  // Written by buildPlan's opts.recovery when it appends the tail after race day.
+  recovery?: RecoveryWindow;
+  // Written when a new plan opens inside the previous race's recovery.
+  openedAfter?: RecoveryWindow;
   raceDate?: unknown;
   goalSec?: unknown;
   distanceKm?: unknown;

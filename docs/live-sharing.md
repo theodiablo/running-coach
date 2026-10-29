@@ -600,8 +600,10 @@ gate, and it builds no plan.
   race card becomes `RaceDayCard` (countdown, link, a test run until any GPS run
   exists, Start) and the "no plan" prompt becomes a quiet `RaceDayPlanRow`.
   Race auto-detect matches against the wishlist, since there is no RACE session
-  to stamp; detecting the race fires the one-time `RaceBridgeSheet`
-  (`raceBridgeSeen`, seeded `false` on this branch only).
+  to stamp; detecting the race opens the one-time `WhatsNextSheet` in its
+  race-first variant (no recap, no question, races before Keep improving;
+  `docs/races.md`). `raceBridgeSeen` (seeded `false` on this branch only) is
+  spent by any answer.
 - The link UI is one hook and one panel (`useShareLink`, `ShareLinkPanel`)
   shared by the recorder, onboarding and Home; its confirm dialogs are
   portalled, since the panel sits inside animated sheets.

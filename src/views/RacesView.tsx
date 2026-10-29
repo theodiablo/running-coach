@@ -15,7 +15,10 @@ import { haversineM } from "../utils/geo";
 import { reportRace } from "../races";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import type { RaceDateChange } from "../utils/races";
-import type { CatalogueEdition, CatalogueRace, JoinedEdition, Participation, RacesState, Run, SettingsState } from "../types";
+import { mainRace } from "../utils/planPhase";
+import { planEndYmd } from "../utils/plan";
+import { goalKind } from "../utils/recovery";
+import type { CatalogueEdition, CatalogueRace, JoinedEdition, Participation, Plan, RacesState, Run, SettingsState } from "../types";
 
 const SEGMENTS = [["mine", "races.segments.mine"], ["find", "races.segments.find"]];
 
@@ -39,6 +42,9 @@ type RacesViewProps = {
   showToast: (msg: string, type?: string) => void;
   catalogue: CatalogueRace[];
   openRaceForm: () => void;
+  // The plan's main race is settled through the hub, which ticks its RACE session too.
+  plan?: Plan | null;
+  settleRace?: (runId: string | null, timeSec: number | null, opts?: { notes?: string; quiet?: boolean }) => boolean;
 };
 
 // Resolve a stored participation to its catalogue edition; fall back to the
@@ -62,7 +68,7 @@ function UnverifiedTag() {
   );
 }
 
-export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, catalogue, openRaceForm }: RacesViewProps) {
+export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, catalogue, openRaceForm, plan, settleRace }: RacesViewProps) {
   const { t } = useTranslation();
   const [seg, setSeg] = useState<Segment>("mine");
   const [logFor, setLogFor] = useState<string | null>(null); // editionId being logged
@@ -70,6 +76,8 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = ymd(today);
   const parts = races?.participations || [];
+  // Where a plan with no race ends: only a race inside it can be folded in.
+  const openEnd = plan && goalKind(plan) !== "race" ? planEndYmd(plan) : null;
   const byId = Object.fromEntries(parts.filter(p => p.editionId).map(p => [p.editionId as string, p]));
   const cat = catalogue || [];
 
@@ -105,11 +113,16 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
       runId = "r" + Date.now();
       addRuns([{
         id: runId, date: ed.date, type: "RACE", km: ed.distanceKm, durationSec: timeSec,
-        hr: null, hrMax: null, elevation: ed.elevation || undefined, effort: 8,
+        hr: null, hrMax: null, elevation: ed.elevation || undefined, effort: null,
         notes: notes || t("races.result.defaultNote", { label: editionLabel({ name: joined.name }, ed) }),
       }], { skipDetect: true });
     }
-    upsertPart(joined, { status: "done", timeSec, notes, source: "manual", runId });
+    if (settleRace && mainRace(plan, settings)?.editionId === ed.id) {
+      // The hub writes the participation and ticks the plan's RACE session together.
+      settleRace(runId, timeSec, { notes, quiet: true });
+    } else {
+      upsertPart(joined, { status: "done", timeSec, notes, source: "manual", runId });
+    }
     track("race_completed", { source: "manual" });
     setLogFor(null);
     showToast(t("races.toast.logged"));
@@ -120,6 +133,9 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
   const wishlist = parts.filter(p => p.status === "wishlist");
   const upcoming = wishlist.filter(p => p.raceDate && p.raceDate >= todayStr).sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)));
   const past = wishlist.filter(p => p.raceDate && p.raceDate < todayStr).sort((a, b) => String(b.raceDate).localeCompare(String(a.raceDate)));
+  // "Didn't run" answers stay with the past races, still open to a time.
+  const skipped = parts.filter(p => p.status === "skipped");
+  const pastAll = [...past, ...skipped].sort((a, b) => String(b.raceDate).localeCompare(String(a.raceDate)));
 
   return (
     <div className="max-w-lg mx-auto p-4">
@@ -164,7 +180,10 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
                 // — a checkpoint along the way. We key off settings.raceDate rather
                 // than targetEditionId so a hand-entered main race (no catalogue
                 // edition) can still have tune-ups added.
-                const inPlannable = settings.raceDate && !isTarget && String(p.raceDate) < settings.raceDate;
+                // A plan with no race date holds a race that falls inside its weeks.
+                const inPlannable = settings.raceDate
+                  ? !isTarget && String(p.raceDate) < settings.raceDate
+                  : !!openEnd && String(p.raceDate) < openEnd;
                 return (
                   <div key={p.editionId} className="rounded-2xl p-4 border border-orange-500/30"
                     style={{ background: "linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))" }}>
@@ -210,15 +229,15 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
             </Section>
           )}
 
-          {past.length > 0 && (
+          {pastAll.length > 0 && (
             <Section title={t("races.sections.past")}>
-              {past.map(p => {
+              {pastAll.map(p => {
                 const joined = resolveJoined(p);
                 return (
                   <div key={p.editionId} className="rounded-xl p-4 border border-amber-500/25 bg-amber-500/5">
                     <p className="font-semibold">{p.label}</p>
                     <p className="text-slate-400 text-sm mt-0.5">{fmt.date(p.raceDate || "") + " · " + p.distanceKm + " km"}</p>
-                    <p className="text-amber-200/80 text-xs mt-1">{t("races.past.passed")}</p>
+                    <p className="text-amber-200/80 text-xs mt-1">{p.status === "skipped" ? t("races.result.skipped") : t("races.past.passed")}</p>
                     <div className="flex gap-2 mt-3">
                        <button onClick={() => setLogFor(p.editionId || null)}
                         className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-xl text-sm font-semibold transition-colors">

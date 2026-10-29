@@ -13,12 +13,14 @@ import { HRZonesCard } from "../components/HRZonesCard";
 import { StretchStatsCard } from "../components/StretchStatsCard";
 import type { StretchLogEntry } from "../utils/stretchSuggest";
 import { isCrossTraining } from "../types";
-import type { RacesState, Run, SettingsState } from "../types";
+import { planPhase } from "../utils/planPhase";
+import type { Plan, RacesState, Run, SettingsState } from "../types";
 
 type StatsViewProps = {
   runs: Run[];
   settings: SettingsState;
   races?: RacesState | null;
+  plan?: Plan | null;
   goTab?: (tab: string) => void;
   isPremium?: boolean;
   stretchLog?: StretchLogEntry[];
@@ -43,19 +45,22 @@ export function StatsView(props: StatsViewProps) {
       <div className="px-4 pt-6 pb-0">
         <h2 className="text-xl font-bold">{t("progress.stats.title")}</h2>
       </div>
-      <Overview runs={runs} settings={settings} stretchLog={props.stretchLog}/>
+      <Overview runs={runs} settings={settings} stretchLog={props.stretchLog} plan={props.plan} races={props.races}/>
       <RacePredictions {...props}/>
       <HRZonesCard runs={runs} settings={settings}/>
     </div>
   );
 }
 
-function Overview({runs, settings, stretchLog = []}: StatsViewProps) {
+function Overview({runs, settings, stretchLog = [], plan, races}: StatsViewProps) {
   const { t } = useTranslation();
   const [period, setPeriod] = useState<Period>("12w");
   // The user's goal pace, drawn on the pace trend so the reference line tracks
-  // their actual target rather than a hardcoded 6:00.
-  const goalPace = settings && settings.goalSec && settings.distanceKm
+  // their actual target rather than a hardcoded 6:00. Dropped once the race is
+  // behind them: a finished goal is not a line to chase.
+  const phase = plan ? planPhase({ plan, settings, participations: races?.participations, runs }, ymd(new Date())) : null;
+  const racePassed = phase?.phase === "debrief" || phase?.phase === "choosing" || phase?.phase === "recovery";
+  const goalPace = !racePassed && settings && settings.goalSec && settings.distanceKm
     ? Number(settings.goalSec) / Number(settings.distanceKm) : 0;
 
   const fRuns = periodRuns(runs, period);

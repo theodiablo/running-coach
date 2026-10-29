@@ -193,6 +193,56 @@ describe("golden cases (MOCK_LLM)", () => {
     expect(without[0].content).not.toContain("RUNNER AGE");
   });
 
+  it("buildMessages adds a RACE STATUS line only when the context carries one", () => {
+    const base = makeContext("my legs are heavy");
+    const text = (c: unknown) => buildMessages(c, [], null)[0].content as string;
+    const status = (over: Record<string, unknown>) => ({
+      phase: "recovery", race: { date: "2026-10-04", km: 42.2 }, settled: "done", resultSec: 14400, goalSec: 14700,
+      recoveryUntil: "2026-10-30", openedAfter: null, ...over,
+    });
+    // Heading for the race: nothing to say, the context is byte-identical to what it always was.
+    expect(text(base)).not.toContain("RACE STATUS:");
+    expect(text({ ...base, raceStatus: null })).toBe(text(base));
+    const after = text({ ...base, raceStatus: status({}) });
+    expect(after).toContain("RACE STATUS: passed (the 42.2 km race on 2026-10-04), result 4:00:00, 5:00 under the 4:05:00 goal; easy running only through 2026-10-30; next goal not chosen yet.\n");
+    // Right after GOAL, where the recovery line used to sit.
+    expect(after).toMatch(/GOAL: .*\nRACE STATUS: .*\nPLAN STYLE/);
+    expect(text({ ...base, raceStatus: status({ phase: "choosing", recoveryUntil: null, resultSec: null, settled: "skipped" }) }))
+      .toContain("RACE STATUS: not run (the 42.2 km race on 2026-10-04 was skipped); next goal not chosen yet.\n");
+    expect(text({ ...base, raceStatus: status({ phase: "open", race: null, settled: null, resultSec: null, openedAfter: { race: "2026-10-04", km: 10 } }) }))
+      .toContain("RACE STATUS: open plan, no race (started after the 10 km race on 2026-10-04); easy running only through 2026-10-30.\n");
+  });
+
+  it("buildMessages states the aim of a plan with no race instead of a race date", () => {
+    const base = makeContext("how am I doing?");
+    const open = (goal: Record<string, unknown>) => ({ ...base, plan: { ...base.plan, raceDate: "", goal: { kind: "open", blockWeeks: 4, ...goal } } });
+    const text = (c: unknown) => buildMessages(c, [], null)[0].content as string;
+    expect(text(open({ target: "faster", distanceKm: 10 })))
+      .toContain("GOAL: keep improving, faster at 10 km (4-week blocks ending in a checkpoint run, no race date)\n");
+    expect(text(open({ target: "further" }))).toContain("GOAL: keep improving, run further (4-week");
+    expect(text(open({ target: "healthy", light: true }))).toContain("stay healthy and consistent, lighter plan (about 2 easy runs a week) (4-week");
+    expect(text(open({ target: "healthy" }))).not.toMatch(/GOAL: \d/);
+    // A race plan keeps its line byte for byte.
+    expect(text(base)).toMatch(/GOAL: 21.1 km on \d{4}-\d{2}-\d{2}, goal 110 min\n/);
+  });
+
+  it("system prompt knows the app:next link", () => {
+    expect(SYSTEM_PROMPT).toContain("`app:next`");
+    expect(SYSTEM_PROMPT).toContain("only these six exist");
+  });
+
+  it("system prompt keeps recovery easy-only and points soreness at the softening tools", () => {
+    expect(SYSTEM_PROMPT).toMatch(/recovery after a race \(RACE STATUS .*easy running only/);
+    expect(SYSTEM_PROMPT).toContain("insert_recovery_week, convert_to_cross_training or reduce_session_distance");
+  });
+
+  it("system prompt acknowledges the result once and hands what's next to app:next, never building a plan", () => {
+    expect(SYSTEM_PROMPT).toContain("RACE STATUS (a context line, present once the race has passed)");
+    expect(SYSTEM_PROMPT).toContain("Acknowledge the result ONCE");
+    expect(SYSTEM_PROMPT).toContain("[choose your next goal](app:next)");
+    expect(SYSTEM_PROMPT).toContain("you never build or rebuild a plan");
+  });
+
   // ── the plan context window ───────────────────────────────────────────────
   // A rebuild keeps up to 8 elapsed weeks. The model gets the live weeks in
   // full (they are what it edits) plus a bounded, compacted tail of history —

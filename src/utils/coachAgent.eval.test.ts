@@ -3,14 +3,16 @@
 // it never calls Anthropic. Assertions check coaching/safety properties rather
 // than exact wording.
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
 import { generateProposal, buildMessages } from "../../supabase/functions/_shared/coach/engine.mjs";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
 import { createMockModel } from "../../supabase/functions/_shared/coach/mock.mjs";
 import { validatePlan } from "./coachValidation";
 import { buildPlan } from "./plan";
+import { buildOpenPlan } from "./openPlan";
 import { ymd } from "./format";
+import type { SettingsState } from "../types";
 
 type TestSession = {
   id: string;
@@ -534,6 +536,60 @@ const cases = [
       expect(result.status).toBe("proposed");
       expect(result.changed).toBe(false);
       expect((result as { runDetailFetches?: unknown[] }).runDetailFetches).toEqual([]);
+    },
+  },
+  {
+    name: "a tempo added inside the recovery after a race is refused as RECOVERY, plan unchanged",
+    async check() {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date("2026-06-15T09:00:00"));
+        const plan = buildPlan("2026-08-02", 6600, SESSIONS, 21.1, 0, { recovery: true }) as TestPlan & { recovery: { until: string } };
+        const context = { ...makeContext("I feel great, add a tempo session"), plan, today: "2026-08-04" };
+        const date = "2026-08-07";
+        expect(date <= plan.recovery.until).toBe(true);
+        let fed = "";
+        let calls = 0;
+        const inner = scriptedModel([[{ name: "add_session", input: { date, type: "TEMPO", km: 5 } }], []]);
+        const result = await generateProposal({
+          baseline: plan, context,
+          callModel: async (messages: unknown[]) => { if (calls++ === 1) fed = JSON.stringify(messages); return inner(); },
+        }) as ProposalResult;
+        expect(result.status).toBe("proposed");
+        expect(result.changed).toBe(false);
+        expect(result.plan).toEqual(plan);
+        expect(fed).toContain("RECOVERY:");
+        expect(fed).toContain("Why this protects the runner");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  },
+  {
+    name: "an easy run added to a plan with no race is accepted and validates",
+    async check() {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date("2026-09-16T09:00:00"));
+        const plan = buildOpenPlan({ planSessions: SESSIONS } as unknown as SettingsState,
+          { target: "healthy", distanceKm: 10 }, { runs: [] }) as unknown as TestPlan;
+        const first = allSessions(plan).filter(s => s.type !== "RACE").sort((a, b) => a.date.localeCompare(b.date))[0];
+        const taken = new Set(allSessions(plan).map(s => s.date));
+        const d = new Date(first.date + "T00:00:00");
+        do d.setDate(d.getDate() + 1); while (taken.has(ymd(d)));
+        const date = ymd(d);
+        const context = { ...makeContext("I can fit one more easy run this week"), plan, today: "2026-09-16",
+          goal: { raceDate: "", distanceKm: 10, goalSec: null, kind: "open", target: "healthy" } };
+        const result = await generateProposal({
+          baseline: plan, context, callModel: scriptedModel([[{ name: "add_session", input: { date, type: "EASY", km: 3 } }], []]),
+        }) as ProposalResult;
+        expect(result.status).toBe("proposed");
+        expect(result.changed).toBe(true);
+        expect(allSessions(result.plan!).filter(s => s.id.startsWith("coach-add-"))).toMatchObject([{ date, type: "EASY", km: 3 }]);
+        expect(validatePlan(result.plan, { baseline: plan }).ok).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     },
   },
   {

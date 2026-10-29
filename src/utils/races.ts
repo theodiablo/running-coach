@@ -68,17 +68,17 @@ export function editionLabel(race?: Pick<CatalogueRace, "name"> | null, edition?
 }
 
 // Multi-race version: match a just-logged run against ANY race on the plan.
-// `candidates` is a list of {editionId, date, distanceKm} — typically every RACE
-// session on the plan that carries an editionId (the main race + any secondary
-// races). Returns the matched editionId, or null. Matches on the same date plus
-// a distance-tolerance rule.
-export function detectAnyRace(run: Run | null | undefined, candidates: RaceCandidate[] = [], tolerance = 0.18) {
+// `candidates` is every race the plan holds: the main race and any secondary
+// ones, with or without a catalogue edition (a hand-entered race has none).
+// Returns the matched candidate, or null. Matches on the same date plus a
+// distance-tolerance rule.
+export function detectAnyRace<C extends RaceCandidate>(run: Run | null | undefined, candidates: C[] = [], tolerance = 0.18): C | null {
   if (!run || !run.date || !run.km) return null;
   for (const c of candidates) {
-    if (!c || !c.editionId || !c.date || !c.distanceKm) continue;
+    if (!c || !c.date || !c.distanceKm) continue;
     if (run.date !== c.date) continue;
     const distanceKm = Number(c.distanceKm);
-    if (Math.abs(run.km - distanceKm) <= distanceKm * tolerance) return c.editionId;
+    if (Math.abs(run.km - distanceKm) <= distanceKm * tolerance) return c;
   }
   return null;
 }

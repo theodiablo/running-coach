@@ -60,6 +60,11 @@ export function renderSd(
     }
     case "recovery":
       return t("plan.recovery");
+    case "checkpoint": {
+      const r = sd.variant === "runwalk" ? runwalkRatio({ sd }, "") : null;
+      return t(r ? "plan.checkpoint.runwalk" : "plan.checkpoint.easy",
+        r ? { km: sd.km, run: fmt.interval(r.runSec), walk: fmt.interval(r.walkSec) } : { km: sd.km });
+    }
     case "race": {
       const elev = sd.elevM ? t("plan.raceElev", { elevM: sd.elevM }) : "";
       return t("plan.race", { km: sd.km, elev });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 // @ts-expect-error Shared edge-function ESM has no TypeScript declarations yet.
-import { TOOL_DEFS, READ_ONLY_TOOLS, applyToolCall, assessGoalFeasibility, assessWeekAdherence, CoachToolError } from "../../supabase/functions/_shared/coach/tools.mjs";
+import { TOOL_DEFS, READ_ONLY_TOOLS, RULE_WHY, applyToolCall, assessGoalFeasibility, assessWeekAdherence, CoachToolError } from "../../supabase/functions/_shared/coach/tools.mjs";
 import { validatePlan } from "./coachValidation";
 
 type TestSession = {
@@ -650,5 +650,128 @@ describe("assessWeekAdherence", () => {
   it("says so when no week has started", () => {
     const future = { weeks: [{ weekNumber: 1, startDate: "2026-09-07", sessions: [] }] };
     expect(assess({ plan: future, today: TODAY, recentRuns: [] })).toMatch(/no started weeks/);
+  });
+});
+
+// ── the recovery after the race ─────────────────────────────────────────────
+// The fixture's race is Sat 2026-01-24; the plan was written with a tail
+// through 2026-02-05 (a Sunday in the race week, then two RECOVERY weeks).
+describe("applyToolCall · recovery after the race", () => {
+  const recoveryPlan = (): TestPlan => {
+    const p = plan() as TestPlan & { recovery: unknown };
+    p.raceDate = "2026-01-24";
+    p.recovery = { race: "2026-01-24", km: 20, until: "2026-02-05" };
+    p.weeks.push(
+      { weekNumber: 4, startDate: "2026-01-26", phase: "RECOVERY", sessions: [sess("w4d2", "2026-01-28", "EASY", 3), sess("w4d4", "2026-01-30", "EASY", 3.5)] },
+      { weekNumber: 5, startDate: "2026-02-02", phase: "RECOVERY", sessions: [sess("w5d2", "2026-02-04", "EASY", 4)] },
+    );
+    return p;
+  };
+  const codeOf = (fn: () => unknown) => {
+    try { fn(); } catch (e) { return e instanceof CoachToolError ? (e as unknown as { code: string }).code : "OTHER"; }
+    return null;
+  };
+  const sessionsOf = (p: TestPlan) => p.weeks.flatMap(w => w.sessions);
+
+  it("RACE_EVE and the taper rules stop at race day", () => {
+    const out = applyTool(recoveryPlan(), "add_session", { date: "2026-01-27", type: "EASY", km: 3 });
+    expect(sessionsOf(out).some(s => s.date === "2026-01-27")).toBe(true);
+    const grown = applyTool(recoveryPlan(), "increase_session_distance", { session_id: "w4d2", factor: 1.1 });
+    expect(sessionsOf(grown).find(s => s.id === "w4d2")!.km).toBe(3.3);
+    // ...and still hold before it.
+    expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-01-23", type: "EASY", km: 3 }))).toBe("RACE_EVE");
+  });
+
+  it("add_session and move_session refuse the rest days just after the race", () => {
+    for (const date of ["2026-01-25", "2026-01-26"]) {
+      expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date, type: "EASY", km: 3 }))).toBe("AFTER_RACE");
+      expect(codeOf(() => applyTool(recoveryPlan(), "shift_workout", { session_id: "w4d2", new_date: date }))).toBe("AFTER_RACE");
+    }
+  });
+
+  it("add_session: easy or walk only, inside the window, no longer than the longest recovery session", () => {
+    expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-01-29", type: "TEMPO", km: 3 }))).toBe("RECOVERY");
+    expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-01-29", type: "LONG", km: 3 }))).toBe("RECOVERY");
+    expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-01-29", type: "EASY", km: 5 }))).toBe("RECOVERY");
+    expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-02-06", type: "EASY", km: 3 }))).toBe("AFTER_RACE");
+    expect(codeOf(() => applyTool(recoveryPlan(), "add_session", { date: "2026-01-24", type: "EASY", km: 3 }))).toBe("AFTER_RACE");
+    const out = applyTool(recoveryPlan(), "add_session", { date: "2026-01-29", type: "WALK", km: 4 });
+    expect(sessionsOf(out).find(s => s.date === "2026-01-29")!.type).toBe("WALK");
+    expect(validatePlan(out, { today: TODAY }).errors).toEqual([]);
+  });
+
+  it("increase_session_distance: easy only, never past the longest recovery session", () => {
+    expect(codeOf(() => applyTool(recoveryPlan(), "increase_session_distance", { session_id: "w4d2", factor: 2 }))).toBe("RECOVERY");
+    expect(codeOf(() => applyTool(recoveryPlan(), "increase_session_distance", { session_id: "w5d2", factor: 1.1 }))).toBe("RECOVERY");
+    const p = recoveryPlan();
+    sessionsOf(p).find(s => s.id === "w4d4")!.type = "OTHER";
+    expect(codeOf(() => applyTool(p, "increase_session_distance", { session_id: "w4d4", factor: 1.1 }))).toBe("RECOVERY");
+  });
+
+  it("shift_workout: inside the window only, and no quality moves into it", () => {
+    const out = applyTool(recoveryPlan(), "shift_workout", { session_id: "w4d2", new_date: "2026-01-29" });
+    expect(sessionsOf(out).find(s => s.id === "w4d2")!.date).toBe("2026-01-29");
+    expect(codeOf(() => applyTool(recoveryPlan(), "shift_workout", { session_id: "w4d2", new_date: "2026-02-06" }))).toBe("AFTER_RACE");
+    expect(codeOf(() => applyTool(recoveryPlan(), "shift_workout", { session_id: "w2d6", new_date: "2026-01-29" }))).toBe("RECOVERY");
+    expect(codeOf(() => applyTool(recoveryPlan(), "shift_workout", { session_id: "w1d2", new_date: "2026-01-09" }))).toBeNull();
+  });
+
+  it.each(["TEMPO", "INTERVALS", "LONG"])("swap_session refuses %s inside the recovery", (type) => {
+    expect(codeOf(() => applyTool(recoveryPlan(), "swap_session", { session_id: "w4d2", new_type: type }))).toBe("RECOVERY");
+    expect(codeOf(() => applyTool(recoveryPlan(), "swap_session", { session_id: "w4d2", new_type: "WALK" }))).toBeNull();
+    expect(codeOf(() => applyTool(plan(), "swap_session", { session_id: "w1d2", new_type: type }))).toBeNull();
+  });
+
+  it("explains the refusal in training terms, and softens through the tools it keeps", () => {
+    expect(RULE_WHY.RECOVERY).toMatch(/repair/);
+    const out = applyTool(recoveryPlan(), "insert_recovery_week", { week_number: 4 });
+    expect(out.weeks[3]!.sessions.every(s => s.type === "EASY")).toBe(true);
+    expect(applyTool(recoveryPlan(), "convert_to_cross_training", { session_id: "w4d2", activity: "bike" }).weeks[3]!.sessions[0]!.type).toBe("OTHER");
+  });
+});
+
+describe("plans with no race", () => {
+  const checkpoint = (): TestPlan => {
+    const p = plan();
+    p.raceDate = "";
+    (p as unknown as { goal: unknown }).goal = { kind: "open", target: "healthy", distanceKm: 10, blockWeeks: 4 };
+    p.weeks = [{ weekNumber: 1, startDate: "2026-01-05", phase: "BASE", sessions: [
+      sess("w1d2", "2026-01-07", "EASY", 4), sess("w1d4", "2026-01-09", "EASY", 9),
+      { ...sess("w1d6", "2026-01-11", "EASY", 6), desc: "Checkpoint run — 6 km, steady and comfortable. Notice how it feels compared with a month ago", sd: { kind: "checkpoint", variant: "easy", km: 6 } } as TestSession,
+    ] }];
+    return p;
+  };
+  const sdOf = (p: TestPlan, id: string) => (p.weeks[0].sessions.find(s => s.id === id) as unknown as { sd: { km: number }; desc: string });
+
+  it("a shortened or lengthened checkpoint run keeps its sentence in step", () => {
+    const shorter = applyTool(checkpoint(), "reduce_session_distance", { session_id: "w1d6", factor: 0.5 });
+    expect(sdOf(shorter, "w1d6").sd.km).toBe(3);
+    expect(sdOf(shorter, "w1d6").desc).toBe("Checkpoint run — 3 km, steady and comfortable. Notice how it feels compared with a month ago");
+    const longer = applyTool(checkpoint(), "increase_session_distance", { session_id: "w1d6", factor: 1.1 });
+    expect(sdOf(longer, "w1d6").sd.km).toBe(6.6);
+    expect(sdOf(longer, "w1d6").desc).toContain("6.6 km");
+  });
+
+  it("a run/walk checkpoint keeps its ratio", () => {
+    const p = checkpoint();
+    const s = p.weeks[0].sessions[2] as unknown as { desc: string; sd: Record<string, unknown> };
+    s.desc = "Checkpoint run/walk — 6 km, run 1 min 30 s / walk 45 s, steady and comfortable";
+    s.sd = { kind: "checkpoint", variant: "runwalk", km: 6, runSec: 90, walkSec: 45 };
+    const out = applyTool(p, "reduce_session_distance", { session_id: "w1d6", factor: 0.5 });
+    expect(sdOf(out, "w1d6").desc).toBe("Checkpoint run/walk — 3 km, run 1 min 30 s / walk 45 s, steady and comfortable");
+  });
+
+  it("the coach does not judge a goal there is none of", () => {
+    const text = (assessGoalFeasibility as (c: unknown) => string)({
+      plan: checkpoint(), goal: { goalSec: 3370, distanceKm: 10, raceDate: "" }, targetPace: 337, recentRuns: [],
+    });
+    expect(text).toContain("no race and no goal time");
+    expect(text).toContain("keep improving, stay healthy and consistent");
+    expect(text).toContain("app:next");
+  });
+
+  it("retyping a checkpoint run drops the marker with the sentence", () => {
+    const out = applyTool(checkpoint(), "swap_session", { session_id: "w1d6", new_type: "LONG" });
+    expect((out.weeks[0].sessions[2] as unknown as { sd: { kind: string } }).sd.kind).toBe("long");
   });
 });

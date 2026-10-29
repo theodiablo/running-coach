@@ -103,7 +103,11 @@
     "goal": "{{dist}} km{{elev}} · objectif : moins de {{goal}}",
     "race": "Course : {{date}}",
     "weekOf": "Semaine {{n}} sur {{total}}",
-    "raceIn": "Course dans {{days}} jours"
+    "raceIn": "Course dans {{days}} jours",
+    "finished": "La course a eu lieu le {{date}}"
+  },
+  "next": {
+    "cta": "Fixer ton prochain objectif"
   },
   "toast": {
     "rebuilt": "Plan mis à jour",
@@ -127,7 +131,8 @@
     "buildMyPlan": "Créer mon plan",
     "previewChanges": "Voir les changements",
     "rebuildNote": "Tu verras ce qui change avant que quoi que ce soit ne soit enregistré.",
-    "promoteNote": "Crée un nouveau plan pour cette course."
+    "promoteNote": "Crée un nouveau plan pour cette course.",
+    "dateInPast": "Choisis une date de course après aujourd'hui."
   },
   "long": {
     "easy": "Sortie longue : effort facile à {{pace}}/km",
@@ -189,7 +194,9 @@
       "race": "Course",
       "after": "Après",
       "run": "Course",
-      "finish": "Fin"
+      "finish": "Fin",
+      "checkpoint": "Séance test",
+      "afterwards": "Ensuite"
     },
     "stretch": "5 min d'étirements en douceur pour les mollets, quadriceps, ischios et hanches.",
     "recPhrase": {
@@ -239,6 +246,12 @@
       "runPace": "En aisance respiratoire autour de {{pace}} ; les pauses de marche sont permises.",
       "runNoPace": "Entièrement conversationnel ; les pauses marche sont permises.",
       "finish": "Quelques minutes de marche, puis des étirements légers."
+    },
+    "checkpoint": {
+      "warmup": "5 min de marche tranquille, puis quelques minutes de footing détendu.",
+      "main": "~{{km}} km à un effort régulier et confortable. Cours-la de la même façon à chaque bloc, pour pouvoir comparer les séances test.",
+      "mainRatio": "~{{km}} km en alternant {{run}} de course et {{walk}} de marche, régulier et confortable. Garde le même effort à chaque bloc pour pouvoir comparer les séances test.",
+      "after": "Note le temps que ça t'a pris et comment ça s'est passé. La séance test du prochain bloc sera la référence pour comparer."
     }
   },
   "crosswalk": "Entraînement croisé ou marche rapide, sans impact et à effort léger",
@@ -301,6 +314,7 @@
       "taperVolume": "La semaine {{week}} devrait être plus légère. C'est l'affûtage qui te permet d'arriver frais le jour J.",
       "sameDay": "Deux séances le {{date}}.",
       "raceAdjacent": "Une séance dure juste à côté d'une course.",
+      "recoveryHard": "Cette séance tombe dans ta récupération après la course. Reste sur des sorties faciles pour l'instant, le temps que tes jambes récupèrent.",
       "generic": "Ce changement va à l'encontre d'une des règles d'entraînement du plan."
     },
     "toast": {
@@ -309,5 +323,33 @@
       "delete": "Séance supprimée",
       "failed": "Ce changement n'a pas pu être appliqué."
     }
+  },
+  "checkpoint": {
+    "easy": "Séance test : {{km}} km, régulière et confortable. Repère ce que tu ressens par rapport à il y a un mois",
+    "runwalk": "Séance test course/marche : {{km}} km, cours {{run}}, puis marche {{walk}} ; régulière et confortable"
+  },
+  "openHeader": "Bloc {{block}} · séance test {{date}}",
+  "openHeaderNoCheckpoint": "Bloc {{block}}",
+  "goalMode": {
+    "race": "Course",
+    "improve": "Progresser"
+  },
+  "improve": {
+    "intro": "Pas de date de course. Des blocs de quatre semaines, chacun terminé par une séance test pour voir le chemin parcouru.",
+    "target": {
+      "faster": "Aller plus vite",
+      "further": "Courir plus loin",
+      "healthy": "Rester en bonne santé et régulier"
+    },
+    "targetSub": {
+      "faster": "Des séances de qualité au milieu de chaque bloc",
+      "further": "La sortie longue s'allonge, bloc après bloc",
+      "healthy": "Un running facile et régulier qui garde l'habitude"
+    },
+    "distance": "Distance visée (km)",
+    "distanceHelp": "Règle tes allures et la longueur des sorties longues.",
+    "light": "Un plan plus léger",
+    "lightSub": "Environ deux sorties faciles par semaine",
+    "lightShort": "plan léger"
   }
 }

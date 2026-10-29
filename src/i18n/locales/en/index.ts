@@ -25,9 +25,10 @@ import feedback from "./feedback.json";
 import celebration from "./celebration.json";
 import stretch from "./stretch.json";
 import raceDay from "./raceDay.json";
+import whatsNext from "./whatsNext.json";
 
 export default {
   common, nav, dashboard, plan, styles, races, coach, tracker,
   log, progress, badges, settings, onboarding, login, app, authErrors, routeFinder, premium, liveShare,
-  bestEfforts, reminders, feedback, celebration, stretch, raceDay,
+  bestEfforts, reminders, feedback, celebration, stretch, raceDay, whatsNext,
 };

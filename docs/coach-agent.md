@@ -270,8 +270,49 @@ margin; or a week near the race past the week before it. "Load" there counts a
 tune-up race (any RACE before race day) as the km it is, and a week holding one
 was lightened around it, so the week before it stays the bar when it's higher.
 
+**Plans with no race.** For a plan whose `goal.kind` is open/block there is no
+race to train for: the context's `GOAL:` line reads "keep improving, faster at
+10 km (4-week blocks ending in a checkpoint run, no race date)" (`openGoalLine`,
+`_shared/coach/open.mjs`; the edge function passes `goal.kind`/`target`),
+`reassess_goal_feasibility` answers that there is no goal to judge and points
+at the checkpoint runs and `app:next`, and the taper rules never fire (their
+`raceDate` comparisons are all false for `""`). `app:next` opens the "What's
+next?" sheet, the hand-off for a runner who wants a race. The tools that change
+a distance (`refreshCross`) keep a checkpoint run's `sd.km` and sentence in
+step. See `docs/training-plan.md` ("Open plans and blocks").
+
+**Recovery after the race.** Past race day the taper rules end and one rule
+takes over: inside the recovery (`inRecovery`) only easy running is added,
+lengthened or moved in. `add_session` and `increase_session_distance` take EASY
+or WALK only, never past the longest recovery session; `swap_session` refuses
+TEMPO/INTERVALS/LONG and `shift_workout` refuses to move those into the window
+(code `RECOVERY`, with its `RULE_WHY`); `shift_workout` and `add_session` read
+`canHoldTraining` for the dates the plan can hold. Soreness is met with
+`insert_recovery_week`, `convert_to_cross_training` or `reduce_session_distance`.
+Re-run `npm run eval:live` after prompt or tool-description changes.
+
+**RACE STATUS (once the race has passed).** `coach-agent/index.ts` derives
+`context.raceStatus` from `rc_plan`, `rc_settings`, `rc_races` and `rc_runs`
+through `raceStatus` (`_shared/coach/phase.mjs`, the same `planPhase` core the
+app uses), and the engine writes one line right after `GOAL`:
+`RACE STATUS: passed (the 21.1 km race on D), result 1:48:00, 2:00 under the
+1:50:00 goal; easy running only through D2; next goal not chosen yet.` It reads
+*passed* (with the result against `settings.goalSec`: under, over, on, or "no
+goal time set"; or "no result logged yet"), *not run* (skipped), or, on a plan
+with no race, "open plan, no race (started after the X km race on D)"; the
+recovery clause appears while a window runs, "next goal not chosen yet" in the
+recovery and choosing phases. It is null, so no line, while the plan is heading
+for the race (`active`/`raceWeek`) unless a plan opened behind an earlier race
+is still in that race's recovery, and for an open plan outside one: existing
+contexts stay byte-identical (`coachGolden`). It replaces the earlier
+`RECOVERY:` line (the "recovery ahead of a race" sentence is gone with it). The
+audit log keeps it in `input_context.raceStatus`. One prompt rule goes with it:
+acknowledge the result **once**; when asked what's next, talk it through and
+hand off with `[choose your next goal](app:next)`; the coach never builds or
+rebuilds a plan.
+
 **A refusal carries its reason.** A guard that blocks load (`TAPER`,
-`RACE_EVE`, `TOO_LONG`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
+`RACE_EVE`, `TOO_LONG`, `RECOVERY`, `CONTEXT_UNSAFE`) reaches the model with a "Why this
 protects the runner" line from `RULE_WHY` (`tools.mjs`), and the prompt asks for
 the rule in training terms, its reason, the runner's own numbers, and what they
 can do instead, never "the app/validator requires". A rule cited without its
@@ -281,10 +322,11 @@ why reads as the app getting in the runner's way.
 
 | Code | Severity | Rule |
 | --- | --- | --- |
-| `MALFORMED` / `DUPLICATE_ID` / `OUT_OF_WEEK` / `AFTER_RACE` / `SESSION_TOO_LONG` | error | structural soundness (RACE sessions are exempt from the week window — the generator caps plans at 24 weeks) |
+| `MALFORMED` / `DUPLICATE_ID` / `OUT_OF_WEEK` / `AFTER_RACE` / `SESSION_TOO_LONG` | error | structural soundness (RACE sessions are exempt from the week window — the generator caps plans at 24 weeks). `MALFORMED` asks for a race date only of race-kind plans. `AFTER_RACE` is `!canHoldTraining`: a training session on race day, or after it outside the recovery the plan was written with (`plan.recovery.until`); a RACE session after the main race stays an error |
+| `RECOVERY_HARD` | error | no TEMPO/INTERVALS/LONG inside a recovery after a race (`inRecovery`: the plan's own window, the window of the race it opened behind, or a `RECOVERY` week); live weeks only, RACE sessions exempt. The runner's own edits only get a heads-up |
 | `RAMP_EXCEEDED` | error | weekly volume ≤ max(prev, week-before) × 1.3 + 3 km; waived when the week didn't grow vs the baseline (recovery-week false positive) |
 | `HARD_BACK_TO_BACK` | error | no two hard sessions (TEMPO/INTERVALS/LONG) on consecutive days |
-| `TAPER_INTERVALS` / `TAPER_TEMPO` / `TAPER_VOLUME` | error | no intervals in the final 14 days, no tempo in the final 7, final two weeks well below peak volume |
+| `TAPER_INTERVALS` / `TAPER_TEMPO` / `TAPER_VOLUME` | error | no intervals in the final 14 days, no tempo in the final 7, final two weeks well below peak volume (before race day only; `RECOVERY` weeks count neither as peak nor as a taper week) |
 | `RACE_ADJACENT` / `SAME_DAY` | warn | surfaced to the model, never blocking |
 
 Elapsed weeks split these in two, and the line is what each rule is *about*
@@ -436,7 +478,7 @@ because ~9% of logged rounds end in a "go here" nudge with no way to get there,
 and the most common one is structural — the coach can never change the goal
 itself (`buildPlan` is the author), so "adjust it in the plan settings" is its
 designated hand-off and was a dead end. `src/utils/coachLinks.ts` holds the
-allowlist (`goal`, `log`, `training`, `integrations`, `history`) and is the only
+allowlist (`goal`, `log`, `training`, `integrations`, `history`, `next`) and is the only
 gate: an invented target degrades to plain text, exactly like an external URL.
 Adding one means touching three places — the allowlist, `goCoachLink` in
 `RunningCoach.tsx`, and the prompt's list of tokens (the only place the model
@@ -612,7 +654,8 @@ through `src/coach.ts`.
   non-error "not available" tool_result, so no DB is ever needed.
 - **Live model eval** — `npm run eval:live` (`evals/coach/`, needs
   `ANTHROPIC_API_KEY`; `COACH_EVAL_MOCK=1` for a free plumbing check) replays
-  10 realistic scenarios through the real `generateProposal` loop against the
+  the realistic scenarios (the after-the-race set: `after-race-whats-next`,
+  `recovery-sore`, `recovery-wants-intervals`, `open-plan-free-day`) through the real `generateProposal` loop against the
   real API and grades in two tiers: **safety** invariants that fail the run
   (validator passes, done/RACE untouched, volume never up, pain never adds
   intensity) and **quality** metrics that are scored but non-blocking (right

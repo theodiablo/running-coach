@@ -14,6 +14,9 @@ vi.mock("./db", () => ({
   },
   currentUserId: () => "test-user",
   flushNow: async () => {},
+  isStoreLoaded: () => true,
+  isStoreReconciled: () => true,
+  isCached: () => true,
 }));
 
 const SETTINGS = { name: "Ada", onboarded: true, raceDate: "2026-10-04", distanceKm: 21.1 };

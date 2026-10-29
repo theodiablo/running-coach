@@ -47,6 +47,35 @@ export function claimedRunIds(plan: Plan | null | undefined): Set<string> {
   return out;
 }
 
+// Whether `runId` is already settling some session OTHER than {wNum, sId} — the
+// writer's guard that one run never ticks two sessions.
+export function claimedElsewhere(plan: Plan | null | undefined, runId: string, wNum: number, sId: string): boolean {
+  return (plan?.weeks || []).some(w => (w.sessions || [])
+    .some(s => s.runId === runId && !(w.weekNumber === wNum && s.id === sId)));
+}
+
+// Runs that could be the race the runner just said they ran: the race day or a
+// day either side, a running (not cross-training) run, not claimed by another
+// session. Closest day first, then closest to the race distance. The debrief
+// only proposes these, like candidateRuns.
+export function raceRunCandidates(
+  plan: Plan | null | undefined,
+  runs: Run[] | null | undefined,
+  race: { date: string; km: number },
+  limit = 5,
+): SavedRun[] {
+  const claimed = claimedRunIds(plan);
+  const err = (r: Run) => race.km && r.km ? Math.abs(r.km - race.km) / race.km : 0;
+  return (runs || [])
+    .filter((r): r is SavedRun => !!r.id && !!r.date && !isCrossTraining(r) && !claimed.has(r.id)
+      && Math.abs(dayGap(r.date, race.date)) <= 1)
+    .sort((a, b) =>
+      Math.abs(dayGap(a.date, race.date)) - Math.abs(dayGap(b.date, race.date))
+      || err(a) - err(b)
+      || b.date.localeCompare(a.date))
+    .slice(0, limit);
+}
+
 // Whether a run could be the session at all, ignoring how good a match it is.
 // Exported because the log form re-checks it against what the runner actually
 // typed: a prefilled offer that gets edited into a bike ride, or dated three

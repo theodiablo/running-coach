@@ -65,6 +65,7 @@ export function diffPlans(oldPlan: Plan | null, newPlan: Plan, today: Date): Pla
     weeks: list,
     changed: list.reduce((n, w) => n + w.changes.length, 0),
     keptDone: newPlan.weeks.flatMap(w => w.sessions).filter(s => s.done).length,
-    raceDateMoved: !!oldPlan && oldPlan.raceDate !== newPlan.raceDate,
+    // A plan with no race date moved nothing.
+    raceDateMoved: !!oldPlan && !!newPlan.raceDate && oldPlan.raceDate !== newPlan.raceDate,
   };
 }
