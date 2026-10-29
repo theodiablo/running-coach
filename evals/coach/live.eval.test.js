@@ -180,12 +180,17 @@ describe.skipIf(!runnable)(`coach live eval (${MODEL}, ${TRIALS} trial(s)/scenar
         `  status ${rs.map(r => r.status + (r.changed ? "+edit" : "")).join(",")}` +
         (misses.length ? `  missed: ${[...new Set(misses)].join(", ")}` : "");
     }).filter(Boolean);
+    // The JSON report is an artifact; quality misses also go to the log so a CI run is readable on its own.
+    const missLines = records.filter(r => r.quality.some(q => !q.pass)).map(r =>
+      `  ${r.scenario} #${r.trial}: ${r.quality.filter(q => !q.pass).map(q => `${q.name} (${q.detail})`).join("; ")}` +
+      `\n    tools: ${r.observedTools.join(", ") || "none"}\n    rationale: ${(r.rationale || "").replace(/\s+/g, " ").slice(0, 400)}`);
 
     // process.stdout directly — vitest's reporter swallows console.log.
     process.stdout.write([
       "",
       `coach live eval — model ${MODEL}${MOCK ? " (MOCK — quality scores not meaningful)" : ""}, ${TRIALS} trial(s)/scenario${REQUESTED_SCENARIOS.length ? `, scenarios ${SELECTED_SCENARIOS.map(s => s.id).join(",")}` : ""}`,
       ...rows,
+      ...(missLines.length ? ["", "  quality misses:", ...missLines, ""] : []),
       `  safety ${(report.safetyPassRate * 100).toFixed(0)}% (must be 100)  quality ${(report.qualityScore * 100).toFixed(0)}%  tokens in/out ${totals.input}/${totals.output}`,
       `  report: ${file}`,
       "",
