@@ -35,6 +35,15 @@ export async function shouldNudgeBatteryOptimization(): Promise<boolean> {
   } catch { return false; }
 }
 
+// Exempt from battery optimization; null where the question doesn't apply.
+export async function checkBatteryExempt(): Promise<boolean | null> {
+  if (!isAndroid) return null;
+  try {
+    const res = await plugin().checkBatteryOptimization();
+    return typeof res?.ignoringOptimizations === "boolean" ? res.ignoringOptimizations : null;
+  } catch { return null; }
+}
+
 export function markBatteryNudgeDismissed(): void {
   try { localStorage.setItem(BATTERY_NUDGE_KEY, "1"); } catch { /* non-fatal */ }
 }

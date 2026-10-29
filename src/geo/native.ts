@@ -99,6 +99,11 @@ const isGranted = (p: { location?: string; coarseLocation?: string } | null | un
 // "Approximate" (coarse) while denying precise, which leaves `location` un-granted.
 const isFineGranted = (p: { location?: string } | null | undefined) => !!p && p.location === "granted";
 
+// Whether precise location is granted, the grant the recorder needs. Never throws.
+export async function checkPreciseLocation(): Promise<boolean> {
+  try { return isFineGranted(await Geolocation.checkPermissions()); } catch { return false; }
+}
+
 // Requests foreground location, reliably showing the OS dialog(s); never throws.
 // `checkPermissions()` alone can silently no-op with Location Services off, so
 // the real ask is `getCurrentPosition()`, which surfaces the OS dialogs itself.

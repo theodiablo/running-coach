@@ -424,8 +424,8 @@ describe("buildPlan styles", () => {
         .filter(s => ["TEMPO", "INTERVALS", "LONG"].includes(s.type))
         .map(s => s.date).sort();
       for (let i = 1; i < hard.length; i++) {
-        const gap = (new Date(hard[i] + "T00:00:00").getTime()
-          - new Date(hard[i - 1] + "T00:00:00").getTime()) / 86400000;
+        const gap = Math.round((new Date(hard[i] + "T00:00:00").getTime()
+          - new Date(hard[i - 1] + "T00:00:00").getTime()) / 86400000);
         expect(gap).toBeGreaterThanOrEqual(2);
       }
     });

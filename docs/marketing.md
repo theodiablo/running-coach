@@ -55,6 +55,9 @@ ships the code inside the APK.
 - The import strip: Strava/Garmin/Zepp via GPX/TCX/CSV *files* — never the
   Strava API; watch sync via Apple Health / Health Connect; **Polar** is the
   one direct *account* connect — keep Strava on the file side of that line.
+- Live sharing is advertised before signup (the Track feature card and the free
+  note) and on onboarding's welcome screen: free, and followers need no app or
+  account. Keep both true (`docs/live-sharing.md`).
 - The free-tier "daily fair-use limit" phrasing is deliberately non-numeric
   (`RATE_LIMIT_PER_DAY` is env-configurable).
 - The free wording is "everything you need to train is free" — deliberately NOT

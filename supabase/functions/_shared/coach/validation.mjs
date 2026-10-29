@@ -6,9 +6,10 @@
 // issue never bricks the agent. Rules and severities: docs/coach-agent.md.
 
 import { isElapsedWeek, todayYmd } from "./weeks.mjs";
+import { canHoldTraining, goalKind, inRecovery } from "./recovery.mjs";
 
 export const SESSION_TYPES = ["EASY", "TEMPO", "INTERVALS", "LONG", "RACE", "WALK", "OTHER"];
-export const PHASES = ["BASE", "BUILD", "PEAK", "TAPER", "RACE"];
+export const PHASES = ["BASE", "BUILD", "PEAK", "TAPER", "RACE", "RECOVERY"];
 // Sessions that count as "hard" for spacing/taper rules.
 export const HARD_TYPES = ["TEMPO", "INTERVALS", "LONG", "RACE"];
 
@@ -40,10 +41,12 @@ function collectIssues(plan, today) {
     err("MALFORMED", "Plan must be an object with a non-empty weeks array.");
     return issues;
   }
-  if (!YMD.test(plan.raceDate || "")) {
+  const raceKind = goalKind(plan) === "race";
+  if (raceKind && !YMD.test(plan.raceDate || "")) {
     err("MALFORMED", "Plan raceDate must be a YYYY-MM-DD string.");
     return issues;
   }
+  const raceDate = YMD.test(plan.raceDate || "") ? plan.raceDate : null;
 
   const seenIds = new Set();
   for (const w of plan.weeks) {
@@ -68,9 +71,9 @@ function collectIssues(plan, today) {
       const off = daysBetween(w.startDate, s.date);
       if (s.type !== "RACE" && (off < 0 || off >= 7))
         err("OUT_OF_WEEK", `Session ${s.id} (${s.date}) is outside week ${w.weekNumber} (${w.startDate}).`, ctx);
-      if (s.type !== "RACE" && s.date >= plan.raceDate)
-        err("AFTER_RACE", `Training session ${s.id} falls on/after race day.`, ctx);
-      if (s.type === "RACE" && s.date > plan.raceDate)
+      if (s.type !== "RACE" && !canHoldTraining(plan, s.date, !!s.done))
+        err("AFTER_RACE", `Training session ${s.id} falls on/after race day, outside the recovery the plan was written with.`, ctx);
+      if (raceDate && s.type === "RACE" && s.date > raceDate)
         err("AFTER_RACE", `Race session ${s.id} falls after the main race day.`, ctx);
       if (s.type !== "RACE" && s.km > MAX_TRAINING_KM)
         err("SESSION_TOO_LONG", `Session ${s.id} is ${s.km} km — over the ${MAX_TRAINING_KM} km training ceiling.`, ctx);
@@ -109,15 +112,19 @@ function collectIssues(plan, today) {
   // resume-after-a-layoff case this rule exists to catch. So when the window is
   // empty, walk further back to the most recent week with real load and use
   // that as the ceiling instead of disabling the check.
+  // Recovery and race weeks are not a volume to resume from, so the reference
+  // walks back past them.
   const refKm = (i) => {
-    let ref = Math.max(totals[i - 1], i >= 2 ? totals[i - 2] : 0);
-    for (let k = i - 3; ref === 0 && k >= 0; k--) ref = totals[k];
+    const prior = [];
+    for (let k = i - 1; k >= 0; k--) if (weeks[k].phase !== "RECOVERY" && weeks[k].phase !== "RACE") prior.push(totals[k]);
+    let ref = Math.max(prior[0] ?? 0, prior[1] ?? 0);
+    for (let k = 2; ref === 0 && k < prior.length; k++) ref = prior[k];
     return ref;
   };
   for (let i = 1; i < weeks.length; i++) {
     const w = weeks[i];
     if (!isLive(w)) continue;
-    if (w.phase === "TAPER" || w.phase === "RACE" || isRaceWeek(weeks[i - 1])) continue;
+    if (w.phase === "TAPER" || w.phase === "RACE" || w.phase === "RECOVERY" || isRaceWeek(weeks[i - 1])) continue;
     const ref = refKm(i);
     if (ref > 0 && totals[i] > ref * RAMP_FACTOR + RAMP_SLACK_KM) {
       issues.push({ code: "RAMP_EXCEEDED", severity: "error", weekNumber: w.weekNumber,
@@ -151,10 +158,17 @@ function collectIssues(plan, today) {
       warn("SAME_DAY", `Two training sessions share ${all[i].date}.`, { sessionId: all[i].id });
   }
 
+  // ── safety: recovery is easy-only ──────────────────────────────────────────
+  for (const s of all) {
+    if (!s.live || s.type === "RACE" || !["TEMPO", "INTERVALS", "LONG"].includes(s.type) || !inRecovery(plan, s.date)) continue;
+    issues.push({ code: "RECOVERY_HARD", severity: "error", sessionId: s.id, weekNumber: s.weekNumber,
+      message: `${s.type} ${s.id} on ${s.date} falls inside the recovery after a race — keep those days easy.` });
+  }
+
   // ── safety: taper integrity ────────────────────────────────────────────────
   for (const s of all) {
-    if (!s.live || s.type === "RACE" || s.date >= plan.raceDate) continue;
-    const gap = daysBetween(s.date, plan.raceDate);
+    if (!raceDate || !s.live || s.type === "RACE" || s.date >= raceDate) continue;
+    const gap = daysBetween(s.date, raceDate);
     if (s.type === "INTERVALS" && gap <= NO_INTERVALS_DAYS)
       issues.push({ code: "TAPER_INTERVALS", severity: "error", sessionId: s.id, weekNumber: s.weekNumber,
         message: `Intervals ${s.id} only ${gap} days before the race — no intervals inside the final ${NO_INTERVALS_DAYS} days.` });
@@ -163,11 +177,11 @@ function collectIssues(plan, today) {
         message: `Tempo ${s.id} only ${gap} days before the race — no tempo inside the final ${NO_TEMPO_DAYS} days.` });
   }
   // The final two full weeks before the race must actually shed volume.
-  if (weeks.length >= 6) {
-    const pre = weeks.filter(w => w.phase !== "TAPER" && w.phase !== "RACE");
+  if (raceDate && weeks.filter(w => w.phase !== "RECOVERY").length >= 6) {
+    const pre = weeks.filter(w => w.phase !== "TAPER" && w.phase !== "RACE" && w.phase !== "RECOVERY");
     const peak = Math.max(...pre.map(total), 0);
-    const lastTwo = weeks.filter(w => isLive(w) &&
-      w.phase !== "RACE" && daysBetween(w.startDate, plan.raceDate) <= 14 && !isRaceWeek(w));
+    const lastTwo = weeks.filter(w => isLive(w) && w.phase !== "RECOVERY" && w.startDate < raceDate &&
+      w.phase !== "RACE" && daysBetween(w.startDate, raceDate) <= 14 && !isRaceWeek(w));
     for (const w of lastTwo) {
       if (peak > 0 && total(w) > peak * 0.85)
         issues.push({ code: "TAPER_VOLUME", severity: "error", weekNumber: w.weekNumber,

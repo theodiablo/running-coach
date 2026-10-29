@@ -60,3 +60,25 @@ export async function ensureBackgroundLocationOnce(): Promise<void> {
     markAsked();
   } catch { /* plugin missing / web proxy rejected — non-fatal, stay foreground-only */ }
 }
+
+// Granted state for the readiness checklist: null where the permission doesn't
+// exist (web, iOS, a build that doesn't declare it), so the row isn't shown.
+export async function checkBackgroundLocation(): Promise<boolean | null> {
+  if (!isAndroid) return null;
+  try {
+    const res = await plugin().checkBackgroundLocation();
+    return res?.declared ? !!res.granted : null;
+  } catch { return null; }
+}
+
+// An explicit tap from the readiness checklist: asks even if the once-per-install
+// ask already ran, since the runner came here to fix it. Foreground location must
+// already be granted (the checklist orders it so).
+export async function requestBackgroundLocation(): Promise<boolean> {
+  if (!isAndroid) return false;
+  try {
+    const res = await plugin().requestBackgroundLocation();
+    markAsked();
+    return !!res?.granted;
+  } catch { return false; }
+}

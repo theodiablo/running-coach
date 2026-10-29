@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, act, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, act, waitFor, fireEvent, within } from "@testing-library/react";
 import PublicWatch from "./PublicWatch";
 import type { WatchResult } from "../live/shareLink";
 import { PLAY_STORE_URL, TESTFLIGHT_BETA_URL } from "../constants";
+import { FOLLOW_KEY } from "../live/followList";
 
 // The public watch page is the one surface a stranger sees, and it has two jobs
 // it must not get wrong: say the SAME thing for every kind of "no run here" (so
@@ -15,7 +16,10 @@ vi.mock("../live/shareLink", async (importOriginal) => ({
   fetchLiveWatch,
 }));
 // Leaflet needs a real layout box; the map itself is not what's under test.
-vi.mock("../components/RouteMap", () => ({ RouteMap: () => <div data-testid="route-map" /> }));
+const routeMapProps = vi.hoisted(() => ({ current: null as null | Record<string, unknown> }));
+vi.mock("../components/RouteMap", () => ({
+  RouteMap: (p: Record<string, unknown>) => { routeMapProps.current = p; return <div data-testid="route-map" />; },
+}));
 
 const TOKEN = "a".repeat(22);
 const run = (over: Partial<{ status: string; updated_at: string; points: unknown; stats: unknown }> = {}) => ({
@@ -26,6 +30,7 @@ const run = (over: Partial<{ status: string; updated_at: string; points: unknown
 
 beforeEach(() => {
   fetchLiveWatch.mockReset();
+  localStorage.clear();
   document.head.querySelectorAll('meta[name="robots"], meta[name="referrer"]').forEach(el => el.remove());
 });
 afterEach(() => vi.useRealTimers());
@@ -230,5 +235,30 @@ describe("PublicWatch", () => {
     expect((await screen.findAllByText(/Got a race of your own coming up/)).length).toBeGreaterThan(0);
     expect(screen.getByText("Run finished")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Get it on Google Play" }).getAttribute("href")).toContain("utm_content=ended");
+  });
+
+  // ePrivacy art. 5(3): the page may store only what the visitor asked it to.
+  it("caches no map tiles and stores nothing until the visitor taps Follow", async () => {
+    fetchLiveWatch.mockResolvedValue({ kind: "live", run: run() });
+    render(<PublicWatch token={TOKEN} />);
+    await screen.findByTestId("route-map");
+    expect(routeMapProps.current?.cacheTiles).toBe(false);
+    expect(localStorage.length).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Follow" }));
+    fireEvent.change(screen.getByLabelText("Who is this?"), { target: { value: "Marie" } });
+    expect(localStorage.length).toBe(0);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Follow" }));
+
+    expect(JSON.parse(localStorage.getItem(FOLLOW_KEY)!).runners).toMatchObject([{ token: TOKEN, name: "Marie" }]);
+    const link = await screen.findByRole("link", { name: /Following/ });
+    expect(link).toHaveAttribute("href", "/watch/");
+  });
+
+  it("lets a link shared before the run be followed from the waiting screen", async () => {
+    fetchLiveWatch.mockResolvedValue({ kind: "none" });
+    render(<PublicWatch token={TOKEN} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Follow" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

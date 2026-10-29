@@ -1,7 +1,9 @@
 {
   "notif": {
     "today": "Training today",
-    "tomorrow": "Training tomorrow"
+    "tomorrow": "Training tomorrow",
+    "whatsNext": "What's next?",
+    "whatsNextBody": "Your recovery is over. Pick what to train for next, or just keep improving."
   },
   "settings": {
     "title": "Training reminders",

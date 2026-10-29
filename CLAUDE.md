@@ -249,6 +249,24 @@ Always re-verify a finding before acting on it; agents report false positives.
   guided schedule; sentence figures come from `fmt.interval`.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
   semantics, the ratio): `docs/training-plan.md`.
+- **Recovery after the race is written by `opts.recovery` (`plan.recovery`);
+  `canHoldTraining` (`_shared/coach/recovery.mjs`) is the one date rule for the
+  validator, `planEdit` and the coach tools.** Plans built before it have none
+  and get no derived recovery. Detail: `docs/training-plan.md`.
+- **`goal.kind` absent = race; open/block plans have no `raceDate` (every reader
+  tolerates `""`); the only automatic plan writes run in `runPlanAutomation`,
+  after `isStoreReconciled()`.** A plan with no race is built by the same
+  `buildPlan` (`opts.goal`), in 4-week blocks each ending in a checkpoint run;
+  "What's next?" (`WhatsNextSheet`) is how a race plan becomes one. Detail:
+  `docs/training-plan.md` ("Open plans and blocks"), `docs/races.md`.
+- **Where the runner stands relative to the race is `planPhase`**
+  (`src/utils/planPhase.ts`: active, raceWeek, debrief, choosing, recovery, and
+  open for a plan with no race), derived from
+  the plan on every read and never stored; its core is
+  `_shared/coach/phase.mjs`, so the coach's `RACE STATUS:` line reads the same
+  phase the app shows. The goal is `settings.goalSec`, never
+  `plan.goalSec` (buildPlan substitutes 7200 for an empty one). Detail:
+  `docs/training-plan.md` ("Where the runner stands"), `docs/races.md`.
 - **The runner's own plan edits warn, never block.** Move/swap, retype,
   resize, add and delete go through `src/utils/planEdit.ts` (free for
   everyone); `editIssues` runs the shared validator and the sheet shows what an
@@ -563,7 +581,10 @@ changes.
   `highlight`) rather than re-rolling the markup.
 - **Map tiles go through `cachedTileLayer`** (`src/components/cachedTileLayer.ts`;
   cache-first IndexedDB, 30-day TTL, stale fallback offline) — never a bare
-  `L.tileLayer`, or the map goes blank without a connection.
+  `L.tileLayer`, or the map goes blank without a connection. The one exception
+  is the public `/watch/` pages (`cacheTiles={false}`): a stranger's device gets
+  nothing stored they didn't ask for, and their layer is `uncachedTileLayer`,
+  never a bare `L.tileLayer` (`docs/live-sharing.md`).
 - **Surfacing an async run change** (HR relink, watch import): go through
   `goToRuns(ids, label)` (`RunningCoach.tsx`) — transient highlight + navigate
   + scroll — not a bare text toast.
@@ -591,10 +612,15 @@ changes.
 - Dates are `YYYY-MM-DD` strings; use `ymd()` and `fmt.*`
   (`src/utils/format.ts`). Parse local dates as `new Date(s + "T00:00:00")`.
 - **Onboarding (`src/modals/OnboardingWizard.tsx`):** branches on
-  `settings.intent` (`"race"` | `"fitness"`) via the pure `onboardingSteps`
+  `settings.intent` (`"race"` | `"fitness"` | `"live"`) via the pure `onboardingSteps`
   (`src/utils/onboarding.ts`). The **Health & safety** step is the unskippable
-  medical gate — "Skip" jumps *to* it, never around it; only the summary's
-  "Get started" calls `onComplete` (records `settings.healthAck`). The screening
+  medical gate — "Skip" jumps *to* it, never around it; only the last step
+  (the plan branches' summary, the live branch's gate) calls `onComplete`
+  (records `settings.healthAck`). The `"live"` branch builds **no plan**: its
+  race is a participation, never `targetEditionId`, and `settings.liveFirst`
+  puts Home in race-day mode until a plan exists (`src/utils/raceDay.ts`,
+  `docs/live-sharing.md`). The `"fitness"` branch builds a `block` plan (no race
+  date, 4-week blocks, no recovery tail) and asks no horizon. The screening
   answer is GDPR health data — never persisted. Progress persists per-step via
   `onSaveProgress`, capped at the health step; clear `onboardStep`/`intent` on
   complete/skip, and set `onboarded: true` on any first-run completion/dismissal.
@@ -693,7 +719,7 @@ changes.
 - `docs/indoor-sessions.md` — indoor/static cardio (bike, elliptical): the
   cross-training run shape, the GPS-free recorder, live HR zones.
 - `docs/background-location.md` — Android background-location policy.
-- `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger.
+- `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger, following several runners at `/watch/`.
 - `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).

@@ -32,6 +32,8 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Claiming / replacing / caching the link | `src/live/shareLinkStore.ts` |
 | Recorder (writes + cleanup) | `src/live/publisher.ts` |
 | Toggle, link controls, publish effect, teardown | `src/modals/LiveRunTracker.tsx` (link UI in `LiveShareSheet`) |
+| Link state + panel (recorder, onboarding, Home) | `src/hooks/useShareLink.ts`, `src/components/ShareLinkPanel.tsx` |
+| Race-day onboarding and Home | `src/utils/raceDay.ts`, `src/components/RaceDayCard.tsx`, `src/geo/readiness.ts` |
 | Watcher (subscribe/poll) | `src/hooks/useLiveRun.ts` |
 | Dashboard banner | `src/views/Dashboard.tsx` |
 | Watch display (shared by both surfaces) | `src/components/LiveWatchView.tsx` |
@@ -40,6 +42,10 @@ staleness model. Public links are **"Sharing with someone else"** below.
 | Token contract (Deno + browser) | `supabase/functions/_shared/liveShare.mjs` |
 | Public read endpoint | `supabase/functions/live-watch/index.ts` |
 | Public `/watch/:token` page | `src/watch/PublicWatch.tsx` |
+| Follow list (`/watch/`), its map, the Follow sheet | `src/watch/MultiWatch.tsx`, `src/watch/MultiRunnerMap.tsx`, `src/watch/Follow.tsx` |
+| Follow list storage (per browser) | `src/live/followList.ts` |
+| Batch read (pure half, Deno + Vitest) | `supabase/functions/_shared/liveWatchBatch.mjs` |
+| Live / paused / quiet / ended, one definition | `src/live/liveStatus.ts` |
 | App promo + store links on that page | `src/watch/AppPromo.tsx`, `src/watch/storeLinks.ts` |
 | Publish token (write capability) | `src/live/publishToken.ts`, `supabase/functions/_shared/livePublish.mjs` |
 | Native upload endpoint | `supabase/functions/live-publish/index.ts` + RPCs in migration `20260805062612` |
@@ -491,8 +497,9 @@ mints one. Old APKs persist for weeks; a release count is the wrong trigger.
 load the per-user store, and none of that has any business running for a
 stranger following a link. It's a lazy chunk behind `ChunkLoadBoundary`, and
 `VITE_NATIVE_BUILD` folds it to `null` so Rollup drops it from the APK entirely
-(the `MarketingGate` pattern). CloudFront already rewrites unknown paths to
-`index.html`, so no infra change was needed.
+(the `MarketingGate` pattern). CloudFront's `/watch/*` behaviour
+(`infra/site.tf`, `infra/functions/watch-page.js`) serves every such path a
+static `watch.html` carrying link-preview tags, `noindex` and `no-referrer`.
 
 **Being the one nested path, it is also the only route where `base` matters, and
 a relative one breaks it completely.** `vite.config.ts` shipped `base: './'`, so
@@ -568,6 +575,39 @@ French on purpose, because both surfaces render it.
   links, tapping `/watch/...` would open an app that has no route for it. Nothing
   to do until then; note it in `docs/live-tracking.md` when that day comes.
 
+## Race-day onboarding
+
+The third onboarding answer, **"Let people follow my race"**, is for someone
+who installs the app to be followed on one race, not to train. Its branch is
+welcome → intent → race (optional) → readiness (native only) → link → health
+gate, and it builds no plan.
+
+- **The race is a participation, never the plan target.** It is saved
+  wishlisted with `source: "raceDay"`; `targetEditionId` stays null, so
+  `buildPlan` never runs. Picking one needs a catalogue edition (participations
+  are keyed by it), so the branch has no free-text race.
+- **Readiness** (`src/geo/readiness.ts`, `ReadinessChecklist`) checks location,
+  "Allow all the time", notifications and battery optimisation with the
+  recorder's own helpers, so they are fixed before race day instead of at the
+  start line. Never blocks Continue. Both location rows (location and "Allow
+  all the time") show `BgLocationDisclosure` first (Play), sharing the
+  per-install marker in `src/geo/disclosure.ts` with the recorder; the location
+  row counts only a precise grant, which is what the recorder needs.
+- **The link step** claims the link without the recorder's create-confirm: the
+  screen is that explanation. The share switch (`LIVE_SHARE_KEY`, per device)
+  is armed by default and shown as a toggle.
+- **Race-day mode** (`settings.liveFirst` and no plan, `inRaceDayMode`): Home's
+  race card becomes `RaceDayCard` (countdown, link, a test run until any GPS run
+  exists, Start) and the "no plan" prompt becomes a quiet `RaceDayPlanRow`.
+  Race auto-detect matches against the wishlist, since there is no RACE session
+  to stamp; detecting the race opens the one-time `WhatsNextSheet` in its
+  race-first variant (no recap, no question, races before Keep improving;
+  `docs/races.md`). `raceBridgeSeen` (seeded `false` on this branch only) is
+  spent by any answer.
+- The link UI is one hook and one panel (`useShareLink`, `ShareLinkPanel`)
+  shared by the recorder, onboarding and Home; its confirm dialogs are
+  portalled, since the panel sits inside animated sheets.
+
 ## The public page promotes the app
 
 The watch page is the first thing a stranger ever sees of the app, so every
@@ -587,3 +627,119 @@ catches iPadOS behind its Mac user agent); desktop gets both.
   unmeasured. The share token must never ride out in any outbound link.
 - **No app Escape dispatcher here.** `RunningCoach` owns it and never mounts, so
   the page installs its own `dismissTop` listener for the About sheet.
+
+## Following several runners
+
+At a race, a spectator may hold three or four links. `/watch/` puts everyone
+this browser follows on one map; `/watch/<token>` stays the single-runner page
+and gains a **Follow** button (in the header while a run is live, in the
+waiting card before it starts). Nothing about the sharing side changes: each
+token still decides alone, per entry, with the same uniform answer.
+
+### The list lives in the visitor's browser
+
+`src/live/followList.ts`, key `rc_watch_follows`, versioned. Per browser, not
+per account: not keyed by uid, not cleared on sign-out (the opposite of
+`LIVE_SHARE_LINK_KEY`, which is account data). The server sees which tokens a
+page asks about, as it always did, and stores nothing about who follows whom.
+
+- **Written only on an explicit Follow**, and read without writing otherwise.
+  The public page writes nothing else to the device, which is what keeps it
+  inside ePrivacy art. 5(3)'s strictly-necessary exemption with no banner:
+  storage the visitor asked for, used only to remember their own list. That
+  argument needed the map's IndexedDB tile cache gone from these pages
+  (`cacheTiles={false}` on `RouteMap`, `uncachedTileLayer` in `MultiRunnerMap`);
+  the page is useless offline anyway. **An uncached layer must load tiles in
+  CORS mode** (`crossOrigin`, which `uncachedTileLayer` sets): under the page's
+  `no-referrer` a plain `<img>` sends neither `Origin` nor `Referer`, so
+  MapTiler can't match the domain-restricted key and serves "Invalid key"
+  tiles. The cached layer never hit this because `fetch()` always sends
+  `Origin`. Telemetry never reads the list.
+- **It keeps the minimum**: token, the viewer's own label, a colour, when it
+  was added. Never a head, a trace, a finish time or a "last seen live": those
+  would build a local record of when a third party runs, which the link itself
+  never shows. The ended latch is in memory only, exactly as on the single page.
+- Capped at `FOLLOW_MAX` (10, one batch) and pruned 60 days after being
+  **added** (not after last seen live, which isn't kept), so a link sent weeks
+  before a race survives to race day. Expired entries are deleted from storage
+  on the next read, not just hidden: they are still live links. With storage
+  blocked (private mode) the list lives in memory for the visit. Every write re-reads and merges, so two
+  tabs don't drop each other's runners; other tabs follow through the
+  `storage` event.
+- **Names are the viewer's.** The page still never learns who a runner is. A
+  runner-set display name was considered and parked: it contradicts "the page
+  shows a run, not a person", and the ledger is the wrong home for it (rows
+  outlive account deletion, the only client update is the retire, and
+  `rotate_share_link` would drop it). If it comes back it belongs on the live
+  row, which dies with the run, and it is a `docs/social.md` decision.
+- Labels are viewer-typed text, so map markers are built as DOM nodes with
+  `textContent`, never interpolated into a `divIcon` HTML string.
+- A replaced link answers "not live" forever, like one whose run hasn't
+  started, so the page can't detect it. Following a new link under a name
+  already on the list offers to **replace that runner's old link** in place.
+- In-app browsers (Instagram, Facebook, LinkedIn) keep their own storage, and
+  Safari drops site storage after ~7 days without a visit; the page says the
+  list is "saved in this browser", and re-adding is one paste.
+
+### The batch read: positions for everyone, one trace
+
+`POST live-watch` with `{ tokens: [{ t, full?, since? }] }` answers
+`{ runs: [...] }`, one entry per request entry, in order. A runner who isn't
+in focus costs a summary (status, timestamps, stats, and `head`, the last real
+point); only the focused runner, and any run whose status is `ended`, gets the
+full trace. That one choice makes a race-day page cheap (a full trace is
+75-150 KB at 1h30, more when Android has uploaded raw screen-off points; a
+summary is a few hundred bytes) and removes overlapping lines on a shared
+course, since unfocused runners are drawn as labelled heads.
+
+- **Every entry is answered on its own**, never grouped by account; duplicates
+  are looked up once and answered at every position. Anything that is not a
+  visible run is the same `{ live: false }` as the single read, whatever
+  `full`/`since` asked for. `{ unchanged: true }` exists only after every gate
+  has passed (ledger not revoked, `share_public`, the 6h window). The pure
+  rules live in `_shared/liveWatchBatch.mjs` and are tested there.
+- **An ended run's trace is sent unasked**: Save deletes the row seconds after
+  Stop, so a finished route not taken then is gone, and the latch would have
+  nothing to hold.
+- `since` is the exact `updated_at` string the server sent (microseconds
+  included; `Date.parse` would drop them), compared as a string.
+- **Heads come from the database, not from the trace**: `points->-1..-3`
+  (PostgREST takes negative indexes; supabase-js's type parser does not, hence
+  the widened select string). A trace may end on a gap marker, which is why
+  three. The trace is a second statement, only for entries that need it, and
+  re-gated, since the run may have been hidden in between.
+- Three to five statements per batch however many tokens (`in(...)` on the
+  ledger, the rows, the legacy column, then the traces). Any failure fails the
+  whole batch: one runner's error must never read as "not live".
+- Bounds: at most `BATCH_MAX` (10) entries and a 4 KB body, refused as a 400
+  (a shape error, never a token answer), the body counted as it streams (a
+  chunked request has no Content-Length). The per-IP budget is spent one unit
+  per five valid tokens: the token's entropy is the control, and a race-day page
+  on a shared NAT must not trip a courtesy limit. Tokens ride in the body, out
+  of URLs and function logs.
+- **Old function, new page**: a function deployed before the batch answers a
+  POST with one `{ live: false }`. `fetchLiveWatchBatch` accepts only a list of
+  exactly n well-formed answers and otherwise falls back to one GET per token,
+  so a deploy gap can never blank every runner.
+- `Access-Control-Max-Age` is set: every read is preflighted (it carries the
+  apikey headers), and without it each poll cost two round trips.
+
+### The page
+
+`/watch/` (canonical, with the slash: it is what CloudFront's `/watch/*`
+behaviour and `robots.txt`'s `Disallow: /watch/` cover; a bare `/watch` is
+accepted too) is the same lazy chunk as the single page, branched in
+`main.tsx` before `<App/>` and under the cookieless page telemetry. It polls
+at the single page's cadences, restarts the chain with an immediate read when
+the focus or the list changes, and pauses while hidden. The roster reads every
+runner's state through `liveRowState` (`src/live/liveStatus.ts`), the same
+helper `LiveWatchView` uses, so the two can't drift on staleness. No ranking:
+runners start in different waves or press Start late, so the list keeps the
+order the viewer added them in. Colours avoid every colour the map already
+means something by, and each marker carries an initial so colour is never the
+only cue. Remove and "Remove everyone" confirm on the page.
+
+Deliberately not built: following inside the app (a follow graph on the
+server, deferred with the rest of `docs/social.md`), push when someone starts,
+and group links (one paste that hands every runner's link to whoever gets it).
+

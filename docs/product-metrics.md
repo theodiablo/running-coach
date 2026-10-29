@@ -22,7 +22,7 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   generation, so "plans built per week" needs a server-side counter first.
 - **Coach spend** is tokens from `agent_rounds` × list price in
   `_shared/adminMetrics.mjs` (`MODEL_PRICES`), ignoring caching. A model not in
-  the map is listed as unpriced, never guessed — add it when `COACH_MODEL`
+  the map gets a "Not in spend" row (turns + which windows it touched), never a guessed price — add it when `COACH_MODEL`
   changes. Anthropic exposes no prepaid-balance endpoint; its Admin API key can
   manage the whole organization, so don't store one here just for a cost figure.
 - Your own account is counted like any other.

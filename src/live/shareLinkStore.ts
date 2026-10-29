@@ -83,8 +83,9 @@ export async function fetchShareLink(): Promise<string | null> {
 }
 
 // Claim a link if the account has none. Never called implicitly: creating one
-// is an explicit act the runner confirms, because it is the moment a permanent
-// address starts existing.
+// is an explicit tap on a screen that explains it (the recorder's confirm, or
+// onboarding's link step), because it is the moment a permanent address starts
+// existing.
 export async function ensureShareLink(): Promise<string | null> {
   const uid = currentUserId();
   if (!uid) return null;

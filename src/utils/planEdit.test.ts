@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { buildPlan } from "./plan";
 import { ymd } from "./format";
-import { applySessionEdit, addSlot, canPlaceOn, defaultKm, editIssues, findSession, isEditableSession } from "./planEdit";
+import { applySessionEdit, addSlot, canPlaceOn, defaultKm, editIssues, findSession, isEditableSession, lightenRecovery, weekOfDate } from "./planEdit";
+import { buildOpenPlan } from "./openPlan";
 import { stylePacing } from "./planStyles";
 import { runwalkRatio } from "./sessionSteps";
 import { compileWorkout } from "./workout";
-import type { Plan, PlanSession } from "../types";
+import type { Plan, PlanSession, SettingsState } from "../types";
 
 const dayAfter = (s: string, n: number) => {
   const d = new Date(s + "T00:00:00");
@@ -205,5 +206,118 @@ describe.each(ANCHORS)("planEdit (%s)", (_label, anchor) => {
       expect(ratio(added)).toEqual({ runSec: 30, walkSec: 45 });
       expect(added.sd).not.toHaveProperty("runMin");
     });
+  });
+});
+
+describe.each(ANCHORS)("planEdit · recovery after the race (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  const race = dayAfter(anchor, 10 * 7 + 6 - new Date(dayAfter(anchor, 10 * 7 + 6) + "T00:00:00").getDay()); // a Sunday
+  const build = () => buildPlan(race, 6000, [
+    { dayOffset: 1, minutes: 45 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 4, minutes: 45 }, { dayOffset: 6, minutes: 90 },
+  ], 21.1, 0, { recovery: true }) as unknown as Plan;
+  const tail = (p: Plan) => p.weeks.flatMap(w => w.sessions).filter(s => s.type !== "RACE" && s.date > race);
+  const until = (p: Plan) => (p.recovery as { until: string }).until;
+
+  it("reads the race as a Sunday, with a tail to work on", () => {
+    expect(new Date(race + "T00:00:00").getDay()).toBe(0);
+    expect(tail(build()).length).toBeGreaterThan(2);
+  });
+
+  it("places on the tail's days, but not race day or past `until`", () => {
+    const p = build();
+    expect(canPlaceOn(p, tail(p)[0]!.date, anchor)).toBe(true);
+    expect(canPlaceOn(p, race, anchor)).toBe(false);
+    expect(canPlaceOn(p, dayAfter(race, 1), anchor)).toBe(false); // a rest day
+    expect(canPlaceOn(p, dayAfter(until(p), 1), anchor)).toBe(false);
+    expect(canPlaceOn(p, dayAfter(race, -1), anchor)).toBe(true);
+  });
+
+  it("moves a recovery session within the window, and refuses a move past it", () => {
+    const p = build();
+    const s = tail(p)[0]!;
+    const free = Array.from({ length: until(p) > s.date ? 14 : 0 }, (_, i) => dayAfter(race, i + 3)) // past the rest days
+      .find(d => d <= until(p) && !tail(p).some(x => x.date === d))!;
+    const moved = applySessionEdit(p, { kind: "update", sessionId: s.id, date: free, type: String(s.type), km: Number(s.km) }, anchor);
+    expect(moved && findSession(moved, s.id)!.session.date).toBe(free);
+    expect(applySessionEdit(p, { kind: "update", sessionId: s.id, date: dayAfter(until(p), 1), type: String(s.type), km: Number(s.km) }, anchor)).toBeNull();
+    expect(applySessionEdit(p, { kind: "add", date: dayAfter(until(p), 1), type: "EASY", km: 3 }, anchor)).toBeNull();
+  });
+
+  it("warns, never blocks, when a recovery session is retyped to tempo", () => {
+    const p = build();
+    const s = tail(p)[0]!;
+    const next = applySessionEdit(p, { kind: "update", sessionId: s.id, date: s.date, type: "TEMPO", km: 6 }, anchor)!;
+    expect(next).not.toBeNull();
+    const { blocking, warnings } = editIssues(p, next, anchor);
+    expect(blocking).toEqual([]);
+    expect(warnings.map(w => w.code)).toContain("RECOVERY_HARD");
+  });
+
+  it("lightens the untouched recovery sessions ahead to 60%, never under 1.5 km", () => {
+    const p = build();
+    const [a, b, c] = tail(p);
+    a!.done = true;
+    b!.skipped = true;
+    c!.km = 4;
+    tail(p)[3]!.km = 2;
+    const next = lightenRecovery(p, anchor)!;
+    const by = (id: string) => findSession(next, id)!.session;
+    expect(by(a!.id).km).toBe(a!.km);
+    expect(by(b!.id).km).toBe(b!.km);
+    expect(by(c!.id).km).toBe(2.4);
+    expect(by(tail(p)[3]!.id).km).toBe(1.5);
+    // Nothing outside the window, no input mutation.
+    expect(next.weeks.flatMap(w => w.sessions).filter(s => s.date <= race).map(s => s.km))
+      .toEqual(p.weeks.flatMap(w => w.sessions).filter(s => s.date <= race).map(s => s.km));
+    expect(c!.km).toBe(4);
+  });
+
+  it("leaves days already lived alone, and returns null when nothing is left to lighten", () => {
+    const p = build();
+    const lastDay = until(p);
+    expect(lightenRecovery(p, dayAfter(lastDay, 1))).toBeNull();
+    const first = tail(p)[0]!;
+    const next = lightenRecovery(p, dayAfter(first.date, 1))!;
+    expect(findSession(next, first.id)!.session.km).toBe(first.km);
+    for (const s of tail(p)) s.km = 1.5;
+    expect(lightenRecovery(p, anchor)).toBeNull();
+  });
+});
+
+describe.each(ANCHORS)("planEdit on a plan with no race (%s)", (_label, anchor) => {
+  beforeEach(() => { vi.setSystemTime(new Date(anchor + "T09:00:00")); });
+  afterAll(() => { vi.useRealTimers(); });
+
+  const build = (): Plan => buildOpenPlan(
+    { planSessions: [{ dayOffset: 1, minutes: 45 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 6, minutes: 90 }], planStyle: "balanced" } as unknown as SettingsState,
+    { target: "healthy", distanceKm: 10 }, { runs: [] });
+  const checkpoint = (p: Plan) => p.weeks.flatMap(w => w.sessions).find(s => s.sd?.kind === "checkpoint")!;
+
+  it("resizing a checkpoint run rewrites its sentence", () => {
+    const p = build();
+    const c = checkpoint(p);
+    const next = applySessionEdit(p, { kind: "update", sessionId: c.id, date: c.date, type: String(c.type), km: 4.5 }, anchor)!;
+    const edited = findSession(next, c.id)!.session;
+    expect(edited.km).toBe(4.5);
+    expect(edited.sd).toMatchObject({ kind: "checkpoint", km: 4.5 });
+    expect(edited.desc).toContain("4.5 km");
+  });
+
+  it("moving it keeps the marker; retyping it loses it", () => {
+    const p = build();
+    const c = checkpoint(p);
+    const week = weekOfDate(p, c.date)!;
+    const moved = applySessionEdit(p, { kind: "update", sessionId: c.id, date: c.date, type: String(c.type), km: Number(c.km) }, anchor)!;
+    expect(findSession(moved, c.id)!.session.sd?.kind).toBe("checkpoint");
+    expect(week.sessions.length).toBeGreaterThan(0);
+    const retyped = applySessionEdit(p, { kind: "update", sessionId: c.id, date: c.date, type: "LONG", km: Number(c.km) }, anchor)!;
+    expect(findSession(retyped, c.id)!.session.sd?.kind).toBe("long");
+  });
+
+  it("any day of an open plan can hold training", () => {
+    const p = build();
+    expect(canPlaceOn(p, p.weeks[2].startDate!, anchor)).toBe(true);
   });
 });

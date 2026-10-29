@@ -14,7 +14,7 @@
     "body": "Choisissez votre course, fixez le chrono visé et obtenez un plan d'entraînement semaine par semaine. En cas d'imprévu, demandez à votre coach : il propose un ajustement prudent en quelques secondes et rien ne change tant que vous ne l'avez pas approuvé.",
     "ctaPrimary": "Commencer gratuitement",
     "ctaSecondary": "J'ai déjà un compte",
-    "freeNote": "Tout ce qu'il vous faut pour vous entraîner est gratuit : plans, suivi GPS, courses et coach, avec une limite d'usage raisonnable par jour afin de préserver la gratuité du service.",
+    "freeNote": "Tout ce qu'il vous faut pour vous entraîner est gratuit : plans, suivi GPS, partage en direct, courses et coach, avec une limite d'usage raisonnable par jour afin de préserver la gratuité du service.",
     "iosBeta": "Rejoindre la bêta iOS",
     "android": "Télécharger sur Google Play"
   },
@@ -46,8 +46,8 @@
       "body": "Base, développement, pic et affûtage, selon la date de votre course, le chrono visé et les jours où vous pouvez vraiment vous entraîner. Choisissez votre méthode : Polarisé 80/20, style Hansons, 3 séances de qualité ou Course/Marche. Pas de boîte noire : ouvrez n'importe quelle séance pour voir exactement comment elle est construite."
     },
     "track": {
-      "title": "Suivez chaque sortie",
-      "body": "GPS en direct avec allure, distance et dénivelé sur une carte. Connectez un capteur de fréquence cardiaque sur Android : chaque sortie est classée par zone d'entraînement pour savoir si vous avez forcé."
+      "title": "Suivez chaque sortie, en direct",
+      "body": "GPS en direct avec allure, distance et dénivelé sur une carte. Connectez un capteur de fréquence cardiaque sur Android : chaque sortie est classée par zone d'entraînement pour savoir si vous avez forcé. Activez le partage en direct : vos proches vous suivent sur la carte avec un simple lien, sans appli."
     },
     "races": {
       "title": "Trouvez votre course",

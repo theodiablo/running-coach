@@ -65,7 +65,9 @@ there returns a near-flat line whose SE at threshold exceeds `MAX_SE_FRAC`, so
 the model hid itself from runners with months of data — 25 runs and nothing
 shown. Instead the fitted slope is blended with a physiological prior
 (`PRIOR_PACE_PER_RESERVE`: pace changes by ~1.4 mean-paces across the full HR
-reserve, so it self-scales to the individual), precision-weighted by the fit's
+reserve, so it self-scales to the individual; exported, because the block
+recap's easy-pace trend moves runs to one heart rate on it, `docs/races.md`),
+precision-weighted by the fit's
 own `sxx / resSd²` against the prior's `1 / (CV·prior)²`. Clean, wide-spread
 data keeps its own slope; scattered narrow data falls back towards the prior
 applied to the runner's own centroid. The blend narrows the SE honestly — the

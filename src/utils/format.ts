@@ -30,6 +30,8 @@ export const fmt = {
   },
   date: (s: string) => s ? new Date(s+"T12:00:00").toLocaleDateString(currentLocaleTag(),{day:"numeric",month:"short",year:"numeric"}) : "",
   sht:  (s: string) => s ? new Date(s+"T12:00:00").toLocaleDateString(currentLocaleTag(),{day:"numeric",month:"short"}) : "",
+  // A distance for display: 21.0975 -> "21.1", 10 -> "10".
+  km: (k: number | string | null | undefined) => Number.isFinite(Number(k)) && k !== null && k !== "" ? String(Math.round(Number(k) * 10) / 10) : "",
   // A whole-minute duration as a compact label: 30min, 1h, 1h15, 1h50. Avoids
   // the raw-float "1.8333333333333335h" you get from a bare `minutes / 60`.
   mins: (m: number | string | null | undefined) => {

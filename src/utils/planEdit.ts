@@ -8,6 +8,8 @@ import * as sharedTools from "../../supabase/functions/_shared/coach/tools.mjs";
 import * as sharedWeeks from "../../supabase/functions/_shared/coach/weeks.mjs";
 import { validatePlan } from "./coachValidation";
 import { fmt } from "./format";
+import { canHoldTraining, inRecovery } from "./recovery";
+import { checkpointDesc } from "./openBlocks";
 import { runWalkConfig, runwalkRunSec } from "./runwalk";
 import { runwalkRatio, type RunWalkRatio } from "./sessionSteps";
 import type { Plan, PlanSession, PlanWeek, SessionSd } from "../types";
@@ -75,9 +77,10 @@ export function isEditableSession(plan: Plan, id: string, today: string): boolea
   return !s.done && !s.skipped && s.type !== "RACE" && !weeks.isElapsedWeek(week, today);
 }
 
-// A day a session can be put on: not yet lived, before race day, inside a week.
+// A day a session can be put on: not yet lived, a day the plan can hold training
+// (before race day, or inside the recovery after it), inside a week.
 export function canPlaceOn(plan: Plan, date: string, today: string): boolean {
-  if (!date || date < today || date >= String(plan.raceDate || "")) return false;
+  if (!date || date < today || !canHoldTraining(plan, date)) return false;
   return plan.weeks.some(w => !weeks.isElapsedWeek(w, today) && inWeek(w, date));
 }
 
@@ -151,6 +154,11 @@ export function applySessionEdit(plan: Plan, edit: SessionEdit, today: string, o
         Object.assign(s, shapeFor(p, edit.type, weekOfDate(p, edit.date) ?? home, s, opts), { type: edit.type });
       }
       s.km = round1(edit.km);
+      if (s.sd?.kind === "checkpoint") {
+        const r = ratioOf(s);
+        s.sd = { ...s.sd, km: s.km };
+        s.desc = checkpointDesc(s.km, r ? "run " + fmt.interval(r.runSec) + " / walk " + fmt.interval(r.walkSec) : undefined);
+      }
       if (edit.date === from) return edit.swapWith ? null : p;
       if (!canPlaceOn(p, edit.date, today)) return null;
       if (edit.swapWith) {
@@ -197,4 +205,26 @@ export function defaultKm(week: PlanWeek | null, type: string): number {
   if (!pick.length) return 5;
   const kms = pick.map(s => Number(s.km)).sort((a, b) => a - b);
   return Math.min(MAX_KM, Math.max(MIN_KM, round1(kms[Math.floor(kms.length / 2)])));
+}
+
+const LIGHTEN = 0.6;
+const LIGHTEN_FLOOR_KM = 1.5;
+
+// "Make the rest lighter": every untouched recovery session still ahead shrinks
+// to 60%, never under 1.5 km. Cross-training keeps its minutes. Null when
+// nothing would change.
+export function lightenRecovery(plan: Plan, today: string): Plan | null {
+  const p = structuredClone(plan);
+  let changed = false;
+  for (const w of p.weeks) {
+    if (weeks.isElapsedWeek(w, today)) continue;
+    for (const s of w.sessions) {
+      if (s.done || s.skipped || s.type === "RACE" || s.type === "OTHER" || s.date < today || !inRecovery(p, s.date)) continue;
+      const km = Math.max(LIGHTEN_FLOOR_KM, round1(Number(s.km) * LIGHTEN));
+      if (km >= Number(s.km)) continue;
+      s.km = km;
+      changed = true;
+    }
+  }
+  return changed ? p : null;
 }

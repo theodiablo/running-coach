@@ -7,10 +7,10 @@
 // This list IS the allowlist. CoachText renders an `app:` link only when its
 // target is here, so an invented destination degrades to plain text rather than
 // a button that goes nowhere — the same posture as the external-URL strip.
-export type CoachLinkTarget = "goal" | "log" | "training" | "integrations" | "history";
+export type CoachLinkTarget = "goal" | "log" | "training" | "integrations" | "history" | "next";
 
 export const COACH_LINK_TARGETS: readonly CoachLinkTarget[] =
-  ["goal", "log", "training", "integrations", "history"] as const;
+  ["goal", "log", "training", "integrations", "history", "next"] as const;
 
 const PREFIX = "app:";
 

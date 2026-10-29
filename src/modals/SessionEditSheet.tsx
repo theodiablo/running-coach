@@ -106,6 +106,7 @@ export function SessionEditSheet({ plan, target, today, onSave, onAskCoach, onCl
       case "TAPER_VOLUME": return t("plan.editor.warn.taperVolume", { week: i.weekNumber });
       case "SAME_DAY": return t("plan.editor.warn.sameDay", { date: fmt.sht(s?.date || "") });
       case "RACE_ADJACENT": return t("plan.editor.warn.raceAdjacent");
+      case "RECOVERY_HARD": return t("plan.editor.warn.recoveryHard");
       default: return t("plan.editor.warn.generic");
     }
   };

@@ -1,0 +1,24 @@
+{
+  "card": {
+    "eyebrow": "Race day",
+    "today": "Today!",
+    "liveEyebrow": "Live sharing",
+    "liveTitle": "Share your next run live",
+    "liveSub": "Friends follow you on your link, no app needed.",
+    "linkSent": "Follow link sent",
+    "linkTodo": "Send your follow link",
+    "testTitle": "Do a 2-minute test run",
+    "testSub": "Walk around the block with sharing on, and open your link on another phone.",
+    "testCta": "Test",
+    "shareOff": "Sharing is off on this phone. Switch it on before you start.",
+    "startRace": "Start my race",
+    "startRun": "Start a run",
+    "sharedLive": "shared live"
+  },
+  "plan": {
+    "beforeTitle": "Want to arrive in better shape?",
+    "beforeSub": "Build a training plan for this race",
+    "afterTitle": "Got another race in mind?",
+    "afterSub": "Pick it and get a plan that peaks on the day"
+  }
+}

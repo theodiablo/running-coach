@@ -9,13 +9,14 @@
     "subtitle": "Un coach dans ta poche. Tout sera prêt en moins d'une minute.",
     "featurePlan": "Un plan d'entraînement qui s'adapte à ton objectif et à ta semaine",
     "featureGps": "Suis chaque sortie en direct avec le GPS",
+    "featureLive": "Partage une sortie en direct : tes proches te suivent sur la carte avec un simple lien, sans appli",
     "featureBadges": "Gagne des badges au fil de tes entraînements",
     "namePlaceholder": "Ton nom (facultatif)"
   },
   "intent": {
     "title": "Qu'est-ce qui t'amène ?",
     "titleNamed": "Salut {{name}} ! Qu'est-ce qui t'amène ?",
-    "subtitle": "On adaptera ton plan en conséquence.",
+    "subtitle": "On prépare tout en fonction de ça.",
     "race": {
       "title": "Je m'entraîne pour une course",
       "sub": "Choisis ta course et on construit un plan qui t'amène au meilleur de ta forme le jour J."
@@ -23,6 +24,10 @@
     "fitness": {
       "title": "Je débute",
       "sub": "Pas encore de course. Développe ta forme et prends l'habitude de courir à ton rythme."
+    },
+    "live": {
+      "title": "Faire suivre ma course en direct",
+      "sub": "Enregistre ta course et partage un lien en direct. Pas besoin de plan d'entraînement."
     }
   },
   "race": {
@@ -40,11 +45,52 @@
     "distancePlaceholder": "ex. 21,1",
     "elevationLabel": "Dénivelé positif de la course (m)",
     "elevationHint": "Dénivelé positif total du parcours ; il permet d'ajuster les allures d'entraînement à l'effort équivalent sur le plat.",
-    "addedToast": "Ajoutée au catalogue et définie comme ta course objectif."
+    "addedToast": "Ajoutée au catalogue et définie comme ta course objectif.",
+    "dateInPast": "Choisis une date de course après aujourd'hui."
   },
   "raceGoal": {
     "title": "Objectif et jours d'entraînement",
     "subtitle": "Un objectif réaliste est proposé. Ajuste-le si tu veux."
+  },
+  "liveRace": {
+    "title": "Quelle course ?",
+    "subtitle": "Facultatif. On affichera le compte à rebours sur ton accueil.",
+    "addSubtitle": "L'ajoute à tes courses, et aide les autres à la trouver.",
+    "savedNote": "Elle s'ajoute à ton onglet Courses. Aucun plan d'entraînement n'est créé.",
+    "noRace": "Pas de course en vue, juste une sortie →"
+  },
+  "liveReady": {
+    "title": "Prêt pour le jour J",
+    "subtitle": "Règle ça maintenant plutôt que sur la ligne de départ. Ton téléphone passera la course dans une poche, écran éteint.",
+    "location": {
+      "title": "Localisation",
+      "sub": "Enregistre ton parcours et te place sur la carte",
+      "action": "Autoriser"
+    },
+    "background": {
+      "title": "Localisation écran éteint",
+      "sub": "La carte continue d'avancer pour ceux qui te suivent",
+      "action": "Autoriser"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "sub": "Ta sortie reste sur l'écran de verrouillage pendant l'enregistrement",
+      "action": "Autoriser"
+    },
+    "battery": {
+      "title": "Batterie sans restriction",
+      "sub": "Sinon Android peut arrêter un long enregistrement pour économiser la batterie",
+      "action": "Ouvrir les réglages"
+    }
+  },
+  "liveLink": {
+    "title": "Ton lien de suivi",
+    "subtitle": "Envoie-le dès maintenant. C'est le même lien le jour J, et il passe en direct dès que tu lances l'enregistrement.",
+    "previewLabel": "Ce qu'ils voient avant ton départ",
+    "previewTitle": "Rien en direct pour le moment",
+    "previewBody": "La carte et tes stats en direct s'affichent d'elles-mêmes dès que tu pars.",
+    "toggleTitle": "Partager mes sorties depuis ce téléphone",
+    "toggleSub": "Tu peux le désactiver à tout moment avant de lancer une sortie."
   },
   "daysLabel": "Jours d'entraînement et durées",
   "styleLabel": "Style d'entraînement",
@@ -67,10 +113,7 @@
     "dMore": {
       "label": "Courir davantage",
       "sub": "prendre l'habitude"
-    },
-    "horizonLabel": "Sur combien de temps ?",
-    "weeks_one": "{{count}} semaine",
-    "weeks_other": "{{count}} semaines"
+    }
   },
   "hr": {
     "title": "Fréquence cardiaque",
@@ -112,7 +155,6 @@
     "fallbackFitness": "Construis ta base",
     "fallbackRace": "Ta course",
     "meta": "{{km}} km · {{date}}",
-    "metaGoal": "Objectif {{km}} km · {{date}}",
     "weekPlan": "semaines d'entraînement",
     "sessionsPerWeek": "séances / semaine",
     "coach": {
@@ -121,7 +163,9 @@
       "ex2": "« J'ai raté toute la semaine »",
       "ex3": "« J'ai une gêne au genou »",
       "guarantee": "Il propose, tu valides. Rien ne change tant que tu n'as pas confirmé."
-    }
+    },
+    "metaBlock": "Progresser · {{km}} km",
+    "blockWeeks": "semaines par bloc"
   },
   "level": {
     "label": "À quelle fréquence cours-tu actuellement ?"

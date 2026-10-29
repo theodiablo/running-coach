@@ -5,11 +5,61 @@
   "race": {
     "title": "Race Day",
     "summary": "{{distance}}km · target sub {{goal}} · {{pace}}/km",
+    "summaryNoGoal": "{{distance}}km · no time goal set",
     "daysToGo": "days to go",
     "nextUp": "Next up: ",
     "daysShort": "{{days}}d",
     "setupTitle": "Set up your race",
     "setupHint": "Pick a date and distance to build your training plan →"
+  },
+  "debrief": {
+    "askTitle": "How did {{label}} go?",
+    "neutralTitle": "Your plan ended on {{date}}. Did you run a race?",
+    "ranIt": "That was my race",
+    "didntRun": "Didn't run it",
+    "moved": "It was moved",
+    "neutralYes": "Yes, I ran one",
+    "neutralNo": "No",
+    "result": "Race result",
+    "underGoal": "{{time}}, inside your {{goal}} goal. Well run.",
+    "overGoal": "{{time}} against your {{goal}} goal. You finished it, and that's the hard part.",
+    "noGoal": "You finished in {{time}}.",
+    "feelTitle": "How did it feel?",
+    "feel": {
+      "easy": "Easy",
+      "hard": "Hard",
+      "veryHard": "Very hard",
+      "allOut": "All out"
+    },
+    "toast": {
+      "linked": "Counted as your race",
+      "skipped": "Marked as not run"
+    }
+  },
+  "next": {
+    "title": "What's next?",
+    "subtitle": "Pick your next goal when you're ready. There's no rush.",
+    "races": "Browse races"
+  },
+  "recoveryCard": {
+    "title": "Recovery",
+    "headline": "Easy days until {{date}}",
+    "sub_one": "{{count}} day to go. Easy running only, no rush back to speed.",
+    "sub_other": "{{count}} days to go. Easy running only, no rush back to speed.",
+    "lastDay": "Last easy day. Back to normal after this."
+  },
+  "sore": {
+    "row": "Sore or injured?",
+    "title": "Sore or injured?",
+    "body": "Recovery is meant to feel easy. If something hurts, take the load off.",
+    "lighter": "Make the rest lighter",
+    "lighterHint": "Shortens the recovery sessions you haven't done yet.",
+    "coach": "Talk to the coach",
+    "caveat": "Sharp or lasting pain: see a professional.",
+    "toast": {
+      "lighter": "Recovery made lighter",
+      "nothing": "Nothing left to lighten"
+    }
   },
   "stats": {
     "thisWeek": "This week",
@@ -74,5 +124,22 @@
     "move": "Move the session to {{date}} too, so your plan matches the days you ran",
     "confirm": "Count it",
     "note": "Nothing changes until you confirm."
+  },
+  "openPlan": {
+    "eyebrow": "Keep improving",
+    "eyebrowBlock": "Your training",
+    "target": {
+      "faster": "Faster at {{km}} km",
+      "further": "Running further",
+      "healthy": "Staying healthy and consistent"
+    },
+    "light": "{{target}} · lighter plan",
+    "blockCheckpoint": "Block {{block}} · checkpoint run {{date}}",
+    "block": "Block {{block}}",
+    "blockDone": "Block {{block}} done",
+    "blockDoneSub": "Your checkpoint run is in. Here is the block.",
+    "autoStarted": "We started a gentle plan to keep you going, at about the volume you have been running. You can change it any time.",
+    "change": "Change what I'm training for",
+    "changeAuto": "Change this plan"
   }
 }

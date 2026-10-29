@@ -87,7 +87,7 @@ export const parseRatio = (desc: string): RunWalkRatio | null => {
 // figures.
 export const runwalkRatio = (s: SessionLike, desc: string): RunWalkRatio | null => {
   const sd = s.sd;
-  if (sd?.kind === "runwalk") {
+  if (sd?.kind === "runwalk" || sd?.kind === "checkpoint") {
     if (sd.runSec != null && sd.walkSec != null) return { runSec: sd.runSec, walkSec: sd.walkSec };
     if (sd.runMin != null && sd.walkMin != null) return { runSec: sd.runMin * 60, walkSec: sd.walkMin * 60 };
   }
@@ -103,6 +103,18 @@ export function sessionSteps(s: SessionLike): SessionStep[] {
   const km = Number(s.km) || 0;
   const pace = Number(s.pace) || 0;
   const paceTxt = pace ? fmt.pace(pace) + "/km" : null;
+
+  // The block's checkpoint run (an easy or run/walk day): keyed on the marker,
+  // not the type, so a retyped session loses it with its sd.
+  if (s.sd?.kind === "checkpoint") {
+    const ratio = runwalkRatio(s, desc);
+    return [
+      { label: L("warmup"), detail: t("plan.steps.checkpoint.warmup") },
+      { label: L("checkpoint"), detail: ratio ? t("plan.steps.checkpoint.mainRatio", { km, ...ratioTokens(ratio) }) : t("plan.steps.checkpoint.main", { km }) },
+      { label: L("afterwards"), detail: t("plan.steps.checkpoint.after") },
+      stretchStep(),
+    ];
+  }
 
   if (type === "INTERVALS") {
     const reps = repsFor(s, desc);

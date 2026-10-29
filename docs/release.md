@@ -221,18 +221,22 @@ after editing `supabase/functions/coach-agent/index.ts` or any
 `supabase/functions/_shared/coach/*.mjs`, go straight to
 `mcp__Supabase__deploy_edge_function` with that project id,
 `name: "coach-agent"`, `entrypoint_path: "source/index.ts"`,
-`verify_jwt: true`, and a `files` array of **exactly these eight**, read fresh
+`verify_jwt: true`, and a `files` array of **exactly these**, read fresh
 off disk (content must match current `git` state):
 
 - `source/index.ts` ← `supabase/functions/coach-agent/index.ts`
 - `_shared/coach/engine.mjs`, `_shared/coach/validation.mjs`,
   `_shared/coach/tools.mjs`, `_shared/coach/mock.mjs`,
   `_shared/coach/styles.mjs`, `_shared/coach/runDigest.mjs`,
-  `_shared/coach/mistral.mjs` (same relative names, read from
-  `supabase/functions/_shared/coach/`).
+  `_shared/coach/mistral.mjs`, `_shared/coach/weeks.mjs`,
+  `_shared/coach/recovery.mjs`, `_shared/coach/open.mjs`,
+  `_shared/coach/phase.mjs` (same relative names, read from
+  `supabase/functions/_shared/coach/`), and `_shared/premium.mjs`.
 
 Omitting `styles.mjs` breaks the function at boot — `tools.mjs` imports it;
-likewise `runDigest.mjs` and `mistral.mjs`, both imported by the entrypoint.
+likewise `runDigest.mjs`, `mistral.mjs`, `phase.mjs` and `premium.mjs`, all
+imported by the entrypoint (`weeks`, `recovery` and `open` by the engine, tools
+and validator).
 This naming is load-bearing: the entrypoint's `../_shared/coach/*.mjs` imports
 only resolve because `_shared` sits as a sibling of `source/` in the upload,
 mirroring the real `supabase/functions/` layout. No `list_edge_functions` /

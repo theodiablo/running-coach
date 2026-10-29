@@ -72,7 +72,8 @@
     "notesPlaceholder": "Notes (facultatif)",
     "alsoLog": "Ajouter aussi à mon journal d'entraînement",
     "save": "Enregistrer le résultat",
-    "defaultNote": "{{label}} (course)"
+    "defaultNote": "{{label}} (course)",
+    "skipped": "Pas courue"
   },
   "report": {
     "title": "Signaler un problème",

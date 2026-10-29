@@ -78,7 +78,7 @@ const SLOW_TRIM_MAD = 2.5;
 // reserve: ~5:00/km at 70% HRR and ~4:00/km at 88% is ~1.4 mean-paces per
 // reserve, and it self-scales — the same bpm is a bigger effort step for a
 // runner with a narrow reserve.
-const PRIOR_PACE_PER_RESERVE = 1.4;
+export const PRIOR_PACE_PER_RESERVE = 1.4;
 // Prior SD as a share of the prior slope: wide enough that a runner whose data
 // genuinely disagrees is believed, tight enough to carry a base-building log.
 const PRIOR_SLOPE_CV = 0.5;

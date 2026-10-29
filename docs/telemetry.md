@@ -149,9 +149,10 @@ choice either way.
 - `ErrorBoundary` around `<App/>` — `src/main.tsx` / `src/components/ErrorBoundary.tsx`.
 - First-run opt-in `ConsentBanner` (native: the full-screen `ConsentScreen`) +
   `identifyUser` / `resetUser` on auth — `src/App.tsx`.
-- Events (`onboarding_completed`, `run_logged`, `plan_generated`,
+- Events (`onboarding_completed` `{intent:"race"|"fitness"|"live"}`, `run_logged`, `plan_generated`,
   `race_target_set`, `race_completed` `{source:"manual"|"auto"}`,
-  `plan_race_added` — a secondary race folded into the plan) —
+  `plan_race_added` — a secondary race folded into the plan; the old
+  `race_bridge` event is superseded by `whats_next_*` below) —
   `src/RunningCoach.tsx`. Limited: counts/enums only, never race
   names/notes/times. `plan_race_added` carries no properties (there is no race
   priority/tier). **`run_logged` `{count, source}` is the "new run tracked"
@@ -169,6 +170,17 @@ choice either way.
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
+- "What's next?" (`docs/races.md`): `whats_next_shown` `{variant:"afterRace"|
+  "raceFirst"|"manual"}` when the sheet mounts; `whats_next_answered`
+  `{variant, feeling?:"fired"|"steady"|"breather", choice:"race"|"improve"|
+  "lighter"|"later", target?:"faster"|"further"|"healthy"}` for any answer
+  (`later` is "Not now" and back); `open_plan_extended` `{}` when
+  `runPlanAutomation` appends the next blocks; `open_plan_autostarted`
+  `{hadRuns:boolean}` when it starts a plan for a runner who never answered
+  (`src/RunningCoach.tsx`). Enums only, never a race or a time.
+- `debrief_answered` `{answer:"ran"|"didnt"|"moved"|"feel"}` — the post-race
+  debrief card on Home (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
+  An enum only: never the time, the race or the effort chosen.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.
@@ -250,7 +262,8 @@ choice either way.
 
 ## Cookieless public pages
 
-The public live-run page (`/watch/:token`, `docs/live-sharing.md`) is read by
+The public live-run pages (`/watch/:token` and the follow list at `/watch/`,
+`docs/live-sharing.md`) are read by
 people who have no account and never see the consent banner, so opt-in analytics
 would count nobody there. It measures its audience **cookieless** instead:
 `main.tsx` calls `initPublicPageTelemetry()` *instead of* `initTelemetry()`, and
@@ -259,7 +272,8 @@ the adapter inits PostHog with `cookieless_mode: "always"` + `persistence:
 
 - **No consent is needed because nothing touches the device** (ePrivacy art.
   5(3) is about storage/access on the terminal). The SDK writes no cookie and no
-  local/session storage; unique visitors come from PostHog's server-side hash of
+  local/session storage, and never reads the follow list (the page's one stored
+  item, written only on an explicit Follow); unique visitors come from PostHog's server-side hash of
   IP + user agent with a daily-rotating salt, so a visitor is never linkable
   across days. The project's **Discard client IP data** (`anonymize_ips`) is on,
   so the IP is not stored either.

@@ -9,21 +9,30 @@ import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { overdueSessions, nextSession } from "../utils/overdue";
 import { canRecordSession, planSessionPrefill, sessionMeta, sessionRecorderActivity } from "../utils/plan";
-import { candidateRuns, canMoveSessionTo, dayGap, type SavedRun } from "../utils/sessionMatch";
+import { candidateRuns, canMoveSessionTo, dayGap, raceRunCandidates, type SavedRun } from "../utils/sessionMatch";
+import { planPhase } from "../utils/planPhase";
 import { sessionSteps } from "../utils/sessionSteps";
 import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import { UpdateCard } from "../components/UpdatePrompt";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
+import { DebriefCard, NextGoalCard, RecoveryCard, SoreRow } from "../components/DebriefCard";
+import { OpenPlanCard } from "../components/OpenPlanCard";
+import { BlockDoneCard } from "../components/BlockRecap";
+import { blockRecap, finishedBlock } from "../utils/blockRecap";
 import { StretchBanner } from "../components/StretchBanner";
 import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
+import { RecoverySoreSheet } from "../modals/RecoverySoreSheet";
+import { RaceDayCard, RaceDayPlanRow } from "../components/RaceDayCard";
+import { hasTestRun, inRaceDayMode, upcomingRace } from "../utils/raceDay";
+import { editionLabel, findEdition } from "../utils/races";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
-import type { CoachSource, Plan, PlanSession, RacesState, Run, RunActivity, RunType, SettingsPage, SettingsState } from "../types";
+import type { CoachSource, JoinedEdition, Plan, PlanSession, RacesState, Run, RunActivity, RunPatch, RunType, SettingsPage, SettingsState } from "../types";
 
 type DashboardSession = PlanSession & { wNum: number };
 type DashboardProps = {
@@ -68,6 +77,16 @@ type DashboardProps = {
   openStretch?: (target?: StretchSuggestion) => void;
   saveSettings?: (s: SettingsState) => void;
   recorderOpen?: boolean;
+  promoteEdition?: (joined: JoinedEdition) => void;
+  // The post-race debrief's actions (the hub owns the plan and the races).
+  settleRace?: (runId: string | null, timeSec: number | null) => boolean;
+  skipRace?: () => void;
+  openPlanGoalEdit?: () => void;
+  updateRun?: (id: string, patch: RunPatch) => void;
+  // "Make the rest lighter" in the recovery after a race: the hub edits the plan and toasts the Undo.
+  lightenRecovery?: () => void;
+  // Opens the "What's next?" sheet (manual variant).
+  openWhatsNext?: () => void;
 };
 
 const sessionTypeClass = (type: PlanSession["type"], classes: Record<string, string>) => classes[(type as RunType) || "OTHER"] || classes.OTHER;
@@ -82,7 +101,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -100,10 +119,42 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     ? stretchSuggestion({ runs, plan, log: stretchLog, now: new Date(), enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed })
     : null;
   const nextRace = (races?.participations || [])
-    .filter(p => p.status === "wishlist" && p.inPlan && p.raceDate && p.raceDate >= todayStr && p.raceDate < settings.raceDate)
+    .filter(p => p.status === "wishlist" && p.inPlan && p.raceDate && p.raceDate >= todayStr && (!settings.raceDate || p.raceDate < settings.raceDate))
       .sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)))[0];
   // Both selectors carry the week number so the cards' actions can target the
   // right session via openTracker / goLog / toggleSess.
+  // Race-day mode (src/utils/raceDay.ts): Home leads with the race and the link
+  // instead of asking for a plan.
+  const raceDay = inRaceDayMode(settings, plan);
+  const raceDayRace = raceDay ? upcomingRace(races?.participations, todayStr) : null;
+  const planRaceDay = () => {
+    const joined = raceDayRace?.editionId ? findEdition(raceDayRace.editionId) : null;
+    if (joined && promoteEdition) promoteEdition(joined);
+    else goTab(raceDayRace ? "plan" : "races");
+  };
+  // Where the runner stands relative to the race (src/utils/planPhase.ts). A
+  // catalogue date change on the target keeps today's card in place of the
+  // question: the new date is what needs answering first.
+  const phase = raceDay ? null : planPhase({ plan, settings, participations: races?.participations || [], runs }, todayStr);
+  const racePhase = phase && phase.phase !== "open" ? phase : null;
+  const openPhase = phase?.phase === "open" ? phase : null;
+  // The block whose checkpoint run was just done, for its "Block n done" row.
+  const doneBlock = openPhase ? finishedBlock(plan, todayStr) : null;
+  const doneRecap = doneBlock ? blockRecap({ plan, runs, today: todayStr, span: doneBlock, settings }) : null;
+  const debriefing = racePhase?.phase === "debrief" && !(racePhase.debrief === "ask" && dateChanges?.some(c => c.isTarget));
+  const choosing = racePhase?.phase === "choosing";
+  const recovering = racePhase?.phase === "recovery";
+  const afterRace = debriefing || choosing || recovering;
+  const [reconcilingRace, setReconcilingRace] = useState(false);
+  const [soreOpen, setSoreOpen] = useState(false);
+  const raceRuns = racePhase && debriefing ? raceRunCandidates(plan, runs, { date: racePhase.race.date, km: racePhase.race.km }) : [];
+  const raceLabel = (() => {
+    if (!racePhase?.catalogue) return null;
+    const joined = findEdition(racePhase.race.editionId);
+    return (races?.participations || []).find(p => p.editionId === racePhase.race.editionId)?.label
+      || (joined ? editionLabel({ name: String(joined.name) }, joined.edition) : t("app.toasts.yourRace"));
+  })();
+  const answer = (a: "ran" | "didnt" | "moved" | "feel") => track("debrief_answered", { answer: a });
   const nextSess = nextSession(plan, today) as DashboardSession | null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
   // A session dated in the future can't already be done — ungated, the card
@@ -195,6 +246,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // on screen, not at mount: this card sits well down the page, so a Home visit
   // that never scrolled would otherwise burn it unread.
   const [showOverdueCoachIntro] = useState(settings.coachOverdueIntroSeen === false);
+  // The same captured-at-mount rule for the notice on a plan started for the runner.
+  const [autoNotice] = useState(!!plan?.goal?.autoFor && settings.autoStartNoticeFor !== plan.goal.autoFor);
   const overdueCoachIntroRef = useSeenOnScreen<HTMLDivElement>(
     showOverdueCoachIntro && overdueCount > 0,
     () => markCoachOverdueIntroSeen?.(),
@@ -271,6 +324,34 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           }}/>
       )}
 
+      {raceDay ? (
+        <RaceDayCard race={raceDayRace} today={todayStr} linkSent={!!settings.liveLinkSent} testDone={hasTestRun(runs)}
+          onLinkSent={() => { if (!settings.liveLinkSent) saveSettings?.({ ...settings, liveLinkSent: true }); }}
+          onStart={() => openTracker?.()} showToast={showToast}/>
+      ) : racePhase && debriefing ? (
+        <DebriefCard info={racePhase} label={raceLabel} goalSec={Number(settings.goalSec) || 0}
+          onRan={() => {
+            answer("ran");
+            if (raceRuns.length) setReconcilingRace(true);
+            else goLog(planSessionPrefill(racePhase.race.session, racePhase.race.wNum));
+          }}
+          onDidntRun={() => { answer("didnt"); skipRace?.(); }}
+          onMoved={() => { answer("moved"); openPlanGoalEdit?.(); }}
+          onFeel={effort => { answer("feel"); if (racePhase.raceRunId) updateRun?.(racePhase.raceRunId, { effort }); }}/>
+      ) : racePhase && recovering ? (
+        <RecoveryCard info={racePhase}/>
+      ) : choosing ? (
+        <NextGoalCard onSetGoal={() => (openWhatsNext ?? openPlanGoalEdit)?.()} onBrowse={() => goTab("races")}/>
+      ) : openPhase ? (
+        <>
+          <OpenPlanCard info={openPhase} distanceKm={Number(plan?.goal?.distanceKm) || Number(settings.distanceKm) || 0}
+            nextRace={nextRace ? { label: String(nextRace.label || ""), distanceKm: Number(nextRace.distanceKm) || 0, date: String(nextRace.raceDate) } : null}
+            autoStarted={autoNotice}
+            onNoticeSeen={() => { if (plan?.goal?.autoFor) saveSettings?.({ ...settings, autoStartNoticeFor: plan.goal.autoFor }); }}
+            onChange={() => openWhatsNext?.()} onRaces={() => goTab("races")}/>
+          {doneBlock && doneRecap && <BlockDoneCard block={doneBlock.block} recap={doneRecap}/>}
+        </>
+      ) : (
       <div className="rounded-2xl p-5 border border-orange-500/30"
         style={{background:"linear-gradient(135deg,rgba(249,115,22,.13),rgba(220,38,38,.13))"}}>
         {settings.raceDate && settings.distanceKm ? (
@@ -280,7 +361,9 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             <p className="text-orange-300 text-xs font-semibold uppercase tracking-widest mb-1">{t("dashboard.race.title")}</p>
             <p className="font-semibold">{fmt.date(settings.raceDate)}</p>
             <p className="text-slate-400 text-sm mt-1">
-              {t("dashboard.race.summary", {distance: settings.distanceKm, goal: fmt.dur(Number(settings.goalSec) || 0), pace: fmt.pace(Math.round(Number(settings.goalSec)/Number(settings.distanceKm)))})}
+              {Number(settings.goalSec)
+                ? t("dashboard.race.summary", {distance: settings.distanceKm, goal: fmt.dur(Number(settings.goalSec)), pace: fmt.pace(Math.round(Number(settings.goalSec)/Number(settings.distanceKm)))})
+                : t("dashboard.race.summaryNoGoal", {distance: settings.distanceKm})}
             </p>
           </div>
           <div className="text-right">
@@ -307,6 +390,9 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
           </button>
         )}
       </div>
+      )}
+
+      {phase?.recovery && <SoreRow onOpen={() => setSoreOpen(true)}/>}
 
       <div className="grid grid-cols-3 gap-3">
         {statCards.map(card => (
@@ -520,6 +606,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             )}
           </div>
         </div>
+      ) : raceDay ? (
+        <RaceDayPlanRow upcoming={!!raceDayRace} onClick={planRaceDay}/>
       ) : !plan ? (
         <div className="bg-slate-800 rounded-xl p-5 text-center space-y-3">
           <p className="text-slate-400 text-sm">{t("dashboard.noPlan")}</p>
@@ -529,11 +617,11 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             {t("dashboard.setUpPlan")}
           </button>
         </div>
-      ) : (
+      ) : afterRace ? null : (
         <div className="bg-slate-800 rounded-xl p-4 text-center text-slate-400 text-sm">{t("dashboard.allSessionsDone")}</div>
       )}
 
-      {plan && (
+      {plan && !afterRace && (
         <button onClick={() => openCoach(null, "dashboard")}
           className="w-full bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
           <CoachAvatar chip size={18}/>
@@ -573,6 +661,26 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             </p>
           )}
         </div>
+      )}
+
+      {soreOpen && (
+        <RecoverySoreSheet
+          onLighter={() => { setSoreOpen(false); lightenRecovery?.(); }}
+          onCoach={() => { setSoreOpen(false); openCoach(null, "recovery"); }}
+          onClose={() => setSoreOpen(false)}/>
+      )}
+
+      {reconcilingRace && racePhase && (
+        <ReconcileSheet
+          session={{ ...racePhase.race.session, wNum: racePhase.race.wNum }}
+          runs={raceRuns}
+          canMoveTo={() => false}
+          onConfirm={runId => {
+            const run = raceRuns.find(r => r.id === runId);
+            setReconcilingRace(false);
+            if (run) settleRace?.(run.id, run.durationSec || null);
+          }}
+          onClose={() => setReconcilingRace(false)}/>
       )}
 
       {reconciling && (

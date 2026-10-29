@@ -9,13 +9,14 @@
     "subtitle": "A coach in your pocket — let's set you up in under a minute.",
     "featurePlan": "A training plan that adapts to your goal and your week",
     "featureGps": "Track every run live with GPS",
+    "featureLive": "Share a run live: friends follow you on the map from one link, no app needed",
     "featureBadges": "Earn badges as you build the habit",
     "namePlaceholder": "Your name (optional)"
   },
   "intent": {
     "title": "What brings you here?",
     "titleNamed": "Hi {{name}}! What brings you here?",
-    "subtitle": "We'll tailor your plan to suit.",
+    "subtitle": "We'll set things up around it.",
     "race": {
       "title": "I'm training for a race",
       "sub": "Pick your race and we'll build a plan that peaks on the day."
@@ -23,6 +24,10 @@
     "fitness": {
       "title": "I'm just getting started",
       "sub": "No race yet — build fitness and the running habit at your pace."
+    },
+    "live": {
+      "title": "Let people follow my race",
+      "sub": "Record your race and share a live link. No training plan needed."
     }
   },
   "race": {
@@ -40,11 +45,52 @@
     "distancePlaceholder": "e.g. 21.1",
     "elevationLabel": "Race elevation gain (m)",
     "elevationHint": "Total climb on the course — sets training paces to the flat-equivalent effort.",
-    "addedToast": "Added to the catalogue — set as your race."
+    "addedToast": "Added to the catalogue — set as your race.",
+    "dateInPast": "Pick a race date after today."
   },
   "raceGoal": {
     "title": "Goal & training days",
     "subtitle": "A realistic target is pre-filled — tweak it if you like."
+  },
+  "liveRace": {
+    "title": "Which race?",
+    "subtitle": "Optional. We'll count down to it on your Home screen.",
+    "addSubtitle": "Adds it to your races, and helps others find it.",
+    "savedNote": "It goes on your Races tab. No training plan is built.",
+    "noRace": "No race in mind, just a run →"
+  },
+  "liveReady": {
+    "title": "Get race-ready",
+    "subtitle": "Sort these out now rather than on the start line. Your phone will spend the race in a pocket with the screen off.",
+    "location": {
+      "title": "Location",
+      "sub": "Records your route and puts you on the map",
+      "action": "Allow"
+    },
+    "background": {
+      "title": "Location with the screen off",
+      "sub": "Keeps the map moving for the people following you",
+      "action": "Allow"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "sub": "Keeps your run on the lock screen while it records",
+      "action": "Allow"
+    },
+    "battery": {
+      "title": "Unrestricted battery use",
+      "sub": "Otherwise Android can stop a long recording to save battery",
+      "action": "Open settings"
+    }
+  },
+  "liveLink": {
+    "title": "Your follow link",
+    "subtitle": "Send it now. It's the same link on race day, and it goes live as soon as you start recording.",
+    "previewLabel": "What they see until you start",
+    "previewTitle": "Nothing live right now",
+    "previewBody": "The map and your live stats appear on their own once you set off.",
+    "toggleTitle": "Share my runs from this phone",
+    "toggleSub": "You can switch it off any time before you start a run."
   },
   "daysLabel": "Training days and durations",
   "styleLabel": "Training style",
@@ -67,10 +113,7 @@
     "dMore": {
       "label": "Just run more",
       "sub": "build the habit"
-    },
-    "horizonLabel": "Over how long?",
-    "weeks_one": "{{count}} week",
-    "weeks_other": "{{count}} weeks"
+    }
   },
   "hr": {
     "title": "Heart rate",
@@ -112,7 +155,6 @@
     "fallbackFitness": "Build your base",
     "fallbackRace": "Your race",
     "meta": "{{km}} km · {{date}}",
-    "metaGoal": "Goal {{km}} km · {{date}}",
     "weekPlan": "week plan",
     "sessionsPerWeek": "sessions / week",
     "coach": {
@@ -121,7 +163,9 @@
       "ex2": "“I missed the whole week”",
       "ex3": "“My knee's been niggling”",
       "guarantee": "It proposes, you accept. Nothing changes until you say so."
-    }
+    },
+    "metaBlock": "Keep improving · {{km}} km",
+    "blockWeeks": "weeks per block"
   },
   "level": {
     "label": "How much do you run right now?"

@@ -35,7 +35,8 @@
     "BUILD": "DESARROLLO",
     "PEAK": "PICO",
     "TAPER": "DESCARGA",
-    "RACE": "CARRERA"
+    "RACE": "CARRERA",
+    "RECOVERY": "RECUPERACIÓN"
   },
   "hrTargetNudge": "Añade tu perfil de FC en Ajustes para ver una zona objetivo",
   "hrRowZone": {
