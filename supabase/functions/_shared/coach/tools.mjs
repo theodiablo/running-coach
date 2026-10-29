@@ -516,9 +516,10 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       const designPeak = Number(p.longRunPeakKm) > 0 ? Number(p.longRunPeakKm) : Infinity;
       const cap = Math.round(Math.min(peak * PEAK_MARGIN, designPeak) * 10) / 10;
       const grown = Math.round(session.km * factor * 10) / 10;
+      // Taper first: in race week every day is closed, so "lengthen the shorter days" would be wrong advice.
+      if (inTaper) guardTaperGrowth(p, week, session.date, grown - session.km);
       if (peak > 0 && grown > cap)
         throw new CoachToolError("TOO_LONG", `Lengthening ${session_id} to ${grown} km would go past this plan's ceiling (${cap} km) — the longest training session plus 10%, and never past the plan's race-scaled peak long run. Lengthen the shorter days instead.`);
-      if (inTaper) guardTaperGrowth(p, week, session.date, grown - session.km);
       session.km = grown;
       refreshCross(session, p);
       return p;
@@ -562,12 +563,12 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
       // in a new peak session. Live weeks only — the retained history can hold
       // the peak long run of a previous block, and a bigger goal ago is not
       // licence to add a session that size to the block being run now.
+      if (beforeRace && daysBetween(date, p.raceDate) <= 14) guardTaperGrowth(p, target, date, km);
       const cap = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today))
         .flatMap(w => w.sessions)
         .filter(s => s.type !== "RACE" && !s.skipped).map(s => s.km));
       if (!recovering && cap > 0 && km > cap)
         throw new CoachToolError("TOO_LONG", `km must not exceed the plan's current longest training session (${cap} km).`);
-      if (beforeRace && daysBetween(date, p.raceDate) <= 14) guardTaperGrowth(p, target, date, km);
       const ids = new Set(p.weeks.flatMap(w => w.sessions.map(s => s.id)));
       let id = `coach-add-${date}`;
       for (let n = 2; ids.has(id); n++) id = `coach-add-${date}-${n}`;

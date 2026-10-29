@@ -238,7 +238,7 @@ describe("applyToolCall", () => {
       .toThrow(/before the race/);
   });
 
-  it("add_session inside the final 14 days takes only easy work, and nothing on race eve", () => {
+  it("add_session inside the final 14 days takes only easy work, and nothing in race week", () => {
     const out = applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "EASY", km: 5 });
     expect(out.weeks[0]!.sessions.some(s => s.id === "coach-add-2026-01-09")).toBe(true);
     expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "LONG", km: 8 }))
@@ -313,6 +313,23 @@ describe("applyToolCall", () => {
     expect(ok.weeks[2]!.sessions[0]!.km).toBe(9);
     expect(() => applyTool(p, "increase_session_distance", { session_id: "w3d1", factor: 1.6 }))
       .toThrow(/above week 1 \(21\.0 km\).*week 2 was lightened around its race/);
+  });
+
+  it("race week is closed from day 7, open (bounded) from day 8, and says so before any length cap", () => {
+    // Race 2026-01-17: 01-10 is day 7, 01-09 day 8.
+    const p = nearRace();
+    p.weeks[0]!.sessions.push(sess("w1d5", "2026-01-10", "EASY", 2.5));
+    expect(() => applyTool(p, "increase_session_distance", { session_id: "w1d5", factor: 1.2 }))
+      .toThrow(/final 7 days/);
+    expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-10", type: "EASY", km: 3 }))
+      .toThrow(/final 7 days/);
+    expect(applyTool(nearRace(), "add_session", { date: "2026-01-09", type: "EASY", km: 3 })
+      .weeks[0]!.sessions.some(s => s.date === "2026-01-09")).toBe(true);
+    // Too long AND in race week: the taper is the reason given, not "lengthen the shorter days".
+    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 2 }))
+      .toThrow(/final 7 days/);
+    expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-12", type: "EASY", km: 30 }))
+      .toThrow(/final 7 days/);
   });
 
   it("the long run never grows in the final 7 days", () => {
