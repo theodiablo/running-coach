@@ -96,9 +96,7 @@ export function cachedTileLayer(url: string, options?: Record<string, unknown>):
   return layer;
 }
 
-// For pages that must not cache tiles. CORS mode is what sends `Origin`: under a
-// no-referrer page a plain <img> carries neither header, and MapTiler's
-// domain-restricted key then answers "Invalid key" tiles (docs/live-sharing.md).
+// CORS mode sends `Origin`, which a no-referrer page's MapTiler key needs (docs/live-sharing.md).
 export function uncachedTileLayer(url: string, options?: Record<string, unknown>) {
   return L.tileLayer(url, { ...options, crossOrigin: true });
 }
