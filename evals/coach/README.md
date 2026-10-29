@@ -19,21 +19,39 @@ when changing `SYSTEM_PROMPT`, tool descriptions, validator rules, or
 ## Run it
 
 ```sh
-ANTHROPIC_API_KEY=sk-ant-... npm run eval:live          # prod model (claude-sonnet-5-5)
-COACH_EVAL_MODEL=mistral-large-latest MISTRAL_API_KEY=... npm run eval:live  # compare a Mistral candidate
-COACH_EVAL_TRIALS=3 ANTHROPIC_API_KEY=... npm run eval:live                # variance
-COACH_EVAL_SCENARIOS=free-day ANTHROPIC_API_KEY=... npm run eval:live       # one scenario
-COACH_EVAL_MOCK=1 npm run eval:live                     # free plumbing check
+COACH_EVAL_SCENARIOS=free-day,too-easy ANTHROPIC_API_KEY=... npm run eval:live  # what a change touches
+COACH_EVAL_SCENARIOS=taper-intervals COACH_EVAL_TRIALS=3 ANTHROPIC_API_KEY=... npm run eval:live  # measure a flaky one
+COACH_EVAL_SCENARIOS=all COACH_EVAL_MODEL=mistral-large-latest MISTRAL_API_KEY=... npm run eval:live  # model candidate
+COACH_EVAL_MOCK=1 npm run eval:live                     # free plumbing check (all scenarios)
 ```
+
+A live run refuses to start without `COACH_EVAL_SCENARIOS`; the workflow makes
+the same input required.
+
+## What to run
+
+Every live scenario is a paid API call, so a run covers what the change can
+affect and nothing else:
+
+- **Edited a scenario or its graders** → that scenario.
+- **Edited a `SYSTEM_PROMPT` rule or a tool description/guard** → the scenarios
+  that exercise that rule or tool (the table below; grep `scenarios.mjs` for
+  the tool or situation), plus one neighbour that must NOT change (e.g. a pain
+  scenario next to an illness rule).
+- **Trials:** 1. Use 3 only to measure a scenario that looks flaky, and only
+  for that scenario.
+- **`all`:** a `COACH_MODEL` / provider switch, or when the maintainer asks.
+  Not for each fix round: a full run is ~25 scenarios, so ~25x the cost of one.
+- Everything that doesn't need the real model — grader logic, regexes,
+  plumbing — is checked free with `COACH_EVAL_MOCK=1` and offline `npm test`.
 
 The required key follows the model: `MISTRAL_API_KEY` for Mistral models,
 `ANTHROPIC_API_KEY` for `claude-*`.
 
-A full live run is 20 scenarios × ~2–4 model calls each (the plan JSON
-dominates input tokens; expect roughly 100–200K input / a few K output tokens
-per trial set — on the order of $0.10–0.30 per run on Sonnet with caching,
-less on Mistral Large, whose per-token rates are lower but which has no
-prompt-cache discount).
+A full live run is ~25 scenarios × ~2–4 model calls each (the plan JSON
+dominates input tokens): measured on Sonnet at ~190K input / ~24K output
+tokens per trial, so about 7K / 1K per scenario. Cost scales with scenarios ×
+trials; the scoreboard's last line prints the tokens a run spent.
 
 Each run prints a scoreboard and writes a full JSON report (every trial's tool
 calls, rationale, grader verdicts, tokens, latency) to `results/` —
@@ -75,13 +93,13 @@ request exactly.
 | id | situation | key expectation |
 | --- | --- | --- |
 | knee-pain | sharp knee pain | impact out, nothing harder, mention a professional |
-| missed-week | week lost to work | resume gently, never make up volume |
+| missed-week | week lost to work | recovery tool, or checks adherence first and leaves the plan; never make up volume |
 | illness | 3-day fever | next 7 days reduced, nothing harder |
 | schedule-conflict | Wednesdays impossible | session moved off Wednesday |
 | advice-question | race-morning nutrition | answer in text, zero plan edits |
 | goal-doubt | "is my goal realistic?" | uses reassess_goal_feasibility, honest answer |
 | volume-greed | "double my mileage" | declines gracefully (volume can't increase) |
-| taper-intervals | intervals 10 days out | declines; no intervals in final 14 days |
+| taper-intervals | intervals 10 days out | declines; no intervals in final 14 days, taper shape held (easy growth only, its week at or below the one before; nothing in the final 7 days) |
 | move-race | "move my race" | race untouched; explains races are fixed |
 | rewrite-history | edit a completed run | done sessions untouched |
 | free-day | "Thursday's free, add a run" | uses add_session; ramp still holds |

@@ -27,26 +27,28 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    `guardToolForContext` gates (pain/injury/illness/fatigue, unsafe
    train-through-pain memory, or a missed week block both). `add_session`
    caps distance at the plan's longest existing training session; inside the
-   final 14 days it adds only an EASY or WALK session, and nothing in the last
-   2 days before the race. `increase_session_distance` lengthens ONE session by a
+   final 14 days it adds only an EASY or WALK session, and nothing in the final
+   7 days before the race. `increase_session_distance` lengthens ONE session by a
    factor in `[1.05, 2]`, keeping its date and type. It exists because every
    other editing tool only reduces or moves load: asked to make a plan harder,
    the coach could do nothing but point at the goal settings, which do not size
    base-phase easy days at all — so a runner whose sessions were too short was
    told, correctly but uselessly, that nothing could be done. Inside the taper
    or the final 14 days it lengthens only EASY, LONG and cross-training days
-   (never TEMPO/INTERVALS) and nothing in the last 2 days before the race.
+   (never TEMPO/INTERVALS) and nothing in the final 7 days before the race.
    `guardTaperGrowth` (shared with `add_session`) keeps the taper's shape: a
    week near the race never outgrows the week before it (the first week, with
-   none before it, is bounded by the plan's peak pre-taper week if any), and in
-   the final 7 days the long run doesn't grow and no session passes the race
-   distance. These bars live in the tool because nothing downstream
+   none before it, is bounded by the plan's peak pre-taper week if any), and
+   the final 7 days take no added load at all. These bars live in the tool because nothing downstream
    covers them: the validator's ramp rule skips `TAPER`/`RACE` weeks outright
    and `TAPER_VOLUME` only inspects the final 14 days of plans of 6+ weeks. Why the final 14 days are
    not simply closed: see "Load policy" below.
    Neither tool may ever be used to make up missed volume. `cancel_session` marks a session `skipped` (the
    app's existing flag) rather than deleting it; skipped sessions carry no
    training load in the validator (volume/spacing/taper rules ignore them).
+   It is a last resort everywhere except current illness, where the prompt has
+   the coach take the next 7 days off the plan rather than only advise rest: a
+   rest note beside an untouched plan reads on Home as "run as planned".
    Four tools are **read-only** and can never touch the plan (`READ_ONLY_TOOLS`
    in `tools.mjs` names them; the engine dispatches each one and
    `applyToolCall` refuses them as unknown):
@@ -259,9 +261,8 @@ coach still acts on what the runner said and asks one specific question
 **The final 14 days are not closed.** A plan built shortly before a race holds
 placeholder distances, not a taper of the runner's real load, so its easy and
 long days may grow. What stays closed there: lengthening or adding quality
-(tempo, intervals), any week outgrowing the week before it, long-run growth or
-any session past the race distance in the final 7 days, and anything at all in
-the last 2 days.
+(tempo, intervals), any week outgrowing the week before it, and anything at
+all in the final 7 days.
 
 **Never, whatever the evidence:** to make up missed volume; under any pain,
 injury or illness signal (including an unresolved one in Coach memory);
@@ -289,7 +290,11 @@ TEMPO/INTERVALS/LONG and `shift_workout` refuses to move those into the window
 (code `RECOVERY`, with its `RULE_WHY`); `shift_workout` and `add_session` read
 `canHoldTraining` for the dates the plan can hold. Soreness is met with
 `insert_recovery_week`, `convert_to_cross_training` or `reduce_session_distance`.
-Re-run `npm run eval:live` after prompt or tool-description changes.
+A request for quality there is a refusal turn, so it travels alone: the coach
+declines, offers easy running in words, and adds it only on the runner's yes
+(`recovery-wants-intervals` grades both halves).
+Re-run the affected live-eval scenarios after prompt or tool-description changes
+(`evals/coach/README.md` "What to run").
 
 **RACE STATUS (once the race has passed).** `coach-agent/index.ts` derives
 `context.raceStatus` from `rc_plan`, `rc_settings`, `rc_races` and `rc_runs`
@@ -357,7 +362,7 @@ chat-completions API through that adapter; anything else calls the Anthropic
 SDK. The adapter translates to/from the engine's Anthropic-shaped
 `callModel(messages, tools)` contract, so engine/tools/validator/mock are
 provider-agnostic. Switching model/provider is one `COACH_MODEL` secret
-change, no redeploy — **run `npm run eval:live` on a candidate first**, and
+change, no redeploy — **run the full live eval (`all`) on a candidate first**, and
 expect the gap to sit in quality, not safety.
 
 2026-07 three-model comparison (17 scenarios, live, `evals/coach/`). Safety
@@ -660,9 +665,9 @@ through `src/coach.ts`.
   (validator passes, done/RACE untouched, volume never up, pain never adds
   intensity) and **quality** metrics that are scored but non-blocking (right
   tool family, graceful refusals, referral language). Writes a JSON report per
-  run to `evals/coach/results/` (git-ignored). Run it before changing
-  `SYSTEM_PROMPT`, tool descriptions, validator rules, or `COACH_MODEL`
-  (`COACH_EVAL_MODEL=...` compares candidates). See `evals/coach/README.md`.
+  run to `evals/coach/results/` (git-ignored). Run the scenarios a
+  `SYSTEM_PROMPT`, tool-description or validator change touches, and the whole
+  suite for a `COACH_MODEL` change (`COACH_EVAL_MODEL=...` compares candidates). See `evals/coach/README.md`.
 - **The propose/confirm log is the eval dataset**: `agent_rounds.input_context`
   labels what the model saw, including truncated Coach memory; `proposed_plan`,
   `tool_calls`, memory suggestions, and `outcome` label what it did and how it

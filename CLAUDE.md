@@ -510,8 +510,13 @@ returned plan via `applyCoachPlan`. `_shared/coach/runDigest.mjs` (the read-only
 both ends in sync (parity-tested by `src/utils/runDigest.test.ts`); digests stay
 coordinate-free. **Read `docs/coach-agent.md` before touching prompts, tools,
 validator rules, or the chat client.** Evals: offline in `npm test`; live-model
-in `evals/coach/` (`npm run eval:live`) — re-run after prompt/tool-description
-changes.
+in `evals/coach/` (`npm run eval:live`, the "Coach live eval" workflow).
+**Live evals are paid per scenario: run only what the change touches** — the
+scenarios you edited, whose graders you edited, or that exercise the prompt
+rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
+(`all`) only when the model changes or the maintainer asks; offline tests and
+`COACH_EVAL_MOCK=1` are free for everything else. `evals/coach/README.md`
+"What to run".
 
 ## Data shapes
 - **Run:** `{id, date, type, km, durationSec, hr, hrMax, elevation, effort,

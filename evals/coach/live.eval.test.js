@@ -14,7 +14,9 @@
 //                       candidates by re-running with a different value,
 //                       e.g. mistral-large-latest)
 //   COACH_EVAL_TRIALS   trials per scenario, default 1
-//   COACH_EVAL_SCENARIOS optional comma-separated scenario ids to run
+//   COACH_EVAL_SCENARIOS comma-separated scenario ids to run, or `all`. Required
+//                       for a live run (each one is paid); a mock run defaults
+//                       to all.
 //   COACH_EVAL_MOCK=1   run the harness through the MOCK_LLM scripts instead
 //                       (free plumbing check; quality scores are meaningless)
 //
@@ -40,17 +42,20 @@ const MISTRAL = !MOCK && isMistralModel(MODEL);
 const API_KEY = MISTRAL ? process.env.MISTRAL_API_KEY : process.env.ANTHROPIC_API_KEY;
 const API_KEY_NAME = MISTRAL ? "MISTRAL_API_KEY" : "ANTHROPIC_API_KEY";
 const TRIALS = Math.max(1, Number(process.env.COACH_EVAL_TRIALS || 1));
-const REQUESTED_SCENARIOS = (process.env.COACH_EVAL_SCENARIOS || "")
-  .split(",").map(s => s.trim()).filter(Boolean);
+const RAW_SCENARIOS = (process.env.COACH_EVAL_SCENARIOS || "").trim();
+const ALL = RAW_SCENARIOS === "all" || (MOCK && !RAW_SCENARIOS);
+const REQUESTED_SCENARIOS = ALL ? [] : RAW_SCENARIOS.split(",").map(s => s.trim()).filter(Boolean);
 const SCENARIO_SET = new Set(REQUESTED_SCENARIOS);
-const SELECTED_SCENARIOS = REQUESTED_SCENARIOS.length
-  ? SCENARIOS.filter(s => SCENARIO_SET.has(s.id))
-  : SCENARIOS;
+const SELECTED_SCENARIOS = ALL ? SCENARIOS : SCENARIOS.filter(s => SCENARIO_SET.has(s.id));
 const UNKNOWN_SCENARIOS = REQUESTED_SCENARIOS.filter(id => !SCENARIOS.some(s => s.id === id));
 
 const runnable = MOCK || Boolean(API_KEY);
 if (!runnable) {
   console.warn(`\ncoach live eval: set ${API_KEY_NAME} (or COACH_EVAL_MOCK=1) to run — skipping.\n`);
+}
+// Every live scenario costs money: a full run has to be asked for by name.
+if (runnable && !MOCK && !ALL && !REQUESTED_SCENARIOS.length) {
+  throw new Error(`COACH_EVAL_SCENARIOS is required for a live run: name the scenarios your change touches (comma-separated), or \`all\` for the full suite. Valid ids: ${SCENARIOS.map(s => s.id).join(", ")}`);
 }
 if (UNKNOWN_SCENARIOS.length) {
   throw new Error(`Unknown COACH_EVAL_SCENARIOS id(s): ${UNKNOWN_SCENARIOS.join(", ")}. Valid ids: ${SCENARIOS.map(s => s.id).join(", ")}`);
@@ -180,12 +185,17 @@ describe.skipIf(!runnable)(`coach live eval (${MODEL}, ${TRIALS} trial(s)/scenar
         `  status ${rs.map(r => r.status + (r.changed ? "+edit" : "")).join(",")}` +
         (misses.length ? `  missed: ${[...new Set(misses)].join(", ")}` : "");
     }).filter(Boolean);
+    // The JSON report is an artifact; quality misses also go to the log so a CI run is readable on its own.
+    const missLines = records.filter(r => r.quality.some(q => !q.pass)).map(r =>
+      `  ${r.scenario} #${r.trial}: ${r.quality.filter(q => !q.pass).map(q => `${q.name} (${q.detail})`).join("; ")}` +
+      `\n    tools: ${r.observedTools.join(", ") || "none"}\n    rationale: ${(r.rationale || "").replace(/\s+/g, " ").slice(0, 400)}`);
 
     // process.stdout directly — vitest's reporter swallows console.log.
     process.stdout.write([
       "",
       `coach live eval — model ${MODEL}${MOCK ? " (MOCK — quality scores not meaningful)" : ""}, ${TRIALS} trial(s)/scenario${REQUESTED_SCENARIOS.length ? `, scenarios ${SELECTED_SCENARIOS.map(s => s.id).join(",")}` : ""}`,
       ...rows,
+      ...(missLines.length ? ["", "  quality misses:", ...missLines, ""] : []),
       `  safety ${(report.safetyPassRate * 100).toFixed(0)}% (must be 100)  quality ${(report.qualityScore * 100).toFixed(0)}%  tokens in/out ${totals.input}/${totals.output}`,
       `  report: ${file}`,
       "",

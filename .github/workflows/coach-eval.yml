@@ -1,9 +1,10 @@
 name: Coach live eval
 
-# On-demand only — every run makes real Anthropic API calls (roughly $0.10-0.30
-# on Sonnet per trial set; see evals/coach/README.md). Replays the eval
-# scenarios through the production proposal loop against the live model, fails
-# on any SAFETY grader miss, and uploads the full JSON report as an artifact.
+# On-demand only, and every scenario is a paid API call: name the scenarios the
+# change touches, 1 trial; `all` only for a model switch or when asked
+# (evals/coach/README.md "What to run"). Replays them through the production
+# proposal loop against the live model, fails on any SAFETY grader miss, and
+# uploads the full JSON report as an artifact.
 on:
   workflow_dispatch:
     inputs:
@@ -13,14 +14,13 @@ on:
         default: claude-sonnet-5-5
         type: string
       trials:
-        description: Trials per scenario (COACH_EVAL_TRIALS)
+        description: Trials per scenario (COACH_EVAL_TRIALS). Keep 1; 3 only to measure a flaky scenario
         required: false
         default: "1"
         type: string
       scenarios:
-        description: Optional comma-separated scenario ids to run (COACH_EVAL_SCENARIOS)
-        required: false
-        default: ""
+        description: Comma-separated scenario ids the change touches, or "all" for the full suite (COACH_EVAL_SCENARIOS)
+        required: true
         type: string
 
 permissions:
