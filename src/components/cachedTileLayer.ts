@@ -95,3 +95,8 @@ export function cachedTileLayer(url: string, options?: Record<string, unknown>):
   layer.on("tileunload", revoke);
   return layer;
 }
+
+// CORS mode sends `Origin`, which a no-referrer page's MapTiler key needs (docs/live-sharing.md).
+export function uncachedTileLayer(url: string, options?: Record<string, unknown>) {
+  return L.tileLayer(url, { ...options, crossOrigin: true });
+}
