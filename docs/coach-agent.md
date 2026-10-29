@@ -290,6 +290,9 @@ TEMPO/INTERVALS/LONG and `shift_workout` refuses to move those into the window
 (code `RECOVERY`, with its `RULE_WHY`); `shift_workout` and `add_session` read
 `canHoldTraining` for the dates the plan can hold. Soreness is met with
 `insert_recovery_week`, `convert_to_cross_training` or `reduce_session_distance`.
+A request for quality there is a refusal turn, so it travels alone: the coach
+declines, offers easy running in words, and adds it only on the runner's yes
+(`recovery-wants-intervals` grades both halves).
 Re-run `npm run eval:live` after prompt or tool-description changes.
 
 **RACE STATUS (once the race has passed).** `coach-agent/index.ts` derives
