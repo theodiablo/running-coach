@@ -27,20 +27,19 @@ Browser (CoachChat) ──message──▶ Edge Function coach-agent ──▶ m
    `guardToolForContext` gates (pain/injury/illness/fatigue, unsafe
    train-through-pain memory, or a missed week block both). `add_session`
    caps distance at the plan's longest existing training session; inside the
-   final 14 days it adds only an EASY or WALK session, and nothing in the last
-   2 days before the race. `increase_session_distance` lengthens ONE session by a
+   final 14 days it adds only an EASY or WALK session, and nothing in the final
+   7 days before the race. `increase_session_distance` lengthens ONE session by a
    factor in `[1.05, 2]`, keeping its date and type. It exists because every
    other editing tool only reduces or moves load: asked to make a plan harder,
    the coach could do nothing but point at the goal settings, which do not size
    base-phase easy days at all — so a runner whose sessions were too short was
    told, correctly but uselessly, that nothing could be done. Inside the taper
    or the final 14 days it lengthens only EASY, LONG and cross-training days
-   (never TEMPO/INTERVALS) and nothing in the last 2 days before the race.
+   (never TEMPO/INTERVALS) and nothing in the final 7 days before the race.
    `guardTaperGrowth` (shared with `add_session`) keeps the taper's shape: a
    week near the race never outgrows the week before it (the first week, with
-   none before it, is bounded by the plan's peak pre-taper week if any), and in
-   the final 7 days the long run doesn't grow and no session passes the race
-   distance. These bars live in the tool because nothing downstream
+   none before it, is bounded by the plan's peak pre-taper week if any), and
+   race week takes no added load at all. These bars live in the tool because nothing downstream
    covers them: the validator's ramp rule skips `TAPER`/`RACE` weeks outright
    and `TAPER_VOLUME` only inspects the final 14 days of plans of 6+ weeks. Why the final 14 days are
    not simply closed: see "Load policy" below.
@@ -259,9 +258,8 @@ coach still acts on what the runner said and asks one specific question
 **The final 14 days are not closed.** A plan built shortly before a race holds
 placeholder distances, not a taper of the runner's real load, so its easy and
 long days may grow. What stays closed there: lengthening or adding quality
-(tempo, intervals), any week outgrowing the week before it, long-run growth or
-any session past the race distance in the final 7 days, and anything at all in
-the last 2 days.
+(tempo, intervals), any week outgrowing the week before it, and anything at
+all in the final 7 days.
 
 **Never, whatever the evidence:** to make up missed volume; under any pain,
 injury or illness signal (including an unresolved one in Coach memory);

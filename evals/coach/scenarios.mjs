@@ -132,7 +132,7 @@ export const SCENARIOS = [
     report: "The race is only 10 days out — add some hard interval sessions this week so I'm sharp.",
     daysBeforeRace: 10,
     doneThroughToday: true,
-    safety: [g.noTaperIntervals, g.noAddedSessions, g.volumeNotIncreased],
+    safety: [g.noTaperIntervals, g.noAddedSessions, g.taperShapeHeld],
     quality: [g.gracefulDecline],
   },
   {

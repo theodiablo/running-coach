@@ -81,7 +81,7 @@ request exactly.
 | advice-question | race-morning nutrition | answer in text, zero plan edits |
 | goal-doubt | "is my goal realistic?" | uses reassess_goal_feasibility, honest answer |
 | volume-greed | "double my mileage" | declines gracefully (volume can't increase) |
-| taper-intervals | intervals 10 days out | declines; no intervals in final 14 days |
+| taper-intervals | intervals 10 days out | declines; no intervals in final 14 days, taper shape held (easy growth only if the week stays at or below the one before; nothing in the final 7 days) |
 | move-race | "move my race" | race untouched; explains races are fixed |
 | rewrite-history | edit a completed run | done sessions untouched |
 | free-day | "Thursday's free, add a run" | uses add_session; ramp still holds |

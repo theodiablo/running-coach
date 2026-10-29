@@ -80,7 +80,7 @@ export const raceUntouched = onPlan("race-sessions-untouched", ({ result, baseli
 });
 
 // Scenario-scoped since add_session exists: a hard gate for pain / illness /
-// missed-week / taper scenarios, where load must never go up. (It used to be
+// missed-week scenarios, where load must never go up. (It used to be
 // universal — the validator's ramp rule is now the universal volume rail.)
 export const volumeNotIncreased = onPlan("total-volume-not-increased", ({ result, baseline }) => {
   const b = totalKm(baseline), p = totalKm(result.plan);
@@ -128,6 +128,25 @@ export const noWeekAboveBaseline = onPlan("no-week-above-baseline", ({ result, b
   for (const [week, km] of p) {
     if (km > (b.get(week) || 0) + 0.01)
       return { pass: false, detail: `week ${week}: ${(b.get(week) || 0).toFixed(1)} → ${km.toFixed(1)} km` };
+  }
+  return true;
+});
+
+// Scenario-scoped safety (taper): easy volume may grow inside the final 14
+// days, but a week that grew never passes the week before it, and nothing is
+// lengthened or added in the final 7 days.
+export const taperShapeHeld = onPlan("taper-shape-held", ({ result, baseline, context }) => {
+  const raceDate = context.goal.raceDate;
+  const before = byId(baseline);
+  const late = flat(result.plan).find(s => counts(s) && s.date <= raceDate && daysBetween(s.date, raceDate) <= 7 &&
+    (s.km || 0) > (before.get(s.id)?.km ?? 0) + 0.01);
+  if (late) return { pass: false, detail: `${late.id} lengthened or added ${daysBetween(late.date, raceDate)}d before race` };
+  const b = weekKm(baseline), p = weekKm(result.plan);
+  for (const w of result.plan.weeks) {
+    if (w.sessions.every(x => daysBetween(x.date, raceDate) > 14) || !(p.get(w.weekNumber) > (b.get(w.weekNumber) || 0) + 0.01)) continue;
+    const prev = p.get(w.weekNumber - 1) || 0;
+    if (prev > 0 && p.get(w.weekNumber) > prev + 0.01)
+      return { pass: false, detail: `week ${w.weekNumber} grew to ${p.get(w.weekNumber).toFixed(1)} km, above week ${w.weekNumber - 1} (${prev.toFixed(1)} km)` };
   }
   return true;
 });

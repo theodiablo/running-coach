@@ -227,15 +227,11 @@ describe("applyToolCall", () => {
     ],
   });
 
-  it("increase_session_distance grows easy days inside the final 14 days, never quality or race eve", () => {
+  it("increase_session_distance grows easy days inside the final 14 days, never quality or race week", () => {
     const out = applyTool(nearRace(), "increase_session_distance", { session_id: "w1d0", factor: 2 });
     expect(out.weeks[0]!.sessions.find(s => s.id === "w1d0")!.km).toBe(5);
-    // Race week: an easy day may grow, but never past the race distance.
-    expect(applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 1.5 })
-      .weeks[1]!.sessions.find(s => s.id === "w2d1")!.km).toBe(6);
-    const fiveK = { ...nearRace(), distanceKm: 5 };
-    expect(() => applyTool(fiveK, "increase_session_distance", { session_id: "w2d1", factor: 1.5 }))
-      .toThrow(/race distance/);
+    expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d1", factor: 1.2 }))
+      .toThrow(/final 7 days/);
     expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w1d3", factor: 1.2 }))
       .toThrow(/TEMPO sessions are not lengthened/);
     expect(() => applyTool(nearRace(), "increase_session_distance", { session_id: "w2d4", factor: 1.2 }))
@@ -249,6 +245,8 @@ describe("applyToolCall", () => {
       .toThrow(/final 14 days/);
     expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-15", type: "EASY", km: 3 }))
       .toThrow(/before the race/);
+    expect(() => applyTool(nearRace(), "add_session", { date: "2026-01-12", type: "EASY", km: 3 }))
+      .toThrow(/final 7 days/);
   });
 
   it("a taper week can refill toward the plan's peak week, never past it", () => {
@@ -265,12 +263,26 @@ describe("applyToolCall", () => {
   });
 
   // Reviewer probes: permissive near the race must still keep the taper's downward shape.
-  it("race week never outgrows the week before it, however the load is added", () => {
-    // Week 1 holds 2.5 + 2.5 + 5 + 11 = 21 km; race week 8 km of training.
-    const p = applyTool(nearRace(), "add_session", { date: "2026-01-14", type: "EASY", km: 11 });
-    expect(() => applyTool(p, "add_session", { date: "2026-01-12", type: "EASY", km: 11 }))
+  it("a taper week never outgrows the week before it, however the load is added", () => {
+    // Week 1: 5 + 5 + 12 = 22 km; week 2 (TAPER): 4 + 10 = 14 km, 20 after the added 6.
+    const p: TestPlan = {
+      raceDate: "2026-01-31", distanceKm: 21.1, goalSec: 6600, targetPace: 330, planSessions: [],
+      weeks: [
+        { weekNumber: 1, startDate: "2026-01-12", phase: "BUILD", sessions: [
+          sess("w1d1", "2026-01-13", "EASY", 5), sess("w1d3", "2026-01-15", "EASY", 5), sess("w1d6", "2026-01-18", "LONG", 12),
+        ]},
+        { weekNumber: 2, startDate: "2026-01-19", phase: "TAPER", sessions: [
+          sess("w2d1", "2026-01-20", "EASY", 4), sess("w2d6", "2026-01-24", "LONG", 10),
+        ]},
+        { weekNumber: 3, startDate: "2026-01-26", phase: "RACE", sessions: [
+          sess("w3d1", "2026-01-27", "EASY", 4), sess("race", "2026-01-31", "RACE", 21.1),
+        ]},
+      ],
+    };
+    const q = applyTool(p, "add_session", { date: "2026-01-22", type: "EASY", km: 6 });
+    expect(() => applyTool(q, "add_session", { date: "2026-01-21", type: "EASY", km: 3 }))
       .toThrow(/above week 1/);
-    expect(() => applyTool(p, "increase_session_distance", { session_id: "w2d1", factor: 2 }))
+    expect(() => applyTool(q, "increase_session_distance", { session_id: "w2d1", factor: 2 }))
       .toThrow(/above week 1/);
   });
 
@@ -307,7 +319,7 @@ describe("applyToolCall", () => {
     const p = nearRace();
     p.weeks[1]!.sessions.splice(1, 0, sess("w2d3", "2026-01-14", "LONG", 8));
     expect(() => applyTool(p, "increase_session_distance", { session_id: "w2d3", factor: 1.2 }))
-      .toThrow(/long run in the final 7 days/);
+      .toThrow(/final 7 days/);
   });
 
   it("a lengthened cross-training day keeps its minutes in step with its km", () => {
