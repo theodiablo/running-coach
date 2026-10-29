@@ -1,0 +1,73 @@
+{
+  "eyebrow": "What's next?",
+  "later": "Not now",
+  "continue": "Continue",
+  "recap": {
+    "title": "The training that got you here",
+    "titleOpen": "Your last four weeks",
+    "sub": "Before you pick what's next, here is what you put in.",
+    "sessions": "Sessions done",
+    "sessionsValue": "{{done}} of {{planned}}",
+    "distance": "Distance run",
+    "longest": "Longest run",
+    "km": "{{km}} km",
+    "easyPace": "Easy pace",
+    "easyPaceValue": "{{from}} → {{to}} /km",
+    "easyPaceHr": "Start to end of the block, at the same heart rate (about {{hr}} bpm)",
+    "easyPaceNoHr": "Median of your easy runs, start to end of the block"
+  },
+  "feeling": {
+    "title": "How are you feeling about running?",
+    "sub": "There is no wrong answer. It only decides what we show you first.",
+    "fired": "Fired up",
+    "firedSub": "Ready for the next challenge",
+    "steady": "Steady",
+    "steadySub": "Happy to keep it going",
+    "breather": "Need a breather",
+    "breatherSub": "I'd like it lighter for a while"
+  },
+  "goals": {
+    "title": "Where to from here?",
+    "raceFirstTitle": "{{label}}, done!",
+    "raceFirstSub": "Well run. Your link goes quiet until your next shared run."
+  },
+  "race": {
+    "title": "Pick my next race",
+    "titleBlock": "Try a real race",
+    "sub": "A plan that peaks on the day.",
+    "wishlist": "On your list",
+    "suggested": "Races that fit",
+    "weeks_one": "{{count}} week away",
+    "weeks_other": "{{count}} weeks away",
+    "train": "Train for it",
+    "nearMe": "Near me",
+    "locating": "Locating you...",
+    "denied": "Couldn't get your location",
+    "none": "Nothing in the catalogue fits yet.",
+    "browse": "Browse all races"
+  },
+  "improve": {
+    "title": "Keep improving",
+    "sub": "No race date. Four-week blocks, each ending in a checkpoint run so you can see how far you've come.",
+    "d5": "5K",
+    "d10": "10K",
+    "dHalf": "Half marathon",
+    "faster": "Faster at {{distance}}",
+    "best": "Your best: {{time}}",
+    "noBest": "No time on record yet",
+    "further": "Run further",
+    "furtherSub": "Stretch the long run, block by block",
+    "healthy": "Stay healthy and consistent",
+    "healthySub": "Keep the habit going and the injuries away"
+  },
+  "lighter": {
+    "title": "A lighter plan",
+    "sub": "About two easy runs a week. A breather that keeps the habit going.",
+    "cta": "Start the lighter plan"
+  },
+  "toast": {
+    "started": "Your new plan is ready",
+    "lighter": "Your lighter plan is ready",
+    "undone": "Back to your previous plan"
+  }
+}

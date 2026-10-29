@@ -7,6 +7,8 @@ import { cleanDesc, ymd } from "./format";
 import { applyToolCall } from "../../supabase/functions/_shared/coach/tools.mjs";
 import type { PlanSessionInput } from "./plan";
 
+const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
+
 // The English-equivalence guarantee: for every session buildPlan stamps with a
 // structured descriptor (`sd`), rendering it in English must reproduce the
 // stored `desc` byte-for-byte. This is what lets us translate the sentence at
@@ -59,6 +61,19 @@ describe("renderSd reproduces the English desc for every generated sd", () => {
       ]);
     }
   }
+  // The easy-only tail after race day: recovery runs, run/walk intervals at the
+  // base ratio, and low-frequency cross-training days.
+  for (const style of STYLE_IDS) {
+    cases.push([
+      `${style} +recovery`,
+      buildPlan("2026-11-29", 6340, DAYS_4, 21.1, 0, { style, recovery: true }),
+    ]);
+  }
+  cases.push([
+    "runwalk sub-minute ratio +recovery",
+    buildPlan("2026-11-29", 3600, DAYS_3, 10, 0,
+      { style: "runwalk", recovery: true, runWalk: { runWalkRunSec: 90, runWalkWalkSec: 45 } }),
+  ]);
   // A sub-minute run/walk ratio: the sentence carries "1 min 30 s"/"45 s" tokens
   // rather than whole minutes, in the template as well as the generator.
   cases.push([
@@ -111,7 +126,7 @@ describe.each(ANCHORS)("renderSd reproduces the English desc for coach-authored 
 
   for (const style of STYLE_IDS) {
     it(`${style}: swap/add/convert/recovery sd renders to its desc`, () => {
-      const raceDate = ymd(new Date(new Date(anchor + "T00:00:00").getTime() + 112 * 86400000));
+      const raceDate = dayAfter(anchor, 112);
       const base = buildPlan(raceDate, 6340, [
         { dayOffset: 1, minutes: 40 }, { dayOffset: 3, minutes: 45 }, { dayOffset: 6, minutes: 90 },
       ], 21.1, 100, { style });
@@ -139,7 +154,7 @@ describe.each(ANCHORS)("renderSd reproduces the English desc for coach-authored 
       const wk2 = base.weeks[1]!;
       const taken = new Set(wk2.sessions.map(s => s.date));
       const freeDay = [0, 1, 2, 3, 4, 5, 6]
-        .map(n => ymd(new Date(new Date(wk2.startDate + "T00:00:00").getTime() + n * 86400000)))
+        .map(n => dayAfter(wk2.startDate, n))
         .find(d => !taken.has(d))!;
       const added = applyToolCall(base, "add_session", { date: freeDay, type: "EASY", km: 5 });
       expect(check(added)).toBeGreaterThan(0);

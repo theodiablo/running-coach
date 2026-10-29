@@ -53,3 +53,16 @@ describe("onboardedSettings", () => {
     expect(onboardingBuildsPlan({ ...next, raceDate: "" }, false)).toBe(false);
   });
 });
+
+describe("onboardingBuildsPlan · block plans", () => {
+  it("a fitness runner's block plan has a distance and no date", () => {
+    const block = { raceDate: "", distanceKm: 5, goalKind: "block" } as unknown as SettingsState;
+    expect(onboardingBuildsPlan(block, false)).toBe(true);
+    expect(onboardingBuildsPlan({ ...block, distanceKm: "" }, false)).toBe(false);
+    expect(onboardingBuildsPlan(block, true)).toBe(false);
+  });
+
+  it("a race plan still needs its date", () => {
+    expect(onboardingBuildsPlan({ raceDate: "", distanceKm: 5 } as unknown as SettingsState, false)).toBe(false);
+  });
+});

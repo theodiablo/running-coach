@@ -7,7 +7,7 @@ type TestRun = { date?: string; km?: number } | null;
 type TestParticipation = { status: string; distanceKm: number; timeSec: number | null };
 type TestJoinedEdition = { raceId: string; name: string; edition: { date: string; distanceKm: number } };
 
-const detectAny = detectAnyRace as unknown as (run: TestRun, candidates: TestRaceCandidate[]) => string | null;
+const detectAny = detectAnyRace as unknown as (run: TestRun, candidates: TestRaceCandidate[]) => TestRaceCandidate | null;
 const bestTimes = bestTimesByDistance as unknown as (participations: TestParticipation[]) => Record<number, number>;
 const personalBest = isPersonalBest as unknown as (participation: TestParticipation, participations: TestParticipation[]) => boolean;
 const find = findEdition as unknown as (editionId: string | null) => TestJoinedEdition | null;
@@ -41,15 +41,19 @@ describe("detectAnyRace", () => {
     { editionId: "tuneup-10k", date: "2026-10-04", distanceKm: 10 },
   ];
   it("matches the correct race among several candidates", () => {
-    expect(detectAny({ date: "2026-10-04", km: 10.2 }, cands)).toBe("tuneup-10k");
-    expect(detectAny({ date: "2026-11-08", km: 19.5 }, cands)).toBe("main-20k");
+    expect(detectAny({ date: "2026-10-04", km: 10.2 }, cands)).toBe(cands[1]);
+    expect(detectAny({ date: "2026-11-08", km: 19.5 }, cands)).toBe(cands[0]);
   });
   it("returns null when no candidate matches (wrong date or wrong distance)", () => {
     expect(detectAny({ date: "2026-09-01", km: 10 }, cands)).toBeNull(); // no date match
     expect(detectAny({ date: "2026-10-04", km: 20 }, cands)).toBeNull(); // right day, wrong distance
   });
-  it("ignores candidates without an editionId", () => {
-    expect(detectAny({ date: "2026-10-04", km: 10 }, [{ date: "2026-10-04", distanceKm: 10 }])).toBeNull();
+  it("matches a hand-entered race with no editionId", () => {
+    const hand = { date: "2026-10-04", distanceKm: 10 };
+    expect(detectAny({ date: "2026-10-04", km: 10 }, [hand])).toBe(hand);
+  });
+  it("ignores candidates without a date or distance", () => {
+    expect(detectAny({ date: "2026-10-04", km: 10 }, [{ date: "", distanceKm: 10 }, { date: "2026-10-04", distanceKm: 0 }])).toBeNull();
   });
   it("handles empty candidates / missing fields", () => {
     expect(detectAny({ date: "2026-10-04", km: 10 }, [])).toBeNull();

@@ -35,6 +35,15 @@ describe("fmt.dur", () => {
   });
 });
 
+describe("fmt.km", () => {
+  it("rounds to a tenth and drops a trailing .0", () => {
+    expect(fmt.km(21.0975)).toBe("21.1");
+    expect(fmt.km(42.195)).toBe("42.2");
+    expect(fmt.km(10)).toBe("10");
+    expect(fmt.km("5")).toBe("5");
+  });
+});
+
 describe("fmt.mins", () => {
   it("formats sub-hour as Nmin", () => {
     expect(fmt.mins(30)).toBe("30min");

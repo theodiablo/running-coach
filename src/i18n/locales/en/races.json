@@ -72,7 +72,8 @@
     "notesPlaceholder": "Notes (optional)",
     "alsoLog": "Also add to my run log",
     "save": "Save result",
-    "defaultNote": "{{label}} — race"
+    "defaultNote": "{{label}} — race",
+    "skipped": "Didn't run"
   },
   "report": {
     "title": "Report a problem",

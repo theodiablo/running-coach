@@ -40,6 +40,11 @@ and nothing else, so a plan rebuild or a coach edit can never leave a stale
   "still open" is still true; past that the plan has moved on. The coach's
   context window is sized to match (`docs/coach-agent.md`), so the coach can
   always see a session the app is still showing the runner as open.
+  A RACE session is never overdue, and once the main race has passed neither is
+  any session dated on or before it (`mainRace`, `docs/training-plan.md`): the
+  post-race debrief owns that moment, not the backlog. The recovery sessions
+  *after* the race are ordinary plan sessions: they appear here, in
+  `nextSession` and in the reminder schedule like any other.
 - `nextSession(plan, today)` — the soonest untouched session from today onward.
   Extracted from Dashboard so the two selectors are tested against each other:
   a session must never appear in both.
@@ -67,6 +72,16 @@ a week of compliance and cost the user.
 Web gets nothing here, and the card is **absent** rather than disabled — there is
 nothing a browser user could do with it. Native reach is roughly 10 of 25 users
 today; that limitation is understood and accepted for v1.
+
+### One non-session reminder: what's next
+
+`reminderSchedule` appends one entry, id `reminderId("whatsnext:" + race date)`,
+for a plan that carries a recovery (`plan.recovery.until`): the evening before /
+morning of the day after the last easy day (the same `fireAt` and lead-time
+preference), only when reminders are on and the time is still ahead. It lives on
+the plan that carries the recovery, so answering "what's next" with a new plan
+drops it on the next sync; "Not now" leaves it, which is fine for a one-off.
+Copy: `reminders.notif.whatsNext*`.
 
 ### The split: pure math, thin bridge
 

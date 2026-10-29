@@ -4,7 +4,7 @@ import { HistoryView } from "./HistoryView";
 import { StatsView } from "./StatsView";
 import { Badge } from "../components/Badge";
 import { computeBadges } from "../utils/badges";
-import type { RacesState, Run, SettingsState, RunPatch, RunHighlight } from "../types";
+import type { Plan, RacesState, Run, SettingsState, RunPatch, RunHighlight } from "../types";
 import type { StretchLogEntry } from "../utils/stretchSuggest";
 
 // "Progress" merges the former History + Stats tabs and adds Badges, under a
@@ -14,6 +14,7 @@ type ProgressSub = "log" | "stats" | "badges";
 type ProgressViewProps = {
   runs: Run[];
   races: RacesState | null;
+  plan?: Plan | null;
   settings: SettingsState;
   initialSub?: ProgressSub;
   isPremium?: boolean;

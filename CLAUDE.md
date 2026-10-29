@@ -249,6 +249,24 @@ Always re-verify a finding before acting on it; agents report false positives.
   guided schedule; sentence figures come from `fmt.interval`.
   Detail (opts, long-run scaling, fitness level, suggested days, rebuild
   semantics, the ratio): `docs/training-plan.md`.
+- **Recovery after the race is written by `opts.recovery` (`plan.recovery`);
+  `canHoldTraining` (`_shared/coach/recovery.mjs`) is the one date rule for the
+  validator, `planEdit` and the coach tools.** Plans built before it have none
+  and get no derived recovery. Detail: `docs/training-plan.md`.
+- **`goal.kind` absent = race; open/block plans have no `raceDate` (every reader
+  tolerates `""`); the only automatic plan writes run in `runPlanAutomation`,
+  after `isStoreReconciled()`.** A plan with no race is built by the same
+  `buildPlan` (`opts.goal`), in 4-week blocks each ending in a checkpoint run;
+  "What's next?" (`WhatsNextSheet`) is how a race plan becomes one. Detail:
+  `docs/training-plan.md` ("Open plans and blocks"), `docs/races.md`.
+- **Where the runner stands relative to the race is `planPhase`**
+  (`src/utils/planPhase.ts`: active, raceWeek, debrief, choosing, recovery, and
+  open for a plan with no race), derived from
+  the plan on every read and never stored; its core is
+  `_shared/coach/phase.mjs`, so the coach's `RACE STATUS:` line reads the same
+  phase the app shows. The goal is `settings.goalSec`, never
+  `plan.goalSec` (buildPlan substitutes 7200 for an empty one). Detail:
+  `docs/training-plan.md` ("Where the runner stands"), `docs/races.md`.
 - **The runner's own plan edits warn, never block.** Move/swap, retype,
   resize, add and delete go through `src/utils/planEdit.ts` (free for
   everyone); `editIssues` runs the shared validator and the sheet shows what an
@@ -601,7 +619,8 @@ changes.
   (records `settings.healthAck`). The `"live"` branch builds **no plan**: its
   race is a participation, never `targetEditionId`, and `settings.liveFirst`
   puts Home in race-day mode until a plan exists (`src/utils/raceDay.ts`,
-  `docs/live-sharing.md`). The screening
+  `docs/live-sharing.md`). The `"fitness"` branch builds a `block` plan (no race
+  date, 4-week blocks, no recovery tail) and asks no horizon. The screening
   answer is GDPR health data — never persisted. Progress persists per-step via
   `onSaveProgress`, capped at the health step; clear `onboardStep`/`intent` on
   complete/skip, and set `onboarded: true` on any first-run completion/dismissal.

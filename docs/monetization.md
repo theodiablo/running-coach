@@ -268,6 +268,30 @@ One thing that premium surface will want: the free backfill deliberately caps at
 the newest 40 GPS runs to keep cold start cheap. A full-history PB view should do
 its own deeper, user-initiated pass rather than widening the free boot path.
 
+### After the finish line: shipped free (2026-10)
+
+The weeks after a race are where a runner decides whether to keep going, so none
+of it is gated: the debrief (result, how it felt), the recovery plan (easy
+running only, "Sore or injured?"), "What's next?" and the open plans it leads to
+(Keep improving, a lighter plan), the block recap (including the easy pace at
+the same heart rate, `docs/races.md`), and the coach's race-status context
+(`docs/coach-agent.md`; the coach itself stays rate-limited as ever, with the
+premium budget a raise only).
+
+It touches the lineup in three places, and none of them is taken away:
+
+- **#5 Deep analytics.** The recap is a one-moment summary of the block just
+  finished, from data already in `runs`. The *history and trend surfaces*
+  (fitness over time, the easy-pace line across many blocks) stay the premium
+  half of #5.
+- **#3 Weekly review** is untouched: nothing here proposes plan changes on a
+  schedule. The coach's after-race behaviour is the existing propose-and-confirm
+  flow plus a hand-off to `app:next`.
+- **#6 Convenience / richer multi-race handling** is not what "What's next?"
+  does: it picks one next goal, it does not manage a season.
+
+Per **Never claw back**, none of this returns to the lineup.
+
 Rules this list must keep obeying:
 
 - **Never claw back.** Everything above is new value or a raise. Nothing that is

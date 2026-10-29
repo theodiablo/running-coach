@@ -45,7 +45,8 @@
     "distancePlaceholder": "e.g. 21.1",
     "elevationLabel": "Race elevation gain (m)",
     "elevationHint": "Total climb on the course — sets training paces to the flat-equivalent effort.",
-    "addedToast": "Added to the catalogue — set as your race."
+    "addedToast": "Added to the catalogue — set as your race.",
+    "dateInPast": "Pick a race date after today."
   },
   "raceGoal": {
     "title": "Goal & training days",
@@ -112,10 +113,7 @@
     "dMore": {
       "label": "Just run more",
       "sub": "build the habit"
-    },
-    "horizonLabel": "Over how long?",
-    "weeks_one": "{{count}} week",
-    "weeks_other": "{{count}} weeks"
+    }
   },
   "hr": {
     "title": "Heart rate",
@@ -157,7 +155,6 @@
     "fallbackFitness": "Build your base",
     "fallbackRace": "Your race",
     "meta": "{{km}} km · {{date}}",
-    "metaGoal": "Goal {{km}} km · {{date}}",
     "weekPlan": "week plan",
     "sessionsPerWeek": "sessions / week",
     "coach": {
@@ -166,7 +163,9 @@
       "ex2": "“I missed the whole week”",
       "ex3": "“My knee's been niggling”",
       "guarantee": "It proposes, you accept. Nothing changes until you say so."
-    }
+    },
+    "metaBlock": "Keep improving · {{km}} km",
+    "blockWeeks": "weeks per block"
   },
   "level": {
     "label": "How much do you run right now?"

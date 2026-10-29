@@ -32,7 +32,7 @@ vi.mock("./supabase", () => ({
   },
 }));
 
-import { db, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
+import { db, isCached, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
 import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
 const loadOk = (data: unknown, updatedAt?: string) => {
@@ -73,6 +73,18 @@ describe("db store", () => {
       user_id: "u1",
       data: { rc_runs: ["real run"], rc_plan: { weeks: [] } },
     });
+  });
+
+  it("isCached: the held value or a defaults-extended copy of it, not one from before an adopted row", async () => {
+    const held = { a: 1, nested: { x: 1 } };
+    loadOk({ rc_settings: held });
+    await initStore("u1");
+    expect(isCached("rc_settings", held)).toBe(true);
+    expect(isCached("rc_settings", { ...held, extraDefault: false })).toBe(true);
+    expect(isCached("rc_settings", { ...held, a: 2 })).toBe(false);
+    expect(isCached("rc_settings", { ...held, nested: { x: 1 } })).toBe(false);
+    expect(isCached("rc_settings", null)).toBe(false);
+    expect(isCached("rc_missing", held)).toBe(false);
   });
 
   it("treats an absent row as a loaded, writable empty store (new user)", async () => {
@@ -307,6 +319,32 @@ describe("db store — offline boot", () => {
     await settle();
     expect(h.upsert).not.toHaveBeenCalled();
     expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy();
+  });
+
+  it("is reconciled only once the live row has been read: not offline-pending, not after a failed load", async () => {
+    expect(await bootOffline({ rc_runs: ["mirrored run"] }, Date.now() - 60_000)).toBe("offline");
+    expect(isStoreLoaded()).toBe(true);
+    expect(isStoreReconciled()).toBe(false);
+    // Still offline: the retry's reconcile read fails, so nothing changes.
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(isStoreReconciled()).toBe(false);
+    loadOk({ rc_runs: ["mirrored run"] }, iso(Date.now() - 60_000));
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(isStoreReconciled()).toBe(true);
+    clearStore();
+    expect(isStoreReconciled()).toBe(false);
+  });
+
+  it("a plain online boot is reconciled at once, a failed one never", async () => {
+    loadOk({ rc_runs: [] }, iso(Date.now() - 60_000));
+    expect(await initStore("u1")).toBe("loaded");
+    expect(isStoreReconciled()).toBe(true);
+    clearStore();
+    localStorage.clear();
+    loadThrows();
+    expect(await initStore("u1")).toBe("failed");
+    expect(isStoreReconciled()).toBe(false);
   });
 
   it("flushes offline writes after reconciling against an unchanged server row", async () => {

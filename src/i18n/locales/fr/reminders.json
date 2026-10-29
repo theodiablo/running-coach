@@ -1,7 +1,9 @@
 {
   "notif": {
     "today": "Séance aujourd'hui",
-    "tomorrow": "Séance demain"
+    "tomorrow": "Séance demain",
+    "whatsNext": "Et maintenant ?",
+    "whatsNextBody": "Ta récupération est terminée. Choisis ton prochain objectif, ou continue simplement à progresser."
   },
   "settings": {
     "title": "Rappels d'entraînement",

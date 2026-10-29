@@ -232,6 +232,101 @@ describe("validatePlan rules", () => {
   });
 });
 
+// ── recovery after the race ───────────────────────────────────────────────────
+// The fixture's race is Sat 2026-02-14; 20 km rests the 15th and 16th, so the
+// tail starts Tuesday in a RECOVERY week.
+describe("validatePlan · recovery after the race", () => {
+  const RECOVERY = { race: "2026-02-14", km: 20, until: "2026-02-26" };
+  const withTail = (): TestPlan => {
+    const p = cleanPlan();
+    (p as TestPlan & { recovery: unknown }).recovery = RECOVERY;
+    p.weeks.push(wk(7, "2026-02-16", "RECOVERY", [
+      sess("w7d2", "2026-02-18", "EASY", 3), sess("w7d4", "2026-02-20", "EASY", 3.5), sess("w7d6", "2026-02-22", "EASY", 4),
+    ]));
+    return p;
+  };
+
+  it("reports a post-race session on a plan written without a tail as AFTER_RACE", () => {
+    const p = cleanPlan();
+    p.weeks[5]!.sessions.push(sess("w6d6", "2026-02-15", "EASY", 2.5));
+    expect(validate(p).errors.map(e => e.code)).toContain("AFTER_RACE");
+  });
+
+  it("accepts the tail, and still refuses race day itself and days past `until`", () => {
+    expect(validate(withTail()).errors).toEqual([]);
+    const onRaceDay = withTail();
+    onRaceDay.weeks[5]!.sessions.push(sess("w6d5", "2026-02-14", "EASY", 3));
+    expect(validate(onRaceDay).errors.map(e => e.code)).toContain("AFTER_RACE");
+    const late = withTail();
+    late.weeks.push(wk(8, "2026-02-23", "RECOVERY", [sess("w8d4", "2026-02-27", "EASY", 3)]));
+    expect(validate(late).errors.map(e => e.code)).toContain("AFTER_RACE");
+  });
+
+  it("refuses the rest days just after the race", () => {
+    const p = withTail();
+    p.weeks[5]!.sessions.push(sess("w6d6", "2026-02-15", "EASY", 2.5));
+    expect(validate(p).errors.filter(e => e.code === "AFTER_RACE").map(e => e.sessionId)).toEqual(["w6d6"]);
+  });
+
+  it("accepts a run already done on a rest day (a shakeout jog the runner linked)", () => {
+    const p = withTail();
+    p.weeks[5]!.sessions.push({ ...sess("w6d6", "2026-02-15", "EASY", 2.5), done: true });
+    expect(validate(p).errors).toEqual([]);
+  });
+
+  it.each(["TEMPO", "INTERVALS", "LONG"])("flags a %s inside the recovery as RECOVERY_HARD", (type) => {
+    const p = withTail();
+    p.weeks[6]!.sessions[1]!.type = type;
+    const errs = validate(p).errors;
+    expect(errs.filter(e => e.code === "RECOVERY_HARD").map(e => e.sessionId)).toEqual(["w7d4"]);
+  });
+
+  it("leaves quality before the race alone; a second race after it is still AFTER_RACE, not RECOVERY_HARD", () => {
+    expect(validate(withTail()).errors.map(e => e.code)).not.toContain("RECOVERY_HARD");
+    const p = withTail();
+    p.weeks[6]!.sessions.push(sess("race-tuneup", "2026-02-24", "RACE", 5));
+    expect(validate(p).errors.map(e => e.code)).toEqual(["AFTER_RACE"]);
+  });
+
+  it("does not score RECOVERY weeks against the taper or the ramp", () => {
+    // A recovery week bigger than the taper would be TAPER_VOLUME if it counted.
+    const p = withTail();
+    p.weeks[6]!.sessions = [sess("w7d2", "2026-02-18", "EASY", 9), sess("w7d4", "2026-02-20", "EASY", 9), sess("w7d6", "2026-02-22", "EASY", 9)];
+    const r = validate(p);
+    expect(r.errors.map(e => e.code)).not.toContain("TAPER_VOLUME");
+    expect(r.errors.map(e => e.code)).not.toContain("RAMP_EXCEEDED");
+  });
+
+  it("walks the ramp reference back past RECOVERY weeks", () => {
+    const p = cleanPlan();
+    // A plan opened inside a previous race's recovery: a tiny recovery week, then training.
+    p.weeks = [
+      wk(1, "2026-01-05", "RECOVERY", [sess("w1d2", "2026-01-07", "EASY", 2)]),
+      wk(2, "2026-01-12", "BASE", [sess("w2d2", "2026-01-14", "EASY", 8), sess("w2d6", "2026-01-18", "LONG", 14)]),
+      wk(3, "2026-01-19", "BUILD", [sess("w3d2", "2026-01-21", "EASY", 8), sess("w3d6", "2026-01-25", "LONG", 15)]),
+      wk(4, "2026-01-26", "BUILD", [sess("w4d2", "2026-01-28", "EASY", 8), sess("w4d6", "2026-02-01", "LONG", 15)]),
+      wk(5, "2026-02-02", "TAPER", [sess("w5d2", "2026-02-04", "EASY", 3), sess("w5d6", "2026-02-08", "LONG", 6)]),
+      wk(6, "2026-02-09", "RACE", [sess("race", "2026-02-14", "RACE", 20)]),
+    ];
+    (p as TestPlan & { openedAfter: unknown }).openedAfter = { race: "2026-01-03", km: 42.2, until: "2026-01-10" };
+    expect(validate(p).errors.map(e => e.code)).not.toContain("RAMP_EXCEEDED");
+  });
+
+  it("flags a hard session inside the window a plan opened behind", () => {
+    const p = cleanPlan();
+    (p as TestPlan & { openedAfter: unknown }).openedAfter = { race: "2026-01-03", km: 42.2, until: "2026-01-24" };
+    expect(validate(p).errors.map(e => e.sessionId)).toContain("w1d6");
+  });
+
+  it("needs a race date only for race plans", () => {
+    const p = cleanPlan() as unknown as Record<string, unknown>;
+    delete p.raceDate;
+    expect(validate(p).errors.map(e => e.code)).toContain("MALFORMED");
+    p.goal = { kind: "open" };
+    expect(validate(p).errors).toEqual([]);
+  });
+});
+
 // ── one validator, two callers: the deterministic generator must pass too ────
 // buildPlan always anchors week 1 on the next Monday while these fixtures ask
 // for a race `n * 7` days out, so the weekday the suite happens to run on
@@ -240,8 +335,7 @@ describe("validatePlan rules", () => {
 // appeared on Mondays, which is how a runwalk taper that fails TAPER_VOLUME sat
 // on main visible one day in seven. The clock is pinned and BOTH alignments are
 // covered on purpose.
-const dayAfter = (from: string, days: number) =>
-  ymd(new Date(new Date(from + "T00:00:00").getTime() + days * 86400000));
+const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
 
 const ANCHORS: [string, string][] = [
   ["monday anchor", "2026-09-14"],  // race falls in an extra, (n+1)-th week
@@ -327,6 +421,29 @@ describe.each(ANCHORS)("buildPlan output passes the shared validator (%s)", (_an
       "%s", (_label, raceDate, goalSec, distanceKm, layout, opts) => {
         const plan = buildPlan(raceDate, goalSec, layout, distanceKm, 0, { ...opts, style });
         expect(validateAt(plan).errors).toEqual([]);
+      });
+  });
+
+  // The same envelope with the recovery tail written, and with a plan opened
+  // right after a race (a marathon run 3 days ago, a half 13 days ago whose
+  // recovery has ended, a 5K 10 days ago).
+  describe.each(styles)("style %s with recovery is validator-clean", (style) => {
+    const layouts = style === "balanced" ? dayLayouts.slice(0, 2) : dayLayouts;
+    const justRaced: [string, { date: string; km: number }][] = [
+      ["marathon 3 days ago", { date: dayAfter(anchor, -3), km: 42.2 }],
+      ["half 13 days ago", { date: dayAfter(anchor, -13), km: 21.1 }],
+      ["5k 10 days ago", { date: dayAfter(anchor, -10), km: 5 }],
+    ];
+    it.each(raceCases.flatMap(([rLabel, raceDate, goalSec, distanceKm, opts]) =>
+      layouts.map(([dLabel, layout]) =>
+        [`${rLabel}, ${dLabel}`, raceDate, goalSec, distanceKm, layout, opts] as const)))(
+      "%s", (_label, raceDate, goalSec, distanceKm, layout, opts) => {
+        const plan = buildPlan(raceDate, goalSec, layout, distanceKm, 0, { ...opts, style, recovery: true });
+        expect(validateAt(plan).errors).toEqual([]);
+        for (const [, afterRace] of justRaced) {
+          const opened = buildPlan(raceDate, goalSec, layout, distanceKm, 0, { ...opts, style, recovery: true, afterRace });
+          expect(validateAt(opened).errors).toEqual([]);
+        }
       });
   });
 

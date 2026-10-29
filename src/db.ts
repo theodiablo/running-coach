@@ -52,6 +52,12 @@ export const OFFLINE_BOOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // unloaded store.
 export const isStoreLoaded = () => loaded;
 
+// Loaded AND not still holding an offline-booted copy that has yet to be
+// reconciled with the live row. Anything that WRITES on its own (the plan
+// automation in RunningCoach) waits for this: an offline boot's first write
+// would race the reconcile that decides which side of a foreign edit wins.
+export const isStoreReconciled = () => loaded && !offlinePending;
+
 // Fired when reconcile() replaced the cache under a running app (a newer write
 // from another device won). The UI's copies of the data are stale at that
 // point; App.tsx subscribes and remounts RunningCoach so it re-reads the store.
@@ -364,6 +370,15 @@ if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
     if (saveTimer || retryTimer || offlinePending) flush();
   });
+}
+
+// Whether `value` is what the cache holds, or a defaults-extended copy of it
+// (shallow). A state copy that fails this predates a row adopted underneath it.
+export function isCached(k: string, value: unknown) {
+  const held = cache[k];
+  if (held === value) return true;
+  if (!held || !value || typeof held !== "object" || typeof value !== "object") return false;
+  return Object.entries(held).every(([key, v]) => (value as Record<string, unknown>)[key] === v);
 }
 
 export const db = {
