@@ -26,6 +26,8 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   changes. Anthropic exposes no prepaid-balance endpoint; its Admin API key can
   manage the whole organization, so don't store one here just for a cost figure.
 - Your own account is counted like any other.
+- **Flyer QR scans** come from `qr_scans` (`docs/store-redirect.md`); the
+  digest omits the section when the field is absent.
 
 ## The edge function (`admin-metrics`)
 

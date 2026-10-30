@@ -108,6 +108,15 @@ export function formatDigest(m) {
     row("Coach flags", `${m.feedback.coach_flags_7d} this week (${m.feedback.coach_flags_total} total)`),
     "",
     row("Integrations", tally(m.integrations)),
+    ...(m.qr
+      ? [
+          "",
+          "Flyer QR scans",
+          row("This week", `${m.qr["7d"]} (${tally(m.qr.by_platform_7d)}) ${prev(m.qr.prev7d)}`),
+          row("All time", `${m.qr.total} (${tally(m.qr.by_platform_total)})`),
+          row("By flyer", tally(m.qr.by_src_total)),
+        ]
+      : []),
   ];
   return { subject: `Running Coach - weekly metrics (${day})`, text: lines.join("\n") + "\n" };
 }

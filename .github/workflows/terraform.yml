@@ -38,6 +38,8 @@ permissions:
 env:
   TF_VERSION: "1.15.8"
   TF_IN_AUTOMATION: "1"
+  # Not a secret: it ships in the web bundle. Feeds the /get origin in site.tf.
+  TF_VAR_supabase_project_ref: ${{ vars.SUPABASE_PROJECT_REF }}
 
 concurrency:
   # Applies must not overlap: they share one state file and one lock.
