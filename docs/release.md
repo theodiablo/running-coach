@@ -502,7 +502,9 @@ grant, 502 otherwise); the detail is in the function logs only.
 ## CI caching & budget
 
 - **All workflows use Node 22** (Capacitor 8 CLI floor) — keep new workflows on
-  22 so they share one npm cache key family.
+  22 so they share one npm cache key family. Every `setup-node` step sets
+  `check-latest: true`: without it a bare `22` resolves to the runner image's
+  cached build, which can lag a Node security release by days.
 - **Android — the cache is seeded from `main`, read everywhere else.** GitHub
   scopes each ref's Actions cache to itself; a run may restore only its own
   ref's cache **plus the default branch's**. So `android-main.yml` builds
