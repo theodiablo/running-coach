@@ -37,6 +37,7 @@ jobs:
           # Node 22 to match every other workflow. No cache: npm here — this
           # job never runs npm ci (generate.mjs is dependency-free).
           node-version: 22
+          check-latest: true
 
       # ubuntu-latest ships Google Chrome; install it only if that ever changes.
       - name: Ensure Chrome

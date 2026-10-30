@@ -50,6 +50,7 @@ jobs:
         with:
           # Capacitor 8 CLI requires Node >= 22.
           node-version: 22
+          check-latest: true
           cache: npm
 
       - name: Setup Java
