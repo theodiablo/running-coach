@@ -161,7 +161,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   (`delete_my_account`, the one accepted lint-0029 finding). Service-role-only
   tables pair `enable row level security` (no policies = deny all) with an
   explicit `revoke all ... from anon, authenticated`; the linter's INFO
-  `rls_enabled_no_policy` on them is the intent, not a gap.
+  `rls_enabled_no_policy` on them is the intent, not a gap. **A new table
+  needs an explicit `grant ... to service_role`** for whatever an edge function
+  does with it: this project's default privileges give service_role no
+  SELECT/INSERT, and supabase-js reports the denial as `error` with `data:
+  null`, which an unchecked read takes for "no row".
 - **Auth callbacks:** every native deep link is classified by the pure
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
