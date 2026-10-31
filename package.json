@@ -65,6 +65,7 @@
     "@capacitor/cli": "^8.5.2",
     "@capacitor/ios": "^8.5.2",
     "@eslint/js": "^10.0.1",
+    "@eslint/json": "^2.1.1",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.3.0",
     "@testing-library/dom": "^10.4.2",
