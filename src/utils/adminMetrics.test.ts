@@ -97,6 +97,22 @@ describe("formatDigest", () => {
     expect(text).toContain("Not in spend      mistral-large-latest, 2 turns, incl. this week");
   });
 
+  it("reports flyer scans by platform and campaign, and omits the section before the migration", () => {
+    const qr = {
+      "7d": 5,
+      prev7d: 1,
+      total: 9,
+      by_platform_7d: { ios: 3, android: 2 },
+      by_platform_total: { ios: 4, android: 3, other: 2 },
+      by_src_total: { "gym-oct": 6, none: 3 },
+    };
+    const { text } = formatDigest({ ...METRICS, qr });
+    expect(text).toContain("This week         5 (ios 3, android 2) (prev 1)");
+    expect(text).toContain("All time          9 (ios 4, android 3, other 2)");
+    expect(text).toContain("By flyer          gym-oct 6, none 3");
+    expect(formatDigest(METRICS).text).not.toContain("Flyer QR scans");
+  });
+
   it("says none rather than leaving a tally blank", () => {
     expect(formatDigest({ ...METRICS, integrations: {} }).text).toContain("Integrations      none");
   });

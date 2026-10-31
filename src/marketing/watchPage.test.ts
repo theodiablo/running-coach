@@ -49,12 +49,19 @@ const edgeSource = readFileSync(resolve(__dirname, "../../infra/functions/watch-
 const edgeContext: Record<string, unknown> = {};
 runInNewContext(edgeSource, edgeContext);
 const handler = edgeContext.handler as
-  (e: { request: { uri: string; querystring?: object } }) => { uri: string };
+  (e: { request: { uri: string; querystring?: object; cookies?: Record<string, unknown> } }) =>
+    { uri: string; cookies?: Record<string, unknown> };
 
 describe("watch-page CloudFront Function", () => {
   it("serves every run link the one cached watch.html", () => {
     expect(handler({ request: { uri: "/watch/abcdefghijklmnopqrstuv" } }).uri).toBe("/watch.html");
     expect(handler({ request: { uri: "/watch/x/y" } }).uri).toBe("/watch.html");
+  });
+
+  it("never forwards this domain's cookies to the QR redirect's origin", () => {
+    const cookies = { ph_key_posthog: { value: "user-id" }, other: { value: "x" } };
+    expect(handler({ request: { uri: "/get", cookies } }).cookies).toEqual({});
+    expect(handler({ request: { uri: "/", cookies: { a: { value: "1" } } } }).cookies).toEqual({ a: { value: "1" } });
   });
 
   it("leaves every other path alone", () => {

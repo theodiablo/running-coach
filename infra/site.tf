@@ -16,7 +16,7 @@ locals {
 resource "aws_cloudfront_function" "watch_page" {
   name    = local.watch_function_name
   runtime = "cloudfront-js-2.0"
-  comment = "Rewrite /watch/* to /watch.html for run-link previews"
+  comment = "Rewrite /watch/* to /watch.html; strip cookies on /get"
   publish = true
   # LF-normalized so a Windows checkout (core.autocrlf) doesn't plan a rewrite.
   code = replace(file("${path.module}/functions/watch-page.js"), "\r\n", "\n")
@@ -132,6 +132,20 @@ resource "aws_cloudfront_distribution" "site" {
     origin_access_control_id = aws_cloudfront_origin_access_control.site.id
   }
 
+  # Edge functions, for the flyer QR redirect (/get). docs/store-redirect.md.
+  origin {
+    origin_id   = "supabase-functions"
+    domain_name = "${var.supabase_project_ref}.supabase.co"
+    origin_path = "/functions/v1"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
   default_cache_behavior {
     target_origin_id       = aws_s3_bucket.site.bucket_regional_domain_name
     viewer_protocol_policy = "redirect-to-https"
@@ -164,6 +178,28 @@ resource "aws_cloudfront_distribution" "site" {
     cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
     response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
 
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.watch_page.arn
+    }
+  }
+
+  # The printed QR code's URL, so it must never change: the edge function picks
+  # the store per device. Uncached, since the answer depends on the User-Agent,
+  # which AllViewerExceptHostHeader forwards (Host must stay supabase.co's).
+  ordered_cache_behavior {
+    path_pattern               = "/get"
+    target_origin_id           = "supabase-functions"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = false
+    cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # CachingDisabled
+    origin_request_policy_id   = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # AllViewerExceptHostHeader
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+
+    # Strips cookies before supabase.co sees them; a custom origin request policy
+    # would be a resource the apply role can't create.
     function_association {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.watch_page.arn

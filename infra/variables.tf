@@ -30,3 +30,13 @@ variable "backup_bucket_name" {
   type        = string
   default     = "run-app-db-backups"
 }
+
+variable "supabase_project_ref" {
+  description = "Supabase project ref, from the SUPABASE_PROJECT_REF repo variable (terraform.yml). CloudFront forwards /get to its `get` edge function."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]{20}$", var.supabase_project_ref))
+    error_message = "supabase_project_ref must be a 20-character Supabase project ref."
+  }
+}
