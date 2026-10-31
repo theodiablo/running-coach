@@ -46,6 +46,7 @@ describe("isBot", () => {
     expect(isBot("")).toBe(true);
     expect(isBot(IPHONE)).toBe(false);
     expect(isBot(ANDROID)).toBe(false);
+    expect(isBot("Mozilla/5.0 (Linux; Android 13; CUBOT_X30) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36")).toBe(false);
   });
 });
 

@@ -8,21 +8,28 @@ import { routeScan } from "../_shared/storeRedirect.mjs";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-Deno.serve(async (req) => {
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+
+async function count(platform: string, src: string) {
+  try {
+    const { error } = await admin.from("qr_scans").insert({ platform, src });
+    if (error) console.error("qr_scans insert failed", error.message);
+  } catch (e) {
+    console.error("qr_scans insert threw", e);
+  }
+}
+
+Deno.serve((req) => {
   const scan = routeScan({
     method: req.method,
     userAgent: req.headers.get("user-agent"),
     src: new URL(req.url).searchParams.get("src"),
   });
 
-  // A failed count must never cost the redirect.
+  // The redirect never waits on the count; waitUntil keeps the insert alive after it.
   if (scan.count) {
-    try {
-      const { error } = await admin.from("qr_scans").insert({ platform: scan.platform, src: scan.src });
-      if (error) console.error("qr_scans insert failed", error.message);
-    } catch (e) {
-      console.error("qr_scans insert threw", e);
-    }
+    const pending = count(scan.platform, scan.src);
+    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(pending);
   }
 
   return new Response(null, {

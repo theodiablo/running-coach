@@ -16,7 +16,7 @@ locals {
 resource "aws_cloudfront_function" "watch_page" {
   name    = local.watch_function_name
   runtime = "cloudfront-js-2.0"
-  comment = "Rewrite /watch/* to /watch.html for run-link previews"
+  comment = "Rewrite /watch/* to /watch.html; strip cookies on /get"
   publish = true
   # LF-normalized so a Windows checkout (core.autocrlf) doesn't plan a rewrite.
   code = replace(file("${path.module}/functions/watch-page.js"), "\r\n", "\n")
@@ -197,6 +197,12 @@ resource "aws_cloudfront_distribution" "site" {
     cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # CachingDisabled
     origin_request_policy_id   = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # AllViewerExceptHostHeader
     response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+
+    # A custom origin request policy is a resource the apply role can't create.
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.watch_page.arn
+    }
   }
 
   # A single-page app: any path not found in the bucket is the router's job,

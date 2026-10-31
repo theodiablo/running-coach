@@ -1,6 +1,7 @@
 -- Flyer QR scans, counted by the public `get` edge function: platform and
 -- campaign tag only, never an IP or user agent. Service-role only (RLS on, no
--- policies). admin_metrics() gains a `qr` section. docs/store-redirect.md.
+-- policies). admin_metrics() gains a `qr` section; its per-flyer tally is capped
+-- at the top 20, since anyone can mint a src. docs/store-redirect.md.
 
 create table public.qr_scans (
   id bigint generated always as identity primary key,
@@ -134,7 +135,7 @@ as $$
       ),
       'by_src_total', (
         select coalesce(jsonb_object_agg(src, n), '{}'::jsonb)
-        from (select q.src, count(*) n from public.qr_scans q group by 1) x
+        from (select q.src, count(*) n from public.qr_scans q group by 1 order by n desc, q.src limit 20) x
       )
     ),
     'integrations', (

@@ -28,10 +28,16 @@ and the response is `no-store` for the same reason.
 
 Each counted scan is one `qr_scans` row: `created_at`, `platform`
 (`ios`/`android`/`other`), `src` (lower-cased slug, max 40 chars, `none` when
-absent). **No IP and no User-Agent are stored**, so nothing here is personal
-data and no consent is involved. `HEAD` requests, empty agents and known
-link-preview bots are redirected but not counted. A failed insert never blocks
-the redirect. The table is service-role only (RLS on, no policies).
+absent). **No IP and no User-Agent are stored in `qr_scans`**, so nothing we
+keep is personal data and no consent is involved (Supabase's own function logs
+still see the request for their retention window). The `/get` behavior runs the
+`watch-page` CloudFront Function to drop cookies before the origin request:
+the domain's PostHog cookie carries the user id, and a custom origin request
+policy would be a resource the CI apply role can't create. `HEAD` requests, empty agents and known
+link-preview bots are redirected but not counted. The redirect never waits on
+the insert (`EdgeRuntime.waitUntil`), and a failed one only logs. Counts are
+approximate and can be inflated on purpose (no rate limit), which is why the
+digest's per-flyer line shows only the top 20 `src` values. The table is service-role only (RLS on, no policies).
 
 The numbers arrive in the weekly digest (`admin_metrics()` → `qr`; see
 `docs/product-metrics.md`): this week by platform, all time by platform, all

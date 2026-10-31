@@ -20,7 +20,7 @@ export function classifyDevice(ua) {
 // Link-preview fetchers and scripts get redirected like anyone but never counted.
 export function isBot(ua) {
   const s = String(ua ?? "");
-  return !s || /bot|crawl|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|curl|wget|python|headless/i.test(s);
+  return !s || /bot\b|crawl|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|curl|wget|python|headless/i.test(s);
 }
 
 export function normalizeSrc(src) {
@@ -32,7 +32,7 @@ export function targetFor(platform, src) {
   if (platform === "android") return `${PLAY_STORE_URL}&referrer=${encodeURIComponent(campaign)}`;
   if (platform === "ios") {
     return APP_STORE_PROVIDER_TOKEN && IOS_URL.startsWith("https://apps.apple.com/")
-      ? `${IOS_URL}?pt=${APP_STORE_PROVIDER_TOKEN}&ct=${src}&mt=8`
+      ? `${IOS_URL}${IOS_URL.includes("?") ? "&" : "?"}pt=${APP_STORE_PROVIDER_TOKEN}&ct=${src}&mt=8`
       : IOS_URL;
   }
   return `${WEB_URL}?${campaign}`;
