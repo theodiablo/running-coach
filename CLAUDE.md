@@ -166,6 +166,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   does with it: this project's default privileges give service_role no
   SELECT/INSERT, and supabase-js reports the denial as `error` with `data:
   null`, which an unchecked read takes for "no row".
+  `src/serviceRoleGrants.test.ts` fails CI on a gap; name a JWT-carrying
+  client `userClient` so it is told apart.
 - **Auth callbacks:** every native deep link is classified by the pure
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
