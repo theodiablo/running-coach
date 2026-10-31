@@ -198,7 +198,8 @@ resource "aws_cloudfront_distribution" "site" {
     origin_request_policy_id   = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # AllViewerExceptHostHeader
     response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
 
-    # A custom origin request policy is a resource the apply role can't create.
+    # Strips cookies before supabase.co sees them; a custom origin request policy
+    # would be a resource the apply role can't create.
     function_association {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.watch_page.arn

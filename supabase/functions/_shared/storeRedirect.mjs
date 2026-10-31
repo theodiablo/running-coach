@@ -19,7 +19,7 @@ export function classifyDevice(ua) {
 
 // Link-preview fetchers and scripts get redirected like anyone but never counted.
 export function isBot(ua) {
-  const s = String(ua ?? "");
+  const s = String(ua ?? "").replace(/cubot/gi, ""); // a phone brand, not a crawler
   return !s || /bot\b|crawl|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|curl|wget|python|headless/i.test(s);
 }
 
