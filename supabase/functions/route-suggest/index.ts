@@ -175,7 +175,8 @@ Deno.serve(async (req) => {
     if (chargeErr) throw chargeErr;
     let used = Number(chargedRaw);
     const refund = async () => {
-      const { data: back } = await admin.rpc("decrement_route_suggest_usage", { p_user_id: user.id, p_day: today });
+      const { data: back, error: refundErr } = await admin.rpc("decrement_route_suggest_usage", { p_user_id: user.id, p_day: today });
+      if (refundErr) console.error("route-suggest: usage refund failed", refundErr);
       if (back != null) used = Number(back);
     };
     if (used > LIMIT_PER_DAY) {

@@ -444,11 +444,12 @@ export default function App() {
     (async () => {
       try {
         const info = await CapApp.getInfo();
-        const { data } = await supabase
+        const { data, error: configErr } = await supabase
           .from("app_config")
           .select("min_supported_version, latest_version, min_supported_version_ios, latest_version_ios")
           .eq("id", 1)
           .maybeSingle();
+        if (configErr) console.error("Could not read app_config", configErr);
         // Each platform reads its own column pair: the stores roll out
         // independently (and a partial release can leave one store behind), so a
         // single shared version would lie to one of them.

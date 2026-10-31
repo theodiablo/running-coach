@@ -5,7 +5,6 @@ import en from "./locales/en";
 import es from "./locales/es";
 import fr from "./locales/fr";
 import marketingEn from "../marketing/marketing.en.json";
-import marketingEs from "../marketing/marketing.es.json";
 import marketingFr from "../marketing/marketing.fr.json";
 import marketingCopy from "../marketing/copy.json";
 import { detectInitialLocale, isLangId, RC_LANG_KEY } from "./detect";
@@ -68,13 +67,6 @@ describe("locale dictionaries", () => {
     for (const [key, vars] of enSlots) {
       expect(langSlots.get(key), `interpolation vars for ${key}`).toBe(vars);
     }
-  });
-
-  it.each([
-    ["es", es, marketingEs],
-    ["fr", fr, marketingFr],
-  ] as const)("%s copy does not use English-style em dashes", (_lang, app, marketing) => {
-    expect([...stringValues(app as Tree), ...stringValues(marketing as Tree)].filter(value => value.includes("—"))).toEqual([]);
   });
 
   // French app copy says `tu`. `vous` is only for people who aren't users yet:

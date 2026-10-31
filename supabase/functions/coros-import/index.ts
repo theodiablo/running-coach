@@ -318,9 +318,10 @@ Deno.serve(async (req) => {
     );
 
     const loadRow = async (): Promise<ConnectionRow | null> => {
-      const { data } = await admin.from("integration_connections")
+      const { data, error: connErr } = await admin.from("integration_connections")
         .select("external_user_id, access_token, refresh_token, expires_at, sync_cursor, sync_state")
         .eq("user_id", user.id).eq("provider", "coros").maybeSingle();
+      if (connErr) throw connErr;
       return data as ConnectionRow | null;
     };
 
@@ -430,9 +431,10 @@ Deno.serve(async (req) => {
       await admin.from("integration_staged_workouts").delete()
         .eq("user_id", user.id).eq("provider", "coros")
         .lt("created_at", new Date(Date.now() - STAGED_TTL_MS).toISOString());
-      const { data: stagedRows } = await admin.from("integration_staged_workouts")
+      const { data: stagedRows, error: stagedErr } = await admin.from("integration_staged_workouts")
         .select("external_key, payload")
         .eq("user_id", user.id).eq("provider", "coros");
+      if (stagedErr) throw stagedErr;
       const staged = (stagedRows || []) as { external_key: string; payload: RawWorkout | null }[];
 
       // Walk the reachable window forward. The floor is COROS's three-month
@@ -509,9 +511,10 @@ Deno.serve(async (req) => {
       }
       const row = await loadRow();
       if (!row) return json({ connected: false, transient: true });
-      const { data: count } = await admin.rpc("increment_integration_sync_usage", {
+      const { data: count, error: quotaErr } = await admin.rpc("increment_integration_sync_usage", {
         p_user_id: user.id, p_provider: "coros", p_day: new Date().toISOString().slice(0, 10),
       });
+      if (quotaErr) console.error("coros-import: sync quota count failed", quotaErr);
       if (typeof count === "number" && count > FILE_DAILY_LIMIT) {
         return json({ connected: true, transient: true, quota: true });
       }

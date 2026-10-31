@@ -174,9 +174,10 @@ Deno.serve(async (req) => {
     // Credentials live in the generic integration_connections table
     // (provider = 'polar').
     const loadToken = async () => {
-      const { data } = await admin.from("integration_connections")
+      const { data, error: connErr } = await admin.from("integration_connections")
         .select("external_user_id, access_token")
         .eq("user_id", user.id).eq("provider", "polar").maybeSingle();
+      if (connErr) throw connErr;
       if (!data) return null;
       const row = data as { external_user_id: string; access_token: string };
       return { polar_user_id: row.external_user_id, access_token: row.access_token };

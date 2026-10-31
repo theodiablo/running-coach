@@ -88,8 +88,9 @@ Deno.serve(async (req) => {
     );
     // One Suunto account may be connected by several app users — stage for each.
     // Unknown username → same 200 (no account-existence oracle, no retry storm).
-    const { data: rows } = await admin.from("integration_connections")
+    const { data: rows, error: connErr } = await admin.from("integration_connections")
       .select("user_id").eq("provider", "suunto").eq("external_user_id", username);
+    if (connErr) throw connErr;
     const users = (rows || []) as { user_id: string }[];
     if (users.length) {
       await admin.from("integration_staged_workouts").upsert(

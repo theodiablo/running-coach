@@ -38,8 +38,18 @@ Always re-verify a finding before acting on it; agents report false positives.
   `.tsx` in jsdom (booting jsdom was most of the suite's wall time); a `.ts`
   suite that needs `window`/`localStorage` opts in with a first-line
   `// @vitest-environment jsdom` docblock.
-- `npm run lint` — ESLint (flat config). Catches unused imports/vars; keep it clean.
-  ESLint and `tsc` cache under `node_modules/.cache`, so repeat runs are fast.
+- `npm run lint` — ESLint (flat config). Keep it clean. ESLint and `tsc` cache
+  under `node_modules/.cache`, so repeat runs are fast. A PostToolUse hook lints
+  each file an agent edits.
+
+## Lint rules
+Many conventions here are enforced by project rules (`eslint-rules/`, plus the
+`seams/*` aliases in `eslint.config.js`), and each error message says why. An
+exception is a colocated `// eslint-disable-next-line <rule> -- <reason>`, never
+a config allowlist. `eslint-suppressions.json` holds only the comment-length
+debt from before the rule: never add to it (no `--suppress-*`); after trimming a
+comment, run `npx eslint . --prune-suppressions`. Turn a new mechanical rule into
+lint rather than prose; cross-file and non-JS checks stay as tests.
 - `npm run typecheck` — app TS check; `npm run typecheck:supabase` — Deno check
   for edge functions; `npm run typecheck:all` — both (CI runs this).
 - `npm run build` — production build (runs `typecheck` first) → `dist` for
@@ -48,13 +58,11 @@ Always re-verify a finding before acting on it; agents report false positives.
   (no AWS credentials needed); run it before pushing an `infra/` change.
 
 ## TypeScript
-- App source and tests live in `src/**/*.{ts,tsx}`; no new `.js`/`.jsx` in
-  `src/`. Use `.tsx` only for files containing JSX.
+- App source and tests live in `src/**/*.{ts,tsx}` (lint rejects `.js`/`.jsx`
+  there). Use `.tsx` only for files containing JSX.
 - **Stay on TypeScript 6.x**: `typescript-eslint` doesn't support the TS 7
   native compiler yet. Don't bump `typescript` past 6.x in a routine dependency
   update until it declares TS 7 support.
-- No file-level `// @ts-nocheck` in app source; prefer narrow local
-  aliases/interfaces when a module needs incremental typing.
 - Edge-function entrypoints are Deno TypeScript (`deno check` via
   `npm run typecheck:supabase`); keep Deno-specific code out of the browser
   ESLint config.
@@ -167,7 +175,8 @@ Always re-verify a finding before acting on it; agents report false positives.
   SELECT/INSERT, and supabase-js reports the denial as `error` with `data:
   null`, which an unchecked read takes for "no row".
   `src/serviceRoleGrants.test.ts` fails CI on a gap; name a JWT-carrying
-  client `userClient` so it is told apart.
+  client `userClient` so it is told apart. Lint (`local/supabase-check-error`)
+  makes every `.from()`/`.rpc()` read destructure `error`.
 - **Auth callbacks:** every native deep link is classified by the pure
   `classifyAuthUrl` (`src/utils/authCallback.ts`) before App acts on it — Polar
   return first (its `?code=` is not a Supabase code), then provider error, then
@@ -231,9 +240,7 @@ Always re-verify a finding before acting on it; agents report false positives.
   raceElevation, opts)` (`src/utils/plan.ts`) is the one plan author. Style
   pace multipliers live in `supabase/functions/_shared/coach/styles.mjs`
   (app re-export `src/utils/planStyles.ts`) — never hardcode the ratios.
-  Every buildPlan call site must pass `style: settings.planStyle` (a missed
-  site silently rebuilds as `balanced`, whose output is frozen by snapshot
-  tests). New styles must stay validator-clean by construction
+  Every buildPlan call site passes `style: settings.planStyle` (lint). New styles must stay validator-clean by construction
   (`coachValidation.test.ts` matrix). Rebuilds that replace an existing plan go
   through `carryProgress` so done/skipped aren't wiped. **buildPlan always
   starts week 1 on the next Monday**, so a rebuild holds no elapsed date:
@@ -485,17 +492,13 @@ Always re-verify a finding before acting on it; agents report false positives.
   *parse* the module, so the whole chunk dies (a lazily-imported one as an
   unhandled rejection). It reaches us through dependencies, not our own code, so
   `scripts/check-bundle-regex.mjs` scans the build output and fails
-  `npm run build`; fix a dependency with `patch-package`. Lookahead, named
-  groups and `\p{…}` are fine.
+  `npm run build`; fix a dependency with `patch-package` (our own regex
+  literals are linted). Lookahead, named groups and `\p{…}` are fine.
 - **`build.target` must never outrun `IPHONEOS_DEPLOYMENT_TARGET`** — WKWebView's
   engine is the OS version, so an iOS 15 shell runs a Safari 15 engine. Vite's
   default is `baseline-widely-available` (= ios16.4), so the target is pinned in
   `vite.config.ts` and `src/iosCompat.test.ts` fails CI if the two drift. It
   lowers *syntax* only — no regex feature is ever lowered, and no API polyfilled.
-- **A fire-and-forget `import()` must `.catch()`.** Un-caught, its rejection
-  hits `ErrorBoundary`'s `unhandledrejection` listener and paints the
-  full-screen crash overlay over a working app — how an unparseable prefetched
-  chunk read as "signing in with Google crashes".
 - Detail, including the hard-won permission/signing/build gotchas:
   `docs/live-tracking.md` (GPS, shells, R8, patches),
   `docs/health-integrations.md` (HR, watch/file/cloud imports),
@@ -555,14 +558,15 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   story**: how a bug was found, what a user did, how many rounds it took belong
   in the commit message, not above the fix. If a comment needs a paragraph, the
   paragraph goes in `docs/` and the comment is the one line that links it.
+  Lint caps a comment block at 4 lines.
 - **French and Spanish copy:** French uses informal `tu` (app copy in
   `src/i18n/`); `vous` is for surfaces read by people who aren't users yet —
   marketing (`docs/marketing.md`) and the public live-run watch page
   (`liveShare.public.*`). Spanish stays informal and region-neutral throughout.
   Reserve `course` / `carrera` for organized races, `sortie` / `entrenamiento`
-  for logged runs. No em dashes (`—`) in either locale.
-  `src/i18n/i18n.test.ts` enforces the `tu`/`vous` split and the em-dash ban;
-  the register and vocabulary rules above it are on you to keep.
+  for logged runs. No em dashes (`—`) in either locale (lint);
+  `src/i18n/i18n.test.ts` enforces the `tu`/`vous` split; the register and
+  vocabulary rules are on you to keep.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
   the one `@theme` block in `src/index.css` (Tailwind v4 CSS-first, no
   `tailwind.config`). Transform/opacity-only and short. A global
@@ -570,11 +574,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `usePrefersReducedMotion`. Enter animations re-fire by remounting via a
   changing `key`; modals animate enter-only; only the Toast animates exit (via
   `usePresence`).
-- **Never `window.confirm`/`alert`/`prompt`** — they block the WebView's JS
-  thread until the native dialog answers, and one raised as the activity
-  backgrounds never answers, freezing the whole app until a force-quit (it froze
-  a recording session with its clock stopped and every control dead). Confirm in
-  the DOM with `ModalOverlay` + `ConfirmButtons`.
+- **Never `window.confirm`/`alert`/`prompt`** (lint): confirm in the DOM with
+  `ModalOverlay` + `ConfirmButtons`.
 - **Any new modal/sheet must call `useDismissable`** (`src/hooks/`) so Android
   back / web Escape close it via the LIFO registry
   (`src/utils/backDismiss.ts`) — and so the header's go-Home reset
@@ -591,8 +592,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   dashboard + History; use its props (`dateFmt`, `showNotes`, `actions`,
   `highlight`) rather than re-rolling the markup.
 - **Map tiles go through `cachedTileLayer`** (`src/components/cachedTileLayer.ts`;
-  cache-first IndexedDB, 30-day TTL, stale fallback offline) — never a bare
-  `L.tileLayer`, or the map goes blank without a connection. The one exception
+  cache-first IndexedDB, 30-day TTL, stale fallback offline; lint). The one exception
   is the public `/watch/` pages (`cacheTiles={false}`): a stranger's device gets
   nothing stored they didn't ask for, and their layer is `uncachedTileLayer`,
   never a bare `L.tileLayer` (`docs/live-sharing.md`).
@@ -607,8 +607,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   bg-orange-500/10`; emerald for live sharing, sky for the route finder), off =
   grey with no fill. An icon swap alone (speaker ↔ crossed speaker) reads as
   decoration, and two toggles side by side must not show "on" two ways.
-- Number inputs: keep an emptied field empty while editing — no
-  `parseFloat(v) || 0` in `onChange`; coalesce at use time. Settings fields
+- Number inputs: keep an emptied field empty while editing and coalesce at use
+  time (lint flags `parseFloat(v) || 0` in `onChange`). Settings fields
   auto-save (commit on blur/Enter), keeping local string state.
 - **Text controls render at 16px on iOS** — one `@supports
   (-webkit-touch-callout: none)` block in `src/index.css`. Anything smaller makes

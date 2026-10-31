@@ -533,6 +533,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         if (backfillDone(user?.id)) return;
         return backfillBestEfforts(bootRuns, user?.id).then(patches => {
           if (!patches.length) return;
+          // eslint-disable-next-line seams/best-efforts-through-helpers -- a backfill patch, not a run read
           const byId = new Map(patches.map(p => [p.id, p.bestEfforts]));
           setRuns(prev => {
             const next = prev.map(x => (x.id && byId.has(x.id)) ? { ...x, bestEfforts: byId.get(x.id) } : x);

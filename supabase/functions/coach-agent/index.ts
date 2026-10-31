@@ -223,8 +223,9 @@ async function handle(req: Request): Promise<any> {
       .eq("client_request_id", requestId).maybeSingle();
     if (roundErr) throw roundErr;
     if (!round?.response) return { found: false };
-    const { data: traj } = await admin.from("agent_trajectories")
+    const { data: traj, error: trajErr } = await admin.from("agent_trajectories")
       .select("id").eq("id", round.trajectory_id).eq("user_id", user.id).maybeSingle();
+    if (trajErr) throw trajErr;
     if (!traj) return { found: false };
     return { found: true, ...round.response };
   }
@@ -232,14 +233,16 @@ async function handle(req: Request): Promise<any> {
   // ── confirm: no model call, no rate-limit charge ─────────────────────────
   if (action === "confirm") {
     const trajectoryId = String(body.trajectoryId ?? "");
-    const { data: traj } = await admin.from("agent_trajectories")
+    const { data: traj, error: trajErr } = await admin.from("agent_trajectories")
       .select("id, status").eq("id", trajectoryId).eq("user_id", user.id).maybeSingle();
+    if (trajErr) throw trajErr;
     if (!traj) return { error: "trajectory not found", code: "TRAJECTORY_NOT_FOUND" };
     if (traj.status !== "open") return { error: `trajectory is ${traj.status}`, code: "TRAJECTORY_CLOSED" };
-    const { data: round } = await admin.from("agent_rounds")
+    const { data: round, error: roundErr } = await admin.from("agent_rounds")
       .select("id, proposed_plan, input_context").eq("trajectory_id", trajectoryId)
       .eq("outcome", "proposed").order("round_index", { ascending: false })
       .limit(1).maybeSingle();
+    if (roundErr) throw roundErr;
     if (!round) return { error: "no open proposal to confirm", code: "NO_OPEN_PROPOSAL" };
     // Belt and braces: never commit a plan that no longer validates. Scored
     // against the round's own `today`, not now: a proposal confirmed after
@@ -324,8 +327,9 @@ async function handle(req: Request): Promise<any> {
     trajectoryId = traj.id;
   } else {
     trajectoryId = String(body.trajectoryId ?? "");
-    const { data: traj } = await admin.from("agent_trajectories")
+    const { data: traj, error: trajErr } = await admin.from("agent_trajectories")
       .select("id, status").eq("id", trajectoryId).eq("user_id", user.id).maybeSingle();
+    if (trajErr) throw trajErr;
     if (!traj) return { error: "trajectory not found", code: "TRAJECTORY_NOT_FOUND" };
     if (traj.status !== "open") return { error: `trajectory is ${traj.status}`, code: "TRAJECTORY_CLOSED" };
     const { data: rounds, error } = await admin.from("agent_rounds")

@@ -140,9 +140,10 @@ async function getFreshToken(
     if ((err as Error & { oauthError?: string }).oauthError !== "invalid_grant") throw err;
     // invalid_grant: either the user revoked access, or a concurrent sync
     // already rotated this token. Re-read before deciding which.
-    const { data } = await admin.from("integration_connections")
+    const { data, error: connErr } = await admin.from("integration_connections")
       .select("external_user_id, access_token, refresh_token, expires_at, sync_cursor, sync_state")
       .eq("user_id", userId).eq("provider", "suunto").maybeSingle();
+    if (connErr) throw connErr;
     const current = data as ConnectionRow | null;
     if (current && current.refresh_token && current.refresh_token !== attempted) {
       return await getFreshToken(admin, userId, current, force);
@@ -264,9 +265,10 @@ Deno.serve(async (req) => {
     );
 
     const loadRow = async (): Promise<ConnectionRow | null> => {
-      const { data } = await admin.from("integration_connections")
+      const { data, error: connErr } = await admin.from("integration_connections")
         .select("external_user_id, access_token, refresh_token, expires_at, sync_cursor, sync_state")
         .eq("user_id", user.id).eq("provider", "suunto").maybeSingle();
+      if (connErr) throw connErr;
       return data as ConnectionRow | null;
     };
 
@@ -336,9 +338,10 @@ Deno.serve(async (req) => {
       await admin.from("integration_staged_workouts").delete()
         .eq("user_id", user.id).eq("provider", "suunto")
         .lt("created_at", new Date(Date.now() - STAGED_TTL_MS).toISOString());
-      const { data: stagedRows } = await admin.from("integration_staged_workouts")
+      const { data: stagedRows, error: stagedErr } = await admin.from("integration_staged_workouts")
         .select("external_key, payload")
         .eq("user_id", user.id).eq("provider", "suunto");
+      if (stagedErr) throw stagedErr;
       const staged = (stagedRows || []) as { external_key: string; payload: WorkoutSummary | null }[];
 
       // Late-upload net: a watch that syncs days later produces a workout whose
@@ -442,9 +445,10 @@ Deno.serve(async (req) => {
       // Per-user daily cap: FIT downloads spend the app-wide subscription-key
       // quota, so a runaway client must not be able to burn it for everyone.
       // Over-cap is TRANSIENT (tomorrow's scan resumes), never summary-fallback.
-      const { data: count } = await admin.rpc("increment_integration_sync_usage", {
+      const { data: count, error: quotaErr } = await admin.rpc("increment_integration_sync_usage", {
         p_user_id: user.id, p_provider: "suunto", p_day: new Date().toISOString().slice(0, 10),
       });
+      if (quotaErr) console.error("suunto-import: sync quota count failed", quotaErr);
       if (typeof count === "number" && count > FIT_DAILY_LIMIT) {
         return json({ connected: true, transient: true, quota: true });
       }

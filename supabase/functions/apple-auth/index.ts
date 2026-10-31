@@ -100,8 +100,9 @@ Deno.serve(async (req) => {
       } else if (refreshParam) {
         if (!SERVICES_ID) return json({ skipped: "services id not configured" });
         // Apple throttles refresh-token validation, so an unchanged grant is a no-op.
-        const { data: existing } = await admin.from("apple_auth_grants").select("refresh_token")
+        const { data: existing, error: grantErr } = await admin.from("apple_auth_grants").select("refresh_token")
           .eq("user_id", user.id).eq("client_id", SERVICES_ID).maybeSingle();
+        if (grantErr) throw grantErr;
         if (existing?.refresh_token === refreshParam) return json({ stored: true });
         const { id_token } = await appleToken(SERVICES_ID, { grant_type: "refresh_token", refresh_token: refreshParam });
         grant = { clientId: SERVICES_ID, refreshToken: refreshParam, idToken: id_token };

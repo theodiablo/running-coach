@@ -1,0 +1,1222 @@
+{
+  "src/App.signout-chunkfail.test.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/App.tsx": {
+    "local/max-comment-lines": {
+      "count": 18
+    }
+  },
+  "src/LoginScreen.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/ResetPasswordScreen.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/RunningCoach.tsx": {
+    "local/max-comment-lines": {
+      "count": 23
+    }
+  },
+  "src/assetBase.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/bestEffortsBackfill.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/cloudOauthPreinit.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/coach.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/coachHistory.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/coachMarkdown.test.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/AddRaceCard.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/BottomNav.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/BrandLogo.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/ChunkLoadBoundary.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/CoachText.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/components/Coachmark.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/Confetti.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/ConsentBanner.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/ConsentScreen.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/ErrorBoundary.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/GoalConfigurator.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/InfoButton.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/LiveHrZone.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/components/LiveWatchView.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/components/LocationPicker.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/components/ModalPrimitives.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/PlanSessionRow.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/RecorderChrome.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/RouteMap.tsx": {
+    "local/max-comment-lines": {
+      "count": 8
+    }
+  },
+  "src/components/RunFields.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/components/SessionRemindersCard.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/ShareLinkConfirm.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/StoreLoadError.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/StylePicker.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/Toast.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/UpdatePrompt.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/components/cachedTileLayer.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/constants.ts": {
+    "local/max-comment-lines": {
+      "count": 14
+    }
+  },
+  "src/cues/index.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/db.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/db.ts": {
+    "local/max-comment-lines": {
+      "count": 9
+    }
+  },
+  "src/diag/shellLog.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/diag/shellLog.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/geo/background.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/geo/battery.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/fixJournal.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/liveNotification.android.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/liveNotification.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/liveNotification.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/geo/liveUpload.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/native.test.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/geo/native.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/geo/notifications.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/source.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/trackLog.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/web.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/geo/workoutGuide.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/health/connect.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/healthkit/import.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/healthkit/mapping.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/healthkit/plugin.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useBlePairing.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useCountdown.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useDismissable.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useGuidedWorkout.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useLiveRun.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/hooks/usePrefersReducedMotion.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/usePresence.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useRouteTrace.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useRunTracker.notification.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hooks/useRunTracker.test.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/hooks/useRunTracker.ts": {
+    "local/max-comment-lines": {
+      "count": 15
+    }
+  },
+  "src/hooks/useSeenOnScreen.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hr/ble.ts": {
+    "local/max-comment-lines": {
+      "count": 9
+    }
+  },
+  "src/hr/healthconnect.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/hr/healthconnect.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/hr/healthkit.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/hr/hrJournal.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/hr/pending.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/hr/runHr.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/hr/source.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/i18n/detect.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/i18n/i18n.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/i18n/index.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/imports/cloudOauth.ts": {
+    "local/max-comment-lines": {
+      "count": 9
+    }
+  },
+  "src/imports/dataOrigin.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/dedupe.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/persistRoutes.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/providers/cloud.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/providers/coros.ts": {
+    "local/max-comment-lines": {
+      "count": 5
+    }
+  },
+  "src/imports/providers/file.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/imports/providers/healthConnect.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/providers/healthkit.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/imports/providers/polar.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/providers/suunto.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/imports/registry.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/imports/series.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/imports/types.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/indoor/session.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/iosCompat.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/live/followList.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/live/publishToken.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/live/publisher.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/live/publisher.ts": {
+    "local/max-comment-lines": {
+      "count": 6
+    }
+  },
+  "src/live/shareLink.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/live/shareLinkStore.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/main.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/marketing/MarketingGate.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/marketing/i18n.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/migrations.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/BackupRestore.test.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/BgLocationDisclosure.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/CoachChat.tsx": {
+    "local/max-comment-lines": {
+      "count": 7
+    }
+  },
+  "src/modals/CoachUsageRing.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/FeedbackSheet.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/IndoorTracker.tsx": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/modals/LiveRunTracker.tsx": {
+    "local/max-comment-lines": {
+      "count": 12
+    }
+  },
+  "src/modals/LiveWatchModal.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/modals/OnboardingWizard.tsx": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/modals/PremiumTeaserSheet.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/RaceFormModal.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/ReconcileSheet.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/RecordSheet.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/RouteFinderSheet.tsx": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/modals/RunAchievementSheet.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/SettingsModal.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/settings/EmailSection.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/settings/IntegrationsPage.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/settings/SubPage.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/modals/settings/VendorGuides.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/native.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/notify/sessionReminders.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/premium.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/premium.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/races.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/routes.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/savedRoutes.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/supabase.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/supabaseConfig.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/supabaseFetch.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/telemetry/index.ts": {
+    "local/max-comment-lines": {
+      "count": 6
+    }
+  },
+  "src/telemetry/posthog.ts": {
+    "local/max-comment-lines": {
+      "count": 5
+    }
+  },
+  "src/types.ts": {
+    "local/max-comment-lines": {
+      "count": 5
+    }
+  },
+  "src/utils/account.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/authCallback.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/authErrors.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/authNotice.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/availability.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/backDismiss.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/badges.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/bestEfforts.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/bestEfforts.ts": {
+    "local/max-comment-lines": {
+      "count": 9
+    }
+  },
+  "src/utils/blockRecap.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/callout.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/carryPrefill.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/chartCursor.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/coachGolden.test.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/utils/coachLinks.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/coachTools.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/coachTranscript.ts": {
+    "local/max-comment-lines": {
+      "count": 6
+    }
+  },
+  "src/utils/coachUsage.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/coachValidation.test.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/coachValidation.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/csv.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/fit.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/format.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/geo.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/utils/geocode.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/goal.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/gpx.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/hr.ts": {
+    "local/max-comment-lines": {
+      "count": 6
+    }
+  },
+  "src/utils/hrNudge.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/idleEdges.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/mistralAdapter.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/offlineSession.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/onboarding.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/overdue.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/plan.test.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/utils/plan.ts": {
+    "local/max-comment-lines": {
+      "count": 21
+    }
+  },
+  "src/utils/planPhase.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/planStyles.ts": {
+    "local/max-comment-lines": {
+      "count": 5
+    }
+  },
+  "src/utils/predictions.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/races.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/recovery.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/routeSuggest.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/routeSuggest.ts": {
+    "local/max-comment-lines": {
+      "count": 8
+    }
+  },
+  "src/utils/runCelebration.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/runDigest.test.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/runForm.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/utils/runNotification.ts": {
+    "local/max-comment-lines": {
+      "count": 6
+    }
+  },
+  "src/utils/runRecovery.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/runSegments.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/runSeries.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/runSplits.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/runwalk.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/sessionDesc.test.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/sessionDesc.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/sessionMatch.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/utils/sessionReminders.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/utils/sessionSteps.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/tileCache.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/utils/workout.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/utils/workoutSpec.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/views/ConnectionsCard.tsx": {
+    "local/max-comment-lines": {
+      "count": 9
+    }
+  },
+  "src/views/Dashboard.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/views/LogView.test.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/views/LogView.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/views/RacesView.tsx": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/views/StatsView.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/views/TrackDiagLog.tsx": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "src/views/WatchSyncLog.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/watch/MultiRunnerMap.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/watch/MultiWatch.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/watch/PublicWatch.test.tsx": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/watch/PublicWatch.tsx": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "src/watch/import.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "src/watch/mapping.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/watch/scanLog.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "src/watch/unlisted.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/coach/engine.mjs": {
+    "local/max-comment-lines": {
+      "count": 6
+    }
+  },
+  "supabase/functions/_shared/coach/mistral.mjs": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "supabase/functions/_shared/coach/mock.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/coach/phase.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/coach/runDigest.mjs": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "supabase/functions/_shared/coach/styles.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/coach/tools.mjs": {
+    "local/max-comment-lines": {
+      "count": 9
+    }
+  },
+  "supabase/functions/_shared/coach/validation.mjs": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "supabase/functions/_shared/coach/weeks.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/livePublish.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/liveShare.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/liveWatchBatch.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/premium.mjs": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/suunto/fitExport.mjs": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "supabase/functions/admin-metrics/index.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "supabase/functions/coach-agent/index.ts": {
+    "local/max-comment-lines": {
+      "count": 10
+    }
+  },
+  "supabase/functions/coros-import/index.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "supabase/functions/live-publish/index.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  },
+  "supabase/functions/live-watch/index.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "supabase/functions/polar-import/index.ts": {
+    "local/max-comment-lines": {
+      "count": 3
+    }
+  },
+  "supabase/functions/route-suggest/index.ts": {
+    "local/max-comment-lines": {
+      "count": 4
+    }
+  },
+  "supabase/functions/suunto-import/index.ts": {
+    "local/max-comment-lines": {
+      "count": 7
+    }
+  },
+  "supabase/functions/suunto-webhook/index.ts": {
+    "local/max-comment-lines": {
+      "count": 1
+    }
+  },
+  "vite.config.ts": {
+    "local/max-comment-lines": {
+      "count": 2
+    }
+  }
+}
