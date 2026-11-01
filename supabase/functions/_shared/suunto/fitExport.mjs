@@ -1,12 +1,6 @@
-// Which Suunto endpoint serves a workout's FIT file.
-//
-// Documented partner route, and a different API version and path shape from the
-// workout listing — extrapolating one from the other is how the original guess
-// (`/v2/workouts/exportFit/<key>`, 401 with the same token) degraded every
-// import to summary-only, which on screen reads as "no route was recorded for
-// this run" rather than as an error.
-//
-// Plain ESM: imported by the Deno edge function and by Vitest.
+// Which Suunto endpoint serves a workout's FIT file: the documented partner route, a different API version and
+// path shape from the listing; extrapolating one from the other (`/v2/workouts/exportFit/<key>`, 401) degraded
+// every import to summary-only. Plain ESM: imported by the Deno edge function and Vitest.
 
 export const fitPath = key => `/v3/workouts/${encodeURIComponent(key)}/fit`;
 
@@ -18,11 +12,8 @@ export function looksLikeFit(bytes) {
   return bytes[8] === 0x2e && bytes[9] === 0x46 && bytes[10] === 0x49 && bytes[11] === 0x54;
 }
 
-// Is a failed download this workout's own answer, or possibly a wrong route?
-// A hard miss (404/410) means "no FIT for this workout" ONLY on a route this
-// connection has already been served a FIT from (`sync_state.fitOk`): a wrong
-// route answers 404 for EVERY workout, and calling that terminal degrades every
-// import to summary-only, permanently and with no retry. Unproven, the caller
-// keeps it transient and the client's per-workout retry budget decides.
+// Is a failed download this workout's own answer, or a wrong route? A hard miss (404/410) means "no FIT" ONLY on
+// a route already proven for this connection (`sync_state.fitOk`): a wrong route 404s EVERY workout, and calling
+// that terminal degrades imports permanently. Unproven, the caller keeps it transient (client retry budget).
 export const fitMissIsTerminal = (status, routeProven) =>
   !!routeProven && (status === 404 || status === 410);

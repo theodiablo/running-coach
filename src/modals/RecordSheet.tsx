@@ -1,11 +1,6 @@
-// The center FAB's chooser. Recording used to be a *destination* (the Log tab,
-// which showed both recorders, the manual form and a file-import panel at once);
-// the FAB now asks the one question that separates them — how did this run
-// happen? — and each answer leads somewhere single-purpose.
-//
-// File import is deliberately absent: it is account admin, not a way to record
-// today's run. It lives in Settings -> Integrations, with a quiet link from the
-// manual form (the one place someone might realise they have a file).
+// The center FAB's chooser: asks how the run happened, and each answer leads somewhere single-purpose.
+// File import is deliberately absent (account admin, not recording): it lives in Settings -> Integrations, with a
+// quiet link from the manual form.
 
 import { useTranslation } from "react-i18next";
 import { Bike, MapPin, PenLine, PersonStanding } from "lucide-react";

@@ -100,23 +100,16 @@ import type {
 
 type ProgressSub = "log" | "stats" | "badges";
 
-// Lazy: pulls in react-markdown + remark-gfm (~47 KB gzipped) for rendering
-// the coach's markdown replies. On the web that weight only belongs on the
-// wire once someone actually opens the chat; on native the bundle already
-// ships inside the app package, so the boot-time prefetch below (isNative
-// branch) warms it immediately instead — a nearly-instant open with no
-// web-only cost.
+// Lazy: react-markdown + remark-gfm (~47 KB gz) only loads on first chat open on web;
+// native warms it at boot (isNative branch below) since the bundle is local.
 const CoachChat = lazy(() => import("./modals/CoachChat").then(m => ({ default: m.CoachChat })));
 import type { CoachChatSnapshot } from "./modals/CoachChat";
 // Lazy: the stretching sheet, player and figures load on first open.
 const StretchSheet = lazy(() => import("./modals/StretchSheet").then(m => ({ default: m.StretchSheet })));
 
-// In-app "review notification" helper (pure, module-level so it isn't a hook
-// dependency): when a maintainer verifies one of the user's OWN catalogue
-// contributions, we thank them once. `ackVerified` (in the personal blob, so it
-// rides backup) records which verified ids we've already acknowledged. Returns
-// the (possibly updated) races object plus the freshly-verified ids — the caller
-// toasts. Seeds silently on the first reconcile so a pre-existing set never floods.
+// Pure helper: thanks the user once when a maintainer verifies their OWN catalogue contribution.
+// `ackVerified` (personal blob) records acknowledged ids; returns updated races + fresh ids.
+// Seeds silently on the first reconcile so a pre-existing set never floods.
 function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: string | null | undefined) {
   if (!uid) return { next: racesObj, fresh: [] };
   const mine = [];
@@ -206,11 +199,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [stretchLog, setStretchLog] = useState<StretchLogEntry[]>([]);
   const [stretchOpen, setStretchOpen] = useState<{ target: StretchTarget | null; afterRun?: boolean } | null>(null);
   const [showLiveWatch, setShowLiveWatch] = useState(false);
-  // An interrupted run's recovery buffer (app killed mid-recording), surfaced as
-  // a Dashboard banner so the runner doesn't have to know to reopen the recorder
-  // — the tracker's own resume card only shows once they get there. Re-read when
-  // the tracker closes (that's where the offer gets resolved), via the
-  // derived-state-during-render pattern (see PlanView's plan !== prevPlan).
+  // An interrupted run's recovery buffer, surfaced as a Dashboard banner. Re-read when the
+  // tracker closes via the derived-state-during-render pattern (see PlanView's plan !== prevPlan).
   const [recovery, setRecovery] = useState<RecoveryBuffer | null>(() => readRecoveryBuffer());
   const [prevShowTracker, setPrevShowTracker] = useState(showTracker);
   if (showTracker !== prevShowTracker) {
@@ -266,14 +256,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // load itself.
   const racesRef = useRef(races);
   useEffect(() => { racesRef.current = races; }, [races]);
-  // Native only: warm the lazy CoachChat chunk right after boot so opening the
-  // coach feels instant — the JS is already local to the app package, so
-  // fetching it early costs nothing. The web build deliberately skips this and
-  // only fetches on first open, keeping the ~47 KB react-markdown dependency
-  // off the initial page load.
-  // Caught: un-caught, a failed warm-up reaches ErrorBoundary's
-  // `unhandledrejection` listener and crash-screens a working app. Opening the
-  // coach still surfaces a real failure, via ChunkLoadBoundary.
+  // Native only: warm the lazy CoachChat chunk after boot (web fetches on first open to keep
+  // react-markdown off the initial load). Caught: an uncaught warm-up failure reaches
+  // ErrorBoundary's `unhandledrejection` and crash-screens a working app.
   useEffect(() => { if (isNative) import("./modals/CoachChat").catch(() => {}); }, []);
   // Freshest runs, for the foreground Health Connect HR retry below (an effect
   // with [] deps must read current runs from a ref, not a stale closure).
@@ -289,22 +274,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     db.set(STORAGE_KEYS.SETTINGS, next);
     return next;
   }), []);
-  // The two one-time coach signposts are strictly "show once": each marks itself
-  // seen the moment it actually has been, so neither can come back on the next
-  // launch (or on another device — they ride the synced settings blob). The
-  // overdue explainer waits until it is really on screen (`useSeenOnScreen` in
-  // `Dashboard`); the coachmark is a full-screen overlay, so being on Home is
-  // enough.
+  // Both one-time coach signposts mark themselves seen the moment they actually have been
+  // (they ride the synced settings blob). The overdue explainer waits for `useSeenOnScreen`;
+  // the coachmark overlay only needs Home.
   const markCoachIntroSeen = () => saveSettings({...settings, coachIntroSeen: true});
   const markFeedbackIntroSeen = () => saveSettings({...settings, feedbackIntroSeen: true});
-  // Every tab change goes through here, which is what spends the coachmarks on
-  // the one exit they have no control over: the bottom nav sits at the header's
-  // z-20, above the pointer's z-10 dimmer, so a tab tap lands on it and unmounts
-  // the pointer without running `onDismiss`. Left unspent, the flag stays
-  // `false` and the dimmer comes back on every later Home visit and every launch.
-  //
-  // ONE write, and a patch of only the flags it spends: a whole-blob write from
-  // this render's `settings` would clobber a patchSettings queued in the same tick.
+  // Every tab change spends the coachmarks: the bottom nav (z-20) sits above the pointer's
+  // z-10 dimmer, so a tab tap unmounts it without `onDismiss`. Write ONE patch of only the
+  // flags it spends: a whole-blob write from this render's `settings` would clobber a
+  // patchSettings queued in the same tick.
   const setTab = (next: string) => {
     // The editor request is one-shot: left set, every later Plan visit would reopen it.
     if (next !== "plan") setPlanEditNonce(0);
@@ -409,11 +387,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClick: () => goToRuns(ids, t("progress.history.hrBadge")) });
   };
 
-  // Shared by both Health Connect / HealthKit HR retry points (boot + foreground)
-  // below, so the relink logic can't drift between the two call sites. Applies
-  // the fetched HR (or, for a run resolved some other way, just clears the
-  // marker). The caller batches a single notifyHrAdded toast once its flush
-  // settles, so this stays a pure state update.
+  // Shared by both HR retry points (boot + foreground) so the relink logic can't drift.
+  // Applies the fetched HR (or just clears the marker); the caller batches one notifyHrAdded
+  // toast after its flush, so this stays a pure state update.
   const patchRunHr = (runId: string, patch: RunPatch) => {
     setRuns(prev => {
       // A run carries at most ONE pending marker (hrPending on Android,
@@ -487,21 +463,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           return next;
         });
       });
-      // Sweep a live-sharing row left on the air by an app that was killed
-      // mid-run. Scoped to a broadcast THIS device published and never confirmed
-      // the teardown of — the row is per-account, so an unscoped sweep would have
-      // a watching session delete the run it just opened the app to follow.
-      // No-op too when a recoverable run buffer is still present: that run can
-      // still be resumed, and a watcher may be looking at it right now.
+      // Sweep a live-sharing row left on the air by a killed app. Scoped to a broadcast THIS
+      // device published and never confirmed torn down (the row is per-account; an unscoped sweep
+      // would delete the run a watching session opened the app to follow). No-op while a
+      // recoverable run buffer exists.
       void clearStaleLiveRun();
-      // Same deferred cleanup for Health Connect HR: a run saved before the watch
-      // had synced its HR is stamped hrPending.
-      // On boot, only open Health Connect if this *device* has previously granted
-      // access. `settings.hrMethod` syncs across phones, so it is not enough to
-      // prove the native bridge can be safely touched on this install.
-      // Patch the loaded array directly instead of going through patchRunHr's
-      // setRuns(prev => ...): React may not have committed setRuns(r) yet.
-      // Actual relinks still run on foreground and when a run is saved.
+      // Same deferred cleanup for Health Connect HR (runs stamped hrPending). Only open Health
+      // Connect if this DEVICE holds the grant marker: synced `settings.hrMethod` doesn't prove the
+      // bridge is safe. Patch the loaded array directly: setRuns(r) may not be committed yet.
+      // Actual relinks run on foreground and on run save.
       let bootRuns: Run[] = r || [];
       const bootHrFilled: string[] = [];
       const patchBootRunHr = (runId: string, patch: RunPatch) => {
@@ -523,16 +493,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         }).catch(() => {}),
       ]).then(() => {
         notifyHrAdded(bootHrFilled);
-        // Measure best efforts for GPS runs that predate the feature, so the
-        // post-run reward has real history to rank against instead of greeting a
-        // veteran with "first 5K on record". Chained AFTER the HR flush on
-        // purpose: that path writes a captured `bootRuns` array wholesale, so an
-        // overlapping backfill patch would be overwritten. Silent and optional —
-        // runs it can't measure keep their whole-run estimate.
-        // Marker is per user, not per device: localStorage outlives sign-out.
+        // Measure best efforts for GPS runs that predate the feature, so the post-run reward ranks
+        // against real history. Chained AFTER the HR flush: that path writes a captured `bootRuns`
+        // wholesale and would overwrite an overlapping patch. Silent and optional. The marker is
+        // per user, not per device: localStorage outlives sign-out.
         if (backfillDone(user?.id)) return;
         return backfillBestEfforts(bootRuns, user?.id).then(patches => {
           if (!patches.length) return;
+          // eslint-disable-next-line seams/best-efforts-through-helpers -- a backfill patch, not a run read
           const byId = new Map(patches.map(p => [p.id, p.bestEfforts]));
           setRuns(prev => {
             const next = prev.map(x => (x.id && byId.has(x.id)) ? { ...x, bestEfforts: byId.get(x.id) } : x);
@@ -547,23 +515,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The ONE rescheduling seam for plan-session reminders. `plan` is mutated from
-  // six places (boot, savePlan, applyCoachPlan, toggleSess, skipSess, restore);
-  // deriving the schedule here instead means none of them can forget. Syncing an
-  // external system (the OS scheduler) is what an effect is for — no state is
-  // set, so the no-setState-in-effects rule is untouched. No-op on web.
-  // Reminders are scheduled with the OS, which outlives the session: without
-  // this the previous account's plan keeps firing on the device after sign-out,
-  // and "Training tomorrow · Intervals 6x800m" on a shared phone leaks the
-  // content of someone else's plan to whoever signs in next.
+  // The ONE rescheduling seam for plan-session reminders: `plan` mutates from six places, so
+  // deriving the schedule here means none can forget (an effect syncing the OS scheduler, no
+  // setState). No-op on web. Reminders outlive the session, so cancel them on sign-out or
+  // the next user on a shared phone sees the previous plan's content.
   const signOutClearingReminders = () => { void clearSessionReminders(); onSignOut(); };
 
-  // `loading` is load-bearing, not tidiness: before hydration `plan` is null and
-  // `settings` holds the hardcoded defaults, so an unguarded run would take the
-  // disabled branch and cancel every pending reminder on ANY launch. Restoring
-  // them depends on a second run that is not guaranteed (killed before boot
-  // resolves, or a bridge error the sync deliberately swallows). Same rule the
-  // store follows: an unpopulated state must never become a destructive write.
+  // `loading` is load-bearing: before hydration `plan` is null and `settings` is defaults, so
+  // an unguarded run would take the disabled branch and cancel every pending reminder on ANY
+  // launch. Same rule as the store: an unpopulated state must never become a destructive write.
   const reminderKey = JSON.stringify(prefsFrom(settings)) + "|" + i18n.language;
   useEffect(() => {
     if (loading) return;
@@ -608,13 +568,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     return () => clearTimeout(to);
   }, [highlight]);
 
-  // Global back/Escape handling: the Android hardware back button and the web
-  // Escape key close the topmost open overlay (via the useDismissable stack);
-  // with nothing open they return to the home tab, and on Android a back press
-  // already home lets the app exit. Registered once — the live tab is read
-  // through a ref so this needn't re-subscribe the native listener on every tab
-  // change. Onboarding deliberately does NOT register a dismiss, so it stays an
-  // unskippable gate.
+  // Global back/Escape: closes the topmost overlay (useDismissable stack); with none open,
+  // returns to the home tab, and on Android a back press already home exits. Registered once;
+  // the live tab is read through a ref. Onboarding deliberately does NOT register, so it
+  // stays an unskippable gate.
   const tabRef = useRef(tab);
   useEffect(() => { tabRef.current = tab; }, [tab]);
   const recorderMinimizedRef = useRef(recorderMinimized);
@@ -688,14 +645,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
   const restorePlan  = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); };
-  // Complete a cloud provider's OAuth return (a no-op on every normal load and
-  // when the provider is unconfigured — gated on the state marker inside). On
-  // success, flip the provider's enable flag on and scan straight away for
-  // anything already synced; on a failed exchange, tell the user (they
-  // authorized and expect a result). Two triggers share this: the boot effect
-  // (web returns — the page reloaded through the redirect — and native
-  // cold-start relaunches), and the "rc-cloud-oauth-return" event App.tsx fires
-  // when the deep link lands warm.
+  // Complete a cloud provider's OAuth return (no-op on a normal load or unconfigured provider).
+  // On success enable the provider and scan now; on a failed exchange tell the user.
+  // Two triggers: the boot effect (web reload / native cold start) and the
+  // "rc-cloud-oauth-return" event App.tsx fires when the deep link lands warm.
   const finishCloudReturn = (id: string) => {
     const complete = cloudAuthCompleters[id];
     if (!complete) return;
@@ -798,23 +751,17 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Passed to children: persist a races change and reconcile badges off it.
   const saveRaces  = (next: RacesState) => commitRaces(reconcileBadges(runs, next));
 
-  // Apply a coach-accepted plan. "coach" mode re-stamps done/skipped/runId by
-  // session id — right here because the proposal is derived from the current
-  // plan, so a session ticked while the chat was open isn't lost and a shifted
-  // one keeps its flags across the move (the coach tools never edit done
-  // sessions, so this can't undo an adjustment).
-  // Deliberately NOT savePlan: that tracks "plan_generated" — this is an edit.
+  // Apply a coach-accepted plan. "coach" mode re-stamps done/skipped/runId by session id
+  // (the proposal derives from the current plan; coach tools never edit done sessions).
+  // Deliberately NOT savePlan: that tracks "plan_generated", this is an edit.
   const applyCoachPlan = (p: Plan) => {
     const merged = carryProgress(plan, p, "coach");
     setPlan(merged);
     db.set(STORAGE_KEYS.PLAN, merged);
   };
 
-  // Toggle whether a wishlisted race is folded into the current plan. Persists the
-  // flag and, if there's an active plan, rebuilds it preserving progress — so
-  // adding a race shows up immediately without nuking completed sessions.
-  // Rebuild the active plan around `s` + `parts`, keeping done/skipped. False
-  // when there's no plan (or race) to rebuild.
+  // Toggle whether a wishlisted race is folded into the current plan: persists the flag and,
+  // with an active plan, rebuilds it keeping done/skipped. False when there is no plan or race.
   const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
     // A plan with no race folds the races in too: rebuilt from what it was built for.
     if (plan && goalKind(plan) !== "race") {
@@ -881,11 +828,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // entry shows immediately — contributions are instant + global.
   const refreshCatalogue = async () => { setCatalogue(await loadCatalogue()); };
 
-  // Promote a catalogue edition to the training target: stash the prefill and
-  // send the user to PlanView's setup, which fills the date/distance/elevation
-  // and a fresh realistic goal suggestion. Nothing is committed (no settings or
-  // plan change) until the user picks a goal and builds — so we never leave an
-  // unrealistic auto-goal behind. targetEditionId is set by PlanView on build.
+  // Promote a catalogue edition to the training target: stash the prefill and open PlanView's
+  // setup. Nothing is committed until the user picks a goal and builds (PlanView sets
+  // targetEditionId), so no unrealistic auto-goal is left behind.
   const promoteEdition = (joined: JoinedEdition | Promotable) => {
     const e = joined.edition;
     setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e) });
@@ -893,11 +838,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     track("race_target_set", {});
   };
 
-  // Race-day auto-detect (src/utils/raceCompletion.ts): when a just-saved run
-  // matches the date + distance of any race on the plan, the result carries the
-  // races with that edition marked done (plus the pre-change participations for
-  // Undo) and the RACE session to tick. `isMain` gates the confetti: the
-  // catalogue's main race only. null when nothing matches.
+  // Race-day auto-detect (src/utils/raceCompletion.ts): a saved run matching a plan race's
+  // date + distance yields the races with that edition done (plus pre-change participations for
+  // Undo) and the RACE session to tick. `isMain` gates confetti; null when nothing matches.
   const detectCompletion = (added: Run[], baseRaces: RacesState) =>
     detectRaceCompletion({ added, plan, settings, races: baseRaces, yourRaceLabel: t("app.toasts.yourRace") });
 
@@ -946,11 +889,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       } } : undefined);
   };
 
-  // The only automatic plan writes, once per boot (never on a foreground: a
-  // long-lived WebView's cache can be stale). They wait for a store that is
-  // loaded AND reconciled (an offline boot's first write would race the
-  // reconcile), and never run over a recording. Reads the refs, so a second
-  // call in the same tick sees the first one's write.
+  // The only automatic plan writes, once per boot (never on foreground: a long-lived WebView
+  // cache can be stale). They wait for a loaded AND reconciled store and never run over a
+  // recording. Reads refs, so a second call in the same tick sees the first one's write.
   const runPlanAutomation = () => {
     if (loading || onboarding || recorderOpen || !isStoreLoaded() || !isStoreReconciled()) return;
     const p = planRef.current;
@@ -1085,7 +1026,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       status: "wishlist", timeSec: null, runId: null, source: "manual", notes: "", ...fields }] };
   };
   const settleRace = (runId: string | null, timeSec: number | null, opts: { notes?: string; quiet?: boolean } = {}) => {
-    const race = mainRace(planRef.current, settings);
+    const race = mainRace(planRef.current ?? plan, settings);
     if (!race) return false;
     const prevRaces = races;
     if (race.editionId) {
@@ -1101,7 +1042,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     return true;
   };
   const skipRace = () => {
-    const race = mainRace(planRef.current, settings);
+    const race = mainRace(planRef.current ?? plan, settings);
     if (!race) return;
     const prevRaces = races;
     if (race.editionId) saveRaces(racesWith(race, { status: "skipped", timeSec: null, runId: null }));
@@ -1221,14 +1162,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     </div>
   );
 
-  // Always remounts LogView (prefillVer is its key): the importer/form choice is
-  // initial state inside it, so a bare goLog() from the record sheet has to be
-  // able to pull it back to the form when the importer is already showing.
-  // A recorder's hand-off: the session this run most likely settles, within a
-  // few days either side (src/utils/sessionMatch.ts). It is an OFFER — the log
-  // form shows it and lets the runner decline, because a plan edit nobody asked
-  // for, announced by a toast that deletes itself, is the bug #221 fixed.
-  // An explicit link (Start run from a plan row) is not an offer: already chosen.
+  // Always remounts LogView (prefillVer is its key) so a bare goLog() can pull it back to the
+  // form. A recorder hand-off carries the session this run most likely settles
+  // (src/utils/sessionMatch.ts): an OFFER the log form lets the runner decline, never a silent
+  // plan edit. An explicit link (Start run from a plan row) is already chosen, not an offer.
   const offeredSession = (run: Partial<Run>) =>
     ({ session: bestSessionForRun(planRef.current, run), sessionOffered: true });
 
@@ -1251,13 +1188,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // openImport as initial state even when already on the Log tab.
   const goImport = () => { setLogPrefill(null); setLogImportOpen(true); setTab("log"); setPrefillVer(v => v + 1); };
 
-  // Scan every registered import integration (src/imports/registry.ts — today
-  // effectively Health Connect) for finished runs and offer to import them. Auto
-  // (boot/foreground) scans a 7-day window once per session; the Settings "scan
-  // older runs" button passes manual + a wider window and always runs. A single
-  // run goes through the LogView review (so it auto-ticks a matching plan session
-  // and the user can fix its type); several land as a batch. Returns how many new
-  // runs were found (for the Settings UI's feedback).
+  // Scan every registered import integration (src/imports/registry.ts) for finished runs.
+  // Auto scans a 7-day window once per session; the Settings button passes manual + a wider
+  // window. One run goes through the LogView review, several land as a batch. Returns the
+  // count of new runs found.
   const scanImports = async ({ days, manual = false }: { days?: number; manual?: boolean } = {}) => {
     // The once-per-session gate exists to keep health-store round-trips quiet;
     // a cloud backfill mid-flight (more history behind the page cap) is exempt
@@ -1290,11 +1224,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // looked like the sync button had done nothing. Close what's open through
     // its own handler first, the same way the header's go-Home reset does.
     const goVia = (nav: () => void) => { dismissAll(); nav(); };
-    // Name the integration that delivered these runs — "from Suunto" rather
-    // than a generic "from your watch", which said nothing about which of
-    // several connected sources actually worked. Read off `scanned`: the stamp
-    // is transient and persistImportedRoutes has already stripped it from
-    // `found`. A merged scan falls back to the generic name.
+    // Name the integration that delivered these runs ("from Suunto"). Read off `scanned`: the
+    // stamp is transient and persistImportedRoutes already stripped it from `found`. A merged
+    // scan falls back to the generic name.
     const source = t(`app.toasts.sources.${scanSourceId(scanned) ?? "generic"}`,
       { defaultValue: t("app.toasts.sources.generic") });
     if (found.length === 1) {
@@ -1323,14 +1255,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // eslint-disable-next-line react-hooks/refs
   checkWatchRef.current = scanImports;
   const goProgress = (sub?: string) => { setProgressSub(sub === "stats" || sub === "badges" ? sub : "log"); setProgressNonce(n => n + 1); setTab("progress"); };
-  // The header brand mark's "back to Home". Unlike back/Escape (one level, see
-  // backDismiss) this is a full reset: every open overlay is dismissed through
-  // its OWN close handler — so a guarded one (a recording tracker, a busy
-  // delete) still gets to refuse — and every pending navigation intent is
-  // dropped, so Home comes up the way a cold start would show it.
-  // The coach's in-app links (src/utils/coachLinks.ts). Close the chat first —
-  // it is a full-screen modal, so navigating under it would land the runner on a
-  // screen they cannot see.
+  // Header brand mark's "back to Home": a full reset. Every overlay is dismissed through its
+  // OWN close handler (a guarded one can refuse) and every pending navigation intent is dropped.
+  // Coach in-app links (src/utils/coachLinks.ts): close the chat first, it is a full-screen modal
+  // that would hide the navigation.
   const goCoachLink = (target: CoachLinkTarget) => {
     setShowCoach(false);
     switch (target) {
@@ -1631,12 +1559,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           <span className="text-sm font-semibold">Running Coach</span>
         </button>
         <div className="flex items-center gap-2">
-          {/* Coach lives here rather than on the Plan tab so it's reachable from
-              every view. Gated on `plan` for the same reason the chat itself is
-              (`showCoach && plan` below): with no plan there is nothing to
-              adjust, so the button would open an empty overlay. Kept on the
-              orange accent — next to the settings gear a second muted icon
-              reads as a utility, not the product's headline feature. */}
+          {/* Coach in the header so it's reachable from every view; gated on `plan`
+              (nothing to adjust without one). Orange so it reads as the headline
+              feature, not a utility next to the gear. */}
           {plan && (
             // Labelled, not icon-only: a speech bubble alone doesn't say "AI
             // coach". The cog beside it stays bare on purpose — see the comment

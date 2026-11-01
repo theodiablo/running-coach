@@ -1,17 +1,7 @@
-// Guided-workout native engine — the JS→native seam (Android only).
-//
-// Android runs NO JS once the app is backgrounded, so step boundaries, status
-// callouts and heart-rate warnings must be evaluated natively while the screen
-// is off. The
-// WorkoutGuide plugin consumes the same LIVE_FIX relay as LivePublish (one
-// native fold, shared consumers — docs/live-tracking.md) for distance/pace,
-// runs its own Handler deadline for time-bound steps, and owns ALL cue audio
-// on Android (JS cues are suppressed there — see src/cues). JS stays the
-// authority: every seed re-bases the whole engine state (step index, step
-// anchors, cumulative km / moving sec), so the two ends can drift at most one
-// boundary between seeds, and the next foreground render snaps them together.
-// Seeds carry pre-localized strings — the service can't reach i18n.
-// Fire-and-forget, never throws: a guide failure must never affect recording.
+// Guided-workout native engine, JS to native seam (Android only). Android runs NO JS once backgrounded,
+// so steps, callouts and HR warnings are evaluated natively off the LIVE_FIX relay (docs/live-tracking.md)
+// and the plugin owns ALL cue audio (JS cues suppressed). JS stays the authority: every seed re-bases
+// engine state, with pre-localized strings. Fire-and-forget, never throws: must never affect recording.
 
 import { registerPlugin } from "@capacitor/core";
 import { isAndroid } from "../native";

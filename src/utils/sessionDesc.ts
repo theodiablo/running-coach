@@ -1,9 +1,7 @@
-// Render a plan session's display sentence from its structured descriptor
-// (`sd`) in the active UI language. buildPlan (and the coach) still emit the
-// English `desc` as the canonical, model-readable fallback; this is the
-// localized view layer over the same data. Anything without a mappable `sd`
-// (legacy stored plans, coach-authored sessions not yet carrying `sd`) falls
-// back to the stored English `desc` via describeSession.
+// Render a plan session's display sentence from its structured descriptor (`sd`) in
+// the active UI language. buildPlan and the coach still emit the English `desc` as the
+// canonical fallback; sessions without a mappable `sd` (legacy plans, coach-authored)
+// fall back to it via describeSession.
 
 import i18n, { t } from "../i18n";
 import { fmt, cleanDesc } from "./format";

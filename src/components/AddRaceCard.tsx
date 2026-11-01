@@ -8,11 +8,9 @@ type AddRaceCardProps = {
   children?: ReactNode;
 };
 
-// Shared "Don't see your race?" affordance — a divider + the orange dashed
-// "Add it to the catalogue" card. Used by onboarding (where the contributed race
-// becomes the training target) and the Races → Browse segment (plain contribute).
-// `children` slots in whatever follows the card (onboarding: the secondary manual
-// entry; Browse: the unverified disclaimer).
+// Shared "Don't see your race?" affordance: a divider + the orange dashed "Add it to the
+// catalogue" card. Used by onboarding (the contributed race becomes the target) and Races →
+// Browse. `children` slots in what follows (onboarding: manual entry; Browse: disclaimer).
 export function AddRaceCard({ onClick, subtitle, children }: AddRaceCardProps) {
   const { t } = useTranslation();
   return (

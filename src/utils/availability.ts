@@ -1,16 +1,7 @@
-// Availability helpers for the Plan page's redesigned "Your availability" editor.
-//
-// The editor offers two modes:
-//  - Simple: pick a number of run days (1–6) and a duration band, and let the
-//    coach place the days. This is the beginner default.
-//  - Custom: pick exact days and per-day durations (the classic scheduler).
-//
-// buildPlan only understands concrete PlanSessionInput[] ({dayOffset, minutes}),
-// so Simple mode is resolved to a concrete layout here. Layouts mirror the
-// day-spreads already proven in suggestPlanSessions (src/utils/planStyles.ts):
-// the weekend (Sunday, dayOffset 6) is strictly the longest, weekday minutes come
-// from the SessionConfigurator option set, and quality days sit ≥2 from Sunday so
-// the plan validator places them without demotions.
+// Plan availability editor helpers. Simple (N run days + duration band, coach places days)
+// resolves here to the concrete PlanSessionInput[] ({dayOffset, minutes}) buildPlan takes,
+// mirroring suggestPlanSessions (planStyles.ts): Sunday (dayOffset 6) is
+// strictly longest and quality days sit >=2 from Sunday so the validator needs no demotions.
 import { suggestPlanSessions } from "./planStyles";
 import type { PlanSessionInput } from "./plan";
 
@@ -79,11 +70,9 @@ export function sessionsFromSimple(days: number, band: DurationBand): PlanSessio
   }));
 }
 
-// A sensible Simple-mode starting point from the race distance + self-reported
-// level, used by onboarding (before any runs exist). The day count is derived
-// from suggestPlanSessions (src/utils/planStyles.ts) — the one day-count
-// heuristic — so Simple and Custom suggestions can't drift; the band scales
-// with distance and experience.
+// A Simple-mode starting point from race distance + self-reported level, for onboarding
+// (no runs yet). Day count comes from suggestPlanSessions, the one day-count heuristic,
+// so Simple and Custom can't drift; the band scales with distance and experience.
 export function suggestSimpleAvailability(distanceKm: number | string, level?: unknown): { days: number; band: DurationBand } {
   const d = Number(distanceKm) || 5;
   const experienced = level === "regular" || level === "frequent";

@@ -20,19 +20,15 @@ export const riegel = (t1: number, d1: number, d2: number, k = RIEGEL_K) => t1 *
 // `sec`. Used to compare two anchors on one scale (km covered in an hour).
 export const riegelKm = (t1: number, d1: number, sec: number) => d1 * Math.pow(sec / t1, 1 / RIEGEL_K);
 
-// Grade-adjusted (flat-equivalent) distance. A hilly run is slower than its flat
-// twin at the same effort, so we credit the climb by treating each metre ascended
-// as ~VERT_COST extra metres of flat running. We only log total gain (no descent
-// or profile), so this is an average-cost approximation — but it stops hilly runs
-// from looking unfit, which sharpens both the best-effort pick and the HR fit.
-// At ~+10% grade this counts a km as ~1.8 flat km, in line with GAP rules of thumb.
+// Grade-adjusted (flat-equivalent) distance: each metre ascended counts as ~VERT_COST
+// extra flat metres (~1.8 flat km per km at +10% grade). Only total gain is logged, so
+// this is an average-cost approximation, but it keeps hilly runs from looking unfit.
 export const flatEqKm = (r: Pick<PredictRun, "km" | "elevation">) => r.km + ((r.elevation ?? 0) > 0 ? VERT_COST * (r.elevation ?? 0) / 1000 : 0);
 
-// Pick the runner's strongest logged effort. We don't just take the lowest raw
-// pace — a fast 1 km blip shouldn't outrank a strong 12 km run — so each
-// qualifying run (≥3 km, with a duration) is normalised to its Riegel-equivalent
-// 10 km time and the best (smallest) one wins. Distances are flat-equivalent so a
-// strong hilly run can win. Returns {km, durationSec, raw} or null (km is flat-eq).
+// Pick the strongest logged effort: each qualifying run (>=3 km, with a duration) is
+// normalised to its Riegel-equivalent 10 km time and the smallest wins, so a fast 1 km
+// blip can't outrank a strong 12 km run. Distances are flat-equivalent.
+// Returns {km, durationSec, raw} or null (km is flat-eq).
 export const bestEffortAnchor = (runs: PredictRun[]) => runs
   .filter(r => r.km >= 3 && r.durationSec)
   .reduce<EffortAnchor | null>((best, r) => {
@@ -105,28 +101,10 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-// Heart-rate model. Across the runs that recorded an avg HR, fit pace (sec/km)
-// against HR — easy low-HR runs anchor the slow end, hard high-HR runs the fast
-// end — then read off the pace the runner could hold at their threshold HR
-// (top of Z4). Threshold effort is roughly a 1-hour race, so we anchor it as
-// {km covered in 3600 s, 3600 s} for Riegel to project from. A fast pace held at
-// a low HR therefore pulls the predicted threshold pace faster ("handled well"),
-// and vice-versa.
-//
-// The slope is NOT the least-squares slope. A runner who only logs easy runs has
-// a 15-20 bpm window and pace noise (terrain, stops, GPS) far larger than the HR
-// signal in it, so OLS returns a near-flat line with an SE too wide to print —
-// the model then never shows up at all, however many runs are logged. Instead the
-// fitted slope is blended with a physiological prior, precision-weighted: clean
-// wide-spread data keeps its own slope, scattered narrow data falls back towards
-// the prior applied to the runner's own centroid. That both sharpens the estimate
-// and genuinely narrows its SE, which is what the gate reads.
-//
-// Reading a straight line off past the end of the data is still where this gets
-// dangerous, so the extrapolation stays bounded — Z1 points dropped, slow-side
-// outliers trimmed, the blended slope capped against the prior, and the read-off
-// HR held within MAX_EXTRAP_BPM of the hardest effort logged — then sanity-clamped
-// against `best` when one is supplied. Gate it with `hrModelUsable`.
+// Heart-rate model: fit pace against avg HR, read off the pace at threshold HR (top of Z4),
+// anchored as {km in 3600 s, 3600 s} for Riegel. Slope blended with a prior, not OLS. Five
+// guards bound it: Z1 dropped, slow outliers trimmed one-way, slope capped against the prior,
+// read-off HR within MAX_EXTRAP_BPM, result clamped against `best`. docs/race-predictions.md.
 export const hrModelAnchor = (runs: PredictRun[], effMax: number, restHR: number, best?: {km: number; durationSec: number} | null): HrAnchor | null => {
   if (!effMax) return null;
   const hrr = effMax - restHR;

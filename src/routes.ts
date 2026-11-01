@@ -27,11 +27,9 @@ export async function saveRoute({ points, stats }: RouteTrace): Promise<string> 
   return data.id;
 }
 
-// Lazy-fetch a trace for replay. Returns {points, stats} or null.
-// `stats` now carries a run's full raw ~1Hz HR stream (see LiveRunTracker), which
-// can be hundreds of KB on a multi-hour run. Surfaces that only draw the map (the
-// History route preview) pass `withStats:false` so they don't fetch and parse that
-// payload; RunDetailModal passes true because it renders the HR series/zones.
+// Lazy-fetch a trace for replay. Returns {points, stats} or null. `stats` carries the
+// full ~1Hz HR stream (hundreds of KB on long runs), so map-only surfaces pass
+// `withStats:false`; RunDetailModal passes true for the HR series/zones.
 export async function getRoute(id: string, withStats = true): Promise<RouteTrace | null> {
   const { data, error } = await supabase
     .from("run_routes")
@@ -83,11 +81,10 @@ export async function restoreRoutes(routes?: BackupRoute[] | null) {
   if (error) console.error("routes restore failed", error);
 }
 
-// ── Offline-resilient saves ────────────────────────────────────────────────
-// Runs happen where signal is poor, so saveRoute on Stop can fail. We queue the
-// trace in localStorage keyed by a temporary id (also stored on the run as
-// `routeTmp`), then flush on next load/connectivity and patch the run with its
-// real routeId. The trace is never lost.
+// ── Offline-resilient saves ──
+// saveRoute on Stop can fail with poor signal: queue the trace in localStorage under
+// a temporary id (stored on the run as `routeTmp`), flush on next load/connectivity,
+// then patch the run with its real routeId.
 const PENDING_KEY = "rc_pending_routes";
 
 function loadPending(): PendingRoute[] {

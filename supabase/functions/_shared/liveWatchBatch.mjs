@@ -1,7 +1,5 @@
-// The batch read behind "follow several runners" — the pure half, shared by the
-// live-watch edge function (Deno) and Vitest. The function owns the database
-// calls; everything that decides WHAT an entry says lives here, so the uniform
-// `{ live: false }` rule is tested once and can't drift per call site.
+// The pure half of "follow several runners", shared by live-watch (Deno) and Vitest. The function owns the DB calls; what an
+// entry says lives here, so the uniform `{ live: false }` rule is tested once.
 // Detail: docs/live-sharing.md ("Following several runners").
 
 import { isValidShareToken } from "./liveShare.mjs";

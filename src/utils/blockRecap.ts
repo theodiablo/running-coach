@@ -1,13 +1,12 @@
-// How a training block went: sessions done, distance run, the longest run and
-// the easy-pace trend. Pure; the "What's next?" sheet and Home's "Block n done"
-// row render it. The easy pace claims no more than the log supports: at the same
-// heart rate when the runs carry one, else a plain median with no HR claim.
-// docs/races.md, docs/race-predictions.md.
+// How a training block went: sessions done, distance, longest run, easy-pace trend.
+// The easy pace claims no more than the log supports: at the same HR when runs
+// carry one, else a plain median. docs/races.md, docs/race-predictions.md.
 import { effectiveMaxHR } from "./hr";
 import { PRIOR_PACE_PER_RESERVE, flatEqKm } from "./predictions";
 import { goalKind } from "./recovery";
 import { isCrossTraining } from "../types";
 import type { Plan, PlanWeek, Run, SettingsState } from "../types";
+import { addDays as shift } from "./format";
 
 // Easy runs needed in each end of the block before a trend is shown, and the
 // weeks an end spans (at most TREND_WEEKS, at least TREND_MIN_WEEKS, never overlapping).
@@ -43,11 +42,6 @@ type RecapInput = {
   settings?: Partial<Pick<SettingsState, "maxHR" | "restHR" | "birthYear" | "age">>;
 };
 
-const shift = (date: string, n: number) => {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b + "T00:00:00Z").getTime() - new Date(a + "T00:00:00Z").getTime()) / 86400000);
 
@@ -59,11 +53,9 @@ const median = (xs: number[]) => {
 
 type EasyRun = { date: string; pace: number; hr: number | null };
 
-// Easy pace at the start vs the end of the block, taper left out. Both halves
-// need TREND_MIN_RUNS runs, or there is no line. With a heart-rate profile and
-// that many easy runs carrying one on each side, every pace is moved to the
-// block's median HR along the prior slope (a hotter run is slowed, a cooler one
-// sped up), so a faster easy run that was only a harder one does not read as fitness.
+// Easy pace at the start vs the end of the block, taper left out; each half needs
+// TREND_MIN_RUNS runs. With HR, paces are moved to the block's median HR along the
+// prior slope, so a faster easy run that was only a harder one doesn't read as fitness.
 function easyTrend(weeks: PlanWeek[], from: string, to: string, runs: Run[], settings: RecapInput["settings"]): EasyPace | null {
   const lead = weeks.filter(w => w.startDate && w.phase !== "TAPER" && w.phase !== "RACE"
     && shift(w.startDate, 6) >= from && w.startDate <= to);

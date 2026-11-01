@@ -1,9 +1,7 @@
-// Shared training-plan validator — the ONE validator for buildPlan and the
-// coach agent. Plain dependency-free ESM: imported by the Deno edge function
-// and re-exported for the Vite app / Vitest. `errors` block a proposal,
-// `warnings` pass but are surfaced; `validatePlan(plan, { baseline })` waives
-// errors that already exist identically in the baseline, so a pre-existing
-// issue never bricks the agent. Rules and severities: docs/coach-agent.md.
+// Shared training-plan validator: the ONE validator for buildPlan and the coach
+// agent. Dependency-free ESM, imported by Deno and re-exported for Vite/Vitest.
+// `errors` block a proposal, `warnings` surface; validatePlan(plan, { baseline })
+// waives errors identical in the baseline. Rules: docs/coach-agent.md.
 
 import { isElapsedWeek, todayYmd } from "./weeks.mjs";
 import { canHoldTraining, goalKind, inRecovery } from "./recovery.mjs";
@@ -82,38 +80,20 @@ function collectIssues(plan, today) {
   // Structure must be sound before load rules make sense.
   if (issues.some(i => i.severity === "error")) return issues;
 
-  // A skipped session (user-skipped, or cancelled by the coach's
-  // cancel_session) will not be run: it contributes no training load, so the
-  // volume/spacing/taper rules ignore it. Structural checks above still apply.
-  //
-  // Elapsed weeks (a rebuild keeps them — carryProgress) split the load rules
-  // in two, and the line is what each rule is ABOUT rather than what it reads:
-  //
-  // - The SUBJECT of an error must be a week still ahead. The coach has no tool
-  //   that touches a past date, so an error on history is unfixable, and one
-  //   unfixable error invalidates every proposal that runner ever asks for.
-  // - The REFERENCE a rule measures against still spans the whole plan. What
-  //   was already run is a fact about this training block: dropping it would
-  //   make the ramp forget the volume a runner is coming back from and let the
-  //   taper's peak collapse to whatever is left, which is exactly backwards —
-  //   both weaken the guard in the late weeks, when most of the plan is past.
+    // Skipped sessions carry no load, so the volume/spacing/taper rules ignore them.
+    // Elapsed weeks split the load rules: the SUBJECT of an error must be a week still
+    // ahead (the coach can't touch the past), but the REFERENCE a rule measures against
+    // spans the whole plan, or the ramp forgets past volume and the taper peak collapses.
   const weeks = plan.weeks;
   const isLive = (w) => !isElapsedWeek(w, today);
   const isRaceWeek = (w) => w.sessions.some(s => s.type === "RACE");
   const total = (w) => w.sessions.reduce((t, s) => t + (s.type === "RACE" || s.skipped ? 0 : s.km), 0);
   const totals = weeks.map(total);
 
-  // ── safety: weekly volume ramp ─────────────────────────────────────────────
-  // The reference looks back two full weeks so a recovery week doesn't lower
-  // the ceiling — resuming the planned volume after an easy week is fine.
-  // Skipped sessions carry no load, so a fully-skipped week reads as 0; if we
-  // stopped at the two-week window the ceiling could collapse to 0 (both prior
-  // weeks skipped) and silently un-gate the ramp — exactly the aggressive
-  // resume-after-a-layoff case this rule exists to catch. So when the window is
-  // empty, walk further back to the most recent week with real load and use
-  // that as the ceiling instead of disabling the check.
-  // Recovery and race weeks are not a volume to resume from, so the reference
-  // walks back past them.
+    // ── safety: weekly volume ramp ──
+    // The reference looks back two full weeks so a recovery week doesn't lower the
+    // ceiling; an empty (all-skipped) window walks back to the last week with real load
+    // instead of disabling the check. Recovery and race weeks are skipped in that walk.
   const refKm = (i) => {
     const prior = [];
     for (let k = i - 1; k >= 0; k--) if (weeks[k].phase !== "RECOVERY" && weeks[k].phase !== "RACE") prior.push(totals[k]);
@@ -200,17 +180,10 @@ const issueKey = (i) => {
   return base;
 };
 
-// Validate a plan. Returns { ok, errors, warnings } where each entry is
-// { code, message, severity, weekNumber?, sessionId? }.
-//
-// opts.baseline: the plan the proposal was derived from. Errors present
-// identically in the baseline are waived (reported as warnings tagged
-// preexisting) — the agent must not make things worse, but may operate on a
-// plan that already violates a rule.
-//
-// opts.today (YYYY-MM-DD): which weeks count as already lived. The edge
-// function passes the same `today` the model is shown, so a round is scored
-// against one clock; it defaults to the real date for app-side callers.
+// Validate a plan. Returns { ok, errors, warnings } (entries { code, message, severity,
+// weekNumber?, sessionId? }). opts.baseline: errors identical in the baseline are waived
+// (warnings tagged preexisting). opts.today (YYYY-MM-DD): which weeks count as lived;
+// defaults to the real date.
 export function validatePlan(plan, opts = {}) {
   const today = opts.today || todayYmd();
   let issues = collectIssues(plan, today);

@@ -1,9 +1,6 @@
-// Race helpers — catalogue lookups, race-day auto-detection, and personal-best
-// flagging. The catalogue itself is shared data fetched from Supabase (Phase 2,
-// src/races.ts → listRaces); this module is the seam the rest of the app reads it through, so
-// callers stay unchanged. It holds the fetched catalogue in a module-level cache
-// (hydrated once at boot) and exposes the same synchronous lookups as Phase 1.
-// The detection/PB helpers are pure over `participations` and stay unit-testable.
+// Race helpers: catalogue lookups, race-day auto-detection, PB flagging. The catalogue is shared data
+// from Supabase (src/races.ts listRaces) held in a module-level cache hydrated once at boot, read through
+// synchronous lookups. Detection/PB helpers are pure over `participations`.
 
 import { listRaces } from "../races";
 import type { BuildPlanOptions } from "./plan";
@@ -67,11 +64,9 @@ export function editionLabel(race?: Pick<CatalogueRace, "name"> | null, edition?
   return [race?.name, year].filter(Boolean).join(" ");
 }
 
-// Multi-race version: match a just-logged run against ANY race on the plan.
-// `candidates` is every race the plan holds: the main race and any secondary
-// ones, with or without a catalogue edition (a hand-entered race has none).
-// Returns the matched candidate, or null. Matches on the same date plus a
-// distance-tolerance rule.
+// Multi-race: match a just-logged run against ANY race on the plan. `candidates` are the main and
+// secondary races, with or without a catalogue edition. Returns the match or null (same date plus a
+// distance tolerance).
 export function detectAnyRace<C extends RaceCandidate>(run: Run | null | undefined, candidates: C[] = [], tolerance = 0.18): C | null {
   if (!run || !run.date || !run.km) return null;
   for (const c of candidates) {
@@ -127,11 +122,9 @@ export type RaceDateChange = {
   isTarget: boolean;
 };
 
-// Races on the user's list whose catalogue date no longer matches the date they
-// planned around (a participation snapshots its date, and the training target
-// its `settings.raceDate`). Pure over the fetched catalogue, so an empty or
-// failed load reports nothing. `acks` holds catalogue dates the user chose to
-// ignore; a race that has fully passed on both dates is left alone.
+// Races whose catalogue date no longer matches the date planned around (a participation snapshots its
+// date; the training target uses `settings.raceDate`). Pure over the catalogue, so a failed load reports
+// nothing. `acks` are dates the user chose to ignore; a race fully passed on both dates is left alone.
 export function raceDateChanges(
   participations: Participation[] = [],
   catalogue: CatalogueRace[] = [],

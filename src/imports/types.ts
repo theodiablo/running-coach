@@ -14,11 +14,8 @@ export type ImportedRun = Partial<Run> & {
 
 export type ImportParseResult = { runs: ImportedRun[]; error?: string | null };
 
-// One pluggable source of finished runs: "healthconnect" (Android's on-device
-// store), "healthkit" (its iOS twin), "file" (user-picked CSV/GPX/TCX, never
-// scanned automatically), "cloud" (OAuth + server-side poll). Adding an
-// integration is implementing this and registering it in registry.ts — dedupe
-// and the save pipeline are provider-agnostic.
+// One pluggable source of finished runs: "healthconnect", "healthkit", "file" (user-picked, never scanned), "cloud"
+// (OAuth + server poll). Add one by implementing this and registering it in registry.ts; dedupe and save are provider-agnostic.
 export type ImportProvider = {
   id: string;
   label: string;

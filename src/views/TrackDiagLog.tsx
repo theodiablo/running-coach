@@ -3,15 +3,10 @@ import { RefreshCw, Trash2, Copy, EyeOff, Upload } from "lucide-react";
 import { getTrackLog, clearTrackLog, type GeoDiagEvent } from "../geo/trackLog";
 import { clearShellLog, fileShellReport, readShellLog, type FileReportResult, type ShellDiagReport } from "../diag/shellLog";
 
-// Hidden developer diagnostics for a run's sensor streams — GPS and the live
-// heart-rate link (revealed together with the watch sync log from Settings →
-// Connections by tapping the section title 5×). Shows the raw event stream for
-// recent runs so a screen-off track hole or an HR dropout can be diagnosed: the
-// GPS summary answers "did fixes keep arriving while the app was backgrounded"
-// (the whole question behind the gaps), and the HR summary answers the one that
-// cannot be told apart from the screen — whether the strap stopped beating, or
-// this app stopped being fed beats it was still sending. Raw and English-only —
-// a debug surface, not a user feature, so not wired through i18n.
+// Hidden developer diagnostics for a run's sensor streams (GPS and live HR), revealed from
+// Settings → Connections by tapping the section title 5×. Shows raw events for recent runs to
+// diagnose a screen-off track hole or HR dropout: GPS asks whether fixes kept arriving in the
+// background; HR asks whether the strap stopped or this app stopped being fed. English-only.
 
 const KIND_CLS: Record<string, string> = {
   "native-fix": "bg-sky-500/15 text-sky-300 border-sky-500/30",
@@ -67,11 +62,9 @@ function summarize(events: GeoDiagEvent[]) {
   return { maxHidden, maxVisible, hiddenFixes, visibleFixes };
 }
 
-// The heart-rate half, which is a different question from the GPS one: not "how
-// big was the hole" but "which layer made it". A delivery stall (the GATT
-// callback still seeing beats while this JS stops being fed) and a dead link
-// look identical on screen and are fixed in completely different places, so the
-// counts are reported apart rather than added up into "HR dropouts".
+// The HR half asks which LAYER made the hole: a delivery stall (GATT still seeing beats while
+// JS isn't fed) and a dead link look identical but are fixed in different places, so the
+// counts stay apart rather than summed into "HR dropouts".
 function summarizeHr(events: GeoDiagEvent[]) {
   let beats = 0, deliveryStalls = 0, deadLink = 0, peerDrops = 0, connectFails = 0, scansThrottled = 0;
   let save = "", powerFirst = "", powerLast = "";
@@ -131,11 +124,9 @@ function ShellSection({ report, onRefresh }: { report: ShellDiagReport; onRefres
   const copy = () => {
     try { navigator.clipboard?.writeText(JSON.stringify(report, null, 2)); } catch { /* ignore */ }
   };
-  // Filing is deliberate: this panel is only open because something went wrong,
-  // and the native log survives whatever it was, so there is nothing to catch
-  // in the moment. (It used to file itself on boot, on every foreground and on
-  // a 60s timer, which cost an IPC round-trip per foreground on every Android
-  // install and, off Android, inserted a row a minute forever.)
+  // Filing is deliberate: the panel is only open because something went wrong and the native
+  // log survives it. Never auto-file on boot, foreground or a timer (an IPC round-trip per
+  // foreground, and a row a minute off Android).
   const [sent, setSent] = useState<"" | FileReportResult>("");
   const send = () => {
     void fileShellReport("manual: sent from developer log")

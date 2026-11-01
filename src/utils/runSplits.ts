@@ -1,11 +1,7 @@
-// Per-kilometre splits for RunDetailModal's split table. Derived from the SAME
-// distance walk as distanceKm and buildRunSeries (flattenTrack), so the table,
-// the chart and the run total agree on where each km lands. Pure and unit-tested.
-//
-// Time at each exact km mark is linearly interpolated along the track, so a
-// split's duration isn't quantised to whole GPS fixes. Idle ends (idleEdges.ts)
-// cost a split neither time nor distance: the km marks stay on the run's whole
-// distance, but pace is the moving time over the moving distance inside each.
+// Per-kilometre splits for RunDetailModal, from the SAME distance walk as distanceKm and
+// buildRunSeries (flattenTrack), so table, chart and total agree. Time at each km mark is
+// interpolated along the track. Idle ends (idleEdges.ts) cost neither time nor distance:
+// km marks stay on the whole distance, pace is moving time over moving distance.
 
 import { elevGainM, flattenTrack } from "./geo";
 import { idleBounds } from "./idleEdges";

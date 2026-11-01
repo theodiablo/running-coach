@@ -1,10 +1,7 @@
-// Mistral provider adapter: translates the engine's Anthropic Messages-shaped
-// callModel(messages, tools) contract to Mistral's chat-completions API, so
-// engine/tools/validator/mock never learn a second wire format.
-// isMistralModel(COACH_MODEL) routes here; anything else uses the Anthropic
-// client. Plain ESM + fetch (no SDK) — shared by the edge function, Vitest,
-// and the live eval harness. Mistral has no cache_control equivalent, so no
-// prompt-caching discount on this path (docs/coach-agent.md).
+// Mistral adapter: translates the engine's Anthropic-shaped callModel(messages, tools)
+// to Mistral chat-completions, so engine/tools/validator never learn a second wire format.
+// isMistralModel(COACH_MODEL) routes here. Plain ESM + fetch (no SDK), shared by the edge
+// function, Vitest and the eval harness. No prompt-caching discount (docs/coach-agent.md).
 
 export const isMistralModel = (model) =>
   /^(mistral|magistral|ministral|codestral|pixtral|open-mistral|open-mixtral)/i.test(String(model ?? ""));
@@ -22,14 +19,10 @@ export const toMistralTools = (tools) =>
 const textOfBlocks = (blocks) =>
   blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n");
 
-// Engine messages (Anthropic shape) → Mistral messages. The engine produces
-// exactly these turn shapes:
-//   user/assistant with string content            → passthrough
-//   assistant with blocks (echoed model response) → text + tool_calls
-//   user with blocks ([tool_result..., text?])    → role:"tool" per result,
-//                                                   then one user turn for text
-// Tool messages must immediately follow the assistant turn that issued the
-// calls — the engine's push order already guarantees that.
+// Engine messages (Anthropic shape) -> Mistral: string content passes through; assistant
+// blocks become text + tool_calls; user blocks ([tool_result..., text?]) become role:"tool"
+// per result then one user turn for text. Tool messages must immediately follow the
+// assistant turn that issued the calls (the engine's push order guarantees it).
 export function toMistralMessages(systemPrompt, messages) {
   const out = [{ role: "system", content: systemPrompt }];
   // tool_call id → function name (Mistral's tool message carries `name`).

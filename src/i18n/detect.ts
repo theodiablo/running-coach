@@ -1,8 +1,5 @@
-// Locale detection for pre-auth surfaces (marketing, login, consent banner):
-// the synced settings blob only exists after sign-in, so the boot locale comes
-// from a per-device localStorage override (written whenever the user explicitly
-// picks a language) falling back to the browser language. Mirrors the telemetry
-// consent pattern: per-device key, try/catch around storage access.
+// Locale detection for pre-auth surfaces: the synced settings blob only exists after sign-in, so the boot locale comes
+// from a per-device localStorage override (explicit language pick), else the browser language. Mirrors the consent pattern.
 
 export type LangId = "en" | "es" | "fr";
 export const LANG_IDS: readonly LangId[] = ["en", "es", "fr"];

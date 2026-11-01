@@ -1,8 +1,6 @@
-// Access module for the coach conversation history (mirrors src/routes.ts /
-// src/races.ts: direct table queries, not the app_state blob). Reads the audit
-// rows the coach-agent function writes to agent_trajectories / agent_rounds —
-// users have read-own RLS SELECT on both (added with those tables), so no
-// server round-trip or new grant is needed to list or replay a conversation.
+// Access module for coach conversation history (like src/routes.ts / src/races.ts: direct
+// table queries, not the app_state blob). Reads the audit rows coach-agent writes to
+// agent_trajectories / agent_rounds; read-own RLS SELECT already covers both.
 import { supabase } from "./supabase";
 import { reconstructTranscript, plansDiffer, type CoachMessage, type TranscriptRound } from "./utils/coachTranscript";
 import type { Plan } from "./types";

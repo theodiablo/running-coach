@@ -42,23 +42,10 @@ type BackgroundGeolocationPlugin = {
 
 type NativeWatchHandle = { id: string | null; removed: boolean; background: boolean };
 
-// Native geolocation source for the Capacitor shell. It exposes the SAME
-// interface as the web source (isAvailable / watchPosition / clearWatch) so
-// useRunTracker never branches on platform — only the source it imports differs.
-//
-// Two paths, keyed on opts.background:
-//   • background:false (idle preview) → @capacitor/geolocation, foreground only,
-//     NO foreground service / notification (it would be wrong to show a
-//     "recording" notification while the user is still on the start screen).
-//   • background:true (Start/Resume)  → @capacitor-community/background-geolocation
-//     addWatcher, which runs an Android foreground service + persistent
-//     notification so fixes keep coming with the screen off / app backgrounded.
-//
-// @capacitor/geolocation is imported STATICALLY (not lazily): a dynamic import
-// can fail to load its chunk inside the WebView, which previously left the
-// permission request silently broken. The background plugin is addressed via
-// registerPlugin by name — its native code is discovered by `cap sync`, so we
-// don't depend on the package's JS export shape, only on it being installed.
+// Native geolocation source (same interface as the web source). opts.background false = idle preview via
+// @capacitor/geolocation, no service/notification; true = background-geolocation addWatcher (foreground service).
+// @capacitor/geolocation is imported STATICALLY (a dynamic chunk can fail to load in the WebView and silently break
+// permission requests); the background plugin is addressed via registerPlugin by name.
 
 const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>("BackgroundGeolocation");
 
@@ -104,11 +91,9 @@ export async function checkPreciseLocation(): Promise<boolean> {
   try { return isFineGranted(await Geolocation.checkPermissions()); } catch { return false; }
 }
 
-// Requests foreground location, reliably showing the OS dialog(s); never throws.
-// `checkPermissions()` alone can silently no-op with Location Services off, so
-// the real ask is `getCurrentPosition()`, which surfaces the OS dialogs itself.
-// `highAccuracy` must be true for run tracking (false = user can never grant
-// precise). Details: docs/live-tracking.md.
+// Requests foreground location, reliably showing the OS dialog(s); never throws. `checkPermissions()` alone can silently
+// no-op with Location Services off, so the real ask is `getCurrentPosition()`. `highAccuracy` must be true for run
+// tracking (false = never precise). Details: docs/live-tracking.md.
 export async function ensureForegroundPermission(highAccuracy = true) {
   try {
     const status = await Geolocation.checkPermissions();
@@ -122,18 +107,9 @@ export async function ensureForegroundPermission(highAccuracy = true) {
   }
 }
 
-// Tearing a watch down is fire-and-forget, and it MUST NOT be left uncaught.
-//
-// `Geolocation.clearWatch` rejects with "WatchId not found." whenever the id is
-// no longer live — a preview watch cleared twice, or one the OS had already
-// ended. Unhandled, that rejection reaches ErrorBoundary's `unhandledrejection`
-// listener, which paints the full-screen crash overlay over a perfectly working
-// app: the same trap CLAUDE.md documents for a bare `import()`. PostHog caught
-// three of these in one day, every one of them moments after a live run started
-// — which is exactly when the idle preview watch is torn down.
-//
-// There is nothing to do about a watch that is already gone, which is the whole
-// point: the teardown succeeded, by a different route.
+// Teardown is fire-and-forget and MUST NOT be left uncaught: `Geolocation.clearWatch` rejects with "WatchId not found."
+// for a dead id, and the unhandled rejection paints the full-screen crash overlay (ErrorBoundary) over a working app.
+// A watch that is already gone needs no handling.
 const swallowTeardown = () => { /* already gone — that is the desired state */ };
 
 export const nativeSource = {
@@ -162,11 +138,8 @@ export const nativeSource = {
 
     if (background) {
       (async () => {
-        // Foreground/fine location — a guaranteed OS prompt. The background
-        // watcher below then runs a foreground service (started while the app is
-        // visible), which keeps location flowing with the screen off under the
-        // "while using the app" grant — no ACCESS_BACKGROUND_LOCATION needed.
-        // Grant foreground first, THEN addWatcher: the Android-correct order.
+        // Foreground/fine location first (guaranteed OS prompt), THEN addWatcher: its foreground service, started while the app
+        // is visible, keeps fixes flowing screen-off under the "while using" grant (no ACCESS_BACKGROUND_LOCATION needed).
         let granted;
         try {
           granted = await ensureForegroundPermission(true); // precise — run tracking needs FINE GPS

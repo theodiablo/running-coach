@@ -1,8 +1,5 @@
-// App-side re-export of the SHARED plan validator. The single source of truth
-// lives with the edge function (supabase/functions/_shared/coach/) so the
-// deployed agent bundles it; the app imports it from here for the client-side
-// belt-and-braces check before applying an accepted proposal, and the tests in
-// src/utils exercise it against buildPlan output (one validator, two callers).
+// App-side re-export of the SHARED plan validator, whose source of truth is supabase/functions/_shared/coach/ (the
+// deployed agent bundles it). The app runs it as a client-side check before applying a proposal; tests use buildPlan output.
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedValidation from "../../supabase/functions/_shared/coach/validation.mjs";
 

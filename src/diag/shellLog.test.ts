@@ -86,11 +86,9 @@ describe("verdictFor", () => {
     expect(verdictFor([])).toContain("No backgrounded stretch");
   });
 
-  // A `restored` create is an activity recreation — a rotation, a theme or
-  // locale change — which happens routinely with the process perfectly alive.
-  // Reporting it as a process kill is the loudest verdict this can give, handed
-  // out for a non-event, and it would send the next investigation after a
-  // recording loss that never happened.
+  // A `restored` create is an activity recreation (rotation, theme/locale change) with the
+  // process alive. Reporting it as a process kill is the loudest verdict and would send the next
+  // investigation after a recording loss that never happened.
   it("does not call an activity recreation a killed process", () => {
     const verdict = verdictFor([ev("background", 0), ev("create", 30, "restored")]);
     expect(verdict).toContain("ACTIVITY was recreated");

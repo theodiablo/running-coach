@@ -1,8 +1,6 @@
-// Tiny shared pieces for the app's full-screen overlay sheets (prominent
-// disclosures, confirm-style nudges) — the backdrop/positioning and the
-// accept/cancel button pair were being hand-copied into every one of them,
-// so a z-index or styling fix (like the Toast bump to sit above these) had
-// to be applied in three places by hand instead of one.
+// Shared pieces for the full-screen overlay sheets (prominent disclosures, confirm-style
+// nudges): backdrop/positioning and the accept/cancel button pair, so styling and
+// z-index fixes land in one place.
 import type { ReactNode } from "react";
 
 type ModalOverlayProps = { children: ReactNode };

@@ -3,11 +3,8 @@ import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { coachLinkTarget, type CoachLinkTarget } from "../utils/coachLinks";
 
-// Two kinds of link, one rule: only an allowlisted in-app destination becomes
-// something the runner can press. The coach is told never to emit a URL, but a
-// prompt rule is not enforcement — a hallucinated external link rendered as a
-// real anchor sends the runner somewhere we never vouched for, so everything
-// outside the allowlist keeps its text and loses its href.
+// Only an allowlisted in-app destination becomes pressable. The prompt says never emit a URL,
+// but that isn't enforcement: anything outside the allowlist keeps its text and loses its href.
 const CoachLink = ({ target, onNavigate, children }: {
   target: CoachLinkTarget;
   onNavigate: (t: CoachLinkTarget) => void;
@@ -19,12 +16,9 @@ const CoachLink = ({ target, onNavigate, children }: {
   </button>
 );
 
-// The model replies in markdown (headers, bold, tables); rendered via
-// react-markdown rather than manually injecting raw HTML through a sanitizer
-// pair — it emits real React elements, so there's no HTML string to sanitize.
-// Component overrides keep every element inside the narrow chat bubble's
-// dark slate / orange-500 palette instead of react-markdown's default
-// (unstyled, full-size) tags.
+// The model replies in markdown, rendered via react-markdown (real React elements, so no HTML
+// string to sanitize). Component overrides keep every element in the chat bubble's dark
+// slate / orange-500 palette.
 const mdComponents = (onNavigate?: (t: CoachLinkTarget) => void) => ({
   h1: (p: ComponentPropsWithoutRef<"p">) => <p className="text-sm font-bold text-slate-100 mt-2 mb-1 first:mt-0" {...p}/>,
   h2: (p: ComponentPropsWithoutRef<"p">) => <p className="text-sm font-bold text-slate-100 mt-2 mb-1 first:mt-0" {...p}/>,

@@ -42,17 +42,10 @@ function coerceUsage(value: unknown): CoachUsage | undefined {
 // start Deno and import the Anthropic SDK before it can send response headers.
 const COACH_INVOKE_TIMEOUT_MS = 60000;
 
-// Delivery recovery: production request logs showed the dominant coach failure
-// is the round SUCCEEDING server-side while the streamed response dies before
-// the body reaches the phone (a truncated 200 → raw JSON parse error → generic
-// "unavailable" bubble). Every propose/critique therefore carries a
-// client-generated requestId that the server stamps onto the logged round
-// together with the exact response body; when the invoke fails at the
-// transport level we poll the no-model `result` action for that id instead of
-// surfacing an error — the finished proposal is delivered on the second, warm,
-// fast connection and the model call is never re-run (no double token spend,
-// no double rate-limit charge). `found: false` means the round is still
-// running (or never started), so we poll across the window a slow round needs.
+// Delivery recovery: a round can succeed server-side while the streamed response dies
+// before reaching the phone. Each propose/critique carries a client requestId stamped on
+// the logged round; on transport failure we poll the no-model `result` action for it,
+// never re-running the model call. `found: false` = still running, so poll across the window.
 const RESULT_POLL_INTERVAL_MS = 3000;
 const RESULT_POLL_MAX_ATTEMPTS = 15;
 // If the polls THEMSELVES keep failing at the transport level the device is
@@ -165,12 +158,9 @@ async function invoke(body: CoachAction): Promise<CoachResponse> {
   return data;
 }
 
-// Fire-and-forget cold-start warmer. The coach-agent `ping` action returns
-// before any auth/DB/model work, so this just pays the isolate boot + module
-// import cost early (called when the chat opens) — the first real round then
-// lands on a warm isolate. Best effort by design: it swallows every error and
-// never blocks the UI. If it fails, the first round simply pays the cold start
-// as it did before.
+// Fire-and-forget cold-start warmer: the `ping` action returns before any auth/DB/model
+// work, so the first real round lands on a warm isolate. Swallows every error, never
+// blocks the UI.
 export async function coachPing() {
   try {
     await supabase.functions.invoke("coach-agent", {
@@ -182,12 +172,9 @@ export async function coachPing() {
   }
 }
 
-// Read today's coach spend vs the daily budget for the usage ring. Deliberately
-// NOT routed through invoke(): that flushes the app_state blob and, on a
-// transport failure, polls the `result` action for ~45s with a requestId this
-// read never stamps — all wrong for a cheap counter read. Best-effort: any
-// failure (offline, or an OLD deployed function that rejects the `usage`
-// action) resolves to null, and the caller simply hides the ring.
+// Today's coach spend vs the daily budget, for the usage ring. NOT routed through
+// invoke(): that flushes app_state and polls `result` for ~45s on failure. Any failure
+// (offline, old deployed function) resolves to null and the caller hides the ring.
 export async function coachUsage(): Promise<CoachUsage | null> {
   try {
     const { data, error } = await supabase.functions.invoke("coach-agent", {

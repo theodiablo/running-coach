@@ -3,15 +3,10 @@ import { parseActivityFile } from "../../utils/gpx";
 import { parseFitFile } from "../../utils/fit";
 import type { ImportProvider, ImportParseResult } from "../types";
 
-// Activity-file import: the universal path that needs no vendor cooperation and
-// works on web too. CSV (Zepp / Strava account exports — the pre-existing flow,
-// unchanged underneath) yields many runs without traces; GPX/TCX (one activity
-// per file, exported from Garmin Connect / Strava / most platforms) yields one
-// run WITH its route points, which the caller persists via saveRoute.
-//
-// Note: importing a user's own Strava CSV/GPX export is their GDPR
-// data-portability right — unrelated to the Strava *API*, which we deliberately
-// don't use (its agreement bans AI-model use of API data; the coach reads runs).
+// Activity-file import: needs no vendor cooperation and works on web. CSV (Zepp / Strava
+// exports) yields many runs without traces; GPX/TCX yields one run WITH route points,
+// persisted by the caller via saveRoute. A user's own Strava export is their GDPR
+// portability right, unlike the Strava *API*, whose agreement bans AI use of its data.
 function ext(name: string): string {
   const i = (name || "").lastIndexOf(".");
   return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
@@ -23,11 +18,9 @@ export const fileProvider: ImportProvider = {
   kind: "file",
   platform: "both",
   isAvailable: () => true,
-  // */* keeps every file selectable: mobile pickers (Android's document UI,
-  // iOS Files) resolve accept extensions to a MIME/UTI before deciding what's
-  // tappable, and .fit/.gpx/.tcx aren't in Android's MimeTypeMap — unresolved
-  // extensions render grayed-out rather than "allow anything". parse() below
-  // is the real type gate.
+  // */* keeps every file selectable: mobile pickers resolve accept extensions to a
+  // MIME/UTI first, and .fit/.gpx/.tcx aren't in Android's MimeTypeMap, so they render
+  // grayed-out. parse() below is the real type gate.
   fileAccept: ".csv,.gpx,.tcx,.fit,*/*",
   parse: ({ name, text, bytes }): ImportParseResult => {
     const e = ext(name);

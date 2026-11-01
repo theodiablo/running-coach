@@ -30,11 +30,10 @@ function heldMps(points: TrackPointOrGap[]) {
   return 0;
 }
 
-// The fix the runner set off from and the one they stopped at for good, as
-// indices into the trace's real fixes (gap markers dropped, so they line up with
-// flattenTrack's rows). An end that is already moving at its first/last fix
-// stays there, so GPS warm-up while running is never taken for standing still.
-// Null when the trace never really moved.
+// The fix the runner set off from and the one they stopped at, as indices into the
+// trace's real fixes (gap markers dropped, matching flattenTrack's rows). An end already
+// moving at its first/last fix stays there, so GPS warm-up while running isn't read as
+// standing still. Null when the trace never really moved.
 export function idleBounds(points: TrackPointOrGap[]) {
   const pts = points.filter((p): p is StoredTrackPoint => !!p);
   const n = pts.length;

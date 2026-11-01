@@ -1,11 +1,6 @@
-// Best efforts: the fastest contiguous 1K / 5K / 10K / half / marathon inside a
-// run, and where that run ranks against the rest of the log. Pure and
-// unit-tested — no React, no network, no model call.
-//
-// This is the whole cost story for the feature: efforts are extracted ONCE, at
-// save time, from the GPS trace the app already holds, and stored on the run as
-// `bestEfforts`. Every later comparison is then an in-memory scan of `runs`, so
-// ranking a run costs nothing and works offline. See docs/best-efforts.md.
+// Best efforts: the fastest contiguous 1K / 5K / 10K / half / marathon in a run, and where it ranks in the log. Pure.
+// Extracted ONCE at save time from the GPS trace and stored as `bestEfforts`; every later comparison is an in-memory
+// scan of `runs`. See docs/best-efforts.md.
 
 import { flattenTrack } from "./geo";
 import type { FlatPoint, TrackPointOrGap } from "./geo";
@@ -26,45 +21,27 @@ export const BEST_EFFORT_DISTANCES: { key: BestEffortKey; km: number }[] = [
 // (bestEfforts.badge.rank2 / .rank3), so raising it needs new strings.
 export const ACHIEVEMENT_MAX_RANK = 3;
 
-// How much longer than a standard distance a *traceless* run may be and still
-// count as an effort at it (5% — a 10.4 km log is a 10K, a 12 km one isn't),
-// and how much shorter (1%). The short side is not symmetry for its own sake: a
-// half is routinely logged as "21" and a marathon as "42" (some race catalogue
-// editions store them that way too), and a one-sided window silently gave those
-// no effort at all. Scaling a slightly-short run UP to the distance lengthens
-// its time, so the tolerance can't manufacture a fast one.
+// Tolerance for a *traceless* run to count as an effort at a standard distance: 5% over (10.4 km is a 10K, 12 km isn't),
+// 1% under (a half is often logged as "21", a marathon as "42"). Scaling a short run UP lengthens its time, so the
+// tolerance can't manufacture a fast one.
 const WHOLE_RUN_TOL_LONG = 1.05;
 const WHOLE_RUN_TOL_SHORT = 0.99;
 
-// Distances are a claim about *running*. A walk or a cross-training entry with a
-// distance on it would otherwise be measured and celebrated ("first 5K on the
-// board" for a family walk) and, worse, counted in `total`, loosening the
-// `rank < total` guard that stops a last place wearing a rosette. Read-time, so
-// re-typing a run fixes it retroactively either way.
+// Distances are a claim about *running*: a walk or cross-training entry would otherwise be celebrated ("first 5K" for a
+// family walk) and counted in `total`, loosening the `rank < total` guard. Read-time, so re-typing a run fixes it.
 const NON_RUNNING_TYPES = new Set(["WALK", "OTHER"]);
 const countsAsRunning = (run: Partial<Run> | null | undefined) =>
   !NON_RUNNING_TYPES.has(String(run?.type ?? "").toUpperCase());
 
-// A leg covered faster than this wasn't run. No import path emits gap markers
-// (`fit.ts`, `gpx.ts`, `imports/series.ts` all produce unbroken arrays), so a
-// stretch travelled with the watch paused — or a GPS fix that teleported —
-// arrives as one ordinary leg and would be priced as running. 10 m/s is 1:40/km,
-// well beyond the 1000 m world record, so nothing genuine trips it. `dt` is
-// floored at 1 s because import timestamps are often whole-second, which would
-// otherwise make every same-second leg look infinitely fast.
+// A leg faster than this wasn't run: no import path emits gap markers, so a paused-watch stretch or teleporting fix arrives
+// as one ordinary leg. 10 m/s (1:40/km) is beyond the 1000 m world record. `dt` is floored at 1 s because whole-second
+// timestamps would make same-second legs infinitely fast.
 const MAX_LEG_SPEED_MS = 10;
 
-// Fastest window of exactly `km` inside ONE gap-free segment, in seconds, or
-// null when the segment is too short.
-//
-// Two-pointer sweep: the window ends on a real fix `j` and its start is
-// interpolated along the leg it falls in, so the covered distance is exactly
-// `km` rather than quantised to whole fixes. Pinning the end to a sample errs
-// SLOW. The interpolated start assumes an even pace across its leg, so it can
-// land a second or two either side of the truth — traces are stored SIMPLIFIED
-// (5 m Douglas-Peucker), so a straight stretch collapses into one long leg and
-// the "one sample" intuition doesn't hold. Grossly wrong legs never reach here:
-// `trackSegments` cuts the track at anything faster than a human runs.
+// Fastest window of exactly `km` inside ONE gap-free segment, in seconds, or null when the segment is too short.
+// Two-pointer sweep: the window ends on a real fix, its start interpolated along its leg, so distance is exactly `km`
+// (pinning the end to a sample errs SLOW). The start can land a second or two off since traces are simplified (5 m
+// Douglas-Peucker). Grossly wrong legs never reach here: `trackSegments` cuts at anything faster than a human runs.
 function fastestWindowSec(seg: FlatPoint[], km: number): number | null {
   const n = seg.length;
   if (n < 2 || seg[n - 1].cumKm - seg[0].cumKm < km) return null;
@@ -82,16 +59,10 @@ function fastestWindowSec(seg: FlatPoint[], km: number): number | null {
   return best < Infinity ? best : null;
 }
 
-// The gap-free, plausibly-run stretches of a track. A window may only be
-// measured inside one of these.
-//
-// Two things break a segment. A GAP marker: cumKm bridges it with a straight
-// line, which is fine for a total but not for pricing an effort over ground
-// nobody recorded.
-// And an impossibly fast leg, which is the same problem wearing a disguise —
-// a drive with the watch paused leaves no marker in an imported file, and
-// interpolating across it yields a 30-second kilometre that then poisons every
-// later ranking. Cutting there drops the travelled distance from every window.
+// The gap-free, plausibly-run stretches of a track; a window may only be measured inside one. Two things break a segment:
+// a GAP marker (cumKm bridges it with a straight line: fine for a total, not for pricing an effort over unrecorded ground)
+// and an impossibly fast leg (a drive with the watch paused leaves no marker and would yield a 30-second kilometre that
+// poisons every ranking). Cutting there drops the travelled distance from every window.
 function trackSegments(points: TrackPointOrGap[], jitterM: number): FlatPoint[][] {
   const segs: FlatPoint[][] = [];
   let prev: FlatPoint | null = null;
@@ -124,11 +95,8 @@ export function bestEffortsFromTrack(
   return out;
 }
 
-// A run with no trace (manual entry, watch import without GPS) still counts as
-// an effort at the ONE standard distance it essentially *is*: its time scaled to
-// the exact distance. Deliberately NOT applied to longer runs — average pace
-// over a 12 km easy run is not a 10K effort, and inventing one would let a slow
-// long run masquerade as a race performance.
+// A run with no trace (manual, watch import without GPS) counts as an effort at the ONE standard distance it essentially
+// is: its time scaled to that distance. NOT applied to longer runs (a 12 km easy run is not a 10K effort).
 export function wholeRunEfforts(run: Partial<Run> | null | undefined): BestEfforts {
   const km = Number(run?.km) || 0;
   const sec = Number(run?.durationSec) || 0;
@@ -154,12 +122,8 @@ export function measuredEfforts(run: Partial<Run> | null | undefined): BestEffor
   return out;
 }
 
-// What a run's efforts ARE, for every reader. Measured values win, and the
-// whole-run estimate fills the gaps PER DISTANCE rather than per run: a GPS 5K
-// measures a few tens of metres short once jitter gating and 5 m simplification
-// have had their way, so it stores `{1k}` and an all-or-nothing fallback left it
-// with no 5K at all — permanently, since the stored map also keeps the backfill
-// away — while the same run typed in by hand ranked fine.
+// What a run's efforts ARE, for every reader. Measured values win; the whole-run estimate fills gaps PER DISTANCE, not per
+// run (a GPS 5K measuring a few tens of metres short stores `{1k}` and would otherwise never get a 5K).
 export function effortsFor(run: Partial<Run> | null | undefined): BestEfforts {
   if (!countsAsRunning(run)) return {};
   const out = measuredEfforts(run);
@@ -215,14 +179,8 @@ export function rankRunEfforts(run: Run, allRuns: Run[] = []): EffortRank[] {
 export const isPersonalBest = (e: EffortRank) => e.rank === 1 && e.total > 1;
 export const isFirstEffort = (e: EffortRank) => e.total === 1;
 
-// The subset of a run's efforts worth putting in front of the user, best rank
-// first then longest distance. Empty means "nothing to celebrate" — the caller
-// shows nothing at all rather than a consolation sheet.
-//
-// A runner-up rank must actually have beaten something: "3rd fastest" out of
-// exactly three runs is last place wearing a rosette, and a new user would get
-// one of those after every early run. Rank 1 always counts (a first effort is
-// worth marking even with nothing to compare against).
+// The subset of a run's efforts worth showing, best rank first then longest distance; empty = show nothing.
+// A runner-up rank must have beaten something ("3rd of exactly three" is last place with a rosette); rank 1 always counts.
 export function runAchievements(run: Run, allRuns: Run[] = []): EffortRank[] {
   return rankRunEfforts(run, allRuns)
     .filter(e => e.rank <= ACHIEVEMENT_MAX_RANK && (e.rank === 1 || e.rank < e.total))

@@ -3,18 +3,10 @@ import { isAndroid } from "../native";
 import { BG_LOC_ASKED_KEY } from "../constants";
 import { logTrack } from "./trackLog";
 
-// Request ACCESS_BACKGROUND_LOCATION ("Allow all the time") so live run tracking
-// keeps receiving GPS fixes with the screen off / app backgrounded, rather than
-// relying solely on the foreground service — which in practice stalls on some
-// devices once the WebView is frozen (long screen-off holes in the recorded track).
-//
-// The permission is declared in the main manifest and shipped to all users (which
-// requires the Google Play background-location declaration — see
-// docs/background-location.md). The `declared` guard stays as defensive code: the
-// native side reports declared:false and this becomes a no-op on any build/platform
-// that does not declare it, so the app degrades to foreground-only rather than
-// crashing. Backed by the local RunPermissions plugin (the same one that owns
-// POST_NOTIFICATIONS). Android-only, never throws, never blocks recording.
+// Request ACCESS_BACKGROUND_LOCATION ("Allow all the time") so fixes keep arriving with the
+// screen off; the foreground service alone stalls once the WebView is frozen (Play
+// declaration: docs/background-location.md). Android-only, never throws or blocks recording;
+// the `declared` guard degrades to foreground-only where undeclared.
 
 type RunPermissionsBg = {
   checkBackgroundLocation: () => Promise<{ granted?: boolean; declared?: boolean }>;
@@ -41,11 +33,9 @@ export async function isBackgroundLocationAvailable(): Promise<boolean> {
   catch { return false; }
 }
 
-// Ask for background location at most once per install. On Android 11+ the OS
-// routes this to a Settings screen (there is no in-context "Allow all the time"
-// dialog), so re-asking on every run would be a nag — hence the once flag. Must be
-// called only AFTER foreground fine location is granted (the caller guarantees it),
-// which is the OS precondition for the background request to be offered at all.
+// Ask for background location at most once per install: on Android 11+ the OS routes this
+// to a Settings screen, so re-asking every run would nag. Call only AFTER foreground fine
+// location is granted (the OS precondition; the caller guarantees it).
 export async function ensureBackgroundLocationOnce(): Promise<void> {
   if (!isAndroid) return;
   let asked = false;

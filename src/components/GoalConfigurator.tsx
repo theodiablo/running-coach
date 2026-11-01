@@ -3,13 +3,9 @@ import { useTranslation } from "react-i18next";
 import { fmt, parseDur } from "../utils/format";
 import { paceBand, suggestedGoalSec, clampGoalSec } from "../utils/goal";
 
-// Goal-setting control shared by onboarding and the plan view. A slider sets the
-// target finish time for a quick sweep, and editable Time / Pace fields below it
-// let you dial in an exact value the slider can't easily hit. The range adapts to
-// the entered distance so it only ever offers realistic times. Changing the
-// distance resets the goal to a fresh mid-pack suggestion for that distance, so a
-// time picked for one race length never lingers on another (e.g. a 5 km time left
-// sitting on a 20 km race).
+// Goal-setting control shared by onboarding and the plan view: a slider plus editable Time / Pace fields.
+// The range adapts to the distance; changing the distance resets the goal to a fresh suggestion so a time
+// picked for one race length never lingers on another.
 type GoalConfiguratorProps = {
   distanceKm: number | string;
   goalSec: number | string;

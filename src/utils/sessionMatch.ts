@@ -3,14 +3,9 @@ import type { Plan, PlanSession, PlanWeek, Run } from "../types";
 import type { SessionWithWeek } from "./overdue";
 
 // Matching a run the runner already recorded to the plan session it fulfils.
-//
-// `findOpenPlanSession` (plan.ts) matches on the calendar day alone, at the one
-// moment a recorder hands off to the log form. Run Thursday's tempo on Wednesday
-// and nothing links the two — the session stayed untickable and the run stayed
-// anonymous. These helpers widen that to a window and rank the candidates, but
-// they only ever PROPOSE: a link is applied by a confirmed tap, never silently.
-//
-// All pure. See docs/training-plan.md.
+// `findOpenPlanSession` (plan.ts) matches the calendar day alone; these helpers widen that
+// to a window and rank candidates, but only PROPOSE: a link is applied by a confirmed tap,
+// never silently. All pure. See docs/training-plan.md.
 
 // How far either side of a session a run may sit and still plausibly be it.
 // Wide enough for "I moved it a couple of days", short of backfilling a month.
@@ -19,13 +14,10 @@ export const MATCH_WINDOW_DAYS = 3;
 // A run as stored: `Run.id` is optional only because addRuns mints it on save.
 export type SavedRun = Run & { id: string };
 
-// How far a run's distance may fall from the prescription before a CROSS-DAY
-// match stops being proposed by default. Same-day needs no corroboration — the
-// day says which session you meant — but reaching across days is a guess, and a
-// recorder cannot corroborate it with the type: the GPS tracker saves every run
-// as EASY because it has no idea what you were doing. Distance is the only
-// signal it does have, so a 5 km jog must not arrive offering to tick off
-// Thursday's 12 km intervals.
+// How far a run's distance may fall from the prescription before a CROSS-DAY match stops
+// being proposed by default. Same-day needs no corroboration, but across days it is a
+// guess, and the GPS tracker saves every run as EASY, so distance is the only signal: a
+// 5 km jog must not offer to tick off Thursday's 12 km intervals.
 const CROSS_DAY_KM_TOLERANCE = 0.35;
 
 
@@ -120,13 +112,10 @@ export function candidateRuns(
     .slice(0, limit);
 }
 
-// The session a freshly recorded run most likely belongs to, for the save-time
-// offer. Same ranking, read the other way round: nearest day first, then the
-// closest prescription. Returns the session with its week number, or null.
-//
-// Stricter than `candidateRuns` on purpose: this one is shown ACCEPTED, so a
-// cross-day guess has to survive the distance check above. The sheet's list is
-// picked from by a human and needs no such corroboration.
+// The session a freshly recorded run most likely belongs to, for the save-time offer:
+// nearest day first, then closest prescription. Returns it with its week number, or null.
+// Stricter than `candidateRuns` because it is shown ACCEPTED, so a cross-day guess must
+// pass the distance check above; the sheet's list is human-picked.
 export function bestSessionForRun(
   plan: Plan | null | undefined,
   run: Run | Partial<Run>,
@@ -160,11 +149,9 @@ export function canMoveSessionTo(
   return off >= 0 && off < 7;
 }
 
-// Release every claim on a run — the plan must never point at a run that is
-// gone. `deleteRun` is the caller: a session left `done` with a dangling
-// `runId` asserts evidence it no longer has, and keeps that id out of every
-// other session's candidate list forever. Returns the same plan when nothing
-// claimed the run, so a caller can skip the write.
+// Release every claim on a run; the plan must never point at a deleted run (`deleteRun`
+// calls this). A dangling `runId` asserts evidence that is gone and hides that id from
+// every other candidate list. Returns the same plan when nothing claimed it.
 export function releaseRun(plan: Plan | null, runId: string): Plan | null {
   if (!plan?.weeks?.length || !runId || !claimedRunIds(plan).has(runId)) return plan;
   return {

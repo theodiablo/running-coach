@@ -1,8 +1,7 @@
-// Contract tests for the coach agent's Mistral provider adapter
-// (supabase/functions/_shared/coach/mistral.mjs). The engine speaks the
-// Anthropic Messages shape; these tests pin the translation in both
-// directions on exactly the turn shapes generateProposal produces, so a
-// Mistral API drift or an adapter regression fails here instead of live.
+// Contract tests for the coach agent's Mistral adapter (_shared/coach/mistral.mjs).
+// The engine speaks the Anthropic Messages shape; these pin the translation in both
+// directions on the turn shapes generateProposal produces, so API drift or an adapter
+// regression fails here instead of live.
 import { describe, it, expect, vi } from "vitest";
 // @ts-expect-error — plain ESM module shared with the Supabase edge function.
 import { isMistralModel, toMistralTools, toMistralMessages, fromMistralResponse, makeMistralModel } from "../../supabase/functions/_shared/coach/mistral.mjs";

@@ -1,16 +1,7 @@
-// Shared training-plan STYLE pacing table — the ONE source of pace multipliers
-// for both callers: the deterministic generator (src/utils/plan.ts buildPlan,
-// via the src/utils/planStyles.ts re-export) and the coach agent (tools.mjs
-// derives swap/add paces from it). Keeping them in one file means a style can
-// never prescribe one easy pace in the plan and another in a coach edit.
-//
-// Plain ESM JS on purpose: imported by the Deno edge function (relative .mjs
-// import) AND by the Vite app / Vitest. Keep it dependency-free.
-//
-// Multipliers are applied to plan.targetPace (sec/km, flat-equivalent goal
-// race pace): pace = round(targetPace * multiplier). "balanced" is the
-// pre-styles algorithm and MUST keep 1.25 / 1.05 / 1.00 / 1.25 — plans built
-// before styles existed carry no `style` field and resolve to it.
+// Shared training-plan STYLE pacing table: the ONE source of pace multipliers for
+// buildPlan (via src/utils/planStyles.ts) and the coach (tools.mjs). Dependency-free ESM
+// for Deno AND Vite/Vitest. pace = round(plan.targetPace * multiplier). "balanced" MUST
+// keep 1.25 / 1.05 / 1.00 / 1.25: plans without a `style` field resolve to it.
 
 export const STYLE_IDS = ["balanced", "polarized", "runwalk", "lowfreq", "hansons"];
 export const DEFAULT_STYLE = "balanced";

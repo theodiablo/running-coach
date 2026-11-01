@@ -3,35 +3,10 @@ import {
   DIAG_LOG_HEAD, GEO_DEBUG_KEY,
 } from "../constants";
 
-// Developer diagnostics for what a run's sensor streams actually did — GPS and
-// the live heart-rate link, on one timeline because they fail together and the
-// question is always which of them stopped first.
-//
-// GPS: each fix that arrived from the native plugin, whether the tracker kept or
-// dropped it (and why), when a gap was opened, permission results, and app
-// foreground/background transitions. It answers "why did my track have an
-// 11-minute hole with the screen off": if raw `native-fix` events keep landing
-// while the app is `hidden`, the plugin is delivering and the filter is the
-// culprit; if they stop, the OS/foreground service stopped feeding us.
-//
-// HR: the same question one layer at a time, because a strap that "connects and
-// then stops reading" can be failing in any of four places and they are
-// indistinguishable from the screen. `hr-beat` says whether notifications are
-// still being DELIVERED to this JS; `hr-stall`'s `sinceMs` is the age of the
-// last beat the NATIVE GATT callback saw, so a stall with a fresh native beat is
-// a delivery stall and a stall with a stale one is a dead link; `hr-connect` and
-// `hr-scan` say whether the reconnect that followed could get back in (and
-// `hr-scan throttled` says Android's scan allowance is why it couldn't);
-// `hr-save` closes the run with what actually survived to the run. Read them in
-// that order and the failing layer names itself.
-//
-// Power: `power` rows say which regime the run recorded under — Battery Saver
-// reaches the BLE link and the fix stream alike (docs/live-tracking.md).
-//
-// Per-device only (like the watch scan log and the auth markers) — never in the
-// synced blob — and bounded to a small ring buffer. Guarded like getScanLog:
-// storage failures are non-fatal and never throw into a hot geolocation or GATT
-// notification callback.
+// Developer diagnostics for a run's sensor streams (GPS and the live HR link) on one timeline, since they fail together.
+// Per-device only (never the synced blob), a small ring buffer; storage failures are non-fatal and never throw into
+// hot geolocation/GATT callbacks. How to read the events (native-fix, hr-beat/stall/connect/scan/save, power):
+// docs/live-tracking.md.
 
 export type GeoDiagKind =
   | "start"        // run start (Start button)

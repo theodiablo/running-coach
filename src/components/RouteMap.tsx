@@ -9,25 +9,16 @@ import { cachedTileLayer, uncachedTileLayer } from "./cachedTileLayer";
 import { useDismissable } from "../hooks/useDismissable";
 import { segments } from "../utils/geo";
 
-// Imperative Leaflet wrapper. We drive the map directly via refs (no
-// react-leaflet) so the polyline/marker update cheaply at GPS frequency without
-// re-rendering React, and to avoid a React-version-coupled dependency.
-//
-// `points` is the tracker tuple array ([lat,lng,t,alt], null = gap). `follow`
-// recenters on the latest fix while live — nav-app style: the user can pan/zoom
-// to take over (which suspends follow, reported via `onFollowingChange`), and a
-// bump of `recenterSignal` snaps back to the current position at a default zoom
-// and re-arms follow. `endpoints` swaps the live "head" dot for distinct
-// start/finish markers (finished-run view), `highlight` pins a marker at an
-// externally-driven point (chart hover), and `onPick` reports map taps back.
+// Imperative Leaflet wrapper (no react-leaflet): driven via refs so the polyline/marker update
+// cheaply at GPS frequency without re-rendering React. `points` is the tracker tuple array
+// ([lat,lng,t,alt], null = gap). `follow` recenters on the live fix until the user pans/zooms
+// (`onFollowingChange`); a `recenterSignal` bump re-arms it. See the props for the rest.
 export type TrackPoint = [number, number, number, number | null] | LatLngExpression;
 type PreviewLocation = { lat: number; lng: number; acc?: number | null };
 type LatLng = { lat: number; lng: number };
-// A non-recorded "guide" line drawn UNDER the recorded track (own low-z pane):
-// the route-finder's suggested loops and the live tracker's chosen planned line.
-// Additive and inert by default so existing callers are untouched.
-// Guide geometry is looser than the recorded-track tuple: suggested loops are
-// [lat,lng,alt] 3-tuples (no timestamp), and only lat/lng are read for drawing.
+// A non-recorded "guide" line drawn UNDER the recorded track (own low-z pane): suggested loops
+// and the live tracker's planned line. Inert by default. Geometry is looser than the track
+// tuple: [lat,lng,alt] 3-tuples, only lat/lng read.
 export type GuidePoint = readonly (number | null)[] | null;
 export type RouteGuide = {
   points: GuidePoint[];
@@ -247,11 +238,9 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     const drop = (ref: MutableRefObject<Marker | null>) => { if (ref.current) { ref.current.remove(); ref.current = null; } };
 
     const segs = (segments(points) as LatLngExpression[][]).filter(s => s.length);
-    // A live run appends to the last segment ~every 2s. Rebuilding every polyline
-    // makes Leaflet re-render the whole SVG path each fix, so as long as the
-    // SEGMENT COUNT is unchanged (same layer count: one line per segment plus a
-    // bridge between each pair) we only push new coordinates into the layers
-    // already on the map. A new gap changes the count and forces a rebuild.
+    // A live run appends to the last segment ~every 2s. While the SEGMENT COUNT is unchanged
+    // (one line per segment plus a bridge per pair) only push new coordinates into the existing
+    // layers; rebuilding re-renders the whole SVG path each fix. A new gap forces a rebuild.
     const reuse = segs.length > 0
       && segCountRef.current === segs.length
       && linesRef.current.length === Math.max(0, segs.length * 2 - 1);
@@ -317,12 +306,9 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     applyCamera();
   }, [points, follow, endpoints, applyCamera]);
 
-  // Leaflet caches the container size and refreshes it only on a WINDOW resize,
-  // so any layout change that resizes the map alone leaves it framing the route
-  // into a box that no longer exists — the tracker's panel growing when a run
-  // ends shrinks the map, and the fit computed against the taller box pushes the
-  // bottom of the track under the edge (top looks right, the last stretch is
-  // gone). Same story entering/leaving full screen. Watch the box itself.
+  // Leaflet refreshes its cached container size only on a WINDOW resize, so a layout change
+  // that resizes the map alone (tracker panel growing, full screen) leaves the fit computed
+  // against a stale box and clips the track. Watch the box itself.
   useEffect(() => {
     const el = elRef.current;
     const map = mapRef.current;
@@ -343,22 +329,17 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     return () => ro.disconnect();
   }, [applyCamera]);
 
-  // Guide lines (suggested loops / planned line) — drawn in the low-z "guide"
-  // pane so they read as background under any recorded track. Keyed on a cheap
-  // signature (segment count + endpoints) so it doesn't redraw on every unrelated
-  // re-render, and it never touches the follow/recenter camera; `fitGuides` only
-  // frames them while there's no recorded track (the finder's static preview).
+  // Guide lines (suggested loops / planned line) in the low-z "guide" pane. Keyed on a cheap
+  // signature (segment count + endpoints) to skip unrelated redraws; never touches the camera.
+  // `fitGuides` frames them only while there is no recorded track.
   const normalizedGuides: RouteGuide[] = [
     ...(guidePoints?.length ? [{ points: guidePoints, color: GUIDE_COLOR, dashed: true, opacity: 0.9, weight: 4 }] : []),
     ...(guides ?? []),
   ];
   const coordSig = (p: unknown) => (Array.isArray(p) ? `${p[0]},${p[1]}` : "");
-  // Geometry-only signature: which lines exist and where, ignoring styling. The
-  // camera fit keys on THIS, so restyling (e.g. selecting a candidate, which only
-  // flips colours/opacity) never re-fits and clobbers the user's pan/zoom.
-  // A MIDPOINT is sampled alongside the endpoints because these guides are loops:
-  // first ≈ last ≈ the origin for every candidate, so endpoints alone barely
-  // differ between candidates — the midpoint is what actually distinguishes them.
+  // Geometry-only signature; the camera fit keys on THIS so restyling (selecting a candidate)
+  // never re-fits and clobbers the user's pan/zoom. A MIDPOINT is sampled too: guides are loops,
+  // so endpoints are ~equal across candidates and only the midpoint tells them apart.
   const guideGeomSig = normalizedGuides.map(g => {
     const pts = g.points;
     return `${pts.length}:${coordSig(pts[0])}:${coordSig(pts[pts.length >> 1])}:${coordSig(pts[pts.length - 1])}`;
@@ -461,12 +442,9 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
     return () => { map.off("click", onClick); };
   }, [onPick]);
 
-  // Snap-back: a bump of `recenterSignal` (recenter button, or returning from a
-  // locked screen) recentres on the current head at the default zoom and re-arms
-  // follow. The initial mount must stay a no-op even when points (and so a head)
-  // are already present at mount (History / run-detail) — otherwise this fires
-  // right after the track effect's fitBounds and snaps a tight zoom onto the
-  // head, undoing the whole-route fit.
+  // Snap-back: a `recenterSignal` bump recentres on the head at the default zoom and re-arms
+  // follow. The initial mount must stay a no-op even with points present (History), or it
+  // fires after the track effect's fitBounds and undoes the whole-route fit.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -527,16 +505,10 @@ export function RouteMap({ points = [], follow = false, interactive = true, loca
   useDismissable(expanded, toggleExpanded);
 
   return (
-    // `isolation: isolate` keeps Leaflet's internal z-indexes (panes up to 800,
-    // controls at 1000) contained to this box. Without it they leak to the root
-    // stacking context and can paint over a higher-level overlay — e.g. an inline
-    // History map bleeding through the full-screen RunDetailModal (z-50).
-    //
-    // Two boxes: the outer one holds the caller's size/rounding and STAYS in
-    // flow, so going full screen doesn't collapse the page behind it; the inner
-    // shell is what lifts to cover the viewport. The map element itself never
-    // moves in the DOM, so Leaflet survives the trip untouched — the
-    // ResizeObserver above is what tells it about the new box.
+    // `isolation: isolate` contains Leaflet's z-indexes (panes to 800, controls 1000), which
+    // otherwise paint over higher overlays (e.g. RunDetailModal z-50). Two boxes: the outer keeps
+    // the caller's size and STAYS in flow so full screen doesn't collapse the page; the inner
+    // lifts to the viewport. The map element never moves in the DOM (ResizeObserver above).
     <div className={className}
       style={{ position: "relative", isolation: "isolate", ...style, ...(expanded ? { zIndex: EXPANDED_Z } : null) }}>
       <div style={expanded

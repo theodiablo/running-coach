@@ -40,13 +40,10 @@ type IndoorTrackerProps = {
   initialActivity?: RunActivity;
 };
 
-// Indoor / static cardio recorder — a stationary bike or elliptical, where the
-// machine tells us nothing and heart rate is the whole signal. Deliberately a
-// separate screen from LiveRunTracker rather than a mode inside it: none of
-// that screen's map, live sharing, route finder, guided workouts or
-// background-location consent apply with no GPS, and threading an `indoor`
-// branch through all of it would leave two half-features. See
-// docs/indoor-sessions.md.
+// Indoor / static cardio recorder (bike, elliptical): heart rate is the whole signal.
+// Deliberately separate from LiveRunTracker: its map, live sharing, route finder, guided
+// workouts and background-location consent don't apply without GPS, and an `indoor`
+// branch through all of it would leave two half-features. See docs/indoor-sessions.md.
 export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [], initialActivity }: IndoorTrackerProps) {
   const { t } = useTranslation();
   // Same pre-start read as LiveRunTracker, from the same helper.
@@ -74,11 +71,9 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
   const effMax = effectiveMaxHR(settings);
   const restHR = settings.restHR || 60;
   const live = state === "tracking" || state === "paused";
-  // A strap that dies leaves its last bpm on screen forever, and once one sample
-  // is recorded hrAvg is non-null for the rest of the session, so the status
-  // line below would read "avg · max" and never surface hrStatus again. Read at
-  // render time: the 1s clock tick re-renders while tracking, and an hrStatus
-  // change re-renders while idle, so this refreshes without a timer of its own.
+  // A dead strap leaves its last bpm on screen, and once one sample is recorded hrAvg is
+  // non-null, so the status line would never surface hrStatus again. Read at render time;
+  // the 1s tick (tracking) and hrStatus changes (idle) refresh it without a timer.
   const hrStale = liveHr && isHrStale(stats.hrAt);
   // Same ladder as the run recorder's, from the same helper.
   const hrLine = liveHrStatusLine({ stale: hrStale, status: rt.hrStatus, hrAvg: stats.hrAvg, hrMax: stats.hrMax, hr: stats.hr });
@@ -130,12 +125,9 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
   const handleSave = async () => {
     setBusy(true);
     const { startedAt, stoppedAt } = rt.runWindow();
-    // Heart rate through the one shared resolver (src/hr/runHr.ts) — a live
-    // source's stream folded together with the native journal and coverage-
-    // guarded, a post-run store queried over the session window. The journal
-    // matters more here than on a run: an indoor session has no location
-    // service, so backgrounding it freezes JS immediately and the journal is
-    // the only record of that stretch.
+    // HR through the one shared resolver (src/hr/runHr.ts): live stream plus native journal,
+    // coverage-guarded, or a post-run store queried over the session window. The journal
+    // matters more here: with no location service, backgrounding freezes JS at once.
     const resolved = await resolveRunHr({
       hrSrc, liveSamples: rt.hrSamples, durationSec: stats.movingSec,
       startMs: startedAt || Date.now(), endMs: stoppedAt || Date.now(),
@@ -145,16 +137,10 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
     // samples, which save either way, to say why there is no average.
     if (resolved.partialCoverage != null)
       showToast?.(t("tracker.hr.partial", { pct: Math.round(resolved.partialCoverage * 100) }), "err");
-    // No distance axis at all: km stays 0 so running volume, pace, PBs and the
-    // race predictor never see a bike session (docs/indoor-sessions.md).
-    // bestEfforts is stamped empty ON PURPOSE — "measured, covers no standard
-    // distance" — so the one-time backfill never revisits this run.
-    //
-    // persistImportedRoute is the one place that turns a raw HR series into a
-    // run_routes row; with no points it returns hrRouteId, exactly the shape a
-    // health-store import produces, so run detail's HR chart and time-in-zone
-    // card work with nothing new. Its offline behaviour applies too: the raw
-    // stream is dropped rather than queued, and the avg/max still save.
+    // No distance axis: km stays 0 so volume, pace, PBs and the predictor never see a bike
+    // session (docs/indoor-sessions.md). bestEfforts is stamped empty ON PURPOSE ("measured,
+    // no standard distance") so the backfill skips it. persistImportedRoute with no points
+    // returns hrRouteId, as a health-store import does; offline it drops the raw stream, avg/max still save.
     const prefill = await persistImportedRoute({
       date: ymd(new Date(startedAt || Date.now())),
       type: "OTHER",

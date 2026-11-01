@@ -70,11 +70,8 @@ describe("LogView", () => {
     expect(screen.queryByText(/Got a file from your watch/)).not.toBeInTheDocument();
   });
 
-  // A single imported run is reviewed through this form, and the saved run is
-  // the provider's only record that the workout landed. Dropping extId left
-  // knownKeys permanently empty: every later sync re-listed the workout,
-  // re-downloaded its FIT against the daily quota, then discarded the candidate
-  // as a duplicate — so a working sync reported "no new runs".
+  // The saved run is the provider's only record that the workout landed: dropping extId left knownKeys empty, so every sync
+  // re-listed and re-downloaded the workout and discarded it as a duplicate ("no new runs").
   it("carries a cloud import's identity through the review", () => {
     const addRuns = vi.fn();
     setup({
@@ -105,11 +102,8 @@ describe("LogView", () => {
   });
 });
 
-// The review form rebuilds the run from its own fields, so anything the
-// recorder measured that the form cannot edit has to be carried across it.
-// This is where `extId` was lost once already (every later cloud sync then
-// reported "no new runs"), so the boundary is pinned end to end rather than
-// only at carryPrefill.
+// The review form rebuilds the run from its own fields, so anything the recorder measured that the form can't edit must be
+// carried across. Pinned end to end (extId was lost here once), not only at carryPrefill.
 describe("LogView save carries what the recorder measured", () => {
   const save = () => fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 

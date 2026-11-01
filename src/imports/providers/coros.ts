@@ -3,29 +3,10 @@ import { makeCloudOauth } from "../cloudOauth";
 import type { ImportProvider, ImportedRun } from "../types";
 import type { Run } from "../../types";
 
-// COROS cloud import — the third provider on the seam Polar opened and Suunto
-// generalised (docs/integrations-polar.md, docs/integrations-suunto.md).
-// Secret half (OAuth exchange, token refresh, workout listing, activity-file
-// download) lives in the `coros-import` edge function; this client pages
-// summaries, fetches one file per invocation and maps them with the app's own
-// parser, exactly like Suunto.
-//
-// Calibrated against the COROS API Reference V2.0.6 (February 2026), the
-// partner document issued with API credentials. Every endpoint, parameter and
-// field name below cites a section of it. Still UNVERIFIED against a live
-// account: dormant until VITE_COROS_CLIENT_ID is set, exactly like Polar and
-// Suunto, and the first live pass should be read against the checklist in
-// docs/integrations-coros.md.
-//
-// Three COROS traits shape this file, and none of them match Suunto:
-//   - The workout list is a DATE RANGE query (§4.2), max 30 days per call, and
-//     COROS refuses any start date earlier than three months before today. So
-//     there is no full-history backfill to be had: the reachable past is a
-//     rolling ~3-month window, and the scan walks it forward in 30-day pages.
-//   - The listing carries NO heart rate and NO elevation (§4.2.4). Both come
-//     from the .fit file, whose direct URL rides in the listing as `fitUrl`.
-//   - `state` is restricted to a-z A-Z 0-9 (§3.1.3), which is why this provider
-//     alone uses an unpunctuated state (see cloudOauthPreinit).
+// COROS cloud import: the edge function `coros-import` holds the secret half;
+// this client pages summaries and maps each .fit with the app's own parser.
+// Calibrated against COROS API V2.0.6 but unverified live (dormant until
+// VITE_COROS_CLIENT_ID). Date-range listing, no HR/elevation, a-z0-9 state: docs/integrations-coros.md.
 
 const COROS_CLIENT_ID = import.meta.env?.VITE_COROS_CLIENT_ID as string | undefined;
 
@@ -39,11 +20,8 @@ const oauth = makeCloudOauth({
   authUrl: AUTH_URL,
   clientId: COROS_CLIENT_ID,
   scope: SCOPE,
-  // NO PKCE. COROS's authorization request documents only client_id,
-  // redirect_uri, state and response_type (§3.1.3), and its token endpoint
-  // accepts no code_verifier (§3.2.3) — sending a challenge we could never
-  // redeem would be theatre. The CSRF guard is the nonce in `state`, which
-  // COROS explicitly recommends for exactly that (§3.1.3).
+  // No PKCE: COROS's token endpoint accepts no code_verifier (§3.2.3); the CSRF
+  // guard is the nonce in `state`.
   pkce: false,
   functionName: "coros-import",
 });
@@ -59,15 +37,9 @@ const MAX_PAGES_PER_SCAN = 10;
 const ANOMALY_MIN_FETCHED = 3;
 const RUN_CACHE_MAX = 200;
 
-// What `coros-import` returns per workout. This is OUR shape, not COROS's:
-// normalizeWorkout() in the edge function is the single place that knows the
-// vendor's field names and units, so the browser never sees a mode/subMode pair
-// or a 15-minute timezone unit.
-//
-// Deliberately thin, because COROS's listing (§4.2.4) is thin: it carries
-// distance, duration, start time, timezone, sport and a .fit URL — and NO
-// heart rate and NO elevation. Both of those come from the .fit alone, which is
-// why a COROS workout with no file imports as distance-and-duration only.
+// OUR shape, not COROS's: normalizeWorkout() in the edge function is the one
+// place that knows vendor fields. Thin because the listing (§4.2.4) has no HR or
+// elevation; those come only from the .fit.
 export type CorosSummary = {
   distanceM?: number | null;
   durationSec?: number | null;
@@ -114,17 +86,10 @@ function b64ToBytes(b64: string): Uint8Array | null {
 const num = (v: number | null | undefined): number | null =>
   v != null && Number.isFinite(Number(v)) ? Number(v) : null;
 
-// One normalised COROS workout (+ optional activity-file bytes) → an
-// ImportedRun, or null when unusable. The file wins when it parses (full route
-// + HR series through the shared parser, which derives distance, elevation and
-// startedAt from the trace exactly like a live run); the summary covers
-// treadmill workouts and anything whose file failed to arrive.
-//
-// The file is assumed to be FIT, which is what COROS watches record and what
-// `parseFitFile` already handles. UNCONFIRMED for the API: if the pack says the
-// export is GPX or TCX, this branch routes through `parseActivityFile` instead
-// (the app parses both) — one branch to change, and the summary fallback below
-// keeps runs importing meanwhile. Never parse it server-side.
+// One normalised workout (+ optional file bytes) → ImportedRun, or null. The file
+// wins when it parses; the summary covers treadmill runs and missing files. The
+// file is assumed FIT (unconfirmed for the API: GPX/TCX would route through
+// parseActivityFile). Never parse it server-side.
 export function corosWorkoutToRun(w: CorosWorkout, fileB64: string | null): ImportedRun | null {
   const s = w.summary || {};
   const type = s.sport === "walk" ? "WALK" : "EASY";
@@ -134,6 +99,7 @@ export function corosWorkoutToRun(w: CorosWorkout, fileB64: string | null): Impo
   // parser's date is phone-local, which disagrees near midnight when the run
   // happened in another timezone (and would then miss the plan auto-tick).
   const localDate = (utcMs: number) =>
+    // eslint-disable-next-line seams/no-iso-date-slice -- shifted by the run's own UTC offset first
     new Date(utcMs + (offsetMin ?? 0) * 60_000).toISOString().slice(0, 10);
 
   if (fileB64) {
@@ -294,13 +260,9 @@ async function scan(runs: Run[]): Promise<ImportedRun[]> {
         for (const k of res.stagedKeys || []) if (!ackStaged.includes(k)) ackStaged.push(k);
       }
 
-      // The tripwire. A full page fetched fine but EVERY workout mapped to
-      // null: that is a normalisation mismatch, not a string of sub-50 m
-      // workouts. Acking would silently consume the backfill while importing
-      // nothing, so stop WITHOUT folding this page into the ack — the pages
-      // re-serve once normalizeWorkout is fixed. For a provider whose payload
-      // shape has never been seen live, this is the safeguard that turns a
-      // wrong field name into a log line instead of a silently eaten history.
+      // Tripwire: a full page where EVERY workout mapped to null is a schema
+      // mismatch. Don't ack it, or the backfill is silently consumed; the pages
+      // re-serve once normalizeWorkout is fixed.
       if (fetchedOk >= ANOMALY_MIN_FETCHED && mappedNull === fetchedOk) {
         console.warn(`coros scan: page mapped 0/${fetchedOk} fetched workouts — possible schema mismatch, not acking`);
         return out;

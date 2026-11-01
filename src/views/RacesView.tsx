@@ -175,11 +175,8 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
                 const joined = resolveJoined(p);
                 const days = daysUntil(p.raceDate, today);
                 const isTarget = settings.targetEditionId === p.editionId;
-                // A race can be folded into the current plan when there's an active
-                // plan (a race date is set) and this race falls before the main race
-                // — a checkpoint along the way. We key off settings.raceDate rather
-                // than targetEditionId so a hand-entered main race (no catalogue
-                // edition) can still have tune-ups added.
+                // A race can be folded into the plan when a plan is active (race date set) and it falls before the main race. Keyed off
+                // settings.raceDate, not targetEditionId, so a hand-entered main race can still have tune-ups added.
                 // A plan with no race date holds a race that falls inside its weeks.
                 const inPlannable = settings.raceDate
                   ? !isTarget && String(p.raceDate) < settings.raceDate
@@ -289,10 +286,8 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
 }
 
 // ── Find a race (text search + optional "near me" sort) ──────────────────────
-// One catalogue list, grouped by race. Text search + event-distance bands
-// always apply; the "Near me" toggle layers on a one-off geolocation sort
-// (distance shown as "X km away"). Races without coordinates fall into a
-// "Location unknown" bucket while Near me is on rather than disappearing.
+// One catalogue list grouped by race; text search + distance bands always apply; "Near me" adds a one-off geolocation sort.
+// Races without coordinates go to a "Location unknown" bucket while it's on.
 type FindPanelProps = {
   catalogue: CatalogueRace[];
   byId: Record<string, Participation>;

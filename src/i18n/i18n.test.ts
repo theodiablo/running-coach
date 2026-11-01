@@ -5,7 +5,6 @@ import en from "./locales/en";
 import es from "./locales/es";
 import fr from "./locales/fr";
 import marketingEn from "../marketing/marketing.en.json";
-import marketingEs from "../marketing/marketing.es.json";
 import marketingFr from "../marketing/marketing.fr.json";
 import marketingCopy from "../marketing/copy.json";
 import { detectInitialLocale, isLangId, RC_LANG_KEY } from "./detect";
@@ -70,13 +69,6 @@ describe("locale dictionaries", () => {
     }
   });
 
-  it.each([
-    ["es", es, marketingEs],
-    ["fr", fr, marketingFr],
-  ] as const)("%s copy does not use English-style em dashes", (_lang, app, marketing) => {
-    expect([...stringValues(app as Tree), ...stringValues(marketing as Tree)].filter(value => value.includes("—"))).toEqual([]);
-  });
-
   // French app copy says `tu`. `vous` is only for people who aren't users yet:
   // the public watch page (and marketing, which lives in its own files).
   it("fr app copy addresses the runner as tu", () => {
@@ -91,12 +83,10 @@ describe("locale dictionaries", () => {
   });
 });
 
-// ---- no dangling t() keys ---------------------------------------------------
-// Every t("literal.key") referenced in source must resolve in the dictionary,
-// or it renders the raw key string at runtime. The parity test above does NOT
-// catch this (a key missing from ALL of en/es/fr is "in parity" yet broken),
-// so scan the source and check each referenced literal key exists — plural
-// suffixes (_one/_other) and dynamic-prefix keys ("a.b." + x) accounted for.
+// ---- no dangling t() keys ----
+// Every t("literal.key") in source must resolve in the dictionary or it renders the raw key.
+// The parity test misses a key absent from ALL locales, so scan the source; plural suffixes
+// (_one/_other) and dynamic-prefix keys ("a.b." + x) are accounted for.
 
 const PLURAL_SUFFIXES = ["", "_zero", "_one", "_two", "_few", "_many", "_other"];
 

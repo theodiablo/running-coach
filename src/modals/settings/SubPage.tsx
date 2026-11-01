@@ -2,11 +2,9 @@ import { useTranslation } from "react-i18next";
 import { ChevronLeft } from "lucide-react";
 import { useDismissable } from "../../hooks/useDismissable";
 
-// Shared shell for a Settings sub-page. Rendered on top of the settings hub
-// (z-[60] over its z-50), the same nesting the LiveRunTracker -> RouteFinderSheet
-// pair uses. Registering the dismiss handler HERE (not in the parent) is what
-// makes Android back / web Escape pop one level at a time: the hub registered
-// first, this mounts second, and the stack is LIFO.
+// Shared shell for a Settings sub-page, rendered over the hub (z-[60] over z-50).
+// Registering the dismiss handler HERE makes Android back / Escape pop one level at a
+// time: the hub registered first, this mounts second, and the stack is LIFO.
 type SubPageProps = {
   title: string;
   onBack: () => void;

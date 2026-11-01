@@ -6,14 +6,9 @@ import { ToggleSwitch } from "./ToggleSwitch";
 import { PRIVACY_URL } from "../constants";
 import type { ConsentChoice } from "../telemetry";
 
-// The native first-run consent screen: the same two-channel choice the web bar
-// offers, given a full screen because a phone has one. Both switches start OFF
-// — a pre-ticked box is not consent — so "Continue" without touching anything
-// is a complete, valid refusal, which is why there is no separate skip.
-// Visibility and persistence belong to ConsentBanner; this is just the choice.
-//
-// Deliberately not registered with useDismissable (like OnboardingWizard): it
-// renders over the login screen, before the back/Escape dispatcher exists.
+// Native first-run consent: both switches start OFF (a pre-ticked box is not consent), so
+// "Continue" untouched is a valid refusal. Visibility/persistence belong to ConsentBanner.
+// Deliberately not registered with useDismissable: it renders before the back/Escape dispatcher exists.
 type ConsentScreenProps = { onSubmit: (choice: ConsentChoice) => void };
 
 function ConsentOption(

@@ -38,14 +38,10 @@ type SettingsModalProps = {
   initialPage?: SettingsPage;
 };
 
-// Settings is a hub, not a page: the root is a menu and every control lives on
-// a sub-page (Account / Integrations / Training Profile / Help & FAQ). The sub-page
-// mounts on top of this overlay and registers its OWN dismiss handler, so back /
-// Escape pops one level at a time — sub-page, then hub.
-//
-// The flows that replace the whole screen (backup, restore, delete account, the
-// coach) still close settings first, as they always did: their handlers come in
-// from RunningCoach already wired that way.
+// Settings is a hub: the root is a menu and every control lives on a sub-page. A sub-page
+// mounts on top and registers its OWN dismiss handler, so back/Escape pops one level.
+// Flows that replace the whole screen (backup, restore, delete account, coach) close
+// settings first; RunningCoach wires their handlers that way.
 export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);

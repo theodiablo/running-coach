@@ -1,10 +1,7 @@
-// Pure content builder for the Android lock-screen run notification. The OS
-// renders the ticking duration itself (chronometer anchored to moving time);
-// JS only pushes content when distance/pace/HR changes — nothing here may
-// depend on timers. i18n-free (returns a `titleKey`) so it's unit-testable.
-// Every push also carries a `live` seed, from which the Android foreground
-// service re-renders distance/pace on its own while the WebView is frozen in
-// the background. Details: docs/live-tracking.md.
+// Pure content builder for the Android lock-screen run notification. The OS ticks the
+// duration itself (chronometer), so nothing here may depend on timers; JS pushes only on
+// distance/pace/HR change. i18n-free (`titleKey`). Each push carries a `live` seed the
+// service re-renders from while the WebView is frozen (docs/live-tracking.md).
 
 import { fmt } from "./format";
 
@@ -23,28 +20,20 @@ export type RunNotificationInput = {
   movingMs: number;
   /** Wall clock now (ms) — passed in so the builder stays pure. */
   nowMs: number;
-  /**
-   * Guided-workout step ("Rep 3/6 · 800 m · 4:35/km"), pre-localized. iOS only:
+  /** Guided-workout step ("Rep 3/6 · 800 m · 4:35/km"), pre-localized. iOS only:
    * Android has the WorkoutGuide plugin's own notification, and a step suffix
-   * would flicker away when the service rebuilds `message` natively.
-   */
+   * would flicker away when the service rebuilds `message` natively. */
   stepText?: string | null;
 };
 
-/**
- * The seed the Android service re-renders from while JS is frozen: it adds each
- * later fix's distance on top of `km`, using the tracker's own filters, so the
- * two ends can't disagree (docs/live-tracking.md). Not display state —
- * `sameNotificationContent` ignores it.
- */
+/** The seed the Android service re-renders from while JS is frozen: it adds each
+ * later fix's distance on top of `km` with the tracker's own filters
+ * (docs/live-tracking.md). Not display state: `sameNotificationContent` ignores it. */
 export type RunNotificationLive = {
   km: number;
-  /**
-   * Folded natively exactly like `km` — the service adds each later fix's gain
-   * on top, on the same hysteresis band as elevGainM — so the live-share
-   * watcher's elevation keeps advancing with the screen off instead of freezing
-   * at the last foreground push.
-   */
+  /** Folded natively exactly like `km`: the service adds each later fix's gain on
+   * the same hysteresis band as elevGainM, so live-share elevation keeps advancing
+   * with the screen off. */
   elevM: number;
   paceSecPerKm: number;
   hr: number | null;
@@ -57,11 +46,8 @@ export type RunNotificationContent = {
   message: string;
   /** Guided-workout step line (iOS Live Activity); absent when unguided. */
   step?: string;
-  /**
-   * Chronometer anchor: the OS renders elapsed = now - chronometerStartMs.
-   * Anchored to now - movingMs so the displayed clock is MOVING time (pauses
-   * excluded), matching the in-app clock. Null while paused → static display.
-   */
+  /** Chronometer anchor (elapsed = now - chronometerStartMs), set to now - movingMs
+   * so the clock shows MOVING time, matching the in-app clock. Null while paused. */
   chronometerStartMs: number | null;
   live: RunNotificationLive;
 };
@@ -104,18 +90,10 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
   };
 }
 
-// Change gate: true when posting `next` would not visibly change the
-// notification, so the caller can skip the native call. Text must match
-// exactly; the chronometer anchor tolerates rounding jitter (above). The `live`
-// seed is deliberately not compared — identical text means identical numbers
-// (km is in the text to 2dp), so a skipped push can't leave the km/pace seed
-// stale. Elevation isn't in the text and doesn't need to be: like distance it
-// is a BASE the service accumulates on top of from the same fixes, so a skipped
-// push costs nothing — only a push actually sent re-bases it. HR is the one exception: the native renderer ages an unrefreshed HR
-// reading out on a wall-clock timer independent of the text, so identical text
-// does NOT prove the HR seed is still fresh there — hence the periodic push in
-// liveNotification.ts, behind the native beat relay that carries HR while this
-// JS is frozen.
+// Change gate: true when posting `next` would not visibly change the notification.
+// Text must match exactly; the chronometer anchor tolerates rounding jitter. The `live`
+// seed is not compared (identical text means identical km/pace; elevation is a base the
+// service accumulates). HR is the exception: native ages it out on a timer (liveNotification.ts).
 export function sameNotificationContent(
   prev: RunNotificationContent | null | undefined,
   next: RunNotificationContent,

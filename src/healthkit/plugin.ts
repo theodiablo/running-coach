@@ -1,10 +1,7 @@
 import { registerPlugin } from "@capacitor/core";
 
-// Raw shape returned by the local HealthKitBridge plugin's readWorkouts
-// (ios/App/App/HealthKitBridgePlugin.swift). Everything is left raw (metres,
-// seconds, activity-type raw values, ISO strings) so that all interpretation
-// lives in the pure, unit-tested mapping layer (mapping.ts) — the same doctrine
-// as WatchSessionRaw (src/watch/plugin.ts).
+// Raw shape returned by the local HealthKitBridge plugin's readWorkouts (HealthKitBridgePlugin.swift). Left raw (metres,
+// seconds, ISO strings) so all interpretation lives in the tested mapping.ts, as with WatchSessionRaw (src/watch/plugin.ts).
 export type HkWorkoutRaw = {
   id: string;               // HKWorkout UUID string — globally unique per workout
   sourceBundleId?: string;  // writing app's bundle id, e.g. com.garmin.connect.mobile

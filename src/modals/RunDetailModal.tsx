@@ -54,8 +54,8 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
   // multi-hour run has thousands of each.
   const derived = useMemo(() => {
     const points = (route?.points ?? []) as unknown as TrackPointOrGap[];
-    const stored = route?.stats?.hrSamples as HrSample[] | undefined;
-    const hrSamples = stored?.length ? expandHrSamples(stored) : null;
+    const expanded = expandHrSamples(route?.stats?.hrSamples as HrSample[] | undefined);
+    const hrSamples = expanded.length ? expanded : null;
     const series = points.length ? buildRunSeries(points, hrSamples) : [];
     return {
       hasPoints: points.length > 0,
@@ -254,12 +254,9 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
           </div>
         )}
 
-        {/* Resolved but no map to show: a GPS route that came back empty (Stop
-            tapped before any fix, or a failed fetch), or a run with no trace at
-            all. Suppressed for an HR-only import (run.hrRouteId) — it never had a
-            route, so "route unavailable" would be misleading; its tiles (and zone
-            card when the HR loads) are the content, and a failed HR fetch just
-            means no zone card, not an error. */}
+        {/* Resolved but no map: an empty GPS route or no trace at all. Suppressed for
+            an HR-only import (run.hrRouteId), which never had a route; a failed HR
+            fetch there just means no zone card, not an error. */}
         {route !== undefined && !hasPoints && !hasHr && !run.hrRouteId && (
           <p className="text-slate-500 text-sm text-center">
             {t(hasGpsTrace ? "progress.history.routeUnavailable" : "progress.detail.noRoute")}

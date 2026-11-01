@@ -1,11 +1,7 @@
-// Lock-screen live run stats — one JS contract, two native backends (Android
-// foreground-service notification, iOS Live Activity). No-op on web,
-// best-effort (a display failure must never affect recording). A push is a
-// SEED, not the only update: Android's WebView is frozen while the app is
-// backgrounded, so the foreground service keeps re-rendering distance/pace from
-// the last seed until JS runs again. Calls are
-// serialized (queued, end ordered after in-flight) to avoid a paused/ended
-// run resurrecting a stale native display. Details: docs/live-tracking.md.
+// Lock-screen live run stats: one JS contract, two native backends (Android service
+// notification, iOS Live Activity). No-op on web, best-effort (never affects recording).
+// A push is a SEED the service re-renders from while the WebView is frozen. Calls are
+// serialized (end after in-flight) so a stale display can't resurrect: docs/live-tracking.md.
 
 import { registerPlugin } from "@capacitor/core";
 import { isAndroid, isIos } from "../native";
@@ -42,15 +38,10 @@ const LiveActivity = registerPlugin<{
 }>("LiveActivity");
 
 const INFLIGHT_STALE_MS = 10000;
-// The patched Android plugin drops a live HR reading it hasn't seen refreshed
-// in LIVE_HR_STALE_MS (90s, BackgroundGeolocation.java). A BLE strap refreshes
-// it natively now — the patched bluetooth-le plugin relays every beat straight
-// from its GATT callback, which is what actually keeps HR on the lock screen
-// once this JS is frozen. This keep-alive is the fallback for anything the
-// relay doesn't cover: it forces a push at a shorter interval whenever HR is
-// live, so the dedupe below (text-identity, correct for km/pace — see
-// sameNotificationContent) can't let the seed age HR out on its own. A push
-// never overwrites a fresher relayed beat; the native side compares timestamps.
+// The patched Android plugin drops a live HR reading not refreshed in LIVE_HR_STALE_MS
+// (90s). The bluetooth-le relay refreshes it natively; this keep-alive is the fallback,
+// forcing a push at a shorter interval while HR is live so the text-identity dedupe
+// can't age it out. A push never overwrites a fresher relayed beat.
 const HR_KEEPALIVE_MS = 60000;
 
 let lastSent: RunNotificationContent | null = null;
@@ -129,17 +120,9 @@ function runEnd(): void {
     .finally(() => { if (gen === generation) { inflight = false; drain(); } });
 }
 
-/**
- * Push run stats to the platform's lock-screen surface. Serialized behind any
- * in-flight native call (latest content wins), deduped against the last
- * content the native side CONFIRMED (`updated: true`) — so a push that raced
- * ahead of the watcher/service (Android) or was refused (iOS) is retried on
- * the next call instead of being silently lost. Fire-and-forget; never throws.
- * On Android, a text-identical push still goes through every HR_KEEPALIVE_MS
- * while HR is live (`alreadyApplied`) — otherwise a run holding steady km/pace
- * with a live sensor could dedupe every push away, and the seed the service
- * extrapolates from would silently age out from under it.
- */
+/** Push run stats to the lock-screen surface: serialized, deduped against content the
+ * native side CONFIRMED (so a refused push retries); Android re-pushes identical text
+ * every HR_KEEPALIVE_MS while HR is live. Never throws. */
 export function pushRunNotification(content: RunNotificationContent): void {
   if (!isAndroid && !isIos) return;
   if (inflightFresh()) {
@@ -150,11 +133,8 @@ export function pushRunNotification(content: RunNotificationContent): void {
   sendNow(content);
 }
 
-/**
- * Run over — forget the dedupe state and tear down the iOS Live Activity.
- * Ordered AFTER any in-flight push so a push settling late can't resurrect
- * the activity for a run that already ended.
- */
+/** Run over: forget the dedupe state and end the iOS Live Activity. Ordered AFTER
+ * any in-flight push so a late-settling push can't resurrect it. */
 export function resetRunNotification(): void {
   lastSent = null;
   lastApplied = false;

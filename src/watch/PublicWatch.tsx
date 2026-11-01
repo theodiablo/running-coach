@@ -1,15 +1,7 @@
-// The public /watch/:token page — the one surface in this app that strangers
-// see, and the only one that renders without an account.
-//
-// It is a standalone leaf on purpose. It never imports src/supabase.ts, never
-// reads the auth session, never touches the store: the share token IS the
-// authorization (src/live/shareLink.ts), so a signed-in visitor gets exactly
-// what a signed-out one gets. Keeping the two orthogonal is what stops this
-// page from dragging in the whole app-boot path — see main.tsx, which branches
-// to it BEFORE <App/> mounts, so none of App's auth/store effects ever run.
-//
-// It deliberately reveals nothing about the runner: no name, no avatar, no
-// account hint. The edge function doesn't even return the user id.
+// The public /watch/:token page: the one surface strangers see, rendering without an
+// account. A standalone leaf: never imports src/supabase.ts, reads auth or touches the
+// store; the share token IS the authorization (src/live/shareLink.ts). main.tsx branches
+// here BEFORE <App/> mounts. Reveals nothing about the runner (no name, avatar, user id).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -41,12 +33,9 @@ function useWatchedRun(token: string) {
   const [settled, setSettled] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
   const aliveRef = useRef(true);
-  // The last snapshot whose status was an explicit "ended" — the Stop write,
-  // which carries the whole trace. Once the row is then swept (Save/Discard
-  // deletes it), the page keeps showing this instead of dropping to "nothing
-  // live": a spectator who watched the run deserves the finished route. Latched
-  // ONLY on a seen "ended", never on a mere live→gone transition, so revoking
-  // the link mid-run still takes an open page dark.
+  // The last snapshot with an explicit "ended" status (the Stop write, carrying the whole
+  // trace). When the row is then swept, keep showing it instead of "nothing live". Latched
+  // ONLY on a seen "ended", never a live->gone transition, so revoking mid-run goes dark.
   const endedRef = useRef<PublicLiveRun | null>(null);
 
   // Returns how long to wait before the next read — or null to stop reading
@@ -71,11 +60,9 @@ function useWatchedRun(token: string) {
       return LIVE_POLL_MS;
     }
     if (endedRef.current) {
-      // The row is gone and we saw it end: hold the finished run on screen
-      // rather than blinking to "nothing live". Keep reading at the idle
-      // cadence, though — the link is the RUNNER's, not this run's, so the
-      // same address lights up again the next time they go out, and a page
-      // left open must not sit on a finished run forever.
+      // Row gone after we saw it end: hold the finished run on screen, but keep polling at the
+      // idle cadence. The link is the RUNNER's, so it lights up again next run, and a page left
+      // open must not sit on a finished run forever.
       setRun(endedRef.current);
       return IDLE_POLL_MS;
     }
@@ -94,11 +81,9 @@ function useWatchedRun(token: string) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
-    // Latched only if a load says to stop for good. Nothing does today: a
-    // finished run keeps polling at the idle cadence because the address is
-    // durable (see load()). Kept as the one way to end the chain, and it
-    // survives visibility flips, which would otherwise restart it on every
-    // return to the tab.
+    // Latched only if a load says to stop for good (none does today: the address is durable,
+    // see load()). The one way to end the chain, and it survives visibility flips, which
+    // would otherwise restart it.
     let done = false;
     const tick = async () => {
       if (stopped || done || document.visibilityState !== "visible") return;

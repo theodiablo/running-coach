@@ -7,14 +7,9 @@ import {
 import type { ImportProvider } from "../types";
 import type { Run } from "../../types";
 
-// The one Apple Health integration — the iOS face of the same brand-agnostic
-// "your watch" idea as healthConnectProvider: every watch app that writes
-// workouts into Apple Health (Apple Watch natively, Garmin Connect, Polar
-// Flow…) surfaces through this single provider; the per-run note says which
-// app it came from (hkImportedNote). The native data source stays in
-// src/healthkit/ (plugin bridge, mapping, guards) — this is just its
-// ImportProvider face. Both health-store providers share the synced
-// settings.watchImport preference (see healthStoreProviderIds).
+// The one Apple Health integration, the iOS face of healthConnectProvider: every watch app writing to
+// Apple Health surfaces through it (the run note names the app, hkImportedNote). Native source stays in
+// src/healthkit/; both health-store providers share settings.watchImport (healthStoreProviderIds).
 export const healthKitProvider: ImportProvider = {
   id: "healthkit",
   label: "Your watch (Apple Health)",
@@ -23,11 +18,8 @@ export const healthKitProvider: ImportProvider = {
   isAvailable: () => isIos, // HealthKit is iOS-only; Android gets the Health Connect provider
   isConnected: () => hasHealthKitAuthorization(),
   connect: () => requestHealthKitPermissions(),
-  // No disconnect: the auth marker is SHARED with post-run HR (one HealthKit
-  // sheet grants both scopes), so clearing it here would silently break a
-  // configured hrMethod:"healthkit". "Turn off" already flips the watchImport
-  // preference, which is what gates scanning; real revocation lives in the
-  // Health app (Sharing → Apps), which HealthKit doesn't let us probe or open.
+  // No disconnect: the auth marker is SHARED with post-run HR, so clearing it would break a configured
+  // hrMethod:"healthkit". "Turn off" flips watchImport, which gates scanning; revocation lives in the Health app.
   scan: (runs: Run[], opts?: { days?: number; now?: number }) =>
     scanHealthKitWorkouts(runs, {
       enabled: true, // the synced preference gate is applied by the caller (registry `enabled` predicate)

@@ -1,11 +1,7 @@
-// Goal-time helpers: derive a sensible pace band, suggested goal, and clamping
-// for the plan-setup goal slider. The band scales with race distance so the
-// slider only ever offers realistic finish times — no 6h option for a 10k.
-//
-// Anchors are pace bounds (seconds per km) at a few reference distances, chosen
-// to cover roughly the fastest/slowest 95% of race finishers (short races skew
-// faster on both ends, long races slower). Distances between anchors are
-// linearly interpolated; outside the range we clamp to the nearest anchor.
+// Goal-time helpers: a pace band, suggested goal and clamping for the plan-setup slider,
+// scaled with race distance so only realistic finish times are offered. Anchors are pace
+// bounds (s/km) at reference distances covering roughly the fastest/slowest 95% of
+// finishers; between anchors linearly interpolated, outside clamped to the nearest.
 const ANCHORS = [
   {d: 5,       fast: 180, slow: 480}, // 5K     · 3:00 – 8:00 /km
   {d: 10,      fast: 195, slow: 510}, // 10K    · 3:15 – 8:30 /km

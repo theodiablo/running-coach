@@ -1,10 +1,7 @@
-// Watch a run that is happening right now, from another of the runner's own
-// signed-in sessions. Read-only: everything here comes from the `live_runs` row
-// that the recording phone upserts (see src/live/publisher.ts).
-//
-// The display itself — map, stats, and the deliberately careful staleness copy
-// — is LiveWatchView, shared with the public /watch/:token page. This file is
-// only the modal chrome around it.
+// Watch a run happening now from another of the runner's own signed-in sessions. Read-only:
+// everything comes from the `live_runs` row the recording phone upserts
+// (src/live/publisher.ts). The display is LiveWatchView, shared with the public /watch/:token
+// page; this file is only the modal chrome.
 
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,11 +22,9 @@ export function LiveWatchModal({ row, onClose }: LiveWatchModalProps) {
   // Stable identity so reporting the status can't loop the effect that reports it.
   const onStatus = useCallback((s: LiveWatchStatus) => setStatus(s), []);
 
-  // Hold the Stop snapshot (status "ended", full trace) so the row's deletion a
-  // moment later — the runner saving the run — doesn't blank an open modal into
-  // an empty map. Only an explicit "ended" is held: a row that vanishes while
-  // live was swept as leftover, and keeping it would be a guess. Render-time
-  // reconcile, per the derived-state convention (no setState in effects).
+  // Hold the Stop snapshot ("ended", full trace) so the row's deletion a moment later doesn't
+  // blank an open modal. Only an explicit "ended" is held: a row that vanishes while live was
+  // swept, and keeping it would be a guess. Render-time reconcile (no setState in effects).
   const [prevRow, setPrevRow] = useState<LiveRunRow | null>(row);
   const [held, setHeld] = useState<LiveRunRow | null>(row?.status === "ended" ? row : null);
   if (row !== prevRow) {

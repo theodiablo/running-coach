@@ -1,11 +1,7 @@
-// Training-plan methodology styles: app-side catalogue and helpers.
-//
-// The PACE multipliers live with the edge function in
-// supabase/functions/_shared/coach/styles.mjs (single source of truth shared
-// with the coach agent, same dual-import pattern as coachValidation.ts) and
-// are re-exported here. Everything else — plan-shape parameters, the style
-// picker metadata, the profile-based recommendation — is app-only, because the
-// coach never rebuilds weeks.
+// Training-plan styles, app side. PACE multipliers live in
+// supabase/functions/_shared/coach/styles.mjs (shared with the coach agent, like
+// coachValidation.ts) and are re-exported here. Everything else (plan shape, picker
+// metadata, recommendation) is app-only: the coach never rebuilds weeks.
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedStyles from "../../supabase/functions/_shared/coach/styles.mjs";
 import { t } from "../i18n";
@@ -26,12 +22,9 @@ const styles = sharedStyles as StylesExports;
 
 export const { DEFAULT_STYLE, STYLE_PACING, stylePacing, styleNotes } = styles;
 
-// The APP-side list of usable styles, deliberately NOT re-exported from
-// styles.mjs: buildPlan and StylePicker index STYLE_SHAPE / styleMeta /
-// COMPOSERS, which are all Record<StyleId, …> — complete by type. Keying off
-// the shared list instead would let a style added server-side first pass
-// isStyleId and then crash the app-side lookups; this way such a style simply
-// isn't offered/built until the app maps ship, and unknown ids keep degrading
+// The APP-side list of usable styles, deliberately NOT re-exported from styles.mjs:
+// STYLE_SHAPE / styleMeta / COMPOSERS are Record<StyleId, ...>, so a style added
+// server-side first would pass isStyleId and crash those lookups. Unknown ids degrade
 // to balanced everywhere.
 export const STYLE_IDS: StyleId[] = ["balanced", "polarized", "runwalk", "lowfreq", "hansons"];
 
@@ -88,14 +81,10 @@ export const STYLE_SHAPE: Record<StyleId, StyleShape> = {
   },
 };
 
-// ── Hard-day placement ──────────────────────────────────────────────────────
-// Pick up to `count` quality days for hard sessions, keeping every hard day
-// (the long run included) at least 2 calendar days from the others so the
-// validator's no-hard-back-to-back rule holds by construction — including
-// across the week wrap (Sun long → Mon quality), hence circular distance.
-// Greedy: repeatedly take the candidate with the largest minimum circular gap
-// to the hard days chosen so far. May return fewer than `count` when the
-// configured days are too dense; the leftover days simply stay easy.
+// ── Hard-day placement ──
+// Pick up to `count` quality days, keeping every hard day (long run included) >=2 calendar
+// days apart, circularly (Sun long -> Mon quality), so the no-hard-back-to-back rule holds.
+// Greedy on the largest minimum circular gap; may return fewer when days are too dense.
 const circGap = (a: number, b: number) => {
   const d = Math.abs(a - b) % 7;
   return Math.min(d, 7 - d);
@@ -120,12 +109,10 @@ export function pickHardDays(qualityDays: number[], longDay: number, count: numb
   return picked;
 }
 
-// ── Self-reported training level ────────────────────────────────────────────
-// Onboarding's one-question fitness signal ("How much do you run right now?").
-// It substitutes for run history where none exists yet: recommendStyle uses it
-// to unlock the volume-gated styles for experienced runners new to the APP,
-// and buildPlan uses startLongKm as a fitness-aware starting long run the same
-// way a recent logged long run would be. Real logged runs always win over it.
+// ── Self-reported training level ──
+// Onboarding's fitness answer stands in for run history: recommendStyle unlocks
+// volume-gated styles for experienced new users, and buildPlan uses startLongKm as the
+// starting long run. Real logged runs always win.
 export type TrainingLevel = "none" | "occasional" | "regular" | "frequent";
 
 const TRAINING_LEVEL_IDS: TrainingLevel[] = ["none", "occasional", "regular", "frequent"];
@@ -165,13 +152,10 @@ export const levelEasyKm = (level: unknown): number => {
   return Math.max(...upTo.map(rawLevelEasyKm));
 };
 
-// ── Suggested training days/durations ───────────────────────────────────────
-// A sensible days-and-minutes layout for the race distance and self-reported
-// level, so a user with no preference never has to assemble the week by hand.
-// Invariants: minutes come from SessionConfigurator's fixed option set; the
-// Sunday session is strictly the longest (buildPlan makes the longest day the
-// long run); quality candidates sit ≥2 days from Sunday so every style's
-// pickHardDays placement works without demotions.
+// ── Suggested training days/durations ──
+// A days-and-minutes layout for the race distance and level. Minutes come from
+// SessionConfigurator's option set; Sunday is strictly longest (buildPlan's long run);
+// quality candidates sit >=2 days from Sunday so pickHardDays needs no demotions.
 export function suggestPlanSessions(distanceKm: number | string, level?: unknown): PlanSessionInput[] {
   const d = Number(distanceKm) || 5;
   const lvl: TrainingLevel = isTrainingLevel(level) ? level : "occasional";

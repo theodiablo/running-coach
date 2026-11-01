@@ -2,12 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { LIVE_PUBLISHED_KEY, LIVE_PUBLISH_TOKEN_KEY, LIVE_RUN_KEY, LIVE_SHARE_KEY, LIVE_SHARE_LINK_KEY, RESUME_MAX_AGE_MS } from "../constants";
 
-// The publisher's job is deciding WHEN to hit the network and WITH WHICH verb: a
-// run publishes off GPS fixes (never a timer), at most every 30s, with status
-// transitions jumping the queue — and it opens a broadcast with an INSERT but
-// continues it with an UPDATE, because only the former is premium-gated. These
-// tests drive those decisions directly against a mocked Supabase client, so no
-// network and no real clock is involved.
+// The publisher decides WHEN to hit the network and WITH WHICH verb: publish off GPS fixes
+// (never a timer), at most every 30s, status transitions jumping the queue; INSERT opens a
+// broadcast and UPDATE continues it, since only INSERT is premium-gated. Driven against a
+// mocked Supabase client.
 
 const h = vi.hoisted(() => {
   // `message` matters as well as `code`: two different constraints both surface

@@ -7,11 +7,9 @@ import { useDismissable } from "../hooks/useDismissable";
 type InfoButtonProps = { title: string; label?: string; children: ReactNode };
 type InfoSectionProps = { title: string; accent?: string; children: ReactNode };
 
-// A small "ⓘ info" label that opens an explanatory modal. The modal chrome
-// (overlay, header, scroll, close) lives here; callers pass a title and the
-// explanation as children, so the same affordance reads consistently across
-// the Plan and Stats views. A single centred card scrolls internally — no
-// full-screen takeover, no double scrollbar.
+// A small "ⓘ info" label that opens an explanatory modal. Chrome (overlay, header, scroll,
+// close) lives here; callers pass a title and children. One centred card scrolls internally,
+// no full-screen takeover.
 export function InfoButton({title, label = "info", children}: InfoButtonProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);

@@ -131,11 +131,9 @@ describe("PublicWatch", () => {
   });
 
   it("keeps the finished route after the row is swept, and keeps watching", async () => {
-    // Stop publishes status "ended" with the whole trace; Save then deletes the
-    // row. A spectator who watched the run keeps the finished route rather than
-    // blinking to "nothing live" — and because the link is the RUNNER's rather
-    // than this run's, the page goes on reading at the idle cadence instead of
-    // stopping for good.
+    // Stop publishes "ended" with the whole trace; Save then deletes the row. A spectator keeps the finished
+    // route instead of blinking to "nothing live", and since the link is the RUNNER's the page keeps reading
+    // at the idle cadence.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     fetchLiveWatch.mockResolvedValueOnce({ kind: "live", run: run() });
     render(<PublicWatch token={TOKEN} />);

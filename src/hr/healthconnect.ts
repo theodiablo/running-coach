@@ -26,12 +26,9 @@ function setHealthConnectAuthorization(ok: boolean) {
 }
 
 // Post-run HR from Android Health Connect, for users without a live BLE sensor.
-// Implements PostRunHrSource; LiveRunTracker calls fetchRange once on save with
-// a deferred retry (flushPendingHr) since the watch may not have synced yet.
-// Provider choice and the Cap-7/Cap-8 peer-dependency trade-off: docs/health-integrations.md.
-//
-// Loaded lazily so merely rendering the app can't touch the native bridge —
-// some devices are sensitive to the Cap-7 plugin under Cap-8.
+// Implements PostRunHrSource; LiveRunTracker calls fetchRange once on save with a
+// deferred retry (flushPendingHr). Cap-7/Cap-8 trade-off: docs/health-integrations.md.
+// Loaded lazily so rendering the app never touches the native bridge.
 async function getHealthConnect(): Promise<{ plugin: HealthConnectPlugin }> {
   const mod = await import("@pianissimoproject/capacitor-health-connect");
   return { plugin: mod.HealthConnect as unknown as HealthConnectPlugin };
@@ -64,17 +61,10 @@ export const healthConnectSource = {
     } catch { setHealthConnectAuthorization(false); return false; }
   },
 
-  // Non-prompting check of whether heart-rate read is already granted — used to
-  // show connection status in Settings without popping the OS dialog.
-  //
-  // The availability gate is not an optimization, it is the crash guard: the
-  // plugin runs this method inside a coroutine with no catch, and its lazily
-  // built HealthConnectClient throws whenever Health Connect is missing — an
-  // uncaught coroutine exception, which kills the process instead of rejecting
-  // the promise the `catch` below is waiting on. Health Connect is a separate,
-  // usually absent app on Android 13 and below, so opening Settings →
-  // Integrations closed the app outright on those devices. The plugin is
-  // patched to reject instead (patches/), but never reach it unguarded either.
+  // Non-prompting check of whether HR read is already granted (Settings status). The
+  // availability gate is the crash guard: the plugin's coroutine has no catch and
+  // HealthConnectClient throws when Health Connect is missing, killing the process.
+  // The plugin is patched (patches/) to reject, but never reach it unguarded either.
   async checkPermissions() {
     try {
       if (!(await isAvailable())) { setHealthConnectAuthorization(false); return false; }

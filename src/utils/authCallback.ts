@@ -1,20 +1,9 @@
 import { CLOUD_OAUTH, cloudOauthProviderIds, type CloudOauthProviderId } from "../cloudOauthPreinit";
 
-// Pure classification of a native deep-link URL (appUrlOpen / getLaunchUrl) so
-// App.tsx's handler is a plain switch and the rules are testable without
-// mounting App. Priority order, and why it is that order: a cloud-provider
-// OAuth return first (its ?code= is NOT a Supabase code and must never reach
-// exchangeCodeForSession), then a provider error, then a password-recovery
-// link, then an email-change OTP (?token_hash=&type=, which needs verifyOtp —
-// PKCE does not cover those links), then GoTrue's bare ?message= notice
-// (unclassified, that tap is a silent no-op), then the Supabase PKCE ?code=.
-// See CLAUDE.md "Auth callbacks".
-//
-// Recovery outranks `code`: our own template sends ?token_hash=&type=recovery,
-// but GoTrue's stock one redirects through /verify and can land as a bare
-// ?code=&type=recovery — which the code branch would exchange into an ordinary
-// sign-in, dropping the user into the app with the password they can't
-// remember and no way to set a new one.
+// Pure classification of a native deep-link URL so App.tsx's handler is a plain switch. Priority: cloud-provider OAuth return
+// (its ?code= is NOT a Supabase code, never exchangeCodeForSession), provider error, password recovery, email-change OTP
+// (?token_hash=&type=, needs verifyOtp), bare ?message= notice, then PKCE ?code=. See CLAUDE.md "Auth callbacks".
+// Recovery outranks `code`: GoTrue's stock link can land as ?code=&type=recovery, which exchanged as a sign-in leaves no way to set a password.
 export type RecoveryTokens = { accessToken: string; refreshToken: string };
 
 export type AuthCallback =
@@ -73,13 +62,10 @@ export function classifyAuthUrl(url: string): AuthCallback {
   return { kind: "none" };
 }
 
-// What to tell the user after they open an email-change confirmation link. The
-// redirect can't answer that — the link is opened in the new address's inbox,
-// often on another device, where the ?code= is unexchangeable even though the
-// change landed. Decided instead from the re-read account (`user`, null when the
-// server was unreachable) against `pendingBefore`: user.new_email as it was
-// BEFORE the link was opened, the only thing separating "the change just
-// completed" from "that link was never valid".
+// What to tell the user after an email-change confirmation link. The redirect can't answer (it opens in the new inbox,
+// often on another device, where ?code= is unexchangeable though the change landed), so decide from the re-read account
+// (`user`, null when unreachable) against `pendingBefore` (user.new_email before the link): the only thing separating
+// "the change just completed" from "that link was never valid".
 export type AuthNoticeSpec = { key: string; type: "ok" | "err"; vars?: Record<string, string> };
 
 export function emailChangeOutcome(

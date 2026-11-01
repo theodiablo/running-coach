@@ -7,12 +7,10 @@ import type { Run } from "../types";
 // (which now also carries the raw HR stream as `stats.hrSamples` for BLE runs).
 export type RouteData = { points: (TrackPoint | null)[]; stats?: Record<string, unknown> } | null | undefined;
 
-// Lazily load a run's saved GPS trace (kept out of the synced runs blob). A synced
-// run fetches from Supabase by `routeId`; one still pending upload reads straight
-// from the offline queue so it's viewable before it syncs. `undefined` = loading,
-// `null` = unavailable. Shared by History's map loader and RunDetailModal so the
-// two never drift. `withStats` fetches the `stats` sidecar (incl. the raw HR
-// stream) — the map-only preview leaves it false to skip that payload.
+// Lazily load a run's saved GPS trace (kept out of the synced runs blob): from Supabase by
+// `routeId`, or from the offline queue while pending upload. `undefined` = loading,
+// `null` = unavailable. `withStats` also fetches the `stats` sidecar (incl. raw HR);
+// the map-only preview leaves it false.
 export function useRouteTrace(run: Run, opts?: { withStats?: boolean }): { route: RouteData } {
   const withStats = opts?.withStats ?? false;
   // A GPS trace lives on routeId; an HR-only sidecar (no GPS) on hrRouteId. Both

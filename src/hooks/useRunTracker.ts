@@ -19,13 +19,9 @@ import { currentUserId } from "../db";
 import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
 
-// Live GPS run tracker. All geolocation access is funnelled through this one hook
-// so a Phase-2 native shell can swap watchPosition for a background-location
-// plugin behind the same interface without touching any UI.
-//
-// A point is [lat, lng, tEpochMs, altMeters|null]; a `null` entry marks a gap
-// where GPS was lost (signal/background) so the route isn't bridged with a
-// straight line.
+// Live GPS run tracker. All geolocation goes through this hook so a native shell can swap
+// the watch behind the same interface. A point is [lat, lng, tEpochMs, altMeters|null];
+// a `null` entry marks a GPS gap so the route isn't bridged with a straight line.
 
 const ACC_MAX_M = 25;        // drop fixes worse than this (tighter = cleaner track)
 const ACC_WARMUP_M = 20;     // require a fix at least this good before the FIRST point —
@@ -45,12 +41,9 @@ const TICK_MS = 1000;         // UI clock refresh while tracking
 const BUFFER_TICK_MS = 10000; // foreground floor for refreshing the recovery buffer
 const CUR_PACE_WINDOW_MS = 30000; // current-pace look-back
 
-// Permission-denied copy, shared by onErr and requestPermissions so the native
-// and web wording can't drift between the two. isNative is fixed at module load;
-// the message is resolved via t() at call time so a runtime language switch applies.
-// Covers both causes ensureForegroundPermission can now fail for — the OS
-// permission was declined, OR the device's Location Services are switched off —
-// since from here we can't always tell which one it was.
+// Permission-denied copy shared by onErr and requestPermissions so wording can't drift.
+// Resolved via t() at call time (runtime language switch). Covers both causes: OS
+// permission declined OR Location Services off, which we can't always tell apart.
 const permissionDeniedMsg = () => isNative
   ? t("tracker.errors.permissionDeniedNative")
   : t("tracker.errors.permissionDeniedWeb");
@@ -87,13 +80,10 @@ type UseRunTrackerOptions = {
   hrMethod?: string;
   // Guided-workout step line for the lock-screen surfaces (null = unguided).
   stepText?: string | null;
-  // Indoor/static cardio session (stationary bike, elliptical): record time and
-  // heart rate with NO geolocation at all — see docs/indoor-sessions.md. Turns
-  // off the position watch, the idle position preview, the Android fix journal
-  // and the lock-screen notification (which the location foreground service
-  // renders), and moves the recovery buffer to its own key. The clock, the wake
-  // lock and the live HR watch are untouched, and with a live strap the session
-  // runs its own foreground service instead (src/indoor/session.ts).
+  // Indoor/static cardio (docs/indoor-sessions.md): no geolocation at all. Turns off the
+  // position watch, idle preview, Android fix journal and lock-screen notification, and
+  // moves the recovery buffer to its own key. Clock, wake lock and live HR watch are
+  // untouched; with a strap the session runs its own service (src/indoor/session.ts).
   indoor?: boolean;
 };
 
@@ -230,14 +220,10 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     persist();
   }, [persist]);
 
-  // ── live heart-rate callback ─────────────────────────────────────────────
-  // Append a sample only while actively tracking (mirrors onPos ignoring fixes
-  // when paused) so a paused breather doesn't drag the average down — the live
-  // BPM readout above is fed by `hrLast` in every state instead, including the
-  // idle preview. The state update always happens, but persisting the
-  // whole recovery buffer is throttled to MIN_HR_PERSIST_MS — a strap notifies
-  // at sensor rate (~1/s), and GPS fixes already keep the buffer fresh every
-  // ~2s via onPos's own persist() while a run is actually moving.
+  // ── live heart-rate callback ──
+  // Append a sample only while tracking (like onPos ignoring fixes when paused) so a pause
+  // doesn't drag the average down; the live readout uses `hrLast` in every state. State
+  // always updates, but persisting the recovery buffer is throttled to MIN_HR_PERSIST_MS.
   const onHrSample = useCallback((sample: BleHrSample) => {
     setHrLast(sample); // display-only, so it also lands during the idle preview
     if (stateRef.current !== "tracking") return;
@@ -274,11 +260,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     setHrStatus(null);
   }, []);
 
-  // Fire-and-forget: a bridge round-trip must never sit in front of Start. Gated
-  // like logTrack itself, or every Android install pays two IPC round-trips per
-  // Start and per backgrounding for a row that is then discarded. `t` is the
-  // moment asked about: backgrounded, the reply may not run until the next
-  // foreground.
+  // Fire-and-forget: a bridge round-trip must never sit in front of Start. Gated like
+  // logTrack itself to avoid IPC per Start/backgrounding. `t` is the moment asked about;
+  // backgrounded, the reply may not run until the next foreground.
   const logPower = useCallback(() => {
     if (!isGeoDebugEnabled()) return;
     const at = Date.now();
@@ -356,11 +340,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     logPower();
     setMovingSec(0);
     startHrWatch();
-    // Journal natively only when a live sensor is actually streaming — the
-    // journal exists to cover the stretches where this JS isn't running. With no
-    // live watch there is still a file to clear: a previous BLE run killed before
-    // it saved leaves its beats on disk, and they must never surface as this
-    // run's heart rate.
+    // Journal natively only when a live sensor is streaming (it covers stretches where JS
+    // isn't running). Otherwise still clear the file: a BLE run killed before saving leaves
+    // beats on disk that must never surface as this run's heart rate.
     if (hrWatchRef.current) resetHrJournal(); else clearHrJournal();
     // An indoor session has no location service to hold the process, so it runs
     // its own — but only with a live strap streaming, which is what makes its
@@ -454,12 +436,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     setPending(prev => {
       const buf = prev;
       if (!buf) return prev;
-      // Break the track between the recovered points and whatever gets recorded
-      // next: an unknown amount of time may have passed since the crash, so the
-      // join is a gap (drawn dashed, not a solid recorded line). Note distanceKm
-      // still bridges it with the straight-line minimum — fine for an in-run
-      // crash, but if the runner travelled by other means before resuming that
-      // leg will be counted; the runner can edit the saved distance if so.
+      // Break the track between recovered points and new ones: unknown time passed, so the join
+      // is a gap (drawn dashed). distanceKm still bridges it with the straight line; the
+      // runner can edit the saved distance if they travelled otherwise.
       const recovered = [...(buf.points || [])];
       if (recovered.length && recovered[recovered.length - 1] != null) recovered.push(null);
       pointsRef.current = recovered;
@@ -497,14 +476,10 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     clearHrJournal();
   }, [clearBuffer, indoor]);
 
-  // ── effects ──────────────────────────────────────────────────────────────
-  // UI clock while actively tracking, which also keeps the recovery buffer from
-  // going stale. A GPS run persists on every accepted fix and a strapped session
-  // every MIN_HR_PERSIST_MS of samples, but a strapless indoor session writes
-  // NOTHING between Start and the next control change or page-hide — so losing
-  // the process in the foreground (a killed WebView renderer fires no
-  // visibilitychange) took the whole clock with it. Foreground-only by nature:
-  // this interval is frozen in the background, where page-hide has already run.
+  // ── effects ──
+  // UI clock while tracking, which also keeps the recovery buffer fresh: a strapless indoor
+  // session writes nothing between Start and the next control change or page-hide, so a
+  // killed renderer (no visibilitychange) would lose the clock. Foreground-only.
   useEffect(() => {
     if (state !== "tracking") return;
     const id = setInterval(() => {
@@ -525,16 +500,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
       const tracking = stateRef.current === "tracking" || stateRef.current === "paused";
       if (document.visibilityState === "visible") {
         if (tracking) logTrack("visible");
-        // Correct the clock NOW rather than waiting for the next tick. The 1s
-        // interval below is a timer, and Chromium throttles timers in a hidden
-        // page — to one wake-up per MINUTE once it has been hidden five minutes.
-        // So on picking the phone up the displayed time could sit unchanged for
-        // up to a minute before the interval next fired, with distance frozen
-        // beside it (a runner standing still produces no accepted fix, so
-        // nothing else re-renders either). Two frozen numbers and a map that
-        // isn't moving read as a dead app — which is precisely what was
-        // reported, right after a 15-minute backgrounded stretch.
-        // computeMoving is wall-clock, so one call is a full correction.
+        // Correct the clock NOW: Chromium throttles hidden-page timers to one wake-up per minute,
+        // so after resuming, time and distance (a still runner emits no fix) would sit frozen
+        // and read as a dead app. computeMoving is wall-clock, so one call is a full correction.
         if (tracking) setMovingSec(computeMoving());
         if (stateRef.current === "tracking") acquireWake();
       } else {
@@ -554,11 +522,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     if (indoor) stopIndoorSessionService();
   }, [stopWatch, stopHrWatch, releaseWake, indoor]);
 
-  // Android: extend a recovered buffer with the native fix journal — the points
-  // the foreground service kept writing to disk after the WebView froze, which
-  // the localStorage buffer (written by JS) can never contain. Runs once on
-  // mount; a resolved offer (pending already null) is never resurrected by the
-  // async read landing late.
+  // Android: extend a recovered buffer with the native fix journal (points written after the
+  // WebView froze, which the localStorage buffer can't hold). Runs once on mount; a resolved
+  // offer (pending already null) is never resurrected by a late read.
   useEffect(() => {
     if (!isAndroid || indoor) return; // an indoor session records no fixes
     const buf = readRecoveryBuffer();
@@ -583,11 +549,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     return () => { cancelled = true; };
   }, [indoor]);
 
-  // Live preview fix while idle so the user can see their position AND its
-  // accuracy (the map draws a circle around it) and calibrate before hitting
-  // Start. Runs only in idle; the cleanup stops it the moment recording begins,
-  // and the last value persists so the map stays pinned through the transition.
-  // Silent on error — recording's own watch surfaces permission issues.
+  // Live preview fix while idle so the map shows position and accuracy before Start.
+  // Idle only; cleanup stops it when recording begins and the last value persists.
+  // Silent on error: recording's own watch surfaces permission issues.
   useEffect(() => {
     if (state !== "idle" || indoor) return;
     if (!trackerGeoSource.isAvailable()) return;
@@ -610,27 +574,18 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     return () => trackerGeoSource.clearWatch(handle);
   }, [state, permGranted, indoor]);
 
-  // Connect a LIVE heart-rate source (Bluetooth strap) as soon as the tracker is
-  // idle — the same "see it before you commit" contract as the position preview
-  // above: the runner can check the strap is picking them up while GPS settles,
-  // and the run then starts on an already-connected sensor instead of waiting
-  // out the connect/subscribe round-trip. No-op for "off"/web/post-run sources
-  // and when nothing is paired (startHrWatch's own guards). Deliberately NOT
-  // torn down on the idle → tracking transition: the watch carries straight into
-  // the run (start's startHrWatch is then a no-op), and stop/reset/unmount own
-  // the teardown. Samples arriving before Start are display-only — onHrSample
-  // records into hrSamples only while tracking.
+  // Connect a LIVE HR source (Bluetooth strap) once idle, like the position preview, so the
+  // run starts on a connected sensor. No-op for off/web/post-run sources or when unpaired.
+  // NOT torn down on idle -> tracking (start's startHrWatch is then a no-op); stop/reset/
+  // unmount own teardown. Pre-Start samples are display-only (onHrSample records only while tracking).
   useEffect(() => {
     if (state === "idle") startHrWatch();
   }, [state, startHrWatch]);
 
-  // ── derived stats ──────────────────────────────────────────────────────────
-  // Split from the HR summary on purpose: a live HR sensor notifies at ~1 Hz,
-  // far more often than GPS fixes land, so keying one memo on both `points` and
-  // `hrSamples` would re-run the O(points) distance/elevation/pace scan below on
-  // every heart-rate sample instead of only when the track actually changes.
-  // Keyed on `points` alone for the same reason: the UI clock bumps movingSec
-  // every second, and only avgPace (one division) actually depends on it.
+  // ── derived stats ──
+  // Split from the HR summary on purpose: HR notifies at ~1 Hz, so one memo keyed on both
+  // `points` and `hrSamples` would re-run the O(points) scan per sample. Keyed on `points`
+  // alone: the 1s clock bumps movingSec, and only avgPace depends on it.
   const track = useMemo(() => {
     const km = distanceKm(points);
     const elevation = Math.round(elevGainM(points));
@@ -655,32 +610,20 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     [track, movingSec],
   );
 
-  // `hr`/`hrAt` are the latest reading and its epoch ms, taken from the sensor
-  // stream (`hrLast`) rather than the recorded samples so they're live before
-  // Start and while paused — the two travel together, since the lock-screen
-  // notification's native renderer drops an HR reading it can no longer trust by
-  // its timestamp. `hrLast` falls back to the last recorded sample for a
-  // recovered run, whose samples predate this session's stream. hrAvg/hrMax stay
-  // strictly what was recorded, since they're what the run saves; hrAt is kept
-  // out of hrSummary because that shape is spread into saved run fields.
+  // `hr`/`hrAt`: latest reading and its epoch ms, from the sensor stream (`hrLast`), so they
+  // are live before Start and while paused; they travel together because the lock-screen
+  // renderer drops readings it can't trust by timestamp. hrAvg/hrMax stay what was recorded;
+  // hrAt stays out of hrSummary, which is spread into saved run fields.
   const stats = useMemo(() => {
     const hr = hrSummary(hrSamples);
     const latest = hrLast ?? (hrSamples.length ? hrSamples[hrSamples.length - 1] : null);
     return { ...gpsStats, ...hr, hr: latest?.bpm ?? null, hrAt: latest?.t ?? null };
   }, [gpsStats, hrSamples, hrLast]);
 
-  // Lock-screen live stats (Android): mirror distance/pace/HR into the
-  // foreground-service notification. The DURATION is deliberately not pushed —
-  // the notification carries an OS-rendered chronometer anchored at
-  // now - movingMs, so the clock ticks natively even when this JS is frozen in
-  // the background. Distance/pace are the same story: this effect only runs
-  // while the app is in the foreground, so each push doubles as the SEED the
-  // native service extrapolates from (`content.live`) once the screen goes off.
-  // It re-runs off the same renders the bridge callbacks (onPos/onHrSample) and
-  // the control handlers trigger — never off a timer — and
-  // pushRunNotification's content gate turns the foreground 1s-tick re-runs
-  // into no-ops. Do not move this onto the setInterval above: that interval is
-  // exactly what stops in the background.
+  // Lock-screen live stats (Android). DURATION isn't pushed: the notification carries an
+  // OS chronometer anchored at now - movingMs. Distance/pace pushes SEED the native
+  // extrapolation (`content.live`) once the screen goes off. Runs off renders, never a
+  // timer: do not move onto the setInterval above, which stops in the background.
   useEffect(() => {
     // Indoor: the notification is rendered BY the location foreground service,
     // which isn't running without a geo watch — and distance/pace would be

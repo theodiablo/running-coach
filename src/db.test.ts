@@ -278,11 +278,8 @@ describe("db store — offline durability", () => {
   });
 });
 
-// An offline cold start used to dead-end on the retry screen: the boot read
-// fails, and the read-only store locks a signed-in user out of their own data.
-// Now the last server-confirmed blob is mirrored locally, boots the store when
-// the read fails, and is reconciled against the live row before anything may
-// be upserted over it.
+// Offline cold start: the last server-confirmed blob is mirrored locally and boots the store when the read fails,
+// then is reconciled against the live row before anything may be upserted over it.
 describe("db store — offline boot", () => {
   beforeEach(() => {
     vi.useFakeTimers();

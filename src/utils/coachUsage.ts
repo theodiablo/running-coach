@@ -1,10 +1,7 @@
-// Pure helpers for the coach usage ring (CoachChat footer). The daily budget is
-// enforced server-side (coach-agent); this only decides how the client presents
-// the spend the server reports.
-//
-// Thresholds are FRACTIONS of the limit, not fixed counts, so a per-user
-// override (profiles.coach_daily_limit) keeps sensible escalation regardless of
-// the actual number — e.g. a limit of 20 still goes amber at 12, not at 3.
+// Pure helpers for the coach usage ring (CoachChat footer). The budget is enforced server-side
+// (coach-agent); this only presents the reported spend. Thresholds are FRACTIONS of the limit,
+// not counts, so a per-user override (profiles.coach_daily_limit) escalates sensibly (a limit
+// of 20 goes amber at 12).
 
 export type CoachUsage = { used: number; limit: number };
 

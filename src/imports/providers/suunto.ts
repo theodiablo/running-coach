@@ -3,20 +3,10 @@ import { makeCloudOauth } from "../cloudOauth";
 import type { ImportProvider, ImportedRun } from "../types";
 import type { Run } from "../../types";
 
-// Suunto cloud import. Secret half (OAuth exchange, token refresh, workout
-// list, FIT download, webhook staging) lives in the `suunto-import` /
-// `suunto-webhook` edge functions; this client pages summaries, fetches FITs
-// one per invocation (each call stays inside the app's global 15s Supabase
-// fetch timeout) and maps them to runs with the app's existing FIT parser.
-// Dormant until VITE_SUUNTO_CLIENT_ID is set.
-//
-// The sync protocol is cursor + DEFERRED ack: scan() accumulates the ack for
-// pages that produced candidate runs and only sends it when RunningCoach
-// confirms the runs were saved (commitSuuntoScan, via registry
-// commitCloudScans) — a missed import toast or a frozen WebView re-serves the
-// page instead of losing history. Pages yielding nothing (all known/filtered)
-// are acked immediately so a quiet history still advances the cursor.
-// Architecture + cursor rules: docs/integrations-suunto.md.
+// Suunto cloud import; the secret half lives in the `suunto-import` / `suunto-webhook`
+// edge functions. Cursor + DEFERRED ack: a page's ack is sent only once
+// RunningCoach confirms its runs were saved (commitSuuntoScan), so a missed toast
+// re-serves the page instead of losing history. docs/integrations-suunto.md.
 
 const SUUNTO_CLIENT_ID = import.meta.env?.VITE_SUUNTO_CLIENT_ID as string | undefined;
 
@@ -33,13 +23,9 @@ export const suuntoEnabled = oauth.enabled;
 export const completeSuuntoAuth = oauth.completeAuth;
 
 const EXT_PREFIX = "suunto:";
-// While runs are pending a save the server cursor can't move, so real
-// throughput is one server listing (~100 workouts) per user-confirmed scan —
-// the loop breaks as soon as a page makes no progress. The 10-page cap only
-// fast-forwards quiet history (all-filtered/known pages ack immediately, which
-// DOES advance the cursor between pages). A larger history continues across
-// scans (backfillPending exempts the once-per-session auto-scan gate in
-// RunningCoach).
+// While runs await a save the cursor can't move, so a scan stops at the first page
+// that makes no progress; the cap only fast-forwards quiet history (those pages ack
+// at once). Larger histories continue across scans via backfillPending.
 const MAX_PAGES_PER_SCAN = 10;
 // Calibration tripwire: a full page whose every fetched workout maps to null
 // smells like a summary-schema mismatch, not a string of sub-50 m workouts.
@@ -115,6 +101,7 @@ export function suuntoWorkoutToRun(w: SyncWorkout, fitB64: string | null): Impor
   // Calendar date in the WATCH-local clock, consistent across both branches —
   // the parser's date is phone-local, which disagrees near midnight when the
   // run happened in another timezone (and would miss plan auto-tick).
+  // eslint-disable-next-line seams/no-iso-date-slice -- shifted by the run's own UTC offset first
   const localDate = (utcMs: number) => new Date(utcMs + (offsetMin ?? 0) * 60_000).toISOString().slice(0, 10);
 
   if (fitB64) {
@@ -222,14 +209,9 @@ const clearFitFailState = (): void => {
   try { localStorage.removeItem(FIT_FAILS_KEY); } catch { /* ignore */ }
 };
 
-// Fetch one workout's FIT and map it. "transient" = stop the batch here — the
-// pending ack must never pass an unfetched listed workout (quota, token or
-// network trouble resolves by the next scan; marking it terminal would import
-// a permanently degraded summary-only run). Only server-reported transients
-// that aren't the shared quota cap count against the workout's retry budget:
-// quota/network/reauth are global conditions, a repeated per-workout failure
-// (FIT_FAIL_LIMIT scans) means THIS workout is broken — import its summary and
-// move on.
+// "transient" stops the batch: the pending ack must never pass an unfetched workout.
+// Quota/network/reauth are global and don't count against the workout; a failure
+// repeated FIT_FAIL_LIMIT scans means THIS workout is broken, so import its summary.
 async function fetchWorkoutRun(w: SyncWorkout): Promise<ImportedRun | null | "transient"> {
   if (runCache.has(w.key)) return runCache.get(w.key) ?? null;
   const res = await oauth.invoke<FitRes>({ action: "fit", key: w.key });

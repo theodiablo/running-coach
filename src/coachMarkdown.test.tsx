@@ -7,12 +7,9 @@ import { COACH_LINK_TARGETS } from "./utils/coachLinks";
 
 afterEach(cleanup);
 
-// Guards patches/mdast-util-gfm-autolink-literal+2.0.1.patch, which strips a
-// regex lookbehind that iOS < 16.4 cannot parse (it took the whole CoachChat
-// chunk down — see scripts/check-bundle-regex.mjs). The lookbehind only
-// restated a check `findEmail` already performs in JS, so autolinking must
-// behave exactly as upstream does; these cases pin that down. Rendered the way
-// CoachChat renders the coach's markdown replies.
+// Guards patches/mdast-util-gfm-autolink-literal+2.0.1.patch, which strips a regex
+// lookbehind iOS < 16.4 cannot parse (see scripts/check-bundle-regex.mjs). Autolinking
+// must behave exactly as upstream; rendered the way CoachChat renders replies.
 const html = (md: string) =>
   render(<ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>).container.innerHTML;
 

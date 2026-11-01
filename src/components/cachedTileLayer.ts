@@ -1,13 +1,9 @@
 import L, { type Layer, type Map, type TileEventHandler } from "leaflet";
 import { getTile, putTile, pruneTileCache, tileCacheKey, TILE_TTL_MS, type TileEntry } from "../utils/tileCache";
 
-// Drop-in replacement for L.tileLayer that serves tiles cache-first from
-// IndexedDB (utils/tileCache): a tile cached within the TTL never touches the
-// network, a fetched tile is stored for next time, and when the network is
-// unreachable a stale cached tile still renders — which is what keeps the map
-// usable offline anywhere the user has already been. On any failure it falls
-// back to a plain <img src=url> load (the pre-cache behavior), so caching can
-// only ever add tiles, never lose them.
+// Drop-in L.tileLayer serving tiles cache-first from IndexedDB (utils/tileCache): fresh hit skips the
+// network, stale tiles render offline. Any failure falls back to a plain <img src=url> load, so
+// caching only ever adds tiles.
 
 type DoneFn = (err: Error | null, tile: HTMLElement) => void;
 

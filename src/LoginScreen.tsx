@@ -107,16 +107,10 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       return;
     }
     if (isNative && data?.url) {
-      // Android must NOT go through @capacitor/browser: its Chrome Custom Tabs
-      // path only catches ActivityNotFoundException natively, so any other
-      // runtime failure launching the tab kills the process (the same crash that
-      // took down the "Update" button — see openStore in UpdatePrompt.tsx). A
-      // plain top-frame navigation is intercepted by Capacitor's WebViewClient
-      // (Bridge.launchIntent): the external OAuth host never loads in the WebView,
-      // it's handed to the OS as an ACTION_VIEW intent that opens in the default
-      // browser, and the provider redirects back to the deep link (App.tsx completes the
-      // PKCE exchange). The WebView stays on localhost, so re-enabling the form
-      // below is still correct.
+      // Android must NOT use @capacitor/browser: Custom Tabs kills the process on any
+      // launch failure besides ActivityNotFoundException (see openStore in UpdatePrompt.tsx).
+      // A top-frame navigation is handed to the OS browser by Bridge.launchIntent and the
+      // provider returns via deep link (App.tsx); the WebView stays put, so re-enabling the form is correct.
       if (isAndroid) {
         window.location.assign(data.url);
         setBusy(false);

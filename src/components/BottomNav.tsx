@@ -1,12 +1,10 @@
 import { Activity, Calendar, Trophy, TrendingUp, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-// The app's bottom navigation: four row tabs (Home · Plan · Races · Progress)
-// with a raised center Record FAB. Extracted from RunningCoach so the marketing
-// landing's phone mockup can render the *real* nav (always the current design)
-// instead of a hand-drawn copy that would drift. Presentational only — the
-// caller owns positioning (via `className`) and the handlers; omit the handlers
-// (as the marketing mockup does) to render it as a static, decorative preview.
+// The app's bottom navigation: four row tabs (Home, Plan, Races, Progress) with a
+// raised center Record FAB. Extracted so the marketing mockup renders the real nav.
+// Presentational only: the caller owns positioning (`className`) and handlers; omit
+// the handlers to render a static, decorative preview.
 
 const NAV_TABS = [
   { id: "dash", labelKey: "nav.home", Icon: Activity },

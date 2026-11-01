@@ -35,6 +35,13 @@ const asString = (value: unknown) => (typeof value === "string" ? value.trim() :
 
 type DbClient = ReturnType<typeof createClient<any>>;
 
+// A denied read comes back as `{ data: null, error }`; never read it as "no row".
+const row = async <T>(query: PromiseLike<{ data: T | null; error: unknown }>) => {
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+};
+
 const notificationLimitExceeded = async (admin: DbClient, userId: string) => {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await admin
@@ -56,7 +63,7 @@ const reserveNotification = async (admin: DbClient, kind: string, reference: str
 };
 
 async function raceName(admin: DbClient, raceSlug: string) {
-  const { data } = await admin.from("races").select("name").eq("slug", raceSlug).maybeSingle();
+  const data = await row(admin.from("races").select("name").eq("slug", raceSlug).maybeSingle());
   return data?.name ?? raceSlug;
 }
 
@@ -65,21 +72,21 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
   if (kind === "race") {
     const raceSlug = asString(payload.raceSlug);
     if (!raceSlug) return null;
-    const { data } = await admin.from("races")
+    const data = await row(admin.from("races")
       .select("slug, name, city, country, url, distances, created_at")
       .eq("slug", raceSlug)
       .eq("created_by", userId)
-      .maybeSingle();
+      .maybeSingle());
     if (!data) return null;
     const editionId = asString(payload.editionId);
-    const { data: edition } = editionId
-      ? await admin.from("race_editions")
+    const edition = editionId
+      ? await row(admin.from("race_editions")
         .select("id, date, distance_km, elevation")
         .eq("id", editionId)
         .eq("race_slug", data.slug)
         .eq("created_by", userId)
-        .maybeSingle()
-      : { data: null };
+        .maybeSingle())
+      : null;
     const editionText = edition
       ? `\nFirst edition: ${edition.id}\nDate: ${edition.date}\nDistance km: ${edition.distance_km}\nElevation m: ${edition.elevation}`
       : "";
@@ -95,11 +102,11 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
   if (kind === "edition") {
     const editionId = asString(payload.editionId);
     if (!editionId) return null;
-    const { data } = await admin.from("race_editions")
+    const data = await row(admin.from("race_editions")
       .select("id, race_slug, date, distance_km, elevation, created_at")
       .eq("id", editionId)
       .eq("created_by", userId)
-      .maybeSingle();
+      .maybeSingle());
     if (!data) return null;
     const name = await raceName(admin, data.race_slug);
     return {
@@ -114,11 +121,11 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
   if (kind === "report") {
     const reportId = asString(payload.reportId);
     if (!reportId) return null;
-    const { data } = await admin.from("race_reports")
+    const data = await row(admin.from("race_reports")
       .select("id, race_slug, edition_id, reason, note, created_at")
       .eq("id", reportId)
       .eq("reporter_id", userId)
-      .maybeSingle();
+      .maybeSingle());
     if (!data) return null;
     return {
       kind,
@@ -132,11 +139,11 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
   if (kind === "coach_feedback") {
     const feedbackId = asString(payload.feedbackId);
     if (!feedbackId) return null;
-    const { data } = await admin.from("coach_feedback")
+    const data = await row(admin.from("coach_feedback")
       .select("id, trajectory_id, round_index, correction, created_at")
       .eq("id", feedbackId)
       .eq("user_id", userId)
-      .maybeSingle();
+      .maybeSingle());
     if (!data) return null;
     return {
       kind,
@@ -150,11 +157,11 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
   if (kind === "beta_feedback") {
     const feedbackId = asString(payload.feedbackId);
     if (!feedbackId) return null;
-    const { data } = await admin.from("beta_feedback")
+    const data = await row(admin.from("beta_feedback")
       .select("id, body, source, platform, app_version, input_mode, created_at")
       .eq("id", feedbackId)
       .eq("user_id", userId)
-      .maybeSingle();
+      .maybeSingle());
     if (!data) return null;
     return {
       kind,
@@ -244,6 +251,6 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   } catch (err) {
     console.error("notify-contribution error", err);
-    return json({ error: String(err) }, 200); // never fail the caller
+    return json({ error: (err as { message?: string } | null)?.message ?? String(err) }, 200); // never fail the caller
   }
 });

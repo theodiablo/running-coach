@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmt, ymd, addWeeks, estMin, cleanDesc, parseDur } from "./format";
+import { fmt, ymd, addWeeks, addDays, estMin, cleanDesc, parseDur } from "./format";
 
 describe("fmt.pace", () => {
   const pace = fmt.pace as (secondsPerKm: number | null) => string;
@@ -126,5 +126,19 @@ describe("cleanDesc", () => {
   });
   it("handles nullish input", () => {
     expect(cleanDesc(null)).toBe("");
+  });
+});
+
+describe("addDays", () => {
+  it("does calendar arithmetic across months, years and DST changes", () => {
+    expect(addDays("2026-01-31", 1)).toBe("2026-02-01");
+    expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addDays("2026-03-29", 1)).toBe("2026-03-30");
+    expect(addDays("2026-10-25", -7)).toBe("2026-10-18");
+  });
+  it("returns unparseable input unchanged instead of throwing", () => {
+    expect(addDays("", 3)).toBe("");
+    expect(addDays("2026-13-01", 1)).toBe("2026-13-01");
   });
 });

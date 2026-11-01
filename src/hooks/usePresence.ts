@@ -7,15 +7,10 @@ type Presence<T> = {
   closing: boolean;
 };
 
-// Keeps a value mounted briefly after it becomes null so an exit animation can
-// play, then clears it. Used for the global toast, which otherwise hard-unmounts
-// the instant its auto-dismiss timer fires. The live<->null transition is
-// tracked with the derived-state-during-render pattern (compare against the
-// previous value during render) rather than an effect, because the react-hooks
-// lint rule forbids synchronous setState inside effects. The delayed clear is
-// the effect's only job: its cleanup cancels the pending timer whenever
-// `closing` flips back to false, so a fresh value arriving during the exit tail
-// swaps in immediately without being blanked by the stale timer.
+// Keeps a value mounted briefly after it becomes null so an exit animation can play (the
+// global toast). The live<->null transition uses the derived-state-during-render pattern,
+// since react-hooks forbids sync setState in effects; the effect only runs the delayed clear,
+// and its cleanup cancels the timer when `closing` flips back, so a fresh value isn't blanked.
 export function usePresence<T>(value: T | null, exitMs: number): Presence<T> {
   const [rendered, setRendered] = useState<T | null>(value);
   const [closing, setClosing] = useState(false);

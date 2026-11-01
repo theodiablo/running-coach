@@ -3,15 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Guards the `content_path` entries in `supabase/config.toml`.
- *
- * The CLI resolves them from two different bases: `[auth.email.template.*]`
- * from the directory the command runs in (the repo root), but
- * `[auth.email.notification.*]` from the config file's own directory. A path
- * that looks right by analogy with its neighbour is therefore wrong, and
- * nothing catches it until a command loads the config — which on 2026-07-26
- * meant the release workflow's version-staging step, after both stores had
- * already been published.
+ * Guards `content_path` in `supabase/config.toml`: the CLI resolves `[auth.email.template.*]` from the cwd
+ * but `[auth.email.notification.*]` from the config file's directory, so a path copied from a neighbour fails late.
  */
 
 const ROOT = process.cwd();

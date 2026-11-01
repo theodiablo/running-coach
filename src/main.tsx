@@ -16,14 +16,10 @@ import { ChunkLoadBoundary } from './components/ChunkLoadBoundary'
 import { isWatchListPath, parseWatchToken } from './live/shareLink'
 import App from './App'
 
-// The app's one route. `/watch/:token` is a public page for people who may have
-// no account at all, so the branch has to happen BEFORE <App/> mounts: App's
-// first effects resolve the auth session and load the per-user store, and none
-// of that has any business running for a stranger following a shared link.
-//
-// Native builds never serve it — the shells load the bundle from a local origin
-// and have no such URL — so VITE_NATIVE_BUILD constant-folds this to null and
-// Rollup drops the chunk from the APK entirely (same pattern as MarketingGate).
+// The app's one route. `/watch/:token` is public (maybe no account), so the branch happens
+// BEFORE <App/> mounts: App's effects resolve auth and load the store, which a stranger
+// must not trigger. Native shells have no such URL, so VITE_NATIVE_BUILD folds this to null
+// and Rollup drops the chunk from the APK (same as MarketingGate).
 const PublicWatch = import.meta.env.VITE_NATIVE_BUILD
   ? null
   : lazy(() => import('./watch/PublicWatch'))

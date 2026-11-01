@@ -4,18 +4,10 @@ import { supabase } from "../supabase";
 import { currentUserId } from "../db";
 import { getTrackLog, isGeoDebugEnabled } from "../geo/trackLog";
 
-// Reads the shell diagnostics the Android side records (ShellDiagLog.kt) — the
-// half of the story the JS GPS log cannot tell.
-//
-// `logTrack` is JS writing to localStorage, so when the WebView renderer dies
-// the log simply STOPS. A stopped log looks identical whether the renderer was
-// reclaimed, the whole process was killed, or JS was merely frozen and later
-// resumed — three very different bugs. The native log is written from
-// MainActivity's lifecycle callbacks and from onRenderProcessGone, so it
-// survives all three and says which one happened.
-//
-// Android-only and best-effort: an older shell has no plugin and simply
-// resolves nothing.
+// Reads the shell diagnostics the Android side records (ShellDiagLog.kt). The JS GPS log
+// just STOPS when the renderer dies, identically for renderer reclaimed, process killed
+// or JS frozen; the native log (MainActivity lifecycle, onRenderProcessGone) survives all
+// three and says which. Android-only, best-effort: an older shell resolves nothing.
 
 type ShellDiagEvents = { events?: ShellDiagEvent[]; device?: string };
 
@@ -59,13 +51,7 @@ export function clearShellLog(): void {
 }
 
 /**
- * Read the most recent backgrounded stretch and say what happened to the app in
- * it. This is the whole point of the log, so it is stated in words rather than
- * left for someone to reconstruct from timestamps at the moment they are least
- * able to (a run has just been lost).
- *
- * Exported pure and tested — the three shapes it distinguishes are the three
- * competing explanations for a recorder that comes back frozen.
+ * Say in words what happened to the app in the last backgrounded stretch. Pure and tested.
  */
 export function verdictFor(events: ShellDiagEvent[]): string {
   const lastBackground = findLast(events, e => e.kind === "background");
@@ -108,20 +94,8 @@ function findLast(events: ShellDiagEvent[], match: (e: ShellDiagEvent) => boolea
 // ── filing a report ────────────────────────────────────────────────────────
 
 /**
- * File the current diagnostics to `shell_diagnostics`, so a session that went
- * wrong can be read afterwards instead of reconstructed from memory.
- *
- * **Opt-in and gated on the hidden developer log**, never on a normal install:
- * this is a debugging channel, not telemetry, and telemetry has its own consent
- * seam (docs/telemetry.md). Contains no location — the shell log is lifecycle
- * kinds and memory numbers, and the GPS log stores fix metadata (arrival time,
- * accuracy radius, drop reason) but no coordinates.
- *
- * Best-effort in every direction: signed out, offline or a missing table all
- * resolve a reason rather than throwing at a caller who is already dealing with
- * a failure. The reason is returned rather than a bare false because the manual
- * Send button reports it to whoever pressed it, and "offline" and "the log is
- * not armed" send them looking in completely different places.
+ * File the diagnostics to `shell_diagnostics`. Opt-in, gated on the hidden developer log (not
+ * telemetry); no coordinates. Best-effort: resolves a reason rather than throwing.
  */
 export type FileReportResult = "sent" | "not-armed" | "signed-out" | "empty" | "failed";
 

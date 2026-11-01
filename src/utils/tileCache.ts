@@ -1,10 +1,7 @@
-// 30-day offline cache for raster map tiles, so the map still renders where
-// the user has already been (their usual running routes) without a connection.
-// IndexedDB, not the Cache API: IDB is reliably available in both Capacitor
-// WebView schemes; Cache API availability varies by platform scheme.
-//
-// Every helper resolves harmlessly (null / no-op) when IndexedDB is missing or
-// broken — tile caching must never be able to break the map itself.
+// 30-day offline cache for raster map tiles, so the map renders where the user has been.
+// IndexedDB, not the Cache API (reliably available in both Capacitor WebView schemes).
+// Every helper resolves harmlessly (null / no-op) when IndexedDB is missing or broken:
+// tile caching must never break the map.
 
 export const TILE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 // Size bound. Street tiles run ~15-40KB, so this caps the cache around 100MB —

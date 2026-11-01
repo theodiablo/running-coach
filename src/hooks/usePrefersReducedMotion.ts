@@ -2,11 +2,9 @@ import { useEffect, useState } from "react";
 
 const QUERY = "(prefers-reduced-motion: reduce)";
 
-// Whether the OS "reduce motion" accessibility setting is on. Styling degrades
-// globally via the media query in index.css; this hook is only for the couple
-// of places that change *behaviour* (skip the run-start countdown, render no
-// confetti) rather than just shortening a duration. jsdom has no matchMedia, so
-// guard the read — tests that don't stub it fall through to `false`.
+// Whether the OS "reduce motion" setting is on. Styling degrades via the media query
+// in index.css; this hook is only for places that change *behaviour* (skip the
+// countdown, no confetti). jsdom has no matchMedia, so the read is guarded (false).
 export function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => {
     if (typeof window.matchMedia !== "function") return false;

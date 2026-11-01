@@ -41,11 +41,9 @@ export const prefsFrom = (s: SettingsState): ReminderPrefs => ({
 // anyway, so the tail is never far away.
 export const MAX_PENDING = 32;
 
-// Notification ids are Java ints on Android, so the hash is folded into 31 bits.
-// It must be STABLE across launches: cancelling a reminder means re-deriving the
-// same id from the same session id later. Collisions are possible in principle
-// and harmless in practice — the worst case is one reminder replacing another,
-// and the next sync restores it.
+// Notification ids are Java ints, so the hash is folded into 31 bits. It must be STABLE
+// across launches: cancelling re-derives the id from the session id. Collisions are
+// harmless (one reminder replaces another; the next sync restores it).
 export function reminderId(sessionId: string): number {
   let h = 5381;
   for (let i = 0; i < sessionId.length; i++) h = ((h * 33) ^ sessionId.charCodeAt(i)) | 0;
@@ -80,11 +78,9 @@ function textFor(s: PlanSession, prefs: ReminderPrefs) {
   return {title, body, largeBody: body + "\n" + describeSession(s)};
 }
 
-// Every reminder that should currently be pending, soonest first.
-//
-// Only future, untouched sessions qualify — a done/skipped session must never
-// ping, which is why this is recomputed from the plan on every change rather
-// than incrementally patched.
+// Every reminder that should currently be pending, soonest first. Only future, untouched
+// sessions qualify (a done/skipped one must never ping), so it is recomputed from the plan
+// on every change rather than patched.
 export function reminderSchedule(
   plan: Plan | null,
   prefs: ReminderPrefs,

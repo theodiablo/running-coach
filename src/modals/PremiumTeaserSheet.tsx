@@ -1,8 +1,5 @@
-// The "this is a premium feature" sheet a free user gets in place of a premium
-// entry point. No payment words (no purchase flow yet — App Store 3.1.1) and
-// never asserts the viewer's tier (an offline premium user can land here too).
-// Dormant for free users while `canShowPremiumTeaser` is false; still reachable
-// by a premium user whose grant lapsed mid-session. See docs/monetization.md.
+// The "premium feature" sheet a free user gets instead of a premium entry point. No payment words (no purchase flow,
+// App Store 3.1.1) and never asserts the viewer's tier. Dormant while `canShowPremiumTeaser` is false. docs/monetization.md.
 
 import { Lock } from "lucide-react";
 import { useEffect } from "react";

@@ -4,11 +4,8 @@ import { act, renderHook } from "@testing-library/react";
 import { INDOOR_RUN_KEY, LIVE_RUN_KEY } from "../constants";
 import { normalizeRecovery } from "../utils/runRecovery";
 
-// useRunTracker is the single GPS funnel: the start/pause/resume/stop/reset state
-// machine, moving-time accounting, the onPos jitter/interval/gap/warm-up filter,
-// and the localStorage recovery buffer. It talks to geolocation only through
-// geoSource, so we mock that and drive its captured onPos callback directly —
-// exercising the real hook logic without a browser Geolocation API.
+// useRunTracker is the single GPS funnel (state machine, moving time, onPos filter, localStorage
+// recovery buffer). We mock geoSource and drive its captured onPos callback directly.
 
 // Shared mock state, hoisted so the vi.mock factories below can close over it.
 const h = vi.hoisted(() => {
@@ -483,11 +480,8 @@ describe("useRunTracker — live heart rate", () => {
   });
 });
 
-// Indoor / static cardio (docs/indoor-sessions.md): the same engine with the
-// whole geolocation half switched off. What matters is that it records
-// (clock + HR) without a geo watch, and that it can never touch the GPS run's
-// recovery buffer — an indoor session appearing in the resume offer, or wiping a
-// real run's unrecovered points, would be a data-loss bug.
+// Indoor / static cardio (docs/indoor-sessions.md): records clock + HR without a geo watch, and must
+// never touch the GPS run's recovery buffer (resume offer or wiped points would lose data).
 describe("useRunTracker — indoor mode", () => {
   const renderIndoor = () => {
     hr.enabled = true;
@@ -613,14 +607,9 @@ describe("useRunTracker — indoor mode", () => {
     });
   });
 
-  // The clock is driven by a 1s setInterval, and Chromium throttles timers in a
-  // hidden page — to one wake-up per MINUTE once it has been hidden five. So on
-  // returning to the foreground the displayed time could sit unchanged for up to
-  // a minute waiting for the next tick, with distance frozen beside it (a runner
-  // standing still produces no accepted fix, so nothing else re-renders). Two
-  // frozen numbers and a still map read as a dead app — which is exactly what a
-  // 15-minute backgrounded run reported, on a charger, with the page provably
-  // rendering and taps registering.
+  // The 1s setInterval clock is throttled to once a MINUTE in a hidden page, so on returning to the
+  // foreground time and distance could sit frozen (a still runner emits no fix to re-render), which
+  // reads as a dead app.
   it("corrects the clock the moment the page becomes visible, not on the next tick", () => {
     const { result } = renderHook(() => useRunTracker());
     act(() => result.current.start());

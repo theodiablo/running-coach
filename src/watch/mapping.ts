@@ -81,14 +81,9 @@ export type SessionOutcome =
 
 export type ClassifiedSession = { raw: WatchSessionRaw; run: Partial<Run> | null; outcome: SessionOutcome };
 
-// Classify EVERY raw Health Connect session into an import outcome, keeping the
-// ONE dedupe rule set (isDuplicateRun in src/imports/dedupe.ts — ids, time
-// overlap, fuzzy day+distance fallback). This is the single source both the real
-// import (newWatchSessions) and the sync-log read from — there is deliberately no
-// second session-shaped duplicate check (two parallel implementations of the same
-// rules drifted on edge cases before). `minKm` mirrors the scan's short-run
-// filter; pass 0 to disable it. `already-seen` is reported separately from
-// `duplicate` for the diagnostics log, but both are excluded from the import.
+// Classify EVERY raw Health Connect session into an import outcome via the ONE dedupe rule set (isDuplicateRun in
+// src/imports/dedupe.ts), shared by the real import (newWatchSessions) and the sync-log; no second duplicate check.
+// `minKm` mirrors the scan's short-run filter (0 disables). `already-seen` is reported apart from `duplicate`; both are excluded.
 export function classifyWatchSessions(
   sessions: WatchSessionRaw[],
   runs: Run[],

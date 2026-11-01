@@ -17,6 +17,7 @@
         "npm:@capacitor/ios@^8.5.2",
         "npm:@capacitor/local-notifications@^8.3.1",
         "npm:@eslint/js@^10.0.1",
+        "npm:@eslint/json@^2.1.1",
         "npm:@fontsource/archivo@^5.2.8",
         "npm:@pianissimoproject/capacitor-health-connect@~0.7.1",
         "npm:@resvg/resvg-js@^2.6.2",

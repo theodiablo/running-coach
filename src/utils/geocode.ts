@@ -12,12 +12,9 @@ export function parseGeocodeResult(json: unknown) {
   return { lat, lng };
 }
 
-// One-off forward geocode (place name -> coordinates), used to open the race
-// location picker centered near the city/country the contributor already
-// typed rather than the world view or their own current position — a
-// contributor adding a race is rarely standing where it actually happens.
-// Resolves null (never throws) if unconfigured, offline, or no match, so this
-// is always an optional convenience, never a blocker to setting a location.
+// One-off forward geocode (place name -> coordinates) to centre the race location picker near
+// the city the contributor typed. Resolves null (never throws) if unconfigured, offline or no
+// match: an optional convenience, never a blocker to setting a location.
 export async function geocodePlace(query: string | null | undefined) {
   if (!MAP_KEY || !query?.trim()) return null;
   try {

@@ -126,14 +126,10 @@ export type SettingsState = Record<string, unknown> & {
 
 export type HrPending = { start: string | number; end: string | number; source: string };
 
-// Structured session descriptor. `desc` (English, canonical — what old clients
-// render and the coach model reads) stays alongside; `sd` is what the UI
-// renders per-locale via renderSd (src/utils/sessionDesc.ts). Pace is
-// deliberately NOT here: sentences read it from session.pace at render time so
-// a coach pace edit or a locale switch can never desync sentence and field.
-// buildPlan (src/utils/plan.ts) and the coach's sdFor (supabase/functions/
-// _shared/coach/tools.mjs) both stamp this; sessionDesc.test.ts proves both
-// render to the canonical English `desc` byte-for-byte.
+// Structured session descriptor. English `desc` stays canonical (old clients, the coach);
+// `sd` is rendered per-locale via renderSd (src/utils/sessionDesc.ts). Pace is NOT here:
+// sentences read session.pace at render so a pace edit or locale switch can't desync.
+// Stamped by buildPlan and the coach's sdFor; sessionDesc.test.ts proves both match `desc`.
 export type SessionSd = {
   kind: "long" | "easy" | "recovery" | "tempo" | "intervals" | "runwalk" | "cross" | "crosswalk" | "crossActivity" | "race" | "raceday" | "checkpoint";
   activity?: "bike" | "elliptical" | "swim" | "rower"; // coach-converted cross-training
@@ -177,27 +173,20 @@ export type Run = Record<string, unknown> & {
   routeId?: string;
   routeTmp?: string;
   routePending?: boolean;
-  // A run_routes row that holds ONLY a raw HR series (stats.hrSamples) with no
-  // GPS points — the common watch-import case where the health store has HR but
-  // no route (Garmin/Samsung on Health Connect). Kept SEPARATE from routeId so
-  // History's "view route" map button (gated on routeId) never offers a blank
-  // map, while RunDetailModal still fetches it for the HR chart/time-in-zone
-  // card. Old clients ignore the unknown field; deleteRun cascades it like routeId.
+  // A run_routes row holding ONLY a raw HR series (stats.hrSamples), no GPS: the watch-
+  // import case. SEPARATE from routeId so History's "view route" button (gated on
+  // routeId) never offers a blank map; RunDetailModal still fetches it for the HR chart.
+  // deleteRun cascades it like routeId.
   hrRouteId?: string;
   hrPending?: HrPending | null;
-  // The HealthKit twin of hrPending, deliberately a SEPARATE field: shipped
-  // Android builds' flushPendingHr clears any hrPending whose source isn't
-  // "healthconnect", so an iOS marker stored there would be destroyed through
-  // the synced blob by an old phone. Old clients ignore unknown fields, so the
-  // iOS marker rides here untouched until the iPhone resolves it.
+  // The HealthKit twin of hrPending, deliberately SEPARATE: shipped Android builds' flushPendingHr
+  // clears any hrPending whose source isn't "healthconnect", so an iOS marker stored there
+  // would be destroyed through the synced blob by an old phone.
   hrPendingHk?: HrPending | null;
-  // Fastest contiguous 1K/5K/10K/half/marathon found inside this run's GPS
-  // trace, in seconds, keyed by BestEffortKey (src/utils/bestEfforts.ts).
-  // Extracted ONCE at save time, so every later PB comparison is an in-memory
-  // scan of `runs` — no refetch of the trace, no server call. An empty object
-  // means "measured, covers no standard distance"; absent means never measured
-  // (a manual run, or a GPS run older than the feature), and readers fall back
-  // to the whole-run estimate via effortsFor(). Old clients ignore the field.
+  // Fastest contiguous 1K/5K/10K/half/marathon in this run's GPS trace, in seconds, keyed
+  // by BestEffortKey (src/utils/bestEfforts.ts). Extracted ONCE at save time. {} = measured,
+  // covers no standard distance; absent = never measured (readers fall back to the
+  // whole-run estimate via effortsFor()).
   bestEfforts?: Record<string, number>;
   // Health Connect exercise-session id this run was imported from (source:"watch").
   // Used to dedupe repeated scans idempotently.
@@ -301,11 +290,9 @@ export type PlanPrefill = {
   label: string;
 };
 
-// A suggested LOOP route from the "Find a route" finder. This is NOT a recorded
-// trace: it never touches run_routes / routeId, holds NO timestamps (nothing was
-// run), and lives only in ephemeral client memory (the finder sheet + the
-// tracker's plannedRoute overlay) until dismissal. A starred favourite is copied
-// into the separate saved_routes table (see src/savedRoutes.ts).
+// A suggested LOOP route from the "Find a route" finder. NOT a recorded trace: never
+// touches run_routes / routeId, holds no timestamps, and lives in ephemeral client memory
+// until dismissal. A starred favourite is copied into saved_routes (src/savedRoutes.ts).
 export type SuggestedRoute = {
   id: string;                                 // local nonce, e.g. "sr" + seed
   points: [number, number, number | null][];  // [lat, lng, altM|null]

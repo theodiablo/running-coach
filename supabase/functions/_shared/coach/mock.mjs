@@ -1,9 +1,6 @@
-// MOCK_LLM — canned, keyword-driven model responses so the agent runs with
-// zero Anthropic calls (CI, Vitest golden tests, local dev). Message keyword →
-// behavior: knee/pain/hurt/injur → WALK swap + reduce week; missed/skipped →
-// recovery week; add/extra + run/session/day → add_session; split/heart
-// rate/hr → get_run_detail + text analysis; force-invalid → exercises the
-// validator-retry → no_valid_adjustment path; else → text-only answer.
+// MOCK_LLM: canned keyword-driven responses so the agent runs with zero Anthropic calls.
+// knee/pain/hurt/injur → WALK swap + reduce week; missed/skipped → recovery week; add/extra →
+// add_session; split/heart rate/hr → get_run_detail; force-invalid → no_valid_adjustment.
 // Shape-compatible with an Anthropic Message: { content, stop_reason, usage }.
 
 const USAGE = { input_tokens: 1200, output_tokens: 180 };

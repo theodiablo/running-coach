@@ -1,13 +1,7 @@
-// Client access module + pure helpers for the "Find a route" loop finder.
-//
-// Mirrors src/utils/geocode.ts exactly: config-guarded, a plain functions.invoke
-// against the route-suggest edge function, and it NEVER throws — routeSuggest()
-// resolves null when the feature is off, offline, rate-limited, or produced no
-// usable loop, so the tracker is never blocked. All decoding/measuring/scoring
-// is pure and unit-tested (parseLoopCandidates, selfOverlapPct, rankCandidates),
-// and every displayed number comes from the SAME geo utils the tracker records
-// with (distanceKm/elevGainM), so a suggested route can't read differently from
-// the run once it's logged.
+// Client access module + pure helpers for the "Find a route" loop finder. Mirrors
+// geocode.ts: config-guarded, plain functions.invoke, NEVER throws (routeSuggest()
+// resolves null when off, offline, rate-limited or no loop). Scoring is pure and tested;
+// displayed numbers use the tracker's geo utils (distanceKm/elevGainM) so they match the logged run.
 
 import { supabase } from "../supabase";
 import { routeSuggestEnabled } from "../constants";
@@ -18,12 +12,10 @@ import type { TrackPointOrGap } from "./geo";
 export type ElevationPref = "flat" | "rolling" | "hilly";
 export type RouteSuggestParams = { lat: number; lng: number; km: number; elevation?: ElevationPref };
 
-// ── Candidate quality (Phase 2) ─────────────────────────────────────────────
-// One generation = ONE charged edge-function call. We ask for several candidates
-// (each at a different target length — the server brackets the distance to fight
-// ORS's round-trip overshoot) and keep the ones closest to what was asked, rather
-// than a second, separately-charged retry — so the per-user daily limit means
-// what it says. A poor area is handled by the explicit "Regenerate".
+// ── Candidate quality ──
+// One generation = ONE charged edge call. We ask for several candidates (the server
+// brackets lengths against ORS round-trip overshoot) and keep the closest, rather than a
+// separately-charged retry, so the daily limit means what it says; "Regenerate" is explicit.
 const CANDIDATES_PER_GEN = 5;
 const OVERLAP_THRESHOLD_M = 20; // two points closer than this (and far apart in the
 const OVERLAP_MIN_IDX_GAP = 4;  //   path) count as an overlap
@@ -34,19 +26,10 @@ const OVERLAP_MIN_IDX_GAP = 4;  //   path) count as an overlap
 const UNPAVED_SURFACES = new Set([2, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18]); // unpaved, wood, gravels, dirt, ground, sand, woodchips, grass(-paver)
 const PAVED_SURFACES = new Set([1, 3, 4, 5, 6, 14]);                        // paved, asphalt, concrete, cobblestone, metal, paving stones
 
-// ── Proximity index ─────────────────────────────────────────────────────────
-// Both overlap scores ask the same question — "is any other point within
-// `thresholdM` of this one?" — and both used to answer it by scanning every
-// other point. On a 20 km loop that is tens of thousands of haversine calls per
-// candidate (tens of ms each, several candidates, all on the main thread right
-// after the network wait), and the bbox prefilter can't help when the recorded
-// history sits exactly where the candidates are, which is the normal case.
-//
-// So bucket the points into a grid of ~thresholdM cells: anything within the
-// threshold of a point must lie in that point's own cell or one of the eight
-// around it, so only those need testing. Results are IDENTICAL to the full
-// scan (same threshold, same haversine) — it just skips pairs that could never
-// have qualified. Pinned by a brute-force equivalence test.
+// ── Proximity index ──
+// Both overlap scores ask "is any other point within `thresholdM`?". Bucket points into a
+// ~thresholdM grid: a match lies in the point's cell or its eight neighbours, so only
+// those are tested. Identical to the full scan (brute-force equivalence test pins it), minus tens of ms per candidate.
 type PointLike = [number, number, number | null];
 
 const M_PER_DEG_LAT = 111320;
@@ -89,11 +72,9 @@ class ProximityGrid {
 
 // ── Pure geometry helpers (tested) ──────────────────────────────────────────
 
-// One-line character bucket from an ORS `extras.surface.summary` array
-// ([{ value, amount }], amount = % of the route on that surface). Returns an
-// i18n key suffix, or undefined when there isn't enough tagged surface to say
-// (OSM surface tagging is sparse — a route that's mostly "unknown" gets no
-// label rather than a misleading one).
+// One-line character bucket from an ORS `extras.surface.summary` ([{ value, amount }],
+// amount = % of route). Returns an i18n key suffix, or undefined when too little is
+// tagged (OSM surface tagging is sparse) rather than a misleading label.
 export function characterFromSurface(summary: unknown): string | undefined {
   if (!Array.isArray(summary)) return undefined;
   let unpaved = 0, paved = 0;
@@ -205,11 +186,9 @@ export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedR
       points.push([lat, lng, ele]);
     }
     if (points.length < 2) return;
-    // Distance: ORS geometry is CLEAN and densely sampled along curves, so the
-    // tracker's 3m jitter gate (built for noisy GPS) would drop legitimate short
-    // legs and undercount the loop — measure the true polyline length with the
-    // gate OFF (minM=0). Elevation KEEPS elevGainM's 5m hysteresis: the SRTM data
-    // ORS samples is noisier than 5m, so a smaller band would inflate the gain.
+    // Distance: ORS geometry is clean and dense, so the tracker's 3m jitter gate would drop
+    // real short legs; measure with the gate OFF (minM=0). Elevation KEEPS elevGainM's 5m
+    // hysteresis: ORS's SRTM data is noisier than 5m, so a smaller band inflates gain.
     const km = +distanceKm(points as unknown as TrackPointOrGap[], 0).toFixed(2);
     const elevation = Math.round(elevGainM(points.map(p => ({ lat: p[0], lng: p[1], alt: p[2] }))));
     // Simplify FIRST, then score self-overlap on the thinned line: selfOverlapPct
@@ -232,11 +211,9 @@ export function parseLoopCandidates(features: unknown, seedBase = 0): SuggestedR
   return out;
 }
 
-// Soft elevation-preference penalty (0 = ideal for the ask, ~1 = worst) from a
-// candidate's metres-of-gain-per-km. `flat` favours the flattest loops, `hilly`
-// the hilliest; `rolling`/unset is neutral. This only NUDGES ordering — it never
-// drops a candidate — so the finder still returns three loops in flat terrain.
-// perKm is normalised against ~30 m/km (a firmly hilly loop) → clamped to [0,1].
+// Soft elevation-preference penalty (0 = ideal, ~1 = worst) from metres of gain per km:
+// `flat` favours flattest, `hilly` hilliest, `rolling`/unset neutral. Only NUDGES ordering,
+// never drops a candidate. perKm is normalised against ~30 m/km, clamped to [0,1].
 function elevationPenalty(route: SuggestedRoute, elevation?: ElevationPref): number {
   if (!elevation || elevation === "rolling" || route.km <= 0) return 0;
   const perKm = Math.min(route.elevation / route.km / 30, 1);
@@ -260,13 +237,10 @@ export function rankCandidates(routes: SuggestedRoute[], targetKm: number, eleva
 
 // ── Edge-function call (never throws) ───────────────────────────────────────
 
-// The generation outcome, kept distinct so the sheet can show the RIGHT message
-// instead of collapsing everything into "couldn't fetch":
-//   ok              — at least one routable loop
-//   empty           — the server answered fine but found no loop here
-//   rateLimited     — the per-user daily cap is spent
-//   premiumRequired — the server says this account isn't premium
-//   error           — transport failure / feature unconfigured / offline
+// Generation outcome, kept distinct so the sheet shows the RIGHT message:
+// ok (a routable loop) | empty (server found no loop) | rateLimited (daily cap spent) |
+// premiumRequired (account isn't premium) | error (transport failure, unconfigured,
+// offline).
 export type RouteSuggestResult =
   | { status: "ok"; routes: SuggestedRoute[] }
   | { status: "empty" }
@@ -301,13 +275,9 @@ async function fetchFeatures(params: RouteSuggestParams, seedBase: number, count
   }
 }
 
-// Fetch and score one generation. Exactly ONE edge-function call (one charged
-// unit) — we request several candidates and return the best rather than a
-// second, separately-charged retry, so the daily limit is honest. `seedBase`
-// lets the sheet's "Regenerate" ask for a fresh batch (its own explicit,
-// single-call generation). The typed result lets the caller tell "capped" and
-// "nothing here" apart from "fetch failed"; the tracker stays fully usable
-// regardless.
+// Fetch and score one generation: exactly ONE edge call (one charged unit), returning the
+// best of several candidates. `seedBase` lets "Regenerate" ask for a fresh batch. The typed
+// result separates "capped" and "nothing here" from "fetch failed"; the tracker stays usable.
 export async function routeSuggest(params: RouteSuggestParams, opts: { seedBase?: number } = {}): Promise<RouteSuggestResult> {
   if (!routeSuggestEnabled) return { status: "error" };
   if (!Number.isFinite(params.lat) || !Number.isFinite(params.lng) || !(params.km > 0)) return { status: "error" };

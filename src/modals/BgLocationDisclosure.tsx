@@ -8,17 +8,10 @@ import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
 
 type BgLocationDisclosureProps = { onAccept: () => void; onCancel: () => void };
 
-// Prominent disclosure for background location, shown in the native shell BEFORE
-// the OS permission prompt (a Google Play requirement for ACCESS_BACKGROUND_LOCATION).
-// The user must affirmatively accept this in-app screen; the OS dialog then gates
-// the actual grant. See LiveRunTracker for the once-per-install gating.
-//
-// On Android the OS asks for three things in a row — location, then "Allow all the
-// time" (a Settings round-trip), then notifications — which is confusing without
-// warning. So we add an explicit, bolded step-by-step block telling the user exactly
-// what to tap. Gated on isBackgroundLocationAvailable() so the "Allow all the time"
-// guidance only shows where that permission exists (Android); on web/iOS `bgSteps`
-// stays false and the disclosure keeps its "While using the app" wording.
+// Prominent disclosure for background location, shown BEFORE the OS prompt (Google Play
+// requirement); see LiveRunTracker for once-per-install gating. The explicit step block
+// (`bgSteps`, Android's three-prompt sequence) shows only where
+// isBackgroundLocationAvailable(); else the "While using the app" wording.
 export function BgLocationDisclosure({ onAccept, onCancel }: BgLocationDisclosureProps) {
   const { t } = useTranslation();
   useDismissable(true, onCancel);

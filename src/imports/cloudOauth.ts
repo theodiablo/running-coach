@@ -3,20 +3,15 @@ import { isNative, isIos } from "../native";
 import { WEB_APP_ORIGIN } from "../constants";
 import { CLOUD_OAUTH, type CloudOauthProviderId } from "../cloudOauthPreinit";
 
-// Shared machinery for cloud import providers whose secret half lives in an
-// edge function: the OAuth authorization redirect (web full-page / native
-// system browser), the CSRF-validated return, PKCE, and the function invoke
-// seam. Providers (polar.ts, …) build on makeCloudOauth and keep only their
-// data mapping and scan logic. Return plumbing: cloudOauthPreinit.ts (web),
+// Shared machinery for cloud import providers whose secret half lives in an edge
+// function: OAuth redirect, CSRF-validated return, PKCE, and the invoke seam.
+// Providers build on makeCloudOauth. Return plumbing: cloudOauthPreinit.ts (web),
 // App.tsx processUrl (native deep link), RunningCoach.finishCloudReturn.
 
 // Outcome of a boot-time OAuth return:
-//   "idle"      — not a return for this provider (normal load), a silently-
-//                 handled denial, or a rejected state (CSRF). Caller does nothing.
-//   "connected" — a token was just stored. Caller enables + scans.
-//   "failed"    — the user authorized but the server-side exchange failed (bad
-//                 code, provider 5xx, network). Caller surfaces an error so the
-//                 user isn't left staring at an unchanged "Connect".
+//   "idle"      - not this provider's return, a handled denial, or a rejected state (CSRF)
+//   "connected" - a token was just stored; caller enables + scans
+//   "failed"    - authorized but the server-side exchange failed; caller surfaces an error
 export type CloudAuthResult = "idle" | "connected" | "failed";
 
 export type CloudOauthSpec = {
@@ -53,11 +48,9 @@ function newNonce(): string {
 const b64url = (bytes: Uint8Array): string =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-// PKCE (S256). The custom-scheme deep link is claimable by any Android app, so
-// an intercepted code alone must be useless: the token exchange also needs this
-// verifier, which never leaves the initiating device's storage. Only used when
-// the provider spec opts in (spec.pkce). Null when WebCrypto is unavailable
-// (insecure context) — the flow proceeds without PKCE.
+// PKCE (S256): the custom-scheme deep link is claimable by any Android app, so an
+// intercepted code alone must be useless without this verifier (never leaves the
+// device). Only when spec.pkce is set; null without WebCrypto (flow proceeds without).
 async function newPkce(): Promise<{ verifier: string; challenge: string } | null> {
   try {
     if (typeof crypto === "undefined" || !crypto.subtle || !crypto.getRandomValues) return null;
@@ -68,24 +61,16 @@ async function newPkce(): Promise<{ verifier: string; challenge: string } | null
   } catch { return null; }
 }
 
-// Where the provider sends the browser back after authorization — must exactly
-// match the redirect URL registered with the provider. The web app root; the
-// return is detected by the `state` marker, so it never collides with
-// Supabase's PKCE ?code=. On native this MUST be the canonical production
-// origin, not window.location.origin (capacitor://localhost, unreachable and
-// unregistered): the return lands on the web app, which bounces it to the deep
-// link. The same value is passed again at exchange time — OAuth requires the
-// token request's redirect_uri to equal the authorization request's
-// byte-for-byte.
+// Redirect URL registered with the provider; the exchange must send the identical
+// string (OAuth requires byte-equality). Detected by the `state` marker, so it never
+// collides with Supabase's ?code=. On native it MUST be the canonical production
+// origin (not capacitor://localhost): the web app bounces it to the deep link.
 const redirectUri = () =>
   isNative ? WEB_APP_ORIGIN + "/" : (typeof window !== "undefined" ? window.location.origin + "/" : "");
 
-// Storage seam for the OAuth handshake values. Web stashes in sessionStorage
-// (per-tab, cleaned up with the tab); native must use localStorage because the
-// OS can kill the app while the system browser is open — the cold-start
-// relaunch via the deep link is a fresh WebView session and sessionStorage is
-// gone (the CSRF nonce would be lost and every cold-start return would be
-// rejected). Reads check both so one code path serves both platforms.
+// Storage seam for the handshake values. Web uses sessionStorage; native MUST use
+// localStorage because the OS can kill the app while the system browser is open and
+// the relaunch is a fresh WebView (the CSRF nonce would be lost). Reads check both.
 const readStash = (key: string): string | null => {
   try { const v = sessionStorage.getItem(key); if (v != null) return v; } catch { /* unavailable */ }
   try { return localStorage.getItem(key); } catch { return null; }
@@ -179,53 +164,36 @@ export function makeCloudOauth(spec: CloudOauthSpec): CloudOauth {
       return "pending";
     }
     window.location.assign(url.toString());
-    // The page is navigating away to the provider; the real result only arrives
-    // on the OAuth return (completeAuth at boot), so there is no boolean to give
-    // here. Resolving false would make the settings panel flash a false
-    // "access denied" toast on EVERY connect (the promise settles a microtask
-    // before the browser unloads). So return a never-settling promise instead.
-    // TRADE-OFF: if the navigation somehow never starts (assign blocked), the
-    // connect spinner hangs — accepted, as that's far rarer than the
-    // guaranteed false-error-on-every-connect the naive `return false` caused.
+    // The page is navigating away; the real result arrives at the OAuth return, so
+    // return a never-settling promise: resolving false would flash a false "access
+    // denied" toast on EVERY connect. Trade-off: if navigation never starts, the
+    // connect spinner hangs (far rarer, accepted).
     return new Promise<boolean>(() => {});
   };
 
-  // Called at app boot and (native) on the "rc-cloud-oauth-return" deep-link
-  // event: if an OAuth return was stashed — by cloudOauthPreinit on web
-  // (sessionStorage, after stripping the URL before Supabase could touch it) or
-  // by App.tsx's deep-link handler on native (localStorage) — validate the
-  // state against this device's connect-time nonce (CSRF guard), then exchange
-  // the code server-side for a stored token. A no-op on every normal load and
-  // when the provider is unconfigured.
+  // Called at boot and (native) on the "rc-cloud-oauth-return" event: validate a
+  // stashed return's state against this device's nonce (CSRF guard), then exchange
+  // the code server-side for a stored token. Stash comes from cloudOauthPreinit (web)
+  // or App.tsx (native). No-op on a normal load or when unconfigured.
   const completeAuth = async (): Promise<CloudAuthResult> => {
     if (!enabled || typeof window === "undefined") return "idle";
     const code = readStash(keys.codeKey);
     const returnedState = readStash(keys.stateKey);
     const nonce = readStash(keys.nonceKey);
     const verifier = readStash(keys.verifierKey);
-    // One-shot ONLY when actually consuming a return: clear everything so a
-    // reload can't replay the exchange. When no code is stashed, clear NOTHING —
-    // on native a connect can still be in flight while the app boots (the OS
-    // killed it under the system browser and something other than the deep link
-    // relaunched it, or the boot ran before App.tsx finished stashing); wiping
-    // the nonce then would reject the genuine return that's about to arrive.
+    // One-shot ONLY when consuming a return: clear everything so a reload can't replay
+    // the exchange. With no code stashed clear NOTHING: on native a connect may still
+    // be in flight, and wiping the nonce would reject the genuine return about to arrive.
     if (code) {
       clearStash(keys.codeKey);
       clearStash(keys.stateKey);
       clearStash(keys.nonceKey);
       clearStash(keys.verifierKey);
     }
-    // No code stashed → either a normal load (not this provider's return) OR
-    // the user DENIED on the provider's page (the return carried ?error= and no
-    // code; cloudOauthPreinit already stripped it from the URL). TRADE-OFF: a
-    // denial is handled silently (returns "idle" → no toast). Deliberate: the
-    // denial has to be detected pre-app-boot (in cloudOauthPreinit, before
-    // React/i18n exist), so surfacing a localized "you cancelled" message would
-    // mean plumbing a flag from there into the app just for the case where the
-    // user themselves chose to cancel — not worth it. The visible outcome
-    // (still "Connect", clean URL) already reads as "not connected". (This
-    // differs from a *failed exchange* below, which the user didn't choose and
-    // so IS surfaced.)
+    // No code stashed: a normal load, or the user DENIED (?error= stripped by
+    // cloudOauthPreinit before React/i18n exist). A denial is deliberately silent
+    // ("idle", no toast); "Connect" with a clean URL already reads as not connected.
+    // A failed exchange below is not the user's choice, so it IS surfaced.
     if (!code) return "idle";
     // CSRF: the returned state MUST carry the nonce this device generated at
     // connect() time (in either the web or native state format). A forged link

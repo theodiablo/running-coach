@@ -1,19 +1,7 @@
-// Audio/haptic cue seam for guided workouts (docs/guided-workouts.md) — one JS
-// contract, three backends:
-//   web         — Web Audio beeps + speechSynthesis + vibrate (foreground only,
-//                 which web recording already is);
-//   iOS         — the AudioCue plugin (AVAudioSession playback with ducking, so
-//                 cues land over the runner's music with the screen locked; a
-//                 native `schedule` covers a time boundary that falls while no
-//                 GPS fix wakes JS);
-//   Android     — silent HERE on purpose: the WorkoutGuide plugin evaluates the
-//                 whole schedule natively off the LIVE_FIX relay (fore AND
-//                 background) and owns every sound, so a JS cue would double up.
-//                 (The stretch player, with no run under it, has its own
-//                 `stretchCue` below.)
-// Whether to speak at all is the recorder's per-run audio switch: callers only
-// call in when it's on, and the Android engine is told via its seed.
-// Everything is fire-and-forget and never throws.
+// Audio/haptic cue seam for guided workouts (docs/guided-workouts.md): web (Web Audio, speech, vibrate),
+// iOS (AudioCue plugin, ducking, native `schedule` for locked-screen boundaries), Android silent HERE
+// (WorkoutGuide plugin owns every sound; a JS cue would double up; the stretch player has `stretchCue`).
+// Callers only call in when the per-run audio switch is on. Fire-and-forget, never throws.
 
 import { registerPlugin } from "@capacitor/core";
 import { isAndroid, isIos } from "../native";
@@ -61,9 +49,8 @@ export function previewCue(text: string, lang: string): void {
 }
 
 /**
- * iOS only: arm a native one-shot cue for a time boundary `inMs` from now, so
- * "start again" still sounds when the screen is locked and no fix is waking
- * JS (a standing recovery emits none). Re-arming replaces the previous one.
+ * iOS only: arm a native one-shot cue `inMs` from now so it sounds with the screen locked and no
+ * fix waking JS. Re-arming replaces the previous one.
  */
 export function scheduleCue(inMs: number, tone: CueTone, text?: string, lang?: string): void {
   if (!isIos) return;

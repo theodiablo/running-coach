@@ -1,12 +1,7 @@
-// One-time, bounded backfill of `bestEfforts` onto GPS runs recorded before the
-// feature existed, so PB ranking has real history to compare against instead of
-// greeting a long-time user with "first 5K on record". Newest RUN_LIMIT runs
-// only (older ones keep their whole-run estimate, so a PB buried in an ancient
-// trace can still be missed), points-only fetches, sequential and silent.
-//
-// The done-marker is keyed by USER id, not device: localStorage survives sign
-// out, so a device-global key would tell the second account on a shared phone
-// its own pre-feature runs were already measured. Detail: docs/best-efforts.md.
+// One-time bounded backfill of `bestEfforts` onto pre-feature GPS runs (newest RUN_LIMIT only, points-only fetches,
+// sequential, silent) so PB ranking has history. Detail: docs/best-efforts.md.
+// The done-marker is keyed by USER id, not device: localStorage survives sign-out, and a device-global key would
+// mark a second account's runs as already measured.
 
 import { getRoute } from "./routes";
 import { bestEffortsFromTrack, type BestEfforts } from "./utils/bestEfforts";

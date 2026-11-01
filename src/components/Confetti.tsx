@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 
-// A CSS-only celebration burst: N absolutely-positioned particles that fall and
-// spin via the `confetti-fall` keyframe (index.css), each randomized through
-// inline custom properties. Pure transform/opacity, so it's cheap even on a
-// mobile WebView. The keyframe ends at opacity 0 with `both` fill, so an instance
-// left mounted (e.g. the onboarding summary) stays invisible and inert — no
-// cleanup required there. When a caller passes `onDone` (to unmount a
-// one-shot host flag) it fires once after the longest particle finishes.
-// Renders nothing under reduced motion, still firing `onDone` so hosts clear.
+// CSS-only celebration burst: N particles falling via the `confetti-fall` keyframe (index.css),
+// randomized by inline custom properties; transform/opacity only. The keyframe ends at opacity 0
+// with `both` fill, so a left-mounted instance is invisible and inert. `onDone` fires once after
+// the longest particle finishes; under reduced motion it renders nothing but still fires `onDone`.
 
 const COLORS = ["#f97316", "#fbbf24", "#34d399", "#38bdf8", "#ffffff"];
 

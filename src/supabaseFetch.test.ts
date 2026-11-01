@@ -1,12 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchWithTimeout } from "./supabase";
 
-// Guards the retry of PostgREST's 401 `PGRST303` ("JWT issued at future").
-// Supabase's auth node stamps `iat`; a PostgREST node whose clock is a few
-// seconds behind rejects the token it just issued. It only ever hits the
-// requests fired in the first seconds after a sign-in, which on the Android
-// registration deep link meant the app_state boot read 401'd and the user got
-// the StoreLoadError screen on a brand-new account.
+// Guards the retry of PostgREST's 401 `PGRST303` ("JWT issued at future"): a PostgREST node a few
+// seconds behind rejects a token Supabase's auth node just issued, which only hits requests in the
+// first seconds after sign-in (it broke new Android sign-ups with StoreLoadError).
 
 const skew = () =>
   new Response(JSON.stringify({ code: "PGRST303", message: "JWT issued at future" }), {

@@ -8,17 +8,10 @@ import { t } from "../i18n";
 
 const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || "";
 
-// App-wide crash guard. A render-time exception anywhere below this boundary
-// would otherwise white-screen the user; instead we show a friendly fallback
-// with a reload, and feed the crash to telemetry under one consent rule:
-// auto-report on BOTH web and native whenever the user has granted the crash
-// channel (getCrashConsent(), independent of product analytics), never otherwise. Capture goes through the bundled
-// captureException API (see telemetry/posthog.ts) — PostHog's remote
-// exception-autocapture bundle is blocked by our CSP. On native this also covers
-// uncaught window errors / promise rejections via the listeners in
-// componentDidMount (on web those are handled by installGlobalErrorHandlers).
-//
-// Class component because error boundaries have no hooks equivalent.
+// App-wide crash guard: shows a reload fallback and auto-reports on web and native only when
+// the crash channel is consented (getCrashConsent(), independent of analytics). Uses the bundled
+// captureException (CSP blocks PostHog's remote autocapture); native also hooks window errors in
+// componentDidMount. Class component because boundaries have no hooks equivalent.
 type ErrorBoundaryProps = { children: ReactNode };
 type ErrorBoundaryState = {
   error: Error | null;

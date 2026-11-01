@@ -45,11 +45,9 @@ vi.mock("./db", () => ({
   clearOfflineMirror: vi.fn(),
 }));
 
-// Simulate the real-world failure: a signed-in user has never loaded the
-// marketing chunk, and by the time they sign out the CDN has rotated (redeploy)
-// so the dynamic import 404s. The rejection surfaces from the marketing subtree
-// as a "Failed to fetch dynamically imported module" error — reproduce that
-// exact error reaching the boundary by throwing it from the component.
+// Reproduce the real failure: a signed-in user never loaded the marketing chunk and the CDN
+// rotated before sign-out, so the dynamic import 404s with "Failed to fetch dynamically
+// imported module". Throw that exact error from the component to reach the boundary.
 vi.mock("./marketing/MarketingGate", () => ({
   default: () => {
     throw new Error("Failed to fetch dynamically imported module: /assets/MarketingGate-a1b2c3.js");

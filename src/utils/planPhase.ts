@@ -2,11 +2,9 @@
 import * as sharedPhase from "../../supabase/functions/_shared/coach/phase.mjs";
 import type { GoalKind, OpenTarget, Participation, Plan, PlanSession, Run, SettingsState } from "../types";
 
-// Where the runner stands relative to the plan's main race. Derived on every
-// read, never stored: the plan is the source of truth, so a rebuild, an undo or
-// a restore can't leave a stale phase behind. The core is shared with the coach
-// (supabase/functions/_shared/coach/phase.mjs: YYYY-MM-DD strings, the clock as
-// `today`, no Date or i18n); this file types it. docs/training-plan.md.
+// Where the runner stands relative to the plan's main race. Derived on every read, never
+// stored, so a rebuild, undo or restore can't leave a stale phase. The core is shared with the
+// coach (supabase/functions/_shared/coach/phase.mjs); this file types it. docs/training-plan.md.
 export type PlanPhase = "active" | "raceWeek" | "debrief" | "choosing" | "recovery" | "open";
 
 export type MainRace = {

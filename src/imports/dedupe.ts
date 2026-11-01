@@ -1,13 +1,10 @@
 import type { Run } from "../types";
 import type { ImportedRun } from "./types";
 
-// THE one duplicate-run rule set, shared by watch scans, the registry's
-// cross-provider pass, and file imports: (1) external-id match, (2) time-window
-// overlap when both sides have a start instant, (3) fuzzy fallback — same date
-// and distance within 10% (opt-out). Fuzzy matching is a trade-off: it catches
-// hand-logged runs (no startedAt) at the cost of occasionally swallowing a
-// distinct same-day run, so auto-scans keep it but file imports turn it off
-// ({fuzzy:false}) — a user-picked export must never silently drop rows.
+// THE one duplicate-run rule set (watch scans, registry cross-provider pass, file imports):
+// (1) external-id match, (2) time-window overlap when both have a start, (3) fuzzy: same
+// date and distance within 10%. Fuzzy catches hand-logged runs but may swallow a distinct
+// same-day run, so auto-scans keep it and file imports pass {fuzzy:false}.
 const FUZZY_KM_TOLERANCE = 0.1;
 
 type RunLike = Partial<Run>;

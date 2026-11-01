@@ -1,6 +1,6 @@
 // Training-plan builder.
 import { VERT_COST } from "../constants";
-import { estMin, fmt, ymd } from "./format";
+import { addDays as plusDays, estMin, fmt, ymd } from "./format";
 import {
   DEFAULT_STYLE, STYLE_SHAPE, isStyleId, levelEasyKm, levelStartLongKm, pickHardDays, stylePacing,
   type StyleId,
@@ -94,14 +94,9 @@ type WeekCtx = {
   runWalk: RunWalkConfig;
 };
 
-// Weeks of the standard base block the runner has already effectively done —
-// the phase-block twin of the long run's fitness floor. A "trained" week is one
-// of the last 4 seven-day windows holding runs on at least 2 separate days
-// (two runs on one day is a keen day, not a week of training; cross-training
-// builds fitness but not the running base) AND at least as much running as the
-// plan's own opening week would ask: counting entries alone, two 2 km jogs a
-// week bought a runner out of the on-ramp they most needed. The ladder is
-// deliberately coarse — 3 consistent weeks earn the full credit, a lay-off none.
+// Weeks of the base block the runner has already effectively done (the phase-block twin of the long run's fitness floor).
+// A "trained" week is one of the last 4 seven-day windows with runs on >=2 separate days (cross-training doesn't count)
+// AND at least the plan's opening-week running volume. The ladder is coarse: 3 consistent weeks earn full credit, a lay-off none.
 const TRAINED_WEEK_DAYS = 2;
 function baseCredit(recentRuns: RecentRun[], today: Date, weekKmFloor: number) {
   // Calendar arithmetic, not fixed ms: across a DST change the ms form slides
@@ -119,11 +114,6 @@ function baseCredit(recentRuns: RecentRun[], today: Date, weekKmFloor: number) {
   return trainedWeeks >= 3 ? 2 : trainedWeeks >= 2 ? 1 : 0;
 }
 
-const plusDays = (s: string, n: number) => {
-  const d = new Date(s + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return ymd(d);
-};
 const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 
@@ -219,14 +209,9 @@ export function buildPlan(
   const longSess = sorted[0];
   const qualSessions = sorted.slice(1);
 
-  // Peak long-run distance is driven by the RACE distance, not the session time
-  // budget — you can't train for 20 km on 60-min long runs. ~0.9x for short/half
-  // races; the marathon is run a bit short in training; everything is hard-capped
-  // so an ultra (UTMB 171 km) can't generate an absurd long run. The session
-  // `minutes` no longer caps the long run (it still informs the shown duration and
-  // the quality-session sizing) — see PlanView's long-run nudge.
-  // (Estimated weekly km at easy pace from the configured minutes — lets a
-  // style cap the long run as a share of weekly volume, e.g. Hansons.)
+  // Peak long run is driven by the RACE distance, not the session time budget: ~0.9x for short/half races, marathon a bit short,
+  // hard-capped so an ultra can't generate an absurd long run. Session `minutes` no longer caps it (see PlanView's long-run nudge).
+  // (Estimated weekly km at easy pace from the configured minutes lets a style cap the long run as a share of weekly volume, e.g. Hansons.)
   const estWeeklyKm = planSessions.reduce((s, q) => s + q.minutes * 60 / easy, 0);
   const peakLong = shape.peakLong(dist, estWeeklyKm);
 
@@ -255,21 +240,13 @@ export function buildPlan(
     ? median(runsInWindow.map(r => r.km ?? 0)) * 0.8
     : levelEasyKm(planOpts.level); // no habit logged: the self-reported level stands in
   const lastBuildW = N - 4; // 0-based index of the final pre-taper week (peak hits here)
-  // Phase boundaries. The base block is what the composers actually treat as
-  // base (easy only, no quality), so it must never swallow the whole pre-taper
-  // block: a short plan that spent 4 weeks in base labelled its easy weeks
-  // PEAK and never prescribed a tempo. Half the pre-taper runway, capped at 4
-  // — identical to the old fixed 4 from 11 weeks up.
+  // Phase boundaries. The base block is what the composers treat as base (easy only), so it must never swallow the whole
+  // pre-taper block (a short plan would label easy weeks PEAK and never prescribe a tempo): half the runway, capped at 4.
   const preTaper = N - 3;
   const fullBase = Math.min(4, Math.max(1, Math.ceil(preTaper / 2)));
-  // ...and recent consistency shortens it (docs/training-plan.md). A rebuild
-  // re-anchors week 1 on the next Monday, so adding a race mid-block otherwise
-  // marched the runner back through a base block they had just run. The credit
-  // shortens the on-ramp; only a single-week runway can spend it entirely.
-  // Week 1's prescription is the yardstick for "already training", so it has to
-  // track what week 1 actually asks: the long run at its fitness-aware start,
-  // the easy days at theirs. Left at a flat 2.5 it handed base credit to a
-  // runner logging well under the opening week the same history had just grown.
+  // ...and recent consistency shortens it (docs/training-plan.md), so a mid-block rebuild doesn't march the runner back through base.
+  // The credit shortens the on-ramp; only a single-week runway can spend it entirely. The yardstick is week 1's actual
+  // prescription (fitness-aware long run and easy days), not a flat 2.5, which handed credit to runners logging below it.
   const weekKmFloor = startLong + Math.max(2.5, easyFloor) * qualSessions.length;
   const onRamp = preTaper > 1 ? 1 : 0;
   const baseW  = Math.max(onRamp, fullBase - baseCredit(recentRuns, today, weekKmFloor));
@@ -351,13 +328,9 @@ export function buildPlan(
     weeks.push({weekNumber: w+1+lead, startDate: ymd(wS), phase, sessions: ss});
   }
 
-  // Belt-and-braces hard-day spacing for the styled composers: demote the
-  // lower-priority of any two hard-typed sessions on consecutive days to EASY
-  // (LONG > TEMPO > INTERVALS; on a tie the later one gives way). Catches
-  // whatever pickHardDays couldn't place cleanly, including the week wrap.
-  // Balanced is exempt on purpose — its output predates styles and a
-  // user-picked back-to-back day pair is a pre-existing, validator-waived
-  // condition we must not silently rewrite.
+  // Belt-and-braces hard-day spacing for styled composers: demote the lower-priority of two hard sessions on consecutive days
+  // to EASY (LONG > TEMPO > INTERVALS; tie: the later gives way). Balanced is exempt: its output predates styles and a
+  // user-picked back-to-back pair is a validator-waived condition we must not rewrite.
   if (style !== DEFAULT_STYLE || open) {
     const HARD_PRIO: Record<string, number> = { LONG: 3, TEMPO: 2, INTERVALS: 1 };
     const all = weeks.flatMap(wk => wk.sessions)
@@ -387,11 +360,8 @@ export function buildPlan(
   }
 
   // ── Secondary-race overlay ────────────────────────────────────────────────
-  // Drop any user-added races that fall inside the plan window onto their week as
-  // RACE sessions. The plan still peaks/tapers for the *main* race — these are
-  // extra checkpoints. Pace is a Riegel estimate off the main goal and never
-  // feeds back into the prescribed training paces. Phase 3 adds taper/recovery
-  // around them. `opts.races`: [{editionId, date, distanceKm, elevation}].
+  // User-added races inside the plan window become RACE sessions on their week; the plan still peaks/tapers for the main race.
+  // Pace is a Riegel estimate off the main goal, never feeding training paces. `opts.races`: [{editionId, date, distanceKm, elevation}].
   const seenDates = new Set<string>();
   (planOpts.races || []).forEach(r => {
     if (!r || !r.date || !r.distanceKm) return;
@@ -433,15 +403,9 @@ export function buildPlan(
     wk.sessions.sort((a, b) => a.date.localeCompare(b.date));
   });
 
-  // Ramp guard: the validator's own week-over-week rule (1.3x the bigger of the
-  // two preceding weeks, +3 km slack) enforced at generation time, so a plan is
-  // validator-clean by construction. Only a week that actually breaks it is
-  // touched — a clean plan comes through byte-identical. Shortening the base
-  // block is what made this reachable: quality sized off the day's time budget
-  // landing on a week still on the base easy line is a real jump, and the coach
-  // must never open on a week the app itself calls "making up missed volume".
-  // Quality keeps its slot and its intensity; only its distance gives way, and
-  // never the long run, which is the week's point.
+  // Ramp guard: the validator's week-over-week rule (1.3x the bigger of two preceding weeks, +3 km slack) enforced at generation
+  // time so a plan is validator-clean by construction; only a breaking week is touched (a clean plan is byte-identical).
+  // Quality keeps its slot and intensity, only its distance gives way; never the long run.
   const RAMP_FACTOR = 1.3, RAMP_SLACK_KM = 3, TRIM_FLOOR_KM = 1.5;
   const wkKm = (wk: PlanWeek) => wk.sessions.reduce((t, s) => t + (s.type === "RACE" ? 0 : s.km), 0);
   weeks.forEach((wk, i) => {
@@ -578,13 +542,9 @@ export function buildPlan(
 export const isOpenGoal = (g: BuildPlanOptions["goal"]): g is OpenGoalOpts =>
   !!g && (g.kind === "block" || g.kind === "open");
 
-// One week of an open plan, by its position since block 1 began (`a`, 0-based).
-// Weeks 1-3 of a block ramp the long run from where the block starts to where
-// it ends; week 4 is a cutback (long run x0.8) whose long-run slot buildPlan
-// turns into the checkpoint. A block starts a little under where the last one
-// ended and never ends lower, so the long run only ever creeps up: slowly for
-// "healthy" and "faster" (whose weeks 2-3 carry the quality), block over block
-// for "further", whose ceiling itself grows 10% a block from the race-scaled one.
+// One week of an open plan, by position since block 1 (`a`, 0-based). Weeks 1-3 ramp the long run from where the block starts
+// to where it ends; week 4 is a cutback (x0.8) whose long-run slot becomes the checkpoint. A block starts a little under where
+// the last ended and never ends lower; "further" also grows its ceiling 10% a block from the race-scaled one.
 type OpenShapeIn = { a: number; target: OpenTarget; light: boolean; style: StyleId; level0: number; ceil0: number; floorKm: number };
 function openWeekShape(i: OpenShapeIn) {
   const b = Math.floor(i.a / OPEN_BLOCK_WEEKS), pos = i.a % OPEN_BLOCK_WEEKS;
@@ -611,11 +571,8 @@ function openWeekShape(i: OpenShapeIn) {
   };
 }
 
-// The easy day's distance: each style's own growth line, started at the runner's
-// floor instead of an absolute constant. Capped by the day's configured time
-// budget AND by this week's own long run — a floor derived from the block's
-// starting long run outlives a cutback week (runwalk drops 30% every third),
-// and an easy day at or past the long run makes the long run pointless.
+// The easy day's distance: each style's growth line from the runner's floor, capped by the day's time budget AND this week's
+// long run (a floor from the block's starting long run outlives a cutback week; an easy day at or past the long run is pointless).
 const easyLine = (c: WeekCtx, budgetKm: number, start: number, step: number,
                   week = c.w, longKm = c.longKm) => {
   const line = start + step * week;
@@ -627,11 +584,8 @@ const easyLine = (c: WeekCtx, budgetKm: number, start: number, step: number,
 };
 
 // ── Style week composers ─────────────────────────────────────────────────────
-// One function per style fills a week's sessions (long run + the other days).
-// `balanced` is the pre-styles loop body moved verbatim (frozen by snapshot
-// tests); the others express their methodology while staying inside the shared
-// validator envelope: hard days spaced by pickHardDays (+ the sweep above),
-// gentle week-over-week growth, no tempo/intervals generated into the taper.
+// One function per style fills a week's sessions. `balanced` is the pre-styles loop body moved verbatim (snapshot-frozen); the
+// others stay inside the validator envelope: hard days via pickHardDays (+ sweep above), gentle growth, no tempo/intervals in taper.
 
 function composeBalanced(c: WeekCtx) {
   const { w, N, isBase, isTaper, addS, tgt } = c;
@@ -714,11 +668,8 @@ function composePolarized(c: WeekCtx) {
   });
 }
 
-// Galloway run/walk: scheduled walk breaks from day one, no speedwork, gentle
-// ramp with regular cutback weeks. Non-long days are WALK-typed (not "hard")
-// so any day layout is valid. The ratio ramps to the runner's own ceiling
-// (c.runWalk) and never past it — being handed a 3 min run interval you can't
-// hold is the plan being wrong, not the runner (src/utils/runwalk.ts).
+// Galloway run/walk: scheduled walk breaks from day one, no speedwork, gentle ramp with cutbacks. Non-long days are WALK-typed
+// (not "hard") so any layout is valid. The ratio ramps to the runner's own ceiling (c.runWalk) and never past it (src/utils/runwalk.ts).
 function composeRunwalk(c: WeekCtx) {
   const { N, phase, isTaper, addS } = c;
   const { long, walk } = c.paces;
@@ -736,11 +687,8 @@ function composeRunwalk(c: WeekCtx) {
     { kind: "runwalk", variant: "long", ...sd });
 
   c.qualSessions.forEach(q => {
-    // Short days ramp with the block, then shed off the last pre-taper week —
-    // an absolute taper ladder ignores how small the ramp actually stayed, and
-    // on a short/credited block it raised the short days above their own peak.
-    // The shed reference is the pre-taper long run, which is peakLong: in a
-    // taper week longKm is already peakLong * taperMult.
+    // Short days ramp with the block, then shed off the last pre-taper week (an absolute taper ladder raised short days above their
+    // own peak on short/credited blocks). The shed reference is peakLong: in a taper week longKm is already peakLong * taperMult.
     const budget = q.minutes * 60 / walk;
     const km = isTaper
       ? easyLine(c, budget, 2.5, 0.25, Math.max(0, N - 4), c.longKm / c.taperMult!) * c.taperMult!
@@ -752,11 +700,8 @@ function composeRunwalk(c: WeekCtx) {
   });
 }
 
-// FIRST-style "3 quality runs": long + intervals + tempo, all pace-prescribed
-// and a notch faster; any further configured days become optional low-impact
-// cross-training (OTHER — deliberately constant volume, so it never drives
-// the weekly ramp). With <3 days it degrades: 2 days = long + alternating
-// quality; 1 day = long only.
+// FIRST-style "3 quality runs": long + intervals + tempo, pace-prescribed and a notch faster; extra days become optional
+// cross-training (OTHER, constant volume so it never drives the ramp). <3 days: 2 = long + alternating quality; 1 = long only.
 function composeLowfreq(c: WeekCtx) {
   const { w, N, isBase, isTaper, addS } = c;
   const { easy, tmpo, intv, long } = c.paces;
@@ -828,12 +773,8 @@ function composeHansons(c: WeekCtx) {
   c.qualSessions.forEach(q => {
     const maxQ = q.minutes * 60 / easy;
     const slot = sosDays.indexOf(q.dayOffset);
-    // Easy volume ramps from a gentle start toward ~90% of the day's budget,
-    // in step with the long-run ramp so weekly growth stays inside the 1.3x
-    // ramp rule.
-    // The floor raises where the ramp starts, but never so far that there is no
-    // ramp left — cumulative fatigue is built by the climb, not by opening at the
-    // ceiling.
+    // Easy volume ramps from a gentle start toward ~90% of the day's budget, in step with the long-run ramp (inside the 1.3x rule).
+    // The floor raises the start but never so far that no ramp is left: fatigue is built by the climb, not by opening at the ceiling.
     const easyStart = Math.max(3, Math.min(c.easyFloor, maxQ * 0.6));
     const easyFill = Math.min(maxQ * 0.9, c.longKm * 0.85,
       easyStart + Math.max(0, maxQ * 0.9 - easyStart) * rampFrac);
@@ -897,15 +838,9 @@ type OpenSessionPlan = {
   weeks?: { weekNumber: number; sessions?: { id: string; date: string; type?: string; done?: boolean; skipped?: boolean }[] }[];
 };
 
-// Prefill for logging a plan session by hand (the plan row's and the
-// dashboard's "Record" buttons, which open the manual form rather than a
-// recorder).
-//
-// A cross-training session's `km` is SYNTHETIC — buildPlan gives it an
-// easy-run-equivalent distance only because the coach validator rejects
-// km <= 0 — so passing it through would save a number nobody covered as real
-// running distance, contaminating volume, pace and PBs. Its *duration* is the
-// real prescription, so prefill that instead. See docs/indoor-sessions.md.
+// Prefill for logging a plan session by hand (the "Record" buttons that open the manual form).
+// A cross-training session's `km` is SYNTHETIC (the coach validator rejects km <= 0), so passing it through would contaminate
+// volume, pace and PBs; its *duration* is the real prescription, so prefill that. See docs/indoor-sessions.md.
 type CrossSession = { type: string; sd?: SessionSd };
 
 // The indoor recorder's activity for a coach-converted cross-training day; a swim
@@ -939,15 +874,9 @@ export function planSessionPrefill(
   return { ...base, ...(s.sd?.minutes ? { durationSec: s.sd.minutes * 60 } : {}), ...(activity ? { activity } : {}) };
 }
 
-// First not-done, not-skipped, non-RACE session on a given date, so a run logged
-// for that day (watch import, GPS save) can auto-tick the matching plan session
-// via LogView's onSaved. Returns {wNum, sId} or null. Pure.
-//
-// `opts.crossTraining` keeps a save from ticking off the wrong kind of session
-// on a day that has both: an indoor bike session passes true so it can only
-// reach the cross-training day, a run passes false so it can only reach the
-// running one. Omitted = either (the import-review toast, which doesn't know
-// which it has). See docs/indoor-sessions.md.
+// First not-done, not-skipped, non-RACE session on a date, so a run logged that day can auto-tick it via LogView's onSaved.
+// Returns {wNum, sId} or null. Pure. `opts.crossTraining` true/false restricts to the cross-training/running day; omitted =
+// either (the import-review toast). See docs/indoor-sessions.md.
 export function findOpenPlanSession(
   plan: OpenSessionPlan | null | undefined,
   date: string,
@@ -965,13 +894,8 @@ export function findOpenPlanSession(
 }
 
 // ── Week windows ────────────────────────────────────────────────────────────
-// A plan week owns [startDate, startDate + 7), so a week is elapsed once that
-// span has ended. PlanView's ordering, the overdue lookback and the rebuild
-// carry below all read it, and the coach's tools and load rules read it server
-// side — so the predicate itself lives with the edge functions and this is a
-// Date-taking adapter, not a second copy. (It was two implementations, one
-// comparing Dates and one comparing date strings, which disagreed by a day
-// either side of midnight in any non-UTC timezone.)
+// A plan week owns [startDate, startDate + 7), elapsed once that span ends. The predicate lives with the edge functions (the
+// coach reads it server side); this is a Date-taking adapter, not a second copy (two copies disagreed by a day in non-UTC zones).
 type WeekWindow = { startDate?: string };
 
 // Named type rather than the untyped import binding: a bare `@ts-expect-error`
@@ -996,11 +920,8 @@ const isSlotId = (id: string) => /^w\d+d\d+$/.test(id);
 // blob and in the coach's context; eight weeks is about a training block.
 const KEEP_HISTORY_WEEKS = 8;
 
-// Retained history keeps its ids out of the rebuilt plan's way: buildPlan
-// numbers weeks from 1 every time, so an old "w1d2" and a fresh "w1d2" would
-// collide — a DUPLICATE_ID error from the coach validator, and two rows
-// sharing a React key. Applied once; a later rebuild re-carries the same
-// already-prefixed ids rather than stacking another prefix.
+// Retained history keeps its ids out of the rebuilt plan's way: buildPlan numbers weeks from 1, so an old "w1d2" and a fresh
+// one would collide (coach DUPLICATE_ID, shared React key). Applied once; a re-carry doesn't stack another prefix.
 const HISTORY_ID_PREFIX = "past-";
 const historyId = (id: string) => id.startsWith(HISTORY_ID_PREFIX) ? id : HISTORY_ID_PREFIX + id;
 
@@ -1015,25 +936,10 @@ const DONE_LOOKAHEAD_DAYS = 7;
 type StoredSession = Plan["weeks"][number]["sessions"][number];
 type Carried = { flag: PlanProgress; type: string };
 
-// Re-apply done/skipped/runId from an old plan onto a new one. Pure.
-//
-// Two modes, because "the same session" means different things:
-//
-// - "coach" — the proposal is DERIVED from the current plan, so ids are
-//   identity and a shifted session must keep its flags across the move.
-// - "rebuild" (default) — buildPlan minted fresh slot ids, so matching on
-//   them smears progress onto whoever now occupies the slot. Changing the
-//   race date once transplanted four weeks of done/skipped a month into the
-//   future, cancelling sessions the runner had never seen. Anchor on the
-//   calendar date instead: a day you trained is a day you trained.
-//
-// Rebuilds also PREPEND the weeks the new plan doesn't reach back to, so the
-// training that already happened stays in the plan instead of being dropped on
-// the floor — see the history block below.
-//
-// `mode` is required on purpose: a future caller handing this a plan derived
-// from the live one wants "coach", and defaulting would silently give it date
-// matching plus the skipped overwrite below with no compiler signal.
+// Re-apply done/skipped/runId from an old plan onto a new one. Pure. Modes: "coach" (proposal derived from the live plan: ids are
+// identity) and "rebuild" (fresh slot ids, so match by calendar date; id-matching once smeared progress onto the wrong days).
+// Rebuilds also PREPEND the weeks the new plan doesn't reach (history block below). `mode` is required on purpose: a
+// defaulting caller would silently get date matching plus the skipped overwrite below.
 export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | "coach"): Plan {
   if (!oldPlan) return np;
   const oldSessions = oldPlan.weeks.flatMap(w => w.sessions);
@@ -1097,18 +1003,9 @@ export function carryProgress(oldPlan: Plan | null, np: Plan, mode: "rebuild" | 
     return carry(s, cands.splice(i, 1)[0].flag);
   };
 
-  // The weeks the rebuilt plan doesn't reach. buildPlan anchors week 1 on the
-  // NEXT MONDAY, so a rebuilt plan holds no already-elapsed date: without this
-  // every completed session before that Monday simply disappears, which is why
-  // "completed runs stay" had quietly stopped being true. Carried verbatim —
-  // this is training that already happened, not a slot to re-stamp flags onto.
-  //
-  // Two bounds, and both earn their place. *Before np's start* is what makes
-  // the join contiguous, and it keeps the part-run current week (which the new
-  // plan begins after, so it can never cover it) instead of leaving the runner
-  // with no sessions between today and Monday. *Already begun* is what makes a
-  // week history: an old plan whose weeks all sit in the future (a race pushed
-  // back, then rebuilt) must not have them retained as though they were lived.
+  // The weeks the rebuilt plan doesn't reach (it starts on the NEXT MONDAY): carried verbatim, not re-stamped. Two bounds:
+  // *Before np's start* keeps the join contiguous, including the part-run current week; *Already begun* makes a week history,
+  // so an old plan whose weeks all sit in the future (race pushed back) isn't retained as though lived.
   const npStart = np.weeks[0]?.startDate || "";
   const todayStr = ymd(startOfToday());
   const history = (npStart
@@ -1141,12 +1038,9 @@ export const planEndYmd = (plan: Plan | null | undefined): string | null => {
   return last?.startDate ? plusDays(last.startDate, 7) : null;
 };
 
-// Append the weeks `built` adds past the end of an open plan. Append-only: the
-// runner's edits and ticks to the weeks already there survive untouched, and
-// `built` (made with the plan's blockOffset, so its blocks line up) is read
-// only from the plan's end on. Weeks are renumbered after the last one and slot
-// ids re-minted to match; a collision gets a suffix, as DUPLICATE_ID would
-// otherwise reject the plan. Pure.
+// Append the weeks `built` adds past the end of an open plan. Append-only: the runner's edits and ticks survive, and `built`
+// (made with the plan's blockOffset) is read only from the plan's end on. Weeks are renumbered after the last, slot ids
+// re-minted, collisions suffixed (DUPLICATE_ID otherwise). Pure.
 export function extendOpenPlan(plan: Plan, built: Pick<Plan, "weeks">): Plan {
   const end = planEndYmd(plan);
   if (!end) return plan;

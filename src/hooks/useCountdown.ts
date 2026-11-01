@@ -9,11 +9,9 @@ type Countdown = {
   cancel: () => void;
 };
 
-// A one-shot N..1..Go countdown that fires `onDone` once at the end. Each step
-// holds for `stepMs` (the final "Go!" frame included), all via a single timer
-// cleared on unmount/cancel, so a StrictMode double-mount or a mid-countdown
-// close can't leave a stray timer that fires `onDone` twice. Drives the live-run
-// start overlay in LiveRunTracker.
+// One-shot N..1..Go countdown firing `onDone` once; each step (the final "Go!" included)
+// holds `stepMs`. A single timer cleared on unmount/cancel, so StrictMode double-mount or
+// a mid-countdown close can't fire `onDone` twice.
 export function useCountdown(onDone: () => void, stepMs = 1000): Countdown {
   const [count, setCount] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

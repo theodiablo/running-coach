@@ -37,14 +37,9 @@ const PIN_ICON = L.divIcon({
   iconAnchor: [11, 32],
 });
 
-// Full-screen tap/drag map picker for a single point. Built for "Add a race":
-// a contributor is rarely standing where the race actually happens, so a
-// "use my current location" button alone produces wrong coordinates for the
-// shared catalogue. This lets them place a pin directly instead — opening
-// centered on `initial` (an already-set location) or a one-off geocode of
-// `geocodeQuery` (the city/country they already typed), falling back to the
-// world view. "Jump to my current location" is offered too, but only as one
-// more way to seed the pin, never the only option.
+// Full-screen tap/drag map picker for one point. Opens on `initial`, else a one-off geocode of
+// `geocodeQuery`, else the world view. "Use my location" only seeds the pin: a contributor is
+// rarely at the race, so it must never be the only way to place it.
 export function LocationPicker({ initial, geocodeQuery, onConfirm, onCancel }: LocationPickerProps) {
   const { t } = useTranslation();
   useDismissable(true, onCancel);
@@ -107,14 +102,8 @@ export function LocationPicker({ initial, geocodeQuery, onConfirm, onCancel }: L
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Address/city search box — debounced forward geocode via the same MapTiler
-  // endpoint, so a contributor can type an exact address instead of only
-  // tapping/dragging on a (possibly far-zoomed-out) map. A hit both recenters
-  // AND places the pin (like "jump to my current location"); the user can
-  // still drag to fine-tune. `searchSeqRef` drops a stale response that
-  // resolves after a newer keystroke has already fired its own search.
-  // searching/searchMiss are cleared synchronously in onQueryChange (not here)
-  // so this effect never calls setState outside its async timeout callback.
+  // Debounced forward geocode; a hit recenters AND places the pin. `searchSeqRef` drops stale responses.
+  // searching/searchMiss are cleared in onQueryChange, so this effect never sets state outside its timeout.
   useEffect(() => {
     if (!query.trim()) return;
     const seq = ++searchSeqRef.current;

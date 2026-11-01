@@ -2,11 +2,10 @@ import { parseActivityFile } from "../../utils/gpx";
 import { makeCloudOauth } from "../cloudOauth";
 import type { ImportProvider, ImportedRun } from "../types";
 
-// Polar (AccessLink) cloud import. Secret half (OAuth exchange + exercise pull)
-// lives in the `polar-import` edge function; this client starts the OAuth
-// redirect (via the shared makeCloudOauth machinery) and maps the returned
-// exercises. Dormant until VITE_POLAR_CLIENT_ID is set. Architecture, OAuth
-// return paths (web vs native): docs/integrations-polar.md.
+// Polar (AccessLink) cloud import. The secret half (OAuth exchange, exercise pull) lives in
+// the `polar-import` edge function; this client starts the OAuth redirect (makeCloudOauth)
+// and maps exercises. Dormant until VITE_POLAR_CLIENT_ID is set. See
+// docs/integrations-polar.md.
 
 const POLAR_CLIENT_ID = import.meta.env?.VITE_POLAR_CLIENT_ID as string | undefined;
 

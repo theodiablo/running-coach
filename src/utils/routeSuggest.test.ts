@@ -162,11 +162,9 @@ describe("historyNearCandidates", () => {
   });
 });
 
-// The overlap scores are grid-indexed rather than full O(n^2) scans (a 20 km
-// loop was tens of ms per candidate on the main thread). The index is only a
-// pair-skipping optimisation, so the results must be IDENTICAL to the naive
-// scan — these pin that against brute-force reimplementations on pseudo-random
-// geometry, including the degenerate cases (dense clusters, exact duplicates).
+// The overlap scores use a grid index instead of O(n^2) scans (20 km loops cost tens of ms per candidate).
+// The index only skips pairs, so results must be IDENTICAL to the naive scan; these pin that against
+// brute force on pseudo-random geometry, including dense clusters and exact duplicates.
 function bruteSelfOverlap(points: [number, number, number | null][], thresholdM = 20): number {
   const n = points.length;
   if (n < 8) return 0;

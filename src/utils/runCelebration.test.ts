@@ -3,16 +3,13 @@ import copy from "../i18n/locales/en/celebration.json";
 import { buildCelebration, celebrationFacts, isNegativeSplit, RARE_CHANCE, type Celebration, type CelebrationInput } from "./runCelebration";
 import type { TrackPointOrGap } from "./geo";
 import type { Run } from "../types";
+import { addDays } from "./format";
 
 const DAY = "2026-09-16"; // a Wednesday
 const at = new Date(DAY + "T12:00:00");
 const mid = () => 0.5;
 
-const daysBefore = (n: number) => {
-  const d = new Date(DAY + "T00:00:00");
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
+const daysBefore = (n: number) => addDays(DAY, -n);
 // `n` prior runs, newest first, one every other day.
 const history = (n: number, over: Partial<Run> = {}): Run[] =>
   Array.from({ length: n }, (_, i) => ({ id: "p" + i, date: daysBefore(2 + i * 2), type: "EASY", km: 6, durationSec: 2160, ...over }));

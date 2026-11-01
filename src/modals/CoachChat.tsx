@@ -39,14 +39,10 @@ const COACH_SESSION_EXAMPLE_KEYS = [
   "coach.sessionExamples.easier",
 ];
 
-// Full-screen coach chat (propose-and-confirm). The user describes what
-// happened ("my knee hurts", "I missed the whole week"); the agent proposes a
-// validated adjustment to the plan; the user Accepts it or steers with a
-// follow-up message. Nothing touches the plan until Accept — and even then the
-// accepted plan is re-validated client-side (belt and braces) before
-// applyPlan persists it through the normal savePlan path.
-// CoachMessage / SessionCard / MemorySuggestion now live in utils/coachTranscript
-// (shared with the read-only transcript reconstruction); imported above.
+// Full-screen coach chat (propose-and-confirm). Nothing touches the plan until
+// Accept, and the accepted plan is re-validated client-side before applyPlan
+// persists it via savePlan. CoachMessage / SessionCard / MemorySuggestion live in
+// utils/coachTranscript (shared with the read-only transcript reconstruction).
 type CoachResult = {
   rationale?: string;
   trajectoryId?: string | null;
@@ -111,13 +107,9 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
     ? `[The runner is asking about this planned session — week ${sessionContext!.weekNumber}, ${s.type} on ${s.date}, ${s.km} km${s.pace ? ` @ ${fmt.pace(s.pace)}/km` : ""}: "${s.desc}"]\n\n`
     : "";
   // msg: { role: "user"|"coach", text, proposal?: {plan, diff}, trajectoryId?, roundIndex? }
-  // trajectoryId/roundIndex are stamped on every real coach answer (the ones
-  // logged server-side to agent_rounds) so it can be flagged as wrong; the
-  // greeting, the post-accept "Done", and error bubbles have no round behind
-  // them and stay unstamped, which hides the flag affordance on them.
-  // The opening greeting — extracted so "Start a new conversation" (after
-  // browsing a closed transcript) can reset the chat to exactly this state,
-  // including the session card when opened about a specific session.
+  // trajectoryId/roundIndex are stamped only on real coach answers (logged to
+  // agent_rounds), which is what shows the flag affordance; greeting/Done/error bubbles stay unstamped.
+  // The opening greeting is extracted so "Start a new conversation" can reset to exactly this state.
   const initialMsgs = (): CoachMessage[] => {
     if (!s) return [{ role: "coach", text: t("coach.greeting") }];
     // Same builder reconstructed transcripts use, so live and history renderings
@@ -144,10 +136,8 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
   // in the ring's slot so the ring doesn't pop out of nowhere seconds later.
   const [usageLoading, setUsageLoading] = useState(true);
   // True after resuming an open trajectory whose baseline drifted from the live
-  // plan: Apply would clobber intervening edits, so it is hidden (the user is
-  // told to start a new conversation to adjust the current plan).
-  // A resumed conversation re-checks the drift: the plan may have been edited
-  // while the chat was closed, which its proposal would clobber.
+  // plan (edited while the chat was closed): Apply would clobber those edits, so it
+  // is hidden and the user is told to start a new conversation.
   const [applyBlocked, setApplyBlocked] = useState(() =>
     !!resume && (resume.applyBlocked || plansDiffer(resume.plan, plan)));
   // One-time (per device) transparency note: the coach can read detailed run
@@ -164,12 +154,9 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
   const inputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
 
-  // Closing the chat must not throw the conversation away: following one of the
-  // coach's in-app links closes this modal, and the runner expects to come back
-  // to what they were reading. Latest-ref pattern (this render's state + the
-  // hub's callback), handed over by the unmount cleanup so EVERY exit is
-  // covered — the X, back/Escape, a link, the chunk boundary. An untouched
-  // chat suspends as null so the next open greets normally.
+  // Closing must not discard the conversation (following an in-app link closes this
+  // modal). Latest-ref pattern handed over by the unmount cleanup so EVERY exit is
+  // covered. An untouched chat suspends as null so the next open greets normally.
   const suspendRef = useRef<() => void>(() => {});
   suspendRef.current = () => {
     const worth = msgs.length > 1 || trajectoryId !== null || viewingClosed !== null || input.trim() !== "";
@@ -191,11 +178,9 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
     inputRef.current?.focus();
   };
 
-  // Warm the edge function the moment the chat opens so the user's first message
-  // lands on an already-booted isolate instead of eating the cold start (the
-  // failure mode where round 0 alone times out). Fire-and-forget; coachPing
-  // never throws. Also read today's usage for the ring — best-effort, null on an
-  // old function / offline, in which case the ring just doesn't render.
+  // Warm the edge function on open so the first message skips the cold start (round 0
+  // alone can time out). Fire-and-forget; coachPing never throws. Also reads today's
+  // usage for the ring, best-effort (null on old function / offline: no ring).
   useEffect(() => {
     coachPing();
     let alive = true;
@@ -264,13 +249,10 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
       setTrajectoryId(res.trajectoryClosed ? null : res.trajectoryId ?? null);
       setMsgs(m => [...m, coachMsg(res, t("coach.fallback.noValidAdjustment"))]);
     } else if (!res.changed) {
-      // No plan change proposed (an informational answer). The trajectory is
-      // still OPEN server-side, so keep its id: a follow-up must continue this
-      // same conversation as a critique, not start a fresh propose — otherwise
-      // a purely informational two-message chat gets split into two separate
-      // conversations in history. There's no proposal card here, so keeping the
-      // id can't surface a stale Apply button (a `changed:false` round means the
-      // working plan still equals the original baseline — no confirmable edit).
+      // No plan change proposed (informational answer). The trajectory is still OPEN
+      // server-side, so keep its id: a follow-up must continue it as a critique, not start
+      // a fresh propose. No proposal card here, so no stale Apply can surface
+      // (`changed:false` means the working plan equals the baseline).
       setTrajectoryId(res.trajectoryId ?? null);
       setMsgs(m => [...m, coachMsg(res, t("coach.fallback.noChangeNeeded"))]);
     } else {
@@ -336,12 +318,10 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
     }
   };
 
-  // Flagging is FREE and only records feedback (an insert into coach_feedback) —
-  // it never fires a billable critique round. That keeps the usage popover's
-  // promise ("flagging answers don't count") honest and can't be used to spend a
-  // round while the composer is disabled at the daily limit. A user who wants the
-  // coach to actually revise the answer types a follow-up in the composer, which
-  // visibly counts.
+  // Flagging is FREE and only records feedback (insert into coach_feedback); it never
+  // fires a billable critique round. That keeps the usage popover's "flagging answers
+  // don't count" honest and unusable to spend a round at the daily limit. Revising
+  // the answer is a follow-up in the composer, which visibly counts.
   const submitFlag = async (m: CoachMessage) => {
     const correction = flagText.trim();
     if (!correction || flagBusy) return;
@@ -396,11 +376,8 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
           </div>
         )}
         <div className="flex items-center gap-0.5">
-          {/* Back to a fresh chat from any ongoing conversation — a resumed OPEN
-              trajectory otherwise has no way out (the closed-transcript footer
-              button doesn't render there, and closing the whole coach is the
-              only reset). Hidden on the untouched initial state, where it
-              would be a no-op. */}
+          {/* Fresh chat from any ongoing conversation: a resumed OPEN trajectory has
+              no other way out. Hidden on the untouched initial state (a no-op). */}
           {(viewingClosed !== null || trajectoryId !== null || msgs.length > 1) && (
             <button onClick={startNewChat} aria-label={t("coach.history.startNew")} className="text-slate-400 hover:text-white p-1.5"><MessageSquarePlus size={17}/></button>
           )}

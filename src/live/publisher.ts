@@ -1,14 +1,7 @@
-// Live run sharing — the recorder half. Publishes the whole simplified trace to
-// the caller's single `live_runs` row while a run is recording; deleted on save
-// or discard.
-//
-// Two constraints shape everything here. NOTHING may be driven by a timer: a
-// backgrounded WebView throttles them to a crawl, which is exactly when a run is
-// being recorded, so every publish rides an accepted GPS fix and this module
-// only decides whether enough time has passed — a stationary runner publishes
-// nothing and the WATCHER owns staleness. And NOTHING here may break recording:
-// every call is fire-and-forget and swallows its error, and because each upsert
-// carries the full trace, a gap heals itself. Detail: docs/live-sharing.md.
+// Live run sharing, the recorder half: publishes the whole simplified trace to the caller's
+// single `live_runs` row while recording; deleted on save or discard. NOTHING is timer-driven
+// (backgrounded timers crawl): every publish rides an accepted GPS fix and the WATCHER owns
+// staleness. NOTHING may break recording: calls are fire-and-forget. docs/live-sharing.md.
 
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
@@ -72,15 +65,9 @@ let inFlightWrite: Promise<void> | null = null; // so teardown can wait it out
 let rowCreated = false; // this run's row exists — later writes are plain UPDATEs
 let blocked = false; // a policy rejection — stop hammering the API for this run
 
-// Whether this call should actually hit the network. Pure so the cadence is
-// testable without a Supabase client. A status transition (pause/resume/stop)
-// always goes through: those are the updates a watcher most needs promptly, and
-// they can't be re-triggered by a later GPS fix while paused.
-//
-// A change to the public flag bypasses the throttle for the same reason:
-// HIDING a run must take it off the link now, not up to 30s from now — and a
-// stationary runner emits no fixes to carry it out later. Unrelated to GPS, so
-// nothing else would push it out promptly.
+// Whether this call should hit the network (pure, so the cadence is testable). A status
+// transition (pause/resume/stop) and a change to the public flag always go through: a stationary
+// runner emits no fixes to carry them later, and HIDING a run must take effect now.
 export function shouldPublish(
   { now, lastAt, status, prevStatus, busy, sharePublic = false, prevSharePublic = false }:
   { now: number; lastAt: number; status: LiveRunStatus; prevStatus: LiveRunStatus | null; busy: boolean;
@@ -130,18 +117,10 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   return write;
 }
 
-// INSERT to open a broadcast, UPDATE to continue one — deliberately NOT an
-// upsert. The update is scoped to OUR row via `publish_token` (see below), which
-// `ON CONFLICT DO UPDATE` can't express — an upsert would silently stamp our
-// tokens over another device's live run instead of re-opening our own via
-// insert. Splitting the two also keeps the two paths' error handling distinct:
-// a swept row surfaces as "update matched nothing", not a write that must be
-// interpreted after the fact.
-//
-// Either new column may not exist yet: functions and app code deploy on merge,
-// the migration is applied by hand. PostgREST answers PGRST204 for an unknown
-// column in a write; latch and degrade (no native uploads / no public link)
-// rather than taking live sharing off the air for the window.
+// INSERT to open a broadcast, UPDATE to continue one, deliberately NOT an upsert: the update
+// is scoped to OUR row via `publish_token`, which ON CONFLICT can't express (an upsert could
+// stamp our tokens over another device's run). Either new column may be missing (migration
+// applied by hand): on PGRST204 latch and degrade rather than going off the air.
 let publishTokenColumnMissing = false;
 let sharePublicColumnMissing = false;
 
@@ -152,12 +131,10 @@ async function writeRow(user_id: string, args: PublishArgs): Promise<void> {
   const row = { status, points, stats };
   let share_public = sharePublicColumnMissing ? null : (args.sharePublic ?? false);
   let publish_token = publishTokenColumnMissing ? null : (args.publishToken ?? null);
-  // Two distinct 23505s on this table, two different responses. The legacy
-  // share_token index can still be hit by an OLDER bundle on another device of
-  // the same account (it is no longer written here), so a conflict naming it is
-  // not our leftover row and must never make us delete one. The publish token
-  // was handed to no one, so a collision is pure bad luck: re-mint and retry,
-  // and tell the caller so the native uploader is re-seeded.
+  // Two distinct 23505s. The legacy share_token index can be hit by an OLDER bundle on another
+  // device, so a conflict naming it is not our leftover row and must never make us delete one.
+  // A publish-token collision is bad luck: re-mint, retry, and tell the caller to re-seed the
+  // native uploader.
   const conflictIndex = (err: WriteError) =>
     err?.code === "23505"
       ? String(err.message || "").includes("live_runs_share_token_key") ? "share"
@@ -306,20 +283,15 @@ export async function endLiveRun(): Promise<void> {
   }
 }
 
-// Take down a broadcast THIS DEVICE left on the air, and only that one.
-//
-// The row is per-account, so an unscoped delete is indistinguishable from
-// sabotage: a watching session is by definition another session of the same
-// account, and would delete the very run it opened the app to follow. Scoped
-// twice over — only a device holding the marker sweeps at all, and only when the
-// row still carries the `started_at` that device published.
+// Take down a broadcast THIS DEVICE left on the air, and only that one. The row is per-account,
+// so an unscoped delete would let a watching session delete the run it came to follow: only a
+// device holding the marker sweeps, and only when the row still carries the `started_at`
+// it published.
 export async function sweepOwnLiveRun(): Promise<void> {
   const mine = readPublishedMarker();
-  // A sweep resolves a broadcast this device left behind, so its publish token
-  // is spent too. Done up front and unconditionally: with no marker there is
-  // nothing on the air, and a token still sitting here is one minted for a run
-  // that never started — exactly what the NEXT run must not inherit. The
-  // standing share link is account state and is never touched here.
+  // A sweep also spends the publish token, up front and unconditionally: a token left here was
+  // minted for a run that never started and the NEXT run must not inherit it. The standing
+  // share link is account state and is never touched here.
   storePublishToken(null);
   if (!mine) return;
   const user_id = currentUserId();

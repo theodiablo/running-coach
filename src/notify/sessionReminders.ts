@@ -5,13 +5,10 @@ import { requestRunNotifications } from "../geo/notifications";
 import { reminderSchedule, type ReminderPrefs } from "../utils/sessionReminders";
 import type { Plan } from "../types";
 
-// Native seam for plan-session reminders. All the decisions live in the pure
-// reminderSchedule (src/utils/sessionReminders.ts); this only talks to the OS.
-// Mirrors src/geo/notifications.ts: native-gated, never throws, never blocks.
-//
-// Scheduling is deliberately INEXACT. A training reminder does not need
-// minute precision, and SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM invite a Play
-// policy review for nothing.
+// Native seam for plan-session reminders; decisions live in the pure reminderSchedule
+// (src/utils/sessionReminders.ts). Mirrors src/geo/notifications.ts: native-gated, never
+// throws, never blocks. Scheduling is deliberately INEXACT: SCHEDULE_EXACT_ALARM /
+// USE_EXACT_ALARM invite a Play policy review for nothing.
 
 const CHANNEL_ID = "session-reminders";
 // Stamped on every reminder we schedule so cancelling only ever touches OUR
@@ -29,11 +26,9 @@ const writeMarker = (key: string, on: boolean) => {
   } catch { /* storage unavailable */ }
 };
 
-// Last known state of THIS install's OS grant. The synced preference says the
-// runner wants reminders; it says nothing about a permission on this particular
-// phone. Synchronous, for first render only — it is a CACHE, and a stale one
-// whenever the runner revokes notifications in system settings, so every path
-// that acts on it reconciles via refreshReminderGrant() first.
+// Last known state of THIS install's OS grant (the synced preference says nothing about
+// this phone). Synchronous, first render only: a CACHE that goes stale when the runner
+// revokes notifications, so every acting path reconciles via refreshReminderGrant() first.
 export const hasReminderGrant = () => readMarker(SESSION_NOTIF_AUTH_KEY);
 
 // Ask the OS what the grant actually is right now and re-cache it. This is what
@@ -117,17 +112,13 @@ async function doSync(plan: Plan | null, prefs: ReminderPrefs): Promise<void> {
   } catch { /* diagnostics only — a reminder must never break the app */ }
 }
 
-// Serialised because cancel-then-schedule is only atomic against ITSELF. Two
-// overlapping syncs (mark a session done while a plan edit is still in flight)
-// can interleave as cancel-A, cancel-B, schedule-B, schedule-A — and the older
-// call's schedule reinstates a reminder for a session that is already done.
-// A single chain makes each sync see the previous one's finished state.
+// Serialised because cancel-then-schedule is only atomic against ITSELF: overlapping
+// syncs can interleave cancel-A, cancel-B, schedule-B, schedule-A and reinstate a
+// reminder for a done session. One chain makes each sync see the previous one's result.
 let queue: Promise<void> = Promise.resolve();
 
-// Recompute the whole pending set from the plan and hand it to the OS.
-//
-// Cancel-then-schedule rather than a diff: the plan is small, the scheduler is
-// cheap, and a full replace is the only version that cannot leave a reminder
+// Recompute the whole pending set from the plan and hand it to the OS. Cancel-then-
+// schedule, not a diff: a full replace is the only version that cannot leave a reminder
 // behind for a session that was rebuilt, completed or deleted.
 export function syncSessionReminders(plan: Plan | null, prefs: ReminderPrefs): Promise<void> {
   if (!isNative) return Promise.resolve();

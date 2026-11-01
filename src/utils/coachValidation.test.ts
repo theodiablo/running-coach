@@ -131,11 +131,9 @@ describe("validatePlan rules", () => {
     expect(validate(p).errors.some(e => e.code === "TAPER_VOLUME")).toBe(true);
   });
 
-  // ── elapsed weeks ────────────────────────────────────────────────────────
-  // A rebuild keeps the weeks that have already been lived. They are the
-  // training record, and the coach has no tool that can touch a past date — so
-  // a load error raised on one is unfixable, and one unfixable error would
-  // block every proposal that runner ever asks for.
+  // ── elapsed weeks ──
+  // A rebuild keeps lived weeks. The coach has no tool that can touch a past date, so a load
+  // error raised on one is unfixable and would block every proposal that runner asks for.
   describe("weeks that have already elapsed", () => {
     // Week 3 (starting 2026-01-19) has ended by this date; weeks 4-6 have not.
     const AFTER_WEEK_3 = "2026-01-27";
@@ -327,14 +325,10 @@ describe("validatePlan · recovery after the race", () => {
   });
 });
 
-// ── one validator, two callers: the deterministic generator must pass too ────
-// buildPlan always anchors week 1 on the next Monday while these fixtures ask
-// for a race `n * 7` days out, so the weekday the suite happens to run on
-// decides whether the race lands in week n or in an extra week n+1. Read off
-// the real clock that made the coverage a lottery: the n+1 shape only ever
-// appeared on Mondays, which is how a runwalk taper that fails TAPER_VOLUME sat
-// on main visible one day in seven. The clock is pinned and BOTH alignments are
-// covered on purpose.
+// ── one validator, two callers: the deterministic generator must pass too ──
+// buildPlan anchors week 1 on the next Monday, so the weekday a suite runs on decides
+// whether a race `n * 7` days out lands in week n or an extra n+1. The clock is pinned and
+// BOTH alignments are covered on purpose (the n+1 shape only appeared on Mondays).
 const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
 
 const ANCHORS: [string, string][] = [
@@ -458,11 +452,9 @@ describe.each(ANCHORS)("buildPlan output passes the shared validator (%s)", (_an
   });
 });
 
-// The regression the anchors above generalise: whatever weekday a runner opens
-// the app on, the same request must build a taper-clean plan. Sweeping 14
-// consecutive days covers every weekday twice, and the week-count wobble with
-// it — the runwalk taper used to raise the short days above their own peak
-// whenever a credited 8-week request spilled into a 9th week.
+// Regression the anchors above generalise: whatever weekday a runner opens the app, the
+// same request must build a taper-clean plan. 14 consecutive days cover every weekday
+// twice, including the week-count wobble that once broke the runwalk taper.
 describe("generated plans do not depend on the weekday they are built on", () => {
   afterAll(() => { vi.useRealTimers(); });
 

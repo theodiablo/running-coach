@@ -1,12 +1,7 @@
-// Week windows. THE definition of an elapsed week, for both halves: Deno can't
-// import from src, so the predicate lives here and src/utils/plan.ts wraps it
-// for its Date-taking callers. A plan week owns [startDate, startDate + 7), so
-// a week is elapsed once that span has ended.
-//
-// A rebuild keeps the elapsed weeks in the plan (carryProgress), which makes
-// "already lived" a real distinction here: history is the training record, not
-// something the coach can still change, so the load rules and the model's plan
-// context are computed over the live weeks only.
+// Week windows. THE definition of an elapsed week for both halves (Deno can't import from
+// src; src/utils/plan.ts wraps it): a week owns [startDate, startDate + 7) and is elapsed
+// once that span has ended. A rebuild keeps elapsed weeks (carryProgress) as the training
+// record, so load rules and the model's plan context use the live weeks only.
 
 const dayMs = 86400000;
 const YMD = /^\d{4}-\d{2}-\d{2}$/;

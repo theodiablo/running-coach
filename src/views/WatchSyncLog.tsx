@@ -2,12 +2,9 @@ import { useState } from "react";
 import { RefreshCw, Trash2, Copy, ChevronDown, ChevronRight, EyeOff } from "lucide-react";
 import { getScanLog, clearScanLog, type ScanLogEntry, type ScanLogSession } from "../watch/scanLog";
 
-// Hidden developer diagnostics for watch import (revealed from Settings →
-// Integrations by tapping the section title). Shows what each Health Connect scan
-// returned and why every session was kept or dropped — the tool for "my Zepp run
-// didn't import" / "its elevation is blank". Deliberately raw and English-only
-// (type ids, package names): it is a debug surface, not a user feature, so it is
-// not wired through i18n.
+// Hidden developer diagnostics for watch import (revealed from Settings → Integrations by
+// tapping the section title): what each Health Connect scan returned and why every session was
+// kept or dropped. Raw and English-only (a debug surface), so not wired through i18n.
 
 const EX_TYPE: Record<number, string> = {
   56: "running", 57: "treadmill", 79: "walking", 37: "hiking",

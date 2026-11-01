@@ -23,16 +23,8 @@ export type RecorderHrSetup = {
 };
 
 /**
- * What a recorder needs to settle about heart rate before it starts. The synced
- * `settings.hrMethod` is a preference; the pairing or authorization it needs is
- * per-install, so it is narrowed to what this device holds and falls back to
- * "off" — the recorder then offers `nudge`, never blocking Start. `getHrSource`
- * already nulls an off-platform method, so there is no platform check here.
- *
- * One call, because the three device markers feed both the narrowing and the
- * nudge: reading them per consumer cost a localStorage hit each, per render, on
- * a screen that re-renders every second. The seam call itself stays at the call
- * site — `getHrSource(setup.method)`.
+ * What a recorder settles about HR before starting: the synced `hrMethod` narrowed to what
+ * this device holds, falling back to "off" with a `nudge`, never blocking Start.
  */
 export function recorderHrSetup(hrMethod: HrMethod, hrOptOut?: boolean): RecorderHrSetup {
   const pairedHrDevice = !!getPairedDevice();
@@ -65,25 +57,8 @@ export type ResolvedRunHr = {
 type HrSourceLike = NonNullable<ReturnType<typeof getHrSource>>;
 
 /**
- * Resolve a finished session's heart rate, for a GPS run and an indoor session
- * alike. Branches on the source's `live` flag, never on a method id, so a new
- * post-run source needs no edit here.
- *
- * A LIVE source (Bluetooth) has been streaming into `liveSamples`; the native
- * journal is folded in first, since on Android the WebView is frozen whenever
- * the app is backgrounded and JS only ever saw the beats it was awake for. The
- * journal is read ONLY for a live source — the same condition that armed it —
- * because anything on disk under a post-run source belongs to an earlier BLE
- * run, and merging it would both invent this session's HR and, by producing an
- * average, skip the store fetch below.
- *
- * A run-level average is claimed only above HR_MIN_COVERAGE: a dropped link
- * leaves the mean of whatever fragment survived, and that number goes on to
- * feed the coach, the zones and race predictions. Below it the samples still
- * save and the caller reports `partialCoverage`.
- *
- * A POST-RUN source is queried over the session window; an empty result stamps
- * a pending marker the next load relinks.
+ * Resolve a finished session's HR (GPS or indoor); branches on the source's `live` flag, never a
+ * method id. Native journal only for a live source; average only above HR_MIN_COVERAGE.
  */
 export async function resolveRunHr({ hrSrc, liveSamples, durationSec, startMs, endMs }: {
   hrSrc: HrSourceLike | null;
@@ -126,10 +101,8 @@ export async function resolveRunHr({ hrSrc, liveSamples, durationSec, startMs, e
 }
 
 /**
- * The saved-run fields for a resolved HR. The HealthKit marker rides its own
- * field: shipped Android clients strip any `hrPending` whose source isn't
- * "healthconnect" from the synced blob, which would destroy an iPhone's
- * deferred HR before it could resolve.
+ * The saved-run fields for a resolved HR. The HealthKit marker rides its own field:
+ * shipped Android clients strip any `hrPending` not from "healthconnect" from the blob.
  */
 export function runHrFields(resolved: ResolvedRunHr): Partial<Run> {
   return {

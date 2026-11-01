@@ -1,10 +1,7 @@
-// live-publish — native write side of live run sharing. Callable WITHOUT a JWT:
-// the per-run publish_token IS the capability, because a user JWT would expire
-// mid-run in a process that can't refresh it. It can only ever CONTINUE a
-// broadcast, never open one — opening stays the client's premium-gated INSERT.
-// Payloads are shape/size-capped before the database, and every failure mode
-// answers a uniform `{ live: false }`, which doubles as the uploader's stop
-// signal. Detail, incl. the three-way response contract: docs/live-sharing.md.
+// live-publish: native write side of live run sharing. Callable WITHOUT a JWT: the
+// per-run publish_token IS the capability (a user JWT would expire mid-run). It can only
+// CONTINUE a broadcast, never open one. Every failure answers a uniform `{ live: false }`
+// (also the uploader's stop signal). Contract: docs/live-sharing.md.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { isValidPublishToken, isValidPointBatch, sanitizeStats } from "../_shared/livePublish.mjs";
@@ -106,10 +103,9 @@ Deno.serve(async (req) => {
   }
 });
 
-// 42883 = undefined_function, 42703 = undefined_column: the publish-token
-// migration hasn't been applied yet (functions auto-deploy on merge;
-// migrations are applied by hand). Fail closed and loudly in the logs — but as
-// a 500, NOT { live: false }: a healthy uploader mid-run must keep its batch
+// 42883 (undefined_function) / 42703 (undefined_column): the publish-token migration
+// isn't applied yet (functions auto-deploy, migrations are manual). Fail closed and
+// loudly, but as a 500, NOT { live: false }: a healthy uploader must keep its batch
 // and retry, not read a deploy-ordering gap as "the run ended".
 function isMigrationMissing(code?: string | null): boolean {
   return code === "42883" || code === "42703";

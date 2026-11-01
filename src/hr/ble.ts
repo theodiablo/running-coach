@@ -3,14 +3,10 @@ import { parseHrMeasurement } from "../utils/hr";
 import { logTrack } from "../geo/trackLog";
 import { lastNativeHrBeatAt } from "./hrJournal";
 
-// Live heart-rate source: a standard Bluetooth LE Heart Rate sensor (chest strap,
-// optical armband, or a watch broadcasting over the Heart Rate Profile — e.g.
-// Amazfit "Heart Rate Push"). Implements the LiveHrSource contract consumed by
-// useRunTracker (isAvailable / scan / requestPermissions / watch / clearWatch),
-// the HR analogue of geoSource. Selected only in the native shell (see source.js);
-// the @capacitor-community/bluetooth-le JS is bundled but never executed on web.
-//
-// Standard GATT Heart Rate Profile: service 0x180D, measurement char 0x2A37.
+// Live HR source: a standard BLE Heart Rate sensor (strap, armband, or a watch broadcasting
+// the Heart Rate Profile). Implements the LiveHrSource contract consumed by useRunTracker,
+// the HR analogue of geoSource. Native shell only (see source.js).
+// GATT Heart Rate Profile: service 0x180D, measurement char 0x2A37.
 const HR_SERVICE = numberToUUID(0x180d);
 const HR_MEASUREMENT = numberToUUID(0x2a37);
 
@@ -21,35 +17,23 @@ const REDISCOVER_SCAN_MS = 6000; // how long a re-discovery scan listens before 
 // attempt burns that allowance in seconds and then cannot find the sensor at
 // all, so re-discovery gets its own floor and cheap direct connects run between.
 const SCAN_MIN_INTERVAL_MS = 30000;
-// A GATT link can sit nominally "connected" while notifications stop arriving.
-// The sensor notifies at ~1-2Hz, so this much silence is a dead link, not a
-// gap — drop it and reconnect instead of recording nothing for the rest of a run.
-// Silence here means the NATIVE callback went quiet, not that this JS stopped
-// hearing about it: see onStall.
+// A GATT link can sit "connected" while notifications stop. The sensor notifies at ~1-2Hz,
+// so this much silence is a dead link: drop and reconnect. Silence means the NATIVE
+// callback went quiet, not that this JS stopped hearing: see onStall.
 const STALL_MS = 20000;
-// How late the watchdog may fire and still be believed. A backgrounded Android
-// WebView freezes its timers and its notification callbacks alike, so on resume
-// an overdue timer means "we were frozen", not "the sensor stopped" — and acting
-// on it would tear down a healthy link (and with it the native journal that was
-// covering us). Past this much lateness the watchdog re-arms instead.
+// How late the watchdog may fire and still be believed. A backgrounded WebView freezes
+// timers and callbacks alike, so an overdue timer on resume means "we were frozen"; acting
+// on it would tear down a healthy link and its native journal. Past this, re-arm instead.
 const STALL_GRACE_MS = 5000;
-// How long a RECONNECT may take before we call it failed. The plugin defaults to
-// 10s, which is shorter than the window Android's own direct connect uses to
-// look for the peripheral (~30s) — so a strap that dropped and is advertising
-// again on its slow interval was being given up on while the platform was still
-// finding it. Each of those premature failures then set scanFirst, spending a
-// re-discovery scan out of Android's small allowance to do what the connect
-// would have done for free. The first attempt keeps the plugin default: it runs
-// during the idle preview, where the sensor is in the runner's hands and quick
-// "can't reach sensor" feedback is worth more than patience.
+// How long a RECONNECT may take before it counts as failed. The plugin's 10s default is
+// shorter than Android's own direct-connect window (~30s), and each premature failure sets
+// scanFirst, spending a scan from Android's small allowance. The first attempt keeps the
+// default: it runs during the idle preview, where quick "can't reach sensor" feedback wins.
 const RECONNECT_TIMEOUT_MS = 30000;
-// Android's background-connection mode (patched into the plugin): the OS holds
-// the request and completes it when the strap next advertises, with no app-side
-// scan to spend. Alternated with, never substituted for, the scan cycle — and
-// its deadline may never become unbounded, because it is the only thing that can
-// cancel it and every BleClient call shares one queue behind it. Keep it short:
-// it is also how long after Finish a stopped watch can hold the radio, and how
-// long the pairing screen's scan can sit blocked (docs/health-integrations.md).
+// Android background-connection mode (patched into the plugin): the OS completes the
+// request when the strap next advertises, no scan spent. Alternate with the scan cycle,
+// never replace it. Its deadline must stay bounded and short: it is the only cancel, every
+// BleClient call queues behind it, and it bounds radio hold after Finish (docs/health-integrations.md).
 const AUTO_CONNECT_TIMEOUT_MS = 25000;
 // Notifications land at ~1-2Hz; one diagnostic row each would fill the ring
 // buffer with a few minutes of a run. Roll them up instead — what the log has to
@@ -149,11 +133,9 @@ const bleSourceImpl = {
     let failures = 0;      // consecutive failed attempts since the last clean connect
     let scanFirst = false; // a direct connect failed → re-discover before the next attempt
     let lastScanAt = 0;    // epoch ms of the last re-discovery scan (SCAN_MIN_INTERVAL_MS floor)
-    // Exactly one attempt in flight. A disconnect callback and a failed attempt
-    // both want to reconnect, and each used to spawn its own timer chain: the
-    // chains shared one backoff (so it hit the cap immediately), each ran its own
-    // re-discovery scan, and together they tripped Android's scan throttle — the
-    // sensor then stayed unreachable for minutes at a time mid-run.
+    // Exactly one attempt in flight. A disconnect callback and a failed attempt each spawned
+    // their own timer chain, sharing one backoff and each scanning, which tripped Android's
+    // scan throttle and left the sensor unreachable mid-run.
     let attempting = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
@@ -177,12 +159,10 @@ const bleSourceImpl = {
       onStatus?.(s);
     };
 
-    // Direct connect only reaches a peripheral Android has recently seen
-    // advertise, and a sensor using resolvable private addresses invalidates the
-    // saved id outright once it rotates — "worked right after pairing, then never
-    // again". A short HR-filtered scan refreshes the OS cache and follows a
-    // rotation by matching the saved name; a changed id is reported via
-    // onDeviceChange so the caller can persist it.
+    // Direct connect only reaches a peripheral Android recently saw advertise, and resolvable
+    // private addresses invalidate the saved id on rotation. A short HR-filtered scan
+    // refreshes the OS cache and follows a rotation by saved name; a changed id is reported
+    // via onDeviceChange so the caller can persist it.
     const rediscover = () => new Promise<void>((resolve) => {
       status("scanning");
       logTrack("hr-scan", { msg: "start" });
@@ -300,11 +280,9 @@ const bleSourceImpl = {
       if (handle.stopped) return;
       status("connecting");
       const id = handle.deviceId!;
-      // iOS cold-launch gotcha: CoreBluetooth can only connect to a peripheral
-      // this app session has *retrieved* — a deviceId saved on a previous
-      // launch must be re-materialized via getDevices() first or connect()
-      // rejects with "device not found". No-op when the device is already
-      // known (post-scan, or Android); real failures still surface in connect.
+      // iOS cold launch: CoreBluetooth can only connect to a peripheral retrieved this session,
+      // so a saved deviceId must be re-materialized via getDevices() first or connect() rejects
+      // "device not found". No-op if already known; real failures still surface in connect.
       try { await BleClient.getDevices([id]); } catch { /* connect() reports the actionable error */ }
       attempts += 1;
       attemptAt = Date.now();
@@ -313,12 +291,9 @@ const bleSourceImpl = {
       else if (autoNext) await BleClient.connect(id, onDisconnected,
         { timeout: AUTO_CONNECT_TIMEOUT_MS, autoConnect: true });
       else await BleClient.connect(id, onDisconnected, { timeout: RECONNECT_TIMEOUT_MS });
-      // clearWatch may have run while connect() was in flight (e.g. the run was
-      // discarded/finished before a slow/out-of-range sensor finished connecting).
-      // Don't subscribe to a device we were told to stop watching — disconnect
-      // instead, so a stopped watch can never leave a live BLE connection (and
-      // its notification stream) running in the background. Unless a NEWER watch
-      // has since claimed this sensor: the connection is now theirs — leave it.
+      // clearWatch may have run while connect() was in flight. Don't subscribe to a device we
+      // were told to stop watching: disconnect, so a stopped watch never leaves a live BLE
+      // connection running. Unless a NEWER watch has claimed this sensor: then it's theirs.
       if (handle.stopped) {
         const successor = currentWatch && currentWatch !== handle && currentWatch.deviceId === id;
         if (!successor) { try { await BleClient.disconnect(id); } catch { /* ignore */ } }

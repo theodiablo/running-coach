@@ -79,15 +79,10 @@ export function runZoneIndex(hr: number | null | undefined, maxHR: number, restH
   return idx >= 0 ? idx + 1 : null;
 }
 
-// Parse a Bluetooth Heart Rate Measurement characteristic value (GATT 0x2A37),
-// as delivered by Web Bluetooth and the @capacitor-community/bluetooth-le
-// notification callback (both hand us a DataView). Returns { bpm, rr } where rr
-// is R-R intervals in milliseconds (empty array if none present), or null when
-// the value is unusable. Pure + unit-tested — no SDK/React imports.
-//
-// Layout: byte 0 is flags; bit 0 picks the HR value format (0 = uint8,
-// 1 = uint16), bit 3 flags an optional energy-expended uint16, bit 4 flags
-// trailing R-R intervals (uint16, units of 1/1024 s).
+// Parse a Bluetooth Heart Rate Measurement value (GATT 0x2A37, a DataView from Web
+// Bluetooth or bluetooth-le). Returns { bpm, rr } (rr = R-R intervals in ms, maybe empty)
+// or null when unusable. Byte 0 flags: bit 0 = HR format (0 uint8, 1 uint16), bit 3 =
+// energy-expended uint16, bit 4 = trailing R-R uint16s in 1/1024 s. Pure.
 export function parseHrMeasurement(view: DataView | null | undefined) {
   if (!view || typeof view.getUint8 !== "function" || view.byteLength < 2) return null;
   const flags = view.getUint8(0);
@@ -118,16 +113,10 @@ export function hrSummary(samples?: HrSample[] | null) {
   return { hr: samples[samples.length - 1].bpm, hrAvg: Math.round(sum / samples.length), hrMax: max };
 }
 
-// Seconds of a run a { bpm, t } stream actually measured. Each sample covers the
-// gap to the next one, capped so a dropped link never counts as measured time.
-// A single sample measures nothing.
-//
-// The cap ADAPTS to the stream's own cadence (median gap × 3, floored at 10s)
-// unless one is passed explicitly. A BLE strap notifies at ~1-2Hz and lands on
-// the 10s floor, but `stats.hrSamples` is also written by the watch / HealthKit /
-// GPX importers, whose series can legitimately be one sample a minute — a fixed
-// cap would score a perfectly continuous import at 17% and call it a dropout.
-// Three times the stream's own spacing is still sampling; beyond that is a hole.
+// Seconds of a run a { bpm, t } stream measured. Each sample covers the gap to the next,
+// capped so a dropped link never counts; a single sample measures nothing. The cap adapts
+// to the stream's cadence (median gap x 3, floor 10s) unless passed: importers can be one
+// sample a minute, and a fixed cap would score a continuous import as a dropout.
 export function hrMeasuredSec(samples?: HrSample[] | null, capSec?: number): number {
   if (!samples || samples.length < 2) return 0;
   const gaps: number[] = [];
@@ -157,14 +146,10 @@ export function hrCoverage(samples: HrSample[] | null | undefined, durationSec: 
 // but claims no hr/hrMax of its own — see LiveRunTracker.handleSave.
 export const HR_MIN_COVERAGE = 0.5;
 
-// How old the latest reading may be before the ON-SCREEN readout stops
-// presenting it as live. A strap that dies leaves its last bpm on screen
-// forever otherwise, and once one sample is recorded the status line reads
-// "avg · max" for the rest of the run, so nothing else says the link is gone.
-// Sized between a sensor's ~1-2Hz cadence and ble.ts's 20s stall watchdog, so a
-// healthy strap never trips it but a dead link shows before the reconnect does.
-// NOT the native notification's 90s rule (LIVE_HR_STALE_MS in the
-// background-geolocation patch): that seed ages while JS is frozen by design.
+// How old the latest reading may be before the ON-SCREEN readout stops presenting it as
+// live (else a dead strap's last bpm stays up). Between a sensor's ~1-2Hz cadence and
+// ble.ts's 20s stall watchdog. NOT the native notification's 90s LIVE_HR_STALE_MS, whose
+// seed ages while JS is frozen by design.
 export const HR_STALE_MS = 12000;
 
 // Whether a reading is too old to still be shown as the current heart rate.
@@ -214,11 +199,9 @@ export function expandHrSamples(samples: HrSample[] | null | undefined, stepMs =
   return out;
 }
 
-// Union of two { bpm, t } streams, sorted ascending, dropping entries from `b`
-// that duplicate one already in `a`. Used to fold the native HR journal into
-// what JS saw live: the two record the same notification a few ms apart, so the
-// match is a tolerance, not an equality. Sensors notify at ~1-2Hz, well outside
-// the default window.
+// Union of two { bpm, t } streams, sorted, dropping entries from `b` that duplicate one in
+// `a`. Folds the native HR journal into what JS saw live: the same notification lands a
+// few ms apart, so matching is by tolerance, well under the ~1-2Hz sensor cadence.
 export function mergeHrSamples(
   a?: HrSample[] | null,
   b?: HrSample[] | null,
@@ -243,12 +226,10 @@ export function mergeHrSamples(
   return out.sort((x, y) => x.t - y.t);
 }
 
-// Time spent in each HR zone (seconds), from a raw { bpm, t } stream — the
-// time-in-zone card in RunDetailModal (BLE runs only). Accumulates the gap
-// between consecutive samples into the earlier sample's zone; each gap is CAPPED
-// (default 10s) so a paused stretch or a dropped connection can't inflate a zone.
-// Returns one entry per zone 1..5, or [] when the profile can't classify (no
-// maxHR / unusable reserve) or there's nothing to measure — so the card hides.
+// Seconds in each HR zone from a raw { bpm, t } stream (RunDetailModal's time-in-zone,
+// BLE runs only). Each gap goes to the earlier sample's zone, CAPPED (default 10s) so a
+// pause or dropout can't inflate a zone. One entry per zone 1..5, or [] when the profile
+// can't classify or there is nothing to measure.
 export function timeInZones(
   samples: HrSample[] | null | undefined,
   maxHR: number,
@@ -298,10 +279,7 @@ export function sessionHR(type: RunType | string, settings: Partial<Pick<Setting
 }
 
 /**
- * Which line a recorder shows under its live bpm, as an i18n key + params.
- * Both recorders ask the same question of the same seam, so they get the same
- * ladder: staleness outranks avg/max, which is otherwise pinned on for the rest
- * of the session and would leave nothing to say the strap stopped.
+ * Which line a recorder shows under its live bpm (i18n key + params); staleness outranks avg/max.
  */
 export function liveHrStatusLine(
   { stale, status, hrAvg, hrMax, hr }: {

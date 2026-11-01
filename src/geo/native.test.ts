@@ -55,13 +55,10 @@ describe("adaptBgError", () => {
   });
 });
 
-// Regression coverage for the "no permission prompt at all" bug: on Android,
-// Geolocation.checkPermissions()/requestPermissions() reject immediately with
-// "location services disabled" BEFORE ever showing the OS dialog when the
-// device's system Location toggle is off. ensureForegroundPermission must fall
-// back to a real getCurrentPosition() probe in that case — that call has no such
-// gate, so it's the one that actually surfaces the permission + "turn on
-// location" dialogs.
+// On Android, checkPermissions()/requestPermissions() reject with "location services
+// disabled" before any OS dialog when the system Location toggle is off.
+// ensureForegroundPermission must fall back to a getCurrentPosition() probe, which has
+// no such gate and surfaces the permission and "turn on location" dialogs.
 describe("ensureForegroundPermission", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -136,17 +133,10 @@ describe("ensureForegroundPermission", () => {
 });
 
 
-// Tearing down a watch is fire-and-forget, and an uncaught rejection here is not
-// cosmetic: ErrorBoundary listens for `unhandledrejection` and paints the
-// full-screen crash overlay over a working app. `Geolocation.clearWatch` rejects
-// with "WatchId not found." for any id that is no longer live — which PostHog
-// recorded three times in one day, each moments after a live run started, i.e.
-// exactly when the idle preview watch is cleared.
-//
-// Asserted as "a rejection handler is attached" rather than "no unhandled
-// rejection fired": the runner's process reports the latter too late and too
-// unreliably for a test, so it passes with the fix reverted. This assertion
-// fails the moment the `.catch` goes.
+// Watch teardown is fire-and-forget; an uncaught rejection paints ErrorBoundary's crash
+// overlay over a working app. clearWatch rejects "WatchId not found." for dead ids, which
+// happens when the idle preview watch is cleared at run start. Asserted as "a rejection
+// handler is attached", since an unhandled-rejection check is unreliable in the runner.
 describe("clearWatch teardown", () => {
   it("attaches a rejection handler for a watch that is already gone", () => {
     const onRejected = vi.fn().mockReturnThis();

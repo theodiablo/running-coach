@@ -9,11 +9,9 @@ import type { PlanSessionInput } from "./plan";
 
 const dayAfter = (from: string, days: number) => { const d = new Date(from + "T00:00:00"); d.setDate(d.getDate() + days); return ymd(d); };
 
-// The English-equivalence guarantee: for every session buildPlan stamps with a
-// structured descriptor (`sd`), rendering it in English must reproduce the
-// stored `desc` byte-for-byte. This is what lets us translate the sentence at
-// render time while keeping `desc` the canonical fallback — if a template ever
-// drifts from the generator, this fails instead of a snapshot silently changing.
+// English-equivalence: for every session buildPlan stamps with a descriptor (`sd`), rendering it in English
+// must reproduce the stored `desc` byte-for-byte, so `desc` stays the canonical fallback and template drift
+// fails here.
 
 const DAYS_3: PlanSessionInput[] = [
   { dayOffset: 1, minutes: 40 },
@@ -96,16 +94,10 @@ describe("renderSd reproduces the English desc for every generated sd", () => {
   });
 });
 
-// The same guarantee for COACH-authored sessions: swap/add/convert/recovery-week
-// stamp `sd` via sdFor, which must render to the tool's English `desc`
-// byte-for-byte — otherwise a coach edit shows a stale/mismatched sentence
-// (the app renders `sd` in preference to `desc`). Drives the real tool path.
-// Anchored both ways, like the generator matrix in coachValidation.test.ts:
-// buildPlan reads the real clock to put week 1 on the next Monday, so an
-// unpinned fixture changes shape with the weekday CI happens to run on. The
-// dates below are derived from the anchor rather than written literally — a
-// hardcoded "mid-plan" date silently drifted before week 1 and failed every
-// style with OUT_OF_PLAN, one day in seven, until it failed every day.
+// The same guarantee for COACH-authored sessions: swap/add/convert/recovery-week stamp `sd` via sdFor, which
+// must render to the tool's English `desc` (the app prefers `sd`). Anchored both ways like coachValidation.test.ts:
+// buildPlan reads the real clock, so dates are derived from the anchor, never literal (a hardcoded
+// mid-plan date drifted out of the plan and failed with OUT_OF_PLAN).
 const ANCHORS: [string, string][] = [
   ["monday anchor", "2026-09-14"],
   ["midweek anchor", "2026-09-16"],

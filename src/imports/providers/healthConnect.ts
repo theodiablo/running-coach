@@ -4,12 +4,9 @@ import { connectHealthConnect } from "../../health/connect";
 import type { ImportProvider } from "../types";
 import type { Run } from "../../types";
 
-// The one Health Connect integration. Deliberately brand-agnostic: every watch
-// app that writes exercise sessions into Health Connect (Garmin Connect, Zepp/
-// Amazfit, Samsung Health, Polar…) surfaces through this single provider; the
-// per-run note says which app it came from (dataOrigin → importedNote). The
-// native data source stays in src/watch/ (plugin bridge, mapping, guards) —
-// this is just its ImportProvider face.
+// The one Health Connect integration, brand-agnostic: every watch app that writes sessions
+// to Health Connect surfaces through it, and the per-run note names the app (dataOrigin →
+// importedNote). The native source stays in src/watch/; this is its ImportProvider face.
 export const healthConnectProvider: ImportProvider = {
   id: "healthconnect",
   label: "Your watch (Health Connect)",

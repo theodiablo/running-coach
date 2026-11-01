@@ -1,13 +1,7 @@
-// Badge computation — pure, derived from existing data (runs, plan,
-// participations). Simple locked/unlocked. Tone is deliberately gentle &
-// inclusive for a fitness app: consistency is *cumulative* (count of active
-// weeks), never a fragile "don't break the chain" streak, and WALK runs count
-// toward distance/volume/consistency just like runs.
-//
-// Each badge exposes a `progress` (0..1) and, for locked ones, a short `hint`
-// ("8 km to go") so the Dashboard can show a "next badge" teaser. Icons are
-// stored as lucide *names* (strings) and mapped in Badge.jsx, keeping this file
-// React-free and unit-testable.
+// Badge computation: pure, derived from runs, plan and participations. Tone is gentle:
+// consistency is *cumulative*, never a streak, and WALK runs count toward distance/volume.
+// Each badge exposes `progress` (0..1) and, when locked, a `hint`. Icons are lucide *names*
+// mapped in Badge.jsx, keeping this file React-free.
 
 import { t } from "../i18n";
 import { weekKey } from "./format";
@@ -30,11 +24,9 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
 const km1 = (n: number) => (n % 1 === 0 ? n : Math.round(n * 10) / 10);
 
-// A milestone badge: unlocked once `value >= threshold`. Label/desc come from
-// the badges.<id> dictionary entries; `unit` (km/wk/m, or null for bare counts)
-// shapes the remaining-amount hint. Strings resolve at CALL time, so any caller
-// that memoises computeBadges must key on the active language as well as the
-// data — otherwise a locale switch leaves stale labels on screen.
+// A milestone badge: unlocked once `value >= threshold`. Label/desc come from badges.<id>;
+// `unit` (km/wk/m, or null) shapes the hint. Strings resolve at CALL time, so a caller that
+// memoises computeBadges must key on the active language too.
 function milestone(id: string, Icon: Badge["Icon"], value: number, threshold: number, unit: "km" | "wk" | "m" | null): Badge {
   const unlocked = value >= threshold;
   const remaining = Math.max(0, threshold - value);

@@ -1,13 +1,7 @@
-// Guided workout compilation + live step engine (docs/guided-workouts.md).
-//
-// compileWorkout turns a plan session into a machine-readable step schedule —
-// the guided counterpart of sessionSteps' prose, built from the same sd-first /
-// desc-fallback sources so the two can never disagree on the figures. The
-// engine (advanceWorkout) is a pure reducer over the tracker's cumulative
-// {km, movingSec}: it is driven by the accepted-GPS-fix render path and the
-// foreground 1s tick, NEVER a timer of its own — background JS timers are
-// frozen exactly when a run is being recorded (CLAUDE.md). i18n-free: callers
-// render step/cue copy themselves.
+// Guided workout compilation + live step engine (docs/guided-workouts.md). compileWorkout
+// turns a plan session into a step schedule from the same sources as sessionSteps' prose,
+// so figures can't disagree. advanceWorkout is a pure reducer over cumulative
+// {km, movingSec}, driven by the GPS-fix render path and 1s tick, NEVER its own timer.
 
 import { parseRepsRaw, runwalkRatio } from "./sessionSteps";
 import type { SessionSd } from "../types";
@@ -79,11 +73,8 @@ const repsFor = (s: SessionLike, desc: string): { count: number; m: number } | n
 };
 
 /**
- * Compile a plan session into a guided step schedule, or null when the session
- * has no structure to guide (easy/long/race/cross days, or a rep/tempo session
- * missing its figures). Warm-up/recovery/cool-down steps carry no pace target:
- * the session row doesn't know the runner's easy pace, and "easy" is the
- * honest instruction.
+ * Compile a plan session into a guided step schedule, or null when it has no structure
+ * to guide (easy/long/race/cross, or missing figures). Warm-up/recovery carry no pace.
  */
 export function compileWorkout(s: SessionLike): Workout | null {
   const type = String(s.type || "");
@@ -163,11 +154,8 @@ const stepCrossed = (step: WorkoutStep, p: WorkoutProgress, km: number, movingSe
 };
 
 /**
- * Advance through every step boundary the tracker's cumulative {km, movingSec}
- * has crossed since the last call. Multiple boundaries can fall in one call
- * (screen-on catch-up after a background stretch); `entered` lists each newly
- * entered step index in order so the caller can cue the LAST one and count the
- * rest as passed. Pure — never mutates its inputs.
+ * Advance through every step boundary crossed since the last call. `entered` lists new
+ * step indices in order: cue the LAST, count the rest as passed. Pure.
  */
 export function advanceWorkout(
   w: Workout,

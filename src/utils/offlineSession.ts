@@ -1,15 +1,10 @@
 import type { Session } from "@supabase/supabase-js";
 import { SUPABASE_URL } from "../config";
 
-// Offline sign-in fallback. When the access token has expired and the refresh
-// call can't reach the server (offline cold start), supabase-js PRESERVES the
-// session in storage but getSession() still resolves `session: null` — which
-// used to drop a signed-in runner on the login screen for lack of a network.
-// This reads the session supabase-js itself persisted and hands it to App.tsx
-// as a UI-gating session only: supabase-js keeps its own internal state, so the
-// next successful refresh (auto-refresh once back online) replaces it with a
-// real one, and a genuine sign-out clears the storage slot so there is nothing
-// to fall back to.
+// Offline sign-in fallback. With an expired token and an unreachable refresh, supabase-js
+// keeps the session in storage but getSession() resolves null. This reads that persisted
+// session as a UI-gating session only: supabase-js keeps its own state, the next refresh
+// replaces it, and a genuine sign-out clears the slot.
 
 // How long after its access token expired a stored session still opens the app
 // offline. The refresh token itself doesn't expire, so this is the product

@@ -65,13 +65,10 @@ function Overview({runs, settings, stretchLog = [], plan, races}: StatsViewProps
 
   const fRuns = periodRuns(runs, period);
 
-  // Everything on this screen except total TIME is a running measure: distance,
-  // pace, elevation, the trends, the run count and the average HR. A
-  // cross-training session has no comparable distance or pace, and its heart
-  // rate — real, but achieved without impact and at a different economy — would
-  // read as a change in running fitness that never happened. Time is the one
-  // honest common denominator, so it alone still counts every session.
-  // See docs/indoor-sessions.md.
+  // Everything here except total TIME is a running measure. Cross-training has no
+  // comparable distance or pace, and its HR would read as a running-fitness change that
+  // never happened. Time is the honest common denominator, so it alone counts every
+  // session. See docs/indoor-sessions.md.
   const runOnly = fRuns.filter(r => !isCrossTraining(r));
 
   const wkBars = (() => {

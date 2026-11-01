@@ -23,12 +23,10 @@ export function Ctrl({ onClick, color, children, disabled = false }: {
 
 export const HOLD_MS = 1500;
 
-// Ctrl that only fires after a sustained press, for the one control a slipped
-// thumb mid-run can't take back (Finish tears the recording down: watches, wake
-// lock, foreground service, live share). A short tap swaps the label for the
-// hint instead of failing silently, which is what makes the gesture teachable.
-// The press is tracked with pointer capture, so a finger sliding inside the
-// button keeps counting; anything that ends the press early cancels it.
+// Ctrl that fires only after a sustained press, for the one control a slipped thumb
+// can't take back (Finish tears down the recording). A short tap swaps the label for
+// the hint rather than failing silently. Pointer capture keeps a sliding finger
+// counting; anything ending the press early cancels it.
 export function HoldCtrl({ onHold, color, children, hint, holdMs = HOLD_MS }: {
   onHold: () => void; color: string; children: ReactNode; hint: string; holdMs?: number;
 }) {

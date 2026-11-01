@@ -1,13 +1,6 @@
-// The runners this browser follows on the public watch page. Per browser, never
-// per account: the page has no session, and the list must not follow a sign-in
-// or be cleared by a sign-out (unlike LIVE_SHARE_LINK_KEY, which is account
-// data). Written ONLY on an explicit Follow, which is what keeps the page within
-// ePrivacy art. 5(3)'s strictly-necessary exemption (docs/live-sharing.md).
-//
-// It holds standing links to people's live location, so it keeps the minimum:
-// token, the viewer's own label, a colour, when it was added. Never a position,
-// a finish time or a "last seen live" — that would build a history of when a
-// third party runs, which the link itself never shows.
+// Runners this browser follows on the public watch page. Per browser, never per account: it must not follow a sign-in or
+// be cleared by sign-out. Written ONLY on an explicit Follow (ePrivacy art. 5(3), docs/live-sharing.md).
+// Keep the minimum (token, viewer's label, colour, added date); never a position, finish time or "last seen live".
 
 import { isValidShareToken } from "./shareLink";
 

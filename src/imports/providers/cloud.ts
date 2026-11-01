@@ -1,12 +1,10 @@
 import type { ImportProvider, ImportedRun } from "../types";
 import type { Run } from "../../types";
 
-// Cloud-provider scaffold — interface only, not a user-visible feature until a
-// vendor OAuth integration is wired server-side (mirrors coach-agent/polar-import:
-// secret never ships client-side). Until configured, isAvailable() is false so
-// no "coming soon" placeholder renders. Strava is deliberately excluded: its API
-// terms ban AI use of the data, and the coach reads runs from app_state — users
-// can still import their own Strava exports via the file provider.
+// Cloud-provider scaffold: interface only until a vendor OAuth integration is wired
+// server-side (secret never ships client-side). Until configured isAvailable() is false,
+// so no placeholder renders. Strava is excluded: its API terms ban AI use of the data;
+// users can import Strava exports via the file provider.
 export type CloudProviderConfig = {
   id: string;
   label: string;

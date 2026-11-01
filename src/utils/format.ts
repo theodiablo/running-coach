@@ -43,11 +43,9 @@ export const fmt = {
   },
 };
 
-// Parse a colon-separated time string into seconds — accepts a goal time
-// ("m:ss" / "h:mm:ss") or a pace ("m:ss" per km). Each segment carries over at
-// 60, so it round-trips with fmt.dur / fmt.pace. Returns null for blank or
-// non-numeric input so callers can ignore an incomplete edit rather than
-// snapping the value to 0.
+// "m:ss" / "h:mm:ss" (or a "m:ss" pace) → seconds, round-tripping with fmt.dur /
+// fmt.pace. null for blank or non-numeric input, so an incomplete edit isn't
+// snapped to 0.
 export const parseDur = (str: string | null | undefined): number | null => {
   const t = (str ?? "").trim();
   if (!t) return null;
@@ -60,6 +58,14 @@ export const parseDur = (str: string | null | undefined): number | null => {
 // calendar day for anyone east of GMT (e.g. a Monday at local midnight becomes
 // the Sunday before), so we read the date parts in local time instead.
 export const ymd = (d: Date) => d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate());
+
+// Calendar arithmetic on a YYYY-MM-DD string; UTC so a DST change can't move the day.
+export const addDays = (date: string, n: number) => {
+  const d = new Date(date + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return date; // garbage in stays garbage, never a RangeError
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10); // eslint-disable-line seams/no-iso-date-slice -- UTC in, UTC out
+};
 
 // Monday (local) of the week containing `d` — the app buckets weeks Mon-Sun.
 export const weekStart = (d: Date) => {

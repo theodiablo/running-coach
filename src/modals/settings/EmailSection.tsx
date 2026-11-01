@@ -6,17 +6,10 @@ import { authErrorMessage } from "../../utils/authErrors";
 import { INPUT_CLS } from "../../constants";
 import type { User } from "@supabase/supabase-js";
 
-// Change the account email: one confirmation link, sent to the new address only
-// (double_confirm_changes is off), and the old address gets a notification once
-// it lands. `user.new_email` is set server-side while that's outstanding, so the
-// pending note survives an app restart without any local state.
-//
-// The link is opened in the NEW inbox, which is very often a different device —
-// hence the re-read on mount: `user` comes from the cached session and would
-// otherwise leave the note up forever on an account that already changed.
-//
-// Works for Google sign-in accounts too: the Google identity is matched by its
-// provider `sub`, not the email, so signing in with Google keeps working.
+// Change the account email: one link to the new address only (double_confirm_changes is off),
+// the old address gets a notification. `user.new_email` marks it pending server-side. The link
+// opens in the NEW inbox, often another device, so re-read on mount (the cached `user` would
+// keep the note up forever). Google accounts work: the identity matches on provider `sub`.
 export function EmailSection({ user, showToast }: { user: User; showToast?: (msg: string, type?: string) => void }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);

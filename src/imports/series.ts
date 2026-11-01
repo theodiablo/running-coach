@@ -1,13 +1,9 @@
 import type { TrackPointOrGap } from "../utils/geo";
 
-// Normalizers for the raw route + heart-rate series a native health-store bridge
-// returns for a single finished workout (HealthKit's HKWorkoutRoute / per-sample
-// HR; Health Connect's HeartRateRecord samples). Kept pure and unit-tested — the
-// same doctrine as the mapping layers — so the native side can stay a thin "return
-// everything raw" shim and every interpretation is exercised off-device.
-//
-// Shared by src/healthkit/import.ts and src/watch/import.ts so the two health-store
-// providers can't drift on how they clean a route/HR payload.
+// Normalizers for the raw route + HR series a native health-store bridge returns per finished
+// workout (HealthKit HKWorkoutRoute / HR; Health Connect HeartRateRecord). Pure and unit-tested
+// so the native side stays a thin "return everything raw" shim. Shared by
+// src/healthkit/import.ts and src/watch/import.ts so the two can't drift.
 
 export type HrSample = { bpm: number; t: number };
 

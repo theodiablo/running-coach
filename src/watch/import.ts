@@ -90,16 +90,10 @@ async function requestPermissions(): Promise<boolean> {
 
 type ScanOptions = { enabled?: boolean; allowNativeRead?: boolean; days?: number; now?: number; trigger?: string };
 
-// Read finished exercise sessions from Health Connect over the last `days`, map
-// them to runs, and drop anything already logged. Never throws and returns [] on
-// any failure, mirroring flushPendingHr's guard structure: it only touches the
-// native bridge when enabled AND this device holds the local grant marker (a
-// synced preference alone is not enough — Android grants are per-install).
-//
-// Every attempt is recorded in the per-device diagnostics ring buffer (scanLog)
-// — including skipped/failed ones — so the hidden Settings sync-log panel can
-// show why a watch run did or didn't import. Recording is best-effort and never
-// affects the return value.
+// Read finished exercise sessions from Health Connect over the last `days`, map them to runs
+// and drop anything already logged. Never throws, returns [] on failure. Touches the native
+// bridge only when enabled AND this device holds the grant marker (grants are per-install).
+// Every attempt, even skipped, is logged to the per-device scanLog; best-effort.
 export async function scanWatchSessions(
   runs: Run[],
   { enabled = true, allowNativeRead = true, days = WATCH_SCAN_DAYS, now = Date.now(), trigger = "auto" }: ScanOptions = {},
@@ -136,11 +130,9 @@ export async function scanWatchSessions(
   }
 }
 
-// Fetch the raw HR series for each imported session and attach it as hrSamples.
-// Origin-filtered to the session's writer; a failed/empty read leaves the run
-// with just its avg/max HR aggregates (already on the mapped run). Health Connect
-// has no route for any known writer, so these imports carry HR but no GPS — the
-// run rides hrRouteId (see persistImportedRoute), powering the detail zone card.
+// Fetch the raw HR series per imported session, origin-filtered to its writer, and attach it as
+// hrSamples; a failed read leaves the avg/max aggregates. Health Connect has no route for any
+// known writer, so these carry HR but no GPS: the run rides hrRouteId (persistImportedRoute).
 async function enrichWithHrSeries(items: ClassifiedSession[]): Promise<ImportedRun[]> {
   return Promise.all(items.map(async ({ raw, run }): Promise<ImportedRun> => {
     const base = (run || {}) as ImportedRun;

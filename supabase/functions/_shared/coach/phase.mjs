@@ -1,8 +1,7 @@
-// Where the runner stands relative to the plan's main race: the core of
-// src/utils/planPhase.ts (typed wrapper), shared so the coach reads the same
-// phase the app shows. Plain dependency-free ESM like recovery.mjs; dates are
-// YYYY-MM-DD strings and the clock arrives as `today`, so no Date and no i18n.
-// Detail: docs/training-plan.md ("Where the runner stands").
+// Where the runner stands relative to the plan's main race: core of
+// src/utils/planPhase.ts, shared so the coach reads the phase the app shows.
+// Dependency-free ESM; dates are YYYY-MM-DD and the clock arrives as `today` (no Date,
+// no i18n). Detail: docs/training-plan.md ("Where the runner stands").
 
 import { goalKind } from "./recovery.mjs";
 

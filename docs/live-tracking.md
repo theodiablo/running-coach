@@ -483,6 +483,11 @@ the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
 
 ## Sensor diagnostics — GPS + HR (dev-only, native)
 
+The shell log (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) exists because three
+failures look the same from JS: the renderer reclaimed, the process killed, or JS
+frozen in the background. Each stops the JS logs identically, so only the native
+side can say which happened. The GPS log keeps fix metadata, never coordinates.
+
 Hidden per-device ring buffers (`src/geo/trackLog.ts`, **never synced**) record
 what a run's sensor streams actually did, merged into one timeline by
 `getTrackLog` — they fail together and the question is always which stopped

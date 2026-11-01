@@ -2,12 +2,9 @@ import { LIVE_RUN_KEY } from "../constants";
 import { currentUserId } from "../db";
 import type { StoredTrackPoint } from "./geo";
 
-// The live-run recovery buffer (localStorage, see useRunTracker's persist) read
-// and normalized in ONE place, shared by the tracker's resume offer and the
-// app-wide "interrupted run" banner (RunningCoach → Dashboard). A buffer is
-// never silently discarded for being old — losing a run's data because the
-// runner didn't reopen the recorder fast enough was exactly the bug (see
-// docs/live-tracking.md, recovery section).
+// The live-run recovery buffer (localStorage, see useRunTracker's persist) read and
+// normalized in ONE place, shared by the resume offer and the app-wide "interrupted run"
+// banner. A buffer is never discarded for being old (docs/live-tracking.md, recovery).
 
 // Mirrors useRunTracker's GAP_MS: journal points that resume after a longer
 // silence start a new segment rather than bridging it with a recorded line.
@@ -40,14 +37,10 @@ export type RecoveredRun = {
   savedAt: number;
 };
 
-// Read the raw buffer. Returns null — and removes a corrupt or empty leftover —
-// when there is nothing worth offering.
-//
-// `key` selects the mode's buffer (LIVE_RUN_KEY for a GPS run, INDOOR_RUN_KEY
-// for an indoor session), and `requirePoints` says what "worth offering" means:
-// a GPS run without points has nothing to resume, but an indoor session never
-// has any, so it qualifies on recorded HR or elapsed time instead. Defaults
-// keep every existing caller reading exactly the GPS buffer it always did.
+// Read the raw buffer. Returns null (removing a corrupt or empty leftover) when there is
+// nothing worth offering. `key` selects the mode's buffer (LIVE_RUN_KEY or INDOOR_RUN_KEY);
+// `requirePoints` says what "worth offering" means: an indoor session has no points, so it
+// qualifies on recorded HR or elapsed time. Defaults read the GPS buffer.
 export function readRecoveryBuffer(
   key: string = LIVE_RUN_KEY,
   { requirePoints = true }: { requirePoints?: boolean } = {},
@@ -79,15 +72,10 @@ const lastPointT = (points: TrackPointOrGap[]): number => {
   return 0;
 };
 
-// Normalize a raw buffer for the resume flow, optionally merging the native fix
-// journal (points the Android service kept recording after the WebView froze —
-// only those newer than the last persisted point are appended).
-//
-// Moving time: the buffer's accSec counts only COMPLETED segments; a run that
-// died while "tracking" had an open segment (startAt) that never got closed, so
-// without this the recovered clock reads 0:00 for a run that never paused. The
-// open segment is closed at the best evidence of when recording stopped — the
-// last (merged) point, or failing that the last persist.
+// Normalize a raw buffer for the resume flow, optionally merging the native fix journal
+// (only points newer than the last persisted one). Moving time: accSec counts only
+// COMPLETED segments, so a run that died mid-segment has its open one (startAt) closed at
+// the last (merged) point, else the last persist; otherwise the clock reads 0:00.
 export function normalizeRecovery(buf: RecoveryBuffer, journal: StoredTrackPoint[] = []): RecoveredRun {
   const kept: TrackPointOrGap[] = Array.isArray(buf.points) ? [...buf.points] : [];
   const keptLastT = lastPointT(kept);

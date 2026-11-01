@@ -1,9 +1,6 @@
-// Parity + shape tests for the coach agent's run-detail digest module
-// (supabase/functions/_shared/coach/runDigest.mjs). That file PORTS the pure
-// helpers in src/utils/{geo,runSeries,runSplits,hr}.ts to dependency-free ESM
-// so the Deno edge function can use them; these tests pin the ports to the TS
-// originals on shared fixtures so the two can't silently drift, and pin the
-// digest's two hard guarantees: compact (~2KB) and coordinate-free.
+// Parity + shape tests for the coach run-detail digest (supabase/functions/_shared/coach/runDigest.mjs), which PORTS
+// src/utils/{geo,runSeries,runSplits,hr}.ts. They pin the ports to the TS originals on shared fixtures, and the digest's
+// two guarantees: compact (~2KB) and coordinate-free.
 import { describe, it, expect } from "vitest";
 // @ts-expect-error — plain ESM module shared with the Supabase edge function.
 import * as digest from "../../supabase/functions/_shared/coach/runDigest.mjs";
