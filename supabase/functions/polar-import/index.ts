@@ -213,6 +213,6 @@ Deno.serve(async (req) => {
     return json({ error: "unknown action" }, 400);
   } catch (err) {
     console.error("polar-import error", err);
-    return json({ error: String(err) }, 200); // never hard-fail the caller's scan
+    return json({ error: (err as { message?: string } | null)?.message ?? String(err) }, 200); // never hard-fail the caller's scan
   }
 });

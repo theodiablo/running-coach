@@ -251,6 +251,6 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   } catch (err) {
     console.error("notify-contribution error", err);
-    return json({ error: String(err) }, 200); // never fail the caller
+    return json({ error: (err as { message?: string } | null)?.message ?? String(err) }, 200); // never fail the caller
   }
 });

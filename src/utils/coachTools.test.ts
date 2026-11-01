@@ -491,6 +491,7 @@ describe("applyToolCall", () => {
 
 describe("assessGoalFeasibility", () => {
   const goal = { goal: { goalSec: 6600, distanceKm: 21.1, raceDate: "2026-05-01" }, targetPace: 313 };
+  // eslint-disable-next-line seams/no-iso-date-slice -- the coach tools' own clock is UTC (weeks.mjs todayYmd)
   const today = (daysAgo: number) => new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
 
   it("asks for data when there are no runs", () => {

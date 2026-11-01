@@ -62,6 +62,7 @@ export const ymd = (d: Date) => d.getFullYear() + "-" + p2(d.getMonth() + 1) + "
 // Calendar arithmetic on a YYYY-MM-DD string; UTC so a DST change can't move the day.
 export const addDays = (date: string, n: number) => {
   const d = new Date(date + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return date; // garbage in stays garbage, never a RangeError
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10); // eslint-disable-line seams/no-iso-date-slice -- UTC in, UTC out
 };

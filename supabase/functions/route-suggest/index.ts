@@ -187,6 +187,6 @@ Deno.serve(async (req) => {
     return json({ configured: true, features, usage: { used, limit: LIMIT_PER_DAY } });
   } catch (err) {
     console.error("route-suggest error", err);
-    return json({ error: String(err) }, 200);
+    return json({ error: (err as { message?: string } | null)?.message ?? String(err) }, 200);
   }
 });

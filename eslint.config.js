@@ -101,13 +101,20 @@ export default defineConfig([
         selector: 'MemberExpression[property.name="goalSec"][object.name="plan"]',
         message: 'The goal is settings.goalSec: buildPlan substitutes 7200 for an empty one in plan.goalSec.',
       }],
-      'seams/no-iso-date-slice': ['error', {
-        selector: 'CallExpression[callee.property.name=/^(slice|substring|split)$/][callee.object.callee.property.name="toISOString"]',
-        message: 'toISOString() is UTC, so east of GMT it can name the wrong day. Use ymd(date) for a local day, addDays(s, n) for date arithmetic (src/utils/format.ts).',
-      }],
       'seams/best-efforts-through-helpers': ['error', {
         selector: 'MemberExpression[property.name="bestEfforts"]',
         message: 'Read best efforts through effortsFor / rankRunEfforts (src/utils/bestEfforts.ts): they fill the estimate and keep walks and OTHER out.',
+      }],
+    },
+  },
+  {
+    // Tests too: a fixture built this way shifts a day east of GMT.
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: { seams },
+    rules: {
+      'seams/no-iso-date-slice': ['error', {
+        selector: 'CallExpression[callee.property.name=/^(slice|substring|split)$/][callee.object.callee.property.name="toISOString"]',
+        message: 'toISOString() is UTC, so east of GMT it can name the wrong day. Use ymd(date) for a local day, addDays(s, n) for date arithmetic (src/utils/format.ts).',
       }],
     },
   },
