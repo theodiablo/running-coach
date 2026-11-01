@@ -451,9 +451,8 @@ patches).
 A Capacitor plugin is a proxy that answers *every* property, `then` included, so
 `async` returning it (or `.then(m => m.SignInWithApple)`) makes the promise call
 `SignInWithApple.then()`, which rejects as "not implemented" and never settles:
-the tap paints the crash overlay and nothing reaches the server. That, not the
-iPad sheet, rejected 1.19.4 and 1.21.4 under 2.1(a). The unit test mocks the
-plugin as such a proxy; a plain-object mock hides the bug.
+the tap paints the crash overlay and nothing reaches the server. The unit test
+mocks the plugin as such a proxy; a plain-object mock hides the bug.
 
 The `com.apple.developer.applesignin` entitlement only works if the App ID grants
 the capability; `ios-appstore-profile.mjs` preflights that, since a profile

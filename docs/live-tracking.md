@@ -575,9 +575,7 @@ never do it.
 ### `@capacitor-community/apple-sign-in` (iPad sheet + error codes)
 
 Upstream 7.1.0 builds its `ASAuthorizationController` off the main thread with
-no `presentationContextProvider`, which iPad needs to present the sheet. (The
-App Review rejections first blamed on this were the JS proxy bug in
-`docs/release.md`.) The patch performs the request on the main queue
+no `presentationContextProvider`, which iPad needs to present the sheet. The patch performs the request on the main queue
 anchored to the WebView's window, rejects with the `ASAuthorizationError` code
 (`1001` = cancelled; the description is localized), and replaces the
 force-unwrapped token fields with a rejection. Detail: `docs/release.md`
