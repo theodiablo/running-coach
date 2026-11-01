@@ -89,6 +89,12 @@ describe("normalizeRecovery", () => {
     expect(paused.pauses).toEqual([[START - 10_000, null]]);
   });
 
+  it("starts a stopped run's off-clock window at the stop, and reads an old buffer with no pauses", () => {
+    const stopped = normalizeRecovery(buffer({ state: "stopped", stoppedAt: START + 1_000, pauses: [[START - 9_000, START - 5_000]] }));
+    expect(stopped.pauses).toEqual([[START - 9_000, START - 5_000], [START + 1_000, null]]);
+    expect(normalizeRecovery(buffer({ pauses: undefined })).pauses).toEqual([[START + 3_000, null]]);
+  });
+
   it("leaves accSec alone for a paused buffer (no open segment)", () => {
     const norm = normalizeRecovery(buffer({ state: "paused", startAt: null }));
     expect(norm.accSec).toBe(42);
