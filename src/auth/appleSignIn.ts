@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import type { Session } from "@supabase/supabase-js";
+import type { SignInWithApplePlugin } from "@capacitor-community/apple-sign-in";
 import { supabase, AUTH_DEEP_LINK, NATIVE_BUNDLE_ID } from "../supabase";
 import { isNative, isIos } from "../native";
 
@@ -27,19 +28,20 @@ function isUserCancelled(err: unknown): boolean {
   return /\b1001\b/.test(text);
 }
 
-// The plugin, when this install can show its sheet at all.
-async function applePlugin() {
+// The plugin, when this install can show its sheet at all. Boxed: a Capacitor
+// proxy answers `then`, so resolving a promise with the bare proxy never settles.
+async function applePlugin(): Promise<{ plugin: SignInWithApplePlugin } | null> {
   if (!isNative || !isIos) return null;
   if (!Capacitor.isPluginAvailable("SignInWithApple")) return null;
   if (!globalThis.crypto?.subtle) return null;
-  return import("@capacitor-community/apple-sign-in").then(m => m.SignInWithApple, () => null);
+  return import("@capacitor-community/apple-sign-in").then(m => ({ plugin: m.SignInWithApple }), () => null);
 }
 
 // A fresh sheet round trip, for a nonce-bound sign-in or a deletion-time code.
 async function authorize(nonce?: string) {
-  const plugin = await applePlugin();
-  if (!plugin) return null;
-  const res = await plugin.authorize({
+  const loaded = await applePlugin();
+  if (!loaded) return null;
+  const res = await loaded.plugin.authorize({
     clientId: NATIVE_BUNDLE_ID,
     // Unused by the native sheet but required by the plugin's options type.
     redirectURI: AUTH_DEEP_LINK,
