@@ -38,13 +38,15 @@ shared between all of them.
 ## App-level budgets (edge functions, env-tunable)
 | Function | Limit | Env var | Scope |
 |---|---|---|---|
-| `coach-agent` | 5 / day free, 15 new users, 40 premium | `RATE_LIMIT_PER_DAY`, `NEW_USER_RATE_LIMIT_PER_DAY`, `PREMIUM_RATE_LIMIT_PER_DAY` | per user, atomic DB counter |
-| `route-suggest` | 30 / day | `ROUTE_SUGGEST_LIMIT_PER_DAY` | per user, atomic DB counter |
-| `live-watch` | 60 / min | `LIVE_WATCH_RATE_MAX` | per IP, **per isolate** (in memory) |
+| `coach-agent` | 5 / day free, 15 new users, 40 premium; `profiles.coach_daily_limit` overrides | `RATE_LIMIT_PER_DAY`, `NEW_USER_RATE_LIMIT_PER_DAY`, `PREMIUM_RATE_LIMIT_PER_DAY` | per user, atomic DB counter |
+| `route-suggest` | 30 / day, premium only | `ROUTE_SUGGEST_LIMIT_PER_DAY` | per user, atomic DB counter |
+| `suunto-import` | 300 FIT files / day | `SUUNTO_FIT_DAILY_LIMIT` | per user |
+| `coros-import` | 300 files / day | `COROS_FILE_DAILY_LIMIT` | per user |
+| `live-watch` | 60 runs read / min (a batch spends one per token) | `LIVE_WATCH_RATE_MAX` | per IP, **per isolate** (in memory) |
 | `live-publish` | 20 / min | `LIVE_PUBLISH_RATE_MAX` | per IP, **per isolate** |
 
-None of these is a global cap: total coach spend and total ORS usage grow
-linearly with active users. The live-sharing limiters are best-effort; they
+None of these is a global cap: total coach spend grows linearly with active
+users, and total ORS usage with active premium users. The live-sharing limiters are best-effort; they
 reset when an isolate recycles and don't add up across concurrent isolates.
 
 ## Shared third-party quotas
