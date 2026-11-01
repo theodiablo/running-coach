@@ -481,7 +481,6 @@ the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
   nag. Don't drop this gate back to "start and hope" — the silent blank-map run
   was the bug.
 
-
 ## Sensor diagnostics — GPS + HR (dev-only, native)
 
 The shell log (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) exists because three

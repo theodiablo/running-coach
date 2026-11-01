@@ -101,10 +101,10 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-// Heart-rate model: fit pace (sec/km) against avg HR, read off the pace at threshold HR
-// (top of Z4), anchored as {km in 3600 s, 3600 s} for Riegel. The slope is NOT least-squares
-// but blended with a physiological prior (easy-only logs make OLS noise), and extrapolation
-// is bounded (see MAX_EXTRAP_BPM). Gate with `hrModelUsable`; docs/race-predictions.md.
+// Heart-rate model: fit pace against avg HR, read off the pace at threshold HR (top of Z4),
+// anchored as {km in 3600 s, 3600 s} for Riegel. Slope blended with a prior, not OLS. Five
+// guards bound it: Z1 dropped, slow outliers trimmed one-way, slope capped against the prior,
+// read-off HR within MAX_EXTRAP_BPM, result clamped against `best`. docs/race-predictions.md.
 export const hrModelAnchor = (runs: PredictRun[], effMax: number, restHR: number, best?: {km: number; durationSec: number} | null): HrAnchor | null => {
   if (!effMax) return null;
   const hrr = effMax - restHR;

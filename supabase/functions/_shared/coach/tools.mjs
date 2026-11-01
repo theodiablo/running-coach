@@ -3,6 +3,11 @@
 // Every transform returns a NEW plan, refuses done sessions, never moves a RACE; types match
 // the app (cross-training = WALK). Plain ESM: imported by Deno and Vitest.
 
+// The load-increasing tools are the bounded ones: add_session (capped at the longest
+// training session) and increase_session_distance (that cap +10%), both closed in the final
+// 7 days, limited in the final 14, and gated by the ramp validator and the engine's
+// pain/illness/missed-week gates.
+
 import { HARD_TYPES } from "./validation.mjs";
 import { stylePacing } from "./styles.mjs";
 import { canHoldTraining, goalKind, inRecovery } from "./recovery.mjs";

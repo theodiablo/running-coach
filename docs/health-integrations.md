@@ -269,7 +269,7 @@ for an indoor session. One callback, three consumers: data, liveness, display.
   BLE. Under a post-run source (Health Connect, HealthKit) the journal on disk
   belongs to an earlier BLE run: merging it would invent HR and skip the store
   fetch.
-- `HR_STALE` (`src/utils/hr.ts`) exists so a dropped strap shows as gone: without
+- `HR_STALE_MS` / `isHrStale` (`src/utils/hr.ts`) exist so a dropped strap shows as gone: without
   it the status line keeps reading "avg · max" for the rest of the run.
 - `recorderHrSetup` reads the three per-device markers once, not per consumer: the
   recorder re-renders every second and each read is a localStorage hit.

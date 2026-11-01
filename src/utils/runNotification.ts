@@ -93,7 +93,7 @@ export function buildRunNotificationContent(input: RunNotificationInput): RunNot
 // Change gate: true when posting `next` would not visibly change the notification.
 // Text must match exactly; the chronometer anchor tolerates rounding jitter. The `live`
 // seed is not compared (identical text means identical km/pace; elevation is a base the
-// service accumulates). HR is the exception: native ages it out on a wall-clock timer.
+// service accumulates). HR is the exception: native ages it out on a timer (liveNotification.ts).
 export function sameNotificationContent(
   prev: RunNotificationContent | null | undefined,
   next: RunNotificationContent,

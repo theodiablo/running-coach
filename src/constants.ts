@@ -101,8 +101,8 @@ export const REC_NOTIF_ASKED_KEY = "rc_rec_notif_asked";
 export const SESSION_NOTIF_AUTH_KEY = "rc_session_notif_auth";
 export const SESSION_NOTIF_DISCLOSED_KEY = "rc_session_notif_disclosed";
 
-// localStorage flag: asked once for ACCESS_BACKGROUND_LOCATION. Only on builds that
-// DECLARE it (sideload manifest) and after foreground fine location is granted. Once per
+// localStorage flag: asked once for ACCESS_BACKGROUND_LOCATION (declared in the main
+// manifest), only after foreground fine location is granted. Once per
 // install so a denied Settings round-trip never re-nags. See src/geo/background.ts.
 export const BG_LOC_ASKED_KEY = "rc_bg_loc_asked";
 
