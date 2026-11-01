@@ -316,7 +316,7 @@ Account dashboard says which.
    reaches state.
 4. Dashboard → Authentication → **Rate Limits** → "Emails sent per hour". With
    custom SMTP the default becomes 30/hour and the field unlocks; raise it to
-   whatever the signup volume needs. `[auth.rate_limit] email_sent` in
+   whatever the signup volume needs (current values: `docs/capacity.md`). `[auth.rate_limit] email_sent` in
    `supabase/config.toml` is the **local stack only** and does not drive the
    hosted project — same manual-sync rule as the templates below.
 5. Send a real password reset and check the headers: `dkim=pass` and

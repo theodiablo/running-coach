@@ -54,6 +54,46 @@ function finalFunctions(): Map<string, Fn> {
   return fns;
 }
 
+// Final text of every RLS policy, keyed by table + name; an alter replaces only the clauses it names.
+function finalPolicies(): Map<string, { using: string; check: string; file: string }> {
+  const pols = new Map<string, { using: string; check: string; file: string }>();
+  const STMT = /\b(create|alter|drop)\s+policy\s+(?:if\s+exists\s+)?"([^"]+)"\s+on\s+(?:"?public"?\.)?"?(\w+)"?([^;]*);/gi;
+  const clause = (body: string, kw: "using" | "with\\s+check") => {
+    const m = new RegExp(`\\b${kw}\\s*\\(`, "i").exec(body);
+    if (!m) return undefined;
+    let depth = 1, i = m.index + m[0].length;
+    for (; i < body.length && depth; i++) depth += body[i] === "(" ? 1 : body[i] === ")" ? -1 : 0;
+    return body.slice(m.index, i);
+  };
+  for (const f of files) {
+    for (const m of strip(readFileSync(join(DIR, f), "utf8")).matchAll(STMT)) {
+      const [, verb, name, table, body] = m;
+      const key = `${table}."${name}"`;
+      if (verb.toLowerCase() === "drop") { pols.delete(key); continue; }
+      const prev = verb.toLowerCase() === "alter" ? pols.get(key) : undefined;
+      pols.set(key, {
+        using: clause(body, "using") ?? prev?.using ?? "",
+        check: clause(body, "with\\s+check") ?? prev?.check ?? "",
+        file: f,
+      });
+    }
+  }
+  return pols;
+}
+
+describe("migration policy conventions", () => {
+  it("wraps auth.uid() in a subquery in every RLS policy", () => {
+    const pols = finalPolicies();
+    expect(pols.size).toBeGreaterThan(20);
+    const bare = (s: string) => /\bauth\.uid\(\)/i.test(s.replace(/\bselect\s+auth\.uid\(\)/gi, ""));
+    const perRow = [...pols]
+      .filter(([, p]) => bare(p.using) || bare(p.check))
+      .map(([k, p]) => `${k} (${p.file})`);
+    // Fix with (select auth.uid()); a bare call is re-evaluated per row (advisor lint 0003).
+    expect(perRow).toEqual([]);
+  });
+});
+
 describe("migration function conventions", () => {
   const fns = finalFunctions();
 

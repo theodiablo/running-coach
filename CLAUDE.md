@@ -167,7 +167,8 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   (`delete_my_account`, the one accepted lint-0029 finding). Service-role-only
   tables pair `enable row level security` (no policies = deny all) with an
   explicit `revoke all ... from anon, authenticated`; the linter's INFO
-  `rls_enabled_no_policy` on them is the intent, not a gap. **A new table
+  `rls_enabled_no_policy` on them is the intent, not a gap. RLS policies call
+  `(select auth.uid())`, never a bare `auth.uid()` (re-evaluated per row). **A new table
   needs an explicit `grant ... to service_role`** for whatever an edge function
   does with it: this project's default privileges give service_role no
   SELECT/INSERT, and supabase-js reports the denial as `error` with `data:
@@ -747,6 +748,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
 - `docs/feedback.md` — the beta feedback button (and why voice input was removed).
 - `docs/stretching.md` — stretching (free): the research and what copy may claim, routines, poses-as-data figures, Home suggestion rules, the player.
+- `docs/capacity.md` — recorded rate limits (Supabase Auth, SES, edge-function budgets) and what caps throughput.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/store-redirect.md` — the flyer QR code's `/get` redirect: per-device store routing and anonymous scan counts.
 - `docs/product-metrics.md` — maintainer metrics: `admin_metrics()`, the `admin-metrics` function's two doors, the weekly digest.
