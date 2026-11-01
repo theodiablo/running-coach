@@ -33,10 +33,17 @@ function altitudeGate() {
 // analysis runs on the moving clock, a pause between two fixes becoming a gap marker.
 export function readPauses(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw
+  const sorted = raw
     .filter((w) => Array.isArray(w) && w.length >= 2 && Number.isFinite(w[0]) && Number.isFinite(w[1]) && w[1] > w[0])
     .map((w) => [Number(w[0]), Number(w[1])])
     .sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const w of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && w[0] <= last[1]) last[1] = Math.max(last[1], w[1]);
+    else merged.push(w);
+  }
+  return merged;
 }
 
 function pausedMsBefore(pauses, t) {

@@ -5,14 +5,22 @@ import type { TrackPointOrGap } from "./geo";
 
 export type PauseWindow = readonly [number, number];
 
-// Only well-formed, closed, time-ordered windows; anything else in the sidecar is ignored.
+// Well-formed closed windows, time-ordered and merged where they overlap (overlap would run
+// the moving clock backwards); anything else in the sidecar is ignored.
 export function readPauses(raw: unknown): PauseWindow[] {
   if (!Array.isArray(raw)) return [];
-  return raw
+  const sorted = raw
     .filter((w): w is [number, number] => Array.isArray(w) && w.length >= 2
       && Number.isFinite(w[0]) && Number.isFinite(w[1]) && w[1] > w[0])
-    .map(w => [Number(w[0]), Number(w[1])] as const)
+    .map(w => [Number(w[0]), Number(w[1])] as [number, number])
     .sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const w of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && w[0] <= last[1]) last[1] = Math.max(last[1], w[1]);
+    else merged.push(w);
+  }
+  return merged;
 }
 
 // Milliseconds paused before epoch `t` (a t inside a pause counts the part already elapsed).

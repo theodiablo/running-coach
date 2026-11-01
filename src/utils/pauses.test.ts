@@ -29,6 +29,13 @@ describe("readPauses", () => {
     expect(readPauses([[5, 9], [1, 2], [3, 3], [4, null], "x", [7]])).toEqual([[1, 2], [5, 9]]);
     expect(readPauses(undefined)).toEqual([]);
   });
+
+  it("merges overlapping and nested windows so the moving clock never runs backwards", () => {
+    const pauses = readPauses([[0, 10], [5, 15], [6, 8], [20, 30]]);
+    expect(pauses).toEqual([[0, 15], [20, 30]]);
+    const moving = [0, 5, 7, 10, 12, 15, 20, 25, 40].map(t => t - pausedMsBefore(pauses, t));
+    for (let i = 1; i < moving.length; i++) expect(moving[i]).toBeGreaterThanOrEqual(moving[i - 1]);
+  });
 });
 
 describe("pausedMsBefore", () => {

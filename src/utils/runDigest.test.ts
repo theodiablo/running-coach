@@ -111,7 +111,7 @@ describe("runDigest.mjs parity with the TS originals", () => {
   });
 
   it("pause removal parity: trace, HR samples and the splits read off them", () => {
-    const pauses = [[T0 + 200_000, T0 + 380_000], [T0 + 800_000, T0 + 830_000], [T0 + 2_000_000, T0 + 1_000]];
+    const pauses = [[T0 + 200_000, T0 + 380_000], [T0 + 300_000, T0 + 420_000], [T0 + 800_000, T0 + 830_000], [T0 + 2_000_000, T0 + 1_000]];
     const ref = readPauses(pauses);
     expect(digest.readPauses(pauses)).toEqual(ref);
     const ours = digest.tracePausesRemoved(track, digest.readPauses(pauses));
