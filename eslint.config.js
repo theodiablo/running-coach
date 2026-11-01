@@ -116,7 +116,7 @@ export default defineConfig([
     ignores: TESTS,
     plugins: { seams },
     rules: {
-      'seams/no-native-in-ui': ['error', ...importOf('/^(?!@capacitor\\/browser$).*capacitor/',
+      'seams/no-native-in-ui': ['error', ...importOf('/^(?!@capacitor\\/browser$)(@capacitor|@[^/]+\\/capacitor|capacitor)/',
         'UI code never touches a native bridge: go through the seam (geoSource, getHrSource, src/imports/, src/native.ts).')],
     },
   },

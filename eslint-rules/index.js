@@ -39,10 +39,10 @@ const maxCommentLines = {
         };
         for (const c of comments) {
           const before = sc.getTokenBefore(c, { includeComments: false });
-          const trailing = before && before.loc.end.line === c.loc.start.line;
+          const afterCode = before && before.loc.end.line === c.loc.start.line;
           const prev = group.at(-1);
-          if (prev && !trailing && c.loc.start.line === prev.loc.end.line + 1) group.push(c);
-          else { flush(); if (!trailing) group.push(c); }
+          if (prev && !afterCode && c.loc.start.line === prev.loc.end.line + 1) group.push(c);
+          else { flush(); group.push(c); if (afterCode) flush(); }
         }
         flush();
       },

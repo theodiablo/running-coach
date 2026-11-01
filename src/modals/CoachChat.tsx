@@ -376,11 +376,8 @@ export function CoachChat({ plan, onApplyPlan, appendUserContext, showToast, onF
           </div>
         )}
         <div className="flex items-center gap-0.5">
-          {/* Back to a fresh chat from any ongoing conversation — a resumed OPEN
-              trajectory otherwise has no way out (the closed-transcript footer
-              button doesn't render there, and closing the whole coach is the
-              only reset). Hidden on the untouched initial state, where it
-              would be a no-op. */}
+          {/* Fresh chat from any ongoing conversation: a resumed OPEN trajectory has
+              no other way out. Hidden on the untouched initial state (a no-op). */}
           {(viewingClosed !== null || trajectoryId !== null || msgs.length > 1) && (
             <button onClick={startNewChat} aria-label={t("coach.history.startNew")} className="text-slate-400 hover:text-white p-1.5"><MessageSquarePlus size={17}/></button>
           )}

@@ -22,6 +22,7 @@ tester.run("max-comment-lines", rule("max-comment-lines"), {
   invalid: [
     { code: "// 1\n// 2\n// 3\n// 4\n// 5\nconst a = 1;", options: [{ max: 4 }], errors: [{ messageId: "tooLong" }] },
     { code: "/*\n * 1\n * 2\n */\nconst a = 1;", options: [{ max: 3 }], errors: [{ messageId: "tooLong" }] },
+    { code: "const a = <div>{/* 1\n 2\n 3\n 4\n 5 */}</div>;", options: [{ max: 4 }], errors: [{ messageId: "tooLong" }] },
   ],
 });
 
@@ -123,5 +124,7 @@ describe("eslint.config.js seam rules", () => {
   it("leaves the seam's own file alone", async () => {
     expect(await lint("src/geo/web.ts", "navigator.geolocation.clearWatch(1);")).not.toContain("seams/gps-through-geo-source");
     expect(await lint("src/views/X.tsx", 'import { Browser } from "@capacitor/browser"; Browser.open({ url: "" });')).not.toContain("seams/no-native-in-ui");
+    expect(await lint("src/views/X.tsx", 'import { x } from "./capacitorish"; x();')).not.toContain("seams/no-native-in-ui");
+    expect(await lint("src/views/X.tsx", 'import { H } from "@pianissimoproject/capacitor-health-connect"; H.x();')).toContain("seams/no-native-in-ui");
   });
 });

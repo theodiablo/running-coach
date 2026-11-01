@@ -463,11 +463,8 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
           {t("settings.integrations.syncNow")}
         </button>
       )}
-      {/* Named after the provider, and indented under its row: the card closes
-          with its own collapsible, and two disclosures a few pixels apart both
-          reading "How it works" is unreadable — you can't tell which one
-          answers "what does connecting Polar do?". Indent + name = the row's
-          help, not the card's. */}
+      {/* Named after the provider and indented under its row, so it can't be
+          mistaken for the card's own "How it works" disclosure just below. */}
       {help && !on && (
         <div className="pl-[26px]">
           <HowItWorks label={t("settings.connections.howItWorksNamed", { name: label })}><p>{help}</p></HowItWorks>

@@ -12,16 +12,21 @@ const files = readdirSync(DIR).filter((n) => n.endsWith(".sql")).sort();
 
 interface Fn { definer: boolean; pinned: boolean; trigger: boolean; revoked: Set<string>; file: string }
 
+const unparsed: string[] = [];
+
 function finalFunctions(): Map<string, Fn> {
   const fns = new Map<string, Fn>();
-  const CREATE = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?"?(\w+)"?\s*\(([\s\S]*?)\$(\w*)\$[\s\S]*?\$\3\$([^;]*);/gi;
-  const ALTER = /alter\s+function\s+(?:public\.)?"?(\w+)"?\s*\([^)]*\)\s+set\s+search_path\s*(?:=|to)\s*''/gi;
+  const CREATE = /create\s+(?:or\s+replace\s+)?function\s+(?:"?public"?\.)?"?(\w+)"?\s*\(([\s\S]*?)\$(\w*)\$[\s\S]*?\$\3\$([^;]*);/gi;
+  const ALTER = /alter\s+function\s+(?:"?public"?\.)?"?(\w+)"?\s*\([^)]*\)\s+set\s+search_path\s*(?:=|to)\s*''/gi;
   const DROP = /drop\s+function\s+(?:if\s+exists\s+)?(?:public\.)?"?(\w+)"?/gi;
   const SECURITY = /alter\s+function\s+(?:public\.)?"?(\w+)"?\s*\([^)]*\)\s+security\s+(definer|invoker)/gi;
-  const REVOKE = /revoke\s+(?:all|execute)[^;]*?on\s+function\s+(?:public\.)?"?(\w+)"?\s*\([^)]*\)\s+from\s+([^;]+);/gi;
+  const ACL = /\b(revoke|grant)\s+(?:all|execute)[^;]*?\bon\s+function\s+([^;]+?)\s+(from|to)\s+([^;]+);/gi;
   for (const f of files) {
     const sql = strip(readFileSync(join(DIR, f), "utf8"));
     const events: [number, () => void][] = [];
+    const declared = [...sql.matchAll(/\bcreate\s+(?:or\s+replace\s+)?function\b/gi)].length;
+    const parsed = [...sql.matchAll(CREATE)].length;
+    if (parsed !== declared) unparsed.push(`${f}: ${declared - parsed} of ${declared}`);
     for (const m of sql.matchAll(CREATE)) {
       const [, name, sig, , tail] = m;
       const header = `${sig} ${tail}`;
@@ -36,11 +41,13 @@ function finalFunctions(): Map<string, Fn> {
     for (const m of sql.matchAll(DROP)) events.push([m.index!, () => fns.delete(m[1])]);
     for (const m of sql.matchAll(ALTER)) events.push([m.index!, () => { const fn = fns.get(m[1]); if (fn) fn.pinned = true; }]);
     for (const m of sql.matchAll(SECURITY)) events.push([m.index!, () => { const fn = fns.get(m[1]); if (fn) fn.definer = m[2].toLowerCase() === "definer"; }]);
-    for (const m of sql.matchAll(REVOKE)) {
-      events.push([m.index!, () => {
-        const fn = fns.get(m[1]);
-        m[2].split(",").map((r) => r.trim().toLowerCase()).forEach((r) => fn?.revoked.add(r));
-      }]);
+    for (const m of sql.matchAll(ACL)) {
+      const names = [...m[2].matchAll(/(?:public\.)?"?(\w+)"?\s*\(/g)].map((n) => n[1]);
+      const roles = m[4].split(",").map((r) => r.trim().toLowerCase().replace(/"/g, ""));
+      events.push([m.index!, () => names.forEach((n) => {
+        const fn = fns.get(n);
+        roles.forEach((r) => (m[1].toLowerCase() === "revoke" ? fn?.revoked.add(r) : fn?.revoked.delete(r)));
+      })]);
     }
     events.sort((a, b) => a[0] - b[0]).forEach(([, apply]) => apply());
   }
@@ -50,8 +57,10 @@ function finalFunctions(): Map<string, Fn> {
 describe("migration function conventions", () => {
   const fns = finalFunctions();
 
-  it("parses the functions at all", () => {
+  it("parses every function a migration creates", () => {
     expect(fns.size).toBeGreaterThan(10);
+    // A body shape the parser doesn't know (begin atomic, a string body) must fail here, not pass silently.
+    expect(unparsed).toEqual([]);
   });
 
   it("pins search_path to '' on every public function", () => {

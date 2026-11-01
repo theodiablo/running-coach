@@ -1559,12 +1559,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
           <span className="text-sm font-semibold">Running Coach</span>
         </button>
         <div className="flex items-center gap-2">
-          {/* Coach lives here rather than on the Plan tab so it's reachable from
-              every view. Gated on `plan` for the same reason the chat itself is
-              (`showCoach && plan` below): with no plan there is nothing to
-              adjust, so the button would open an empty overlay. Kept on the
-              orange accent — next to the settings gear a second muted icon
-              reads as a utility, not the product's headline feature. */}
+          {/* Coach in the header so it's reachable from every view; gated on `plan`
+              (nothing to adjust without one). Orange so it reads as the headline
+              feature, not a utility next to the gear. */}
           {plan && (
             // Labelled, not icon-only: a speech bubble alone doesn't say "AI
             // coach". The cog beside it stays bare on purpose — see the comment

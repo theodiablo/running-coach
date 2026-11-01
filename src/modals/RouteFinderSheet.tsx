@@ -274,11 +274,9 @@ export function RouteFinderSheet({ location, onClose, onSelect, showToast, initi
 
           {/* Generate / regenerate */}
           <div className="flex gap-2">
-            {/* One primary action, labelled for what it will actually do: with
-                results already up it asks for different loops (see onGenerate),
-                so it must not keep saying "find routes" — that reads as free
-                and costs a generation. The separate refresh icon is gone: it
-                would now be the same action twice. */}
+            {/* One primary action, labelled for what it does: with results up it
+                asks for different loops (onGenerate), which costs a generation, so
+                it must not keep saying "find routes". */}
             <button onClick={onGenerate} disabled={loading || !(km > 0)}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50">
               {loading ? <Loader size={16} className="animate-spin" />
