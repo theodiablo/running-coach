@@ -41,21 +41,20 @@ Always re-verify a finding before acting on it; agents report false positives.
 - `npm run lint` — ESLint (flat config). Keep it clean. ESLint and `tsc` cache
   under `node_modules/.cache`, so repeat runs are fast. A PostToolUse hook lints
   each file an agent edits.
-
-## Lint rules
-Many conventions here are enforced by project rules (`eslint-rules/`, plus the
-`seams/*` aliases in `eslint.config.js`), and each error message says why. An
-exception is a colocated `// eslint-disable-next-line <rule> -- <reason>`, never
-a config allowlist. `eslint-suppressions.json` holds only the comment-length
-debt from before the rule: never add to it (no `--suppress-*`); after trimming a
-comment, run `npx eslint . --prune-suppressions`. Turn a new mechanical rule into
-lint rather than prose; cross-file and non-JS checks stay as tests.
 - `npm run typecheck` — app TS check; `npm run typecheck:supabase` — Deno check
   for edge functions; `npm run typecheck:all` — both (CI runs this).
 - `npm run build` — production build (runs `typecheck` first) → `dist` for
   S3/CloudFront.
 - `npm run infra:validate` — `terraform fmt -check` + `validate` on `infra/`
   (no AWS credentials needed); run it before pushing an `infra/` change.
+
+## Lint rules
+Many conventions here are enforced by project rules (`eslint-rules/`, plus the
+`seams/*` aliases in `eslint.config.js`), and each error message says why. An
+exception is a colocated `// eslint-disable-next-line <rule> -- <reason>`, never
+a config allowlist, and never a bulk `--suppress-*` baseline. Turn a new
+mechanical rule into lint rather than prose; cross-file and non-JS checks stay as
+tests (`src/migrationConventions.test.ts` pins the function rules below).
 
 ## TypeScript
 - App source and tests live in `src/**/*.{ts,tsx}` (lint rejects `.js`/`.jsx`
@@ -86,7 +85,7 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   SPA fallback hands to *every* path, so a base that doesn't match where the
   build is served resolves assets to the fallback itself — refused as
   `text/html`, and nothing runs at all, including the telemetry that would have
-  reported it. Both directions have shipped a white page. Everything else is
+  reported it (a white page). Everything else is
   routeless: `src/RunningCoach.tsx` is the single state hub: it owns
   `runs`, `plan`, `settings`, modal flags, and the active `tab`, and passes a
   `shared` props bag down to every view; views switch on `tab`. Nav: Record is
@@ -112,8 +111,7 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   successful load/flush also mirrors the confirmed blob to `OFFLINE_STATE_KEY`
   for the offline boot below (cleared on sign-out — it's account data).
 - **A failed load must never become a write.** The upsert replaces the whole
-  `data` blob, so an unpopulated cache would erase the row — one offline cold
-  start once wiped a real user's runs and plan. On a failed read `initStore`
+  `data` blob, so an unpopulated cache would erase the row. On a failed read `initStore`
   boots from the `OFFLINE_STATE_KEY` mirror when it has one for that user
   (≤7 days old) — a real copy of the row, so the invariant holds — returning
   `"offline"`; the first server contact then *reconciles before any upsert*
@@ -132,7 +130,7 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   fired right after a sign-in/sign-up confirmation is ever exposed, and the same
   token works moments later. `fetchWithTimeout` (`src/supabase.ts`) retries that
   one code with a backoff; never read a PGRST303 as a real auth failure or as a
-  failed load (it dead-ended new Android sign-ups on `StoreLoadError`).
+  failed load (it lands new sign-ups on `StoreLoadError`).
 - **Supabase config:** URL + anon key in `src/config.ts`.
   `VITE_SUPABASE_URL` is required at build time; workflows construct it from
   repo variable `SUPABASE_PROJECT_REF`. Don't hardcode project refs or
@@ -150,7 +148,7 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   no-op marker and put real schema in a later migration. **Never hand-pick the
   timestamp** — use `supabase migration new <name>`. Supabase keys migrations by
   the version prefix alone, so two files sharing one are indistinguishable and
-  the second silently never runs (cost us an auth trigger);
+  the second silently never runs;
   `src/migrations.test.ts` fails CI on a collision. Apply with
   `supabase db push`; what must never survive is a version in the repo that
   isn't the one in `schema_migrations`, or `db push` stops working. **In a cloud
@@ -201,8 +199,8 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   ask again in 52s"), never error red, which reads as "it failed" and sends the
   user back to the button. Unmapped errors keep the server's own message — don't
   trade a specific one for something vaguer. A successful send must also leave
-  nothing to press again (`LoginScreen` swaps the form for "check your inbox"):
-  a live button under a one-line note produced six 429s in ninety seconds.
+  nothing to press again (`LoginScreen` swaps the form for "check your inbox"),
+  or the user presses it into a run of 429s.
 - **The login screen has one form, and it never asks the user to classify
   themselves.** No sign-in/sign-up tabs: `Continue` tries to sign in, and the
   one error that can't be told apart from the outside (`invalid_credentials`
@@ -288,9 +286,8 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
 - **A test that builds a plan must pin the clock and derive its dates.**
   `buildPlan` reads the real clock to anchor week 1 on the next Monday, so an
   unpinned fixture changes shape with the weekday CI happens to run on, and a
-  date written as a literal drifts out of the plan as real weeks pass. Three
-  bugs of this family shipped to `main` in one week, each red one day in seven
-  until it was red every day. So: pin with `vi.setSystemTime`, and prefer
+  date written as a literal drifts out of the plan as real weeks pass (red one
+  day in seven, then every day). So: pin with `vi.setSystemTime`, and prefer
   `describe.each` over BOTH alignments (a Monday anchor, where the race falls in
   an extra n+1-th week, and a midweek one) wherever plan *shape* matters —
   `ANCHORS` in `coachValidation.test.ts` and `sessionDesc.test.ts` is the
@@ -433,11 +430,9 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   with the screen off — fixes accepted every ~2s — and taps land on the live
   state behind a stale picture. **Never diagnose "frozen UI" as "dead app"**;
   the two are indistinguishable by eye, so check the diagnostics, never the
-  screen. And **never diagnose it from the screen's own layer either** — the
-  frozen-recorder bug that cost four rounds turned out to be an Android System
-  WebView regression, a Play-updated system app that changes underneath a build
-  that hasn't, and every fix aimed at the shell missed because the app was never
-  what broke. Establish WHICH layer stalled before attempting a fix.
+  screen. And **never diagnose it from the screen's own layer either**: Android
+  System WebView is a Play-updated system app that can regress underneath a build
+  that hasn't changed. Establish WHICH layer stalled before attempting a fix.
 - **Backgrounded Android may run no JS** when nothing holds the process (a
   strapless indoor session). Once the app leaves the foreground the
   WebView's task queues are frozen — a native bridge callback does not wake it,
@@ -454,8 +449,8 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   delivers on the main looper), so nothing on it may block — no disk, no network,
   no lock held across either. A stalled UI thread looks exactly like a dead
   WebView (content is composited on it, so the last frame stays up while input
-  dispatch stops), which is how ~0.5 Hz journal writes were read as the renderer
-  being reclaimed. Detail: `docs/live-tracking.md`.
+  dispatch stops), so a blocking write reads as the renderer being reclaimed.
+  Detail: `docs/live-tracking.md`.
 - **Shell diagnostics** (`ShellDiagLog.kt` → `src/diag/shellLog.ts`) record what
   died — renderer, process, or nothing — because the JS logs stop identically in
   all three. Always on natively; filed to `shell_diagnostics` only from the
@@ -464,8 +459,7 @@ lint rather than prose; cross-file and non-JS checks stay as tests.
   it and use `FLAG_UPDATE_CURRENT`: `FLAG_CANCEL_CURRENT` invalidates the record
   every holder points at, SystemUI included, so a re-posting notification
   cancels its own tap target — and any other notification sharing the key
-  (package, request code, `Intent.filterEquals`), which is how the live-run
-  notification silently broke both its own tap and the guided workout's.
+  (package, request code, `Intent.filterEquals`).
 - **A background app cannot start an activity** (Android 10+; a foreground service
   is not an exemption), and tearing the activity down stops the plugins' services
   with it — including the one recording the run. So a background recovery path

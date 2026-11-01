@@ -1,7 +1,7 @@
 import { RuleTester } from "eslint";
 import json from "@eslint/json";
 import tseslint from "typescript-eslint";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import local from "../eslint-rules/index.js";
 
 RuleTester.describe = describe;
@@ -95,5 +95,33 @@ describe("no-em-dash-json", () => {
   jsonTester.run("no-em-dash-json", rule("no-em-dash-json"), {
     valid: ['{"a": "Bonjour, ça va ?"}'],
     invalid: [{ code: '{"a": "Bonjour — ça va ?"}', errors: [{ messageId: "dash" }] }],
+  });
+});
+
+describe("eslint.config.js seam rules", () => {
+  const lint = async (filePath: string, code: string) => {
+    const { ESLint } = await import("eslint");
+    const [res] = await new ESLint({ cwd: process.cwd() }).lintText(code, { filePath });
+    return res.messages.map((m) => m.ruleId);
+  };
+  it.each([
+    ["src/views/X.tsx", "navigator.geolocation.getCurrentPosition(() => {});", "seams/gps-through-geo-source"],
+    ["src/views/X.tsx", "L.tileLayer(url);", "seams/tiles-through-cache"],
+    ["src/views/X.tsx", 'import posthog from "posthog-js"; posthog.init();', "seams/telemetry-sdk"],
+    ["src/views/X.tsx", 'import { Geolocation } from "@capacitor/geolocation"; Geolocation.x();', "seams/no-native-in-ui"],
+    ["src/utils/x.ts", 'import { KeepAwake } from "@capacitor-community/keep-awake"; KeepAwake.x();', "seams/keep-awake-hook"],
+    ["src/utils/x.ts", 'import { motion } from "framer-motion"; motion();', "seams/css-only-animations"],
+    ["src/utils/x.ts", "export const g = (plan: { goalSec: number }) => plan.goalSec;", "seams/goal-from-settings"],
+    ["src/utils/x.ts", "export const e = (r: { bestEfforts: unknown }) => r.bestEfforts;", "seams/best-efforts-through-helpers"],
+    ["src/utils/x.ts", "export const re = /(?<=a)b/;", "seams/no-regex-lookbehind"],
+    ["src/utils/x.ts", "export const d = new Date().toISOString().slice(0, 10);", "seams/no-iso-date-slice"],
+    ["src/utils/x.js", "export const a = 1;", "local/forbid-file"],
+    ["supabase/functions/x/index.ts", 'import { serve } from "https://deno.land/std/http/server.ts"; serve();', "seams/npm-specifiers"],
+  ])("%s: %s -> %s", async (file, code, rule) => {
+    expect(await lint(file, code)).toContain(rule);
+  });
+  it("leaves the seam's own file alone", async () => {
+    expect(await lint("src/geo/web.ts", "navigator.geolocation.clearWatch(1);")).not.toContain("seams/gps-through-geo-source");
+    expect(await lint("src/views/X.tsx", 'import { Browser } from "@capacitor/browser"; Browser.open({ url: "" });')).not.toContain("seams/no-native-in-ui");
   });
 });

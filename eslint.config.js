@@ -26,6 +26,7 @@ const seams = {
     'best-efforts-through-helpers': syntax,
     'no-regex-lookbehind': syntax,
     'npm-specifiers': syntax,
+    'no-iso-date-slice': syntax,
   },
 }
 
@@ -99,6 +100,10 @@ export default defineConfig([
       'seams/goal-from-settings': ['error', {
         selector: 'MemberExpression[property.name="goalSec"][object.name="plan"]',
         message: 'The goal is settings.goalSec: buildPlan substitutes 7200 for an empty one in plan.goalSec.',
+      }],
+      'seams/no-iso-date-slice': ['error', {
+        selector: 'CallExpression[callee.property.name=/^(slice|substring|split)$/][callee.object.callee.property.name="toISOString"]',
+        message: 'toISOString() is UTC, so east of GMT it can name the wrong day. Use ymd(date) for a local day, addDays(s, n) for date arithmetic (src/utils/format.ts).',
       }],
       'seams/best-efforts-through-helpers': ['error', {
         selector: 'MemberExpression[property.name="bestEfforts"]',

@@ -61,23 +61,17 @@ function cleanUserContext(value: unknown): { notes: string } {
   return { notes: notes.replace(/\r\n?/g, "\n").slice(0, USER_CONTEXT_MAX_CHARS) };
 }
 
-// Caller's daily budget, most specific first: coach_daily_limit override,
-// then premium's PREMIUM_RATE_LIMIT_PER_DAY, then the env default (raised to
-// NEW_USER_RATE_LIMIT_PER_DAY for an account's first days). Both
-// columns are service-role-writable only. A failed read THROWS rather than
-// silently falling back to the free number — a paying user should see an
-// error, not a quietly smaller allowance.
+// Caller's daily budget, most specific first: coach_daily_limit override, premium's PREMIUM_RATE_LIMIT_PER_DAY,
+// then the env default (raised to NEW_USER_RATE_LIMIT_PER_DAY early on); both columns service-role-writable.
+// A failed read THROWS rather than falling back to the free number: a paying user sees an error, not a smaller allowance.
 // deno-lint-ignore no-explicit-any
 async function getDailyLimit(admin: any, userId: string, createdAt?: string): Promise<number> {
   const free = isNewAccount(createdAt) ? Math.max(RATE_LIMIT_PER_DAY, NEW_USER_RATE_LIMIT_PER_DAY) : RATE_LIMIT_PER_DAY;
   let { data, error } = await admin.from("profiles")
     .select("coach_daily_limit, premium_until").eq("id", userId).maybeSingle();
-  // 42703 = undefined_column: the premium migration hasn't been applied yet.
-  // Functions auto-deploy on push to main while migrations are applied by hand,
-  // so this ordering is reachable — and it must NOT take the coach down for
-  // everyone (a throw here surfaces as COACH_UNAVAILABLE). Without the column
-  // nobody can be premium anyway, so re-read the pre-premium shape and carry on
-  // with the free budget; any per-user override still applies.
+  // 42703 = undefined_column: functions auto-deploy but migrations are applied by hand, so the premium column may be
+  // missing and must NOT take the coach down (a throw is COACH_UNAVAILABLE). Nobody can be premium without it:
+  // re-read the pre-premium shape and carry on with the free budget; per-user overrides still apply.
   if (error?.code === "42703") {
     console.error("coach-agent: profiles.premium_until missing — apply the premium migration");
     ({ data, error } = await admin.from("profiles")
@@ -147,32 +141,22 @@ function makeCallModel(context: any, message: string) {
   return { model, callModel };
 }
 
-// Runs the whole action and resolves to the JSON body that should be sent to
-// the client. HTTP status is intentionally NOT decided here — Deno.serve
-// below streams keep-alive padding before the outcome is known, so headers
-// (always 200) go out long before this resolves. Success/failure is carried
-// entirely in the body's shape (an `.error` field on failure); `src/coach.ts`
-// already treats `data.error` and a non-2xx response identically, so this is
-// not a client-visible behaviour change.
+// Runs the action and resolves to the JSON body. HTTP status is NOT decided here: Deno.serve streams keep-alive
+// padding first, so headers (always 200) go out early; failure is an `.error` field, which src/coach.ts treats
+// like a non-2xx.
 // deno-lint-ignore no-explicit-any
 async function handle(req: Request): Promise<any> {
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");
-  // Cold-start warmer: the client fires this when the coach chat opens so the
-  // isolate is booted and the npm:@anthropic-ai/sdk module graph is imported by
-  // the time a real propose/critique arrives. Returns before any auth, DB read
-  // or model call — its only job is to pay the isolate boot cost early. The
-  // top-level imports (which dominate cold-boot) run on any request regardless.
+  // Cold-start warmer, fired when the coach chat opens: boots the isolate and imports the npm:@anthropic-ai/sdk graph
+  // before a real propose/critique. Returns before any auth, DB read or model call.
   if (action === "ping") return { ok: true };
   if (!["propose", "critique", "confirm", "result", "usage"].includes(action)) {
     return { error: "action must be propose | critique | confirm | result | usage" };
   }
-  // Client-generated delivery id for propose/critique. If the streamed
-  // response never reaches the client (the dominant production failure — the
-  // round succeeds but the connection dies mid-stream), the client re-fetches
-  // the finished round via `result` with the same id instead of re-running
-  // the model. Must be a real UUID (the column is typed uuid); anything else
-  // degrades to "no recovery" rather than failing the round.
+  // Client-generated delivery id for propose/critique: if the stream dies after the round succeeded, the client
+  // re-fetches it via `result` with the same id instead of re-running the model. Must be a real UUID (uuid column);
+  // anything else degrades to "no recovery".
   const requestId = typeof body.requestId === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.requestId)
     ? body.requestId
@@ -196,11 +180,8 @@ async function handle(req: Request): Promise<any> {
   );
 
   // ── usage: report today's spend vs the caller's daily budget ─────────────
-  // No model call, no charge — a plain read of the atomic counter (agent_usage
-  // has no client RLS policy, so this must go through the admin client, not a
-  // direct client query). `used` is clamped to `limit` for display because the
-  // counter keeps incrementing past the cap on rejected attempts (charge-then-
-  // check). Drives the chat's usage ring; entirely optional to the client.
+  // No model call, no charge: a read of the atomic counter (agent_usage has no client RLS policy, so use the admin client).
+  // `used` is clamped to `limit` for display (the counter climbs past the cap on rejections). Drives the usage ring.
   if (action === "usage") {
     const day = new Date().toISOString().slice(0, 10);
     const [usageRes, limit] = await Promise.all([
@@ -211,22 +192,21 @@ async function handle(req: Request): Promise<any> {
     return { used: Math.min(usageRes.data?.count ?? 0, limit), limit };
   }
 
-  // ── result: recover an already-completed round — no model call, no charge ─
-  // Replays the exact stored response body of the round stamped with this
-  // requestId, after re-checking the trajectory belongs to the caller.
-  // `found: false` means "not (yet) there": the round may still be running,
-  // so the client polls briefly before giving up.
+  // ── result: recover an already-completed round, no model call, no charge ─
+  // Replays the stored response of the round stamped with this requestId after re-checking the trajectory is the caller's.
+  // `found: false` means not (yet) there: the round may still be running, so the client polls briefly.
   if (action === "result") {
     if (!requestId) return { error: "requestId is required" };
     const { data: round, error: roundErr } = await admin.from("agent_rounds")
       .select("response, trajectory_id")
       .eq("client_request_id", requestId).maybeSingle();
-    if (roundErr) throw roundErr;
-    if (!round?.response) return { found: false };
+    // A failed read is "not yet" too, so the client keeps polling instead of giving up.
+    if (roundErr) console.error("coach-agent: result round read failed", roundErr);
+    if (roundErr || !round?.response) return { found: false };
     const { data: traj, error: trajErr } = await admin.from("agent_trajectories")
       .select("id").eq("id", round.trajectory_id).eq("user_id", user.id).maybeSingle();
-    if (trajErr) throw trajErr;
-    if (!traj) return { found: false };
+    if (trajErr) console.error("coach-agent: result trajectory read failed", trajErr);
+    if (trajErr || !traj) return { found: false };
     return { found: true, ...round.response };
   }
 
@@ -288,12 +268,9 @@ async function handle(req: Request): Promise<any> {
     km: finite(r.km), durationSec: finite(r.durationSec), hr: finite(r.hr), effort: finite(r.effort),
     hasDetail: Boolean(r.routeId || r.hrRouteId),
   }));
-  // Per-user daily budget; charge only after cheap request/state validation and
-  // before any trajectory mutation. The increment is atomic (SQL function) so
-  // concurrent requests can't slip past the limit. Returns the post-charge
-  // usage either way (clamped to the limit on rejection — the counter keeps
-  // climbing past the cap) so the client's ring reflects the spend after this
-  // send, not just on a fresh `usage` read.
+  // Per-user daily budget; charge after cheap validation and before any trajectory mutation. The increment is atomic
+  // (SQL function) so concurrent requests can't slip past. Returns post-charge usage either way (clamped to the limit
+  // on rejection) so the client's ring reflects this send.
   const checkRateLimit = async (): Promise<{ error?: string; usage: { used: number; limit: number } }> => {
     const { data: count, error: usageErr } = await admin.rpc("increment_agent_usage", {
       p_user_id: user.id, p_day: today,
@@ -405,11 +382,9 @@ async function handle(req: Request): Promise<any> {
     modelAnswers++;
     return resp;
   };
-  // get_run_detail's data access: resolve the run in the user's own blob, read
-  // its run_routes row through the RLS-scoped userClient, and collapse it to a
-  // coordinate-free digest (runDigest.mjs) — raw GPS points and the full HR
-  // stream never reach the model. Never throws: any miss or DB error becomes
-  // an { unavailable } the engine reports as a plain tool_result.
+  // get_run_detail's data access: resolve the run in the user's own blob, read its run_routes row through the
+  // RLS-scoped userClient, collapse to a coordinate-free digest (runDigest.mjs); raw GPS and the full HR stream
+  // never reach the model. Never throws: any miss or DB error becomes { unavailable }.
   const fetchRunDetail = async (runId: string) => {
     try {
       const run = (blob.rc_runs ?? []).find((r: Record<string, unknown>) => r.id === runId);
@@ -450,12 +425,9 @@ async function handle(req: Request): Promise<any> {
   }
 
   const failed = result.status === "no_valid_adjustment";
-  // A failed round only closes the WHOLE trajectory when there's no earlier
-  // valid proposal to fall back on (round 0 failing means nothing was ever
-  // proposed). A failed CRITIQUE (roundIndex > 0) leaves the trajectory
-  // open — the prior "proposed" round is untouched below (only a
-  // successful round supersedes it) — so the user can still confirm the
-  // last adjustment that did validate instead of being dead-ended.
+  // A failed round closes the WHOLE trajectory only when there is no earlier valid proposal (round 0). A failed
+  // CRITIQUE (roundIndex > 0) leaves it open, the prior "proposed" round untouched, so the user can still confirm
+  // the last adjustment that validated.
   const trajectoryClosed = failed && roundIndex === 0;
   // The exact body this round will answer with — built BEFORE the round is
   // logged so it can be stored on the row verbatim, letting the `result`

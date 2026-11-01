@@ -1,23 +1,7 @@
-// suunto-import — server side of the Suunto cloud import: holds the OAuth
-// secret, subscription key and the user's tokens, never returned to the client.
-// Actions: status, exchange, sync (one page of workout summaries), fit (one
-// FIT file), ack (advance the cursor + drain staged rows), disconnect.
-//
-// Suunto has no Polar-style server-side transaction, so the sync protocol is a
-// cursor + deferred ack owned by this function's integration_connections row:
-//   - sync NEVER advances the cursor; it lists workouts since the stored
-//     watermark, filters, and returns summaries. The client fetches FITs one
-//     per `fit` call (each invocation stays under the client's 15s timeout) and
-//     acks only AFTER the runs are actually saved — an unacked page is simply
-//     re-served, so a missed toast or a frozen WebView never loses history.
-//   - webhook-staged workouts (suunto-webhook) ride along flagged `staged` and
-//     are acked by key, NEVER via the cursor: a staged workout is today's run
-//     arriving mid-backfill, and letting it advance the watermark would skip
-//     everything between the backfill position and today.
-// Can't be exercised in CI (live Suunto cloud + partner credentials) — the
-// endpoint paths, `since` semantics, JWT username claim and activity ids are
-// each isolated below and marked CALIBRATE for the first live pass.
-// Architecture, protocol, deploy/secrets: docs/integrations-suunto.md.
+// suunto-import: server side of the Suunto cloud import (OAuth secret, subscription key and tokens never reach the client).
+// Actions: status, exchange, sync, fit, ack, disconnect. Sync is cursor + deferred ack: sync NEVER advances the cursor and the
+// client acks after saving; webhook-staged workouts are acked by key, NEVER via the cursor (it would skip the backfill gap).
+// Endpoint paths etc. are marked CALIBRATE for the first live pass. Architecture: docs/integrations-suunto.md.
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
 import { fitMissIsTerminal, fitPath, looksLikeFit } from "../_shared/suunto/fitExport.mjs";
@@ -29,11 +13,8 @@ const hasSuuntoCreds = Boolean(SUUNTO_CLIENT_ID && SUUNTO_CLIENT_SECRET && SUUNT
 
 const TOKEN_URL = "https://cloudapi-oauth.suunto.com/oauth/token";
 const API = "https://cloudapi.suunto.com";
-// Documented v3 listing. `since`/`until` filter on START time unless
-// `filter-by-modification-time` is set — deliberately left off: `sync_cursor`
-// holds start times, and switching an existing row's watermark to a different
-// clock mid-flight would skip or replay history. Moving to it (and dropping the
-// overlap re-list it subsumes) is a migration of its own; docs/integrations-suunto.md.
+// Documented v3 listing. `since`/`until` filter on START time unless `filter-by-modification-time` is set, deliberately off:
+// `sync_cursor` holds start times, and switching clocks mid-flight would skip or replay history (docs/integrations-suunto.md).
 const LIST_PATH = (since: number, limit: number) => `${API}/v3/workouts/?since=${since}&limit=${limit}`;
 // Pre-v3 shape, tried only if the v3 listing rejects the request. The two
 // versions coexist, and a listing that silently stops working reads as
@@ -118,13 +99,9 @@ function usernameFromJwt(accessToken: string): string {
   return "";
 }
 
-// Fresh access token for the row, refreshing (and persisting the rotation)
-// when needed. Concurrency-safe: rotation uses a compare-and-swap on the OLD
-// refresh token, and invalid_grant re-reads before concluding anything — a
-// phone/tablet refresh race must never delete a good credential. On a genuine
-// dead refresh token the row is KEPT (cursor + username preserved so webhook
-// staging keeps working) and flagged needs_reauth. Rows with a null
-// expires_at never expire (Polar-style) and are returned untouched.
+// Fresh access token for the row, persisting rotation. Rotation is a compare-and-swap on the OLD refresh token and invalid_grant
+// re-reads first: a refresh race must never delete a good credential. A dead refresh token KEEPS the row (cursor + username)
+// flagged needs_reauth. A null expires_at never expires (Polar-style).
 async function getFreshToken(
   admin: SupabaseClient, userId: string, row: ConnectionRow, force = false,
 ): Promise<{ token: string } | "reauth"> {
@@ -192,13 +169,8 @@ async function apiFetch(
   return res;
 }
 
-// `gone` = the endpoint answered a hard "no FIT here" for this workout, on a
-// route this connection has already been served a FIT from. Before that proof
-// a 404/410 equally means the route is wrong for this account, so it stays
-// transient — terminal there would degrade every import to summary-only,
-// permanently and silently, for as long as the route was wrong.
-// `notFit` = something answered 2xx with a body that isn't a FIT, which is a
-// different problem from a rejection and deserves its own line in the logs.
+// `gone` = a hard "no FIT here" on a route already proven to serve a FIT for this connection; before that proof a 404/410
+// stays transient (terminal would silently degrade every import to summary-only). `notFit` = 2xx with a non-FIT body, logged apart.
 type FitMiss = { gone: boolean; status: number; notFit: boolean };
 
 const fitRouteProven = (row: ConnectionRow): boolean => row.sync_state?.fitOk === true;
@@ -344,11 +316,8 @@ Deno.serve(async (req) => {
       if (stagedErr) throw stagedErr;
       const staged = (stagedRows || []) as { external_key: string; payload: WorkoutSummary | null }[];
 
-      // Late-upload net: a watch that syncs days later produces a workout whose
-      // startTime is already below the cursor — invisible to a pure since-list
-      // if webhooks missed it (outage, circuit breaker). At most once a day,
-      // re-list a trailing window; knownKeys + the ack RPC's greatest() make
-      // the overlap cheap and rewind-proof.
+      // Late-upload net: a late-syncing watch yields a workout below the cursor, invisible to a since-list if webhooks missed it.
+      // At most once a day, re-list a trailing window; knownKeys + the ack RPC's greatest() make the overlap cheap and rewind-proof.
       const lastOverlap = Number(row.sync_state?.lastOverlapCheck) || 0;
       const overlapDue = row.sync_cursor > 0 && Date.now() - lastOverlap > OVERLAP_EVERY_MS;
       const since = overlapDue ? Math.max(0, row.sync_cursor - OVERLAP_MS) : row.sync_cursor;
@@ -378,12 +347,8 @@ Deno.serve(async (req) => {
         .filter(w => workoutKeyOf(w))
         .sort((a, b) => startTimeOf(a) - startTimeOf(b));
 
-      // Walk ascending. The returned cursor covers every walked workout —
-      // including deliberately-skipped ones (wrong activity type, knownKeys),
-      // otherwise 100 consecutive cycling workouts would wedge the watermark
-      // forever. It is start-time based WITHOUT +1 (equal-startTime workouts
-      // split across a page boundary re-list once; knownKeys absorbs that),
-      // and the client only acks it after saving.
+      // Walk ascending. The returned cursor covers every walked workout, including skipped ones (else 100 cycling workouts wedge the
+      // watermark). Start-time based WITHOUT +1 (knownKeys absorbs the page-boundary re-list); the client acks only after saving.
       const listedKeys = new Set<string>();
       const workouts: { key: string; startTime: number; staged: boolean; summary: WorkoutSummary }[] = [];
       let cursor = row.sync_cursor;
@@ -470,15 +435,10 @@ Deno.serve(async (req) => {
         }
         return json({ connected: true, fit: b64(res.bytes) });
       }
-      // Only a hard "this workout has no FIT" on a proven route is terminal (the
-      // client falls back to the summary). Everything else is transient: marking
-      // it terminal would permanently import summary-only runs, the exact failure
-      // that shipped (a 401 on every download, which on the client looks like "no
-      // route", never like an endpoint error). An unproven route's 404 still
-      // reaches the summary eventually — the client's own per-workout retry
-      // budget gives up after FIT_FAIL_LIMIT scans.
+      // Only a hard "no FIT" on a proven route is terminal (client falls back to the summary); anything else is transient, since terminal
+      // would permanently import summary-only runs. An unproven route's 404 still reaches the summary via the client's FIT_FAIL_LIMIT.
       //
-      // Both misses are LOGGED, status only — never the key, the body or a header.
+      // Both misses are LOGGED, status only: never the key, the body or a header.
       if (res.gone) {
         console.warn("suunto-import fit missing", res.status);
         return json({ connected: true, gone: true });
@@ -510,7 +470,7 @@ Deno.serve(async (req) => {
 
     return json({ error: "unknown action" }, 400);
   } catch (err) {
-    console.error("suunto-import error", err instanceof Error ? err.message : String(err));
-    return json({ error: err instanceof Error ? err.message : String(err) }, 200); // never hard-fail the caller's scan
+    console.error("suunto-import error", (err as { message?: string } | null)?.message ?? String(err));
+    return json({ error: (err as { message?: string } | null)?.message ?? String(err) }, 200); // never hard-fail the caller's scan
   }
 });

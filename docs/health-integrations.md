@@ -263,6 +263,17 @@ and relays each beat to whichever foreground service is rendering the
 lock-screen notification — the location service for a run, `IndoorSessionService`
 for an indoor session. One callback, three consumers: data, liveness, display.
 
+### Save-time HR resolution details (`src/hr/runHr.ts`)
+
+- `resolveRunHr` reads the native HR journal only when the run's source was live
+  BLE. Under a post-run source (Health Connect, HealthKit) the journal on disk
+  belongs to an earlier BLE run: merging it would invent HR and skip the store
+  fetch.
+- `HR_STALE` (`src/utils/hr.ts`) exists so a dropped strap shows as gone: without
+  it the status line keeps reading "avg · max" for the rest of the run.
+- `recorderHrSetup` reads the three per-device markers once, not per consumer: the
+  recorder re-renders every second and each read is a localStorage hit.
+
 ## Connections UI (Settings)
 
 Config UI is the unified **`ConnectionsCard`** (`src/views/ConnectionsCard.tsx`,

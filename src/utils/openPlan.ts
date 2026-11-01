@@ -8,6 +8,7 @@ import { goalKind } from "./recovery";
 import { planPhase, type RacePhaseInfo } from "./planPhase";
 import { isCrossTraining } from "../types";
 import type { GoalKind, OpenTarget, Participation, Plan, Run, SettingsState } from "../types";
+import { addDays as plusDays } from "./format";
 
 // An answerless runner's plan starts this many days after the recovery ends.
 export const AUTO_START_DAYS = 3;
@@ -15,11 +16,6 @@ export const AUTO_START_DAYS = 3;
 // itself): a runner who has not run in weeks has not said they want to go on.
 export const AUTO_START_NEEDS_RECOVERY_RUN = true;
 
-const plusDays = (ymd: string, n: number) => {
-  const d = new Date(ymd + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 // What a plan with no race is built from.
 export type OpenChoice = {

@@ -1,12 +1,11 @@
-// Recovery after the race. The rules and the one date rule live with the edge
-// function (supabase/functions/_shared/coach/recovery.mjs) so the validator, the
-// runner's plan edits and the coach's tools can never disagree about which days
-// may hold training; this is the typed app-side re-export, plus the one
-// app-only piece: noticing a race the runner just ran. docs/training-plan.md.
+// Recovery after the race: typed re-export of _shared/coach/recovery.mjs (one date
+// rule for the validator, plan edits and coach tools), plus the app-only piece:
+// noticing a race the runner just ran. docs/training-plan.md.
 // @ts-expect-error Shared Deno/Vitest ESM has no TypeScript declaration file.
 import * as sharedRecovery from "../../supabase/functions/_shared/coach/recovery.mjs";
 import { planPhase } from "./planPhase";
 import type { Participation, Plan, Run, SettingsState } from "../types";
+import { addDays as shift } from "./format";
 
 export type RecoveryRule = { maxKm: number; days: number; rest: number };
 
@@ -26,11 +25,6 @@ export const { RECOVERY_RULES, FIRST_WEEK_BACK_KM, recoveryRule, goalKind, inRec
 export const RECENT_RACE_DAYS = 14;
 const MIN_RACE_RUN_KM = 3;
 
-const shift = (ymd: string, n: number) => {
-  const d = new Date(ymd + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 type RecentRaceInput = {
   plan: Plan | null | undefined;

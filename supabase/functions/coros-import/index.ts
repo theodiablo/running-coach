@@ -1,39 +1,7 @@
-// coros-import — server side of the COROS cloud import: holds the OAuth secret
-// and the user's tokens, never returned to the client. Actions: status,
-// exchange, sync (one 30-day page of workout summaries), file (one .fit),
-// ack (advance the cursor + drain staged rows), disconnect.
-//
-// Calibrated against the COROS API Reference V2.0.6 (February 2026); every
-// endpoint and field cites a section of it. UNVERIFIED against a live account —
-// dormant until COROS_CLIENT_ID/COROS_CLIENT_SECRET are set, and the first live
-// pass should be read against docs/integrations-coros.md.
-//
-// COROS differs from Suunto in three ways that shape this whole file:
-//
-//   1. THE LIST IS A DATE RANGE, NOT A CURSOR (§4.2). `GET /v2/coros/sport/list`
-//      takes startDate/endDate as YYYYMMDD, spans at most 30 days per call, and
-//      REFUSES any start earlier than three months before today. There is no
-//      full-history backfill to be had: the reachable past is a rolling ~3-month
-//      window. We keep our own epoch-ms watermark in `sync_cursor` and walk it
-//      forward 30 days at a time, clamped to that floor.
-//   2. THE LISTING HAS NO HEART RATE AND NO ELEVATION (§4.2.4). It carries
-//      distance, duration, start/end time, timezone, sport, cadence, calories
-//      and a direct `fitUrl`. HR and elevation exist only inside the .fit.
-//   3. REFRESH DOES NOT ROTATE THE TOKEN (§3.3). `POST /oauth2/refresh-token`
-//      answers `{result, message}` and nothing else — it EXTENDS the existing
-//      accessToken by 30 days. Expecting a new token here would throw on every
-//      refresh. The refresh token itself never expires.
-//
-// Auth style is COROS's own, not a bearer header: data calls take `?token=` and
-// `?openId=` as query parameters (§4.1-4.3), and the token endpoints take
-// client_id/client_secret in the form body (§3.2.2), not HTTP Basic.
-//
-// Responses are HTTP 200 with a result code in the body: "0000" is success
-// (§8.1.3). A non-0000 result is a failure however healthy the status line.
-//
-// The sync protocol is OURS, the one Suunto proved: cursor + deferred ack. sync
-// never advances the cursor; the client acks only after runs are saved, so an
-// unacked page is re-served and a missed toast never loses history.
+// coros-import: server side of the COROS cloud import (OAuth secret and tokens never reach the client). Actions: status,
+// exchange, sync (one 30-day page), file (one .fit), ack (advance cursor + drain staged rows), disconnect. UNVERIFIED against a
+// live account and dormant until COROS_CLIENT_ID/SECRET are set; § refs are to the COROS API V2.0.6.
+// Protocol, auth style and how it differs from Suunto: docs/integrations-coros.md. sync never advances the cursor; the client acks after saving.
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
 
@@ -179,11 +147,8 @@ const pick = (b: Record<string, unknown>, ...names: string[]): string => {
   return "";
 };
 
-// Fresh access token for the row. COROS's refresh EXTENDS the existing token
-// rather than issuing a new one (§3.3.1), so there is no rotation to race and
-// no compare-and-swap to do — only the stored expiry moves. A refresh that
-// COROS rejects means the user revoked access: keep the row (openId and cursor
-// intact) and flag needs_reauth.
+// Fresh access token for the row. COROS's refresh EXTENDS the token (§3.3.1), so there is no rotation to race. A rejected
+// refresh means access was revoked: keep the row (openId and cursor intact) and flag needs_reauth.
 async function getFreshToken(
   admin: SupabaseClient, userId: string, row: ConnectionRow, force = false,
 ): Promise<{ token: string } | "reauth"> {
@@ -328,11 +293,8 @@ Deno.serve(async (req) => {
     if (action === "status") {
       const row = await loadRow();
       if (!row || row.sync_state?.needs_reauth) return json({ connected: false });
-      // §3.5.1 recommends checking bindState when the user opens the
-      // integrations list: a user who unbound us inside the COROS app leaves
-      // our row untouched, and without this the row would claim "connected"
-      // forever. A failed check falls back to the row rather than logging the
-      // user out on a blip.
+      // §3.5.1: check bindState when listing integrations, or a user who unbound us in the COROS app reads "connected" forever.
+      // A failed check falls back to the row rather than logging the user out on a blip.
       try {
         const res = await apiGet(admin, user.id, row, BIND_STATE_URL, {});
         if (res !== "reauth" && isOk(res)) {
@@ -548,7 +510,7 @@ Deno.serve(async (req) => {
 
     return json({ error: "unknown action" }, 400);
   } catch (err) {
-    console.error("coros-import error", err instanceof Error ? err.message : String(err));
-    return json({ error: err instanceof Error ? err.message : String(err) }, 200); // never hard-fail the caller's scan
+    console.error("coros-import error", (err as { message?: string } | null)?.message ?? String(err));
+    return json({ error: (err as { message?: string } | null)?.message ?? String(err) }, 200); // never hard-fail the caller's scan
   }
 });

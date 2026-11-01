@@ -323,6 +323,20 @@ the rule in training terms, its reason, the runner's own numbers, and what they
 can do instead, never "the app/validator requires". A rule cited without its
 why reads as the app getting in the runner's way.
 
+### Why the tools hold these lines
+
+- **Volume never buys back a missed long run** (`assess_week_adherence`). One
+  continuous bout is what drives the glycogen, fat-oxidation and connective-tissue
+  adaptation, and cross-training carries no running load. Read adherence per
+  session, not per weekly total: a runner averaging 7-9 km per run on a plan
+  prescribing 2.5 km was once told to take a recovery week.
+- **`increase_session_distance` caps against the baseline, not the running
+  peak.** A 10% margin over the current peak ratchets across turns: one
+  conversation took a half-marathon plan from 431 km to 1642 km and its 19 km
+  long run to 39.5 km.
+- **Elapsed weeks are refused** so a session is never edited to make past
+  training look different from what happened.
+
 ## Validator rules (safety > consistency > peak performance)
 
 | Code | Severity | Rule |

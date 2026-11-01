@@ -1,11 +1,7 @@
-// suunto-webhook — public endpoint Suunto notifies when a user syncs a new
-// workout. No user JWT (verify_jwt = false in supabase/config.toml): the caller
-// is Suunto's cloud, authenticated by the HMAC-SHA256 signature over the RAW
-// request body. All it does is map the Suunto username to app user(s) and stage
-// the workoutKey — the heavy lifting (FIT download) happens in suunto-import's
-// sync, so this always answers within Suunto's 2-second budget. Never returns
-// non-2xx for content problems: 4xx/5xx feed Suunto's retry + circuit breaker,
-// which would silently pause ALL notifications. Docs: docs/integrations-suunto.md.
+// suunto-webhook: public endpoint Suunto notifies on a new workout. No user JWT (verify_jwt = false): the caller is authenticated
+// by HMAC-SHA256 over the RAW body. It only maps the Suunto username to app user(s) and stages the workoutKey (FIT download is in
+// suunto-import's sync), so it answers inside Suunto's 2-second budget. Never non-2xx for content problems: 4xx/5xx feed Suunto's
+// retry + circuit breaker and would pause ALL notifications. Docs: docs/integrations-suunto.md.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 
@@ -100,7 +96,7 @@ Deno.serve(async (req) => {
     return ok();
   } catch (err) {
     // Never log bodies or signatures — a captured signed body is a replay credential.
-    console.error("suunto-webhook error", err instanceof Error ? err.message : String(err));
+    console.error("suunto-webhook error", (err as { message?: string } | null)?.message ?? String(err));
     return ok({ error: "internal" }); // still 2xx: don't trip Suunto's circuit breaker
   }
 });
