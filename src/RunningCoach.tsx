@@ -1026,7 +1026,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       status: "wishlist", timeSec: null, runId: null, source: "manual", notes: "", ...fields }] };
   };
   const settleRace = (runId: string | null, timeSec: number | null, opts: { notes?: string; quiet?: boolean } = {}) => {
-    const race = mainRace(planRef.current, settings);
+    const race = mainRace(planRef.current ?? plan, settings);
     if (!race) return false;
     const prevRaces = races;
     if (race.editionId) {
@@ -1042,7 +1042,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     return true;
   };
   const skipRace = () => {
-    const race = mainRace(planRef.current, settings);
+    const race = mainRace(planRef.current ?? plan, settings);
     if (!race) return;
     const prevRaces = races;
     if (race.editionId) saveRaces(racesWith(race, { status: "skipped", timeSec: null, runId: null }));
