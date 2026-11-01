@@ -31,17 +31,10 @@ type RaceFormModalProps = {
   onCreated?: (editionId: string) => void;
 };
 
-// "Add a race" — contributes to the SHARED catalogue (instant + global). New
-// entries are always unverified; the UI tags them so. Includes a live duplicate
-// search so a user who's really just adding a new date gets steered to the
-// existing race (→ add an edition) instead of creating a near-duplicate.
-//
-// Props: catalogue (grouped races, for dup search), addRace/addEdition (src/races
-// via RunningCoach), onContributed (refresh the catalogue), showToast, onClose.
-// Optional: prefill ({date, distanceKm, elevation}) seeds the form; onCreated
-// (editionId) — when present, the caller wants the freshly-created edition back
-// (e.g. onboarding promotes it to the training target) instead of the default
-// toast-and-close.
+// "Add a race": contributes to the SHARED catalogue (instant, global); new entries are always unverified
+// and tagged so. A live duplicate search steers a user adding a new date to the existing race (add an edition).
+// Props: catalogue, addRace/addEdition, onContributed, showToast, onClose; `prefill` seeds the form;
+// `onCreated(editionId)` hands the new edition back to the caller instead of toast-and-close.
 export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, showToast, onClose, prefill, onCreated }: RaceFormModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);

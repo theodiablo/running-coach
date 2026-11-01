@@ -1,11 +1,7 @@
-// The post-run reward: right after a run is saved, how it stacks up against the
-// log. Free on every platform and deliberately so — it costs nothing to compute
-// (see src/utils/bestEfforts.ts) and it's the moment that makes finishing a run
-// in the app worthwhile. The ranked *history* behind it is the premium
-// deep-analytics surface; see docs/monetization.md.
-//
-// Only ever mounted when there's something worth saying (runAchievements
-// returned rows), so there is no "nothing to report" state to design.
+// The post-run reward: how a just-saved run stacks up against the log. Free on every platform
+// (cheap to compute, see src/utils/bestEfforts.ts); the ranked history behind it is the
+// premium surface (docs/monetization.md). Only mounted when runAchievements returned rows,
+// so there is no empty state.
 
 import { Trophy } from "lucide-react";
 import { useTranslation } from "react-i18next";

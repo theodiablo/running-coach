@@ -1,10 +1,7 @@
-// Native screen-off uploads — the contract both ends must agree on.
-//
-// Plain ESM so it imports from Deno (the live-publish edge function) AND from
-// Vitest (src/live/publishToken.ts re-exports it), the liveShare.mjs pattern.
-// The publish token is a WRITE capability with the same shape and entropy as
-// the share token; the payload caps and validators here are what keep an
-// unauthenticated endpoint that writes from becoming a storage side channel.
+// Native screen-off uploads: the contract both ends must agree on. Plain ESM, imported by
+// Deno (live-publish edge function) and Vitest (src/live/publishToken.ts re-exports it).
+// The publish token is a WRITE capability, same shape and entropy as the share token; the
+// caps and validators here stop an unauthenticated writer becoming a storage side channel.
 
 import { SHARE_TOKEN_RE } from "./liveShare.mjs";
 

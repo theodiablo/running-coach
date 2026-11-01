@@ -3,11 +3,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { BackupModal } from "./BackupModal";
 import { RestoreModal } from "./RestoreModal";
 
-// Seeds the (previously empty) modal test layer. These two modals are the backup/
-// restore round-trip and are self-contained (props: data/onRestore + onClose), so
-// they exercise real behaviour without the RunningCoach `shared` bag. The
-// accessible-name assertions on the header close buttons also guard the a11y pass
-// that gave those icon/glyph close buttons an aria-label.
+// Seeds the modal test layer. These two modals are the self-contained backup/restore
+// round-trip (props: data/onRestore + onClose), so they need no `shared` bag. The
+// accessible-name assertions on the close buttons guard their aria-labels.
 
 describe("BackupModal", () => {
   const data = { runs: [{ id: "a" }, { id: "b" }], plan: {} };

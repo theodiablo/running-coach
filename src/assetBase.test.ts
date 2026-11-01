@@ -2,12 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import viteConfig from "../vite.config";
 import { WATCH_PATH_PREFIX } from "./live/shareLink";
 
-// `base` is where a build will be SERVED from, and each deploy target has its
-// own answer (bucket root, PR subfolder, native local origin). Getting it wrong
-// does not 404 — CloudFront's SPA fallback answers with index.html, so a wrong
-// asset URL comes back as text/html, the module is refused, and NOTHING runs:
-// not React, not the error boundaries, not the PostHog SDK. A white page that
-// reports nothing. Both directions of that have now shipped, hence these tests.
+// `base` is where a build is SERVED from, per deploy target. A wrong one doesn't 404: the SPA fallback answers
+// with index.html as text/html, the module is refused, and nothing runs (no React, error boundaries or telemetry).
 
 const loadConfig = async (env: Record<string, string>) => {
   for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);

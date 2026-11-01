@@ -32,11 +32,9 @@ import badgesShot from "./assets/08-progress-badges.png";
 
 ensureMarketingI18n();
 
-// Web-only marketing landing shown at the root path to signed-out visitors.
-// The native (Capacitor) shell never renders this — it goes straight to
-// LoginScreen — and the build-time VITE_NATIVE_BUILD flag drops this whole
-// chunk from the APK (see App.tsx). Every CTA opens the existing LoginScreen in
-// a full-screen modal, so all auth flows stay in one place.
+// Web-only marketing landing for signed-out visitors at the root path. The native shell
+// never renders it and VITE_NATIVE_BUILD drops the chunk from the APK (see App.tsx).
+// Every CTA opens LoginScreen in a full-screen modal, keeping auth flows in one place.
 
 const FONT_STACK = "'Archivo', ui-sans-serif, system-ui, sans-serif";
 
@@ -384,11 +382,9 @@ function WideCard({
   );
 }
 
-// Hero visual: a hand-built coach-chat exchange showing the real
-// propose-and-confirm flow ("my knee hurts" → a safe proposed edit the user
-// must approve). Purpose-built like LiveTrackerMock, not a screenshot, and
-// deliberately honest: the coach only ever *proposes* — the Apply step is the
-// user's, exactly as in CoachChat.
+// Hero visual: a hand-built coach-chat exchange of the real propose-and-confirm flow
+// ("my knee hurts" then a safe proposed edit). Purpose-built, not a screenshot, and
+// honest: the coach only proposes; the Apply step is the user's, as in CoachChat.
 function CoachChatMock() {
   const { t } = useTranslation("marketing");
   return (

@@ -2,13 +2,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import viteConfig from "../vite.config";
 
-// WKWebView's JS engine IS the OS version, so the shell on iOS 15 runs a
-// Safari 15 engine. If Vite's build target outruns IPHONEOS_DEPLOYMENT_TARGET
-// the bundler is free to emit syntax the oldest supported iPhone cannot parse —
-// which is fatal for the whole chunk, not just the feature using it. Vite's
-// default (`baseline-widely-available`) resolves to ios16.4 and did exactly
-// that, so the target is pinned explicitly; this keeps the two from drifting
-// apart again, in either direction.
+// WKWebView's engine IS the OS version. If Vite's build target outruns IPHONEOS_DEPLOYMENT_TARGET the
+// bundler may emit syntax iOS 15 cannot parse, killing the whole chunk (the ios16.4 default did).
+// This keeps the two from drifting in either direction.
 
 const pbxproj = readFileSync("ios/App/App.xcodeproj/project.pbxproj", "utf8");
 

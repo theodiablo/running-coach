@@ -6,12 +6,10 @@ export type PendingHrRun = Pick<Run, "id" | "hr" | "hrMax" | "hrPending" | "hrPe
 export type PatchHr = (id: string, fields: Partial<Pick<Run, "hr" | "hrMax">>) => void;
 
 type FlushArgs = {
-  // Which run field this flusher owns: "hrPending" (Health Connect — the
-  // original field, whose semantics are frozen by shipped Android clients) or
-  // "hrPendingHk" (HealthKit). Each platform's markers live in their OWN field
-  // so a client can never clear a marker only the other platform's device
-  // could resolve — old Android builds clear any hrPending with an unknown
-  // source, which is exactly why iOS markers don't ride that field.
+  // Which run field this flusher owns: "hrPending" (Health Connect; semantics frozen by
+  // shipped Android clients) or "hrPendingHk" (HealthKit). Separate fields so a client never
+  // clears a marker only the other platform could resolve (old Android clears any
+  // hrPending with an unknown source).
   field: "hrPending" | "hrPendingHk";
   // The hrPending.source expected in this field; anything else is corrupt and
   // gets cleared. Legacy markers with no source count as "healthconnect".
@@ -30,14 +28,10 @@ function windowOf(hrPending: HrPending | null | undefined) {
   return { start, end };
 }
 
-// Deferred post-run HR relink shared by Health Connect (Android) and HealthKit
-// (iOS), mirroring routes.ts/flushPendingRoutes: on app load / foreground, retry
-// the health store for fresh runs stamped with a pending marker. Invalid,
-// wrong-source, manually-filled, or stale markers are cleared first without
-// touching the native bridge, so a bad synced blob cannot crash the app forever
-// after sign-in. The caller's patch(id, {}) clears THIS flusher's field without
-// touching hr/hrMax — a run whose HR was filled some other way (manual edit)
-// since it was stamped is never overwritten.
+// Deferred post-run HR relink for Health Connect and HealthKit (like routes.ts/
+// flushPendingRoutes): on load/foreground, retry the health store for runs with a pending
+// marker. Bad markers are cleared first without touching the native bridge. patch(id, {})
+// clears THIS flusher's field without touching hr/hrMax, so manual HR is never overwritten.
 export async function flushPendingHrFor(
   runs: PendingHrRun[],
   patch: PatchHr,

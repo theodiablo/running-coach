@@ -1,9 +1,7 @@
-// `/watch/` — every runner this browser follows, on one map. Same rules as the
-// single-runner page (no session, no store, nothing identifying from the
-// server); what is new is that the list and its labels live in this browser
-// (src/live/followList.ts) and that one batched read covers everyone: heads and
-// stats for all, a full trace only for the runner in focus and for a run that
-// just ended. Detail: docs/live-sharing.md ("Following several runners").
+// `/watch/`: every runner this browser follows, on one map. Same rules as the single-runner page (no
+// session, no store, nothing identifying from the server); the follow list lives in this browser
+// (src/live/followList.ts) and one batched read covers everyone, a full trace only for the runner in
+// focus or a run that just ended. Detail: docs/live-sharing.md ("Following several runners").
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";

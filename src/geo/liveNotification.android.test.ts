@@ -2,11 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunNotificationContent } from "../utils/runNotification";
 
 // The Android path of the seam: what the patched background-geolocation plugin
-// receives. Besides the text it needs the `live` seed, from which the foreground
-// service keeps distance/pace current while the WebView is frozen in the
-// background — drop a field here and the lock screen silently freezes again
-// (docs/live-tracking.md). Separate file from liveNotification.test.ts because
-// the platform mock is module-scoped.
+// receives. It needs the `live` seed besides the text, or the lock screen silently
+// freezes while the WebView is frozen (docs/live-tracking.md). Separate file from
+// liveNotification.test.ts because the platform mock is module-scoped.
 
 const calls: Record<string, unknown>[] = [];
 

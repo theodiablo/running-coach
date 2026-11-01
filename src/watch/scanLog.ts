@@ -2,12 +2,9 @@ import { WATCH_SCAN_LOG_KEY, WATCH_SCAN_LOG_MAX, WATCH_DEBUG_KEY } from "../cons
 import type { WatchImportAvailability } from "./plugin";
 import type { ClassifiedSession, SessionOutcome } from "./mapping";
 
-// Developer diagnostics for watch import. Every Health Connect scan records what
-// the store returned and why each session was kept or dropped, so "my Zepp run
-// didn't show up" (or "its elevation is blank") can be diagnosed without a native
-// debugger. Per-device only (like the auth/seen markers) — never in the synced
-// blob — and bounded to a small ring buffer. Guarded like getSeenIds: storage
-// failures are non-fatal and never throw into a scan.
+// Developer diagnostics for watch import: every Health Connect scan records what the store
+// returned and why each session was kept or dropped. Per-device only, never in the synced blob,
+// bounded to a small ring buffer. Storage failures are non-fatal and never throw into a scan.
 
 export type ScanLogSession = {
   id: string;

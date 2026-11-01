@@ -1,12 +1,7 @@
 // The run-in-progress display, shared by the in-app watch modal and the public
-// /watch/:token page. Shared so the two can't drift on the STALENESS MODEL, not
-// for the layout: the recorder publishes only when a GPS fix lands, so a runner
-// waiting at a crossing, a phone in a tunnel and an app the OS killed are
-// indistinguishable from out here. Nothing below asserts something is wrong —
-// it reports how long it has been quiet. A second copy would start guessing.
-//
-// Layout is container-queried, not viewport-queried: the same component renders
-// full-screen and inside a modal. Detail: docs/live-sharing.md.
+// /watch/:token page so the two can't drift on the STALENESS MODEL. The recorder publishes
+// only when a GPS fix lands, so a stop, a tunnel and a killed app look identical from out
+// here: report how long it has been quiet, never assert a fault. docs/live-sharing.md.
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -116,16 +111,10 @@ export function LiveWatchView(
   const { ended, paused, quiet } = state;
   const hasTrack = points.some(Boolean);
 
-  // Chart data, straight off the published points — per-point altitude and
-  // timestamps already ride every upload, so nothing new crosses the wire.
-  // flat[i] is the SAME point as series[i] (both walk flattenTrack in order),
-  // which is what makes the chart→map cursor link below a plain index.
-  //
-  // The PROFILE is the trace's to draw, but the GAIN TOTAL is not: the trace on
-  // the wire is simplified on horizontal geometry, which drops the intermediate
-  // points a straight climb's ascent is measured across, so recomputing here
-  // under-reports what the recorder shows. Read the recorder's own number and
-  // fall back only for a row published before it carried one.
+  // Chart data off the published points. flat[i] is the SAME point as series[i] (both
+  // walk flattenTrack in order), so the chart-to-map cursor link is a plain index.
+  // The GAIN TOTAL is not recomputed here: the wire trace is simplified horizontally and
+  // under-reports ascent, so read the recorder's number and fall back only for old rows.
   const derived = useMemo(() => {
     const series = points.length ? buildRunSeries(points) : [];
     return {

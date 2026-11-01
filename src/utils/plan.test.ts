@@ -296,13 +296,8 @@ describe("buildPlan", () => {
         for (const km of easyKms(plan)) expect(km).toBeLessThanOrEqual(3.5);
       });
 
-      // Every style, every week — not just base, and not just balanced. A floor
-      // derived from the block's STARTING long run outlives a cutback week
-      // (runwalk sheds 30% every third), which is how a WALK day overtook the
-      // long run it was supposed to sit under.
-      // Both sides of the floor: with one, and with NONE. The no-history case is
-      // the one a floor-shaped test forgets, and it is the whole population the
-      // absolute opening line exists for.
+      // Every style, every week: a floor from the block's STARTING long run outlives a cutback week (runwalk sheds 30% every
+      // third), letting a WALK day overtake the long run. Both sides: with history, and with NONE (the absolute opening line's population).
       it.each([
         ["with a logged habit", habit([9.3, 8.8, 7.8, 7.1, 9.2, 4.9])],
         ["with no history at all", []],
@@ -443,15 +438,9 @@ describe("buildPlan · run/walk ratio ceiling", () => {
   });
 });
 
-// Frozen-clock snapshots of the default ("balanced") output, committed BEFORE
-// the multi-style refactor: any later restructuring of buildPlan must reproduce
-// these byte-for-byte, so a snapshot diff here means the default plan changed
-// for existing users. Sanctioned (deliberate) changes so far: the additive
-// `style` field, budget-derived interval reps (desc and km now always
-// agree — short days get fewer reps instead of a silently clipped total), and
-// the additive `sd` (structured session descriptor) used to render localized
-// session sentences — `desc` (English) is unchanged and stays the canonical
-// fallback, so these diffs are purely added `sd` blocks.
+// Frozen-clock snapshots of the default ("balanced") output, committed before the multi-style refactor: a diff here means the
+// default plan changed for existing users. Sanctioned changes: additive `style` and `sd` fields (`desc` stays the canonical
+// fallback), and budget-derived interval reps (desc and km agree).
 describe("buildPlan balanced output freeze", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -602,11 +591,8 @@ describe("cross-training session helpers", () => {
 });
 
 // ── carryProgress ───────────────────────────────────────────────────────────
-// Session ids (w{n}d{dOff}) name a slot in the plan grid, not a day. Matching
-// on them across a rebuild transplanted four weeks of done/skipped a month
-// into the future when a race date moved — cancelling sessions the runner had
-// never seen. Rebuilds anchor on the calendar date instead; only the coach,
-// whose proposal is derived from the live plan, still matches by id.
+// Session ids (w{n}d{dOff}) name a grid slot, not a day: matching on them across a rebuild transplanted done/skipped onto
+// the wrong days. Rebuilds anchor on calendar date; only the coach, whose proposal derives from the live plan, matches by id.
 describe("carryProgress", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -811,10 +797,8 @@ describe("carryProgress", () => {
   });
 
   // ── retained history ──────────────────────────────────────────────────────
-  // buildPlan anchors week 1 on the next Monday, so a rebuilt plan contains no
-  // already-elapsed date and every completed session before that Monday used to
-  // vanish — six ticks in, zero out. Stopping the smear (above) did not put the
-  // training back; prepending the weeks the rebuild cannot reach does.
+  // buildPlan anchors week 1 on the next Monday, so a rebuilt plan holds no elapsed date and completed sessions vanished;
+  // prepending the weeks the rebuild cannot reach restores them.
   describe("keeps the weeks the rebuild cannot reach", () => {
     const S = [{ dayOffset: 2, minutes: 45 }, { dayOffset: 6, minutes: 90 }];
     const sessionsOf = (p: Plan) => p.weeks.flatMap(w => w.sessions);

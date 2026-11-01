@@ -2,14 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CloudOff, Loader } from "lucide-react";
 
-// Shown when the user's app_state row could not be read (offline cold start,
-// aborted request, PostgREST error).
-//
-// This screen exists because the alternative is far worse: falling through to
-// the app with an empty store renders a signed-in user as a brand-new one,
-// pushes them into onboarding, and the first write replaces their stored blob
-// with the blank slate. The store stays read-only until a load succeeds
-// (see `loaded` in db.ts), so the only way forward is a retry.
+// Shown when the user's app_state row could not be read (offline cold start, aborted
+// request, PostgREST error). Falling through with an empty store would read as a new
+// account, push onboarding, and the first write would replace the stored blob. The store
+// stays read-only until a load succeeds (`loaded` in db.ts), so the only way forward is retry.
 export function StoreLoadError({ onRetry, onSignOut }: { onRetry: () => void; onSignOut: () => void }) {
   const { t } = useTranslation();
   const [retrying, setRetrying] = useState(false);

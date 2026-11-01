@@ -1,15 +1,7 @@
-// Live run sharing — the watcher half.
-//
-// Follows the signed-in user's own `live_runs` row so another of their sessions
-// can watch a run as it happens. Mounted ONCE (in RunningCoach) and threaded
-// through the `shared` bag, so the dashboard banner and the watch modal read one
-// subscription rather than opening one each.
-//
-// Load discipline, in order of preference:
-//   1. one select when the hook activates,
-//   2. Realtime pushes for everything after that,
-//   3. a poll ONLY as a fallback, only while Realtime is down, and only while
-//      the page is visible — fast while a run is live, slow otherwise.
+// Live run sharing, the watcher half: follows the user's own `live_runs` row so another
+// session can watch. Mounted ONCE (RunningCoach) and threaded via `shared`. Load: one
+// select on activation, then Realtime pushes; polling only as a fallback while
+// Realtime is down and the page is visible.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
@@ -66,13 +58,9 @@ export function useLiveRun(uid: string | null | undefined): LiveRun {
     return () => { aliveRef.current = false; };
   }, []);
 
-  // Realtime subscription, plus the one snapshot read.
-  //
-  // The read is deliberately made from the subscribe callback rather than up
-  // front: doing it after the channel settles means an update landing between
-  // the snapshot and the subscription can't slip through the gap. It runs on a
-  // FAILED status too, so a blocked websocket still gets its initial read and
-  // then falls through to polling.
+  // Realtime subscription plus the one snapshot read. The read runs from the subscribe
+  // callback so an update between snapshot and subscription can't slip through; it also
+  // runs on a FAILED status so a blocked websocket still gets its initial read.
   useEffect(() => {
     if (!uid) return;
     const channel = supabase
@@ -112,13 +100,9 @@ export function useLiveRun(uid: string | null | undefined): LiveRun {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [uid, fetchRow]);
 
-  // Fallback polling, for when Realtime can't be established (blocked websocket,
-  // project without Realtime). Deliberately NOT gated on `active`: with Realtime
-  // down, `active` can only ever become true through this very poll, so gating on
-  // it means a run that starts after the page loads is invisible until something
-  // else happens to trigger a read. Cadence instead of a gate — the publisher's
-  // 30s while a run is live, a slow tick while nothing is — and paused entirely
-  // while the tab is hidden, since the handler above catches up on return.
+  // Fallback polling for when Realtime can't be established. NOT gated on `active`:
+  // with Realtime down, `active` only becomes true through this poll. Cadence instead:
+  // 30s while a run is live, slow otherwise, paused while the tab is hidden.
   useEffect(() => {
     if (!uid || realtimeOk || !visible) return;
     const id = setInterval(() => { void fetchRow(); }, active ? POLL_MS : IDLE_POLL_MS);

@@ -1,8 +1,6 @@
-// The one i18n seam. English is bundled (always-available fallback, so the
-// ErrorBoundary and first paint never lack strings); es/fr dictionaries are
-// dynamic imports so each becomes its own chunk and the default bundle doesn't
-// grow. Components use useTranslation(); class components and pure modules
-// (badges, planStyles, geo/native) import the bound `t` from here.
+// The one i18n seam. English is bundled (fallback for ErrorBoundary and first paint);
+// es/fr are dynamic imports (own chunks). Components use useTranslation(); class
+// components and pure modules import the bound `t` from here.
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import en from "./locales/en";
@@ -38,24 +36,18 @@ export function initI18n(initial: LangId): Promise<void> {
     returnNull: false,
   });
   if (typeof document !== "undefined") document.documentElement.lang = "en";
-  // Boot detection must not pin the browser language into localStorage — only
-  // an explicit user pick (Settings/onboarding) or the synced setting persists.
-  // Return the load promise so main.tsx can await the es/fr chunk BEFORE the
-  // first paint — otherwise those users see a flash of English while the chunk
-  // downloads. English resolves instantly (bundled), so en users don't wait.
-  // setLocale never rejects (it swallows load failures and stays on English),
-  // so awaiting this is always safe.
+  // Boot detection must not persist the browser language to localStorage; only an explicit
+  // pick or the synced setting does. Returns the load promise so main.tsx awaits the es/fr
+  // chunk before first paint. setLocale never rejects, so awaiting is always safe.
   return initial === "en" ? Promise.resolve() : setLocale(initial, { persist: false });
 }
 
 export async function setLocale(lang: LangId, opts: { persist?: boolean } = {}): Promise<void> {
   if (!isLangId(lang)) return;
   try {
-    // The es/fr resource bundle is a dynamic import(): a stale chunk after a
-    // redeploy, or an offline load, rejects here. Catch it so we neither leave
-    // an unhandled rejection (callers use `void setLocale(...)`) nor wedge the
-    // UI — on failure we simply stay on the current language and DON'T persist
-    // rc_lang, so a later boot retries the load.
+    // The es/fr bundle is a dynamic import(); a stale chunk or offline load rejects here.
+    // Catch it (callers use `void setLocale(...)`), stay on the current language, and DON'T
+    // persist rc_lang so a later boot retries.
     if (!i18n.hasResourceBundle(lang, "translation")) {
       const mod = await loaders[lang]();
       i18n.addResourceBundle(lang, "translation", mod.default);

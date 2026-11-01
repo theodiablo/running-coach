@@ -1,13 +1,7 @@
-// route-suggest — server side of the "Find a route" loop suggestion feature.
-// The ORS API key is quota-bearing and can't be domain-restricted, so it must
-// never ship client-side (same rule as coach-agent/polar-import secrets). This
-// proxy verifies the JWT, enforces the daily budget and premium gate
-// (profiles.premium_until, service-role-writable only — src/premium.ts is a UI
-// hint only), fans out seeded ORS requests, and returns raw GeoJSON; all
-// parsing/scoring stays in tested client code (src/utils/routeSuggest.ts).
-// The ORS call is isolated in fetchLoopGeoJSON below so swapping backends
-// later (GraphHopper/BRouter) never changes the client-facing contract.
-// Request/response shape and deploy/secrets: docs/route-finder.md.
+// route-suggest: server side of "Find a route". The ORS key is quota-bearing and can't be
+// domain-restricted, so it must never ship client-side. Verifies the JWT, enforces the daily
+// budget and premium gate (profiles.premium_until; src/premium.ts is a UI hint only) and returns
+// raw GeoJSON; scoring stays in client code. See docs/route-finder.md.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { isPremiumActive } from "../_shared/premium.mjs";
@@ -16,12 +10,9 @@ const ORS_API_KEY = Deno.env.get("ORS_API_KEY");
 const ORS_BASE = Deno.env.get("ORS_BASE_URL") ?? "https://api.openrouteservice.org";
 const LIMIT_PER_DAY = Number(Deno.env.get("ROUTE_SUGGEST_LIMIT_PER_DAY") ?? 30);
 const MAX_CANDIDATES = 5; // hard cap on ORS calls per generation (quota guard)
-// ORS round-trip returns a street-following loop that is systematically LONGER
-// than the requested `length` (typically +20-40%). Rather than guess one
-// correction factor (it varies by area), we request a SPREAD of target lengths
-// centred BELOW 1.0 to counter the overshoot, so that across the usual overshoot
-// range at least ~3 of the returned loops land near the asked distance and the
-// client can reliably show three. (Centre ~0.85; the spread brackets it.)
+// ORS loops come back systematically LONGER than requested (+20-40%, varies by area). Request
+// a SPREAD of target lengths centred below 1.0 (~0.85) so at least ~3 returned loops land near
+// the asked distance.
 const LENGTH_FACTORS = [0.65, 0.75, 0.85, 0.95, 1.05];
 
 const CORS = {
@@ -50,14 +41,9 @@ function isUsableFeature(feature: unknown): boolean {
   return Array.isArray(coords) && coords.length >= 2;
 }
 
-// Is this account premium right now? Reads profiles.premium_until through the
-// admin (service-role) client, mirroring coach-agent's getDailyLimit — the
-// column is service-role-writable only, so the value can't be self-granted.
-//
-// THROWS on a read failure rather than returning false: a transient DB error
-// must land on the generic error path, never tell a paying user they aren't
-// premium. What counts as active is _shared/premium.mjs, the same predicate the
-// client renders from.
+// Is this account premium now? Reads profiles.premium_until via the service-role client
+// (service-role-writable only). THROWS on read failure, never returns false, so a DB error
+// can't tell a paying user they aren't premium. Predicate: _shared/premium.mjs.
 // deno-lint-ignore no-explicit-any
 async function isPremiumUser(admin: any, userId: string): Promise<boolean> {
   const { data, error } = await admin.from("profiles")
@@ -164,11 +150,9 @@ Deno.serve(async (req) => {
     // Per-user daily budget.
     const today = new Date().toISOString().slice(0, 10);
 
-    // Charge FIRST, atomically, then decide — so two concurrent generations can
-    // never both read a stale count under the cap and each slip through. The
-    // increment RPC is a single atomic upsert returning the new count. If that
-    // count exceeds the cap, this request is the one over budget: refund the unit
-    // and report RATE_LIMIT. (A refund can't drive the counter below 0.)
+    // Charge FIRST, atomically, then decide, so concurrent generations can't both slip under the
+    // cap on a stale count. The increment RPC is one atomic upsert; if the new count exceeds the
+    // cap, refund the unit and report RATE_LIMIT (a refund can't drive the counter below 0).
     const { data: chargedRaw, error: chargeErr } = await admin.rpc("increment_route_suggest_usage", {
       p_user_id: user.id, p_day: today,
     });

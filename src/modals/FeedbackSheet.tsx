@@ -16,14 +16,10 @@ type Props = {
   showToast: (msg: string) => void;
 };
 
-// The beta feedback sheet: explainer (first open only) → compose → send.
-// Reached from three doors (the floating pill, the coach chat header, the
-// settings hub) — they differ only in the `source` they pass, which names the
-// screen in the context block and in the row we store.
-//
-// z-[60] because it must open ABOVE the coach chat's own z-50: the coach is
-// exactly the surface people have opinions about, so its header carries one of
-// the three doors and the sheet has to clear it.
+// The beta feedback sheet: explainer (first open only) → compose → send. Three doors (floating
+// pill, coach chat header, settings hub) differ only in the `source` they pass, naming the
+// screen in the context block and stored row. z-[60]: it must open ABOVE the coach chat's
+// z-50, since the coach's header carries one of the doors.
 export function FeedbackSheet({ source, introSeen, onIntroSeen, onSent, onClose, showToast }: Props) {
   const { t } = useTranslation();
   const [showIntro, setShowIntro] = useState(!introSeen);

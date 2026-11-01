@@ -99,14 +99,10 @@ function suggestMemory(input, context, suggestions) {
   return "Queued for runner confirmation. It is not saved unless the runner taps Save to memory.";
 }
 
-// Read-only get_run_detail executor. Like reassess_goal_feasibility it never
-// touches the working plan and is not recorded in toolCalls; successful fetches
-// land in runDetailFetches for the caller's audit log (input_context — the
-// digest is part of what the model saw). fetchRunDetail is injected by the edge
-// function (a closure over the user's RLS-scoped DB client); it resolves to a
-// digest or { unavailable: string } and never throws. Data absence is a
-// NON-error tool_result — absence is a valid answer, and is_error invites
-// retry loops; is_error is reserved for a malformed input and the fetch budget.
+// Read-only get_run_detail executor: never touches the working plan, not recorded in toolCalls; fetches land
+// in runDetailFetches for the audit log. fetchRunDetail is injected (RLS-scoped closure), resolves to a digest
+// or { unavailable: string }, never throws. Absence is a NON-error tool_result (is_error invites retry loops;
+// it is reserved for malformed input and the fetch budget).
 async function handleRunDetail(input, context, fetchRunDetail, runDetailFetches) {
   const runId = String(input?.run_id || "").trim();
   if (!runId) throw new CoachToolError("BAD_INPUT", "run_id is required — use the id of a run from RECENT RUNS.");
@@ -137,18 +133,10 @@ const riskText = (context, history, message) => [
   ...(history || []).map(r => r.user_feedback),
 ].filter(Boolean).join("\n").toLowerCase();
 const latestUserText = (context, message) => String(message ?? context.report ?? "").toLowerCase();
-// Safety keyword detection runs on the runner's own words, which may be
-// English, Spanish or French (settings.language). CRITICAL: input is
-// accent-normalized first (`norm`) — ASCII `\b` word boundaries and the
-// alternations below don't match accented characters, so without this
-// "Je cours malgré la douleur" (the exact train-through-pain phrase the guard
-// exists to catch) slipped past. Verb stems (cour\w*, entren\w*, ...) cover
-// conjugations. The BLOCK-side detectors (pain/illness, missed week,
-// train-through-pain) fire in every language. hasResolvedRisk is deliberately
-// English-only: failing to detect a resolution keeps the guard cautious
-// (blocked) — the safe direction; an over-eager es/fr "resolved" match without
-// matching negation handling could unblock add_session wrongly. The model is
-// still told (SYSTEM_PROMPT) to ask if pain has cleared.
+// Safety keyword detection runs on the runner's own words (en/es/fr). CRITICAL: input is accent-normalized
+// first (`norm`), because ASCII `\b` and the alternations miss accented characters ("malgré la douleur" once
+// slipped past). BLOCK-side detectors fire in every language; hasResolvedRisk is deliberately English-only:
+// missing a resolution keeps the guard cautious, while an over-eager es/fr match could wrongly unblock add_session.
 const norm = (raw) => String(raw ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const hasPainOrIllness = (raw) => { const s = norm(raw); return /\b(pain|hurt|hurts|injur|niggle|sore|ache|aching|ill|sick|fever|flu|covid|fatigue|fatigued|exhausted|shin|knee|ankle|calf|hamstring|achilles|hip|foot|plantar)\b|\b(a|my|have|had|with|caught|getting|from) cold\b|\b(dolor|duele|duelen|lesion|lesionad\w*|molestias?|enferm\w*|fiebre|gripe|resfriad\w*|agotad\w*|fatigad\w*|rodilla|tobillo|gemelo|pantorrilla|isquio\w*|tendon|cadera|espinilla)\b|\b(douleur|blessur\w*|blesse\w*|malade|fievre|grippe|rhume|epuis\w*|fatigu\w*|genou|cheville|mollet|ischio\w*|hanche|tibia)\b|\bmal\s+(au|aux|a la|a l)\b/i.test(s); };
 function hasResolvedRisk(raw) {
@@ -182,30 +170,19 @@ function guardToolForContext(name, input, context, history, message) {
   }
 }
 
-// Steer the model's natural-language reply into the runner's UI language. Only
-// the prose is translated — tool inputs, session types and the plan JSON stay
-// English (the app renders localized session sentences from `sd`, not from the
-// model's text). Appended to the context block (not SYSTEM_PROMPT) so the
-// prompt-cache breakpoint is preserved; en adds nothing, keeping en byte-stable.
+// Steer the model's prose into the runner's UI language; tool inputs, session types and plan JSON stay English
+// (the app renders from `sd`). Appended to the context block, not SYSTEM_PROMPT, to preserve the prompt-cache
+// breakpoint; en adds nothing, keeping en byte-stable.
 const REPLY_LANG_NAME = { es: "Spanish (español)", fr: "French (français)" };
 const replyLanguageLine = (lang) =>
   REPLY_LANG_NAME[lang]
     ? `\n\nREPLY LANGUAGE: Write your natural-language reply to the runner in ${REPLY_LANG_NAME[lang]}. Keep tool inputs, session types and any plan JSON in English.`
     : "";
 
-// How much elapsed plan history the model is shown. A rebuild keeps up to 8
-// elapsed weeks, but the coach doesn't need all of them: what the runner
-// actually DID already reaches the model through RECENT RUNS, which is the
-// real record. What those weeks add is the other half — what was prescribed
-// and never done — and that only stays actionable inside the overdue window
-// (OVERDUE_LOOKBACK_DAYS, 14 days). Two weeks always covers it whatever
-// weekday it is, where "current and future only" would show 0 elapsed days on
-// a Monday and 6 on a Sunday, and leave the coach blind to a session the app
-// is still showing the runner as open.
-//
-// Fixed window, so the token cost stays flat as history accumulates; the
-// serialization drops to date/type/km/flags because the prescription text of a
-// week already gone changes no advice.
+// How much elapsed plan history the model sees: what was DONE reaches it via RECENT RUNS, so elapsed weeks only
+// add what was prescribed and not done, actionable inside the overdue window (OVERDUE_LOOKBACK_DAYS, 14).
+// Two fixed weeks always cover it ("current and future only" would show 0 days on Monday, 6 on Sunday) and keep
+// token cost flat; serialization drops to date/type/km/flags.
 const CONTEXT_PAST_WEEKS = 2;
 
 const compactPastWeek = (w) => ({
@@ -305,13 +282,10 @@ function appliedText(plan, input) {
 const textOf = (content) =>
   content.filter(b => b.type === "text").map(b => b.text).join("\n").trim();
 
-// Run one round. Returns:
-//   { status: "proposed", plan, changed, rationale, toolCalls, usage, validation }
-// or { status: "no_valid_adjustment", rationale, toolCalls, usage }
-// Re-asks the same turn more tersely after a max_tokens truncation. The
-// truncated assistant turn is never appended (a half-written tool_use is not a
-// valid message), so the nudge rides on the trailing user message instead of a
-// second consecutive user turn.
+// Run one round. Returns { status: "proposed", plan, changed, rationale, toolCalls, usage, validation } or
+// { status: "no_valid_adjustment", rationale, toolCalls, usage }. Re-asks more tersely after a max_tokens
+// truncation; the truncated turn is never appended (a half-written tool_use is invalid), so the nudge rides
+// on the trailing user message.
 const BREVITY_NUDGE =
   "Your previous reply was cut off because it ran past the length limit. " +
   "Answer again from scratch, and keep it short: make only the tool calls you need, " +
@@ -439,13 +413,9 @@ export async function generateProposal({ baseline, context, history = [], messag
     messages.push({ role: "user", content: feedback });
   }
 
-  // MAX_MODEL_CALLS exhausted with an already-valid working plan (model kept
-  // calling tools instead of summarizing) — surface it rather than discard as
-  // no_valid_adjustment. Gate on toolCalls.length: a plan trivially "validates
-  // against itself" even when every attempt failed and `working` never moved
-  // off `baseline`, which must report as no_valid_adjustment, not "nothing
-  // needs to change". A read-only-only round (get_run_detail/reassess/remember,
-  // no failures) isn't that dead-end — its lastText is a real answer to surface.
+  // MAX_MODEL_CALLS exhausted with an already-valid working plan: surface it rather than discard it. Gate on
+  // toolCalls.length: a plan trivially validates against itself when every attempt failed and `working` never
+  // left `baseline`, which must report no_valid_adjustment. A read-only-only round's lastText is a real answer.
   if ((toolCalls.length > 0 || (readOnlyActivity && lastText)) && lastValidation && lastValidation.ok) {
     return {
       status: "proposed", plan: working,

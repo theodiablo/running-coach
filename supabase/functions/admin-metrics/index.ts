@@ -1,8 +1,6 @@
-// admin-metrics — product metrics for the maintainer, aggregates only. Two
-// doors, both checked here because neither carries a gateway-verifiable JWT
-// for the digest: the weekly workflow POSTs with `x-admin-digest-secret` and
-// gets the digest emailed; a signed-in ADMIN_USER_ID session at aal2 (MFA)
-// gets the JSON. Everyone else gets 403. docs/product-metrics.md.
+// admin-metrics: aggregate product metrics for the maintainer. Two doors, both checked here (no gateway-verifiable
+// JWT for the digest): the weekly workflow POSTs `x-admin-digest-secret` and gets the digest emailed; a signed-in
+// ADMIN_USER_ID session at aal2 (MFA) gets the JSON. Everyone else gets 403. docs/product-metrics.md.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { AwsClient } from "npm:aws4fetch@1.0.20";

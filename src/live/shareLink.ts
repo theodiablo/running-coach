@@ -1,19 +1,7 @@
-// Live-run share links — minting, URL shape, the public read, and the pure
-// state the panel renders from.
-//
-// The token IS the authorization: whoever holds the link may watch, and a
-// signed-in visitor gets nothing extra. That is what keeps the public watch
-// page a standalone leaf — it never touches the auth session or the store.
-//
-// Everything that talks to the token LEDGER lives in ./shareLinkStore, not
-// here, precisely so this module stays importable by that leaf: it must never
-// pull in src/supabase.ts (see the read below).
-//
-// The read below is a bare `fetch`, deliberately NOT supabase.functions.invoke:
-// importing src/supabase.ts would spin up the auth client (localStorage, token
-// refresh, a session read) on a page that has no business having a session. The
-// anon key is public-safe on its own (src/config.ts) and the edge function is
-// the only thing that can resolve a token anyway.
+// Live-run share links: minting, URL shape, the public read, and the pure panel state.
+// The token IS the authorization, so the public watch page stays a standalone leaf that never
+// touches the auth session or store. Ledger code lives in ./shareLinkStore, and this module
+// must never import src/supabase.ts: the read below is a bare `fetch` (anon key is public-safe).
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
 import { WEB_APP_ORIGIN } from "../constants";
@@ -39,24 +27,19 @@ export type PublicLiveRun = Omit<LiveRunRow, "user_id">;
 
 export const WATCH_PATH_PREFIX = "/watch/";
 
-// 128 bits from the CSPRNG. Never Math.random(): a predictable token would make
-// the whole design — where entropy, not obscurity, is what defeats crawling —
-// silently worthless while still looking random. Minted here and CLAIMED in the
-// ledger (shareLinkStore), which is what makes it durable: the claim is
-// permanent and first-come, so no one who was handed the link can take it.
+// 128 bits from the CSPRNG, never Math.random(): a predictable token would silently void the
+// design (entropy defeats crawling). Minted here and CLAIMED in the ledger (shareLinkStore),
+// where the claim is permanent and first-come.
 export function mintShareToken(): string {
   const bytes = new Uint8Array(SHARE_TOKEN_BYTES);
   crypto.getRandomValues(bytes);
   return toBase64Url(bytes);
 }
 
-// The origin a shared link has to name. The shells serve the bundle from a local
-// origin (https://localhost on Android, capacitor://localhost on iOS), so
-// window.location.origin inside them is an address only that phone can open —
-// it minted links like https://localhost/watch/<token>. The public page exists
-// on the web deployment alone, and native builds don't even ship its chunk
-// (main.tsx), so native names the web origin explicitly — the same rule as the
-// Polar redirect_uri in src/imports/cloudOauth.ts.
+// The origin a shared link must name. Shells serve from a local origin (https://localhost,
+// capacitor://localhost) that only that phone can open, and native builds don't ship the public
+// page (main.tsx), so native names the web origin explicitly, like the Polar redirect_uri
+// in src/imports/cloudOauth.ts.
 export const shareOrigin = (): string =>
   isNative || typeof window === "undefined" ? WEB_APP_ORIGIN : window.location.origin;
 
@@ -74,11 +57,9 @@ export function parseWatchToken(pathname: string): string | null {
 }
 
 // ── What the panel renders ──────────────────────────────────────────────────
-// Pure, and separate from the tracker, because three inputs make four states
-// and the wrong pairing is a privacy bug rather than a cosmetic one: a link
-// shown as live while the run is private reads as "they can see this", and a
-// link offered for sending before the ledger has confirmed it can hand someone
-// an address that never resolves.
+// Pure and separate from the tracker: three inputs make four states, and a wrong pairing is a
+// privacy bug (a link shown live while the run is private, or offered before the ledger
+// confirms it).
 
 export type ShareLinkState =
   // No link claimed yet: offer to create one (which is where the explainer is).

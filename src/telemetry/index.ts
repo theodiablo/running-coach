@@ -5,37 +5,20 @@
 import { isNative } from "../native";
 import { posthogProvider } from "./posthog";
 
-// localStorage so consent is known *synchronously at boot*, before the Supabase
-// app_state blob loads (same reason the live-run/bg-location flags live there)
-// and so the SDK never inits pre-consent. These two keys are the single source
-// of truth for consent — the first-run consent UI and the Settings toggles both
-// read/write them here.
-//
-// `_v2`: the earlier opt-out build *auto-wrote* the v1 key ("rc_telemetry_consent")
-// to "1" on load (default-on, mirrored from settings), so a stored v1 value means
-// "defaulted", NOT "user agreed". Rotating the key discards those and forces a
-// genuine opt-in decision for everyone — the compliant migration to opt-in.
+// localStorage so consent is known *synchronously at boot* (before app_state loads) and the SDK never
+// inits pre-consent. These two keys are the single source of truth for the consent UI and Settings.
+// `_v2`: the old opt-out build auto-wrote the v1 key to "1", so a v1 value means "defaulted", NOT
+// "agreed"; rotating the key forces a genuine opt-in decision.
 export const TELEMETRY_CONSENT_KEY = "rc_telemetry_consent_v2";
-// Crash reporting is a separate channel with its own switch. An absent value
-// inherits the analytics key (see getCrashConsentDecision): the single choice it
-// replaced covered "usage analytics and crash reports", so an existing answer is
-// still an answer for both — nobody gets re-asked, and nobody is upgraded from
-// "no" to "yes".
+// Crash reporting is a separate channel with its own switch. An absent value inherits the analytics key
+// (getCrashConsentDecision): the single choice it replaced covered both, so nobody is re-asked and
+// nobody is upgraded from "no" to "yes".
 export const CRASH_CONSENT_KEY = "rc_crash_consent_v1";
 
 // ---- Provider seam -------------------------------------------------------
-// The single point of vendor coupling. Swap this for a different adapter to
-// change vendors; nothing else below knows which SDK is behind it. The adapter
-// implements:
-//
-//   isConfigured(): boolean              key present in env, safe to init
-//   setConsent({analytics, crashes}): void   start/stop to match consent
-//   identify(id): void
-//   reset(): void
-//   track(event, props): void
-//   captureError(error, context): void
-//   startCookieless(): void              anonymous, storage-free pageviews
-//
+// The single point of vendor coupling; nothing below knows the SDK. Adapter: isConfigured(),
+// setConsent({analytics, crashes}), identify(id), reset(), track(event, props),
+// captureError(error, context), startCookieless() (anonymous, storage-free pageviews).
 const provider = posthogProvider;
 export type TelemetryProps = Record<string, unknown>;
 export type ConsentChoice = { analytics: boolean; crashes: boolean };
@@ -44,14 +27,9 @@ type Decision = "granted" | "denied" | "unset";
 // ---- Consent -------------------------------------------------------------
 let started = false;
 
-// Opt-IN model (EU/ePrivacy): nothing is collected until the user explicitly
-// says so — both channels start off and stay off until answered. The flags are
-// per-device (localStorage, not the synced app_state blob) because consent to
-// store data on a device is inherently per-device — a fresh browser should ask
-// again. Three states per channel:
-//   "1"  granted     "0"  denied     absent  undecided (not answered yet)
-// Wrapped in try/catch because storage can be unavailable (private mode / locked)
-// — in which case the safe default is "undecided", i.e. off.
+// Opt-IN (EU/ePrivacy): nothing is collected until the user says so. Flags are per-device (localStorage,
+// not the synced blob): "1" granted, "0" denied, absent undecided. Storage can be unavailable (private
+// mode), so reads are try/catch and the safe default is "undecided", i.e. off.
 function read(key: string): Decision {
   try {
     const v = localStorage.getItem(key);
@@ -159,24 +137,17 @@ export function track(event: string, props?: TelemetryProps) {
 }
 
 // ---- Crash reporting -----------------------------------------------------
-// Low-level "send this error to the provider". Does NOT check consent itself —
-// the call sites do (the ErrorBoundary and the global handlers below), gated on
-// getCrashConsent(), which is its own switch: crash diagnostics can be on with
-// product analytics off, and vice versa.
+// Low-level "send this error". Does NOT check consent: call sites do (ErrorBoundary, global handlers),
+// gated on getCrashConsent(), its own switch independent of product analytics.
 export function captureError(error: Error, context?: TelemetryProps) {
   if (!provider.isConfigured()) return;
   provider.captureError(error, context || {});
 }
 
 // ---- Global handlers (web only) -----------------------------------------
-// Foreground browser errors that never reach the React ErrorBoundary (event
-// handlers, async callbacks, rejected promises). Consent-gated at fire time.
-// Web only by design: on native the ErrorBoundary installs its OWN window
-// `error` / `unhandledrejection` listeners (so it can also show the crash
-// screen) and auto-reports them consent-permitting — installing here too would
-// double-report. Both platforms capture the same way; PostHog's remote
-// exception-autocapture is unused (blocked by our CSP), so every crash rides the
-// bundled captureException from here or the ErrorBoundary.
+// Foreground browser errors that miss the ErrorBoundary; consent-gated at fire time. Web only: on native
+// the ErrorBoundary installs its OWN window listeners, so installing here would double-report. Every
+// crash rides the bundled captureException (PostHog's remote autocapture is blocked by our CSP).
 let handlersInstalled = false;
 export function installGlobalErrorHandlers() {
   if (handlersInstalled || typeof window === "undefined" || isNative) return;

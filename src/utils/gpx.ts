@@ -1,11 +1,7 @@
-// GPX / TCX activity-file parsing for the file import provider.
-//
-// Small and dependency-free like csv.ts: DOMParser (browser + jsdom) over the
-// two well-known schemas. GPX: <trkpt lat lon><ele/><time/> plus the Garmin
-// TrackPointExtension heart rate (any-namespace <hr>). TCX: <Trackpoint> with
-// <Time>, <Position>, <AltitudeMeters>, <HeartRateBpm><Value>. One file = one
-// activity; distance/elevation are derived from the trace with the same geo
-// math as live GPS runs, so an imported map and its stats agree.
+// GPX / TCX activity-file parsing for the file import provider. Dependency-free like
+// csv.ts: DOMParser over GPX (<trkpt>, Garmin TrackPointExtension <hr>) and TCX
+// (<Trackpoint>). One file = one activity; distance/elevation come from the trace with the
+// same geo math as live runs, so an imported map and its stats agree.
 import { ymd } from "./format";
 import { distanceKm, elevGainM, type TrackPointOrGap } from "./geo";
 import { hrSummary } from "./hr";
@@ -54,11 +50,9 @@ const ymdLocal = (ms: number) => ymd(new Date(ms));
 // without <Position>.
 type NoGpsFallback = { startMs: number; endMs: number; km: number };
 
-// Reduce collected trackpoints + HR samples to an ImportedRun (with the trace
-// attached as transient `points` for the caller to saveRoute). A file without
-// GPS positions still imports via `fallback` — it just has no route/map.
-// Exported so other activity-file parsers (fit.ts) share the one derivation, so
-// a FIT map and its stats agree with a GPX one point-for-point.
+// Reduce collected trackpoints + HR samples to an ImportedRun (trace attached as transient
+// `points` for the caller's saveRoute). A file without GPS still imports via `fallback`,
+// with no route. Exported so fit.ts shares the one derivation.
 export function activityToRun(
   points: TrackPointOrGap[],
   hr: { bpm: number; t: number }[],
@@ -92,12 +86,9 @@ export function activityToRun(
     const elevation = elevGainM(points);
     if (elevation > 0) run.elevation = Math.round(elevation);
   }
-  // Keep the raw HR stream (not just the avg/max aggregates) so an imported file
-  // — like a live BLE run or a HealthKit import — powers RunDetailModal's HR
-  // chart and time-in-zone card. persistImportedRoute folds it into the
-  // stats.hrSamples sidecar (with GPS → routeId, HR-only → hrRouteId). Run it
-  // through the shared normalizer (round bpm, drop zero/NaN) so every import
-  // source lands the same sanitized shape in the sidecar.
+  // Keep the raw HR stream (not just avg/max) so an import powers RunDetailModal's HR
+  // chart and time-in-zone; persistImportedRoute folds it into stats.hrSamples. Run it
+  // through the shared normalizer so every source lands the same sanitized shape.
   const cleanHr = normalizeHrSamples(hr);
   if (cleanHr.length) run.hrSamples = cleanHr;
   return { run };

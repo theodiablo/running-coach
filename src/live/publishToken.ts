@@ -1,10 +1,7 @@
-// The per-run publish token — the WRITE capability behind native screen-off
-// uploads (docs/live-sharing.md, "Native screen-off uploads").
-//
-// Mirror of shareLink.ts's token half, for the second capability: same shape,
-// same entropy, same per-device storage semantics. Unlike the share token it
-// is never displayed and never leaves the device except inside the writes it
-// authorizes, so there is no URL/mint-UI half here.
+// The per-run publish token: the WRITE capability behind native screen-off uploads
+// (docs/live-sharing.md, "Native screen-off uploads"). Mirrors shareLink.ts's token half (same
+// shape, entropy, per-device storage), but is never displayed and never leaves the device
+// except inside the writes it authorizes, so there is no URL/mint-UI half.
 
 import { LIVE_PUBLISH_TOKEN_KEY } from "../constants";
 import { SHARE_TOKEN_BYTES, toBase64Url } from "./shareLink";

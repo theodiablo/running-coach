@@ -3,14 +3,9 @@ import { isAndroid } from "../native";
 import { REC_NOTIF_ASKED_KEY } from "../constants";
 
 // Request POST_NOTIFICATIONS (Android 13+) so the background-geolocation foreground
-// service's ongoing "recording run" notification is visible while a run records
-// with the screen off. Neither @capacitor/geolocation nor the background-geolocation
-// plugin requests it, and without it Android 13+ silently suppresses the
-// notification (the service still runs — recording is never affected).
-//
-// Backed by the local RunPermissions plugin (registerPlugin by name — its native
-// code is discovered by `cap sync`; the web proxy just rejects, which the isAndroid
-// gate below avoids). Android-only, never throws, never blocks recording.
+// service's "recording run" notification shows with the screen off; neither geolocation
+// plugin requests it (recording is unaffected without it). Local RunPermissions plugin;
+// Android-only, never throws, never blocks recording.
 
 type RunPermissionsNative = {
   checkNotifications: () => Promise<{ granted?: boolean }>;

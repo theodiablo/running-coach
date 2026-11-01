@@ -1,8 +1,6 @@
-// Carries auth-callback feedback from App.tsx to RunningCoach, which owns the
-// only toast. BUFFERED, because a deep link that cold-starts the app is handled
-// before RunningCoach mounts and a bare dispatch would be swallowed: the notice
-// is parked, then drained by whichever arrives first — a live listener inside
-// emitAuthNotice, or a late mount.
+// Carries auth-callback feedback from App.tsx to RunningCoach, which owns the only toast.
+// BUFFERED: a cold-start deep link is handled before RunningCoach mounts, so the notice is
+// parked and drained by whichever comes first, a live listener in emitAuthNotice or a late mount.
 export const AUTH_NOTICE_EVENT = "rc-auth-notice";
 
 export type AuthNotice = { key: string; type: "ok" | "err"; vars?: Record<string, string> };

@@ -1,12 +1,7 @@
 // In-app destinations the coach may link to. The model writes an `app:` link
-// (`[your goal](app:goal)`) and the runner gets a button that lands on the
-// right screen — the alternative it kept reaching for was prose ("adjust it in
-// the plan settings"), a dead end in the one place the coach architecturally
-// cannot act: it can never change the goal itself, only ask for it.
-//
-// This list IS the allowlist. CoachText renders an `app:` link only when its
-// target is here, so an invented destination degrades to plain text rather than
-// a button that goes nowhere — the same posture as the external-URL strip.
+// (`[your goal](app:goal)`) and the runner gets a button to that screen; the coach can
+// never change the goal itself, only ask. This list IS the allowlist: CoachText renders an
+// `app:` link only if its target is here, so an invented one degrades to plain text.
 export type CoachLinkTarget = "goal" | "log" | "training" | "integrations" | "history" | "next";
 
 export const COACH_LINK_TARGETS: readonly CoachLinkTarget[] =

@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunNotificationContent } from "../utils/runNotification";
 
-// Exercises the seam's native-call serialization on the iOS path (the one with
-// an end() teardown, where the races are worst). The native plugin is mocked
-// with manually-resolved deferreds so tests control exactly when a call
-// settles; modules are re-imported per test because the seam keeps its queue
-// state at module scope.
+// Exercises the seam's native-call serialization on the iOS path (the one with an
+// end() teardown, where races are worst). The plugin is mocked with manually-resolved
+// deferreds; modules are re-imported per test because the queue is module-scoped.
 
 type Deferred = { resolve: (v: { updated?: boolean }) => void; reject: (e: unknown) => void };
 

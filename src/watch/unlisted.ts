@@ -4,12 +4,10 @@
 import { useEffect } from "react";
 import { dismissTop } from "../utils/backDismiss";
 
-// Keep the page out of search results, and keep the token out of the Referer
-// header on the way to any outbound link. A link pasted into a public forum
-// would otherwise get indexed and then crawled — the one realistic way a
-// stranger ever reaches a live run without being handed the link. Paired with
-// `Disallow: /watch/` in public/robots.txt: the meta tag covers a crawler that
-// already has the URL, robots.txt covers one that would go looking.
+// Keep the page out of search results and the token out of the Referer header on
+// outbound links, since a link pasted publicly would get indexed and crawled. Paired with
+// `Disallow: /watch/` in public/robots.txt: the meta tag covers crawlers that have the
+// URL, robots.txt those that go looking.
 export function useUnlistedPage(title: string) {
   useEffect(() => {
     const tags: HTMLMetaElement[] = [];

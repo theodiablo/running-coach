@@ -1,11 +1,7 @@
-// "How this session unfolds" — the expandable step-by-step breakdown behind a
-// plan-session card tap in PlanView. Pure and derived from the session row
-// itself (type, sd, desc, km, pace), so it works for generated AND coach-edited
-// sessions and never needs the plan or style. Labels and prose are localized via
-// the bound `t`; the structured `sd` supplies rep/recovery/ratio figures when
-// present, else we parse them back out of the (always-English) canonical `desc`.
-// The km on a rep session is the whole outing (reps + warmup/recovery
-// allowance), which is exactly the confusion this breakdown exists to answer.
+// "How this session unfolds": the step breakdown behind a plan-session card tap. Pure,
+// derived from the session row (type, sd, desc, km, pace), so it covers coach-edited
+// sessions too. `sd` supplies rep/recovery/ratio figures, else they are parsed from the
+// English canonical `desc`. A rep session's km is the whole outing (incl. warmup/recovery).
 import i18n, { t } from "../i18n";
 import { fmt } from "./format";
 import type { SessionSd } from "../types";

@@ -10,11 +10,8 @@ export type RunFormValues = {
   // which is the only valid value for every other type.
   activity: string;
   km: string;
-  // Duration as the raw digit string the runner typed, filled right to left:
-  // "4300" is 43:00, "15207" is 1:52:07. One field instead of three boxes —
-  // it's the order a watch face or a race result is already written in, and it
-  // costs one tap and one keyboard on a phone instead of three. Format for
-  // display with `formatDur`, read with `durToSec`.
+  // Duration as the raw digit string typed, filled right to left ("4300" is 43:00, "15207" is 1:52:07),
+  // the order a watch face is written in. Format with `formatDur`, read with `durToSec`.
   dur: string;
   hr: string;
   hrMax: string;
@@ -60,11 +57,9 @@ export const secToDur = (sec: number): string => {
   return normalizeDur(digits);
 };
 
-// Re-express raw input as the digits of the duration it actually means, so the
-// field can never show a value it won't save: typing "75" reads as 0:75, which
-// is 1:15 once parsed, and 7 digits push one off the left and re-group. Running
-// it through seconds and back settles both. Canonical input is untouched by it
-// ("4300" stays "4300"), so ordinary typing never sees it move.
+// Re-express raw input as the digits of the duration it means, so the field never shows a value it won't
+// save ("75" reads as 0:75 = 1:15; 7 digits re-group). Goes through seconds and back; canonical input
+// ("4300") is untouched.
 export const canonicalDur = (raw: string): string => secToDur(durToSec(raw));
 
 // What the field shows: the digits grouped as the runner reads them back.
@@ -98,17 +93,10 @@ export function runToForm(run: Run): RunFormValues {
 export const runFormHasDetail = (f: RunFormValues) =>
   !!(f.hr || f.hrMax || f.elev || f.notes || Number(f.effort) > EFFORT_UNSET);
 
-// One field change, with the fields that stop applying reconciled in the same
-// handler (the `react-hooks` rule: reconcile in event handlers, never an
-// effect). Switching a run TO cross-training drops distance and elevation,
-// because the form stops rendering them and a stale value would be saved
-// invisibly.
-//
-// Deliberately only on the switch, never at patch time: a run that *arrived* as
-// cross-training keeps whatever it already had, so opening a bike ride logged
-// before those fields disappeared — to fix a typo in its notes — can't silently
-// delete its distance. Legacy rows are neutralised by the `isCrossTraining`
-// filters on the aggregates, not by erasing them. See docs/indoor-sessions.md.
+// One field change, reconciling the fields that stop applying in the same handler (reconcile in event
+// handlers, never an effect). Switching TO cross-training drops distance and elevation (hidden stale values
+// would save invisibly), only on the switch, never at patch time: a run that *arrived* as cross-training
+// keeps its fields. Legacy rows are handled by `isCrossTraining` filters. See docs/indoor-sessions.md.
 export function setRunField(
   f: RunFormValues, key: keyof RunFormValues, value: string | number,
 ): RunFormValues {
@@ -122,14 +110,9 @@ export function setRunField(
 export const hmsToSec = (f: { dH: string; dM: string; dS: string }) =>
   (parseInt(f.dH, 10) || 0) * 3600 + (parseInt(f.dM, 10) || 0) * 60 + (parseInt(f.dS, 10) || 0);
 
-// A run needs a distance and some duration; the rest is optional. The one
-// exception is cross-training ("OTHER" — an indoor bike or elliptical, a swim):
-// there is no comparable distance to ask for, and demanding one is what stopped
-// those sessions being loggable at all. See docs/indoor-sessions.md.
-//
-// Per field, so the message can sit on the field it's about — one banner saying
-// "distance and duration are required" was wrong for cross-training, which
-// needs no distance.
+// A run needs a distance and some duration; the rest is optional. Cross-training ("OTHER") has no
+// comparable distance to ask for (docs/indoor-sessions.md). Errors are per field so the message sits
+// on the field it is about, not in one banner.
 export type RunFormErrors = { km: boolean; duration: boolean };
 
 export const runFormErrors = (f: RunFormValues): RunFormErrors => ({

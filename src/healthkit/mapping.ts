@@ -19,22 +19,14 @@ export function workoutRunType(activityType?: number): "EASY" | "WALK" | null {
   return null;
 }
 
-// HealthKit workout ids ride the existing hcId id-space with an "hk:" prefix:
-// no new dedupe id-space, no possible collision with Health Connect ids, and
-// markSeen / the per-device seen list work unchanged. The same physical run
-// arriving via HC on Android and HK on an iPhone still collapses through the
-// startedAt time-overlap dedupe rule, not by id.
+// HealthKit workout ids ride the hcId id-space with an "hk:" prefix: no new dedupe id-space and no Health Connect
+// collision. The same run via HC and HK still collapses through the startedAt time-overlap rule, not by id.
 export const hkId = (uuid: string) => "hk:" + uuid;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// Turn a raw HealthKit workout into a partial Run ready for the save pipeline
-// (goLog prefill / addRuns) — the HK mirror of sessionToRun. Elevation is
-// omitted when the workout didn't record it (rather than forced to 0) so the
-// field stays blank and editable. HealthKit has no per-workout zone offset, so
-// sessionLocalDate falls back to the device's local zone — right for the
-// overwhelmingly common case of importing on the phone that lives in the
-// runner's own time zone.
+// Raw HealthKit workout -> partial Run for the save pipeline (the HK mirror of sessionToRun). Elevation is omitted,
+// not forced to 0, when unrecorded. HealthKit has no per-workout zone offset, so sessionLocalDate uses the device zone.
 export function workoutToRun(w: HkWorkoutRaw): Partial<Run> {
   const startMs = +new Date(w.startTime);
   const endMs = +new Date(w.endTime);

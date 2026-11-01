@@ -1,11 +1,7 @@
-// Live-run share links — the one thing both ends must agree on.
-//
-// Plain ESM so it imports from Deno (the live-watch edge function) AND from
-// Vitest/the browser bundle (src/live/shareLink.ts re-exports it), the same
-// dual-import pattern as _shared/coach/styles.mjs. The token shape is a
-// SECURITY parameter, not formatting: it is what makes crawling /watch/<guess>
-// hopeless, so the client that mints it, the CHECK constraint that stores it,
-// and the function that resolves it must not drift apart.
+// Live-run share links: the one thing both ends must agree on. Plain ESM so Deno (live-watch
+// function) and Vitest/the browser (src/live/shareLink.ts re-exports it) both import it. The
+// token shape is a SECURITY parameter: the minting client, the CHECK constraint and the resolving
+// function must not drift apart.
 
 // base64url, 22 chars = the exact encoding of 16 random bytes (128 bits) with
 // no padding. The upper bound leaves room to lengthen the token later without

@@ -12,17 +12,10 @@ import { fmt } from "../utils/format";
 import { isHrStale } from "../utils/hr";
 import { track } from "../telemetry";
 
-// Guided-run orchestration (docs/guided-workouts.md). Advances the pure engine
-// off the SAME renders the tracker's accepted fixes and foreground 1s tick
-// already produce (never a timer — the repo's background rule), and fans the
-// results out to:
-//   - the in-tracker panel (returned display state),
-//   - JS cues and status callouts (web + iOS; Android is silent here — its
-//     native engine owns audio),
-//   - the iOS native one-shot schedule for time boundaries no fix will wake,
-//   - the Android WorkoutGuide seed (full state re-base on every change).
-// Engine progress is DERIVED DURING RENDER (the PlanView reset pattern — no
-// sync setState in effects); the cue effect below only performs side effects.
+// Guided-run orchestration (docs/guided-workouts.md). Advances the pure engine off the
+// SAME renders the tracker's fixes and 1s tick already produce (never a timer), fanning
+// out to the panel, JS cues (web + iOS; Android's native engine owns audio), the iOS
+// schedule and the Android WorkoutGuide seed. Progress is DERIVED DURING RENDER.
 
 // Re-arm the iOS scheduled cue only when the deadline drifted meaningfully —
 // re-arming on every 1s tick would spam the bridge for nothing.

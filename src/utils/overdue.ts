@@ -4,20 +4,13 @@ import { mainRace } from "./planPhase";
 import { goalKind } from "./recovery";
 import type { Plan, PlanSession } from "../types";
 
-// Plan-session selection for the Dashboard. Both selectors carry the week number
-// so callers can target toggleSess/skipSess/goLog without re-walking the plan.
-//
-// A session the runner never touched is "overdue", not "missed" — the copy and
-// the actions stay forgiving on purpose (src/utils/badges.ts holds the same line
-// against streaks). Overdue is DERIVED, never stored: PlanSession has done/
-// skipped and nothing else, so a plan rebuild can't leave a stale flag behind.
+// Plan-session selection for the Dashboard; both selectors carry the week number for toggleSess/skipSess/goLog.
+// An untouched session is "overdue", not "missed": copy stays forgiving (badges.ts holds the same line).
+// Overdue is DERIVED, never stored, so a plan rebuild can't leave a stale flag behind.
 export type SessionWithWeek = PlanSession & { wNum: number };
 
-// How far back an untouched session stays actionable. A rebuild now keeps the
-// elapsed weeks (carryProgress), so without a floor every session from every
-// retained week would read as still open forever — the dashboard would fill
-// with months of misses nobody can act on. Two weeks is the window where
-// "still open" is still true; past it the plan has moved on.
+// How far back an untouched session stays actionable. Rebuilds keep elapsed weeks (carryProgress), so
+// without a floor every retained week would read as still open. Two weeks is where "still open" is true.
 export const OVERDUE_LOOKBACK_DAYS = 14;
 
 const withWeek = (plan: Plan | null): SessionWithWeek[] =>
@@ -28,11 +21,9 @@ const withWeek = (plan: Plan | null): SessionWithWeek[] =>
 const untouched = (s: SessionWithWeek) => !s.done && !s.skipped;
 const dayOf = (s: SessionWithWeek) => new Date(s.date + "T00:00:00");
 
-// Untouched sessions inside the lookback window, most recent first — the
-// freshest miss is the one worth acting on. Returns every match; capping the
-// count is the caller's call (the Dashboard shows a few, PlanView counts them
-// all). A race is never overdue (the debrief owns it), and once the main race
-// has passed nothing dated on or before it is: that block of training is over.
+// Untouched sessions inside the lookback window, most recent first. Returns every match; capping is the
+// caller's call. A race is never overdue (the debrief owns it), and once the main race has passed
+// nothing dated on or before it is.
 export function overdueSessions(plan: Plan | null, today: Date): SessionWithWeek[] {
   const start = startOfDay(today);
   const floor = startOfDay(today);

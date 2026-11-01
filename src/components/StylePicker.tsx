@@ -3,11 +3,9 @@ import { STYLE_IDS, styleMeta, type StyleId } from "../utils/planStyles";
 import { RUNWALK_RUN_OPTIONS, RUNWALK_WALK_OPTIONS, type RunWalkConfig } from "../utils/runwalk";
 import { fmt } from "../utils/format";
 
-// Radio-card picker for the training methodology style, shared by PlanView's
-// setup/edit forms and the onboarding wizard. `recommended` tags (and, while
-// the user hasn't picked, usually equals) the profile-derived suggestion from
-// recommendStyle. The Run/Walk card opens its ratio control when selected —
-// the one place the ratio is set, so both forms get it from one component.
+// Radio-card picker for the training style, shared by PlanView's forms and the onboarding
+// wizard. `recommended` tags the profile-derived suggestion from recommendStyle. The Run/Walk
+// card opens its ratio control when selected, the one place the ratio is set.
 type StylePickerProps = {
   value: StyleId;
   onChange: (style: StyleId) => void;

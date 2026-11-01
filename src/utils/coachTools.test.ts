@@ -500,12 +500,9 @@ describe("assessGoalFeasibility", () => {
     const runs = [{ date: today(3), type: "EASY", km: 5, durationSec: 5 * 450 }]; // 7:30/km best
     expect(assessGoal({ ...goal, recentRuns: runs })).toMatch(/UNREALISTIC/);
   });
-  // Regression: a hilly goal's plan carries targetPace = goalSec / flat-equivalent
-  // distance, which is FASTER than the pace actually run on the day. Judging
-  // feasibility against it read a real 4:50/km as missing a 4:10/km bar that was
-  // never the goal, and told a runner on track their 4:31/km target was
-  // unrealistic. Every other fixture here is a flat course, where the two
-  // paces coincide and the bug is invisible.
+  // Regression: a hilly goal's plan carries targetPace = goalSec / flat-equivalent distance,
+  // FASTER than the pace run on the day. Judging feasibility against it called an on-track
+  // runner's target unrealistic. Other fixtures are flat, where the paces coincide.
   describe("on a course with climb (targetPace faster than race pace)", () => {
     // 20 km in 5410s = 4:31/km on the ground; 200m of climb → targetPace 4:10/km.
     const hilly = { goal: { goalSec: 5410, distanceKm: 20, raceDate: "2026-11-01" }, targetPace: 250 };

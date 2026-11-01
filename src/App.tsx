@@ -26,12 +26,9 @@ import RunningCoach from "./RunningCoach";
 import LoginScreen from "./LoginScreen";
 import ResetPasswordScreen from "./ResetPasswordScreen";
 
-// Web-only marketing landing shown to signed-out visitors at the root path.
-// VITE_NATIVE_BUILD is set only by the Android build (see .github/workflows/
-// android.yml), so this ternary constant-folds to `null` there and Rollup drops
-// the entire marketing chunk from the APK — the native shell ships zero
-// marketing bytes and goes straight to LoginScreen. On the web build the flag is
-// unset, leaving it a lazy chunk that logged-in users never fetch.
+// Web-only marketing landing for signed-out visitors. VITE_NATIVE_BUILD (Android
+// only) constant-folds this ternary to `null`, so Rollup drops the marketing
+// chunk from the APK; on web it is a lazy chunk logged-in users never fetch.
 const MarketingGate = import.meta.env.VITE_NATIVE_BUILD
   ? null
   : lazy(() => import("./marketing/MarketingGate"));
@@ -46,14 +43,9 @@ const initialUrl = typeof window !== "undefined" ? window.location.href : "";
 const RECOVERY_SETTLE_MS = 8000;
 
 // Redeem a password-reset callback into a session for the account the link was
-// sent to. Our own template sends a token_hash (verifyOtp); GoTrue's stock one a
-// ?code= (supabase-js exchanges it itself on the web, `exchangeCode` false) or,
-// through the implicit /verify, a session in the fragment that the PKCE client
-// won't adopt. A link that yields none of these must fail: the device may
-// already be signed in to ANOTHER account, and the new-password screen would
-// set that account's password instead.
-// Resolves to the id of the account the link was for, or null when it was
-// rejected.
+// sent to: token_hash (verifyOtp), ?code=, or an implicit-fragment session. A link
+// yielding none must fail: the device may hold ANOTHER account and the
+// new-password screen would set its password. Resolves to that account's id, or null if rejected.
 async function redeemRecovery(cb: { tokenHash: string | null; code: string | null; tokens: RecoveryTokens | null }, exchangeCode: boolean): Promise<string | null> {
   try {
     let uid: string | undefined;
@@ -88,10 +80,8 @@ async function redeemRecovery(cb: { tokenHash: string | null; code: string | nul
 const AUTH_INIT_TIMEOUT_MS = 20000;
 
 // Resolve an email-change confirmation against SERVER truth (the redirect can
-// lie either way — see emailChangeOutcome) and report what actually landed. The
-// re-read doubles as the refresh that clears the "waiting for confirmation"
-// banner; without it the app renders the stale cached user and the tap looks
-// like it did nothing. `pendingBefore` is user.new_email before the callback.
+// lie either way, see emailChangeOutcome). The re-read also refreshes the
+// "waiting for confirmation" banner. `pendingBefore` is user.new_email before the callback.
 async function settleEmailChange(pendingBefore: string | null, opts: { user?: User | null; failure?: string } = {}) {
   let user = opts.user ?? null;
   if (!user) {
@@ -118,35 +108,25 @@ export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined); // undefined = still resolving
   const [storeReady, setStoreReady] = useState(false);
   // The user id whose app_state row could not be read, or null. Distinct from
-  // "not ready yet": the store refuses to write until a load succeeds (db.ts),
-  // so rendering the app here would show an empty account the user cannot save
-  // out of. Offer a retry instead.
-  //
-  // Held WITH the user id (same pattern as `premium` above) so sign-out and a
-  // user switch invalidate it during render rather than from an effect.
-  // `storeAttempt` re-runs the load effect.
+  // "not ready": the store refuses writes until a load succeeds (db.ts), so offer
+  // a retry instead of an empty account. Held WITH the user id (like `premium`) so
+  // sign-out/user switch invalidate it during render; `storeAttempt` re-runs the load.
   const [storeFailedUid, setStoreFailedUid] = useState<string | null>(null);
   const [storeAttempt, setStoreAttempt] = useState(0);
   // Bumped when db.ts adopts a newer server row over an offline-booted cache:
   // the UI's copies are stale, so RunningCoach is remounted (keyed below) to
   // re-read the store.
   const [storeNonce, setStoreNonce] = useState(0);
-  // Premium entitlement (profiles.premium_until). Server truth, read for UI
-  // only — every premium feature is enforced in its edge function. Free until
-  // the fetch lands, and on any failure.
-  //
-  // Stored WITH the user id it was read for, so it's invalidated during render
-  // (below) rather than reset from an effect: sign-out and a user switch both
-  // stop matching, so one account's entitlement can never flash on another's
-  // session while a fetch is in flight.
+  // Premium entitlement (profiles.premium_until): server truth, read for UI only;
+  // enforced in each edge function. Free until the fetch lands and on any failure.
+  // Stored WITH its user id so sign-out / user switch invalidate it during render,
+  // never flashing one account's entitlement on another's session.
   const [premium, setPremium] = useState<{ uid: string; until: string | null } | null>(null);
   const [authError, setAuthError] = useState<string | null>(null); // native deep-link sign-in failure
-  // A password-reset link is being redeemed, or has been: the new-password
-  // screen owns the app until it's done. Set from the callback we classify
-  // ourselves AND from supabase-js's own PASSWORD_RECOVERY event, because which
-  // one fires depends on the shape of the link the mail template sent.
-  // Holds the id of the account the link was for: the screen only ever sets
-  // that account's password, never whichever session the device happens to hold.
+  // A password-reset link is being redeemed: the new-password screen owns the app.
+  // Set from our own classified callback AND supabase-js's PASSWORD_RECOVERY
+  // event (which fires depends on the link shape). Holds the id of the account the
+  // link was for; the screen sets only that account's password.
   const [recovering, setRecovering] = useState<string | null>(null);
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
@@ -159,12 +139,10 @@ export default function App() {
   // Latest session, readable from the once-registered deep-link listener below.
   const sessionRef = useRef<Session | null>(null);
 
-  // Session adopted from supabase-js's own storage because getSession() came
-  // back empty on an unreachable network (offline cold start with an expired
-  // access token — the session survives in storage but can't be refreshed).
-  // Only a real auth event may replace it: a fresh session clears it, an
-  // explicit SIGNED_OUT clears it, but the null that every failed offline
-  // refresh emits must NOT bounce the user to the login screen.
+  // Session adopted from supabase-js storage when getSession() came back empty
+  // offline (expired token, unrefreshable). Only a real auth event may replace it:
+  // a fresh session or explicit SIGNED_OUT clears it, but the null every failed
+  // offline refresh emits must NOT bounce the user to login.
   const offlineSessionRef = useRef<Session | null>(null);
 
   // Track the auth session.
@@ -202,12 +180,10 @@ export default function App() {
       } else if (event === "SIGNED_OUT") {
         offlineSessionRef.current = null;
         setRecovering(null); // nothing to set a password on any more
-        // The one place account data may leave the device: an explicit
-        // sign-out (or a dead refresh token). NOT in clearStore — that runs on
-        // transient null-session states too, where wiping the mirror would
-        // destroy the offline boot it exists for. The cached share link goes
-        // with it: it is the account's standing address, and the next runner on
-        // this device must never be shown (or able to send) the last one's.
+        // The one place account data may leave the device: an explicit sign-out (or dead
+        // refresh token). NOT in clearStore, which runs on transient null-session states
+        // where wiping the mirror would destroy the offline boot. The cached share link
+        // goes too: the next runner on this device must never see the last one's.
         clearOfflineMirror();
         clearShareLinkCache();
       } else if (offlineSessionRef.current) {
@@ -216,13 +192,10 @@ export default function App() {
       settle(s);
     });
 
-    // Belt-and-suspenders: if the auth state is somehow still unresolved after
-    // the cap (requests are already bounded by the fetch timeout in
-    // supabase.js), drop to the login screen instead of spinning forever.
-    // This fires BEFORE a slow offline refresh settles (auth-js retries can
-    // outlast the cap on a dead network), so it must make the same offline
-    // fallback as the resolved path — settling null here would flash the login
-    // screen and tear down the store for a user who is merely offline.
+    // Safety net: if auth is still unresolved after the cap, drop to login rather
+    // than spin forever. This can fire BEFORE a slow offline refresh settles, so it
+    // must make the same offline fallback as the resolved path, or a merely-offline
+    // user gets the login screen and a torn-down store.
     const timer = setTimeout(() => {
       setSession((curr) => {
         if (curr !== undefined) return curr;
@@ -243,12 +216,10 @@ export default function App() {
     };
   }, []);
 
-  // Inside the Capacitor shell, OAuth / magic-link redirects come back as a deep
-  // link (see authRedirectTo). Complete the PKCE exchange so the WebView signs in.
-  // No-op on the web (handled by detectSessionInUrl). Plugin imported lazily so it
-  // stays out of the web bundle.
-  // Persists the last-processed URL across Strict Mode remounts so a PKCE code
-  // is never exchanged twice (codes are single-use; a double call yields invalid_grant).
+  // In the Capacitor shell OAuth / magic-link redirects return as a deep link
+  // (see authRedirectTo); complete the PKCE exchange. No-op on web; plugin is lazy.
+  // The last-processed URL persists across Strict Mode remounts: PKCE codes are
+  // single-use (a double call yields invalid_grant).
   const lastUrlRef = useRef<string | null>(null);
 
   // Mirror of `session` for the long-lived deep-link listener below: it is
@@ -287,14 +258,10 @@ export default function App() {
       const signedIn = !!sessionRef.current;
       const pendingBefore = sessionRef.current?.user?.new_email ?? null;
       switch (cb.kind) {
-        // Cloud-provider OAuth return, bounced from the web origin by
-        // cloudOauthPreinit. Its ?code= is NOT a Supabase auth code —
-        // classifyAuthUrl routes it before the exchangeCodeForSession below can
-        // eat it (the native twin of the preinit's web-side guard). Stash for
-        // the provider's completeAuth (which CSRF-validates the state) and wake
-        // whoever is mounted: RunningCoach listens for the event (warm return),
-        // and its boot path re-reads the stash anyway (cold start, where this
-        // may run before it mounts).
+        // Cloud-provider OAuth return, bounced from the web origin by cloudOauthPreinit.
+        // Its ?code= is NOT a Supabase code: classifyAuthUrl routes it before the
+        // exchange. Stash it for the provider's completeAuth and wake RunningCoach (its
+        // boot path re-reads the stash for cold starts).
         case "cloudOauth":
           closeAuthBrowser(); // iOS: the OAuth SFSafariViewController is still up
           // A denial carries no code — stay silent (same choice as the web flow)
@@ -302,12 +269,9 @@ export default function App() {
           if (cb.code && cb.state) stashCloudReturn(cb.provider, cb.code, cb.state);
           window.dispatchEvent(new CustomEvent("rc-cloud-oauth-return", { detail: { id: cb.provider } }));
           return;
-        // Provider-side denial/error (e.g. user cancels Google consent) carries
-        // no `code` — surface it instead of silently no-oping. Signed OUT that
-        // means the login screen; signed IN it can only be an email-change link
-        // (the app is on screen, and LoginScreen — the only thing that renders
-        // reportAuthError — is not), and an expired/already-used link there does
-        // NOT mean the change failed, so let the server have the last word.
+        // A provider-side denial carries no `code`; surface it. Signed OUT that means
+        // the login screen; signed IN it can only be an email-change link, and an
+        // expired/used link does NOT mean the change failed, so let the server have the last word.
         case "error":
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore, { failure: cb.message });
@@ -413,12 +377,9 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [recovering, sessionUid]);
 
-  // Web twin of the handler above, for email-change links only. In the browser
-  // the confirmation redirect lands back on our own origin: supabase-js consumes
-  // a `?code=` itself (detectSessionInUrl), but the `?message=` (first of two)
-  // and `?error=` (expired/used link) returns are ours to read — and without
-  // this, opening the link on the web is the same silent no-op the native shell
-  // had. Signed-in only: signed out, these are sign-in failures, not ours.
+  // Web twin of the handler above, for email-change links only: `?message=` and
+  // `?error=` returns land on our origin and are ours to read (supabase-js
+  // consumes `?code=` itself). Signed-in only; signed out they are sign-in failures.
   const webCallbackRef = useRef(false);
   useEffect(() => {
     if (isNative || !session?.user || webCallbackRef.current) return;
@@ -491,11 +452,9 @@ export default function App() {
         setStoreFailedUid(null);
         setStoreReady(true);
       });
-      // Entitlement rides alongside the store load but is deliberately NOT
-      // awaited before storeReady: a slow or failed read must never hold up the
-      // splash, it just means the UI starts on the free tier (fetchPremiumUntil
-      // never rejects). Because this effect is keyed on the user id, it runs
-      // once per sign-in — refreshPremium below covers the rest.
+      // Entitlement is deliberately NOT awaited before storeReady: a slow or failed
+      // read must never hold the splash (fetchPremiumUntil never rejects). Runs once
+      // per sign-in; refreshPremium covers the rest.
       const uid = session.user.id;
       fetchPremiumUntil(uid).then(v => { if (!cancelled) setPremium({ uid, until: v }); });
     } else {
@@ -513,31 +472,22 @@ export default function App() {
     };
   }, [session, storeAttempt]);
 
-  // After an offline boot, reconnecting may reveal a newer server row (another
-  // device wrote while this one was offline). db.ts adopts it into the cache;
-  // this remounts the app over it and says why the screen just refreshed.
-  // Parked, not emitted: a live dispatch would be drained by the OUTGOING
-  // RunningCoach and die in its unmount — the fresh mount drains the park.
+  // After an offline boot, a newer server row may appear on reconnect; db.ts adopts
+  // it and this remounts the app over it with a notice. Parked, not emitted: a live
+  // dispatch would be drained by the OUTGOING RunningCoach and die in its unmount.
   useEffect(() => subscribeStoreRefresh(() => {
-    // Never tear down a live recording (or an unresumed interrupted-run
-    // offer): the adopted data is already in the cache, so skipping the
-    // remount only leaves the current views stale until the next boot.
-    // BOTH recorders count — an indoor session keeps its buffer under its own
-    // key (docs/indoor-sessions.md) and is if anything more fragile, since it
-    // has no fix journal and no Dashboard banner to recover it from.
+    // Never tear down a live recording or unresumed interrupted-run offer; skipping
+    // the remount only leaves views stale until next boot. BOTH recorders count:
+    // indoor keeps its buffer under its own key (docs/indoor-sessions.md).
     if (readRecoveryBuffer() || readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })) return;
     parkAuthNotice("app.offline.refreshed");
     setStoreNonce(n => n + 1);
   }), []);
 
-  // Re-read the entitlement on demand. The load above runs once per sign-in, so
-  // without this a user who was offline at cold start (or who was granted
-  // premium mid-session) would stay locked until the app restarted — days, in a
-  // long-lived native WebView. Called when a premium teaser opens, which is
-  // exactly when a stale "locked" state is about to be shown.
-  // Returns the FRESH value as well as storing it, so a caller can decide what
-  // to show from this read instead of from the state it had a moment ago (React
-  // won't have re-rendered yet). Never rejects — null means free.
+  // Re-read the entitlement on demand (the load runs once per sign-in, so a stale
+  // "locked" state would persist); called when a premium teaser opens.
+  // Returns the FRESH value as well as storing it, since React hasn't re-rendered
+  // yet. Never rejects; null means free.
   const uid = session?.user.id;
   const refreshPremium = useCallback(async (): Promise<string | null> => {
     if (!uid) return null;
@@ -572,13 +522,9 @@ export default function App() {
   // a visitor sees it at first visit; self-gates to nothing once decided (or if
   // telemetry isn't configured). Telemetry collects nothing until accepted here.
   if (!session) {
-    // Web visitors land on the marketing site (with an in-page login modal);
-    // the native shell skips it and shows LoginScreen directly. `isNative`
-    // covers the runtime split; `MarketingGate` is null in the native build so
-    // the chunk is never even shipped.
-    // A dead reset link is the one case that skips the marketing site: its
-    // login modal is closed by default, so the failure — and the form that asks
-    // for a fresh link — would be behind a CTA nobody knows to press.
+    // Web visitors get the marketing site (login in a modal); native shows LoginScreen directly.
+    // A dead reset link skips marketing: its login modal is closed, hiding the
+    // form that asks for a fresh link.
     if (!isNative && MarketingGate && !resetLinkFailed) {
       return (
         <>

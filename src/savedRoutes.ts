@@ -1,9 +1,6 @@
-// Access module for saved favourite loops (route-finder Phase 4). Direct
-// Supabase queries against the `saved_routes` table — NOT the app_state blob and
-// NOT run_routes — mirroring src/routes.ts. A saved loop is PLANNED geometry to
-// reuse; it is deliberately kept apart from recorded run traces so the two can
-// never be confused. Best-effort by design: read failures resolve to [] and the
-// finder simply shows no favourites, never blocking the tracker.
+// Access module for saved favourite loops: direct Supabase queries on `saved_routes` (not app_state, not run_routes),
+// mirroring src/routes.ts. Planned geometry, kept apart from recorded traces. Best-effort: read failures resolve to []
+// and never block the tracker.
 
 import { supabase } from "./supabase";
 import { currentUserId } from "./db";

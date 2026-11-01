@@ -1,10 +1,7 @@
 import { Medal } from "lucide-react";
 
-// Presentational only; the auto-dismiss timer lives in the parent so this
-// stays a pure component. An optional `action` ({label, onClick}) renders an
-// inline button (e.g. Undo). `closing` (driven by the parent's usePresence)
-// swaps the enter animation for the exit one. `type === "badge"` is the
-// celebratory unlock variant — a dark pill with an orange medal.
+// Presentational only: the auto-dismiss timer lives in the parent. `action` renders an inline button (e.g. Undo);
+// `closing` (parent's usePresence) swaps in the exit animation; `type === "badge"` is the celebratory unlock variant.
 type ToastAction = { label: string; onClick: () => void };
 
 export function Toast({msg, type, action, closing}: { msg: string; type: string; action?: ToastAction; closing?: boolean }) {

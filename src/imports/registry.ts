@@ -34,11 +34,9 @@ export const cloudAuthCompleters: Record<string, () => Promise<CloudAuthResult>>
   coros: completeCorosAuth,
 };
 
-// Deferred-ack seam: a cloud provider whose sync protocol needs a server-side
-// acknowledgement only after imported runs are actually SAVED registers its
-// commit here. RunningCoach calls this from the "Import all" toast action and
-// LogView's onSaved — an unconfirmed import is never acked, so the provider
-// re-serves it next scan instead of losing it. Never throws.
+// Deferred-ack seam: a provider that must acknowledge server-side only after imported
+// runs are SAVED registers its commit here; RunningCoach calls it from "Import all"
+// and LogView's onSaved. An unconfirmed import is never acked, so it is re-served. Never throws.
 export async function commitCloudScans(): Promise<void> {
   await commitSuuntoScan().catch(() => { /* re-served next scan */ });
   await commitCorosScan().catch(() => { /* re-served next scan */ });
@@ -81,12 +79,9 @@ type ScanAllOptions = {
   trigger?: string;
 };
 
-// Run every scan-capable, available, enabled provider and return the merged,
-// deduped list of new runs. Sequential on purpose: each provider scans against
-// the stored runs PLUS what earlier providers already produced, and every
-// candidate passes isDuplicateRun against that same accumulating set — so the
-// same run arriving from two sources collapses to one. Never throws; a failing
-// provider contributes nothing.
+// Run every scan-capable, available, enabled provider; return the merged, deduped
+// new runs. Sequential on purpose: each provider scans against stored runs PLUS earlier
+// providers' output, so a run from two sources collapses to one. Never throws.
 export async function scanAllProviders(runs: Run[], opts: ScanAllOptions = {}): Promise<ImportedRun[]> {
   const found: ImportedRun[] = [];
   const seenIds = getSeenIds();

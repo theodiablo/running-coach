@@ -1,10 +1,5 @@
-// PostHog adapter for the telemetry seam (./index.js). This is the ONLY file
-// that imports the SDK, so the rest of the app stays vendor-neutral.
-//
-// posthog-js is pulled in by a dynamic import the first time telemetry actually
-// activates, so it never weighs down the main bundle — or any build that ships
-// without a key. Calls made before that import resolves are queued and replayed
-// in order once it lands.
+// PostHog adapter for the telemetry seam (./index.js): the ONLY file importing the SDK. posthog-js loads by dynamic
+// import on first activation (not in the main bundle or keyless builds); earlier calls are queued and replayed in order.
 
 import { isNative } from "../native";
 import { scrubEvent } from "./scrub";
@@ -65,24 +60,17 @@ function ensureLoaded() {
   loading = import("posthog-js")
     .then(({ default: posthog }) => {
       posthog.init(KEY, {
-        // Standard product-analytics web events (pageviews + pageleaves) give
-        // visitor/session counts and populate PostHog's Web Analytics; both are
-        // part of the core bundle (no remote fetch), so they work under our CSP,
-        // on web AND inside the native WebView (one pageview per app open, since
-        // there's no router). They follow the ANALYTICS channel (webEvents), except on
-        // a cookieless public page (modeConfig).
+        // Pageviews + pageleaves feed Web Analytics; core bundle (no remote fetch), so CSP-safe on web and native (one pageview
+        // per app open, no router). They follow the ANALYTICS channel (webEvents), except on a cookieless public page (modeConfig).
         api_host: HOST,
         // Autocapture stays OFF *by design*: it records the visible text of
         // clicked elements ($el_text), which in this app can include race names
         // and run details — exactly the free text the telemetry policy never
         // sends (see docs/telemetry.md). Don't flip this without revisiting that.
         autocapture: false,
-        // Automatic exception capture (capture_exceptions) stays OFF too: it
-        // lazy-loads `exception-autocapture.js` from PostHog's asset host, which
-        // disable_external_dependency_loading + our CSP (script-src 'self')
-        // block — so it would silently never load. Crashes are captured with the
-        // BUNDLED captureException API instead, driven from our own consent-gated
-        // handlers (index.ts global handlers + ErrorBoundary).
+        // Automatic exception capture stays OFF: it lazy-loads exception-autocapture.js, which disable_external_dependency_loading
+        // and CSP script-src 'self' block. Crashes use the BUNDLED captureException from our consent-gated handlers
+        // (index.ts global handlers + ErrorBoundary).
         capture_exceptions: false,
         disable_session_recording: true,
         // Unused capture surfaces, off explicitly rather than by default: they
@@ -121,12 +109,9 @@ function withPH(fn: (posthog: PostHogLike) => void) {
 export const posthogProvider = {
   isConfigured: () => !!KEY,
 
-  // The SDK is opted in whenever EITHER channel is granted (crash reports need
-  // it too) and never loaded at all while both are off, so nothing is stored on
-  // the device before a choice. Analytics granularity is not opt-in/out state
-  // but config: set_config runs BEFORE opt_in_capturing so the deferred initial
-  // $pageview isn't emitted for a crash-only consent. captureEventName:false
-  // suppresses PostHog's own $opt_in event (an event the user didn't trigger).
+  // The SDK is opted in when EITHER channel is granted and never loaded while both are off. set_config runs BEFORE
+  // opt_in_capturing so a crash-only consent emits no deferred initial $pageview; captureEventName:false suppresses
+  // PostHog's own $opt_in event.
   setConsent({ analytics, crashes }: ConsentChoice) {
     analyticsAllowed = analytics;
     if (!analytics && !crashes) {
@@ -160,11 +145,8 @@ export const posthogProvider = {
     withPH((p) => p.capture(event, props));
   },
 
-  // Defensive: if this is ever reached while the SDK is opted out, opt in just
-  // long enough to send this one exception; we deliberately do NOT re-opt-out
-  // synchronously (that can drop the still-queued report). Safe because the
-  // automatic web events follow analyticsAllowed, so an opted-in crash-only SDK
-  // still emits nothing but the $exception.
+  // Defensive: if reached while opted out, opt in just long enough to send this exception; do NOT re-opt-out synchronously
+  // (can drop the queued report). Safe since automatic web events follow analyticsAllowed.
   captureError(error: Error, context?: TelemetryProps) {
     withPH((p) => {
       if (p.has_opted_out_capturing()) {

@@ -5,11 +5,9 @@ import { saveRoute, queuePendingRoute } from "../routes";
 import type { ImportedRun } from "./types";
 import type { Run } from "../types";
 
-// Swaps an imported run's transient `points`/`hrSamples` for a run_routes
-// reference, so neither reaches addRuns and the synced blob. A GPS trace rides
-// `routeId` (History shows a map button); an HR-only sidecar rides the separate
-// `hrRouteId`, so the detail HR chart works without History offering a blank
-// map. Runs with neither pass through untouched.
+// Swaps an imported run's transient `points`/`hrSamples` for a run_routes reference so
+// neither reaches addRuns or the synced blob. A GPS trace rides `routeId`; an HR-only
+// sidecar rides `hrRouteId` (no blank map in History). Runs with neither pass through.
 export async function persistImportedRoute(r: ImportedRun): Promise<Partial<Run>> {
   // providerId names the source in the import toast and goes no further;
   // discarding it IS the point, so the binding is deliberately unused.

@@ -1,10 +1,7 @@
-// Which heart-rate nudge (if any) to offer when the user taps Start.
-//
-// Pure so the platform rules are testable without mounting the tracker: a synced
-// hrMethod naming the OTHER platform's integration must produce NO nudge — the
-// re-authorize prompt would be meaningless there, and the generic setup prompt
-// would mislead, since the method is only effectively "off" on this device.
-// Copy lives at the call site; this decides which prompt, never what it says.
+// Which heart-rate nudge (if any) to offer when the user taps Start. Pure so platform
+// rules are testable: a synced hrMethod naming the OTHER platform's integration must give
+// NO nudge (the method is only effectively "off" here). Copy lives at the call site; this
+// decides which prompt, never what it says.
 export type HrNudgeId = "auth" | "hkAuth" | "pair" | "setup";
 
 export type HrNudgeChoice = {

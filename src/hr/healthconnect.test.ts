@@ -78,11 +78,8 @@ describe("flushPendingHr", () => {
 });
 
 describe("healthConnectSource.checkPermissions", () => {
-  // The permission bridge is a process-killer when Health Connect is missing
-  // (uncaught coroutine exception in the plugin — no promise ever rejects), so
-  // "unavailable" must be answered without calling it at all. This is what made
-  // Settings → Integrations close the app on every Android 13-and-below device
-  // without the Health Connect app installed.
+  // The permission bridge kills the process when Health Connect is missing (uncaught plugin coroutine,
+  // no rejection), so "unavailable" must be answered without calling it.
   it("answers false without touching the permission bridge when unavailable", async () => {
     localStorage.setItem(HR_HEALTH_CONNECT_AUTH_KEY, "1");
     hc.checkAvailability.mockResolvedValue({ availability: "NotSupported" });

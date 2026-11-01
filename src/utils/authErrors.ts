@@ -1,14 +1,7 @@
-// One place to turn a Supabase/GoTrue auth error into copy a user can act on.
-//
-// The raw strings are English-only and written for developers ("For security
-// purposes, you can only request this after 52 seconds."), and the ones that
-// matter most are about the confirmation EMAIL rather than the credentials: a
-// user who can't tell "we already sent it" from "it failed" just presses the
-// button again. One real sign-up produced six 429s in ninety seconds that way
-// before the user gave up and used Google instead.
-//
-// Returns null when nothing here fits, so a caller keeps whatever fallback it
-// already had rather than trading a specific server message for a vague one.
+// One place to turn a Supabase/GoTrue auth error into copy a user can act on. Raw strings are
+// English-only developer text, and the ones that matter most concern the confirmation EMAIL:
+// a user who can't tell "we already sent it" from "it failed" presses the button again.
+// Returns null when nothing fits, so a caller keeps its own fallback over a vaguer message.
 
 export type AuthErrorLike = {
   message?: string | null;
@@ -35,12 +28,9 @@ export function authErrorMessage(err: unknown): AuthMessage | null {
   const message = rawMessage || "";
   const code = rawCode || "";
 
-  // The mail limiter specifically — the only case where we may promise that an
-  // email is already on its way. GoTrue uses this one code for both the
-  // per-address cooldown (which names the wait) and the project's hourly cap.
-  // The message is matched too because `code` is only populated by newer GoTrue
-  // versions, and "email rate limit exceeded" names the limiter on its own (the
-  // cooldown wording does not, so a code-less cooldown falls through below).
+  // The mail limiter, the only case where we may promise an email is on its way. GoTrue uses one
+  // code for both the per-address cooldown and the hourly cap. The message is matched too:
+  // `code` is only populated by newer GoTrue, and a code-less cooldown must fall through below.
   if (code === "over_email_send_rate_limit" || /email rate limit/i.test(message)) {
     const wait = COOLDOWN_SECONDS.exec(message);
     return wait

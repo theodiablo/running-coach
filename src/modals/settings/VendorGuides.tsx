@@ -3,19 +3,10 @@ import { Upload } from "lucide-react";
 import { isNative, isAndroid } from "../../native";
 import { HowItWorks } from "../../views/ConnectionsCard";
 
-// Vendors we can't connect to directly, explained rather than integrated.
-//
-// Strava's API agreement bans AI-model use of API data and our coach reads the
-// user's runs, so an OAuth integration is off the table (docs/health-integrations.md);
-// Zepp has no cloud API available to indie developers at all; Garmin does have
-// one, but its Connect Developer Program is partner-gated (a legal entity,
-// approved case by case) and new access requests are suspended, so it is shut
-// to us too. All three are still perfectly usable through paths we already
-// support, so this card teaches those two paths instead of pretending the
-// vendor is unsupported:
-//   - past runs: export a file from the vendor, import it here;
-//   - new runs: let the vendor's phone app write to the platform health store,
-//     which the connection above already reads.
+// Vendors we can't connect to, explained rather than integrated: Strava's API bans AI use of its
+// data (docs/health-integrations.md), Zepp has no indie cloud API, Garmin's is partner-gated.
+// All three work via a file export/import (past runs) or the vendor app writing to the
+// platform health store (new runs).
 const VENDORS = ["strava", "zepp", "garmin"] as const;
 
 export function VendorGuides({ onImportFile }: { onImportFile?: () => void }) {

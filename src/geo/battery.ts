@@ -2,15 +2,10 @@ import { registerPlugin } from "@capacitor/core";
 import { isAndroid } from "../native";
 import { BATTERY_NUDGE_KEY } from "../constants";
 
-// Android battery-optimization guidance. An "optimized" app can be killed by
-// the OS while recording in the background — the #1 cause of a lost run — so
-// the tracker offers the exemption screen once per install. Deliberately the
-// SETTINGS LIST screen (ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), not the
-// direct request dialog: the direct dialog needs the
-// REQUEST_IGNORE_BATTERY_OPTIMIZATIONS manifest permission, which Google Play
-// restricts — the list screen needs nothing and can't fail review. Backed by
-// the local RunPermissions plugin; Android-only, never throws, and a dismissal
-// (or the check failing) never blocks recording.
+// Android battery-optimization guidance: an "optimized" app can be killed while recording
+// in the background. Offers the SETTINGS LIST screen once per install, not the direct
+// dialog, which needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (restricted by Google Play).
+// Android-only, never throws, and never blocks recording.
 
 type RunPermissionsBattery = {
   checkBatteryOptimization: () => Promise<{ ignoringOptimizations?: boolean }>;

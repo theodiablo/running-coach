@@ -190,13 +190,10 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     lastReportedOverdue = overdueCount;
     track("overdue_shown", {count: overdueCount});
   }, [overdueCount]);
-  // A tick is a plan edit, not a checkbox: it lands on a confirmation card with
-  // Undo and no action row, so a double-tap can't consume the next session.
-  // `advanced` re-fires the enter animation once it settles — a silent refill in
-  // place read as nothing having happened.
-  // `link` is set when the tick named a run: undo then has to release the run
-  // and put back whatever date the session carried, so it can't be the same
-  // call again the way toggleSess/skipSess are.
+  // A tick is a plan edit, not a checkbox: it lands on a confirmation card with Undo and no
+  // action row, so a double-tap can't consume the next session. `advanced` re-fires the enter
+  // animation. `link` is set when the tick named a run: undo must release the run and restore
+  // the session's date, so it can't be the same call again as toggleSess/skipSess.
   type Confirmed = {wNum: number; sId: string; title: string; meta: string; skipped: boolean; link?: {prevDate: string}};
   const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
   const [advanced, setAdvanced] = useState(0);
@@ -239,12 +236,10 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   };
 
 
-  // The first backlog an account ever sees carries a line on what the coach can
-  // do about it — the moment the capability is worth believing. Captured at
-  // mount so marking it seen can't yank the copy out from under the reader; the
-  // flag then keeps it from ever returning. It is spent when it has really been
-  // on screen, not at mount: this card sits well down the page, so a Home visit
-  // that never scrolled would otherwise burn it unread.
+  // The first backlog an account sees carries a line on what the coach can do about it. Captured
+  // at mount so marking it seen can't yank the copy; spent when really on screen
+  // (`useSeenOnScreen`), since the card sits below the fold and a Home visit that never scrolled
+  // would burn it unread.
   const [showOverdueCoachIntro] = useState(settings.coachOverdueIntroSeen === false);
   // The same captured-at-mount rule for the notice on a plan started for the runner.
   const [autoNotice] = useState(!!plan?.goal?.autoFor && settings.autoStartNoticeFor !== plan.goal.autoFor);

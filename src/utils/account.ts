@@ -16,10 +16,8 @@ export function passwordProblem(pw: string, confirm: string): PasswordProblem | 
   return null;
 }
 
-// An account with no `email` identity signed up through Google and has no
-// password at all. For those, updateUser({password}) SETS a first one (and
-// thereby enables email+password sign-in alongside Google) — so the UI says
-// "Set a password", not "Change".
+// An account with no `email` identity signed up through Google and has no password: updateUser({password}) SETS a first
+// one, so the UI says "Set a password", not "Change".
 // Display name of the social identity a password-less account signs in with.
 export function socialProviderName(user: User): string {
   return user.identities?.some(i => i.provider === "apple") && !user.identities.some(i => i.provider === "google")

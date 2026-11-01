@@ -22,13 +22,10 @@ export function CoachUsageRingSkeleton() {
   );
 }
 
-// The daily-usage donut ring shown at the bottom-right of the coach footer, plus
-// its tap popover. Subtle (ring only, slate) while there's plenty of budget;
-// gains a coloured "N left today" label as it fills; at the limit it shows
-// "resets tomorrow" in red (the composer-disabled banner is rendered by
-// CoachChat). Tapping opens a small usage breakdown. `usage === null` is handled
-// by the caller (the ring simply isn't rendered). Mounts once, when the fetch
-// replaces the skeleton, so the enter `animate-pop` fires exactly then.
+// Daily-usage donut ring at the bottom-right of the coach footer, plus a tap popover with
+// a usage breakdown. Slate while budget is plentiful, a coloured "N left today" as it
+// fills, red "resets tomorrow" at the limit. `usage === null` is the caller's concern.
+// Mounts once when the fetch replaces the skeleton, so `animate-pop` fires then.
 export function CoachUsageRing({ usage }: { usage: CoachUsage }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);

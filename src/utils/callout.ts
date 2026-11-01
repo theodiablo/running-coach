@@ -66,9 +66,8 @@ function readLeft(v: unknown): LeftMode {
 export type CalloutClock = { lastAtSec: number; lastKm: number };
 
 /**
- * Is a status callout due? Time-based callouts run on MOVING time (a pause
- * doesn't count) and wait out the first stretch of a step; per-km ones fire
- * on each whole kilometre crossed.
+ * Is a status callout due? Time-based callouts run on MOVING time (a pause doesn't
+ * count) and wait out the first stretch of a step; per-km ones fire on each whole km.
  */
 export function calloutDue(
   freq: CalloutFreq,

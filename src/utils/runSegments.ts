@@ -1,20 +1,7 @@
-// Running-only figures for a run that alternates running and walking (a
-// Galloway session, or any run with walk breaks in it). The whole-run average
-// pace of a run/walk session describes neither half of it: the runner wants to
-// know how fast the RUNNING was.
-//
-// Nothing on a saved run says which seconds were walked — the only record is the
-// trace itself — so this segments the trace by its own pace distribution
-// (weighted 2-means over the legs between stored points, time-weighted) rather
-// than against an absolute "walking is slower than X" threshold, which no single
-// figure can be: a beginner runs at 9:00/km and a fit runner walks at 8:00/km.
-//
-// It is therefore an ESTIMATE and the UI must say so. It returns null unless the
-// run really does read as two modes (see the gates below) — a steady run has one
-// mode and gets no card at all, which is the honest answer.
-//
-// Pure and unit-tested. Points are the stored [lat,lng,t,alt] tuples with null
-// gap markers, exactly as buildSplits/buildRunSeries read them.
+// Running-only figures for a run alternating running and walking. Nothing on a saved run says
+// which seconds were walked, so this segments the trace by its OWN pace distribution (weighted
+// 2-means over time-weighted legs), never an absolute walking threshold. It is an ESTIMATE the
+// UI must say so, returning null unless the run reads as two modes. Pure; docs/run-analysis.md.
 
 import { flattenTrack } from "./geo";
 import type { TrackPointOrGap } from "./geo";

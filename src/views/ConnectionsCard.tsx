@@ -21,11 +21,9 @@ import type { ImportProvider } from "../imports/types";
 import type { HrMethod, SettingsState } from "../types";
 
 // ── Connections & sync ──────────────────────────────────────────────────────
-// The ONE settings card for every external source feeding runs or heart rate:
-// BLE HR sensor row, one health-store row (Health Connect/Apple Health, current
-// platform only) with per-feature sub-toggles, and cloud provider rows. Web
-// collapses native-only rows into an "in the mobile app" pointer instead of
-// disabled controls. Presentation merge only — settings keys are unchanged.
+// The ONE settings card for every external source of runs or HR: BLE sensor row, one health-store row
+// (current platform only) with sub-toggles, cloud provider rows. Web collapses native-only rows into an
+// "in the mobile app" pointer. Presentation merge only; settings keys unchanged.
 
 type ConnectionsProps = {
   settings: SettingsState;
@@ -35,27 +33,18 @@ type ConnectionsProps = {
   scanImportsNow?: () => Promise<number>;
 };
 
-// Where is a provider's synced enable-flag? The health-store providers share
-// settings.watchImport — one platform-neutral "import from my phone's health
-// store" preference (don't churn the synced blob); anything newer lands in the
-// settings.imports map. The read side is providerEnabledInSettings
-// (registry.ts), shared with the scan gate in RunningCoach so the two can't drift.
+// Where is a provider's synced enable-flag? Health-store providers share settings.watchImport (one
+// platform-neutral preference); newer ones use the settings.imports map. Reads go through
+// providerEnabledInSettings (registry.ts), shared with the scan gate in RunningCoach so they can't drift.
 type ImportsFlags = Record<string, boolean>;
 function withProviderEnabled(settings: SettingsState, id: string, on: boolean): SettingsState {
   if (healthStoreProviderIds.has(id)) return { ...settings, watchImport: on };
   return { ...settings, imports: { ...(settings.imports as ImportsFlags | undefined), [id]: on } };
 }
 
-// Collapsible help: settings should configure, not lecture — the long
-// explanations (and the beta caveat) live behind this tap instead of
-// permanently occupying screens of scroll. Exported for the vendor guides on
-// the Integrations page, which are the same "tap to read, otherwise stay out of
-// the way" shape.
-//
-// `label` is REQUIRED, and must name what it explains ("How Polar works", not
-// "How it works"). This page stacks several of these a few pixels apart — one
-// per connection row plus the card's own — and identically-labelled neighbours
-// are unreadable: you cannot tell which disclosure answers which row.
+// Collapsible help (settings configure, they don't lecture). Exported for the vendor guides.
+// `label` is REQUIRED and must name what it explains ("How Polar works", not "How it works"): several
+// of these stack a few pixels apart and identical labels can't be told apart.
 export function HowItWorks({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -172,10 +161,8 @@ function HrOptOutRow({ settings, saveSettings }: ConnectionsProps) {
 }
 
 // ── Phone health store (Health Connect / Apple Health) ──────────────────────
-// One row, one OS grant, two per-feature toggles. Which store renders is
-// decided by the platform — the other platform's store never shows (a synced
-// hrMethod naming it degrades to "off" here, per the synced-preference /
-// local-readiness doctrine).
+// One row, one OS grant, two per-feature toggles. The platform decides which store renders; a synced
+// hrMethod naming the other platform's store degrades to "off" here.
 function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: ConnectionsProps) {
   const { t } = useTranslation();
   const storeMethod: HrMethod = isAndroid ? "healthconnect" : "healthkit";
@@ -203,12 +190,9 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
   const hrOn = settings.hrMethod === storeMethod;
   const watchOn = !!settings.watchImport;
 
-  // One consent screen for everything the app reads from the store (heart rate
-  // + exercise/distance/elevation) — the user never has to grant twice. On a
-  // fresh grant, switch the features on for them (that's what "connect my
-  // watch" means) — EXCEPT the HR method when another source is already
-  // configured (a paired Bluetooth strap here, or a method synced from another
-  // device): replacing an explicit choice needs an explicit tap on the toggle.
+  // One consent screen for everything read from the store. On a fresh grant, switch the features on
+  // (that is what "connect my watch" means) EXCEPT the HR method when another source is already configured
+  // (BLE strap or synced method): replacing an explicit choice needs an explicit tap.
   const doConnect = async (): Promise<{ hr: boolean; watch: boolean }> => {
     setBusy(true);
     try {
@@ -248,13 +232,9 @@ function HealthStoreRow({ settings, saveSettings, showToast, scanImportsNow }: C
     scanImportsNow?.().then(n => { if (!n) showToast?.(t("settings.integrations.noNewRuns")); }).catch(() => {});
   };
 
-  // Enable a feature only when THIS grant newly authorized it (was ungranted
-  // before, granted now) — so a reconnect that broadens scope turns the new
-  // feature on, but re-authorizing an already-granted store never flips a
-  // toggle the user deliberately switched off. HR additionally only auto-enables
-  // when no HR source is configured (never silently replaces a BLE strap or a
-  // method synced from another device). `prev` is the granted state before the
-  // grant call.
+  // Enable a feature only when THIS grant newly authorized it (`prev` is the state before the grant), so
+  // re-authorizing never flips a toggle the user switched off. HR also needs no configured HR source
+  // (never silently replaces a BLE strap or a synced method).
   const applyGrant = (prev: { hr: boolean; watch: boolean }, grant: { hr: boolean; watch: boolean }): boolean => {
     let next = settings;
     if (grant.watch && !prev.watch) next = withProviderEnabled(next, isAndroid ? "healthconnect" : "healthkit", true);
@@ -395,11 +375,9 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
     Promise.resolve(provider.isConnected ? provider.isConnected() : false)
       .then(ok => { if (!cancelled) setConnected(!!ok); })
       .catch(() => { if (!cancelled) setConnected(false); });
-    // A native OAuth return completes out-of-band (deep link → RunningCoach
-    // exchange) — refresh this row's state when it lands so the user sees
-    // "connected" without reopening Settings. The event carries the provider id
-    // in its detail so this only fires the matching row (Polar, Suunto and
-    // COROS share this seam — a bare event would flip every cloud row).
+    // A native OAuth return completes out-of-band (deep link, RunningCoach exchange): refresh this row when
+    // it lands. The event detail carries the provider id so only the matching row reacts (Polar, Suunto and
+    // COROS share this seam).
     const onDone = (e: Event) => {
       const id = (e as CustomEvent<{ id?: string }>).detail?.id;
       if (!cancelled && id === provider.id) setConnected(true);
@@ -415,12 +393,9 @@ function CloudRow({ provider, settings, saveSettings, showToast, scanImportsNow 
   const connect = async () => {
     setBusy(true);
     try {
-      // connect() resolving false means "authorization was refused, in place".
-      // "pending" means the flow left for the system browser (native OAuth) and
-      // the outcome arrives later via the rc-cloud-connected event — no toast,
-      // no state change now. A WEB redirect provider instead returns a
-      // never-settling promise (the page navigates away before it could
-      // resolve), so this spinner simply rides into the redirect.
+      // connect() resolving false means authorization was refused in place. "pending" means the flow left for
+      // the system browser; the outcome arrives via rc-cloud-connected (no toast now). A WEB redirect provider
+      // returns a never-settling promise, so the spinner rides into the redirect.
       const res = provider.connect ? await provider.connect() : false;
       if (res === "pending") return;
       setConnected(res);
@@ -556,11 +531,8 @@ export function ConnectionsCard(props: ConnectionsProps) {
     tapsRef.current = 0;
     const next = !isWatchDebugEnabled();
     armDeveloperLogs(next);
-    // File immediately on enabling: the native shell log is always recording, so
-    // at the moment someone turns this on there is usually already a report worth
-    // having, and nothing else files one — the Send button below is the only
-    // other path, and it needs someone to press it. Turning the log on after
-    // something went wrong and having nothing arrive is the trap this closes.
+    // File immediately on enabling: the native shell log is always recording, so there is usually a report
+    // worth having, and nothing else files one except the Send button, which needs a press.
     if (next) void fileShellReport("manual: developer logs enabled").catch(() => {});
     showToast?.(next ? "Developer logs enabled" : "Developer logs hidden");
   };

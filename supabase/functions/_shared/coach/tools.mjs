@@ -1,16 +1,7 @@
-// The coach agent's bounded tool vocabulary: plan transforms over the buildPlan
-// JSON plus one memory-suggestion tool. The model is an EDITOR, never an author
-// — it can only act through these, and there is deliberately no free-form edit
-// tool. The two load-increasing tools are the tightly bounded ones: add_session
-// is capped at the plan's longest training session and barred from the final 14
-// days; increase_session_distance is capped at 1.5x one session. Both are gated
-// by the weekly-ramp validator and by the engine's pain/illness/missed-week
-// context gates. Every transform returns a NEW plan
-// (structuredClone), refuses to touch done sessions, and never moves a RACE.
-//
-// Session/phase vocabulary matches the app, NOT generic lowercase names:
-// EASY | TEMPO | INTERVALS | LONG | RACE | WALK | OTHER ("cross-training" maps
-// to WALK). Plain ESM: imported by the Deno edge function and by Vitest.
+// The coach agent's bounded tool vocabulary: plan transforms over the buildPlan JSON plus one
+// memory-suggestion tool. The model is an EDITOR, never an author; no free-form edit tool.
+// Every transform returns a NEW plan, refuses done sessions, never moves a RACE; types match
+// the app (cross-training = WALK). Plain ESM: imported by Deno and Vitest.
 
 import { HARD_TYPES } from "./validation.mjs";
 import { stylePacing } from "./styles.mjs";
@@ -27,16 +18,10 @@ const dayMs = 86400000;
 const toDate = (s) => new Date(s + "T00:00:00");
 const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / dayMs);
 
-// A rebuild keeps the elapsed weeks in the plan, so the model can now SEE days
-// that have already been lived. They are the training record — "never edit a
-// session to make past training look different from what actually happened" —
-// so every mutating tool refuses them.
-//
-// One day of slack, because `today` is UTC while a session's date is the
-// runner's local day: without it an evening message from the Americas would
-// read the runner's own today as yesterday and refuse "I can't run today".
-// The slack also leaves yesterday's missed session cancellable, which is
-// honest record-keeping rather than a rewrite.
+// A rebuild keeps elapsed weeks in the plan, so every mutating tool refuses them: past
+// training is the record. One day of slack, because `today` is UTC while a session date is
+// the runner's local day (else an evening message from the Americas refuses "I can't run
+// today"); it also leaves yesterday's missed session cancellable.
 const PAST_EDIT_GRACE_DAYS = 1;
 
 // Load-increase bounds. The taper only refuses what can blunt race day:
@@ -300,12 +285,9 @@ function refreshCross(session, plan) {
   session.desc = `Cross-training — ${fmtMins(minutes)} easy ${CROSS_NOUN[session.sd.activity]}, no running`;
 }
 
-// Pace/description derivation mirrors buildPlan's ratios off plan.targetPace.
-// The multipliers come from the shared per-style table (styles.mjs) keyed by
-// plan.style — the SAME table buildPlan uses, so a coach edit on a styled plan
-// prescribes the style's paces, not stale balanced ones. A plan without a
-// style field (built before styles existed) resolves to balanced, which keeps
-// the original hardcoded 1.25/1.05/1.0 ratios byte-identical.
+// Pace/description derivation mirrors buildPlan's ratios off plan.targetPace, using the
+// shared per-style table (styles.mjs) keyed by plan.style, so coach edits prescribe the
+// style's paces. A plan without a style resolves to balanced (the original 1.25/1.05/1.0).
 const paceFor = (plan, type) => {
   const tgt = plan.targetPace || 0;
   if (!tgt) return null;
@@ -346,13 +328,10 @@ const descFor = (type, pace, style) => {
   if (type === "WALK") return "Cross-training / brisk walk — no impact, easy effort";
   return "Easy run — relaxed aerobic effort";
 };
-// Structured descriptor mirroring descFor branch-for-branch, so a coach-edited
-// or coach-added session carries an `sd` the app renders in the UI language —
-// and never a STALE one left over from the session's previous type (the app
-// renders `sd` in preference to `desc`, so an out-of-date `sd` would show the
-// wrong sentence). `renderSd` reproduces descFor's English byte-for-byte
-// (enforced by sessionDesc.test.ts). Pace-present cases reuse existing
-// templates; the `*NoPace`/`coach*` variants cover the rest.
+// Structured descriptor mirroring descFor branch-for-branch, so an edited or added session
+// carries an `sd` for the UI language and never a STALE one from its previous type (the app
+// renders `sd` over `desc`). `renderSd` reproduces descFor's English byte-for-byte
+// (sessionDesc.test.ts); `*NoPace`/`coach*` templates cover the pace-less cases.
 const sdFor = (type, pace, style) => {
   const p = !!pace;
   if (style === "runwalk") {
@@ -378,14 +357,10 @@ export function sessionShapeFor(plan, type) {
   return { pace, desc: descFor(type, pace, plan.style), sd: sdFor(type, pace, plan.style) };
 }
 
-// Apply one tool call, returning a NEW plan. Throws CoachToolError on refusal;
-// the caller reports it back to the model as an is_error tool_result.
-// reassess_goal_feasibility is handled by the caller (it reads context, not
-// the plan) and is not accepted here.
-//
-// opts.today (YYYY-MM-DD) is what "already passed" is measured against — the
-// engine passes the same `today` the model is shown, so a refusal can never
-// disagree with the context the model reasoned from.
+// Apply one tool call, returning a NEW plan. Throws CoachToolError on refusal (reported to
+// the model as an is_error tool_result). reassess_goal_feasibility is handled by the caller.
+// opts.today (YYYY-MM-DD) is what "already passed" is measured against: the same `today`
+// the model is shown, so a refusal never disagrees with its context.
 export function applyToolCall(plan, name, input = {}, opts = {}) {
   const p = structuredClone(plan);
   const today = opts.today || todayYmd();
@@ -479,11 +454,10 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
         throw new CoachToolError("BAD_INPUT", `factor must be a number in [1.05, ${MAX_GROWTH}].`);
       const { session, week } = findSession(p, session_id);
       guardEditable(session, "lengthen", today);
-      // Near the race the plan's numbers may be a placeholder, not a taper of the
-      // runner's real load (a plan built days before the race), so easy volume
-      // may still grow; quality may not, race week stays untouched, and
-      // guardTaperGrowth keeps the taper's downward shape.
-      // Race-relative rules end at race day; after it the recovery's own rule applies.
+      // Near the race the plan's numbers may be a placeholder, not a taper of real load,
+      // so easy volume may still grow; quality may not, race week stays untouched, and
+      // guardTaperGrowth keeps the taper's downward shape. Race-relative rules end at
+      // race day; after it the recovery's own rule applies.
       const beforeRace = session.date < p.raceDate;
       const recovering = inRecovery(p, session.date);
       if (recovering) {
@@ -502,13 +476,9 @@ export function applyToolCall(plan, name, input = {}, opts = {}) {
         throw new CoachToolError("RACE_EVE", `No lengthening in the last ${RACE_EVE_DAYS} days before the race — keep those legs fresh.`);
       if (inTaper && !TAPER_GROWABLE.includes(session.type))
         throw new CoachToolError("TAPER", `${session.type} sessions are not lengthened inside the taper or the final 14 days — lengthen the easy and long days instead.`);
-      // Two ceilings, because one of them ratchets. The 10% margin over the
-      // current peak lets a progressing runner move between rebuilds — but it
-      // is relative to a peak this tool just raised, so across turns (each its
-      // own baseline) it compounds: greedily lengthening every session took a
-      // half-marathon plan from 431 km to 1642 km and a 19 km long run to 39.5,
-      // stopping only at the validator's global MAX_TRAINING_KM. The plan's own
-      // race-scaled peak long run is the fixed point that doesn't move.
+      // Two ceilings, because the 10% margin over the current peak ratchets: it is relative
+      // to a peak this tool just raised, so across turns it compounds (431 km to 1642 km).
+      // The plan's own race-scaled peak long run is the fixed point that doesn't move.
       const PEAK_MARGIN = 1.1;
       const peak = Math.max(0, ...p.weeks.filter(w => !isElapsedWeek(w, today))
         .flatMap(w => w.sessions)
@@ -615,13 +585,10 @@ export function assessGoalFeasibility(ctx) {
   if (ctx.plan && goalKind(ctx.plan) !== "race")
     return `This plan has no race and no goal time to judge: it is "${openGoalLine(ctx.plan)}". Progress shows in the checkpoint runs (the last session of each 4-week block): compare how long the same effort took and how it felt block to block. If the runner wants a race to train for, send them to [choose what's next](app:next).`;
   if (!goalSec || !distanceKm) return "No race goal is configured — nothing to assess.";
-  // Feasibility is judged on RACE pace — the ground pace the runner has to hold
-  // on the day — never on plan.targetPace, which is the hill-adjusted
-  // flat-equivalent (buildPlan: goalSec / flatEqDist) and is FASTER than race
-  // pace on any course with climb. Comparing a real logged ground pace against
-  // that equivalent flipped verdicts to UNREALISTIC on hilly goals. Derived
-  // from the goal being assessed rather than read off the plan, so it can't
-  // drift when settings hold a newer goal than the built plan.
+  // Feasibility is judged on RACE (ground) pace, never plan.targetPace, which is the
+  // hill-adjusted flat-equivalent and FASTER than race pace on any climb (it flipped
+  // verdicts to UNREALISTIC). Derived from the goal being assessed, not read off the plan,
+  // so it can't drift when settings hold a newer goal.
   const racePace = Math.round(goalSec / distanceKm);
   // OTHER is cross-training: its distance is not a running distance, so it must
   // never reach weeklyKm / longest / bestPace — a logged bike ride would read as
@@ -660,28 +627,9 @@ export function assessGoalFeasibility(ctx) {
 }
 
 // ── assess_week_adherence ───────────────────────────────────────────────────
-// Two questions the coach kept conflating, answered separately because they
-// have different right answers:
-//
-//   1. How much training actually happened?  Everything counts. This is the
-//      input to "is this runner tired / do they need a cutback", and judging it
-//      off plan ticks alone told a runner averaging 7-9 km per run — against a
-//      plan prescribing 2.5 km — to take a recovery week.
-//   2. Did the long-run progression advance?  Only a long run counts. Its
-//      adaptations come from one continuous bout (glycogen depletion, fat
-//      oxidation, connective-tissue tolerance); two short runs are not one long
-//      one, and cross-training carries no running load at all. Letting volume
-//      buy back a missed long run would erode the coach's one correct instinct.
-//
-// So volume offsets the FATIGUE judgment and never the long-run ledger. The
-// resume rung follows from the same split: a missed long run does not reset the
-// ladder, because current capability is the longest run actually run recently,
-// not the rung the plan says you are on.
-//
-// Deterministic and pure, like assessGoalFeasibility — the model gets one
-// authoritative answer per round instead of re-deriving it from two lists it
-// has to join by date in its head, which is how the same question one minute
-// apart produced a recovery week and no change at all.
+// Total volume (everything counts) drives the fatigue judgment; only a LONG run advances
+// the long-run ledger, and the resume rung is the longest run actually run recently.
+// Deterministic and pure, so the model gets one authoritative answer per round.
 
 const ADHERENCE_WEEKS = 3;
 export const RECENT_LONGEST_DAYS = 21;

@@ -1,9 +1,7 @@
-// The runner-editable description of today's run (docs/guided-workouts.md):
-// what the recorder's "Today's run" card shows and its sheet edits. A plan
-// session seeds it via specFromSession (built on compileWorkout, so the guided
-// figures still come from the one parser shared with the prose); compileSpec
-// turns it back into the step schedule the engine runs. Edits apply to the
-// current recording only — the plan is never written.
+// The runner-editable description of today's run (docs/guided-workouts.md), shown on the
+// recorder's "Today's run" card. specFromSession seeds it via compileWorkout (one shared
+// parser); compileSpec turns it back into the step schedule. Edits apply to the current
+// recording only; the plan is never written.
 
 import { COOLDOWN_SEC, WARMUP_SEC, compileWorkout, type Workout, type WorkoutStep } from "./workout";
 import { HR_ZONES, SESSION_ZONES, effectiveMaxHR, hrZoneBpm } from "./hr";
@@ -117,9 +115,8 @@ export function zoneBpm(
 }
 
 /**
- * The step schedule for a spec. `band` is the runner's pace leeway; `hr` the
- * zone's bpm bounds (targets ride work steps only — warm-up and recovery are
- * "easy", which the session can't put a number on).
+ * The step schedule for a spec. `band` is the pace leeway; `hr` the zone's bpm bounds
+ * (targets ride work steps only; warm-up and recovery are "easy").
  */
 export function compileSpec(s: WorkoutSpec, opts: { band: number; hr?: { lo: number; hi: number } | null }): Workout {
   const hrTarget = opts.hr ? { hrLo: opts.hr.lo, hrHi: opts.hr.hi } : {};

@@ -1,10 +1,6 @@
-// The follow list's map: every runner as a labelled head, and only the focused
-// runner's route — the batch read carries heads, not traces, so that is all
-// there is to draw (and on a shared course, overlapping lines hid each other
-// anyway). Plain tile layer: the public page stores nothing it wasn't asked to.
-//
-// Labels are viewer-typed text, so markers are built as DOM nodes with
-// textContent and never as an HTML string.
+// The follow list's map: every runner as a labelled head, only the focused runner's route (the batch read carries heads, not
+// traces). Plain tile layer: the public page stores nothing it wasn't asked to.
+// Labels are viewer-typed text: markers are DOM nodes with textContent, never an HTML string.
 
 import { useEffect, useRef } from "react";
 import L, { type DivIcon, type LatLngExpression, type Map, type Marker, type Polyline } from "leaflet";

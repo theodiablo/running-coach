@@ -2,12 +2,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
-// What the tracker pushes to the lock-screen notification, for a track whose
-// numbers are known by construction. This is also the reference the ANDROID side
-// has to reproduce: the foreground service re-renders the same message from the
-// `live` seed while the WebView is frozen (patched plugin — see
-// docs/live-tracking.md), so if the pushed text or seed changes here, the Java
-// renderer has to change with it.
+// What the tracker pushes to the lock-screen notification for a known track. Also the reference
+// the ANDROID foreground service reproduces from the `live` seed while the WebView is frozen
+// (docs/live-tracking.md): change the pushed text or seed here and the Java renderer must follow.
 
 const h = vi.hoisted(() => {
   type Watcher = { onPos: (p: unknown) => void; background: boolean };

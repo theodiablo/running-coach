@@ -1,12 +1,7 @@
-// Must run BEFORE the Supabase client exists (imported ahead of ./App in
-// main.tsx): Supabase's `detectSessionInUrl` PKCE flow consumes any `?code=`
-// as its own auth code, and a cloud provider's OAuth return also lands as
-// `?code=` at the app root — this strips and stashes the provider's code first
-// so Supabase never sees it. The provider's completeAuth (imports/cloudOauth.ts)
-// picks it up. Two return shapes (web vs native bounce): docs/integrations-polar.md.
-//
-// Stay dependency-free (no React, no i18n, no supabase) — importing supabase
-// here would create the client early, the exact race this file exists to win.
+// Must run BEFORE the Supabase client exists (imported ahead of ./App in main.tsx): a cloud provider's OAuth return lands
+// as `?code=`, which detectSessionInUrl would consume as its own auth code. Strip and stash it first; imports/cloudOauth.ts
+// completeAuth picks it up (return shapes: docs/integrations-polar.md).
+// Stay dependency-free (no React, i18n or supabase): importing supabase would create the client early.
 
 export type CloudOauthProviderId = "polar" | "suunto" | "coros";
 
@@ -103,12 +98,8 @@ export function classifyCloudReturn(search: string): CloudReturn {
   return { provider: null, kind: "none", code: null, state: null };
 }
 
-// The bounce overlay is pre-React and pre-i18n, so it carries its own three
-// lines of copy (the app's locales). Prefer the user's SAVED app language
-// (rc_lang, the same key src/i18n/detect.ts reads) so it matches what they
-// picked in-app; fall back to the browser/OS locale only when unset. The bounce
-// runs in the phone's browser, but rc_lang is set on this origin when they use
-// the web app, and it's the best signal available here.
+// The pre-React, pre-i18n bounce overlay carries its own copy. Prefer the SAVED app language (rc_lang, as
+// src/i18n/detect.ts reads); fall back to the browser/OS locale only when unset.
 function bounceCopy(): { returning: string; open: string } {
   let lang = "";
   try { lang = (localStorage.getItem("rc_lang") || "").slice(0, 2).toLowerCase(); } catch { /* storage unavailable */ }

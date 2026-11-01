@@ -2,11 +2,9 @@ import { healthConnectSource } from "../hr/healthconnect";
 import { watchImportSource } from "../watch/import";
 import type { WatchImportAvailability } from "../watch/plugin";
 
-// Health Connect permissions are granted per *app*, not per plugin, so a
-// single entry point requests EVERYTHING the app reads (HR + exercise/distance/
-// elevation) on one consent screen, then reconciles each feature's device-local
-// grant marker against reality (a partial grant reflects accurately per
-// feature). Never throws.
+// Health Connect permissions are per APP, so one entry point requests EVERYTHING the app reads
+// (HR + exercise/distance/elevation) on one consent screen, then reconciles each feature's
+// device-local grant marker against reality. Never throws.
 
 export type HealthConnectGrant = {
   availability: WatchImportAvailability;
@@ -25,11 +23,9 @@ export async function connectHealthConnect(): Promise<HealthConnectGrant> {
   }
 
   if (availability === "NotInstalled") {
-    // Health Connect is missing / needs an update. Only the pianissimo HR plugin
-    // knows how to open Google Play for it (the WatchImport plugin can't); route
-    // through it so the user has a way forward, then they reconnect for the full
-    // scope set once it's installed. It requests heart rate only, so activity
-    // can't be granted through this bootstrap path.
+    // Health Connect is missing / needs an update. Only the pianissimo HR plugin can open Google
+    // Play for it; route through it, and the user reconnects for the full scope set afterwards
+    // (it requests heart rate only, so activity can't be granted here).
     let heartRate = false;
     try { heartRate = await healthConnectSource.requestPermissions(); } catch { /* best-effort install redirect */ }
     return { availability, heartRate, activity: false };

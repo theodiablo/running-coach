@@ -1,44 +1,26 @@
 import { supabase } from "./supabase";
 import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
-// Cloud-backed key/value store over the single per-user `app_state` jsonb blob,
-// mirrored in an in-memory cache so the app's synchronous db.get/db.set keep
-// working; writes debounce into one upsert. See CLAUDE.md "Persistence".
-//
-// Offline durability rides two localStorage slots:
-// - UNSYNCED_STATE_KEY: every flush snapshots the cache first and only a
-//   CONFIRMED upsert clears it, so a write that failed offline — or was in
-//   flight when the process died — survives to the next boot.
-// - OFFLINE_STATE_KEY: a mirror of the last blob the server confirmed (written
-//   on every successful load and flush). When the boot read itself fails
-//   (offline cold start), initStore boots from this mirror instead of locking
-//   the user out, then reconciles with the server once it is reachable again.
+// Cloud-backed key/value store over the per-user `app_state` jsonb blob, mirrored in an
+// in-memory cache so db.get/db.set stay synchronous; writes debounce into one upsert.
+// See CLAUDE.md "Persistence". Offline durability: UNSYNCED_STATE_KEY (snapshot per flush,
+// cleared only by a CONFIRMED upsert) and OFFLINE_STATE_KEY (last server-confirmed blob).
 
 let userId: string | null = null;
 let cache: Record<string, unknown> = {};
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 const RETRY_MS = 30_000;
-// Did the cache come from a SUCCESSFUL read of this user's row — or, offline,
-// from the local mirror of one? Writes are gated on this, and it is the single
-// most important invariant in this file.
-//
-// flush() replaces the whole `data` blob, so an empty cache upserts as an empty
-// blob. If a failed load were allowed to fall back to `{}` and stay writable,
-// one aborted request (offline cold start, 15s fetch timeout in supabase.ts)
-// would render the app as a brand-new user, and the first db.set — which
-// onboarding guarantees — would overwrite every run and plan the user had.
-// That is not hypothetical: it happened, silently, and the row is the only copy.
-// So: never write a cache we did not populate from real data. The offline
-// mirror qualifies — it IS a copy of the user's row — an empty default never does.
+// Did the cache come from a SUCCESSFUL read of this user's row (or, offline, its local
+// mirror)? Writes are gated on this: flush() replaces the whole `data` blob, so a
+// writable empty cache after a failed load would wipe the user's runs and plan.
+// Never write a cache we did not populate from real data; an empty default never qualifies.
 let loaded = false;
 
-// Offline-boot bookkeeping. `offlinePending` marks a cache restored from the
-// mirror and not yet reconciled against the live row; while set, no upsert may
-// happen before a reconcile read. `offlineBase` is the server updated_at the
-// mirror was taken against; `lastLocalWriteAt` timestamps the newest local edit
-// this session (null = read-only so far), which is what last-write-wins
-// compares against a foreign server write.
+// Offline-boot bookkeeping. `offlinePending`: cache restored from the mirror, not yet
+// reconciled (no upsert before a reconcile read). `offlineBase`: server updated_at the
+// mirror was taken against. `lastLocalWriteAt`: newest local edit this session (null =
+// read-only so far), compared against a foreign server write.
 let offlinePending = false;
 let offlineBase = 0;
 let lastLocalWriteAt: number | null = null;
@@ -71,16 +53,10 @@ const notifyRefresh = () => refreshListeners.forEach(cb => { try { cb(); } catch
 
 export type StoreInitResult = "loaded" | "offline" | "failed";
 
-// Load the user's app_state blob into the cache. Call once after sign-in,
-// before rendering the app.
-//
-// "loaded": the row was read (an absent row is a legitimate read: a genuinely
-// new user). "offline": the read failed but the local mirror of a recent
-// successful load booted the store — fully usable, reconciled on reconnect.
-// "failed": no read and no usable mirror; App.tsx must surface a retryable
-// error state, NOT treat it as "no data": the store stays read-only until a
-// load succeeds. It never rejects — App.tsx gates rendering on this resolving,
-// so a throw would strand the user on the splash spinner.
+// Load the user's app_state blob into the cache. Call once after sign-in, before render.
+// "loaded": row read (an absent row is a new user). "offline": read failed but the local
+// mirror booted the store. "failed": no read, no mirror; the store stays read-only and
+// App.tsx must show a retryable error. Never rejects (App gates rendering on it).
 export async function initStore(uid: string): Promise<StoreInitResult> {
   // Flush any write still sitting in the debounce buffer before we replace the
   // cache, otherwise a reload would silently discard unsaved changes.
@@ -121,13 +97,10 @@ export async function initStore(uid: string): Promise<StoreInitResult> {
   }
 }
 
-// The boot read failed. Instead of locking a signed-in user out, restore the
-// last server-confirmed blob from the local mirror — a real copy of this
-// user's row, so the never-write-an-unpopulated-cache invariant holds — and
-// mark the store offline-pending so the first server contact reconciles before
-// anything is upserted. An unsynced snapshot NEWER than the mirror (a run
-// saved offline, app killed before reconnecting) supersedes it and still gets
-// the flush it was waiting for.
+// The boot read failed: restore the last server-confirmed blob from the local mirror (a
+// real copy of the row, so the never-write-an-unpopulated-cache invariant holds) and mark
+// offline-pending so the first server contact reconciles before any upsert. A NEWER
+// unsynced snapshot supersedes the mirror and still gets its flush.
 function tryOfflineBoot(uid: string): StoreInitResult {
   const mirror = readMirror();
   if (!mirror || mirror.userId !== uid) return "failed";
@@ -155,13 +128,10 @@ function tryOfflineBoot(uid: string): StoreInitResult {
   return "offline";
 }
 
-// First server contact after an offline boot. Decides who wins before any
-// upsert can replace the row:
-// - server row unchanged since the mirror → our state is simply the newest.
-// - server advanced (another device wrote): same last-write-wins rule as
-//   restoreSnapshot — local edits win only if made after the server write;
-//   otherwise the server row is adopted and local edits are dropped.
-// - no local edits at all → the server row is adopted unconditionally.
+// First server contact after an offline boot; decides who wins before any upsert:
+// - server unchanged since the mirror: our state is newest.
+// - server advanced: last-write-wins as in restoreSnapshot (local wins only if newer).
+// - no local edits: adopt the server row.
 type ReconcileOutcome = "flush" | "adopted" | "unreachable";
 async function reconcile(): Promise<ReconcileOutcome> {
   if (!userId) return "adopted";
@@ -192,12 +162,9 @@ async function reconcile(): Promise<ReconcileOutcome> {
   }
 }
 
-// A same-user snapshot newer than the server row is an offline write that never
-// landed (e.g. a run saved in airplane mode, app killed before reconnecting):
-// restore it over the loaded cache and schedule the flush it was waiting for.
-// An older-or-equal snapshot was superseded — by its own confirmed upsert or a
-// newer write from another device — and is dropped. Only ever called AFTER a
-// successful load, so the never-write-an-unloaded-cache invariant is untouched.
+// A same-user snapshot newer than the server row is an offline write that never landed:
+// restore it over the loaded cache and schedule its flush. An older-or-equal one is
+// superseded and dropped. Only called AFTER a successful load.
 function restoreSnapshot(uid: string, serverUpdatedAt: string | null) {
   const snap = readSnapshot();
   if (!snap || snap.userId !== uid) return; // another account's snapshot stays for its owner
@@ -276,11 +243,9 @@ export function currentUserId() {
 }
 
 export function clearStore() {
-  // Deliberately does NOT clear the offline mirror: clearStore runs on every
-  // null-session state, including the transient ones an offline cold start
-  // produces (auth-init timeout firing before a slow refresh settles), and
-  // wiping the mirror there would destroy the offline boot moments before it
-  // runs. App.tsx calls clearOfflineMirror() on an explicit SIGNED_OUT instead.
+  // Deliberately does NOT clear the offline mirror: clearStore also runs on transient
+  // null-session states of an offline cold start, and wiping it there would destroy the
+  // offline boot. App.tsx calls clearOfflineMirror() on an explicit SIGNED_OUT.
   userId = null;
   cache = {};
   loaded = false;
@@ -306,11 +271,9 @@ async function flush() {
   // Offline-booted: the row must be read (and possibly adopted) before it may
   // be replaced. Until the server is reachable this loops on the retry timer.
   if (offlinePending) {
-    // Snapshot BEFORE the reconcile read, not after: this flush also runs on
-    // pagehide/background, where Android freezes the WebView mid-await and the
-    // code after reconcile() never executes. An offline save must already be
-    // on disk by then. reconcile() clears it again if the server legitimately
-    // wins.
+    // Snapshot BEFORE the reconcile read: this flush also runs on pagehide, where Android
+    // freezes the WebView mid-await and code after reconcile() never runs. reconcile()
+    // clears the snapshot again if the server legitimately wins.
     if (lastLocalWriteAt != null) writeSnapshot();
     const outcome = await reconcile();
     if (outcome === "unreachable") {

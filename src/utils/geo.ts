@@ -1,11 +1,7 @@
-// Geo helpers for live GPS run tracking.
-//
-// A "point" is the stored tuple [lat, lng, tEpochMs, altMeters|null]. A `null`
-// entry in a point array is a GAP MARKER — it breaks the track where GPS was
-// lost (signal drop, tab backgrounded) so we don't draw a straight line across
-// ground that wasn't run. All functions below treat null as a break and accept
-// either a tuple or a plain {lat,lng} where only the coordinate matters, so
-// they're easy to unit-test.
+// Geo helpers for live GPS run tracking. A "point" is the stored tuple
+// [lat, lng, tEpochMs, altMeters|null]; a `null` entry is a GAP MARKER that breaks the track
+// (GPS lost) so no line is drawn across unrun ground. Functions treat null as a break and
+// accept a tuple or plain {lat,lng} where only the coordinate matters.
 
 const R = 6371000; // Earth's mean radius, metres
 export type StoredTrackPoint = readonly [number, number, number, number | null];
@@ -26,13 +22,10 @@ export function haversineM(a: TrackPoint | Coord, b: TrackPoint | Coord) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
-// THE distance definition — every distance the app shows (run total, splits,
-// chart axis) is this walk. Legs shorter than `minM` are GPS jitter and skipped,
-// so a near-stationary runner doesn't accumulate phantom distance. A gap marker
-// (null) is bridged with the straight line to the next real fix: the minimum the
-// runner could have covered, so it gets closer to the truth than dropping the
-// stretch and can't overestimate. `visit` sees each real point with the
-// cumulative metres up to it and whether it opens a gap-free segment.
+// THE distance definition: every distance the app shows is this walk. Legs shorter than
+// `minM` are GPS jitter and skipped. A gap marker is bridged with the straight line to the next
+// real fix (the minimum covered, so it can't overestimate). `visit` sees each real point with
+// cumulative metres and whether it opens a gap-free segment.
 function walkTrack(
   points: TrackPointOrGap[],
   minM: number,
@@ -55,11 +48,9 @@ export function distanceKm(points: TrackPointOrGap[], minM = 3) {
   return walkTrack(points, minM) / 1000;
 }
 
-// One real point of a track, flattened for per-point analytics: coordinates,
-// timestamp, altitude, the cumulative distance from the start (km, from the same
-// walk as distanceKm, so the last point's cumKm IS the run's distance), and
-// `segStart` marking the first point after a gap — consumers that must not reach
-// across a gap (pace smoothing, best efforts, map lines) cut there.
+// One real point flattened for per-point analytics: coordinates, timestamp, altitude, `cumKm`
+// (same walk as distanceKm, so the last point's cumKm IS the run's distance) and `segStart`
+// marking the first point after a gap, where consumers must cut rather than reach across.
 export type FlatPoint = { lat: number; lng: number; t: number; alt: number | null; cumKm: number; segStart: boolean };
 
 export function flattenTrack(points: TrackPointOrGap[], jitterM = 3): FlatPoint[] {
@@ -88,15 +79,10 @@ export function altitudeGate() {
   };
 }
 
-// Cumulative positive elevation gain (metres). Counts only ascents above `minM`
-// (hysteresis band that filters GPS/barometric noise) and ignores points whose
-// altitude is null — many phones don't report it. Gap markers reset the band.
-// GPS vertical error is ~2-3x the horizontal and phones quantise altitude to
-// whole metres, so a small band (e.g. 1m) lets every noise wiggle through and a
-// flat run accumulates phantom climb — keep the band at ~5m, the usual floor for
-// GPS-only (barometer-less) elevation. Timestamped tuples also go through
-// altitudeGate; plain coords carry no time and are assumed already gated
-// (flattenTrack's output).
+// Cumulative positive elevation gain (m). Counts only ascents above `minM` (hysteresis band)
+// and ignores null altitudes; gap markers reset the band. Keep the band ~5m: GPS vertical error
+// is 2-3x horizontal and altitude is quantised, so ~1m accrues phantom climb on a flat run.
+// Timestamped tuples go through altitudeGate; plain coords are assumed already gated.
 export function elevGainM(points: (TrackPointOrGap | Coord)[], minM = 5) {
   let gain = 0, prev: number | null = null;
   const altOk = altitudeGate();

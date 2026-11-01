@@ -8,14 +8,10 @@ import { passwordProblem } from "./utils/account";
 import { parkAuthNotice } from "./utils/authNotice";
 import { INPUT_CLS } from "./constants";
 
-// The other end of a password-reset link. Reached only from App, which renders
-// it over everything once a recovery callback lands (see CLAUDE.md "Auth
-// callbacks") — the link itself has already signed the user in, so this is the
-// one screen between them and the app.
-//
-// Its own screen rather than a branch of LoginScreen: nothing here is a login,
-// and rather than a Settings sub-page because the store may still be loading
-// (or failing) and setting a password must not wait on app_state.
+// The other end of a password-reset link, rendered by App over everything once a recovery
+// callback lands (CLAUDE.md "Auth callbacks"); the link already signed the user in. Its own
+// screen: nothing here is a login, and setting a password must not wait on the store
+// (app_state may still be loading or failing).
 export default function ResetPasswordScreen({ email, onDone }: { email?: string | null; onDone: () => void }) {
   const { t } = useTranslation();
   const [pw, setPw] = useState("");

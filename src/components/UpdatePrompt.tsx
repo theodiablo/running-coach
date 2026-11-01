@@ -9,19 +9,10 @@ import { isIos, isAndroid } from "../native";
 // than dead-link — the copy still tells the user to update.
 const storeUrl = () => (isIos ? APP_STORE_URL : PLAY_STORE_URL);
 
-// Open the store listing.
-// Android must NOT go through @capacitor/browser: its Chrome Custom Tabs path
-// (an extra translucent BrowserControllerActivity + custom-tabs service
-// binding) only catches ActivityNotFoundException natively, so any other
-// runtime failure launching the tab kills the process — tapping "Update"
-// crashed the app on-device. A plain top-frame navigation is intercepted by
-// Capacitor's WebViewClient (Bridge.launchIntent): external hosts never load
-// in the WebView, they're handed to the OS as an ACTION_VIEW intent — which
-// the Play Store app claims for its own listing URL — with
-// ActivityNotFoundException caught inside Capacitor. No plugin, no extra
-// activity, and the store opens as the app, not a browser tab.
-// iOS keeps Browser.open (SFSafariViewController, same as the OAuth flow),
-// falling back to a normal new tab.
+// Open the store listing. Android must NOT use @capacitor/browser: its Custom Tabs path only catches
+// ActivityNotFoundException natively, so other launch failures kill the process. A plain top-frame
+// navigation is handed to the OS as ACTION_VIEW by Capacitor's WebViewClient (Play Store claims it).
+// iOS keeps Browser.open (SFSafariViewController), falling back to a new tab.
 async function openStore() {
   const url = storeUrl();
   if (!url) return;

@@ -1,19 +1,7 @@
-// Per-run analytics series: turn a stored GPS trace (+ optional raw HR stream)
-// into recharts-ready rows for RunDetailModal's combined chart. Pure and
-// unit-tested — no React/SDK imports.
-//
-// A point is the stored tuple [lat, lng, tEpochMs, altMeters|null]; a `null`
-// entry is a GAP marker (lost GPS). We emit one row per REAL point and use gaps
-// only to break continuity (pace never reaches across a gap); the x-axis is
-// flattenTrack's cumKm, so it ends at the run's distance. HR is aligned to each point by timestamp at render,
-// so HR fidelity is decoupled from how aggressively simplify() thinned the track.
-//
-// Each row averages the samples inside the point's OWN time slice (halfway to
-// each neighbour). A fixed ±4s window used to null the HR on any point that
-// happened to fall between samples, and stored points are ~20-30s apart after
-// simplification — so a run with real but intermittent HR rendered as a handful
-// of isolated dots rather than the line it measured. A slice with no samples in
-// it still yields null: a hole in the stream stays a hole.
+// Per-run analytics series: a stored GPS trace (+ optional HR stream) into recharts rows.
+// Pure. A point is [lat, lng, tEpochMs, altMeters|null]; a `null` entry is a GAP marker
+// that only breaks continuity (pace never reaches across it). Each row averages HR
+// samples in its OWN time slice; an empty slice yields null (a hole stays a hole).
 
 import { flattenTrack } from "./geo";
 import type { TrackPointOrGap } from "./geo";
@@ -71,12 +59,10 @@ export function buildRunSeries(
     const f = flat[i];
     if (f.segStart) segStartIdx = i;
 
-    // Smoothed pace over a rolling DISTANCE window (not a fixed time window):
-    // stored points are Douglas-Peucker-thinned, so they're sparse and uneven in
-    // time — a short time window finds no earlier point on straight, sparsely
-    // sampled stretches and would leave pace null there (an intermittent line).
-    // Look back over ~paceWindowM metres within the segment, but always include at
-    // least the previous point so every point past a segment's start gets a pace.
+    // Smoothed pace over a rolling DISTANCE window, not a time window: stored points are
+    // thinned and uneven in time, so a short time window finds no earlier point. Look
+    // back ~paceWindowM metres within the segment, always including at least the
+    // previous point so every point past a segment's start gets a pace.
     let pace: number | null = null;
     if (i > segStartIdx) {
       let w = i - 1;

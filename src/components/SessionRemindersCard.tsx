@@ -37,11 +37,9 @@ export function SessionRemindersCard({ settings, saveSettings, plan }: SessionRe
   if (!isNative) return null;
 
   const prefs = prefsFrom(settings);
-  // The synced preference alone is NOT enough to call these on. It arrives true
-  // on a freshly installed second phone, where no OS grant exists and nothing is
-  // scheduled — showing "on" there would offer only "turn off", leaving the
-  // runner no way to reach the permission prompt, under a card claiming a next
-  // reminder that can never fire.
+  // The synced preference alone is NOT enough to call these on: it arrives true on a
+  // fresh second phone with no OS grant and nothing scheduled, where showing "on" would
+  // offer only "turn off" and no way to reach the permission prompt.
   const on = prefs.enabled && granted;
   const preview = on ? nextReminderPreview(plan, prefs, new Date()) : null;
 

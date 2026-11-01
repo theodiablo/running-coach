@@ -2,20 +2,10 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 
-// A one-time pointer at a fixed control: a dimmer plus a bubble whose arrow
-// sits against the anchor. Two anchors exist — the header's Coach pill and the
-// feedback pill above the bottom nav — so the position is a prop rather than a
-// second copy of this overlay.
-//
-// The dimmer is deliberately BELOW the header's z-20 (the bubble is above it),
-// so the control being pointed at stays lit and still works — tapping it is a
-// perfectly good way to answer a pointer that says "your coach lives here".
-// The feedback pill sits at z-30 for the same reason.
-//
-// The bottom nav shares that z-20, so a tab tap lands too and unmounts the
-// pointer without running `onDismiss`. Leaving the anchor's screen therefore
-// spends the flag on the caller's side (`RunningCoach`) — a pointer that can
-// reappear is worse than one that was never shown.
+// One-time pointer at a fixed control (position prop: header Coach pill or feedback pill).
+// The dimmer is BELOW the header's z-20 so the pointed-at control stays lit and tappable.
+// Bottom nav shares z-20, so a tab tap unmounts this without `onDismiss`: `RunningCoach`
+// spends the flag on leaving the anchor's screen.
 type CoachmarkAnchor = "header" | "feedback";
 
 type CoachmarkProps = {

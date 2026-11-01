@@ -5,11 +5,9 @@ import { setPairedDevice } from "../hr/device";
 import { HR_BLE_DISCLOSED_KEY } from "../constants";
 export type { BleDevice };
 
-// Scan-and-pair mechanics for a Bluetooth heart-rate strap, shared by the
-// Connections card and the onboarding heart-rate step so the prominent
-// disclosure (a Play requirement) can never be skipped by the newer caller.
-// Owns the persistence too: choosing a device IS pairing it (setPairedDevice),
-// and the caller only decides what that means for its own state.
+// Scan-and-pair mechanics for a BLE heart-rate strap, shared by the Connections card and the
+// onboarding HR step so the prominent disclosure (a Play requirement) can't be skipped. Owns
+// persistence: choosing a device IS pairing it (setPairedDevice).
 export function useBlePairing({ showToast, onPaired }: {
   showToast?: (msg: string, type?: string) => void;
   onPaired?: (device: BleDevice) => void;

@@ -80,14 +80,9 @@ type OnboardingWizardProps = {
   showToast: (msg: string, type?: string) => void;
 };
 
-// Guided first-run onboarding. The flow branches on the user's intent:
-//   Welcome → Intent ─┬─ (race)   → Pick race → Goal & days ─┐
-//                     └─ (fitness)→ Your training ───────────┤
-//                                          → Heart rate → Health & safety → Summary
-// The branch sequence is the pure `onboardingSteps(intent)`. The health & safety
-// step is the mandatory gate and the only way into the app (header "Skip" jumps
-// TO it, never around it); `summary` is an in-memory-only celebration after the
-// gate. All input is held in local draft state and only committed via onComplete.
+// Guided first-run onboarding; the branch sequence is the pure `onboardingSteps(intent)`. The health & safety step is the
+// mandatory gate and the only way in (header "Skip" jumps TO it, never around it); `summary` is an in-memory celebration
+// after it. All input is local draft state, committed only via onComplete.
 export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogue, addRace, addEdition, refreshCatalogue, showToast}: OnboardingWizardProps) {
   const { t } = useTranslation();
   // Language: synced preference falling back to the live UI language; a tap
@@ -114,12 +109,9 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const [distanceKm,    setDist] = useState<string | number>(settings.distanceKm || "");
   const [raceElevation, setElev] = useState<string | number>(settings.raceElevation || 0);
   const [goalSec,       setGoal] = useState<string | number>(settings.goalSec || "");
-  // Availability. Simple mode (day count + duration band, coach places the days)
-  // is the beginner default; Custom is the exact days/durations editor. Both feed
-  // the same weekly-load meter and resolve to concrete planSessions on save.
-  // The day/band drafts start null and track a distance/level-aware suggestion
-  // until the user touches them; the custom sessions draft mirrors the old
-  // "untouched = live suggestion" behaviour.
+  // Availability: Simple (day count + duration band, coach places days) is the beginner default; Custom is the exact
+  // editor. Both feed the weekly-load meter and resolve to planSessions on save. Drafts start null and track a
+  // distance/level-aware suggestion until touched.
   const DEFAULT_SESS = JSON.stringify([{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}]);
   const hasCustomSess = !!settings.planSessions?.length && JSON.stringify(settings.planSessions) !== DEFAULT_SESS;
   // No availabilityMode saved but customized sessions present = progress written
@@ -179,12 +171,9 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     onPaired: d => { setSensor(d); setSensorOpen(false); },
   });
 
-  // Final step — health & safety screening + disclaimer. The screening answer is
-  // GDPR special-category health data, so it lives ONLY in local state and is
-  // never persisted; we persist only the acknowledgment record (timestamp +
-  // disclaimer version) at completion via onComplete.
-  // Live branch: the per-device share switch (armed by default, it is why they
-  // came) and whether the link went out from here, for Home's race-day card.
+  // Final step: health & safety screening + disclaimer. The screening answer is GDPR health data: local state only, never
+  // persisted; only the acknowledgment (timestamp + disclaimer version) is, via onComplete.
+  // Live branch: the per-device share switch (armed by default) and whether the link went out, for Home's race-day card.
   const live = intent === "live";
   const [shareOn, setShareOn] = useState(true);
   const [linkSent, setLinkSent] = useState(false);

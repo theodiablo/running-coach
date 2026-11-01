@@ -39,11 +39,10 @@ type AddRaceInput = {
 type AddEditionInput = { raceSlug: string; date: string; distanceKm: number; elevation?: number };
 type ReportRaceInput = { raceSlug?: string | null; editionId?: string | null; reason: string; note?: string | null };
 
-// Shared race catalogue access (Phase 2). Mirrors src/routes.ts: direct supabase
-// queries, owner-scoped writes, failure-tolerant reads. The rest of the app never
-// imports this directly — catalogue lookups go through src/utils/races.ts, which
-// hydrates its cache from listRaces() here. Personal data (participations) stays
-// in the app_state blob; this module only touches the shared catalogue tables.
+// Shared race catalogue access (Phase 2). Mirrors src/routes.ts: direct supabase queries,
+// owner-scoped writes, failure-tolerant reads. The app imports catalogue lookups via
+// src/utils/races.ts, which hydrates from listRaces() here. Personal data (participations)
+// stays in the app_state blob.
 
 // Map a DB race row + its editions to the joined shape the app already uses
 // (the old CURATED_RACES shape): camelCase, id === slug, editions newest-first.

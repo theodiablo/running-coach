@@ -1,13 +1,7 @@
-// Marketing i18n — a SEPARATE i18next namespace ("marketing"), registered here
-// and imported only by MarketingGate. Because this module lives in the web-only
-// marketing chunk (MarketingGate is dynamically imported and constant-folded to
-// null in the native build via VITE_NATIVE_BUILD), these strings — and the
-// es/fr marketing dictionaries — never ship in the APK. The app's own strings
-// stay in the default "translation" namespace (bundled/lazy per locale).
-//
-// The English bundle takes brand + hero headline from copy.json, the single
-// source shared with the OG-image generator, so the page and the social card
-// can't drift. es/fr provide their own translated hero lines.
+// Marketing i18n: a SEPARATE "marketing" namespace, imported only by MarketingGate. This
+// web-only chunk is constant-folded out of native builds (VITE_NATIVE_BUILD), so these
+// strings never ship in the APK. Brand + hero headline come from copy.json (shared with
+// the OG-image generator) so page and social card can't drift.
 import i18n from "i18next";
 import { RC_LANG_KEY, setLocale, isLangId, type LangId } from "../i18n";
 import copy from "./copy.json";
@@ -31,16 +25,10 @@ export function ensureMarketingI18n(): void {
   i18n.addResourceBundle("fr", "marketing", fr, true, true);
 }
 
-// Language switch for the marketing page. The es/fr *marketing* dictionaries are
-// static imports registered above, so they're already in memory — switching the
-// visible landing copy is instant and can't fail. We deliberately DON'T route
-// this through the app-wide setLocale on the critical path: that would download
-// the full ~50KB app "translation" chunk (which the landing page doesn't use)
-// just to flip the footer, and its dynamic import can fail — leaving a tap that
-// silently does nothing. Instead we flip immediately here, persist the choice,
-// then warm the app bundle in the background (best-effort) so the LoginScreen —
-// the one landing surface that uses the app namespace — is localized by the time
-// it's opened. A failed warm just leaves the login modal in English.
+// Language switch for the marketing page. The es/fr marketing dictionaries are static, so
+// the flip is instant. NOT routed through app-wide setLocale on the critical path: that
+// downloads the ~50KB app chunk and can fail, leaving a dead tap. Flip, persist, then warm
+// the app bundle best-effort for LoginScreen; a failed warm leaves it in English.
 export function setMarketingLocale(lang: LangId): void {
   if (!isLangId(lang)) return;
   void i18n.changeLanguage(lang); // marketing bundle already present → instant

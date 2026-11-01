@@ -104,11 +104,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   // (src/hr/runHr.ts).
   const hr = recorderHrSetup(hrMethod, hrOptOut);
   const { t, i18n } = useTranslation();
-  // Guided-workout step line for the lock-screen surfaces. The guide hook
-  // needs the tracker's state/stats, so the value feeds BACK into
-  // useRunTracker as state, reconciled during render (the derived-state
-  // pattern) — the re-render settles before effects run, so the notification
-  // effect always pushes the settled value.
+  // Guided-workout step line for lock-screen surfaces. The guide hook needs tracker state, so the value
+  // feeds BACK into useRunTracker as state, reconciled during render so the notification effect
+  // always pushes the settled value.
   const [stepText, setStepText] = useState<string | null>(null);
   const rt = useRunTracker({ hrMethod: hr.method, stepText });
   const { state, points, stats, error, pending, location } = rt;
@@ -187,13 +185,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   const [premiumTeaser, setPremiumTeaser] = useState<string | null>(
     routeSuggestEnabled && !isPremium && canShowPremiumTeaser && !!initialFindKm ? "routeFinder" : null);
   const [plannedRoute, setPlannedRoute] = useState<SuggestedRoute | null>(null);
-  // Tapping the entry point is the one moment a stale entitlement is about to
-  // decide something, so re-read it and DECIDE ON THAT READ. The sign-in fetch
-  // runs once and may have failed offline or predated a grant, so a premium user
-  // can legitimately look free here — sending them to the "not available yet"
-  // sheet (and logging a premium_teaser_shown that never happened) would be
-  // wrong on both counts. The reverse also lands here: a grant that lapsed
-  // mid-session gets the teaser rather than a button that does nothing.
+  // Re-read the entitlement on tap and DECIDE ON THAT READ: the sign-in fetch runs once and may have
+  // failed offline or predated a grant, so a premium user can look free here (and a lapsed grant gets
+  // the teaser rather than a dead button).
   const [checkingPremium, setCheckingPremium] = useState(false);
   const openFinderOrTeaser = async () => {
     if (routeFinderReady) { setShowFinder(true); return; }
@@ -205,11 +199,8 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     else setPremiumTeaser("routeFinder");
   };
   // ── Live sharing ──────────────────────────────────────────────────────────
-  // ONE switch (docs/live-sharing.md): on means this run is readable at the
-  // runner's standing share link — and, as it always has, by the runner's own
-  // other signed-in sessions. Free, no premium gate. The choice is per-device
-  // (see LIVE_SHARE_KEY): whether this phone goes on the air is not something
-  // another device should decide for it.
+  // ONE switch (docs/live-sharing.md): on means readable at the standing share link and by the runner's
+  // own sessions. Free, no premium gate. Per-device (LIVE_SHARE_KEY): another device must not decide it.
   const [shareLive, setShareLive] = useState(() => {
     try { return localStorage.getItem(LIVE_SHARE_KEY) === "1"; } catch { return false; }
   });
@@ -268,12 +259,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     void endLiveRun();
   };
   // ── Native screen-off uploads (Android) ─────────────────────────────────
-  // One writer at a time: the native uploader runs ONLY while the WebView is
-  // hidden (it is about to be frozen); the moment JS is back it is disarmed and
-  // the JS publisher's next full-trace write re-bases everything. The publish
-  // token is the run's write capability — minted per run in startTracking,
-  // adopted from storage only alongside a recoverable run. (Refs above, next to
-  // the switch that arms and disarms them.)
+  // One writer at a time: native uploads only while the WebView is hidden, disarmed when JS returns. The publish token is minted per run, adopted from storage only with a recoverable run.
   // ── The standing share link (docs/live-sharing.md) ───────────────────────
   const link = useShareLink(showToast);
   const [publicUnavailable, setPublicUnavailable] = useState(false);
@@ -331,12 +317,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     if (openSettings) openBatteryOptimizationSettings();
   };
   const reducedMotion = usePrefersReducedMotion();
-  // A 3-2-1-Go overlay before a fresh run start (never on Resume). It runs AFTER
-  // guardedStart's disclosure/HR gates, since guardedStart calls this as its fn.
-  // Fire the analytics event at the moment tracking actually begins — after the
-  // disclosure / permission / HR-nudge gates and the countdown — never on the
-  // button tap and never on Resume, so it counts genuine live-run starts only.
-  // No properties (consent-gated in track(); a plain count is all we want).
+  // A 3-2-1-Go overlay before a fresh start (never Resume), AFTER guardedStart's gates. The analytics
+  // event fires when tracking actually begins, never on the tap or Resume, so it counts genuine
+  // starts only. No properties (consent-gated in track()).
   const startTracking = () => {
     track("live_run_started", {});
     // Unlock cue audio while we're still in a user gesture (autoplay policy /
@@ -424,13 +407,10 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     }
     return false;
   };
-  // Run `fn` — which starts a background watch on native — but gate the FIRST one
-  // behind the prominent-disclosure (Play requirement) and, only for a genuine
-  // run start (checkHr), the HR setup nudge — never on Resume, so pausing for a
-  // traffic light doesn't re-nag. Covers BOTH the idle "Start run" and the paused
-  // "Resume" (incl. the crash-recovery resume, which starts a fresh watch), so a
-  // background-location request never fires without a prior disclosure. No-op
-  // gate on the web / once already disclosed.
+  // Run `fn` (starts a background watch on native) but gate the FIRST one behind the prominent
+  // disclosure (Play requirement) and, for a genuine start (checkHr), the HR setup nudge, never on
+  // Resume. Covers idle Start and paused/recovery Resume, so background-location is never requested
+  // without a prior disclosure. No-op on web / once disclosed.
   const guardedStart = async (fn: () => void, checkHr = false) => {
     if (isNative && !isBgLocationDisclosed()) {
       pendingStartRef.current = fn;
@@ -438,16 +418,10 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       setShowDisclosure(true);
       return;
     }
-    // Native: confirm location is actually usable — permission granted AND the
-    // device's Location Services switched on — BEFORE entering the recording
-    // state, so a run never starts silently with a running clock and a blank map
-    // and the user left guessing why. requestPermissions surfaces the OS
-    // permission prompt and/or the "turn on location" dialog and, on denial, sets
-    // an actionable error (tracker.errors.permissionDeniedNative, which explains
-    // both fixes) and returns false — abort rather than start a location-less run.
-    // The first-ever run takes the disclosure branch above, which already requests
-    // permission in acceptDisclosure, so this guards every subsequent Start/Resume
-    // (including after the user revokes access or turns Location off in Settings).
+    // Native: confirm permission AND Location Services BEFORE entering the recording state, so a run never
+    // starts with a running clock and a blank map. On denial requestPermissions sets an actionable error
+    // and returns false: abort rather than start a location-less run. Guards every Start/Resume after
+    // the first-ever run (which requests permission in acceptDisclosure).
     if (isNative) {
       const granted = await rt.requestPermissions();
       if (!mountedRef.current) return;
@@ -500,11 +474,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   // while the column is missing, where the broadcast still reaches the runner's
   // own sessions and nothing reaches the link.
   const sharePublic = shareLive && !publicUnavailable;
-  // the same renders: an accepted GPS fix changes `points`, which re-runs this.
-  // Never a timer — those are throttled in the background, which is exactly when
-  // a run is being recorded with the screen off. canPublishNow is checked BEFORE
-  // simplify() so the ~1/s foreground clock ticks don't re-simplify a long trace
-  // only to throw it away.
+  // the same renders: an accepted GPS fix changes `points`, which re-runs this. Never a timer (throttled
+  // in the background, when a run is recorded screen-off). canPublishNow is checked BEFORE simplify()
+  // so ~1/s clock ticks don't re-simplify a long trace.
   useEffect(() => {
     if (!shareLive || shareEndedRef.current) return;
     const status = state === "tracking" ? "live" : state === "paused" ? "paused" : state === "stopped" ? "ended" : null;
@@ -536,13 +508,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     // without `points` changing — e.g. a paused runner resuming.
   }, [shareLive, state, points, stats, runSec, runKm, avgPace, rt, sharePublic, showToast, t]);
 
-  // The single-writer handoff. Arm the native uploader when the page goes
-  // hidden mid-broadcast (visibilitychange fires before Android freezes the
-  // WebView — the same window the recovery buffer's persist rides), disarm the
-  // moment it is visible again so the JS publisher's next full-trace write
-  // re-bases everything. Pause/stop/toggle-off re-run this via deps and disarm
-  // too — a paused run must not keep appending from the service. Never armed
-  // without a token: a pre-token recovered run simply degrades to v2 behaviour.
+  // Single-writer handoff: arm the native uploader when the page goes hidden mid-broadcast (fires before
+  // Android freezes the WebView), disarm when visible. Pause/stop/toggle-off disarm via deps (a paused
+  // run must not keep appending). Never armed without a token: a pre-token recovered run degrades to v2.
   useEffect(() => {
     const sync = () => {
       const shouldArm = document.visibilityState === "hidden" &&
@@ -605,14 +573,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     endShare();
     const simplified = simplify(trim?.points ?? points, ROUTE_SIMPLIFY_M);
     const km = +runKm.toFixed(2);
-    // Heart rate through the one shared resolver (src/hr/runHr.ts), the same
-    // call the indoor recorder makes: a live source's stream folded together
-    // with the native journal (JS only ever saw the beats it was awake for)
-    // and coverage-guarded, a post-run store queried over the run's window.
-    // Resolved BEFORE the route upload so its samples ride the stats sidecar.
-    //
-    // The window is the tracker's own, falling back to point timestamps for a
-    // recovered run missing startedAt.
+    // Heart rate via the shared resolver (src/hr/runHr.ts), same as the indoor recorder: live stream folded
+    // with the native journal, coverage-guarded; a post-run store is queried over the tracker's window
+    // (point timestamps if startedAt is missing). Resolved BEFORE the route upload so samples ride the sidecar.
     const { startedAt, stoppedAt } = rt.runWindow();
     let endMs = stoppedAt || Date.now();
     if (!stoppedAt) for (let i = points.length - 1; i >= 0; i--) { const p = points[i]; if (p) { endMs = p[2]; break; } }
@@ -635,11 +598,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       queuePendingRoute({ tmpId: routeTmp, points: simplified, stats: statObj });
       showToast?.(t("tracker.routeUploadFailed"), "err");
     }
-    // After the upload, so the single-slot toast doesn't drop this one: a
-    // dropped link leaves the mean of whatever fragment survived — a cooldown
-    // walk's 85bpm stamped on a 70-minute session — which would go on to feed
-    // the coach, the zones and race predictions. The samples still store, and
-    // run detail recomputes the coverage from them to say why there is no average.
+    // After the upload, so the single-slot toast doesn't drop this one. A dropped link leaves a fragment's
+    // mean that would feed the coach, zones and predictions; samples still store and run detail recomputes
+    // coverage to say why there is no average.
     if (resolved.partialCoverage != null)
       showToast?.(t("tracker.hr.partial", { pct: Math.round(resolved.partialCoverage * 100) }), "err");
     // Fastest 1K/5K/10K/half/marathon inside the trace, measured once here off
@@ -668,11 +629,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     });
   };
 
-  // Back/Escape dismissal, innermost first: countdown → discard confirm → the
-  // tracker itself, which MINIMIZES a started recording (leaving the screen must
-  // never cost the run) and otherwise closes through handleClose. Each registers
-  // only while shown, so the stack order matches what's visually on top. The HR
-  // nudge and the bg-location disclosure self-register in their own components.
+  // Back/Escape dismissal, innermost first: countdown, discard confirm, then the tracker, which MINIMIZES
+  // a started recording (leaving must never cost the run) else closes via handleClose. Each registers only
+  // while shown. The HR nudge and bg-location disclosure self-register.
   const canMinimize = !!onMinimize && (live || state === "stopped");
   useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));

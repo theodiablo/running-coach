@@ -17,11 +17,9 @@ function isChunkLoadError(err: unknown): boolean {
   );
 }
 
-// `onError` fires once, in componentDidCatch, only for a swallowed *chunk-load*
-// error — a place where side-effects are allowed. A modal gate (e.g. the lazy
-// CoachChat) uses it to close itself and toast "check your connection", so a
-// transient/stale-chunk failure degrades gracefully instead of white-screening,
-// and unmounting the boundary resets it so the next open retries the import.
+// `onError` fires once, in componentDidCatch, only for a swallowed *chunk-load* error. A
+// modal gate (e.g. lazy CoachChat) uses it to close itself and toast "check your
+// connection"; unmounting the boundary resets it so the next open retries the import.
 type Props = { fallback: ReactNode; children: ReactNode; onError?: (error: unknown) => void };
 type State = { failed: boolean; error: Error | null };
 

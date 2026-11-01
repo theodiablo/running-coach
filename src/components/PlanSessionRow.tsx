@@ -27,11 +27,9 @@ type PlanSessionRowProps = {
   openSettings: (page?: SettingsPage) => void;
 };
 
-// One plan session, with labeled actions. Replaces the old cramped icon row:
-// "Start run" (open the recorder) and "Log it" (fill in a run already done) are
-// spelled out, and Skip is demoted into an overflow (⋯) menu so it no longer
-// reads as delete. The Dashboard's next-session card offers the same two verbs,
-// wired to the same handlers — they used to disagree on what "Record" meant.
+// One plan session with labeled actions: "Start run" (open the recorder) and "Log it" (a
+// run already done); Skip sits in an overflow (⋯) menu so it doesn't read as delete.
+// The Dashboard's next-session card offers the same two verbs through the same handlers.
 export function PlanSessionRow({
   session: s, settings, notesOpen, onToggleNotes,
   onRecord, onDone, onToggleDone, onSkip, onAskCoach, onEdit, onFindRoute, openSettings,

@@ -3,17 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Guards on `supabase/migrations` filenames.
- *
- * Supabase keys applied migrations by the version prefix alone, so two files
- * sharing one prefix are indistinguishable to it: the second is treated as
- * already applied and is silently skipped, forever. That happened on
- * 2026-07-26, when `db_backup_role` and `profiles_email_sync` were both
- * hand-numbered `20260726120000` and the email-sync trigger never reached the
- * database. Nothing failed; the migration simply never ran.
- *
- * These are filename checks only. They cost nothing and turn that class of
- * mistake into a red CI run on the pull request that introduces it.
+ * Guards on `supabase/migrations` filenames: Supabase keys migrations by version
+ * prefix alone, so a second file sharing one is silently skipped forever.
  */
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");

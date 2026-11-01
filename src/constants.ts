@@ -39,11 +39,9 @@ export const INDOOR_ACTIVITY_KEY = "rc_indoor_activity";
 // draws something different. A convenience: losing it only allows a repeat.
 export const CELEBRATION_RECENT_KEY = "rc_celebration_recent";
 
-// How fresh the buffer must be to count as possibly still ON THE AIR (live
-// sharing): past this window the publisher sweeps a leftover broadcast and the
-// watcher stops treating the run as live (useLiveRun). The recovery OFFER is
-// deliberately not bound by it — an interrupted run's data is offered for
-// resume/save whatever its age, never silently discarded (see utils/runRecovery).
+// How fresh the buffer must be to count as possibly still ON THE AIR: past it the
+// publisher sweeps a leftover broadcast and the watcher stops treating the run as live.
+// The recovery OFFER is not bound by it: interrupted data is never discarded for age.
 export const RESUME_MAX_AGE_MS = 6 * 3600 * 1000;
 
 // localStorage snapshot of the app_state cache while a cloud upsert is pending
@@ -62,42 +60,29 @@ export const OFFLINE_STATE_KEY = "rc_offline_state";
 // install, mirrors the other one-shot recording prompts above.
 export const BATTERY_NUDGE_KEY = "rc_battery_nudge";
 
-// localStorage flag: last "share this run" choice. Per-device like the other
-// recording concerns, NOT a synced setting: whether you broadcast a run is a
-// property of the phone in your hand, and a synced "on" would silently put a
-// run on the air from a device the user never armed. Since v4 this is the ONE
-// sharing switch — on means the run is readable at the runner's standing link
-// (docs/live-sharing.md), so it is also what takes a run back off it.
+// localStorage flag: last "share this run" choice. Per-device, NOT synced: a synced
+// "on" would put a run on the air from a device the user never armed. The ONE sharing
+// switch (docs/live-sharing.md): on means readable at the standing link, and it also
+// takes a run back off it.
 export const LIVE_SHARE_KEY = "rc_live_share";
 
-// localStorage marker: the `started_at` of a broadcast THIS device put on the
-// air and has not confirmed the deletion of. The `live_runs` row is per-account
-// and a watching session is by definition another session of the same account,
-// so without a per-device marker the cleanup sweep can't tell "my own row, left
-// by a killed app" from "the run I opened the app to watch" — and would delete
-// the latter. Set on the first successful publish, cleared on a confirmed delete.
+// localStorage marker: the `started_at` of a broadcast THIS device put on the air and
+// has not confirmed deleted. The `live_runs` row is per-account, so without it the sweep
+// can't tell "my own leftover" from "the run I'm watching" and would delete the latter.
+// Set on first successful publish, cleared on a confirmed delete.
 export const LIVE_PUBLISHED_KEY = "rc_live_published";
 
-// localStorage: a CONFIRMED copy of the account's standing share link, as
-// {uid, token}, so the panel can render it offline (src/live/shareLinkStore.ts).
-// A cache of server state, never the source of truth — the ledger is — and
-// never a token that hasn't come back from it, or the runner could send an
-// address that never resolves.
-//
-// Account data, so sign-out clears it (App.tsx), and it carries the uid it was
-// written for: the next account on a shared device must never be shown the
-// previous runner's link. Deliberately a NEW key: every installed device still
-// holds a spent per-run token under the v2 name, and reading that as a standing
-// link would display one that resolves to nothing.
+// localStorage: a CONFIRMED copy of the standing share link, {uid, token}, for offline
+// render (src/live/shareLinkStore.ts). Never a token the ledger hasn't returned. Account
+// data: sign-out clears it, and the uid stops the next account on a shared device seeing
+// it. A NEW key on purpose: the v2 name holds spent per-run tokens that resolve to nothing.
 export const LIVE_SHARE_LINK_KEY = "rc_live_share_link";
 
 
-// localStorage: the WRITE capability for the current broadcast — what the
-// Android native uploader authenticates with while the WebView is frozen (see
-// src/live/publishToken.ts). Per-device and per-run like the share token, and
-// even more sensitive (it writes, not reads): never displayed, never synced,
-// spent by endLiveRun / the sweeps. Survives an app kill so a recovered run
-// keeps publishing under the row it opened.
+// localStorage: the WRITE capability for the current broadcast (the native uploader's
+// auth while the WebView is frozen, src/live/publishToken.ts). Per-device, never
+// displayed or synced; spent by endLiveRun / the sweeps. Survives an app kill so a
+// recovered run keeps publishing under its row.
 export const LIVE_PUBLISH_TOKEN_KEY = "rc_live_publish_token";
 
 // localStorage flag: the user has seen and accepted the background-location
@@ -110,27 +95,21 @@ export const BG_LOC_DISCLOSED_KEY = "rc_bg_loc_disclosed";
 // Once per install — asked the first time a run starts, never re-nagged.
 export const REC_NOTIF_ASKED_KEY = "rc_rec_notif_asked";
 
-// localStorage flags for plan-session reminders (docs/reminders.md). The
-// preference itself (settings.sessionReminders) is SYNCED — these two are the
-// per-device half: whether the OS grant was obtained on THIS install, and
-// whether the prominent disclosure has been shown once. A preference synced
-// from another phone must never assume a grant here.
+// localStorage flags for plan-session reminders (docs/reminders.md). The preference
+// (settings.sessionReminders) is SYNCED; these are the per-device half: OS grant obtained
+// on THIS install, and disclosure shown once. A synced preference never assumes a grant.
 export const SESSION_NOTIF_AUTH_KEY = "rc_session_notif_auth";
 export const SESSION_NOTIF_DISCLOSED_KEY = "rc_session_notif_disclosed";
 
-// localStorage flag: we've asked once for ACCESS_BACKGROUND_LOCATION ("Allow all
-// the time"). Only ever requested on a build that DECLARES the permission (the
-// debug/personal sideload manifest — the public Play release never declares it),
-// and only after foreground fine location is already granted. Once per install so
-// a denied Settings round-trip never re-nags every run. See src/geo/background.ts.
+// localStorage flag: asked once for ACCESS_BACKGROUND_LOCATION. Only on builds that
+// DECLARE it (sideload manifest) and after foreground fine location is granted. Once per
+// install so a denied Settings round-trip never re-nags. See src/geo/background.ts.
 export const BG_LOC_ASKED_KEY = "rc_bg_loc_asked";
 
 // ── GPS tracking diagnostics (native) — PER-DEVICE, never in the synced blob ──
-// A hidden developer log of the live tracker's fix stream, mirroring the watch
-// sync log: it records each accepted/rejected GPS fix (with the reason), gap
-// insertions, permission results, and app foreground/background transitions, so a
-// screen-off run can be inspected to see exactly when and why fixes stop. Off by
-// default (nothing recorded until the reveal flag is on); bounded ring buffer.
+// Hidden developer log of the tracker's fix stream (accepted/rejected fixes with reason,
+// gaps, permission results, app foreground/background) for inspecting screen-off runs.
+// Off until the reveal flag is on; bounded ring buffer.
 export const GEO_DIAG_LOG_KEY = "rc_geo_diag_log";   // JSON ring buffer of per-FIX rows (FIFO)
 export const GEO_DIAG_LOG_MAX = 2000;                // cap on stored fix rows
 export const RUN_DIAG_LOG_KEY = "rc_run_diag_log";   // everything else: run markers, HR, power
@@ -139,15 +118,11 @@ export const DIAG_LOG_HEAD = 50;                     // oldest rows a full buffe
 export const GEO_DEBUG_KEY = "rc_geo_debug";         // "1" enables logging + reveals the panel
 
 // ── Heart-rate sensor (native) — all PER-DEVICE, never in the synced blob ──
-// The *method* preference (off/bluetooth/healthconnect) lives in synced settings
-// (settings.hrMethod); the concrete paired device and one-shot UI flags are local
-// because Bluetooth bonding is inherently per-device (a synced device id would
-// show as "paired" on a phone where it isn't bonded). Mirrors the telemetry-
-// consent / bg-disclosure decision to keep device-specific state out of the blob.
-// One-time coach data notice — the AI coach can read detailed run data
-// (splits/HR digests via get_run_detail). Per-device like the other one-shot
-// disclosure flags: a fresh browser shows the notice again, which is the
-// privacy-conservative direction.
+// The *method* preference is synced (settings.hrMethod); the paired device and one-shot
+// UI flags are local because BLE bonding is per-device.
+
+// One-time coach data notice (the coach reads run digests). Per-device: a fresh browser
+// shows it again, the privacy-conservative direction.
 export const COACH_DETAIL_NOTICE_KEY = "rc_coach_detail_notice_v1";
 
 export const HR_DEVICE_KEY = "rc_hr_device";          // JSON {id,name} of the bonded BLE sensor
@@ -155,10 +130,9 @@ export const HR_BLE_DISCLOSED_KEY = "rc_hr_ble_disclosed"; // BLE permission dis
 export const HR_HEALTH_CONNECT_AUTH_KEY = "rc_hr_healthconnect_auth"; // local HC permission was granted
 
 // ── Watch run import (native) — PER-DEVICE, never in the synced blob ──
-// Importing finished runs (distance/duration/elevation/HR) from a watch via
-// Health Connect. The *preference* lives in synced settings.watchImport; these
-// device-local keys mirror the HR reasoning: an Android Health Connect grant is
-// per-install, so a synced preference alone must never touch the native bridge.
+// The *preference* is synced settings.watchImport; these keys are device-local because a
+// Health Connect grant is per-install, so a synced preference alone must never touch the
+// native bridge.
 export const WATCH_HC_AUTH_KEY = "rc_watch_hc_auth";        // local exercise-read permission was granted
 export const WATCH_SEEN_HC_IDS_KEY = "rc_watch_seen_hc_ids"; // JSON array of already-handled HC session ids
 export const WATCH_SEEN_MAX = 200;                          // cap on the seen-ids list (FIFO)
@@ -170,18 +144,14 @@ export const WATCH_SCAN_LOG_MAX = 25;                      // cap on stored scan
 export const WATCH_DEBUG_KEY = "rc_watch_debug";           // "1" reveals the hidden sync-log diagnostics panel
 
 // ── HealthKit (iOS) — PER-DEVICE, never in the synced blob ──
-// One marker covers both HR reads and workout import (a single HealthKit
-// authorization sheet grants both read scopes). Unlike Health Connect there is
-// no trustworthy "is read granted?" probe (HealthKit hides read authorization),
-// so this is set when the request flow completes and cleared only when
-// HealthKit itself is unavailable — never from a permission check.
+// One marker covers HR reads and workout import. HealthKit hides read authorization, so
+// set when the request flow completes and cleared only when HealthKit is unavailable,
+// never from a permission check.
 export const HK_AUTH_KEY = "rc_hk_auth";
 
-// Canonical production web origin (no trailing slash). Native code that must
-// name the web app's address uses this — e.g. Polar's OAuth redirect_uri, which
-// is registered with Polar as the web origin and must match byte-for-byte even
-// when the flow starts inside the Capacitor shell (whose own origin is
-// capacitor://localhost and unreachable from a browser).
+// Canonical production web origin (no trailing slash) for native code that must name the
+// web app, e.g. Polar's OAuth redirect_uri, which is registered as the web origin and
+// must match byte-for-byte even from the Capacitor shell (capacitor://localhost).
 export const WEB_APP_ORIGIN = "https://run.camboulive.solutions";
 
 // Public privacy policy (static page in public/privacy.html, served at the site
@@ -227,29 +197,20 @@ export const TESTFLIGHT_BETA_URL = "https://testflight.apple.com/join/T73yu15A";
 // payment links inside the iOS app. Empty string hides the link.
 export const TIP_JAR_URL = "https://buymeacoffee.com/theo.camboulive";
 
-// Map basemap. Keyed free-tier provider (MapTiler) — raw OSM tiles aren't
-// allowed for a multi-user app under the OSMF tile policy. VITE_MAPTILER_KEY is
-// a publishable, domain-restricted client key (no default baked in — a real key
-// in a public repo would let anyone drain the owner's quota); without it the
-// tracker still records, RouteMap just shows a "needs key" notice.
-//
-// Built-in `streets-v2` slug on purpose: raster tiles for a CUSTOM style are a
-// paid MapTiler plan feature, while built-in slugs render on any tier/key.
+// Map basemap: MapTiler free tier (raw OSM tiles are barred for multi-user apps).
+// VITE_MAPTILER_KEY is a publishable, domain-restricted key with no baked-in default;
+// without it RouteMap shows a "needs key" notice. Built-in `streets-v2` slug on purpose:
+// raster tiles for a CUSTOM style are a paid plan feature.
 export const MAP_KEY = import.meta.env.VITE_MAPTILER_KEY || "";
 export const MAP_TILE_URL =
   "https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=" + MAP_KEY;
 export const MAP_ATTRIBUTION =
   '© <a href="https://www.maptiler.com/copyright/">MapTiler</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>';
 
-// "Find a route" CAPABILITY gate: is the feature buildable at all here? Only a
-// MapTiler key is needed (without tiles a route on a blank map is pointless).
-//
-// This is NOT the access gate. "Find a route" is the app's first premium-only
-// feature: access is profiles.premium_until (src/premium.ts for the UI, and the
-// route-suggest edge function is the real gate — it answers PREMIUM_REQUIRED to
-// anyone else). The server also stays inert until ORS_API_KEY is set, replying
-// {configured:false}. There is deliberately no build-time flag: the tier is
-// per-user server state, not a deployment-wide switch.
+// "Find a route" CAPABILITY gate (a MapTiler key is needed), NOT the access gate: access
+// is profiles.premium_until, enforced by the route-suggest edge function (PREMIUM_REQUIRED).
+// The server is inert until ORS_API_KEY is set ({configured:false}). No build-time flag:
+// the tier is per-user server state.
 export const routeSuggestEnabled = !!MAP_KEY;
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

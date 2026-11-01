@@ -25,11 +25,10 @@ export function runWalkConfig(s: { runWalkRunSec?: number; runWalkWalkSec?: numb
   };
 }
 
-// This week's run interval. The ceiling is the runner's own answer to "how long
-// can you run for", so the ramp is expressed as thirds OF IT and PEAK is the
-// ceiling exactly — never past it, and never below 30 s. With the 180 s default
-// this is the original fixed 1 / 2 / 2 / 3 min ladder, to the second. The taper
-// steps back down with BUILD: its job is shedding fatigue, not setting a record.
+// This week's run interval. The ceiling is the runner's own answer, so the ramp is thirds
+// OF IT and PEAK is the ceiling exactly: never past it, never below 30 s. With the 180 s
+// default it is the original 1 / 2 / 2 / 3 min ladder. The taper steps back down with BUILD
+// (shedding fatigue, not a record).
 export function runwalkRunSec(cfg: RunWalkConfig, phase: string): number {
   const frac = phase === "BASE" ? 1 / 3 : phase === "PEAK" ? 1 : 2 / 3;
   const step = Math.round((cfg.runSec * frac) / 15) * 15;

@@ -3,26 +3,18 @@ import { HR_ZONES, hrZoneBpm, runZoneIndex } from "../utils/hr";
 
 type LiveHrZoneProps = { bpm: number | null | undefined; effMax: number; restHR: number };
 
-// The live "which zone am I in" readout for a session in progress: the zone
-// name over the five-colour strip with the current reading marked. Same zone
-// definitions, Karvonen maths and zone names as the settings editor and the
-// Progress card (utils/hr.ts, progress.zones.* copy) — this is the live view of
-// them, not a second model.
-//
-// Returns null when the profile can't classify (no max HR, or a non-positive
-// heart-rate reserve), mirroring HRZonesCard — a bar with no meaning is worse
-// than no bar.
+// Live "which zone am I in" readout: zone name over the five-colour strip with the
+// reading marked. Same zone definitions as the settings editor and Progress card
+// (utils/hr.ts). Returns null when the profile can't classify (no max HR, or
+// non-positive reserve), mirroring HRZonesCard.
 export function LiveHrZone({ bpm, effMax, restHR }: LiveHrZoneProps) {
   const { t } = useTranslation();
   if (!effMax || effMax - restHR <= 0) return null;
   const zone = runZoneIndex(bpm, effMax, restHR);
   const z = zone ? HR_ZONES[zone - 1] : null;
-  // The strip is the five ZONES, which start at Z1's floor (50% of heart-rate
-  // reserve), not at resting HR — so the marker maps across [Z1 floor, max],
-  // not [rest, max]. Getting that wrong put the marker in the wrong block for
-  // every reading. The zones are equal 10%-of-reserve bands, so this is linear
-  // and lands exactly in the block `zone` names. Clamped, so an out-of-range
-  // reading parks at an end of the bar instead of escaping it.
+  // The strip starts at Z1's floor (50% of heart-rate reserve), not resting HR, so the
+  // marker maps across [Z1 floor, max]. The zones are equal 10%-of-reserve bands, so this
+  // is linear and lands in the block `zone` names. Clamped to the bar's ends.
   const floor = hrZoneBpm(HR_ZONES[0].lo, HR_ZONES[0].hi, effMax, restHR)!.lo;
   const pct = bpm ? Math.min(100, Math.max(0, ((bpm - floor) / (effMax - floor)) * 100)) : null;
   return (

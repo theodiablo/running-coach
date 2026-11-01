@@ -1,8 +1,6 @@
-// Pure reconstruction of a past coach conversation into the same CoachMessage[]
-// shape the live chat renders, from the audit rows the server already stores in
-// agent_rounds (users have read-own RLS on them). No network, no React — so it
-// is unit-testable over fixtures. src/coachHistory.ts fetches the rows and
-// feeds them here; CoachChat.tsx imports the message types back.
+// Pure reconstruction of a past coach conversation into the CoachMessage[] the live chat
+// renders, from agent_rounds audit rows (read-own RLS). No network or React, so it is
+// unit-testable. src/coachHistory.ts fetches rows and feeds them here.
 import { diffPlans } from "./coachDiff";
 import { describeSession } from "./sessionDesc";
 import { fmt, estMin, parseDur } from "./format";
@@ -32,11 +30,9 @@ export type TranscriptRound = {
   proposed_plan: Plan;
 };
 
-// Content signature of a plan for drift detection: every session's id + the
-// fields a coach proposal can change (type/date/km/pace), order-independent.
-// Progress fields (done/skipped/runId) are excluded — logging a run must not
-// count as a plan edit. Used to decide whether a resumed open trajectory's
-// stored baseline still matches the live plan (see plansDiffer).
+// Content signature of a plan for drift detection: every session's id plus the fields a
+// coach proposal can change (type/date/km/pace), order-independent. Progress fields
+// (done/skipped/runId) are excluded so logging a run isn't a plan edit (see plansDiffer).
 function planSignature(plan: Plan | null | undefined): string {
   const rows: string[] = [];
   for (const w of plan?.weeks ?? []) {
@@ -67,11 +63,9 @@ export function stripSessionPrefix(report: string): string {
 export type SessionCardSource = Pick<PlanSession, "type" | "date" | "km" | "desc"> &
   { pace?: number | null; sd?: PlanSession["sd"] };
 
-// The single builder for the "about this session" chat card, shared by the live
-// chat's opening message (CoachChat) and reconstructed transcripts so the two
-// renderings can't drift. Pace is optional: a session recovered from a stored
-// prefix may not carry one, in which case the estimate/pace slots are omitted
-// rather than rendered as "--:--".
+// The single builder for the "about this session" chat card, shared by the live opening
+// message (CoachChat) and reconstructed transcripts. Pace is optional: without it the
+// estimate/pace slots are omitted rather than rendered as "--:--".
 export function buildSessionCard(s: SessionCardSource): { greeting: string; card: SessionCard } {
   const typeLabel = t("common.types." + s.type, { defaultValue: String(s.type) });
   const est = estMin(Number(s.km), Number(s.pace ?? 0));
@@ -88,14 +82,10 @@ export function buildSessionCard(s: SessionCardSource): { greeting: string; card
   };
 }
 
-// Recover the session a conversation was opened about from round 0's stored
-// report. The canonical prefix CoachChat prepends is
-//   [The runner is asking about this planned session — week N, TYPE on
-//    YYYY-MM-DD, K km @ M:SS/km: "desc"]
-// and it is persisted verbatim in agent_rounds.input_context, so a historical
-// transcript can rebuild the same opening card the live chat showed. Returns
-// null for plain conversations (no prefix) or an unrecognized prefix shape —
-// the transcript then just starts with the user's message as before.
+// Recover the session a conversation was opened about from round 0's stored report, which
+// begins with the verbatim prefix CoachChat prepends:
+// [The runner is asking about this planned session — week N, TYPE on YYYY-MM-DD, K km @ M:SS/km: "desc"]
+// Returns null for plain conversations or an unrecognized prefix shape.
 export function parseSessionPrefix(report: string): SessionCardSource | null {
   const m = report.match(
     /^\[The runner is asking about this planned session — week \d+, (\S+) on (\d{4}-\d{2}-\d{2}), ([\d.]+) km(?: @ (\d+:\d{2})\/km)?: "([^\]]*)"\]/,
@@ -104,14 +94,10 @@ export function parseSessionPrefix(report: string): SessionCardSource | null {
   return { type: m[1], date: m[2], km: Number(m[3]), pace: m[4] ? parseDur(m[4]) : null, desc: m[5] };
 }
 
-// Rebuild the conversation. Rules mirror the live flow:
-//  - user bubble per round (round 0 = the report, later rounds = user_feedback)
-//  - coach bubble per round (rationale, or the matching fallback string)
-//  - a proposal card on each non-invalid round whose diff is non-empty
-// The diff base folds forward exactly as the server's workingPlan does: each
-// non-invalid proposal becomes the base the next round edits. The OPEN
-// trajectory's latest proposal instead diffs against the live plan, matching
-// what Apply will actually change (and what a freshly-sent round would show).
+// Rebuild the conversation like the live flow: a user bubble and a coach bubble per round,
+// and a proposal card on each non-invalid round with a non-empty diff. The diff base folds
+// forward as the server's workingPlan does; the OPEN trajectory's latest proposal diffs
+// against the live plan, matching what Apply will change.
 export function reconstructTranscript(input: {
   trajectoryId: string;
   report: string;
@@ -129,13 +115,10 @@ export function reconstructTranscript(input: {
 
   const out: CoachMessage[] = [];
 
-  // A conversation opened about a specific plan session gets its opening coach
-  // message (greeting + session card) back, rebuilt from the stored prefix —
-  // without it the transcript starts mid-conversation ("Move it earlier" with
-  // no clue what "it" is). Plain conversations start with the user's message;
-  // their generic greeting adds nothing and stays out of history. Unstamped
-  // (no trajectoryId/roundIndex), so the flag affordance stays hidden on it,
-  // matching the live greeting.
+  // A conversation opened about a plan session gets its opening coach message (greeting +
+  // session card) rebuilt from the stored prefix; without it the transcript starts mid-
+  // conversation. Plain ones start at the user's message. Left unstamped so the flag
+  // affordance stays hidden, matching the live greeting.
   const sessionSource = parseSessionPrefix(report);
   if (sessionSource) {
     const { greeting, card } = buildSessionCard(sessionSource);

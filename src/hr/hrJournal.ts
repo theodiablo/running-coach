@@ -5,20 +5,9 @@ import { isAndroid } from "../native";
 import { logTrack } from "../geo/trackLog";
 import type { BleHrSample } from "./ble";
 
-// The native HR journal (Android, patched bluetooth-le plugin) — the HR twin of
-// src/geo/fixJournal.ts. The GATT notification callback runs in the app process,
-// so it keeps firing while the WebView's JS is frozen in the background; the
-// plugin appends each measurement to a file, and the save path folds it back
-// into what JS saw. Without it a run's HR is only ever what the foreground
-// managed to observe.
-//
-// Armed for the duration of a run (never during the idle preview, whose samples
-// aren't part of the run) and read once at save time. Arming is process state,
-// so a run resumed after the app was killed has to re-arm — without clearing,
-// since the beats from before the crash are exactly what the journal is for.
-// Best-effort and Android-only throughout: every call no-ops elsewhere and never
-// throws, and an unpatched shell simply resolves nothing — the JS stream stays
-// the whole story.
+// Native HR journal (Android, patched bluetooth-le), twin of src/geo/fixJournal.ts: the GATT callback
+// keeps appending beats to a file while JS is frozen; save folds it back in. Armed during a run only
+// (not the idle preview); re-arm WITHOUT clearing after a kill. Android-only, best-effort, never throws.
 
 // Its own bridge proxy, NOT the BleClient wrapper: BleClient serializes every
 // call through one queue, and reading the journal must never wait on the radio.
@@ -77,11 +66,9 @@ export async function readHrJournal(): Promise<BleHrSample[]> {
   } catch { return []; }
 }
 
-// Epoch ms of the last measurement the GATT callback saw, or null when that
-// answer isn't available (off Android, an unpatched shell, no beat yet). The
-// callback keeps firing in the app process whether or not this WebView is
-// awake to receive the notification, so it — not the JS stream — is what says
-// whether the link is alive. `ble.ts` asks before tearing a quiet link down.
+// Epoch ms of the last measurement the GATT callback saw, or null when unavailable (off Android,
+// unpatched shell, no beat yet). The callback keeps firing whether or not the WebView is awake,
+// so it, not the JS stream, says whether the link is alive; `ble.ts` asks before tearing it down.
 export async function lastNativeHrBeatAt(): Promise<number | null> {
   if (!isAndroid) return null;
   try {

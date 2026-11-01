@@ -13,11 +13,8 @@ declare global {
 // the web app behaves exactly as it did in Phase 1.
 export const isNative = Capacitor.isNativePlatform();
 
-// Which shell we're in: "android" | "ios" | "web". `isNative` gates the
-// native-vs-web split; these gate platform-exclusive integrations (Health
-// Connect is Android-only, HealthKit is iOS-only). A synced preference naming
-// the other platform's integration must degrade to "off" locally, never render
-// its UI (the synced-preference / local-readiness doctrine).
+// Which shell we're in. `isNative` gates native-vs-web; these gate platform-exclusive integrations. A synced preference
+// naming the other platform's integration must degrade to "off" locally, never render its UI.
 export const platform = Capacitor.getPlatform();
 export const isAndroid = platform === "android";
 export const isIos = platform === "ios";
@@ -29,11 +26,8 @@ if (typeof window !== "undefined" && isNative) {
   window.__NATIVE_SHELL__ = true;
 }
 
-// Installed version/build, cached because the crash reporter builds its trace
-// synchronously. A trace that can't name its build is untriageable: an iOS 15
-// lookbehind crash arrived from a binary predating the fix and read as a
-// regression, with no way to tell the two apart. Empty until getInfo resolves,
-// and on web (continuously deployed, so the store version means nothing).
+// Installed version/build, cached because the crash reporter builds its trace synchronously and a trace that can't name
+// its build is untriageable. Empty until getInfo resolves, and on web (continuously deployed).
 let buildLabel = "";
 export const nativeBuildLabel = () => buildLabel;
 

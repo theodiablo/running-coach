@@ -1,13 +1,7 @@
-// The standing share link — claiming it, replacing it, and caching it.
-//
-// Split from ./shareLink because this half needs the Supabase client and the
-// public /watch page must never load one (see that module's header).
-//
-// The ledger (`live_share_tokens`) is the source of truth and the CLAIM is what
-// makes a durable link safe: the token's uniqueness is held permanently by the
-// runner, so no one handed the link can squat it and point the address at their
-// own run. Retired tokens are kept server-side forever for the same reason.
-// Detail: docs/live-sharing.md.
+// The standing share link: claiming, replacing, caching. Split from ./shareLink because this half needs
+// the Supabase client and the public /watch page must never load one. The ledger (`live_share_tokens`)
+// is the source of truth; the CLAIM holds the token permanently (retired tokens kept forever) so no
+// one handed the link can squat it. Detail: docs/live-sharing.md.
 
 import { supabase } from "../supabase";
 import { currentUserId } from "../db";
@@ -111,13 +105,9 @@ export async function ensureShareLink(): Promise<string | null> {
   return null;
 }
 
-// Replace the link: the old address stops resolving for everyone holding it,
-// server-side and at once — no wait for the runner's next publish.
-//
-// One RPC because it is two statements that must commit together: PostgREST
-// gives every request its own transaction, so a client-side revoke-then-insert
-// can leave the account with no link at all. The function is `security
-// invoker`; the token below still comes from this device's CSPRNG.
+// Replace the link: the old address stops resolving at once, server-side. One RPC because revoke and
+// insert must commit together (PostgREST gives each request its own transaction). The function is
+// `security invoker`; the token still comes from this device's CSPRNG.
 export type RotateResult = { token: string | null; limit?: boolean };
 
 export async function rotateShareLink(): Promise<RotateResult> {

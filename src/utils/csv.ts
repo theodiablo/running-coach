@@ -1,12 +1,6 @@
-// CSV import for Zepp / Strava activity exports.
-//
-// This is deliberately a small, dependency-free parser tuned for the two known
-// export formats — not a full RFC-4180 implementation. It handles simple
-// double-quoted fields (so a quoted value containing a comma is not split), but
-// does not support escaped quotes or embedded newlines inside fields. Personal
-// Zepp/Strava exports don't use those, and keeping it tiny avoids pulling in a
-// parser dependency. All numeric fields are validated; rows that don't parse to
-// sane values are skipped rather than silently coerced to 0.
+// CSV import for Zepp / Strava exports: a small dependency-free parser for those two formats, not
+// RFC-4180 (no escaped quotes or embedded newlines; quoted commas are handled). Rows that don't parse
+// to sane numeric values are skipped, never coerced to 0.
 import { ymd } from "./format";
 import type { Run } from "../types";
 

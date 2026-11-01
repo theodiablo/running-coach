@@ -1,13 +1,7 @@
-// Onboarding flow shape. Kept pure (no React) so the branch sequencing — the
-// riskiest part of the wizard — is unit-testable and lives outside the component.
-//
-// The wizard branches on the user's `intent`: a race-targeting user gets a race
-// picker + goal step, a "just getting started" user gets a lighter training-only
-// step, and a "let people follow my race" user gets no plan at all, only what
-// race day needs (race, device readiness, the share link). All branches share an
-// identical [welcome, intent] prefix so a refresh before intent is chosen resolves
-// the same regardless of branch, and all pass the mandatory health gate. The plan
-// branches end on an (in-memory only) summary; the live one completes at the gate.
+// Onboarding flow shape, pure so branch sequencing is unit-testable. Branches on `intent`:
+// race (picker + goal), getting started (training-only), live-follow (no plan: race,
+// device readiness, share link). All branches share an
+// identical [welcome, intent] prefix and the health gate; plan branches end on a summary.
 import type { HealthAck, HrMethod, Intent, SettingsState } from "../types";
 
 export type OnboardingStep =

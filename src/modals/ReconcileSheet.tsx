@@ -1,11 +1,6 @@
-// "I already ran this": pick which logged run settled a plan session.
-//
-// The app matches a run to a session on the calendar day alone, at the moment a
-// recorder hands off to the log form. Do Thursday's tempo on Wednesday and the
-// two never meet — the session stays untickable and the run stays anonymous.
-// This sheet is the retroactive half of the fix: it ranks the runs that could
-// plausibly be the session (src/utils/sessionMatch.ts) and lets the runner say
-// which one it was. It only ever proposes — nothing is applied until "Count it".
+// "I already ran this": pick which logged run settled a plan session. Matching at log time is by
+// calendar day alone, so a run done on another day never meets its session; this is the retroactive
+// half (ranking via src/utils/sessionMatch.ts). It only proposes: nothing applies until "Count it".
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";

@@ -2,14 +2,10 @@ import { registerPlugin } from "@capacitor/core";
 import { isAndroid } from "../native";
 import type { StoredTrackPoint } from "../utils/geo";
 
-// The native fix journal (Android, patched background-geolocation plugin): the
-// foreground service appends every fix it accepts to a file on disk, so the
-// points recorded while the WebView was frozen survive the process being killed
-// — the localStorage recovery buffer only ever holds what JS saw, which stops
-// at the last time the app was foregrounded. Read on recovery to extend the
-// buffer (utils/runRecovery merges by timestamp); cleared when a run starts
-// fresh or its recovery is resolved. Best-effort and Android-only: every call
-// no-ops elsewhere and never throws.
+// The native fix journal (Android, patched background-geolocation): the foreground service
+// appends every accepted fix to disk, so points recorded while the WebView was frozen survive
+// a process kill. Read on recovery (utils/runRecovery merges by timestamp); cleared on fresh
+// start or resolution. Android-only, best-effort: no-ops elsewhere, never throws.
 
 // Same plugin name as src/geo/native.ts / liveNotification.ts — registerPlugin
 // returns a proxy per call site; all address the one native instance.

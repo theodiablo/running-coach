@@ -1,8 +1,6 @@
-// What to say the moment a recording finishes: a headline drawn from a varied
-// pool, plus at most one fact about THIS run measured against the runner's own
-// log (never an absolute yardstick: one runner's slow day is another's record).
-// Pure: the caller supplies randomness and the recently-shown keys.
-// docs/run-celebration.md.
+// What to say when a recording finishes: a headline from a varied pool plus at most one fact about THIS
+// run against the runner's own log (never an absolute yardstick). Pure: the caller supplies randomness
+// and recently-shown keys. docs/run-celebration.md.
 
 import copy from "../i18n/locales/en/celebration.json";
 import { isPersonalBest, runAchievements, type EffortRank } from "./bestEfforts";

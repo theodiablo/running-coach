@@ -83,12 +83,10 @@ describe("locale dictionaries", () => {
   });
 });
 
-// ---- no dangling t() keys ---------------------------------------------------
-// Every t("literal.key") referenced in source must resolve in the dictionary,
-// or it renders the raw key string at runtime. The parity test above does NOT
-// catch this (a key missing from ALL of en/es/fr is "in parity" yet broken),
-// so scan the source and check each referenced literal key exists — plural
-// suffixes (_one/_other) and dynamic-prefix keys ("a.b." + x) accounted for.
+// ---- no dangling t() keys ----
+// Every t("literal.key") in source must resolve in the dictionary or it renders the raw key.
+// The parity test misses a key absent from ALL locales, so scan the source; plural suffixes
+// (_one/_other) and dynamic-prefix keys ("a.b." + x) are accounted for.
 
 const PLURAL_SUFFIXES = ["", "_zero", "_one", "_two", "_few", "_many", "_other"];
 

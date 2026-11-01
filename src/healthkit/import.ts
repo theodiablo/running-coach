@@ -12,11 +12,9 @@ import type { Run } from "../types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// One per-device marker covers HR reads AND workout import: a single HealthKit
-// authorization sheet grants both read scopes, unlike Android's two separate
-// Health Connect grants. Set when the request flow completes; NEVER cleared by
-// a permission probe (HealthKit hides read authorization — an empty read means
-// "no data", not "revoked"), only when HealthKit itself reports unavailable.
+// One per-device marker covers HR reads AND workout import (one HealthKit sheet grants both). NEVER
+// cleared by a permission probe (HealthKit hides read authorization; empty read means "no data"),
+// only when HealthKit reports unavailable.
 export function hasHealthKitAuthorization(): boolean {
   try { return localStorage.getItem(HK_AUTH_KEY) === "1"; }
   catch { return false; }
@@ -39,19 +37,10 @@ export async function availability(): Promise<HealthKitAvailability> {
 
 export async function isAvailable() { return (await availability()) === "Available"; }
 
-// Show the HealthKit read-authorization sheet (heart rate + workouts + workout
-// route + running/walking distance in one ask). granted:true means the flow
-// completed; whether reads actually return data is only learnable by reading.
-//
-// KNOWN LIMITATION (follow-up): the workout-route read scope was added in the
-// route-import change, but an EXISTING user who granted HealthKit before that
-// keeps a valid local marker, so scanHealthKitWorkouts fast-paths past this
-// re-request and their new-scope grant never happens — their Apple Watch runs
-// import totals-only until they toggle the integration off/on in Settings (which
-// re-invokes this). We deliberately DON'T invalidate the marker (that gates
-// post-run HR too, so it would regress that feature) and DON'T prompt during a
-// passive scan (an unexpected permission sheet). A proper fix is a one-time
-// "re-authorize for routes" nudge at an interactive touchpoint.
+// Show the HealthKit read-authorization sheet; granted:true means the flow completed, not that reads return data.
+// KNOWN LIMITATION: a user who granted before the route scope was added keeps a valid marker, so the scan
+// skips this re-request and their runs import totals-only until they toggle the integration in Settings.
+// We don't invalidate the marker (it gates post-run HR) nor prompt during a passive scan.
 export async function requestHealthKitPermissions(): Promise<boolean> {
   try {
     if (!(await isAvailable())) { setHealthKitAuthorization(false); return false; }
@@ -63,13 +52,9 @@ export async function requestHealthKitPermissions(): Promise<boolean> {
 
 type ScanOptions = { enabled?: boolean; allowNativeRead?: boolean; days?: number; now?: number };
 
-// Read finished workouts from Apple Health over the last `days`, map them to
-// runs, and drop anything already logged — the iOS mirror of scanWatchSessions,
-// with the same never-throws guard structure: the native bridge is only touched
-// on iOS when this device holds the local auth marker (the synced
-// settings.watchImport preference alone is never enough — HealthKit grants are
-// per-install). The marker is deliberately NOT cleared on an empty/failed read;
-// see hasHealthKitAuthorization.
+// Read finished workouts from Apple Health over the last `days`, map to runs, drop already-logged ones.
+// Never throws; the bridge is touched only on iOS with the local auth marker (HealthKit grants are
+// per-install, the synced preference is not enough). The marker is NOT cleared on an empty/failed read.
 export async function scanHealthKitWorkouts(
   runs: Run[],
   { enabled = true, allowNativeRead = true, days, now = Date.now() }: ScanOptions = {},

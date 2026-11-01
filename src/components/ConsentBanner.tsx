@@ -11,22 +11,10 @@ import {
 import { isNative } from "../native";
 import { ConsentScreen } from "./ConsentScreen";
 
-// First-run opt-in consent (EU/ePrivacy): telemetry stays fully off until the
-// user makes a choice here, so PostHog never inits — and never stores anything
-// on the device — before consent. Self-gating: renders nothing unless telemetry
-// is actually configured (a key is set) AND the user hasn't decided yet, so it
-// disappears for good once answered. The Settings → Privacy toggles remain the
-// durable control to change the choice later.
-//
-// Two presentations, one gate. Native gets the full-screen ConsentScreen, where
-// crash reports and product analytics are separate switches — a phone has the
-// room, and it's the app's first screen either way. The web keeps the compact
-// bottom bar: a full-screen interstitial over the marketing landing would be a
-// worse trade, so Accept/Decline there answers both channels together.
-//
-// `onConsentChange(analyticsGranted)` lets the host re-identify the signed-in
-// user the moment they accept analytics (events before that point are anonymous;
-// later events use the signed-in user id).
+// First-run opt-in consent (EU/ePrivacy): telemetry stays fully off, storing nothing, until the user chooses.
+// Self-gating: renders nothing unless a telemetry key is set AND the user hasn't decided. Native gets the full-screen
+// ConsentScreen (separate crash/analytics switches); web keeps the compact bar, where Accept/Decline answers both.
+// `onConsentChange(analyticsGranted)` lets the host re-identify the signed-in user once analytics is accepted.
 type ConsentBannerProps = { onConsentChange?: (granted: boolean) => void };
 
 export function ConsentBanner({ onConsentChange }: ConsentBannerProps) {

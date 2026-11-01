@@ -211,11 +211,9 @@ describe("effortsFor", () => {
   });
 
   it("fills a distance the trace missed without discarding the measured ones", () => {
-    // A GPS 5K: the stored trace is jitter-gated and 5 m-simplified, so its
-    // cumulative distance lands just under 5 km and only a 1K window exists.
-    // All-or-nothing fallback left this run with no 5K at all — for good, since
-    // a non-empty stored map also keeps the backfill away — while the very same
-    // run typed in by hand ranked fine.
+    // A GPS 5K: the stored trace is jitter-gated and simplified, so its distance lands just
+    // under 5 km and only a 1K window exists. An all-or-nothing fallback left it with no 5K
+    // for good (a non-empty stored map keeps the backfill away), unlike the same run typed by hand.
     const run: Run = { date: "2026-07-01", km: 5.014, durationSec: 1500, bestEfforts: { "1k": 292 } };
     expect(effortsFor(run)).toEqual({ "1k": 292, "5k": 1496 });
   });

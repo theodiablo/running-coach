@@ -5,14 +5,9 @@ import { VendorGuides } from "./VendorGuides";
 import type { SettingsState } from "../../types";
 
 // Integrations: everything that feeds runs or heart rate in from outside.
-// ConnectionsCard holds the sources we can actually connect to; VendorGuides
-// covers the ones we can only explain (Strava, Zepp) — see its header.
-//
-// This page is the home of file import: it is account admin, not a way to
-// record today's run, so the recording flow (the FAB's RecordSheet) doesn't
-// mention it. The card below is the entry point — the per-vendor buttons inside
-// the guides sit behind a collapsed accordion, which made import feel missing
-// unless you guessed which vendor to expand.
+// ConnectionsCard holds sources we can connect to; VendorGuides covers ones we can only
+// explain (Strava, Zepp). Home of file import (account admin, not the FAB's flow); the
+// entry point is the card below, since collapsed vendor guides made it feel missing.
 type IntegrationsPageProps = {
   settings: SettingsState;
   saveSettings: (settings: SettingsState) => void;

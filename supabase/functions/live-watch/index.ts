@@ -1,27 +1,14 @@
-// live-watch — public read side of live run sharing. Callable WITHOUT a JWT:
-// the share token IS the capability, and being signed in grants nothing extra.
-// It exists instead of a token-scoped RLS policy because live_runs is keyed by
-// user_id (a direct anon read would leak the runner's account UUID for a link
-// meant to expose one run) and RLS cannot see a query parameter. A bad token, a
-// run not yet started, a swept row and a finished run all answer an identical
-// `{ live: false }`, so a crawler learns nothing and only the token's 128 bits
-// stand between them and someone's run. Detail: docs/live-sharing.md.
-//
-// The token is DURABLE (v4): it resolves through `live_share_tokens`, whose
-// rows are kept forever. So the ledger is authoritative for EXISTENCE, not
-// just for activity — a retired token is a terminal "nothing live" and must
-// never fall through to the legacy per-run column below, or replacing a link
-// would hand the old address to whoever squatted that token on their own row.
+// live-watch: public read side of live run sharing, callable WITHOUT a JWT (the share token IS the capability). Not a token-scoped
+// RLS policy: live_runs is keyed by user_id (an anon read would leak the account UUID) and RLS can't see a query parameter. Every
+// "not live" case answers an identical `{ live: false }`. Detail: docs/live-sharing.md.
+// The token is DURABLE (v4, `live_share_tokens`): a retired token is terminal and must never fall through to the legacy per-run column.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
 import { answerEntry, BATCH_MAX_BODY, HEAD_COLUMNS, parseBatchBody, validTokens, wantsFull } from "../_shared/liveWatchBatch.mjs";
 
-// Mirrors RESUME_MAX_AGE_MS / useLiveRun's MAX_AGE_MS on the client. Enforced
-// HERE too, not just in the UI: a row left behind by a phone that never opens
-// the app again is swept by nothing (see docs/live-sharing.md "Known limits"),
-// and a public link must not keep serving someone's route for the rest of time
-// because their battery died. Past this window the link goes dark on its own.
+// Mirrors RESUME_MAX_AGE_MS / useLiveRun's MAX_AGE_MS. Enforced HERE too: a row left by a phone that never reopens the app is
+// swept by nothing (docs/live-sharing.md "Known limits"), so past this window the link goes dark on its own.
 const MAX_AGE_MS = 6 * 3600 * 1000;
 
 // Per-IP request budget. Defence in depth only — the token's entropy is the
@@ -169,11 +156,9 @@ async function readCapped(req: Request, max: number): Promise<string | null> {
 type Row = Record<string, unknown>;
 type Entry = { t: string; full: boolean; since: string | null };
 
-// The batch read: several tokens, one request, one uniform answer per entry in
-// request order. Summaries carry the head, not the trace; a full trace goes only
-// to entries that need one (wantsFull). Three to five statements however many
-// tokens, and any failure fails the whole batch — one runner's error must never
-// read as "not live". Detail: docs/live-sharing.md ("Following several runners").
+// The batch read: several tokens, one request, one uniform answer per entry in request order. Summaries carry the head, not
+// the trace (full only for wantsFull). Any failure fails the whole batch: one runner's error must never read as "not live".
+// Detail: docs/live-sharing.md ("Following several runners").
 async function serveBatch(admin: Admin, entries: Entry[]): Promise<Response> {
   const tokens = validTokens(entries) as string[];
   const gate = { now: Date.now(), maxAgeMs: MAX_AGE_MS };
@@ -285,11 +270,8 @@ Deno.serve(async (req) => {
       .eq("token", token)
       .maybeSingle();
 
-    // The ledger table may not exist yet: functions auto-deploy on push to
-    // main, migrations are applied by hand. Answer "nothing live" rather than
-    // 500 — the closed direction, and the page's normal empty view. A 500 is
-    // read as "couldn't reach it" and retried forever, which would leave every
-    // shared link stuck in an error state for the whole window.
+    // The ledger table may not exist yet (functions auto-deploy, migrations are applied by hand): answer "nothing live", not a
+    // 500, which the page retries forever and leaves every shared link stuck in an error state.
     if (isMissingRelation(claim.error)) {
       console.error("live-watch: live_share_tokens missing — apply the standing-link migration");
       return notLive();

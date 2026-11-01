@@ -8,11 +8,9 @@ import { EFFORT_UNSET, canonicalDur, durToSec, formatDur, normalizeDur, type Run
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
 
-// Two tiers. What a logged run actually needs — when, what, how far, how long —
-// is always visible; heart rate, elevation, effort and notes sit behind one row,
-// because they are usually left empty and used to push Save below the fold. The
-// section opens filled when the form already carries any of them (a watch
-// import, an edit), so nothing arrives hidden.
+// Two tiers: what a run needs (when, what, how far, how long) is always visible;
+// HR, elevation, effort and notes sit behind one row, which opens filled when the
+// form already carries any of them (import, edit) so nothing arrives hidden.
 type RunFieldsProps = {
   form: RunFormValues;
   onChange: (key: keyof RunFormValues, value: string | number) => void;
@@ -54,13 +52,10 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
   // can't collide on them, which would point a label at the wrong input.
   const fid = (name: string) => (phScope === "log.edit" ? "edit-" : "log-") + name;
   const durId = fid("dur");
-  // React restores the caret by index, which lands it before a colon the format
-  // just inserted; put it back at the end once the value settles.
-  //
-  // The frame's delay is long enough for the runner to have selected the field's
-  // contents in the meantime (select-all then retype, the usual way to replace a
-  // prefilled duration on a phone). Collapsing that selection would turn their
-  // replacement into an append, so a range that appeared since is left alone.
+  // React restores the caret by index, landing before a colon the format just
+  // inserted; put it back at the end once the value settles. A range selected in
+  // the meantime (select-all then retype) is left alone, or the replacement would
+  // become an append.
   const pinEnd = () => requestAnimationFrame(() => {
     const el = durRef.current;
     if (!el || el.selectionStart !== el.selectionEnd) return;

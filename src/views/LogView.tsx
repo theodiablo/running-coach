@@ -31,12 +31,10 @@ type LogPrefill = Partial<Run> & {
   celebrated?: boolean;
 };
 
-// The manual run form, and — as its own screen, never alongside it — the file
-// importer. Choosing *how* to record is the RecordSheet's job (the center FAB);
-// this view is only ever reached with that choice already made, so it never
-// offers a recorder. Four arrivals, one title each: entering a run by hand,
-// logging a plan session, reviewing something a recorder just captured
-// (`prefill.source`), and importing a file.
+// The manual run form and, alone on its own screen, the file importer. Never a
+// chooser: RecordSheet settled *how* before arriving, so it offers no recorder.
+// Four arrivals: manual entry, logging a plan session, reviewing a recorder's
+// capture (`prefill.source`), and importing a file.
 type LogViewProps = {
   addRuns: (runs: Partial<Run>[], opts?: { celebrated?: boolean }) => Run[];
   onDone: () => void;
@@ -179,11 +177,9 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
   // Two ways to get here — the runner picked the session (wNum/sId), or the app
   // matched one to the run and is offering it.
   const linked = prefill?.session && !(prefill.sessionOffered && declined) ? prefill.session : null;
-  // Re-checked against the FORM, not the prefill: the runner can still change
-  // the date and the type, and a prefilled link that no longer fits must let go
-  // rather than tick off a tempo with a bike ride. Read at render, so the
-  // banner disappears the moment the edit invalidates it instead of the save
-  // quietly doing something the screen still promises.
+  // Re-checked against the FORM, not the prefill: the runner can change the date and
+  // type, and a link that no longer fits must let go rather than tick off a tempo with
+  // a bike ride. Read at render so the banner disappears the moment an edit invalidates it.
   const fits = !!linked && runFitsSession(linked, {date: f.date, type: f.type});
   const session = linked && fits ? linked : null;
   const offered = session && prefill?.sessionOffered ? session : null;

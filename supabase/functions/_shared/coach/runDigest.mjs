@@ -1,8 +1,7 @@
-// Server-side run-detail digest for the coach agent's get_run_detail tool:
-// collapses a run_routes row into a ~1-2KB coordinate-free summary (splits, HR
-// zones, downsampled series). Ports src/utils/{geo,runSeries,runSplits,hr}.ts —
-// keep in sync (parity-tested by runDigest.test.ts). flattenTrack structurally
-// never emits lat/lng, so a digest cannot leak location. Plain ESM, no imports.
+// Server-side run-detail digest for get_run_detail: collapses a run_routes row into a
+// ~1-2KB coordinate-free summary. Ports src/utils/{geo,runSeries,runSplits,hr}.ts; keep in
+// sync (runDigest.test.ts). flattenTrack never emits lat/lng, so a digest cannot leak
+// location. Plain ESM, no imports.
 
 const R = 6371000; // Earth's mean radius, metres
 const rad = (d) => (d * Math.PI) / 180;
@@ -46,12 +45,10 @@ export function flattenTrack(points, jitterM = 3) {
   return out;
 }
 
-// Port of geo.ts elevGainM over already-flattened rows (alt-only, ±minM
-// hysteresis band; null altitudes skipped). geo.ts resets the band at `null`
-// gap markers; flattenTrack drops those, so here a row with segStart (the
-// first fix after a gap) resets instead — same semantics. Rows without a
-// segStart field (per-split slices) never reset, matching buildSplits' use of
-// gap-free coordinate objects.
+// Port of geo.ts elevGainM over flattened rows (alt-only, +/-minM hysteresis; null
+// altitudes skipped). geo.ts resets the band at `null` gap markers; flattenTrack drops
+// those, so a row with segStart resets instead. Rows without segStart (per-split slices)
+// never reset, matching buildSplits.
 export function elevGainM(rows, minM = 5) {
   let gain = 0, prev = null;
   for (const r of rows) {

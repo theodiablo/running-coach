@@ -9,18 +9,10 @@ import {
 } from "../healthkit/import";
 import { flushPendingHrFor, type PatchHr, type PendingHrRun } from "./pending";
 
-// Post-run heart-rate source: read a tracked run's HR from Apple Health — the
-// iOS mirror of healthConnectSource, for users whose watch syncs HR into Health
-// (Apple Watch natively; Garmin/Polar/… via their companion apps) without a
-// live BLE stream. Implements the same PostRunHrSource contract; useRunTracker
-// never streams from it — LiveRunTracker calls fetchRange once on save, with
-// the deferred flushPendingHkHr retry because the watch may not have synced yet.
-//
-// Authorization semantics differ from Health Connect on purpose: HealthKit
-// never reveals READ authorization, so checkPermissions reports the local
-// marker (set by the completed request flow) instead of probing the OS, and
-// nothing ever clears the marker based on a probe — only availability failure
-// does. An unauthorized read simply comes back empty and stays hrPending.
+// Post-run HR source reading a tracked run's HR from Apple Health: the iOS mirror of healthConnectSource (same
+// PostRunHrSource contract). LiveRunTracker calls fetchRange once on save, with a deferred flushPendingHkHr retry.
+// HealthKit never reveals READ authorization: checkPermissions reports the local marker and only availability failure
+// clears it; an unauthorized read comes back empty and stays hrPending.
 export const healthKitSource = {
   id: "healthkit" as const,
   live: false as const,
@@ -52,11 +44,8 @@ export const healthKitSource = {
   },
 };
 
-// Deferred relink for HealthKit pending markers — the iOS sibling of
-// flushPendingHr, called alongside it at the same RunningCoach call sites
-// (boot + foreground). HealthKit markers live in the separate `hrPendingHk`
-// run field: shipped Android builds clear any `hrPending` with an unknown
-// source, so an iOS marker there would be destroyed through the synced blob.
+// Deferred relink for HealthKit pending markers (iOS sibling of flushPendingHr, same call sites). Markers live in the
+// separate `hrPendingHk` field: shipped Android builds clear any `hrPending` with an unknown source.
 export async function flushPendingHkHr(
   runs: PendingHrRun[],
   patch: PatchHr,

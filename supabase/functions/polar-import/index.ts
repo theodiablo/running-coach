@@ -1,8 +1,7 @@
-// polar-import — server side of the Polar (AccessLink) cloud import: holds the
-// OAuth secret and the user's token, never returned to the client. Actions:
-// status, exchange, sync, disconnect. Can't be exercised in CI (live Polar
-// cloud) — verify end-to-end after registering a Polar app.
-// Architecture, actions, deploy/secrets: docs/integrations-polar.md.
+// polar-import: server side of the Polar (AccessLink) cloud import; holds the OAuth
+// secret and user token, never returned to the client. Actions: status, exchange,
+// sync, disconnect. Not CI-testable (live Polar); verify end-to-end after registering
+// an app. Architecture, deploy/secrets: docs/integrations-polar.md.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 
@@ -68,15 +67,10 @@ async function registerUser(token: string, memberId: string, xUserId?: number): 
 
 type PolarExercise = { id: string; summary: unknown; gpx: string | null };
 
-// One exercise's summary + GPX (route + HR extensions). Three outcomes:
-//   - a PolarExercise      → fetched OK (GPX 404 for an indoor run → gpx:null,
-//                            still importable from the summary).
-//   - "retry"              → a TRANSIENT failure (network / 5xx) worth retrying
-//                            next sync; the caller must NOT commit the transaction.
-//   - null                 → a TERMINAL, non-retryable exercise (4xx gone, or a
-//                            malformed / id-less summary). Skip it, but it must
-//                            NOT block the commit — otherwise one bad exercise
-//                            wedges the whole transaction forever.
+// One exercise's summary + GPX. Outcomes: a PolarExercise (GPX 404 for indoor gives
+// gpx:null, still importable); "retry" for a TRANSIENT failure (network/5xx), where
+// the caller must NOT commit; null for a TERMINAL bad exercise (4xx gone, malformed),
+// which is skipped but must NOT block the commit or it wedges the transaction forever.
 async function fetchExercise(token: string, uri: string): Promise<PolarExercise | null | "retry"> {
   const auth = { "Authorization": `Bearer ${token}` };
   let summaryRes: Response;
@@ -135,11 +129,9 @@ async function pullExercises(token: string, polarUserId: string) {
     // else (null): terminal-unusable (gone / malformed) — skip, but do NOT treat
     // it as a reason to hold the transaction open.
   }
-  // Advance Polar's "new" cursor UNLESS a transient failure means a retry could
-  // still surface more. Terminal-bad exercises are deliberately not a reason to
-  // hold the transaction open — that would re-list the whole set every sync
-  // forever and let one bad exercise wedge all the good ones. Client-side extId
-  // dedupe drops anything already saved, so committing after a clean pass is safe.
+  // Advance Polar's "new" cursor UNLESS a transient failure means a retry could still
+  // surface more. Terminal-bad exercises must not hold it open (they would re-list the
+  // set every sync); client-side extId dedupe makes committing after a clean pass safe.
   if (!anyRetryable) await fetch(txUrl, { method: "PUT", headers: auth }).catch(() => {});
   return exercises;
 }

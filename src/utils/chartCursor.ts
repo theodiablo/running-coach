@@ -1,10 +1,7 @@
-// Map a recharts mouse-event chart state to the active data index, or null.
-//
-// recharts v3 reports `activeTooltipIndex` as a STRING for Line/Area/Composed
-// charts (`combineActiveTooltipIndex` returns `String(clampedIndex)`), so a bare
-// `typeof === "number"` check is ALWAYS false and would leave a chart→map cursor
-// permanently null. Coerce and validate to the numeric index (which aligns 1:1
-// with the flattened track in RunDetailModal), or null. Pure + unit-tested.
+// Map a recharts mouse-event chart state to the active data index, or null. recharts v3
+// reports `activeTooltipIndex` as a STRING for Line/Area/Composed charts, so a bare
+// `typeof === "number"` check is always false and leaves the chart-to-map cursor null.
+// Coerce and validate (index aligns 1:1 with the flattened track). Pure.
 export function activeIndexFromChartState(
   s: { activeTooltipIndex?: number | string | null } | null | undefined,
 ): number | null {

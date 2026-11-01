@@ -1,9 +1,6 @@
-// In-DOM confirm for the share-link decisions (never window.confirm — see
-// CLAUDE.md). Registers its own useDismissable so Android back and web Escape
-// close it, and so the header's go-Home reset can clear it. Shared by the
-// recorder and Settings → Account: replacing a link is the same act, and the
-// moment someone wants to cut a person off is rarely the moment they are
-// about to run.
+// In-DOM confirm for the share-link decisions (never window.confirm). Registers its own
+// useDismissable so Android back / Escape close it and go-Home can clear it. Shared by the
+// recorder and Settings → Account: replacing a link is the same act in both.
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { ModalOverlay, ConfirmButtons } from "./ModalPrimitives";
