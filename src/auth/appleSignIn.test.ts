@@ -19,8 +19,17 @@ async function load({ isNative = true, isIos = true }: Env = {}) {
     AUTH_DEEP_LINK: "solutions.camboulive.run://auth-callback",
     NATIVE_BUNDLE_ID: "solutions.camboulive.run",
   }));
-  vi.doMock("@capacitor-community/apple-sign-in", () => ({ SignInWithApple: { authorize } }));
+  vi.doMock("@capacitor-community/apple-sign-in", () => ({ SignInWithApple: capacitorProxy({ authorize }) }));
   return await import("./appleSignIn");
+}
+
+// Like registerPlugin's proxy: every property is a method, `then` included, and an
+// unknown one rejects without calling back, so a promise resolved with it hangs.
+function capacitorProxy(methods: Record<string, unknown>) {
+  return new Proxy({}, {
+    get: (_, prop) => methods[prop as string]
+      ?? (() => Promise.reject(new Error(`"SignInWithApple.${String(prop)}()" is not implemented on ios`))),
+  });
 }
 
 // Identities listed oldest sign-in first; the last one is what this session used.

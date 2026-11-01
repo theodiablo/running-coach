@@ -444,8 +444,16 @@ the device, an iPad presentation quirk) returns `null` from
 `nativeAppleSignIn` and `LoginScreen` opens the same OAuth flow the web uses.
 A Supabase rejection of the token is still shown. Review tests on an **iPad**
 even though the app is iPhone-only (`TARGETED_DEVICE_FAMILY = 1`): it runs
-there in compatibility mode, and an Apple sign-in error on it rejected 1.19.4
-under 2.1(a). The plugin is patched (`docs/live-tracking.md`, patches).
+there in compatibility mode. The plugin is patched (`docs/live-tracking.md`,
+patches).
+
+**The plugin is handed around boxed (`{ plugin }`), never as a promise's value.**
+A Capacitor plugin is a proxy that answers *every* property, `then` included, so
+`async` returning it (or `.then(m => m.SignInWithApple)`) makes the promise call
+`SignInWithApple.then()`, which rejects as "not implemented" and never settles:
+the tap paints the crash overlay and nothing reaches the server. That, not the
+iPad sheet, rejected 1.19.4 and 1.21.4 under 2.1(a). The unit test mocks the
+plugin as such a proxy; a plain-object mock hides the bug.
 
 The `com.apple.developer.applesignin` entitlement only works if the App ID grants
 the capability; `ios-appstore-profile.mjs` preflights that, since a profile

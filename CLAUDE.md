@@ -493,6 +493,11 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   default is `baseline-widely-available` (= ios16.4), so the target is pinned in
   `vite.config.ts` and `src/iosCompat.test.ts` fails CI if the two drift. It
   lowers *syntax* only — no regex feature is ever lowered, and no API polyfilled.
+- **Never resolve a promise with a Capacitor plugin proxy** (`async` returning
+  it, `.then(m => m.Plugin)`): the proxy answers `then`, so the promise calls
+  `Plugin.then()`, which rejects as unimplemented and never settles. Box it
+  (`{ plugin }`, as `getHealthConnect` does), and mock plugins in tests as a
+  proxy, since a plain object hides it (`docs/release.md`, Sign in with Apple).
 - Detail, including the hard-won permission/signing/build gotchas:
   `docs/live-tracking.md` (GPS, shells, R8, patches),
   `docs/health-integrations.md` (HR, watch/file/cloud imports),
