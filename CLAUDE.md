@@ -543,7 +543,10 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `points` is the simplified `[lat,lng,t,alt]` array (null = gap marker),
   `stats` is `{km, durationSec, elevation, avgPace}` plus the free-form
   sidecar (e.g. `hrSamples`, stored compacted: read it through
-  `expandHrSamples`, never raw).
+  `expandHrSamples`, never raw). Manual pauses ride `stats.pauses`, and any
+  trace analysis reads the trace through `tracePausesRemoved`
+  (`src/utils/pauses.ts`) so it is on the run's moving clock
+  (`docs/run-analysis.md`).
 - **Plan:** `buildPlan(...)` → `{..., weeks:[{weekNumber, startDate, phase,
   sessions:[{id, date, type, desc, km, pace, done}]}]}`. Session types: EASY,
   TEMPO, INTERVALS, LONG, RACE, WALK, OTHER.
@@ -737,7 +740,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/races.md` — race catalogue, contributions, badges.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/run-celebration.md` — the finish-screen celebration: headline pools, own-log facts, the rare draw.
-- `docs/run-analysis.md` — the running-only (run/walk) breakdown on a run's detail screen.
+- `docs/run-analysis.md` — the moving clock (paused time out of splits and pace) and the running-only (run/walk) breakdown.
 - `docs/hr-zones.md` — the zone method, its inputs, what the bands do and don't claim.
 - `docs/race-predictions.md` — the two race projections, the HR model's prior, gating.
 - `docs/coach-agent.md` — coach architecture, validator, evals, resiliency.

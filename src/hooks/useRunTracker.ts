@@ -18,6 +18,8 @@ import { t } from "../i18n";
 import { currentUserId } from "../db";
 import type { BleHrSample, BleWatchHandle, BleWatchStatus } from "../hr/ble";
 import type { StoredTrackPoint } from "../utils/geo";
+import { closePauses } from "../utils/pauses";
+import type { OpenPause, PauseWindow } from "../utils/pauses";
 
 // Live GPS run tracker. All geolocation goes through this hook so a native shell can swap
 // the watch behind the same interface. A point is [lat, lng, tEpochMs, altMeters|null];
@@ -133,6 +135,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   const runStartRef = useRef<number | null>(null); // wall-clock run start (whole run, incl. pauses)
   const runEndRef = useRef<number | null>(null);   // wall-clock run stop — the Health Connect fetch window
   const accRef = useRef(0);        // completed moving seconds
+  const pausesRef = useRef<OpenPause[]>([]); // located pauses, so analysis can drop them (utils/pauses.ts)
   const startRef = useRef<number | null>(null);   // epoch ms the current active segment began
   const watchRef = useRef<GeoWatchHandle | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
@@ -148,7 +151,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   const persist = useCallback(() => {
     try {
       localStorage.setItem(bufferKey, JSON.stringify({
-        points: pointsRef.current, accSec: accRef.current, hrSamples: hrSamplesRef.current,
+        points: pointsRef.current, accSec: accRef.current, hrSamples: hrSamplesRef.current, pauses: pausesRef.current,
         startAt: startRef.current, startedAt: runStartRef.current, stoppedAt: runEndRef.current,
         state: stateRef.current, savedAt: Date.now(), userId: currentUserId(),
       }));
@@ -329,6 +332,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     setHrSamples([]);
     lastHrPersistRef.current = 0;
     accRef.current = 0;
+    pausesRef.current = [];
     startRef.current = Date.now();
     runStartRef.current = Date.now();
     runEndRef.current = null;
@@ -356,6 +360,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     if (stateRef.current !== "tracking") return;
     if (startRef.current) accRef.current += (Date.now() - startRef.current) / 1000;
     startRef.current = null;
+    pausesRef.current = [...pausesRef.current, [Date.now(), null]];
     stateRef.current = "paused";
     setState("paused");
     logTrack("pause");
@@ -373,6 +378,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   const resume = useCallback(() => {
     if (stateRef.current !== "paused") return;
     startRef.current = Date.now();
+    pausesRef.current = closePauses(pausesRef.current, startRef.current);
     if (watchRef.current == null) startWatch();
     stateRef.current = "tracking";
     setState("tracking");
@@ -392,6 +398,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
       accRef.current += (Date.now() - startRef.current) / 1000;
     startRef.current = null;
     runEndRef.current = Date.now();
+    pausesRef.current = closePauses(pausesRef.current, runEndRef.current);
     stopWatch();
     stopHrWatch();
     // Stop journalling but keep the contents — handleSave still has to read them.
@@ -419,6 +426,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     setHrLast(null);
     lastHrPersistRef.current = 0;
     accRef.current = 0;
+    pausesRef.current = [];
     startRef.current = null;
     runStartRef.current = null;
     runEndRef.current = null;
@@ -446,6 +454,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
       hrSamplesRef.current = buf.hrSamples || [];
       setHrSamples(hrSamplesRef.current);
       accRef.current = buf.accSec || 0;
+      pausesRef.current = buf.pauses;
       runStartRef.current = buf.startedAt || null; // preserve the run window across a crash
       runEndRef.current = null;
       startRef.current = null;
@@ -650,6 +659,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // Wall-clock run window, read on demand from an event handler (never during
     // render) — used by handleSave to scope the Health Connect HR fetch.
     runWindow: () => ({ startedAt: runStartRef.current, stoppedAt: runEndRef.current }),
+    pauses: (): PauseWindow[] => closePauses(pausesRef.current, Date.now()) as PauseWindow[],
     start, pause, resume, stop, reset, requestPermissions,
     resumePrevious, discardPrevious, finalize,
   };

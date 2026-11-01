@@ -9,6 +9,7 @@ import type { TrackPointOrGap } from "./geo";
 import { buildRunSeries } from "./runSeries";
 import { compactHrSamples, expandHrSamples } from "./hr";
 import { buildSplits } from "./runSplits";
+import { readPauses, samplesPausesRemoved, tracePausesRemoved } from "./pauses";
 import { timeInZones, effectiveMaxHR } from "./hr";
 
 const T0 = 1_700_000_000_000;
@@ -107,6 +108,23 @@ describe("runDigest.mjs parity with the TS originals", () => {
       expect(s.avgHr).toBe(ref[i].avgHr);
     });
     expect(digest.idleBounds(idle)).toMatchObject({ depart: 3, arrive: 2003 });
+  });
+
+  it("pause removal parity: trace, HR samples and the splits read off them", () => {
+    const pauses = [[T0 + 200_000, T0 + 380_000], [T0 + 300_000, T0 + 420_000], [T0 + 800_000, T0 + 830_000], [T0 + 2_000_000, T0 + 1_000]];
+    const ref = readPauses(pauses);
+    expect(digest.readPauses(pauses)).toEqual(ref);
+    const ours = digest.tracePausesRemoved(track, digest.readPauses(pauses));
+    expect(ours).toEqual(tracePausesRemoved(track, ref));
+    expect(digest.samplesPausesRemoved(hrStream, ref)).toEqual(samplesPausesRemoved(hrStream, ref));
+    expect(digest.buildSplitRows(ours, hrStream).map((s: { paceSecPerKm: number }) => s.paceSecPerKm))
+      .toEqual(buildSplits(tracePausesRemoved(track, ref), hrStream).map(s => s.paceSecPerKm));
+  });
+
+  it("buildRunDigest reads splits on the moving clock when the route carries pauses", () => {
+    const paused = digest.buildRunDigest({ run: { id: "r", date: "2026-07-20" }, points: track, stats: { pauses: [[T0 + 200_000, T0 + 380_000]] }, settings: {} });
+    const plain = digest.buildRunDigest({ run: { id: "r", date: "2026-07-20" }, points: track, stats: {}, settings: {} });
+    expect(paused.splits[0].p).toBeLessThan(plain.splits[0].p);
   });
 
   it("timeInZones and effectiveMaxHR parity", () => {

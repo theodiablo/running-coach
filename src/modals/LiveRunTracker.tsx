@@ -4,6 +4,7 @@ import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search
 import { fmt, ymd } from "../utils/format";
 import { ROUTE_SIMPLIFY_M, distanceKm, simplify } from "../utils/geo";
 import { trimIdleEnds } from "../utils/idleEdges";
+import { tracePausesRemoved } from "../utils/pauses";
 import { saveRoute, queuePendingRoute } from "../routes";
 import { canPublishNow, endLiveRun, publishLiveRun, resetLivePublisher, sweepOwnLiveRun } from "../live/publisher";
 import { mintPublishToken, readPublishToken, storePublishToken } from "../live/publishToken";
@@ -296,7 +297,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       durationSec: cut.durationSec,
       elevation: stats.elevation, source: "gps", bestEfforts: bestEffortsFromTrack(simplified),
     };
-    const c = celebrate({ run, runs, points: simplified, session, at: new Date(startedAt || firstAt) });
+    const c = celebrate({ run, runs, points: tracePausesRemoved(simplified, rt.pauses()), session, at: new Date(startedAt || firstAt) });
     if (!c) return;
     celebratedRef.current = true;
     setCelebration({ c, run });
@@ -584,8 +585,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       startMs: startedAt || points.find(Boolean)?.[2] || Date.now(), endMs,
     });
     const hrSamples = resolved.samples;
+    const pauses = rt.pauses();
     const statObj = { km, durationSec: runSec, elevation: stats.elevation, avgPace: Math.round(avgPace),
-      ...(hrSamples.length ? { hrSamples } : {}) };
+      ...(hrSamples.length ? { hrSamples } : {}), ...(pauses.length ? { pauses } : {}) };
     const date = ymd(new Date(points.find(Boolean)?.[2] || Date.now()));
     let routeId = null, routeTmp = null;
     try {

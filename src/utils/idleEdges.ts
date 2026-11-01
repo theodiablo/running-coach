@@ -73,8 +73,8 @@ export function idleEdgesSec(points: TrackPointOrGap[], startedAt: number | null
   };
 }
 
-// Moving seconds minus the idle ends. Manual pauses aren't located in time,
-// so their total is credited against the trim: never trims a second twice.
+// Moving seconds minus the idle ends. The paused total is credited against the
+// trim, so a second is never trimmed twice.
 export function trimmedMovingSec(movingSec: number, points: TrackPointOrGap[], startedAt: number | null, stoppedAt: number | null) {
   const { leadSec, tailSec } = idleEdgesSec(points, startedAt, stoppedAt);
   if (!startedAt || !stoppedAt) return { durationSec: movingSec, trimmedSec: 0 };

@@ -247,6 +247,23 @@ describe("useRunTracker — moving-time accounting", () => {
     expect(result.current.stats.movingSec).toBe(15); // 10 + 5, paused gap excluded
   });
 
+  it("locates each pause, closing one still open at stop, and persists them for recovery", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.start());
+    vi.setSystemTime(START + 10_000);
+    act(() => result.current.pause());
+    vi.setSystemTime(START + 15_000);
+    act(() => result.current.resume());
+    vi.setSystemTime(START + 20_000);
+    act(() => result.current.pause());
+    expect(JSON.parse(localStorage.getItem(LIVE_RUN_KEY)!).pauses).toEqual([[START + 10_000, START + 15_000], [START + 20_000, null]]);
+    vi.setSystemTime(START + 26_000);
+    act(() => result.current.stop());
+    expect(result.current.pauses()).toEqual([[START + 10_000, START + 15_000], [START + 20_000, START + 26_000]]);
+    act(() => result.current.reset());
+    expect(result.current.pauses()).toEqual([]);
+  });
+
   it("advances the clock with each accepted fix, not only on the (throttled) tick", () => {
     const { result } = renderHook(() => useRunTracker());
     act(() => result.current.start());
@@ -307,6 +324,12 @@ describe("useRunTracker — recovery buffer", () => {
     expect(result.current.stats.movingSec).toBe(42);
     // The pre-crash run window is preserved.
     expect(result.current.runWindow().startedAt).toBe(START);
+    // Off the clock from the crash until the runner taps Resume.
+    vi.setSystemTime(START + 60_000);
+    act(() => result.current.resume());
+    const [[from, to]] = result.current.pauses();
+    expect(to).toBe(START + 60_000);
+    expect(from).toBeLessThan(to);
   });
 
   it("discardPrevious clears both pending and the stored buffer", () => {
