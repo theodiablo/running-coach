@@ -82,6 +82,13 @@ describe("normalizeRecovery", () => {
     expect(norm.accSec).toBe(42 + 60);
   });
 
+  it("carries the recorded pauses and puts the downtime off the clock until Resume", () => {
+    const norm = normalizeRecovery(buffer({ accSec: 42, startAt: START - 57_000, pauses: [[START - 200_000, START - 150_000]] }));
+    expect(norm.pauses).toEqual([[START - 200_000, START - 150_000], [START + 3_000, null]]);
+    const paused = normalizeRecovery(buffer({ state: "paused", startAt: null, pauses: [[START - 10_000, null]] }));
+    expect(paused.pauses).toEqual([[START - 10_000, null]]);
+  });
+
   it("leaves accSec alone for a paused buffer (no open segment)", () => {
     const norm = normalizeRecovery(buffer({ state: "paused", startAt: null }));
     expect(norm.accSec).toBe(42);

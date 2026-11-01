@@ -1,4 +1,4 @@
-# Run analysis: the running-only breakdown
+# Run analysis: the moving clock and the running-only breakdown
 
 A run/walk session's average pace describes neither half of it. `RunDetailModal`
 answers "how fast was the *running*?" with a **Running only** card: pace,
@@ -44,3 +44,32 @@ its 3 m jitter floor, so very tightly sampled fixes contribute no distance at al
 reason. Cadence is *not* part of this card: cadence is never stored on a run (it
 only exists on the live-share payload from an external sensor), so there is
 nothing to break down.
+
+## Paused time is not run time
+
+Splits, the pace chart, the run/walk card and the coach's `get_run_detail`
+digest all read the trace on the **moving clock**, the same clock the run's
+duration is. Wall-clock timestamps would put every pause into the km it fell
+in: an interval runner who pauses for recoveries got 7:40 splits on a 4:35/km
+run, with splits adding up to 11 minutes more than the run's own time.
+
+- **Pauses are recorded, not detected.** `useRunTracker` stamps each
+  Pause→Resume as `[pausedAt, resumedAt]` (a crash recovery adds one from where
+  the clock stopped until Resume), the recovery buffer persists them, and the
+  save writes them to the route sidecar as `stats.pauses`. GPS stops with the
+  clock running are not pauses and are never inferred as such: a walking
+  recovery is part of the session.
+- **One transform, applied where the trace is loaded**: `tracePausesRemoved` /
+  `samplesPausesRemoved` (`src/utils/pauses.ts`, ported in `runDigest.mjs`)
+  shift every fix and HR sample back by the time paused before it, and cut the
+  track (a gap marker) where a pause fell between two fixes, so no pace is
+  measured across one. Analysis code stays clock-agnostic; new trace analysis
+  goes through the transform rather than handling pauses itself.
+- **Distance is untouched.** Fixes are dropped while paused, so ground covered
+  then is the straight-line gap bridge, which still counts (the one distance
+  definition) but now costs no time. Walking far while paused therefore makes
+  that km read fast; a stop barely moves.
+- **Best efforts stay on wall time**, extracted at save from the raw trace: a
+  pause can only make an effort slower, never invent one.
+- Runs saved before `stats.pauses` existed have no located pauses and read as
+  before.

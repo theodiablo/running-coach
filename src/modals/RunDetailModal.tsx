@@ -8,6 +8,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import { useRouteTrace } from "../hooks/useRouteTrace";
 import { buildRunSeries } from "../utils/runSeries";
 import { buildSplits } from "../utils/runSplits";
+import { readPauses, samplesPausesRemoved, tracePausesRemoved } from "../utils/pauses";
 import { runWalkBreakdown } from "../utils/runSegments";
 import { rankRunEfforts } from "../utils/bestEfforts";
 import { timeInZones, effectiveMaxHR, hrCoverage, expandHrSamples, HR_ZONES, zonePercents } from "../utils/hr";
@@ -53,8 +54,10 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
   // each toggle-chip click, and these scans are O(points)+O(HR samples); a
   // multi-hour run has thousands of each.
   const derived = useMemo(() => {
-    const points = (route?.points ?? []) as unknown as TrackPointOrGap[];
-    const expanded = expandHrSamples(route?.stats?.hrSamples as HrSample[] | undefined);
+    // Analysed on the moving clock: a paused stretch is no km's time and no pace (utils/pauses.ts).
+    const pauses = readPauses(route?.stats?.pauses);
+    const points = tracePausesRemoved((route?.points ?? []) as unknown as TrackPointOrGap[], pauses);
+    const expanded = samplesPausesRemoved(expandHrSamples(route?.stats?.hrSamples as HrSample[] | undefined), pauses);
     const hrSamples = expanded.length ? expanded : null;
     const series = points.length ? buildRunSeries(points, hrSamples) : [];
     return {

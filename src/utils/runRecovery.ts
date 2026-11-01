@@ -1,6 +1,8 @@
 import { LIVE_RUN_KEY } from "../constants";
 import { currentUserId } from "../db";
 import type { StoredTrackPoint } from "./geo";
+import { recoveredPauses } from "./pauses";
+import type { OpenPause } from "./pauses";
 
 // The live-run recovery buffer (localStorage, see useRunTracker's persist) read and
 // normalized in ONE place, shared by the resume offer and the app-wide "interrupted run"
@@ -18,6 +20,7 @@ export type RecoveryBuffer = {
   points?: TrackPointOrGap[];
   hrSamples?: HrSample[];
   accSec?: number;
+  pauses?: unknown;
   startAt?: number | null;
   startedAt?: number | null;
   stoppedAt?: number | null;
@@ -33,6 +36,7 @@ export type RecoveredRun = {
   points: TrackPointOrGap[];
   hrSamples: HrSample[];
   accSec: number;
+  pauses: OpenPause[];
   startedAt: number | null;
   savedAt: number;
 };
@@ -95,6 +99,7 @@ export function normalizeRecovery(buf: RecoveryBuffer, journal: StoredTrackPoint
     points: kept,
     hrSamples: Array.isArray(buf.hrSamples) ? buf.hrSamples : [],
     accSec: (buf.accSec || 0) + openSegmentSec,
+    pauses: recoveredPauses(buf.pauses, buf.state === "stopped" && buf.stoppedAt ? buf.stoppedAt : endT),
     startedAt: buf.startedAt || null,
     savedAt: buf.savedAt || 0,
   };

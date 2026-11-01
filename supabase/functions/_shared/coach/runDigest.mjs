@@ -1,5 +1,5 @@
 // Server-side run-detail digest for get_run_detail: collapses a run_routes row into a
-// ~1-2KB coordinate-free summary. Ports src/utils/{geo,runSeries,runSplits,hr}.ts; keep in
+// ~1-2KB coordinate-free summary. Ports src/utils/{geo,pauses,runSeries,runSplits,hr}.ts; keep in
 // sync (runDigest.test.ts). flattenTrack never emits lat/lng, so a digest cannot leak
 // location. Plain ESM, no imports.
 
@@ -27,6 +27,44 @@ function altitudeGate() {
     lastAlt = alt; lastT = t;
     return true;
   };
+}
+
+// Port of pauses.ts (readPauses, pausedMsBefore, tracePausesRemoved, samplesPausesRemoved):
+// analysis runs on the moving clock, a pause between two fixes becoming a gap marker.
+export function readPauses(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((w) => Array.isArray(w) && w.length >= 2 && Number.isFinite(w[0]) && Number.isFinite(w[1]) && w[1] > w[0])
+    .map((w) => [Number(w[0]), Number(w[1])])
+    .sort((a, b) => a[0] - b[0]);
+}
+
+function pausedMsBefore(pauses, t) {
+  let ms = 0;
+  for (const [a, b] of pauses) {
+    if (a >= t) break;
+    ms += Math.min(b, t) - a;
+  }
+  return ms;
+}
+
+export function tracePausesRemoved(points, pauses) {
+  if (!pauses.length) return points;
+  const out = [];
+  let prevT = null;
+  for (const p of points) {
+    if (!p) { if (out.length && out[out.length - 1] != null) out.push(null); continue; }
+    const t = Number(p[2]);
+    if (prevT != null && out[out.length - 1] != null && pauses.some(([a, b]) => a < t && b > prevT)) out.push(null);
+    out.push([p[0], p[1], t - pausedMsBefore(pauses, t), p[3] ?? null]);
+    prevT = t;
+  }
+  return out;
+}
+
+export function samplesPausesRemoved(samples, pauses) {
+  if (!pauses.length) return samples;
+  return samples.map((s) => ({ ...s, t: s.t - pausedMsBefore(pauses, s.t) }));
 }
 
 // Port of geo.ts flattenTrack (walkTrack: jitter-gated, gaps bridged by the
@@ -361,8 +399,9 @@ const round2 = (x) => Math.round(x * 100) / 100;
 // Degenerate inputs produce a header + explanatory `notes`, never a throw.
 // `today` is optional (tests inject it for deterministic Tanaka age fallback).
 export function buildRunDigest({ run, points, stats, settings, today = undefined }) {
-  const pts = Array.isArray(points) ? points : [];
-  const hrSamples = expandHrSamples(Array.isArray(stats?.hrSamples) ? stats.hrSamples : []);
+  const pauses = readPauses(stats?.pauses);
+  const pts = tracePausesRemoved(Array.isArray(points) ? points : [], pauses);
+  const hrSamples = samplesPausesRemoved(expandHrSamples(Array.isArray(stats?.hrSamples) ? stats.hrSamples : []), pauses);
   const maxHR = effectiveMaxHR(settings ?? {}, today);
   const restHR = (settings?.restHR) || 60; // match every other zone call site's fallback
 
