@@ -95,7 +95,8 @@ const clip = (s, n) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 // Email for one PostHog error-tracking alert. Only links back to PostHog itself.
 export function formatCrashAlert(body) {
-  const kind = KINDS[body?.kind] ? body.kind : "created";
+  const raw = String(body?.kind ?? "").replace(/^\$error_tracking_issue_/, "");
+  const kind = KINDS[raw] ? raw : "created";
   const name = clip(body?.name, 150) || "(unnamed crash)";
   const description = clip(body?.description, 1000);
   const url = String(body?.url ?? "");

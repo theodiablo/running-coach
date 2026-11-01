@@ -78,6 +78,7 @@ describe("formatCrashAlert", () => {
     expect(formatCrashAlert({ kind: "spiking", name: "x", events: "12", baseline: "1" }).text)
       .toContain("Reports in the last 5 minutes: 12 (baseline 1)");
     expect(formatCrashAlert({ kind: "bogus", name: "x" }).subject).toContain("new crash");
+    expect(formatCrashAlert({ kind: "$error_tracking_issue_reopened", name: "x" }).subject).toContain("crash is back");
   });
 });
 
