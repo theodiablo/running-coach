@@ -19,6 +19,7 @@
 import crypto from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkBuildCrashes } from "../supabase/functions/_shared/crashes.mjs";
 
 const API = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications";
 const SCOPE = "https://www.googleapis.com/auth/androidpublisher";
@@ -117,6 +118,11 @@ async function main(env) {
     const source = await call("GET", `edits/${edit}/tracks/${from}`);
     const target = await call("GET", `edits/${edit}/tracks/${to}`).catch(() => ({ track: to, releases: [] }));
     const picked = pickRelease(source, env.VERSION_CODE?.trim());
+    if (to === "production") {
+      for (const code of picked.versionCodes) {
+        await checkBuildCrashes(env, { build: code, os: "Android", buildLabel: `${picked.name ?? "versionCode"} (${code})` });
+      }
+    }
     const notes = releaseNotesFromInput(env.RELEASE_NOTES, env.RELEASE_NOTES_LANGUAGE?.trim() || "en-US");
     const release = notes ? { ...picked, releaseNotes: notes } : picked;
     const releases = promotedReleases(release, target, {

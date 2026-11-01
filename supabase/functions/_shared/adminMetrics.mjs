@@ -3,6 +3,7 @@
 // (src/utils/adminMetrics.test.ts). docs/product-metrics.md.
 
 import { jwtClaims } from "./appleAuth.mjs";
+import { formatCrashSection } from "./crashes.mjs";
 
 // USD per million tokens, Anthropic list price. Ignores prompt caching, so the
 // figure is an estimate; a model missing here is reported as unpriced, never
@@ -62,7 +63,7 @@ function unpricedNote(tokens, model) {
   return `${model}, ${tokens?.all?.[model]?.rounds ?? 0} turns, ${scope}`;
 }
 
-export function formatDigest(m) {
+export function formatDigest(m, { crashes = null } = {}) {
   const day = String(m.generated_at).slice(0, 10);
   const cost = Object.fromEntries(
     ["7d", "30d", "all"].map((w) => [w, estimateCost(m.coach.tokens?.[w])]),
@@ -117,6 +118,7 @@ export function formatDigest(m) {
           row("By flyer", tally(m.qr.by_src_total)),
         ]
       : []),
+    ...formatCrashSection(crashes),
   ];
   return { subject: `Running Coach - weekly metrics (${day})`, text: lines.join("\n") + "\n" };
 }

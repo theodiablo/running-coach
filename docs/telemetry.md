@@ -260,6 +260,31 @@ choice either way.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 
+## Hearing about crashes
+
+A crash report that lands in PostHog notifies no one by itself, so three things
+read it back. All of them see only opt-in reports: a crash count is a sample,
+and zero is not proof of none.
+
+- **Alerts** — PostHog error-tracking alerts (new issue, issue reopened, issue
+  spiking) call the `crash-alert` edge function as a webhook, which emails the
+  maintainer through SES (`_shared/sesEmail.ts`). Its one door is the
+  `x-crash-alert-secret` header, matched against the function secret
+  `CRASH_ALERT_SECRET`, which PostHog holds as a *secret header* on each alert.
+  Never route these alerts to GitHub issues: the repository is public, and a
+  crash message is client text.
+- **The weekly digest** lists this week's crash types, marks the ones first
+  seen this week, and names the builds that sent them (`docs/product-metrics.md`).
+- **The release gate** — a production promotion stops when the build has crash
+  reports in the last 30 days (`docs/release.md`).
+
+The digest and the gate query PostHog with a **personal API key** scoped to
+`query:read` only (`POSTHOG_PERSONAL_API_KEY`, with `POSTHOG_PROJECT_ID`), set
+as a function secret for the digest and as a repo secret / variable for the
+gate. Unset, both skip with a note rather than fail. The queries and texts are
+one module, `_shared/crashes.mjs`; a native report is tied to its build by the
+`App: x.y.z (<build>)` line `ErrorBoundary` writes into `trace`.
+
 ## Cookieless public pages
 
 The public live-run pages (`/watch/:token` and the follow list at `/watch/`,

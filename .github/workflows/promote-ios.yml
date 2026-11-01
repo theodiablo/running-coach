@@ -55,6 +55,10 @@ on:
         type: string
         required: false
         default: "60"
+      ignore_crashes:
+        description: Production only, promote even if PostHog has crash reports from this build
+        type: boolean
+        default: false
       dry_run:
         description: Resolve the build and print the plan, change nothing
         type: boolean
@@ -98,3 +102,7 @@ jobs:
           DRAFT: ${{ inputs.draft }}
           WAIT_MINUTES: ${{ inputs.wait_minutes }}
           DRY_RUN: ${{ inputs.dry_run }}
+          # Release gate: a production promotion stops on crash reports from this build (docs/telemetry.md).
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
+          IGNORE_CRASHES: ${{ inputs.ignore_crashes }}

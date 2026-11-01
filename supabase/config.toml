@@ -452,6 +452,10 @@ verify_jwt = false
 [functions.admin-metrics]
 verify_jwt = false
 
+# PostHog error-tracking alerts call this; no JWT, the secret header is the door.
+[functions.crash-alert]
+verify_jwt = false
+
 # The flyer QR code's redirect: scanned by people with no account, and it
 # writes nothing but an anonymous count. See supabase/functions/get/index.ts.
 [functions.get]
