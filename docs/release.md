@@ -163,6 +163,14 @@ Console. Promotion is still not publication: production goes through Play
 review, so "Publish app version" stays the separate step that flips the
 update prompt.
 
+**Both promote scripts refuse production when the build has crash reports**
+in PostHog from the last 30 days (`checkBuildCrashes`, `_shared/crashes.mjs`;
+matched on the build number and OS). `ignore_crashes` promotes anyway. The
+reports are opt-in, so a build nobody has opened yet always passes: the gate is
+worth most after a round on TestFlight or the internal track. Without
+`POSTHOG_PERSONAL_API_KEY` / `POSTHOG_PROJECT_ID`, or when PostHog doesn't
+answer, it warns and lets the promotion through (`docs/telemetry.md`).
+
 ## Promoting an iOS build
 
 `promote-ios.yml` (manual dispatch, phone-friendly) is the App Store twin of
