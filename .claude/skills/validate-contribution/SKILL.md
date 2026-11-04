@@ -52,29 +52,55 @@ One transaction, guarded on `verified = false` so a re-run is a no-op:
 begin;
 update public.races
    set name = '<official name>', url = '<url>', verified = true
+       -- plus city, country, lat, lng, distances if they needed fixing
  where slug = '<slug>' and verified = false;
 update public.race_editions
-   set verified = true  -- plus date/distance_km fixes if needed
+   set verified = true  -- plus date, distance_km, elevation if needed
  where id = '<edition id>' and verified = false;
 commit;
 ```
 
-Then re-select the rows and show them. Before changing an edition's **date**
-or **distance**, check whether a participation or plan target references it
-(`app_state.data->'rc_races'->'participations'`, `rc_settings.targetEditionId`);
-the user's snapshot keeps the old values, so mention it in the email.
+Then re-run step 1's query on the slug and show the rows.
+
+- **Bounds** (`*_field_bounds`): name ≤120, city ≤80, country 2 letters, url
+  ≤300, distance_km in (0, 500], elevation 0–20000. A violation aborts the
+  transaction.
+- A changed `distance_km` must stay in the race's `distances` array.
+- A changed date keeps the edition `id` (`<slug>-<old date>`); that's fine.
+  A clash with an existing `(race_slug, date, distance_km)` aborts it.
+- Before changing an edition's **date** or **distance**, count who references
+  it. Never select row contents from `app_state`: it is other users' data.
+
+  ```sql
+  select count(*) from public.app_state
+  where jsonb_path_exists(data, '$.rc_races.participations[*] ? (@.editionId == $id)',
+                          jsonb_build_object('id', '<edition id>'))
+     or data->'rc_settings'->>'targetEditionId' = '<edition id>';
+  ```
+
+  If it's nonzero, their snapshot (date, distance, and the `label`, which
+  keeps the old name) and plan keep the old values, so say so in the email.
 
 The app also toasts the contributor in-app on their next open
 (`reconcileVerifiedThanks`); the email is the part that reaches them now.
 
 ## 4. Email the contributor
 
-Get the address from `auth.users` (`profiles` has no email column):
+The race and its editions can have different owners (anyone can add an edition
+to another user's race), and the in-app thanks goes to each row's owner, so
+email every distinct `created_by` across the rows you verified. Get the
+addresses from `auth.users` (`profiles` has no email column):
 
 ```sql
-select email, raw_user_meta_data->>'full_name' as name
-from auth.users where id = '<created_by>';
+select id, email, raw_user_meta_data->>'full_name' as name
+from auth.users where id in ('<created_by>', ...);
 ```
+
+- `created_by` is null (the account was deleted): no email.
+- `@privaterelay.appleid.com` (Apple Hide-My-Email): it drops mail from
+  unregistered senders, a personal Gmail included. Don't send; tell the
+  maintainer.
+- Don't repeat the address beyond what the send needs.
 
 Send with the Gmail connector (`send_message`), plain text, from the
 maintainer's account. English (the app's language is per-device, not in the

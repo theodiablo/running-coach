@@ -34,7 +34,9 @@ fired **unawaited** so a slow/down Supabase never blocks the splash.
 ## Curating the verified set
 
 Curated rows (`created_by = null`, `verified = true`) change through data
-migrations (`*_race_catalogue_*.sql`), so each pass is reviewable. Rules:
+migrations (`*_race_catalogue_*.sql`), so each pass is reviewable. Verifying
+a user's contribution is a one-off SQL data fix, not a migration (see
+"Contributions & Discover"). Rules:
 
 - **Only officially announced dates.** Never add a next edition by bumping the
   year: that is how most bad dates got in (a guessed date lands on a weekday, or
