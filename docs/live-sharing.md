@@ -153,8 +153,12 @@ authority* — with an upload leg:
   partial wake lock, and follows the response contract: `{live:true}` drop the
   batch; `{live:false}` soft-latch 5 min, hard-disable after 3 consecutive (a
   POST can land inside the publisher's legitimate delete-then-reinsert at run
-  start); 4xx drop the poison batch; 5xx/network keep and retry. A 90-min
-  seed self-expiry bounds how long uploads can outlive the app's intent.
+  start); 4xx drop the poison batch; 5xx/network keep and retry. A 6h
+  seed self-expiry (`RESUME_MAX_AGE_MS`, pinned by `src/livePublishSeed.test.ts`)
+  bounds how long uploads can outlive the app's intent. **It must outlast a
+  whole run**: a screen-off run never re-seeds (JS is frozen), so an expiry
+  shorter than the race silently freezes the watcher mid-course — a 90-min
+  value did exactly that to a 1h53 race at 15 km.
 - **Degrades, never breaks:** no token (pre-token recovery) → v2 behaviour;
   `publish_token` column not yet migrated → PGRST204 latches JS back to v2
   writes and `live-publish` 500s (a healthy uploader keeps its batch — a

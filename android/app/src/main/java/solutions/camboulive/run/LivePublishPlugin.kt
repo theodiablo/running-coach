@@ -62,11 +62,10 @@ class LivePublishPlugin : Plugin() {
         private const val MAX_PENDING_POINTS = 600
         private const val SOFT_LATCH_MS = 5 * 60_000L
         private const val HARD_LATCH_AFTER = 3
-        // Self-expiry: with no fresh seed the uploader must not outlive the
-        // app's expressed intent — a crashed JS session that never sent
-        // enabled:false is bounded by this, which is what keeps "location only
-        // leaves the device during an active shared run" provable.
-        private const val SEED_MAX_AGE_MS = 90 * 60_000L
+        // Self-expiry bound for a crashed JS session that never sent
+        // enabled:false. A screen-off run never re-seeds, so this must cover a
+        // whole run: mirrors RESUME_MAX_AGE_MS (src/livePublishSeed.test.ts).
+        private const val SEED_MAX_AGE_MS = 6 * 3600_000L
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS = 10_000
         private const val WAKE_LOCK_TIMEOUT_MS = 25_000L
