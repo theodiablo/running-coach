@@ -1556,7 +1556,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         <button onClick={goHome} title={t("app.header.home")}
           className="flex items-center gap-1.5 -mx-1 px-1 py-1 rounded-lg hover:bg-slate-800 transition-colors">
           <BrandLogo size={15} className="text-orange-400"/>
-          <span className="text-sm font-semibold">Running Coach</span>
+          <span translate="no" className="text-sm font-semibold">Running Coach</span>
         </button>
         <div className="flex items-center gap-2">
           {/* Coach in the header so it's reachable from every view; gated on `plan`

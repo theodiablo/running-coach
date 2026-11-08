@@ -21,7 +21,12 @@ export function getStoredLang(): LangId | null {
 export function detectInitialLocale(): LangId {
   const stored = getStoredLang();
   if (stored) return stored;
-  const nav = (typeof navigator !== "undefined" && navigator.language) || "";
-  const prefix = nav.slice(0, 2).toLowerCase();
-  return isLangId(prefix) ? prefix : "en";
+  if (typeof navigator === "undefined") return "en";
+  // The whole preference list: "de, fr" is a French reader, not an English one.
+  const prefs = navigator.languages?.length ? navigator.languages : [navigator.language || ""];
+  for (const tag of prefs) {
+    const prefix = (tag || "").slice(0, 2).toLowerCase();
+    if (isLangId(prefix)) return prefix;
+  }
+  return "en";
 }

@@ -117,7 +117,7 @@ export function LivePromo({ platform }: { platform: VisitorPlatform }) {
       <div className="flex items-center gap-3">
         <AppMark />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold">Running Coach</p>
+          <p translate="no" className="text-sm font-bold">Running Coach</p>
           <p className="text-xs text-slate-400 leading-snug">{t("liveShare.public.rowBody")}</p>
         </div>
       </div>
@@ -135,7 +135,7 @@ export function PinnedPromo({ ended, onAbout }: { ended: boolean; onAbout: () =>
       style={{ paddingBottom: "calc(0.625rem + var(--safe-bottom))" }}>
       <AppMark size={36} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold leading-tight">{ended ? t("liveShare.public.endedTitle") : "Running Coach"}</p>
+        <p className="text-sm font-bold leading-tight">{ended ? t("liveShare.public.endedTitle") : <span translate="no">Running Coach</span>}</p>
         <p className="text-xs text-slate-400 leading-snug truncate">{t("liveShare.public.rowBody")}</p>
       </div>
       <button onClick={onAbout}
@@ -178,7 +178,7 @@ export function AboutSheet({ platform, onClose }: { platform: VisitorPlatform; o
         <div className="flex items-center gap-3">
           <AppMark size={48} />
           <div className="flex-1">
-            <h2 className="text-[19px] font-extrabold">Running Coach</h2>
+            <h2 translate="no" className="text-[19px] font-extrabold">Running Coach</h2>
             <p className="text-[13px] text-slate-400">{t("liveShare.public.sheetSubtitle")}</p>
           </div>
           <button onClick={onClose} aria-label={t("liveShare.public.close")}
