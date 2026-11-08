@@ -62,10 +62,10 @@ class LivePublishPlugin : Plugin() {
         private const val MAX_PENDING_POINTS = 600
         private const val SOFT_LATCH_MS = 5 * 60_000L
         private const val HARD_LATCH_AFTER = 3
-        // Self-expiry bound for a crashed JS session that never sent
-        // enabled:false. A screen-off run never re-seeds, so this must cover a
-        // whole run: mirrors RESUME_MAX_AGE_MS (src/livePublishSeed.test.ts).
-        private const val SEED_MAX_AGE_MS = 6 * 3600_000L
+        // Self-expiry for a crashed JS session that never sent enabled:false.
+        // Counted from the seed, which a screen-off run never refreshes, so it
+        // matches live_publish_append's 24h started_at backstop (pinned by test).
+        private const val SEED_MAX_AGE_MS = 24 * 3600_000L
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS = 10_000
         private const val WAKE_LOCK_TIMEOUT_MS = 25_000L
