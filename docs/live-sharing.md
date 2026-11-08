@@ -153,8 +153,15 @@ authority* — with an upload leg:
   partial wake lock, and follows the response contract: `{live:true}` drop the
   batch; `{live:false}` soft-latch 5 min, hard-disable after 3 consecutive (a
   POST can land inside the publisher's legitimate delete-then-reinsert at run
-  start); 4xx drop the poison batch; 5xx/network keep and retry. A 90-min
-  seed self-expiry bounds how long uploads can outlive the app's intent.
+  start); 4xx drop the poison batch; 5xx/network keep and retry. A 24h
+  seed self-expiry bounds how long uploads can outlive the app's intent. **It
+  is a lifetime, not an inactivity window**: a screen-off run never re-seeds (JS
+  is frozen), so anything shorter than the longest run freezes the watcher
+  mid-course. It therefore equals the RPC's own `started_at` backstop, pinned by
+  `src/livePublishSeed.test.ts`; the recording itself (no fixes, no uploads) and
+  the server's `{live:false}` are what actually end it. Accepted: a recording
+  left running in a pocket after the finish keeps broadcasting until the
+  runner unlocks, exactly as it would with the screen on.
 - **Degrades, never breaks:** no token (pre-token recovery) → v2 behaviour;
   `publish_token` column not yet migrated → PGRST204 latches JS back to v2
   writes and `live-publish` 500s (a healthy uploader keeps its batch — a
