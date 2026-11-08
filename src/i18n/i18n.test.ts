@@ -165,6 +165,16 @@ describe("detectInitialLocale", () => {
     expect(detectInitialLocale()).toBe("es");
   });
 
+  it("keeps English when the runner lists it before a supported language", () => {
+    vi.stubGlobal("navigator", { language: "en-US", languages: ["en-US", "fr-FR"] });
+    expect(detectInitialLocale()).toBe("en");
+  });
+
+  it("falls back to navigator.language when the list is empty", () => {
+    vi.stubGlobal("navigator", { language: "fr-CA", languages: [] });
+    expect(detectInitialLocale()).toBe("fr");
+  });
+
   it("defaults to en for unsupported languages", () => {
     vi.stubGlobal("navigator", { language: "de-DE" });
     expect(detectInitialLocale()).toBe("en");

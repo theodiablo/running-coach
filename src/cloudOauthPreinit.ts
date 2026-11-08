@@ -1,7 +1,8 @@
 // Must run BEFORE the Supabase client exists (imported ahead of ./App in main.tsx): a cloud provider's OAuth return lands
 // as `?code=`, which detectSessionInUrl would consume as its own auth code. Strip and stash it first; imports/cloudOauth.ts
 // completeAuth picks it up (return shapes: docs/integrations-polar.md).
-// Stay dependency-free (no React, i18n or supabase): importing supabase would create the client early.
+// Stay dependency-free (no React, i18next or supabase; i18n/detect imports nothing): supabase would create the client early.
+import { detectInitialLocale } from "./i18n/detect";
 
 export type CloudOauthProviderId = "polar" | "suunto" | "coros";
 
@@ -98,12 +99,9 @@ export function classifyCloudReturn(search: string): CloudReturn {
   return { provider: null, kind: "none", code: null, state: null };
 }
 
-// The pre-React, pre-i18n bounce overlay carries its own copy. Prefer the SAVED app language (rc_lang, as
-// src/i18n/detect.ts reads); fall back to the browser/OS locale only when unset.
+// The pre-React, pre-i18n bounce overlay carries its own copy, in the language the app would boot in.
 function bounceCopy(): { returning: string; open: string } {
-  let lang = "";
-  try { lang = (localStorage.getItem("rc_lang") || "").slice(0, 2).toLowerCase(); } catch { /* storage unavailable */ }
-  if (!lang) lang = (typeof navigator !== "undefined" ? navigator.language || "" : "").slice(0, 2).toLowerCase();
+  const lang = detectInitialLocale();
   if (lang === "fr") return { returning: "Retour vers Running Coach…", open: "Ouvrir l'application" };
   if (lang === "es") return { returning: "Volviendo a Running Coach…", open: "Abrir la aplicación" };
   return { returning: "Returning to Running Coach…", open: "Open the app" };
