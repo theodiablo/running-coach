@@ -153,7 +153,7 @@ function OneRunnerWatch({ token }: { token: string }) {
         ) : (
           <div className="flex items-center gap-2 min-w-0 text-orange-500">
             <BrandLogo size={16} />
-            <span className="text-[15px] font-bold text-slate-100 truncate">Running Coach</span>
+            <span translate="no" className="text-[15px] font-bold text-slate-100 truncate">Running Coach</span>
           </div>
         )}
         {run ? <div className="flex items-center gap-2"><FollowControl token={token} />{getApp}</div> : settled && (
