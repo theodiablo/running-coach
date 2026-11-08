@@ -159,7 +159,9 @@ authority* — with an upload leg:
   is frozen), so anything shorter than the longest run freezes the watcher
   mid-course. It therefore equals the RPC's own `started_at` backstop, pinned by
   `src/livePublishSeed.test.ts`; the recording itself (no fixes, no uploads) and
-  the server's `{live:false}` are what actually end it.
+  the server's `{live:false}` are what actually end it. Accepted: a recording
+  left running in a pocket after the finish keeps broadcasting until the
+  runner unlocks, exactly as it would with the screen on.
 - **Degrades, never breaks:** no token (pre-token recovery) → v2 behaviour;
   `publish_token` column not yet migrated → PGRST204 latches JS back to v2
   writes and `live-publish` 500s (a healthy uploader keeps its batch — a

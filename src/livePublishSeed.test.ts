@@ -13,10 +13,13 @@ function seedMaxAgeMs(file: string): number {
 
 function appendStartedAtBackstopMs(): number {
   const dir = "supabase/migrations/";
-  const latest = readdirSync(dir).sort().reverse()
+  const def = /create\s+(or\s+replace\s+)?function\s+public\.live_publish_append\s*\(/i;
+  const sql = readdirSync(dir).sort().reverse()
     .map((f) => readFileSync(dir + f, "utf8"))
-    .find((sql) => /function\s+public\.live_publish_append/.test(sql));
-  const m = latest?.match(/started_at\s*>\s*now\(\)\s*-\s*interval\s*'(\d+) hours'/);
+    .find((s) => def.test(s));
+  const start = sql?.search(def) ?? -1;
+  const body = start < 0 ? "" : sql!.slice(start, sql!.indexOf("$$;", start));
+  const m = body.match(/started_at\s*>\s*now\(\)\s*-\s*interval\s*'(\d+) hours'/);
   expect(m).toBeTruthy();
   return Number(m![1]) * HOUR;
 }
