@@ -5,7 +5,9 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
-import { answerEntry, BATCH_MAX_BODY, HEAD_COLUMNS, parseBatchBody, validTokens, wantsFull } from "../_shared/liveWatchBatch.mjs";
+import {
+  answerEntry, BATCH_MAX_BODY, HEAD_COLUMNS, parseBatchBody, parseBatchViewer, validTokens, validViewer, wantsFull,
+} from "../_shared/liveWatchBatch.mjs";
 
 // Mirrors RESUME_MAX_AGE_MS / useLiveRun's MAX_AGE_MS. Enforced HERE too: a row left by a phone that never reopens the app is
 // swept by nothing (docs/live-sharing.md "Known limits"), so past this window the link goes dark on its own.
@@ -66,13 +68,14 @@ function rateLimited(req: Request, weight = 1): boolean {
   return entry.count > RATE_MAX;
 }
 
-// The token may arrive as ?t= (the page's own polling) or in a JSON body.
-async function readToken(req: Request): Promise<string | null> {
-  const fromQuery = new URL(req.url).searchParams.get("t");
-  if (fromQuery) return fromQuery;
-  if (req.method !== "POST") return null;
-  const body = await req.json().catch(() => null) as { token?: unknown } | null;
-  return typeof body?.token === "string" ? body.token : null;
+// The token may arrive as ?t= (the page's own polling) or in a JSON body; the viewer id rides alongside.
+async function readToken(req: Request): Promise<{ token: string | null; viewer: string | null }> {
+  const params = new URL(req.url).searchParams;
+  const fromQuery = params.get("t");
+  if (fromQuery) return { token: fromQuery, viewer: validViewer(params.get("v")) };
+  if (req.method !== "POST") return { token: null, viewer: null };
+  const body = await req.json().catch(() => null) as { token?: unknown; v?: unknown } | null;
+  return { token: typeof body?.token === "string" ? body.token : null, viewer: validViewer(body?.v) };
 }
 
 // PostgREST answers a missing table from its schema cache (PGRST205) and the
@@ -89,12 +92,40 @@ const makeAdmin = () => createClient(
 );
 type Admin = ReturnType<typeof makeAdmin>;
 
+// Metrics only (docs/product-metrics.md): records that this page load saw this broadcast live. Never
+// fails or delays a read beyond one RPC per (broadcast, page load) per isolate.
+const noted = new Set<string>();
+const NOTED_MAX = 10000;
+let viewsUnavailable = false;
+
+async function noteView(admin: Admin, userId: string, startedAt: unknown, viewer: string | null): Promise<void> {
+  if (!viewer || viewsUnavailable || typeof startedAt !== "string") return;
+  const key = `${userId}|${startedAt}|${viewer}`;
+  if (noted.has(key)) return;
+  try {
+    const { error } = await admin.rpc("live_broadcast_note_view", {
+      p_user_id: userId, p_started_at: startedAt, p_viewer: viewer,
+    });
+    if (error?.code === "PGRST202") {
+      viewsUnavailable = true;
+      console.error("live-watch: live_broadcast_note_view missing — apply the live_broadcasts migration");
+      return;
+    }
+    if (error) { console.error("live-watch: view not recorded", error.message); return; }
+    if (noted.size >= NOTED_MAX) noted.clear();
+    noted.add(key);
+  } catch (err) {
+    console.error("live-watch: view not recorded", err);
+  }
+}
+
 // The one place a row becomes a response. Note the select list: user_id is NOT
 // in it. Nothing that identifies the account may cross this boundary, and
 // `share_public` is read to decide and then dropped.
 async function serveRun(
   admin: Admin,
   by: { userId: string } | { legacyToken: string },
+  viewer: string | null,
 ): Promise<Response> {
   // `share_public` is asked for ONLY on the ledger path. The legacy path must
   // not name it: in the deploy-before-migration window the column doesn't
@@ -125,6 +156,8 @@ async function serveRun(
   // server time on both sides of the comparison.
   const updated = Date.parse(String(run.updated_at));
   if (!Number.isFinite(updated) || Date.now() - updated > MAX_AGE_MS) return notLive();
+
+  if ("userId" in by) await noteView(admin, by.userId, run.started_at, viewer);
 
   // An `ended` run IS returned, deliberately: someone watching the finish
   // should see "this run has ended" rather than the page blinking into
@@ -159,7 +192,7 @@ type Entry = { t: string; full: boolean; since: string | null };
 // The batch read: several tokens, one request, one uniform answer per entry in request order. Summaries carry the head, not
 // the trace (full only for wantsFull). Any failure fails the whole batch: one runner's error must never read as "not live".
 // Detail: docs/live-sharing.md ("Following several runners").
-async function serveBatch(admin: Admin, entries: Entry[]): Promise<Response> {
+async function serveBatch(admin: Admin, entries: Entry[], viewer: string | null): Promise<Response> {
   const tokens = validTokens(entries) as string[];
   const gate = { now: Date.now(), maxAgeMs: MAX_AGE_MS };
   const answers = () => entries.map(() => ({ live: false }));
@@ -226,6 +259,12 @@ async function serveBatch(admin: Admin, entries: Entry[]): Promise<Response> {
     // whitelisted fields, never user_id or share_token.
     return answerEntry(e, row, fullRow, { ...gate, requireShare: ledger });
   });
+  const seen = new Map<string, unknown>();
+  entries.forEach((e, i) => {
+    const userId = userOf.get(e.t);
+    if (userId && runs[i].live) seen.set(userId, byUser.get(userId)?.started_at);
+  });
+  await Promise.all([...seen].map(([userId, startedAt]) => noteView(admin, userId, startedAt, viewer)));
   return json({ runs });
 }
 
@@ -249,14 +288,14 @@ Deno.serve(async (req) => {
         // Budgeted per statement load, not per token: the token's entropy is the
         // control, and a race-day page on a shared NAT must not trip it.
         if (rateLimited(req, Math.max(1, Math.ceil(validTokens(entries).length / 5)))) return limited();
-        return await serveBatch(makeAdmin(), entries);
+        return await serveBatch(makeAdmin(), entries, parseBatchViewer(text));
       }
       req = new Request(req.url, { method: "POST", headers: req.headers, body: text });
     }
 
     if (rateLimited(req)) return limited();
 
-    const token = await readToken(req);
+    const { token, viewer } = await readToken(req);
     // Reject a malformed token before touching the database — a crawler walking
     // short strings costs us a regex, not a query. Same response as everything
     // else, so it stays indistinguishable from a well-formed miss.
@@ -282,13 +321,13 @@ Deno.serve(async (req) => {
       // Retired, or an account since deleted: terminal. NOT a fall-through to
       // the legacy column — see the header.
       if (claim.data.revoked_at || !claim.data.user_id) return notLive();
-      return await serveRun(admin, { userId: String(claim.data.user_id) });
+      return await serveRun(admin, { userId: String(claim.data.user_id) }, viewer);
     }
 
     // No ledger row at all: a link minted by a pre-v4 bundle, still within its
     // own run. Retire this branch (and revoke the column's write) once
     // min_supported_version clears the last bundle that mints one.
-    return await serveRun(admin, { legacyToken: token });
+    return await serveRun(admin, { legacyToken: token }, null);
   } catch (err) {
     console.error("live-watch error", err);
     // Never leak the failure shape to an anonymous caller. The page treats a

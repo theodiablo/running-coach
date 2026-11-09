@@ -14,6 +14,8 @@ const b = batch as {
   validTokens: (entries: Entry[]) => string[];
   pickHead: (row: unknown) => unknown;
   answerEntry: (entry: Entry, row: unknown, fullRow: unknown, gate: unknown) => unknown;
+  validViewer: (v: unknown) => string | null;
+  parseBatchViewer: (text: string) => string | null;
 };
 
 const T = "a".repeat(22);
@@ -101,5 +103,20 @@ describe("answerEntry", () => {
   it("lets a legacy row through without the per-run flag it never had", () => {
     const legacy = { ...row(), share_public: undefined };
     expect(b.answerEntry(entry(), legacy, undefined, { ...gate, requireShare: false })).toMatchObject({ live: true });
+  });
+});
+
+describe("viewer id", () => {
+  const V = "3F2504E0-4F89-41D3-9A0C-0305E82C3301";
+  it("accepts a UUID, normalised, and ignores anything else rather than refusing the read", () => {
+    expect(b.validViewer(V)).toBe(V.toLowerCase());
+    for (const bad of [null, 5, "", "not-a-uuid", `${V}x`]) expect(b.validViewer(bad)).toBeNull();
+  });
+  it("reads it off a batch body, which still parses without one", () => {
+    const body = JSON.stringify({ v: V, tokens: [{ t: T }] });
+    expect(b.parseBatchViewer(body)).toBe(V.toLowerCase());
+    expect(b.parseBatchBody(body)).toEqual([{ t: T, full: false, since: null }]);
+    expect(b.parseBatchViewer(JSON.stringify({ tokens: [{ t: T }] }))).toBeNull();
+    expect(b.parseBatchViewer("{")).toBeNull();
   });
 });

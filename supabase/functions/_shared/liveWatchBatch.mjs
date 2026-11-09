@@ -29,6 +29,14 @@ export function parseBatchBody(text) {
   }));
 }
 
+// The watch page's per-load viewer id (metrics only, docs/product-metrics.md). Anything else is ignored, never refused.
+const VIEWER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const validViewer = (v) => (typeof v === "string" && VIEWER_RE.test(v) ? v.toLowerCase() : null);
+
+export function parseBatchViewer(text) {
+  try { return validViewer(JSON.parse(text)?.v); } catch { return null; }
+}
+
 export const validTokens = (entries) => [...new Set(entries.map(e => e.t).filter(isValidShareToken))];
 
 export function pickHead(row) {

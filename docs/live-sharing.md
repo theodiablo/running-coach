@@ -298,6 +298,30 @@ The hook is mounted **once**, in `RunningCoach`, and threaded through the
 subscribes for any signed-in `uid`, whether or not that account has ever used
 live sharing; most reads simply come back empty.
 
+## Usage metrics
+
+`live_runs` forgets a run the moment it ends, so the weekly digest
+(`docs/product-metrics.md`) reads a separate ledger,
+`supabase/migrations/20261109194500_live_broadcasts.sql`:
+
+- **`live_broadcasts`**: one row per (runner, `started_at`), written by a
+  trigger on `live_runs` insert, so no client change and no bundle can skip it.
+  The publisher's delete-then-reinsert and a switch toggled off and on mid-run
+  keep the run's own `started_at`, so they land on the same row. A second
+  trigger catches `share_public` flipping on mid-run. The trigger swallows its
+  own errors: a metrics write must never fail a broadcast.
+- **`live_broadcast_viewers`**: which public page loads received the run while
+  it was live. The page mints a random UUID per load, **in memory only**
+  (`watchViewerId`, `src/live/shareLink.ts`), and sends it as `v` (query on the
+  single read, body field on the batch). `live-watch` records it through
+  `live_broadcast_note_view` only after every gate has passed, memoized per
+  isolate so a 30s poll costs one write per load, not one per poll. It counts
+  page loads, not people: a reload is a new viewer and nothing links two loads.
+  A missing or malformed `v` is ignored, never refused, so an older cached
+  page still reads.
+- Same-account watching (`useLiveRun`) never touches `live-watch` and isn't
+  counted: a runner watching themselves isn't adoption.
+
 ## Known limits
 
 - **Two devices recording the same account** share one row, last writer wins
