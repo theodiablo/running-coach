@@ -749,6 +749,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/stretching.md` — stretching (free): the research and what copy may claim, routines, poses-as-data figures, Home suggestion rules, the player.
 - `docs/capacity.md` — recorded rate limits (Supabase Auth, SES, edge-function budgets) and what caps throughput.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
+- `docs/monitoring.md` — the daily Supabase log scan: thresholds, setup, tuning.
 - `docs/store-redirect.md` — the flyer QR code's `/get` redirect: per-device store routing and anonymous scan counts.
 - `docs/product-metrics.md` — maintainer metrics: `admin_metrics()`, the `admin-metrics` function's two doors, the weekly digest.
 - `docs/route-finder.md` — loop route suggestions (ORS proxy, scoring, guide layer).
