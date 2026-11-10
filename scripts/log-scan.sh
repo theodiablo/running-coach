@@ -21,7 +21,8 @@ get() {
 
 end="$(date -u +%Y-%m-%dT%H:%M:00Z)"
 start="$(date -u -d "$end - 24 hours" +%Y-%m-%dT%H:%M:00Z)"
-sql="$(grep -v '^--' "$here/log-scan.sql")"
+# Comments and whitespace out: the query travels in the URL of a GET.
+sql="$(grep -v '^[[:space:]]*--' "$here/log-scan.sql" | tr -s ' \n' ' ')"
 
 logs="$(get "$api/analytics/endpoints/logs" \
   --data-urlencode "sql=$sql" \
