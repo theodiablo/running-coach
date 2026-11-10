@@ -62,6 +62,19 @@ function unpricedNote(tokens, model) {
   return `${model}, ${tokens?.all?.[model]?.rounds ?? 0} turns, ${scope}`;
 }
 
+// "Watched" = at least one public watch-page load saw the run live; page loads are not people.
+function liveSection(l) {
+  return [
+    "",
+    "Live sharing (by run start)",
+    row("This week", `${l.runs_7d} runs by ${l.runners_7d} runners ${prev(l.runs_prev7d)}`),
+    row("Public", `${l.public_7d} shared, ${l.watched_7d} watched ${prev(l.watched_prev7d)}, ${l.page_loads_7d} page loads`),
+    row("All time", `${l.runs_total} runs, ${l.watched_total} watched`),
+    row("Share links", `${l.runners_with_link} runners`),
+    row("Tracked since", l.since ? String(l.since).slice(0, 10) : "no runs yet"),
+  ];
+}
+
 export function formatDigest(m) {
   const day = String(m.generated_at).slice(0, 10);
   const cost = Object.fromEntries(
@@ -117,6 +130,7 @@ export function formatDigest(m) {
           row("By flyer", tally(m.qr.by_src_total)),
         ]
       : []),
+    ...(m.live ? liveSection(m.live) : []),
   ];
   return { subject: `Running Coach - weekly metrics (${day})`, text: lines.join("\n") + "\n" };
 }

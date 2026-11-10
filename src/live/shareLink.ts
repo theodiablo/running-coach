@@ -94,10 +94,19 @@ export type WatchResult =
   // over — a dropped connection must never read as a finished run.
   | { kind: "error"; retryAfterMs?: number };
 
+// Random per page load and held in memory only: live-watch counts page loads that saw a run live
+// (docs/product-metrics.md). Never stored, so it links nothing across loads or runs.
+let viewerId: string | undefined;
+export const watchViewerId = (): string => {
+  try { viewerId ??= crypto.randomUUID(); } catch { viewerId = ""; }
+  return viewerId;
+};
+
 export async function fetchLiveWatch(token: string, signal?: AbortSignal): Promise<WatchResult> {
+  const v = watchViewerId();
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}`,
+      `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}${v ? `&v=${v}` : ""}`,
       {
         signal,
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
@@ -165,6 +174,7 @@ export async function fetchLiveWatchBatch(entries: BatchRequestEntry[], signal?:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        ...(watchViewerId() ? { v: watchViewerId() } : {}),
         tokens: entries.map(e => ({ t: e.token, ...(e.full ? { full: true } : {}), ...(e.since ? { since: e.since } : {}) })),
       }),
     });
