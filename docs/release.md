@@ -197,6 +197,37 @@ appears is the previous release. A build Apple marked FAILED/INVALID stops it.
 transient failures; writes never do. As on Android, promotion is not
 publication: run "Publish app version" once the release is live.
 
+## Database migrations
+
+**On merge to `main` this is automatic.** The Supabase GitHub integration
+(production branch `main`, on project `run-app`) applies every pending
+`supabase/migrations/*.sql` and records it in `schema_migrations` under the
+file's own version prefix, so the repo and the database never disagree. First
+relied on for `20261109194500_live_broadcasts` (PR #336): applied about six
+minutes after the squash-merge, with no manual step.
+
+- **Create** with `supabase migration new <name>` (or `npx supabase`), which
+  stamps the current time: a version older than one already applied may be
+  treated as out of order, and a shared prefix silently never runs
+  (`src/migrations.test.ts`).
+- **Don't pre-apply.** No `db push`, no MCP `apply_migration`, no SQL-editor
+  paste before the merge. `apply_migration` records its own version, so the
+  integration would then run the same file again under the repo's version and
+  fail (or double-apply whatever isn't idempotent). The Supabase MCP's
+  `apply_migration` also asks for approval through a prompt the Claude Android
+  app never shows, so from a phone it can only time out.
+- **Ordering.** `deploy-supabase-functions.yml` deploys functions on the same
+  merge, independently, so a function can be live before its schema is. Every
+  function that reads new schema degrades on its absence (PGRST205 / 42P01 for a
+  table, 42703 for a column, PGRST202 for an RPC) rather than answering 500.
+- **Verify** after the merge with read-only SQL (MCP `execute_sql`):
+  `select max(version) from supabase_migrations.schema_migrations` plus a
+  `to_regclass(...)` / `to_regprocedure(...)` for what the migration adds.
+  If it hasn't landed after ~15 minutes, look at the integration's run in the
+  Supabase dashboard (Project Settings → Integrations → GitHub), and fall back
+  to `supabase db push` from a linked checkout of `main`, which applies the
+  same file under the same version.
+
 ## Deploying Supabase edge functions
 
 **On merge to `main` this is automatic** —
@@ -256,7 +287,7 @@ needs its `_shared` contract alongside `source/index.ts` (same sibling layout
 as `coach-agent` above): `liveShare.mjs` for `live-watch`, `livePublish.mjs`
 (which itself imports `liveShare.mjs` — upload both) for `live-publish`.
 `live-publish` additionally needs the `20260805062612_live_runs_publish_token`
-migration applied (`supabase db push`) or it answers 500 by design. See
+migration applied (it is) or it answers 500 by design. See
 `docs/live-sharing.md` for the capability model.
 
 Large payloads occasionally drop the MCP connection mid-call (~60KB of files) —

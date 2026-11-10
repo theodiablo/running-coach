@@ -69,7 +69,7 @@ async function getDailyLimit(admin: any, userId: string, createdAt?: string): Pr
   const free = isNewAccount(createdAt) ? Math.max(RATE_LIMIT_PER_DAY, NEW_USER_RATE_LIMIT_PER_DAY) : RATE_LIMIT_PER_DAY;
   let { data, error } = await admin.from("profiles")
     .select("coach_daily_limit, premium_until").eq("id", userId).maybeSingle();
-  // 42703 = undefined_column: functions auto-deploy but migrations are applied by hand, so the premium column may be
+  // 42703 = undefined_column: functions and migrations deploy separately on merge, so the premium column may be
   // missing and must NOT take the coach down (a throw is COACH_UNAVAILABLE). Nobody can be premium without it:
   // re-read the pre-premium shape and carry on with the free budget; per-user overrides still apply.
   if (error?.code === "42703") {

@@ -309,7 +309,7 @@ Deno.serve(async (req) => {
       .eq("token", token)
       .maybeSingle();
 
-    // The ledger table may not exist yet (functions auto-deploy, migrations are applied by hand): answer "nothing live", not a
+    // The ledger table may not exist yet (functions and migrations deploy separately on merge): answer "nothing live", not a
     // 500, which the page retries forever and leaves every shared link stuck in an error state.
     if (isMissingRelation(claim.error)) {
       console.error("live-watch: live_share_tokens missing — apply the standing-link migration");

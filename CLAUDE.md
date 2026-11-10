@@ -149,16 +149,15 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   timestamp** — use `supabase migration new <name>`. Supabase keys migrations by
   the version prefix alone, so two files sharing one are indistinguishable and
   the second silently never runs;
-  `src/migrations.test.ts` fails CI on a collision. Apply with
-  `supabase db push`; what must never survive is a version in the repo that
-  isn't the one in `schema_migrations`, or `db push` stops working. **In a cloud
-  session there is no `db push`** — the project isn't linked and there is no CLI
-  token or DB password — so apply through the Supabase MCP `apply_migration`,
-  which assigns its OWN version, and then **rename the local file to the version
-  it assigned** (keeping the descriptive suffix). The rename is what reconciles
-  the two; it is the one time renaming an applied migration is correct, and it
-  is not the append-only rule above, which is about re-pointing a version other
-  checkouts already have.
+  `src/migrations.test.ts` fails CI on a collision. **Merging to `main` applies
+  them**: the Supabase GitHub integration runs pending migrations under the
+  file's own version, minutes after the merge, so a migration ships with its PR
+  and is never applied by hand first. Never pre-apply one through the MCP
+  `apply_migration` (it records its OWN version, and the integration then runs
+  the file again under the repo's) — read-only `execute_sql` checks are fine.
+  Edge functions deploy on the same merge with no ordering between the two, so
+  a function must tolerate its migration not having landed yet. Detail:
+  `docs/release.md` ("Database migrations").
 - **New `public` functions are `security invoker` with `set search_path = ''`
   and fully-qualified references.** Reach for `security definer` only when the
   function must touch something the caller can't (the `auth` schema, another

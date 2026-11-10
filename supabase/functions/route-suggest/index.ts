@@ -49,7 +49,7 @@ async function isPremiumUser(admin: any, userId: string): Promise<boolean> {
   const { data, error } = await admin.from("profiles")
     .select("premium_until").eq("id", userId).maybeSingle();
   // 42703 = undefined_column: the premium migration hasn't been applied yet
-  // (functions auto-deploy on push to main; migrations are applied by hand).
+  // (functions and migrations deploy separately on merge to main).
   // Nobody can be premium in that state, so answer PREMIUM_REQUIRED rather than
   // erroring — the gated feature stays shut, which is the safe direction.
   if (error?.code === "42703") {
