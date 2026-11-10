@@ -37,7 +37,7 @@ delete the lines that don't.
 -->
 
 - [ ] **`infra/`** — merging to `main` applies the Terraform plan to AWS. Plan reviewed, nothing destroyed or replaced (or dispatched with `allow_destroy`).
-- [ ] **`supabase/migrations/`** — version created with `supabase migration new`, no pushed migration renamed or removed, applied with `supabase db push`.
+- [ ] **`supabase/migrations/`** — version created with `supabase migration new`, no pushed migration renamed or removed, not pre-applied: the Supabase GitHub integration applies it on merge, and every function that reads it tolerates the window before it lands.
 - [ ] **`supabase/functions/`** — edge functions deploy on merge; any new secret or env var set on the project first.
 - [ ] **`supabase/templates/`** — auth email templates are project config, synced to the hosted project by hand (`docs/release.md`).
 - [ ] **Native shells** — needs a store release, a new permission, or a Play Console / App Store Connect declaration.
