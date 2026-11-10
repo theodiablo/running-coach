@@ -153,8 +153,15 @@ authority* — with an upload leg:
   partial wake lock, and follows the response contract: `{live:true}` drop the
   batch; `{live:false}` soft-latch 5 min, hard-disable after 3 consecutive (a
   POST can land inside the publisher's legitimate delete-then-reinsert at run
-  start); 4xx drop the poison batch; 5xx/network keep and retry. A 90-min
-  seed self-expiry bounds how long uploads can outlive the app's intent.
+  start); 4xx drop the poison batch; 5xx/network keep and retry. A 24h
+  seed self-expiry bounds how long uploads can outlive the app's intent. **It
+  is a lifetime, not an inactivity window**: a screen-off run never re-seeds (JS
+  is frozen), so anything shorter than the longest run freezes the watcher
+  mid-course. It therefore equals the RPC's own `started_at` backstop, pinned by
+  `src/livePublishSeed.test.ts`; the recording itself (no fixes, no uploads) and
+  the server's `{live:false}` are what actually end it. Accepted: a recording
+  left running in a pocket after the finish keeps broadcasting until the
+  runner unlocks, exactly as it would with the screen on.
 - **Degrades, never breaks:** no token (pre-token recovery) → v2 behaviour;
   `publish_token` column not yet migrated → PGRST204 latches JS back to v2
   writes and `live-publish` 500s (a healthy uploader keeps its batch — a
@@ -290,6 +297,30 @@ The hook is mounted **once**, in `RunningCoach`, and threaded through the
 `shared` bag — two consumers (banner + modal) must not open two channels. It
 subscribes for any signed-in `uid`, whether or not that account has ever used
 live sharing; most reads simply come back empty.
+
+## Usage metrics
+
+`live_runs` forgets a run the moment it ends, so the weekly digest
+(`docs/product-metrics.md`) reads a separate ledger,
+`supabase/migrations/20261109194500_live_broadcasts.sql`:
+
+- **`live_broadcasts`**: one row per (runner, `started_at`), written by a
+  trigger on `live_runs` insert, so no client change and no bundle can skip it.
+  The publisher's delete-then-reinsert and a switch toggled off and on mid-run
+  keep the run's own `started_at`, so they land on the same row. A second
+  trigger catches `share_public` flipping on mid-run. The trigger swallows its
+  own errors: a metrics write must never fail a broadcast.
+- **`live_broadcast_viewers`**: which public page loads received the run while
+  it was live. The page mints a random UUID per load, **in memory only**
+  (`watchViewerId`, `src/live/shareLink.ts`), and sends it as `v` (query on the
+  single read, body field on the batch). `live-watch` records it through
+  `live_broadcast_note_view` only after every gate has passed, memoized per
+  isolate so a 30s poll costs one write per load, not one per poll. It counts
+  page loads, not people: a reload is a new viewer and nothing links two loads.
+  A missing or malformed `v` is ignored, never refused, so an older cached
+  page still reads.
+- Same-account watching (`useLiveRun`) never touches `live-watch` and isn't
+  counted: a runner watching themselves isn't adoption.
 
 ## Known limits
 

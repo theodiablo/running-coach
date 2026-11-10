@@ -34,7 +34,9 @@ fired **unawaited** so a slow/down Supabase never blocks the splash.
 ## Curating the verified set
 
 Curated rows (`created_by = null`, `verified = true`) change through data
-migrations (`*_race_catalogue_*.sql`), so each pass is reviewable. Rules:
+migrations (`*_race_catalogue_*.sql`), so each pass is reviewable. Verifying
+a user's contribution is a one-off SQL data fix, not a migration (see
+"Contributions & Discover"). Rules:
 
 - **Only officially announced dates.** Never add a next edition by bumping the
   year: that is how most bad dates got in (a guessed date lands on a weekday, or
@@ -88,7 +90,9 @@ and dedupes in `contribution_notifications`; callers pass stable row ids
 (`raceSlug`, `editionId`, `reportId`, `feedbackId`), not arbitrary email
 bodies. The "verified → thank-you" half is in-app: `reconcileVerifiedThanks`
 (RunningCoach) toasts once when a maintainer verifies the user's own
-contribution.
+contribution. Reviewing and verifying a contribution (plain SQL, no migration,
+then a Gmail note to the contributor) is the `validate-contribution` skill
+(`.claude/skills/validate-contribution/`).
 
 ## Personal layer (synced blob)
 

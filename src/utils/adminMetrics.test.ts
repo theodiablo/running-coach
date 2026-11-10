@@ -123,6 +123,21 @@ describe("formatDigest", () => {
     expect(formatDigest(METRICS, { crashes: new Error("down") }).text).toContain("Couldn't read PostHog");
   });
 
+  it("reports live sharing, and omits the section before the migration", () => {
+    const live = {
+      since: "2026-11-09T20:00:00+00:00", runs_7d: 4, runs_prev7d: 1, runners_7d: 3, public_7d: 3,
+      watched_7d: 2, watched_prev7d: 0, page_loads_7d: 7, runs_total: 5, watched_total: 2, runners_with_link: 6,
+    };
+    const { text } = formatDigest({ ...METRICS, live });
+    expect(text).toContain("This week         4 runs by 3 runners (prev 1)");
+    expect(text).toContain("Public            3 shared, 2 watched (prev 0), 7 page loads");
+    expect(text).toContain("All time          5 runs, 2 watched");
+    expect(text).toContain("Share links       6 runners");
+    expect(text).toContain("Tracked since     2026-11-09");
+    expect(formatDigest({ ...METRICS, live: { ...live, since: null } }).text).toContain("Tracked since     no runs yet");
+    expect(formatDigest(METRICS).text).not.toContain("Live sharing");
+  });
+
   it("says none rather than leaving a tally blank", () => {
     expect(formatDigest({ ...METRICS, integrations: {} }).text).toContain("Integrations      none");
   });

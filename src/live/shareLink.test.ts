@@ -7,7 +7,7 @@ vi.mock("../native", () => native);
 
 import {
   SHARE_TOKEN_BYTES, fetchLiveWatch, fetchLiveWatchBatch, isValidShareToken, isWatchListPath, mintShareToken,
-  parseWatchToken, shareLinkState, tokenFromInput, watchUrl,
+  parseWatchToken, shareLinkState, tokenFromInput, watchUrl, watchViewerId,
 } from "./shareLink";
 
 // The share token is the ENTIRE authorization for a public /watch/:token page,
@@ -212,8 +212,18 @@ describe("fetchLiveWatchBatch", () => {
     // The tokens ride in the body, not the URL.
     expect(String(url)).not.toContain(a);
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      v: watchViewerId(),
       tokens: [{ t: a }, { t: b, full: true, since: "u0" }, { t: a }, { t: b }],
     });
+  });
+
+  it("sends one random viewer id per page load, the same on every read", async () => {
+    vi.mocked(fetch).mockResolvedValue(ok({ live: false }));
+    await fetchLiveWatch(a);
+    await fetchLiveWatch(b);
+    const id = watchViewerId();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    for (const [url] of vi.mocked(fetch).mock.calls) expect(String(url)).toContain(`&v=${id}`);
   });
 
   it("never reads an older function's single answer as 'nobody is live'", async () => {

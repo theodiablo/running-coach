@@ -149,16 +149,15 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   timestamp** — use `supabase migration new <name>`. Supabase keys migrations by
   the version prefix alone, so two files sharing one are indistinguishable and
   the second silently never runs;
-  `src/migrations.test.ts` fails CI on a collision. Apply with
-  `supabase db push`; what must never survive is a version in the repo that
-  isn't the one in `schema_migrations`, or `db push` stops working. **In a cloud
-  session there is no `db push`** — the project isn't linked and there is no CLI
-  token or DB password — so apply through the Supabase MCP `apply_migration`,
-  which assigns its OWN version, and then **rename the local file to the version
-  it assigned** (keeping the descriptive suffix). The rename is what reconciles
-  the two; it is the one time renaming an applied migration is correct, and it
-  is not the append-only rule above, which is about re-pointing a version other
-  checkouts already have.
+  `src/migrations.test.ts` fails CI on a collision. **Merging to `main` applies
+  them**: the Supabase GitHub integration runs pending migrations under the
+  file's own version, minutes after the merge, so a migration ships with its PR
+  and is never applied by hand first. Never pre-apply one through the MCP
+  `apply_migration` (it records its OWN version, and the integration then runs
+  the file again under the repo's) — read-only `execute_sql` checks are fine.
+  Edge functions deploy on the same merge with no ordering between the two, so
+  a function must tolerate its migration not having landed yet. Detail:
+  `docs/release.md` ("Database migrations").
 - **New `public` functions are `security invoker` with `set search_path = ''`
   and fully-qualified references.** Reach for `security definer` only when the
   function must touch something the caller can't (the `auth` schema, another
@@ -167,7 +166,8 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   (`delete_my_account`, the one accepted lint-0029 finding). Service-role-only
   tables pair `enable row level security` (no policies = deny all) with an
   explicit `revoke all ... from anon, authenticated`; the linter's INFO
-  `rls_enabled_no_policy` on them is the intent, not a gap. **A new table
+  `rls_enabled_no_policy` on them is the intent, not a gap. RLS policies call
+  `(select auth.uid())`, never a bare `auth.uid()` (re-evaluated per row). **A new table
   needs an explicit `grant ... to service_role`** for whatever an edge function
   does with it: this project's default privileges give service_role no
   SELECT/INSERT, and supabase-js reports the denial as `error` with `data:
@@ -747,6 +747,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/telemetry.md` — analytics/crash-reporting seam and consent.
 - `docs/feedback.md` — the beta feedback button (and why voice input was removed).
 - `docs/stretching.md` — stretching (free): the research and what copy may claim, routines, poses-as-data figures, Home suggestion rules, the player.
+- `docs/capacity.md` — recorded rate limits (Supabase Auth, SES, edge-function budgets) and what caps throughput.
 - `docs/backups.md` — daily DB backup to S3, retention, restore procedure.
 - `docs/store-redirect.md` — the flyer QR code's `/get` redirect: per-device store routing and anonymous scan counts.
 - `docs/product-metrics.md` — maintainer metrics: `admin_metrics()`, the `admin-metrics` function's two doors, the weekly digest.

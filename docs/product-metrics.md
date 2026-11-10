@@ -26,6 +26,11 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   changes. Anthropic exposes no prepaid-balance endpoint; its Admin API key can
   manage the whole organization, so don't store one here just for a cost figure.
 - Your own account is counted like any other.
+- **Live sharing** is windowed by the run's start, from the `live_broadcasts`
+  ledger (`docs/live-sharing.md`, "Usage metrics"), which only exists from its
+  migration on: "tracked since" says where the history starts. "Watched" means
+  at least one public watch-page load received the run live; page loads are not
+  people. Share links count runners holding an active link.
 - **Flyer QR scans** come from `qr_scans` (`docs/store-redirect.md`); the
   digest omits the section when the field is absent.
 - **Crashes** come from PostHog, not the database: this week's crash types from

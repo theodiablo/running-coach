@@ -87,8 +87,9 @@ edge function returns `{ skipped }`. To turn it on:
    → Actions → Variables). It's wired into the web build in `deploy.yml` /
    `deploy-pr.yml`; the next production deploy inlines it and flips the provider
    visible.
-5. **Apply the migration** (`supabase db push` — always BEFORE merging the
-   function, which auto-deploys on merge) so `integration_connections` exists.
+5. **The migration** that creates `integration_connections` is applied by the
+   Supabase GitHub integration on merge (`docs/release.md`, "Database
+   migrations").
 
 Once live, users see a **Polar** row in Settings → Integrations → Connect,
 authorize on Polar, land back in the app connected, and their runs sync.
