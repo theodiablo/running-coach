@@ -106,13 +106,19 @@ exactly what happens after a partial release. Seen in practice: run 45's retry
 re-sent versionCode 45 and Play rejected it outright.
 
 The two platform jobs are independent, so one store's failure never blocks the
-other; each job STAGES its OWN `app_config` pending column (`pending_version`
-for Android, `pending_version_ios` for iOS) only after its upload succeeds, so a
-partial release never stages a version a store didn't get.
+other; a `stage-android` / `stage-ios` job STAGES that platform's OWN
+`app_config` pending column (`pending_version` for Android, `pending_version_ios`
+for iOS) only after its upload succeeds, so a partial release never stages a
+version a store didn't get. Staging is its own job so the database token never
+shares a runner with the build's npm/Gradle/CocoaPods code, which also makes a
+failed staging a cheap "Re-run failed jobs". It only runs from `main`: a
+tag-pushed release (ref `refs/tags/v*`) skips it with a warning, and is staged
+by running "Publish app version" with its `version` once the store publishes.
 
-Both those steps and `publish-version.yml` reach the database through
+Those jobs and `publish-version.yml` reach the database through
 `scripts/supabase-query.sh` (Management API `POST
-/v1/projects/{ref}/database/query` with `SUPABASE_ACCESS_TOKEN`), **not** the
+/v1/projects/{ref}/database/query` with the scoped `SUPABASE_APP_CONFIG_TOKEN`,
+see "Supabase access tokens" below), **not** the
 Supabase CLI. `supabase link` / `db query --linked` fetch the project's API keys
 first and abort on a key whose `inserted_at` isn't RFC3339-with-`Z` (`failed to
 get api keys: SchemaError(...)`) — that killed staging in release run 45 after
@@ -234,8 +240,12 @@ minutes after the squash-merge, with no manual step.
 `.github/workflows/deploy-supabase-functions.yml` diffs the push against the
 previous commit and runs `supabase functions deploy <name>` (the CLI, reading
 straight off disk) for whichever function directories changed, redeploying
-`coach-agent` if `_shared/**` changed too. Needs a `SUPABASE_ACCESS_TOKEN` repo
-secret (deploy rights on `run-app`) and a `SUPABASE_PROJECT_REF` repo variable.
+`coach-agent` if `_shared/**` changed too. A `plan` job (npm install, Deno
+typecheck, picking the functions) holds no credential; the `deploy` job holds
+`SUPABASE_FUNCTIONS_TOKEN` from the `supabase-functions` environment (see
+"Supabase access tokens" below) and installs with `npm ci --ignore-scripts`,
+so the CLI is the only dependency code that runs next to it. Also needs the
+`SUPABASE_PROJECT_REF` repo variable.
 
 The Supabase GitHub integration also bundles every function on each `main`
 push (the **Supabase Preview** check), from a bare checkout with no
@@ -296,6 +306,79 @@ sandbox's outbound proxy blocks arbitrary domains (`supabase.co` included), so
 a post-deploy `curl` smoke test isn't possible there — confirm via the deploy
 call's returned `status: "ACTIVE"` and, for request-level confirmation,
 `mcp__Supabase__get_logs` with `service: "edge-function"`.
+
+## Supabase access tokens
+
+CI reaches the Supabase Management API with **scoped personal access tokens**
+(Account → Access tokens; they start with `sbp_fc`), one per job family, each
+in a GitHub Environment whose deployment-branch rule allows `main` only, the
+same pattern as the AWS roles (`infra/README.md`, "OIDC trust"). A classic
+token is the whole account: every permission on every project, the other
+Supabase projects included, and any project created later. As a repo secret,
+any workflow on any same-repo branch could read it, and the jobs that used it
+also ran `npm ci`.
+
+| Environment secret | Environment | Token scope (project `run-app` only) | Jobs | Endpoints |
+|---|---|---|---|---|
+| `SUPABASE_FUNCTIONS_TOKEN` | `supabase-functions` | **Edge Functions: read-write** | `deploy-supabase-functions.yml` › `deploy` | `GET`/`POST`/`PUT /v1/projects/{ref}/functions`, `POST .../functions/deploy`, `PATCH`/`DELETE .../functions/{slug}` |
+| `SUPABASE_APP_CONFIG_TOKEN` | `supabase-app-config` | **Database: read-write** | `publish-version.yml` › `publish`, `release.yml` › `stage-android`, `stage-ios` | `POST /v1/projects/{ref}/database/query` |
+
+- `supabase functions deploy` (CLI 2.121) calls only the endpoints above
+  (its `SIDE_EFFECTS.md`): no API keys, no project settings, no secrets. Edge
+  Function **secrets** are not in scope, so this token cannot read or set
+  `ANTHROPIC_API_KEY` and friends; set those in the dashboard. Bump the CLI and
+  check its side-effects list again before widening the scope.
+- "Run a query" is listed under both Database levels. Staging and publishing
+  `UPDATE public.app_config`, so grant read-write. That is still arbitrary SQL
+  on the whole database, which makes this the more sensitive of the two tokens:
+  keep it in jobs that run no npm code.
+- **Not `production`:** that environment's subject is what the AWS deploy role
+  trusts, so a Supabase job declaring it could also assume that role.
+- Secret names differ from the old `SUPABASE_ACCESS_TOKEN` on purpose: an
+  environment secret falls back to a repo secret of the same name, which would
+  have kept the classic token in play silently while the scoped one was missing.
+  `src/workflowSecrets.test.ts` pins the old name's absence, each secret's
+  environment, and that no job holding one runs install scripts, `npx` or
+  `npm run`.
+- **Expiry.** Give each token an expiry (a year at most) and note the date;
+  an expired token fails the next deploy or staging run. Rotate by creating
+  a new token with the same scope, replacing the environment secret, and
+  revoking the old one.
+
+### Rolling it out (one time)
+
+Before merging the PR that switched to these secrets:
+
+1. Supabase → Account → Access tokens → **Generate new token**, choosing
+   permissions: organization/project `run-app` only, **Edge Functions:
+   read-write**, nothing else; set an expiry. Name it e.g.
+   `github-actions supabase-functions`.
+2. A second token the same way with **Database: read-write** only, e.g.
+   `github-actions supabase-app-config`. No permission picker? Scoped tokens are
+   in public alpha and roll out gradually; ask Supabase support for access
+   rather than falling back to a classic token.
+3. GitHub → Settings → Environments → **New environment** `supabase-functions`:
+   Deployment branches and tags → Selected branches and tags → add `main`.
+   Add secret `SUPABASE_FUNCTIONS_TOKEN` = token 1.
+4. Same for `supabase-app-config` (branch rule `main`), secret
+   `SUPABASE_APP_CONFIG_TOKEN` = token 2. Create both with the rule **before**
+   merging: GitHub creates an environment the first time a job names it, with
+   no branch rule and no secret.
+
+After merging:
+
+5. The merge's `deploy-supabase-functions.yml` run only deploys if a function
+   changed; to prove the token anyway, dispatch it from `main` with one
+   function name (e.g. `notify-contribution`) and check it goes green.
+6. Run "Publish app version" from `main` with the version that is already
+   live, as a no-op re-announcement, or wait for the next release's
+   `stage-*` jobs, and check the `app_config` audit row it prints.
+7. Once both are green: delete the repo secret `SUPABASE_ACCESS_TOKEN`
+   (Settings → Secrets and variables → Actions), then revoke the classic token
+   in Supabase → Account → Access tokens. Revoke it rather than leave it
+   unused: it still reaches every project on the account. If the same token
+   also sits in a local `supabase login` or an MCP config, give those their own
+   token first.
 
 ## Supabase Auth email (SES SMTP)
 

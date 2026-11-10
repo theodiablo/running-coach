@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run one SQL statement against the linked Supabase project and print the rows
-# (JSON) on stdout. Used by the release workflow's staging steps and by
-# publish-version.yml.
+# (JSON) on stdout. Used by the release workflow's staging jobs and by
+# publish-version.yml, with SUPABASE_ACCESS_TOKEN set from the scoped
+# SUPABASE_APP_CONFIG_TOKEN (Management API "Run a query" = Database read-write).
 #
 # Deliberately talks to the Management API rather than `supabase db query
 # --linked`: both that and `supabase link` first fetch GET /v1/projects/{ref}/
@@ -20,7 +21,7 @@ if [ -z "$SQL" ]; then
   exit 1
 fi
 if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
-  echo "::error::SUPABASE_ACCESS_TOKEN repo secret is not set — add a Supabase personal/service access token with database query rights on run-app." >&2
+  echo "::error::No Supabase token: SUPABASE_APP_CONFIG_TOKEN is not set in the supabase-app-config environment (a scoped token with Database read-write on run-app; docs/release.md, \"Supabase access tokens\")." >&2
   exit 1
 fi
 if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then

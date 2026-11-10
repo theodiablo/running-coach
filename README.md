@@ -238,20 +238,19 @@ publishes the store that shipped), every run ends by printing the resulting
 `app_config` row, and an optional `version` input overrides the staged value
 for repairs/rollbacks.
 
-For the workflows to write these columns, configure the Supabase CLI credentials
-(the same values used by the Edge Function deploy workflow):
+For the workflows to write these columns they need:
 
-| Name | Type | Value |
-|------|------|-------|
-| `SUPABASE_ACCESS_TOKEN` | Secret | a Supabase personal/service access token with database query rights on `run-app` |
-| `SUPABASE_PROJECT_REF` | Variable | the Supabase project ref to link/query |
+| Name | Where | Value |
+|------|-------|-------|
+| `SUPABASE_APP_CONFIG_TOKEN` | Secret in the `supabase-app-config` environment (deployment branches: `main` only) | a **scoped** Supabase access token: project `run-app`, **Database: read-write** |
+| `SUPABASE_PROJECT_REF` | Repo variable | the Supabase project ref |
 
-Both workflows use `npx supabase db query --linked` against the project in
-repo variable `SUPABASE_PROJECT_REF` to update the `public.app_config` version
-columns. The token is a CI/server secret only: never put it in `config.ts`, the app
-bundle, or any `VITE_*` var. If either the secret or project-ref variable is
-missing, a tagged release fails after the store upload instead of silently skipping
-the pending-version staging.
+Both workflows run their SQL through `scripts/supabase-query.sh` (the
+Management API's query endpoint), from jobs that run no npm code. The token is a
+CI secret only: never put it in `config.ts`, the app bundle, or any `VITE_*`
+var. If it is missing, staging fails after the store upload instead of silently
+skipping. The whole token setup (the edge-function token too) and how to rotate
+it: `docs/release.md`, "Supabase access tokens".
 
 ### Install a build on your phone
 

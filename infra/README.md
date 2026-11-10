@@ -345,7 +345,9 @@ get wrong:
   environment's branch rule, which is the point.
 - Secrets only one of those jobs needs belong in that environment's secrets,
   not the repo's, where any same-repo PR workflow can read them:
-  `SUPABASE_DB_URL` (the read-everything `db_backup` login) in `backup`.
+  `SUPABASE_DB_URL` (the read-everything `db_backup` login) in `backup`. The
+  Supabase Management API tokens follow the same rule, in their own
+  `supabase-*` environments (`docs/release.md`, "Supabase access tokens").
 
 If an assume-role call fails, decode the real token claims rather than guessing:
 add a throwaway workflow that curls
