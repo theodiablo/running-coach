@@ -2,11 +2,11 @@
 const NOT_A_COUNTRY = new Set(["EU", "EZ", "UN", "ZZ", "QO", "XA", "XB"]);
 const ALIASES: Record<string, string> = { UK: "GB" };
 
-let names: Intl.DisplayNames | null = null;
-function regionName(code: string, locale?: string): string | undefined {
+const namers = new Map<string, Intl.DisplayNames>();
+function regionName(code: string, locale = "en"): string | undefined {
   try {
-    const dn = locale ? new Intl.DisplayNames([locale], { type: "region", fallback: "none" })
-      : (names ??= new Intl.DisplayNames(["en"], { type: "region", fallback: "none" }));
+    let dn = namers.get(locale);
+    if (!dn) namers.set(locale, dn = new Intl.DisplayNames([locale], { type: "region", fallback: "none" }));
     return dn.of(code);
   } catch {
     return undefined;
