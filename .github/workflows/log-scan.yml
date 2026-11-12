@@ -1,0 +1,53 @@
+# Daily Supabase log and security-advisor scan (scripts/log-scan.sh). Silent on a
+# quiet day; fails, so GitHub notifies, when something crosses a threshold.
+# Setup and tuning: docs/monitoring.md.
+
+name: Supabase log scan
+
+on:
+  schedule:
+    - cron: "13 6 * * *" # daily; scans the 24 h before it
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: log-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Holds SUPABASE_LOGS_TOKEN; its branch rule must allow main only.
+    environment: monitoring
+    steps:
+      - name: Check configuration
+        id: cfg
+        env:
+          TOKEN: ${{ secrets.SUPABASE_LOGS_TOKEN }}
+          REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          # Skip loudly rather than fail red while the token is still missing.
+          if [ -z "$TOKEN" ] || [ -z "$REF" ]; then
+            echo "::warning::log scan skipped: SUPABASE_LOGS_TOKEN (monitoring environment) or SUPABASE_PROJECT_REF is not set. See docs/monitoring.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+
+      - name: Scan
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          SUPABASE_LOGS_TOKEN: ${{ secrets.SUPABASE_LOGS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: bash scripts/log-scan.sh
