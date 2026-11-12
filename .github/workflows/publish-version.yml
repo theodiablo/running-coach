@@ -53,6 +53,8 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Holds the scoped app-config token; main-only (docs/release.md, "Supabase access tokens").
+    environment: supabase-app-config
     steps:
       # Needed for the local validate-app-version action and
       # scripts/supabase-query.sh, not for npm — there is no npm ci here:
@@ -74,7 +76,7 @@ jobs:
 
       - name: Promote pending version to latest
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_APP_CONFIG_TOKEN }}
           PLATFORM: ${{ inputs.platform }}
           VERSION_INPUT: ${{ inputs.version }}
         run: |

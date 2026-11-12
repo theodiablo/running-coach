@@ -143,6 +143,11 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   `allow_destroy`. Pre-Terraform resources are adopted with `import` blocks;
   account-wide shared ones (the GitHub OIDC provider) stay `data` sources so
   this config can never destroy them. Detail: `infra/README.md`.
+- **A CI credential lives in a main-only GitHub Environment, scoped to the one
+  job family that needs it** — never a repo secret, never a classic
+  account-wide token, and never in a job that runs npm install scripts, `npx`
+  or `npm run` (split build from deploy, as `deploy.yml` does).
+  `src/workflowSecrets.test.ts` pins it; Supabase tokens: `docs/release.md`.
 - **Migrations are append-only** once a version may have reached Supabase:
   never rename/remove a pushed `supabase/migrations/*.sql` version — keep a
   no-op marker and put real schema in a later migration. **Never hand-pick the

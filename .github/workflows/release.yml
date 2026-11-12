@@ -22,12 +22,13 @@ name: Release mobile apps
 # release exactly once.
 #
 # The platform jobs are independent (each needs only prepare + web-build), so an
-# iOS failure never blocks the Android upload and vice versa; each job STAGES
-# its OWN app_config pending-version column only after its own store upload
-# succeeds. Staging does NOT show the in-app update prompt — a store upload
-# still has to clear review/rollout before the build is installable, so the
-# separate "Publish app version" workflow (publish-version.yml) is run by hand
-# to promote pending -> latest_version(_ios) once the store actually publishes.
+# iOS failure never blocks the Android upload and vice versa; a stage-* job per
+# platform STAGES its OWN app_config pending-version column only after that
+# store upload succeeds. Staging does NOT show the in-app update prompt — a
+# store upload still has to clear review/rollout before the build is
+# installable, so the separate "Publish app version" workflow
+# (publish-version.yml) is run by hand to promote pending -> latest_version(_ios)
+# once the store actually publishes.
 # "Re-run failed jobs" re-runs only the failed platform, and the build
 # number folds in run_attempt, so the retry gets a fresh store build number
 # (both Play and TestFlight permanently reject a re-used one).
@@ -320,38 +321,12 @@ jobs:
           track: internal
           status: completed
 
-      # On a real release, STAGE the version the Play upload actually shipped —
-      # never touching the *_ios columns (the ios job owns those). Staging does
-      # NOT surface the in-app "update available" nudge: an upload still has to
-      # clear Play review/rollout before users can install it, so latest_version
-      # is only set later by the manual "Publish app version" workflow
-      # (publish-version.yml) once the build is live in the store.
-      # Uses the Supabase CLI with a management access token, matching the Edge
-      # Function deploy workflow; no service-role data API key is needed.
-      # min_supported_version is left for you to bump by hand in Supabase when
-      # you ship a breaking change.
-      # The version-shape gate is single-sourced in
-      # .github/actions/validate-app-version (shared with the iOS job and
-      # publish-version.yml) so the shape the staging and publishing SQL accept
-      # can never drift apart.
-      - name: Validate version name
-        if: ${{ needs.prepare.outputs.is_release == 'true' }}
-        uses: ./.github/actions/validate-app-version
-        with:
-          version: ${{ steps.ver.outputs.name }}
-
-      - name: Stage Android version in Supabase (pending publish)
-        if: ${{ needs.prepare.outputs.is_release == 'true' }}
+      # Staging runs in stage-android, away from this job's npm/Gradle code.
+      - name: Note unstaged release
+        if: ${{ needs.prepare.outputs.is_release == 'true' && github.ref != 'refs/heads/main' }}
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           VERSION_NAME: ${{ steps.ver.outputs.name }}
-        run: |
-          set -euo pipefail
-
-          ./scripts/supabase-query.sh \
-            "update public.app_config set pending_version = '$VERSION_NAME', updated_at = now() where id = 1;"
-          echo "Staged pending_version=$VERSION_NAME — run the 'Publish app version' workflow once the Play rollout is live to show the update prompt."
+        run: echo "::warning::Not run from main, so pending_version is not staged. Once Play publishes, run 'Publish app version' with version $VERSION_NAME."
 
   ios:
     runs-on: macos-15
@@ -592,22 +567,68 @@ jobs:
             -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
             | xcbeautify --renderer github-actions
 
-      # The iOS twin of the Android staging step — only after the TestFlight
-      # upload succeeded, and only the *_ios column. As on Android, this stages
-      # the version for the manual "Publish app version" workflow; it does not
-      # show the update prompt (App Store review hasn't even started yet).
+      - name: Note unstaged release
+        if: ${{ needs.prepare.outputs.is_release == 'true' && github.ref != 'refs/heads/main' }}
+        env:
+          VERSION_NAME: ${{ steps.ver.outputs.name }}
+        run: echo "::warning::Not run from main, so pending_version_ios is not staged. Once the App Store publishes, run 'Publish app version' with version $VERSION_NAME."
+
+  # STAGE the version each store upload actually shipped, only after that
+  # platform's job succeeded, and only its own column. Staging does NOT surface
+  # the in-app update prompt: review/rollout still has to happen, so the manual
+  # "Publish app version" workflow promotes pending -> latest once the store
+  # publishes. min_supported_version stays hand-managed in Supabase.
+  # Separate jobs so the scoped app-config token (main-only
+  # `supabase-app-config` environment) never shares a runner with npm, Gradle or
+  # CocoaPods code; a tag-pushed release is not on main and skips them
+  # (docs/release.md, "Supabase access tokens"). The version-shape gate is
+  # single-sourced in .github/actions/validate-app-version, shared with
+  # publish-version.yml.
+  stage-android:
+    runs-on: ubuntu-latest
+    needs: [prepare, android]
+    if: ${{ needs.prepare.outputs.is_release == 'true' && github.ref == 'refs/heads/main' }}
+    environment: supabase-app-config
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Validate version name
-        if: ${{ needs.prepare.outputs.is_release == 'true' }}
         uses: ./.github/actions/validate-app-version
         with:
-          version: ${{ steps.ver.outputs.name }}
+          version: ${{ needs.prepare.outputs.version }}
+
+      - name: Stage Android version in Supabase (pending publish)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_APP_CONFIG_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          VERSION_NAME: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          ./scripts/supabase-query.sh \
+            "update public.app_config set pending_version = '$VERSION_NAME', updated_at = now() where id = 1;"
+          echo "Staged pending_version=$VERSION_NAME — run the 'Publish app version' workflow once the Play rollout is live to show the update prompt."
+
+  stage-ios:
+    runs-on: ubuntu-latest
+    needs: [prepare, ios]
+    if: ${{ needs.prepare.outputs.is_release == 'true' && github.ref == 'refs/heads/main' }}
+    environment: supabase-app-config
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate version name
+        uses: ./.github/actions/validate-app-version
+        with:
+          version: ${{ needs.prepare.outputs.version }}
 
       - name: Stage iOS version in Supabase (pending publish)
-        if: ${{ needs.prepare.outputs.is_release == 'true' }}
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_APP_CONFIG_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
-          VERSION_NAME: ${{ steps.ver.outputs.name }}
+          VERSION_NAME: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
 

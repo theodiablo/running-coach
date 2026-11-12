@@ -6,10 +6,15 @@ name: Deploy Supabase functions
 # _shared/coach/*.mjs), so a _shared change redeploys every function whose
 # source actually imports from _shared, not just coach-agent by name.
 #
-# Uses the Supabase CLI (a devDependency, so `npx supabase` needs no extra
-# install) against the linked project via SUPABASE_ACCESS_TOKEN — CLI deploy
-# reads files straight off disk, unlike the interactive-session path (see
-# CLAUDE.md) which goes through the Supabase MCP tools instead.
+# Uses the Supabase CLI (a devDependency) — CLI deploy reads files straight off
+# disk, unlike the interactive-session path (docs/release.md) which goes through
+# the Supabase MCP tools instead.
+#
+# Two jobs, like deploy.yml: `plan` runs npm install scripts and the typecheck
+# with no credential in reach; only `deploy` holds the token, a scoped one
+# (Edge Functions read-write on run-app) in the main-only `supabase-functions`
+# environment, and it installs with --ignore-scripts so no dependency's code
+# runs there but the CLI's own. Setup: docs/release.md ("Supabase access tokens").
 on:
   push:
     branches: [main]
@@ -34,8 +39,10 @@ env:
   SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
 jobs:
-  deploy:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.changed.outputs.functions }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -112,11 +119,35 @@ jobs:
           FUNCS=$(echo "$FUNCS" | xargs -n1 | sort -u | xargs || true)
           echo "functions=$FUNCS" >> "$GITHUB_OUTPUT"
 
+      - name: No changes
+        if: steps.changed.outputs.functions == ''
+        run: |
+          echo "No edge function changes detected — nothing to deploy." | tee "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: plan
+    if: needs.plan.outputs.functions != ''
+    runs-on: ubuntu-latest
+    environment: supabase-functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          check-latest: true
+          cache: npm
+
+      # Lockfile-pinned, but no install scripts: the token is in this job.
+      - name: Install the Supabase CLI
+        run: npm ci --ignore-scripts
+
       - name: Deploy changed functions
-        if: steps.changed.outputs.functions != ''
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          FUNCS: ${{ steps.changed.outputs.functions }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_FUNCTIONS_TOKEN }}
+          FUNCS: ${{ needs.plan.outputs.functions }}
         run: |
           set -euo pipefail
           # FUNCS carries the free-text dispatch input: never splice it into the script.
@@ -127,7 +158,7 @@ jobs:
             fi
           done
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN repo secret is not set — add it under Settings → Secrets and variables → Actions (a Supabase personal/service access token with deploy rights on run-app)."
+            echo "::error::SUPABASE_FUNCTIONS_TOKEN is not set in the supabase-functions environment — a scoped Supabase access token with Edge Functions read-write on run-app (docs/release.md, \"Supabase access tokens\")."
             exit 1
           fi
           if [ -z "$SUPABASE_PROJECT_REF" ]; then
@@ -136,15 +167,10 @@ jobs:
           fi
           for name in $FUNCS; do
             echo "::group::Deploying $name"
-            npx supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_REF"
+            ./node_modules/.bin/supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_REF"
             echo "::endgroup::"
           done
           echo "### Deployed functions" >> "$GITHUB_STEP_SUMMARY"
           for name in $FUNCS; do
             echo "- \`$name\`" >> "$GITHUB_STEP_SUMMARY"
           done
-
-      - name: No changes
-        if: steps.changed.outputs.functions == ''
-        run: |
-          echo "No edge function changes detected — nothing to deploy." | tee "$GITHUB_STEP_SUMMARY"
