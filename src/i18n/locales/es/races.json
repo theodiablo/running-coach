@@ -114,6 +114,7 @@
     "errors": {
       "dateDistance": "La fecha y la distancia son obligatorias.",
       "name": "Se necesita el nombre de la carrera.",
+      "country": "El país es obligatorio: su código de dos letras, p. ej., ES o FR.",
       "save": "No se pudo guardar la carrera. Inténtalo de nuevo."
     }
   },

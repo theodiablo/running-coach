@@ -7,6 +7,7 @@ import { track } from "../telemetry";
 import { LocationPicker } from "../components/LocationPicker";
 import { deleteRace } from "../races";
 import { notifyContribution } from "../notify";
+import { countryCode, countryName } from "../utils/country";
 import type { CatalogueRace, CatalogueEdition } from "../types";
 
 type LatLng = { lat: number; lng: number };
@@ -36,7 +37,7 @@ type RaceFormModalProps = {
 // Props: catalogue, addRace/addEdition, onContributed, showToast, onClose; `prefill` seeds the form;
 // `onCreated(editionId)` hands the new edition back to the caller instead of toast-and-close.
 export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, showToast, onClose, prefill, onCreated }: RaceFormModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const [selected, setSelected] = useState<CatalogueRace | null>(null); // an existing race to add a date to
   const [f, setF] = useState<RaceForm>({ name: "", city: "", country: "", url: "",
@@ -46,6 +47,7 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k: keyof RaceForm, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
+  const typedCountry = countryCode(f.country);
 
   // Live duplicate search on the name field (skipped once a race is selected).
   const matches = useMemo(() => {
@@ -61,6 +63,8 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
     const dist = parseFloat(String(f.distanceKm));
     if (!f.date || !dist) { setErr(t("races.form.errors.dateDistance")); return; }
     if (!selected && !f.name.trim()) { setErr(t("races.form.errors.name")); return; }
+    const country = countryCode(f.country);
+    if (!selected && !country) { setErr(t("races.form.errors.country")); return; }
     const elevation = f.elevation ? parseInt(String(f.elevation)) : 0;
     setBusy(true);
     // Track a race we create here so we can roll it back if the follow-up
@@ -76,7 +80,7 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
       } else {
         name = f.name.trim();
         const race = await addRace({
-          name, city: f.city.trim() || null, country: f.country.trim().toUpperCase() || null,
+          name, city: f.city.trim() || null, country,
           lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: f.url.trim() || null,
         });
         raceSlug = race.slug || race.id;
@@ -142,7 +146,9 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
                 <div><label className={LABEL_CLS}>{t("races.form.city")}</label>
                   <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
                 <div><label className={LABEL_CLS}>{t("races.form.country")}</label>
-                  <input value={f.country} onChange={e => set("country", e.target.value)} placeholder={t("races.form.countryPlaceholder")} maxLength={2} className={INPUT_CLS}/></div>
+                  <input value={f.country} onChange={e => set("country", e.target.value)} placeholder={t("races.form.countryPlaceholder")} maxLength={2}
+                    autoCapitalize="characters" aria-required="true" className={INPUT_CLS}/>
+                  {typedCountry && <p className="text-[11px] text-slate-400 mt-1 truncate">{countryName(typedCountry, i18n.language) || typedCountry}</p>}</div>
               </div>
               <div><label className={LABEL_CLS}>{t("races.form.officialSite")}</label>
                 <input value={f.url} onChange={e => set("url", e.target.value)} placeholder={t("races.form.officialSitePlaceholder")} maxLength={300} className={INPUT_CLS}/></div>

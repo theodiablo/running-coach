@@ -114,6 +114,7 @@
     "errors": {
       "dateDistance": "Une date et une distance sont requises.",
       "name": "Le nom de la course est requis.",
+      "country": "Le pays est requis : son code à deux lettres, p. ex. FR ou ES.",
       "save": "Impossible d'enregistrer cette course. Réessaie."
     }
   },

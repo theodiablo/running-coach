@@ -62,6 +62,9 @@ commit;
 
 Then re-run step 1's query on the slug and show the rows.
 
+- **Country is required** (`races_country_code`: an uppercase ISO alpha-2
+  code, checked on every UPDATE): a row without one aborts the verify unless
+  the same UPDATE sets it.
 - **Bounds** (`*_field_bounds`): name ≤120, city ≤80, country 2 letters, url
   ≤300, distance_km in (0, 500], elevation 0–20000. A violation aborts the
   transaction.
