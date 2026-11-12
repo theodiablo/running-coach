@@ -114,6 +114,7 @@
     "errors": {
       "dateDistance": "A date and distance are required.",
       "name": "A race name is required.",
+      "country": "A country is required: its two-letter code, e.g. FR or ES.",
       "save": "Couldn't save that race. Please try again."
     }
   },
