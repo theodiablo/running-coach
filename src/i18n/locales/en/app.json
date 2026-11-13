@@ -69,6 +69,7 @@
   },
   "offline": {
     "usingLocal": "You're offline. Showing your last synced data; new changes will sync once you're back online.",
+    "slowLink": "Weak connection. Showing your last synced data; it'll update on its own once the connection catches up.",
     "refreshed": "Back online. Your data was updated from the cloud."
   },
   "storeError": {

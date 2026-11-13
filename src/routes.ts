@@ -121,19 +121,30 @@ export function getPendingRoute(tmpId?: string | null) {
   return loadPending().find(e => e.tmpId === tmpId) || null;
 }
 
-// Retry every queued trace. Calls onSaved(tmpId, routeId) for each success so
-// the caller can relink the run. Entries that still fail stay queued.
-export async function flushPendingRoutes(onSaved?: (tmpId: string, routeId: string) => void) {
-  const list = loadPending();
-  if (!list.length) return;
-  const remaining: PendingRoute[] = [];
-  for (const e of list) {
-    try {
-      const id = await saveRoute({ points: e.points, stats: e.stats });
-      onSaved?.(e.tmpId, id);
-    } catch {
-      remaining.push(e);
-    }
+// Retry every queued trace; onSaved(tmpId, routeId) relinks each success, failures stay queued.
+// One flush at a time (boot and every `online` call this), or a trace uploads twice. The queue is
+// re-read after each upload, never overwritten from a snapshot, so a trace queued or deleted
+// meanwhile is kept or dropped as asked.
+let flushingRoutes: Promise<void> | null = null;
+export function flushPendingRoutes(onSaved?: (tmpId: string, routeId: string) => void): Promise<void> {
+  if (!flushingRoutes) {
+    flushingRoutes = flushRoutesOnce(onSaved).finally(() => { flushingRoutes = null; });
   }
-  savePending(remaining);
+  return flushingRoutes;
+}
+
+async function flushRoutesOnce(onSaved?: (tmpId: string, routeId: string) => void) {
+  const queued = (tmpId: string) => loadPending().some(e => e.tmpId === tmpId);
+  for (const e of loadPending()) {
+    if (!queued(e.tmpId)) continue;
+    let id: string;
+    try {
+      id = await saveRoute({ points: e.points, stats: e.stats });
+    } catch {
+      continue;
+    }
+    if (!queued(e.tmpId)) { void deleteRoute(id); continue; } // its run was deleted mid-upload
+    savePending(loadPending().filter(x => x.tmpId !== e.tmpId));
+    onSaved?.(e.tmpId, id);
+  }
 }

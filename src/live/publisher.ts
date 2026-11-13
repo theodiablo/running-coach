@@ -15,6 +15,12 @@ import type { TrackPointOrGap } from "../utils/geo";
 // costs battery and rows for a position that has barely moved.
 export const LIVE_PUBLISH_INTERVAL_MS = 30000;
 
+// Each write re-sends the whole trace, so on a link that keeps failing (a crowded race start)
+// the cadence stretches to 60s, then 120s, and snaps back on the first write that lands.
+// The native uploader mirrors this (LivePublishPlugin.kt).
+export const publishIntervalMs = (failures: number) =>
+  LIVE_PUBLISH_INTERVAL_MS * 2 ** Math.min(Math.max(failures - 1, 0), 2);
+
 export type LiveRunStatus = "live" | "paused" | "ended";
 // `elevation` is the RECORDER's cumulative gain, published rather than left to
 // the watcher: the trace on the wire is Douglas-Peucker simplified on horizontal
@@ -64,19 +70,20 @@ let inFlight = false;
 let inFlightWrite: Promise<void> | null = null; // so teardown can wait it out
 let rowCreated = false; // this run's row exists — later writes are plain UPDATEs
 let blocked = false; // a policy rejection — stop hammering the API for this run
+let failures = 0; // consecutive writes that didn't land
 
 // Whether this call should hit the network (pure, so the cadence is testable). A status
 // transition (pause/resume/stop) and a change to the public flag always go through: a stationary
 // runner emits no fixes to carry them later, and HIDING a run must take effect now.
 export function shouldPublish(
-  { now, lastAt, status, prevStatus, busy, sharePublic = false, prevSharePublic = false }:
+  { now, lastAt, status, prevStatus, busy, sharePublic = false, prevSharePublic = false, failures = 0 }:
   { now: number; lastAt: number; status: LiveRunStatus; prevStatus: LiveRunStatus | null; busy: boolean;
-    sharePublic?: boolean; prevSharePublic?: boolean | null },
+    sharePublic?: boolean; prevSharePublic?: boolean | null; failures?: number },
 ): boolean {
   if (busy) return false;
   if (status !== prevStatus) return true;
   if (sharePublic !== prevSharePublic) return true;
-  return now - lastAt >= LIVE_PUBLISH_INTERVAL_MS;
+  return now - lastAt >= publishIntervalMs(failures);
 }
 
 // Would a publish right now actually go out? Lets the caller skip the work of
@@ -84,7 +91,7 @@ export function shouldPublish(
 export function canPublishNow(status: LiveRunStatus, sharePublic = false): boolean {
   if (blocked) return false;
   return shouldPublish({ now: Date.now(), lastAt: lastPublishAt, status, prevStatus: lastStatus,
-    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic });
+    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic, failures });
 }
 
 // PostgREST surfaces an RLS refusal as 42501 (and PostgREST's own 401/403
@@ -99,7 +106,7 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   if (!user_id) return Promise.resolve();
   const sharePublic = args.sharePublic ?? false;
   if (!shouldPublish({ now: Date.now(), lastAt: lastPublishAt, status: args.status, prevStatus: lastStatus,
-    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic })) {
+    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic, failures })) {
     return Promise.resolve();
   }
 
@@ -109,7 +116,9 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   lastPublishAt = Date.now();
   lastStatus = args.status;
   lastSharePublic = sharePublic;
-  const write: Promise<void> = writeRow(user_id, args).finally(() => {
+  const write: Promise<void> = writeRow(user_id, args).then((landed) => {
+    failures = landed ? 0 : failures + 1;
+  }).finally(() => {
     inFlight = false;
     if (inFlightWrite === write) inFlightWrite = null;
   });
@@ -126,7 +135,8 @@ let sharePublicColumnMissing = false;
 
 type WriteError = { code?: string | null; message?: string } | null;
 
-async function writeRow(user_id: string, args: PublishArgs): Promise<void> {
+// Resolves whether the write reached the server (a refusal counts: it is not the link failing).
+async function writeRow(user_id: string, args: PublishArgs): Promise<boolean> {
   const { status, points, stats, startedAt, onPublishTokenChanged, onSharePublicUnavailable } = args;
   const row = { status, points, stats };
   let share_public = sharePublicColumnMissing ? null : (args.sharePublic ?? false);
@@ -192,12 +202,12 @@ async function writeRow(user_id: string, args: PublishArgs): Promise<void> {
       }
       if (error) {
         if (isPolicyError(error.code)) blocked = true;
-        return; // retried on the next fix, never before the interval
+        return false; // retried on the next fix, never before the interval
       }
       // Nothing matched: the row was swept from under us (another session ended
       // the run). Re-open it on the next fix rather than publishing into a void.
       if (!data?.length) rowCreated = false;
-      return;
+      return true;
     }
     // A fresh broadcast stamps its own start instant, so a row left by a killed
     // app gets its clock reset rather than inherited.
@@ -224,12 +234,13 @@ async function writeRow(user_id: string, args: PublishArgs): Promise<void> {
     }
     if (error) {
       if (isPolicyError(error.code)) blocked = true;
-      return;
+      return false;
     }
     rowCreated = true;
     markPublished(started_at);
+    return true;
   } catch {
-    /* offline — the next accepted fix republishes the full trace */
+    return false; // offline — the next accepted fix republishes the full trace
   }
 }
 
@@ -359,6 +370,7 @@ export function resetLivePublisher(): void {
   inFlightWrite = null;
   rowCreated = false;
   blocked = false;
+  failures = 0;
   // Re-probe once per run: if the migration landed mid-session the next run
   // picks the columns back up; if not, the first write re-latches for free.
   publishTokenColumnMissing = false;

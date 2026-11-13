@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 // An offline cold start with an expired access token: supabase-js preserves
 // the session in storage but getSession() resolves `session: null`, which used
@@ -43,6 +43,7 @@ vi.mock("./marketing/MarketingGate", () => ({ default: () => <div>Marketing land
 vi.mock("./RunningCoach", () => ({ default: () => <div>APP CONTENT</div> }));
 
 import App from "./App";
+import { supabase } from "./supabase";
 import { SUPABASE_URL } from "./config";
 import { supabaseStorageKey } from "./utils/offlineSession";
 
@@ -68,5 +69,37 @@ describe("offline session fallback", () => {
     render(<App />);
     await waitFor(() => expect(screen.getByText(/Marketing landing/i)).toBeInTheDocument());
     expect(h.initStore).not.toHaveBeenCalled();
+  });
+
+  // A weak network (a race start line): the expired token's refresh retries for ~30s, and
+  // getSession() waits on it. A recently-live stored session must open the app well before.
+  describe("while the token refresh is stuck", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.mocked(supabase.auth.getSession).mockImplementationOnce(() => new Promise(() => {}));
+    });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it("opens from the stored session within a few seconds", async () => {
+      localStorage.setItem(supabaseStorageKey(SUPABASE_URL), JSON.stringify({
+        access_token: "at", refresh_token: "rt",
+        expires_at: Math.floor(Date.now() / 1000) - 3600,
+        user: { id: "u-off" },
+      }));
+      render(<App />);
+      expect(screen.queryByText("APP CONTENT")).not.toBeInTheDocument();
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+      expect(screen.getByText("APP CONTENT")).toBeInTheDocument();
+      expect(h.initStore).toHaveBeenCalledWith("u-off");
+    });
+
+    it("keeps waiting, not the login screen, when nothing is stored", async () => {
+      render(<App />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+      expect(screen.queryByText(/Marketing landing/i)).not.toBeInTheDocument();
+      expect(h.initStore).not.toHaveBeenCalled();
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(screen.getByText(/Marketing landing/i)).toBeInTheDocument();
+    });
   });
 });

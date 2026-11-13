@@ -69,6 +69,7 @@
   },
   "offline": {
     "usingLocal": "Tu es hors ligne. Tes dernières données synchronisées sont affichées ; les nouveaux changements se synchroniseront au retour de la connexion.",
+    "slowLink": "Connexion faible. Tes dernières données synchronisées sont affichées ; elles se mettront à jour toutes seules dès que la connexion le permettra.",
     "refreshed": "De retour en ligne. Tes données ont été mises à jour depuis le cloud."
   },
   "storeError": {
