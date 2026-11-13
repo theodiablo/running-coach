@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Capacitor 8 CLI requires Node >= 22.
           node-version: 22
@@ -54,7 +54,7 @@ jobs:
           cache: npm
 
       - name: Setup Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: 21
@@ -62,7 +62,7 @@ jobs:
       # Default (no cache-read-only): this IS the default branch, so setup-gradle
       # WRITES the cache here — the one place it's seeded for everyone else.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Install dependencies
         run: npm ci
