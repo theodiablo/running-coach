@@ -206,8 +206,10 @@ publication: run "Publish app version" once the release is live.
   to the prompt: no "Allow" wording (the OS prompt is where permission is
   given) and no "Not now" (a primer may not let the user put the prompt off).
   Android keeps the accept/decline pair, because Google Play's prominent
-  disclosure requires the user to accept explicitly. Primer copy never tells the
-  user which option to pick on the OS prompt. Pinned by
+  disclosure requires the user to accept explicitly. On iOS, primer copy never
+  tells the user which option to pick on the OS prompt (`privacyNoteIos`), and
+  onboarding has no race-ready checklist (`onboardingSteps`, Android only): its
+  only iOS row was Location, beside a page "Continue" that skipped the prompt. Pinned by
   `src/modals/permissionPrimers.test.tsx`.
 - **Background audio (2.5.4).** `UIBackgroundModes` declares `audio` for the
   spoken run guidance: without it iOS won't re-activate playback for a

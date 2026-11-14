@@ -27,7 +27,7 @@ import { ReadinessChecklist } from "../components/ReadinessChecklist";
 import { ShareLinkPanel } from "../components/ShareLinkPanel";
 import { ToggleSwitch } from "../components/ToggleSwitch";
 import { useShareLink } from "../hooks/useShareLink";
-import { isNative } from "../native";
+import { isAndroid, isNative } from "../native";
 import { useBlePairing, type BleDevice } from "../hooks/useBlePairing";
 import { BleScanList } from "../components/BleScanList";
 import { searchEditions, editionLabel, findEdition } from "../utils/races";
@@ -95,7 +95,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); })();
 
   const [intent, setIntent] = useState<Intent>(settings.intent || null); // null | "race" | "fitness"
-  const seq = onboardingSteps(intent, { native: isNative });
+  const seq = onboardingSteps(intent, { android: isAndroid });
 
   const [stepIdx, setStepIdx] = useState(() =>
     Math.min(Math.max(0, settings.onboardStep || 0), seq.length - 1));
@@ -220,7 +220,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // and the acknowledgment is always captured fresh. `intent` is persisted too
   // so a mid-flow refresh rebuilds the right branch.
   const go = (key: OnboardingStep, partial: OnboardingProgress = {}, nextIntent: Intent = intent) => {
-    const ns = onboardingSteps(nextIntent, { native: isNative });
+    const ns = onboardingSteps(nextIntent, { android: isAndroid });
     const idx = ns.indexOf(key);
     if (idx < 0) return;
     if (nextIntent !== intent) setIntent(nextIntent);

@@ -3,12 +3,12 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 // App Review 5.1.1(iv): on iOS a screen before a permission prompt may not say
 // "Allow" or offer a way to put the prompt off. Play still needs accept/decline.
-const native = vi.hoisted(() => ({ isIos: true }));
+const native = vi.hoisted(() => ({ isIos: true, bgAvailable: false }));
 vi.mock("../native", async (orig) => ({
   ...(await orig<typeof import("../native")>()),
   get isIos() { return native.isIos; },
 }));
-vi.mock("../geo/background", () => ({ isBackgroundLocationAvailable: async () => false }));
+vi.mock("../geo/background", () => ({ isBackgroundLocationAvailable: async () => native.bgAvailable }));
 
 const { BgLocationDisclosure } = await import("./BgLocationDisclosure");
 const { HrSensorDisclosure } = await import("./HrSensorDisclosure");
@@ -22,7 +22,7 @@ const PRIMERS = [
 
 const buttonLabels = () => screen.getAllByRole("button").map(b => b.textContent?.trim());
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); native.bgAvailable = false; });
 
 describe.each(PRIMERS)("%s permission primer", (_name, Primer) => {
   it("on iOS offers only Continue, which always leads to the prompt", () => {
@@ -45,4 +45,12 @@ describe.each(PRIMERS)("%s permission primer", (_name, Primer) => {
     fireEvent.click(screen.getAllByRole("button")[0]);
     expect(onCancel).toHaveBeenCalledOnce();
   });
+});
+
+it("keeps Android's step-by-step guide and explicit accept on the background-location primer", async () => {
+  native.isIos = false;
+  native.bgAvailable = true;
+  render(<BgLocationDisclosure onAccept={vi.fn()} onCancel={vi.fn()} />);
+  expect(await screen.findByText(/Android shows 3 prompts/)).toBeInTheDocument();
+  expect(buttonLabels()).toEqual(["Not now", "Allow & continue"]);
 });

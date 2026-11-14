@@ -17,10 +17,10 @@ describe("onboardingSteps", () => {
     expect(onboardingSteps("live")).toEqual(
       ["welcome", "intent", "liveRace", "liveLink", "health"]);
   });
-  it("adds the device-readiness step to the live branch on native only", () => {
-    expect(onboardingSteps("live", { native: true })).toEqual(
+  it("adds the device-readiness step to the live branch on Android only", () => {
+    expect(onboardingSteps("live", { android: true })).toEqual(
       ["welcome", "intent", "liveRace", "liveReady", "liveLink", "health"]);
-    expect(onboardingSteps("race", { native: true })).toEqual(onboardingSteps("race"));
+    expect(onboardingSteps("race", { android: true })).toEqual(onboardingSteps("race"));
   });
   it("defaults to the race branch when intent is unset", () => {
     expect(steps(null)).toEqual(steps("race"));

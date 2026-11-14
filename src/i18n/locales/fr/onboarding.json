@@ -65,17 +65,17 @@
     "location": {
       "title": "Localisation",
       "sub": "Enregistre ton parcours et te place sur la carte",
-      "action": "Continuer"
+      "action": "Autoriser"
     },
     "background": {
       "title": "Localisation écran éteint",
       "sub": "La carte continue d'avancer pour ceux qui te suivent",
-      "action": "Continuer"
+      "action": "Autoriser"
     },
     "notifications": {
       "title": "Notifications",
       "sub": "Ta sortie reste sur l'écran de verrouillage pendant l'enregistrement",
-      "action": "Continuer"
+      "action": "Autoriser"
     },
     "battery": {
       "title": "Batterie sans restriction",
