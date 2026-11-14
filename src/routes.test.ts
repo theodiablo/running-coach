@@ -61,6 +61,7 @@ describe("flushPendingRoutes", () => {
     await flushing;
     expect(getPendingRoute("rt1")).toBeNull();
     expect(getPendingRoute("rt2")).not.toBeNull();
+    expect(h.insert).toHaveBeenCalledTimes(2); // tried in the same pass, not left for the next trigger
   });
 
   it("keeps failed uploads queued", async () => {

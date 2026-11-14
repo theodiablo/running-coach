@@ -135,8 +135,11 @@ export function flushPendingRoutes(onSaved?: (tmpId: string, routeId: string) =>
 
 async function flushRoutesOnce(onSaved?: (tmpId: string, routeId: string) => void) {
   const queued = (tmpId: string) => loadPending().some(e => e.tmpId === tmpId);
-  for (const e of loadPending()) {
-    if (!queued(e.tmpId)) continue;
+  const tried = new Set<string>();
+  for (;;) {
+    const e = loadPending().find(x => !tried.has(x.tmpId)); // picks up a trace queued mid-flush
+    if (!e) return;
+    tried.add(e.tmpId);
     let id: string;
     try {
       id = await saveRoute({ points: e.points, stats: e.stats });

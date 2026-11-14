@@ -205,6 +205,20 @@ describe("publishLiveRun", () => {
     expect(h.update).toHaveBeenCalledTimes(1); // back on the 30s cadence
   });
 
+  it("retries a pause that didn't land on the base cadence, however long the link has been failing", async () => {
+    h.insert.mockRejectedValue(new Error("offline"));
+    let t = START;
+    for (let i = 0; i < 3; i++) {
+      await publishLiveRun(args());
+      t += LIVE_PUBLISH_INTERVAL_MS * 4; vi.setSystemTime(t);
+    }
+    await publishLiveRun(args("paused")); // fails too
+    expect(h.insert).toHaveBeenCalledTimes(4);
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(5); // 30s, not 120s: the watcher still reads "live"
+  });
+
   it("swallows a thrown transport error so recording is never affected", async () => {
     h.insert.mockRejectedValue(new Error("offline"));
     await expect(publishLiveRun(args())).resolves.toBeUndefined();
