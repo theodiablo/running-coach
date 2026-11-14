@@ -173,7 +173,7 @@
     "bullet1": "Bluetooth is used <bold>only to find and read your sensor</bold> — never for location.",
     "bullet2": "Your heart rate is saved on your run, in your own account.",
     "bullet3": "Nothing is sold or shared with third parties.",
-    "policy": "See our <link>Privacy Policy</link>. When you tap Allow, Android will ask to use nearby Bluetooth devices.",
+    "policy": "See our <link>Privacy Policy</link>. When you continue, your phone asks whether Running Coach may use nearby Bluetooth devices.",
     "accept": "Allow & continue"
   },
   "guides": {

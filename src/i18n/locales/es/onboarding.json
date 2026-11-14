@@ -65,17 +65,17 @@
     "location": {
       "title": "Ubicación",
       "sub": "Graba tu recorrido y te sitúa en el mapa",
-      "action": "Permitir"
+      "action": "Continuar"
     },
     "background": {
       "title": "Ubicación con la pantalla apagada",
       "sub": "El mapa sigue avanzando para quienes te siguen",
-      "action": "Permitir"
+      "action": "Continuar"
     },
     "notifications": {
       "title": "Notificaciones",
       "sub": "Tu entrenamiento sigue en la pantalla de bloqueo mientras se graba",
-      "action": "Permitir"
+      "action": "Continuar"
     },
     "battery": {
       "title": "Batería sin restricciones",

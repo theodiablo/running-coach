@@ -2,7 +2,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { HeartPulse } from "lucide-react";
 import { PRIVACY_URL } from "../constants";
-import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
+import { ModalOverlay, PermissionPrimerButtons } from "../components/ModalPrimitives";
 import { BetaBadge } from "../components/BetaBadge";
 
 type HrSensorDisclosureProps = { onAccept: () => void; onCancel: () => void };
@@ -45,7 +45,7 @@ export function HrSensorDisclosure({ onAccept, onCancel }: HrSensorDisclosurePro
               }}
             />
           </p>
-          <ConfirmButtons cancelLabel={t("common.notNow")} acceptLabel={t("settings.hrDisclosure.accept")}
+          <PermissionPrimerButtons cancelLabel={t("common.notNow")} acceptLabel={t("settings.hrDisclosure.accept")}
             onCancel={onCancel} onAccept={onAccept} />
         </div>
       </div>
