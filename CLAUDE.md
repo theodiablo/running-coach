@@ -713,7 +713,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   comments and any section that doesn't apply.
 - **Never merge a PR unless explicitly asked.** A typed `/ship`
   (`.claude/skills/ship/`) is that ask, review and release included; a green
-  PR alone never is.
+  PR alone never is. Production promotion and the update prompt are a
+  separate ask: `/promote` (`.claude/skills/promote/`).
 - **After opening a PR, track its CI and auto-fix failures:** call
   `subscribe_pr_activity`, then end the turn. On CI failure, investigate and
   push in-scope fixes until green; use `AskUserQuestion` for ambiguous or
