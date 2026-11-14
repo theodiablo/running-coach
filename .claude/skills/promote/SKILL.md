@@ -10,7 +10,8 @@ argument-hint: "[version] [android|ios|both] | publish [android|ios|both]"
 Invoking this skill IS the maintainer's ask to send a build to production
 users, which `/ship` deliberately leaves out. It covers the version named in
 the request, else the newest `v*` GitHub release; the platforms named, else
-both. Mechanics and every input: `docs/release.md` ("Promoting an Android
+both. `/promote publish [platform]` does only step 6 (and the report).
+Mechanics and every input: `docs/release.md` ("Promoting an Android
 build", "Promoting an iOS build", "Upload ≠ publish").
 
 ## 1. Know what you are promoting
@@ -20,11 +21,12 @@ build", "Promoting an iOS build", "Upload ≠ publish").
   upload failed is not promoted; say why and what unblocks it (see 5).
 - Write the release notes once, for both stores: plain English a runner
   understands, what changed for them, no file names, PR numbers or internal
-  terms; at most 500 characters (Play's cap), `|` for a line break. Build them
-  from the PRs merged since the previous tag (the GitHub release body lists
-  them). The upload carries none, so blank would copy nothing, and App Store
-  production refuses to submit with "What's New" empty. Show them in your
-  report.
+  terms; at most 500 characters (Play's cap; Apple's is 4000, so 500 binds
+  both), `|` for a line break. Build them from the PRs merged since the
+  previous tag (the GitHub release body lists them). The upload carries none,
+  so blank would copy nothing, and App Store production refuses to submit
+  with "What's New" empty (the app's very first App Store version is the one
+  exception: it takes none). Show them in your report.
 
 ## 2. Android
 
@@ -32,7 +34,8 @@ Dispatch `promote-android.yml` on `main`: `from_track: internal`,
 `to_track: production`, `rollout_percent: 100`, `release_notes`. Leave
 `version_code` blank only when the newest completed internal release is this
 version (a release dispatched after it would be picked instead); otherwise
-pass it. A staged rollout (`rollout_percent` < 100) only when the maintainer
+pass it, read from that release run's Android job log or Play Console (it
+folds in `run_attempt`, so a re-run upload has a higher code). A staged rollout (`rollout_percent` < 100) only when the maintainer
 asks.
 
 ## 3. iOS
@@ -69,9 +72,11 @@ run, then promote.
 
 Promotion is not publication: Play and App Store review come after it. Only
 when the maintainer says a store is live (or asks for `/promote publish`),
-dispatch `publish-version.yml` with that `platform`. Leave `version` blank to
-promote the staged pending version, which is the case after a clean release.
-Pass it only to repair a release whose staging step failed. That run is what
+dispatch `publish-version.yml` with that `platform`. A blank `version`
+announces whatever is staged, and every release run overwrites the staged
+version, so leave it blank only when the version being published is the
+newest release on that platform; otherwise (an older version, a later
+release staged since, a release whose staging step failed) pass it. That run is what
 turns the in-app update card on. Never run it on a guess that review has
 passed.
 
