@@ -8,9 +8,10 @@ export type OnboardingStep =
   | "welcome" | "intent" | "race" | "raceGoal" | "training" | "hr" | "health" | "summary"
   | "liveRace" | "liveReady" | "liveLink";
 
-// `native`: the readiness step checks OS permissions, which a browser doesn't have.
-export function onboardingSteps(intent: Intent | string | undefined, { native = false }: { native?: boolean } = {}): OnboardingStep[] {
-  if (intent === "live") return ["welcome", "intent", "liveRace", ...(native ? ["liveReady" as const] : []), "liveLink", "health"];
+// `android`: only Android has readiness rows past location (iOS asks for location when the
+// recorder opens, and a skippable checklist before an OS prompt fails App Review 5.1.1(iv)).
+export function onboardingSteps(intent: Intent | string | undefined, { android = false }: { android?: boolean } = {}): OnboardingStep[] {
+  if (intent === "live") return ["welcome", "intent", "liveRace", ...(android ? ["liveReady" as const] : []), "liveLink", "health"];
   const tail: OnboardingStep[] = ["hr", "health", "summary"];
   if (intent === "fitness") return ["welcome", "intent", "training", ...tail];
   // Default (intent unset or "race") — the race branch.

@@ -4,7 +4,8 @@ import { useDismissable } from "../hooks/useDismissable";
 import { MapPin } from "lucide-react";
 import { PRIVACY_URL } from "../constants";
 import { isBackgroundLocationAvailable } from "../geo/background";
-import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
+import { isIos } from "../native";
+import { ModalOverlay, PermissionPrimerButtons } from "../components/ModalPrimitives";
 
 type BgLocationDisclosureProps = { onAccept: () => void; onCancel: () => void };
 
@@ -49,7 +50,7 @@ export function BgLocationDisclosure({ onAccept, onCancel }: BgLocationDisclosur
           )}
           <p className="text-[13px] text-slate-400">
             <Trans
-              i18nKey={bgSteps ? "login.bgLocation.privacyNoteBg" : "login.bgLocation.privacyNote"}
+              i18nKey={bgSteps ? "login.bgLocation.privacyNoteBg" : isIos ? "login.bgLocation.privacyNoteIos" : "login.bgLocation.privacyNote"}
               components={{
                 privacy: (
                   <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer"
@@ -59,7 +60,7 @@ export function BgLocationDisclosure({ onAccept, onCancel }: BgLocationDisclosur
               }}
             />
           </p>
-          <ConfirmButtons cancelLabel={t("common.notNow")} acceptLabel={t("login.bgLocation.allowContinue")}
+          <PermissionPrimerButtons cancelLabel={t("common.notNow")} acceptLabel={t("login.bgLocation.allowContinue")}
             onCancel={onCancel} onAccept={onAccept} />
         </div>
       </div>

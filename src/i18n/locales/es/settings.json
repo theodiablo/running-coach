@@ -173,7 +173,7 @@
     "bullet1": "Bluetooth se usa <bold>solo para encontrar y leer tu sensor</bold>, nunca para la ubicación.",
     "bullet2": "Tu frecuencia cardíaca se guarda con el entrenamiento en tu cuenta.",
     "bullet3": "No se vende ni se comparte nada con terceros.",
-    "policy": "Consulta nuestra <link>Política de privacidad</link>. Cuando toques Permitir, Android solicitará acceso a los dispositivos Bluetooth cercanos.",
+    "policy": "Consulta nuestra <link>Política de privacidad</link>. Al continuar, tu teléfono te preguntará si Running Coach puede usar los dispositivos Bluetooth cercanos.",
     "accept": "Permitir y continuar"
   },
   "guides": {
