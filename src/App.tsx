@@ -149,6 +149,9 @@ export default function App() {
   // a fresh session or explicit SIGNED_OUT clears it, but the null every failed
   // offline refresh emits must NOT bounce the user to login.
   const offlineSessionRef = useRef<Session | null>(null);
+  // A native deep-link auth callback is being redeemed: the session it yields is the one to
+  // use, so the fast boot must not open the device's previous session in the meantime.
+  const nativeCallbackRef = useRef(false);
 
   // Track the auth session.
   useEffect(() => {
@@ -213,7 +216,7 @@ export default function App() {
     });
     // Not while a web auth callback is being redeemed: the session it yields is the one to use.
     const fastTimer = classifyAuthUrl(initialUrl).kind === "none"
-      ? setTimeout(() => adoptStored(false), AUTH_FAST_BOOT_MS)
+      ? setTimeout(() => { if (!nativeCallbackRef.current) adoptStored(false); }, AUTH_FAST_BOOT_MS)
       : undefined;
     // Safety net: never spin forever.
     const timer = setTimeout(() => adoptStored(true), AUTH_INIT_TIMEOUT_MS);
@@ -262,6 +265,7 @@ export default function App() {
       if (!url || url === lastUrlRef.current) return; // de-dupe appUrlOpen vs getLaunchUrl
       lastUrlRef.current = url;
       const cb = classifyAuthUrl(url);
+      if (cb.kind !== "none" && cb.kind !== "cloudOauth") nativeCallbackRef.current = true;
       // Read BEFORE any await: an email-change callback updates the session
       // mid-flight, and settleEmailChange needs the pre-callback value to tell
       // "the change just completed" from "that link was never valid".
