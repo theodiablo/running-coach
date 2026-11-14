@@ -20,6 +20,10 @@ let retryDelay = RETRY_MS;
 let flushing: Promise<void> | null = null;
 let flushAgain = false;
 let flushGen = 0;
+// db.set count vs the newest count an upsert (or an adopted server row) has settled: a re-flush
+// with nothing new to send would re-stamp the row over a foreign write that landed meanwhile.
+let writeSeq = 0;
+let settledSeq = 0;
 // Bumped by every initStore/clearStore, so a boot read that lands late can tell it is stale.
 let bootGen = 0;
 // Did the cache come from a SUCCESSFUL read of this user's row (or, offline, its local
@@ -66,6 +70,15 @@ export function subscribeStoreRefresh(cb: RefreshListener) {
   return () => { refreshListeners.delete(cb); };
 }
 const notifyRefresh = () => refreshListeners.forEach(cb => { try { cb(); } catch { /* listener's problem */ } });
+
+// Fired when an offline- or slow-booted store becomes reconciled without a remount, so work
+// that waits on isStoreReconciled() (the plan automation) gets its turn this session.
+const reconciledListeners = new Set<RefreshListener>();
+export function subscribeStoreReconciled(cb: RefreshListener) {
+  reconciledListeners.add(cb);
+  return () => { reconciledListeners.delete(cb); };
+}
+const notifyReconciled = () => setTimeout(() => reconciledListeners.forEach(cb => { try { cb(); } catch { /* listener's problem */ } }), 0);
 
 export type StoreInitResult = "loaded" | "offline" | "slow" | "failed";
 
@@ -124,6 +137,7 @@ export async function initStore(uid: string): Promise<StoreInitResult> {
   offlineBase = 0;
   lastLocalWriteAt = null;
   retryDelay = RETRY_MS;
+  settledSeq = writeSeq;
   const gen = ++bootGen;
   const read = readRow(uid);
   let budget: ReturnType<typeof setTimeout> | undefined;
@@ -214,10 +228,12 @@ function reconcileWith(data: { data?: unknown; updated_at?: string | null } | nu
   const serverAt = data?.updated_at ? Date.parse(data.updated_at) || 0 : 0;
   offlinePending = false;
   if (lastLocalWriteAt != null && (serverAt <= offlineBase || lastLocalWriteAt > serverAt)) {
+    notifyReconciled();
     return "flush";
   }
   cache = (data && data.data && typeof data.data === "object" ? data.data : {}) as Record<string, unknown>;
   lastLocalWriteAt = null;
+  settledSeq = writeSeq;
   clearOwnSnapshot();
   // Read the baseline BEFORE writeMirror advances it: only remount the app
   // when the adopted row actually differs from what the mirror booted (a
@@ -225,6 +241,7 @@ function reconcileWith(data: { data?: unknown; updated_at?: string | null } | nu
   const advanced = serverAt > offlineBase;
   writeMirror(data?.updated_at ?? null, cache);
   if (advanced) notifyRefresh();
+  else notifyReconciled();
   return "adopted";
 }
 
@@ -237,6 +254,7 @@ function restoreSnapshot(uid: string, serverUpdatedAt: string | null) {
   const serverAt = serverUpdatedAt ? Date.parse(serverUpdatedAt) || 0 : 0;
   if (snap.savedAt > serverAt && snap.data && typeof snap.data === "object") {
     cache = snap.data as Record<string, unknown>;
+    lastLocalWriteAt = snap.savedAt;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, 600);
   } else {
@@ -256,7 +274,8 @@ function readSnapshot(): Snapshot | null {
 }
 function writeSnapshot() {
   try {
-    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({ userId, data: cache, savedAt: Date.now() }));
+    // The edit's own time, not now: a re-save must not make an old edit outrank a newer foreign write.
+    localStorage.setItem(UNSYNCED_STATE_KEY, JSON.stringify({ userId, data: cache, savedAt: lastLocalWriteAt ?? Date.now() }));
   } catch { /* quota / storage unavailable — the upsert may still succeed */ }
 }
 function clearSnapshot() {
@@ -319,6 +338,7 @@ export function clearStore() {
   offlineBase = 0;
   lastLocalWriteAt = null;
   bootGen++;
+  settledSeq = writeSeq;
   // An attempt still on the wire belongs to the old session (it re-checks userId when it lands).
   flushing = null;
   flushAgain = false;
@@ -345,8 +365,8 @@ function flush(): Promise<void> {
       let ok: boolean;
       do {
         flushAgain = false;
-        ok = await flushOnce();
-      } while (ok && flushAgain && gen === flushGen);
+        ok = await flushOnce(gen);
+      } while (ok && flushAgain && writeSeq > settledSeq && gen === flushGen);
     } finally {
       if (gen === flushGen) { flushing = null; flushAgain = false; }
     }
@@ -355,9 +375,10 @@ function flush(): Promise<void> {
 }
 
 // One sync attempt. False when it failed and left a retry scheduled.
-async function flushOnce(): Promise<boolean> {
+async function flushOnce(gen: number): Promise<boolean> {
   if (!userId) return true;
   const uid = userId;
+  const stale = () => userId !== uid || gen !== flushGen; // the store was cleared or re-booted meanwhile
   // The guard that makes a failed load non-destructive: this upsert replaces
   // the entire blob, so writing an unloaded cache would erase the row.
   if (!loaded) {
@@ -372,31 +393,38 @@ async function flushOnce(): Promise<boolean> {
     // clears the snapshot again if the server legitimately wins.
     if (lastLocalWriteAt != null) writeSnapshot();
     const outcome = await reconcile();
-    if (userId !== uid) return true;
+    if (stale()) return true;
     if (outcome === "unreachable") {
       scheduleRetry();
       return false;
     }
-    if (outcome === "adopted") return true; // server row won; nothing local left to write
+    if (outcome === "adopted") { // server row won; nothing local left to write
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
+      retryDelay = RETRY_MS;
+      return true;
+    }
   }
   // Snapshot BEFORE the network attempt: if the process dies mid-flight (or
   // the upsert fails offline) the write still exists on disk for the next boot.
   writeSnapshot();
   const updatedAt = new Date().toISOString();
   const sent = { ...cache }; // db.set mutates the cache in place mid-flight
+  const seq = writeSeq;
   const { error } = await supabase.from("app_state").upsert({
     user_id: uid,
     data: sent,
     updated_at: updatedAt,
   });
-  if (userId !== uid) return true;
+  if (stale()) return true;
   if (error) {
     console.error("app_state save failed", error);
     scheduleRetry();
     return false;
   }
   // A write that landed mid-flight is not confirmed: keep its snapshot for the next pass.
-  if (!flushAgain) clearSnapshot();
+  if (seq === writeSeq) clearSnapshot();
+  settledSeq = Math.max(settledSeq, seq);
   writeMirror(updatedAt, sent); // the upsert just confirmed `sent` as the row
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = null;
@@ -465,6 +493,7 @@ export const db = {
     // practice there is no UI to write from — this is the belt to that braces.
     if (!loaded) return;
     lastLocalWriteAt = Date.now();
+    writeSeq++;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, 600);
   },

@@ -47,7 +47,7 @@ vi.mock("./supabase", () => ({
   },
 }));
 
-import { db, isCached, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS, BOOT_READ_BUDGET_MS } from "./db";
+import { db, isCached, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, subscribeStoreReconciled, OFFLINE_BOOT_MAX_AGE_MS, BOOT_READ_BUDGET_MS } from "./db";
 import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
 const loadOk = (data: unknown, updatedAt?: string) => {
@@ -683,5 +683,63 @@ describe("db store — weak network", () => {
     expect(h.upsert.mock.calls[1][0]).toMatchObject({ data: { rc_runs: ["a", "b"] } });
     expect(JSON.parse(localStorage.getItem(OFFLINE_STATE_KEY)!).data).toEqual({ rc_runs: ["a", "b"] });
     expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("an adopting reconcile never re-stamps the server's own row, even when asked again mid-read", async () => {
+    await seedMirror({ rc_runs: ["mirrored"] }, Date.now() - 60_000);
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    const read = deferred<{ data: unknown; error: null }>();
+    h.state.result = read.promise as never;
+    window.dispatchEvent(new Event("online")); // reconcile read goes out
+    window.dispatchEvent(new Event("online")); // asked again while it is on the wire
+    read.resolve({ data: { data: { rc_runs: ["from the web"] }, updated_at: iso(Date.now()) }, error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await db.get("rc_runs")).toEqual(["from the web"]);
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  it("an adopting reconcile resets the backoff for the next failure", async () => {
+    await seedMirror({ rc_runs: ["mirrored"] }, Date.now() - 60_000);
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 + 120_000); // three unreachable reconciles
+    loadOk({ rc_runs: ["mirrored"] }, iso(Date.now() - 60_000));
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(isStoreReconciled()).toBe(true);
+    h.upsert.mockImplementation(async () => ({ error: { message: "offline" } as never }));
+    await db.set("rc_notes", "x");
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.upsert).toHaveBeenCalledTimes(2); // 30s, not the 240s the offline stretch had reached
+  });
+
+  it("a re-saved snapshot keeps its edit's time, so it never outranks a later foreign write", async () => {
+    loadOk({});
+    await initStore("u1");
+    h.upsert.mockImplementation(async () => ({ error: { message: "offline" } as never }));
+    await db.set("rc_notes", "edited");
+    const editedAt = Date.now();
+    await settle();
+    await vi.advanceTimersByTimeAsync(5 * 60_000); // retries re-save the snapshot
+    expect(JSON.parse(localStorage.getItem(UNSYNCED_STATE_KEY)!).savedAt).toBe(editedAt);
+  });
+
+  it("tells subscribers when a slow boot reconciles without a remount", async () => {
+    const serverAt = Date.now() - 60_000;
+    await seedMirror({ rc_runs: ["mirrored"] }, serverAt);
+    const late = deferred<{ data: unknown; error: null }>();
+    h.state.result = late.promise as never;
+    const booting = initStore("u1");
+    await vi.advanceTimersByTimeAsync(BOOT_READ_BUDGET_MS);
+    expect(await booting).toBe("slow");
+    const reconciled = vi.fn();
+    const unsub = subscribeStoreReconciled(reconciled);
+    late.resolve({ data: { data: { rc_runs: ["mirrored"] }, updated_at: iso(serverAt) }, error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(reconciled).toHaveBeenCalledTimes(1);
+    unsub();
   });
 });

@@ -16,6 +16,7 @@ let store: Record<string, unknown> = {};
 let reconciled = true;
 let loaded = true;
 let cached = true;
+const reconciledListeners = new Set<() => void>();
 
 vi.mock("./db", () => ({
   db: {
@@ -26,6 +27,7 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => loaded,
   isStoreReconciled: () => reconciled,
+  subscribeStoreReconciled: (cb: () => void) => { reconciledListeners.add(cb); return () => { reconciledListeners.delete(cb); }; },
   isCached: () => cached,
 }));
 vi.mock("./races", () => ({ listRaces: async () => [], addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
@@ -110,6 +112,18 @@ describe("RunningCoach · plan automation", () => {
       cleanup();
       reconciled = true;
       await boot();
+      expect(plan().weeks.length).toBeGreaterThan(p.weeks.length);
+    });
+
+    it("gets its turn when a slow or offline boot reconciles later in the session", async () => {
+      const p = open();
+      seed(p, [], settings({ raceDate: "", goalKind: "open" }));
+      at(startOfLastBlock(p));
+      reconciled = false;
+      await boot();
+      expect(plan()).toBe(p);
+      reconciled = true;
+      await act(async () => { reconciledListeners.forEach(cb => cb()); });
       expect(plan().weeks.length).toBeGreaterThan(p.weeks.length);
     });
 
