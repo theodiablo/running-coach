@@ -65,17 +65,17 @@
     "location": {
       "title": "Location",
       "sub": "Records your route and puts you on the map",
-      "action": "Allow"
+      "action": "Continue"
     },
     "background": {
       "title": "Location with the screen off",
       "sub": "Keeps the map moving for the people following you",
-      "action": "Allow"
+      "action": "Continue"
     },
     "notifications": {
       "title": "Notifications",
       "sub": "Keeps your run on the lock screen while it records",
-      "action": "Allow"
+      "action": "Continue"
     },
     "battery": {
       "title": "Unrestricted battery use",

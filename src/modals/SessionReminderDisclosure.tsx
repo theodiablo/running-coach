@@ -1,7 +1,7 @@
 import { useTranslation, Trans } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { BellRing } from "lucide-react";
-import { ModalOverlay, ConfirmButtons } from "../components/ModalPrimitives";
+import { ModalOverlay, PermissionPrimerButtons } from "../components/ModalPrimitives";
 
 type SessionReminderDisclosureProps = { onAccept: () => void; onCancel: () => void };
 
@@ -26,7 +26,7 @@ export function SessionReminderDisclosure({ onAccept, onCancel }: SessionReminde
             <li>{t("reminders.disclosure.bullet2")}</li>
             <li>{t("reminders.disclosure.bullet3")}</li>
           </ul>
-          <ConfirmButtons cancelLabel={t("reminders.disclosure.cancel")} acceptLabel={t("reminders.disclosure.accept")}
+          <PermissionPrimerButtons cancelLabel={t("reminders.disclosure.cancel")} acceptLabel={t("reminders.disclosure.accept")}
             onCancel={onCancel} onAccept={onAccept} />
         </div>
       </div>

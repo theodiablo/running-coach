@@ -17,8 +17,8 @@ beforeEach(() => { fixReadiness.mockClear(); localStorage.clear(); });
 
 const allowBackground = async () => {
   await screen.findByText("Location with the screen off");
-  // Rows in order: background ("Allow"), battery ("Open settings").
-  fireEvent.click(screen.getByText("Allow"));
+  // Rows in order: background ("Continue"), battery ("Open settings").
+  fireEvent.click(screen.getByText("Continue"));
 };
 
 describe("ReadinessChecklist", () => {
