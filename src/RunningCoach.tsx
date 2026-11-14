@@ -8,7 +8,7 @@ import { dismissAll, dismissTop } from "./utils/backDismiss";
 import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
-import { db, currentUserId, isCached, isStoreLoaded, isStoreReconciled } from "./db";
+import { db, currentUserId, isCached, isStoreLoaded, isStoreReconciled, subscribeStoreReconciled } from "./db";
 import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
@@ -642,6 +642,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     checkWatchRef.current().catch(() => {});
     planAutomationRef.current();
   }, [loading]);
+  // A slow or offline boot reconciles after loading; the automation's once-per-boot turn is then.
+  useEffect(() => subscribeStoreReconciled(() => planAutomationRef.current()), []);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
   const restorePlan  = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); };

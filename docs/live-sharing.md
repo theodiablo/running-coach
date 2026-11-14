@@ -85,6 +85,15 @@ recorded in (screen off, phone in a pocket). `canPublishNow()` is checked before
 `simplify()` so the ~1/s foreground clock ticks don't re-simplify a long trace
 only to discard it.
 
+**A failing link stretches the cadence**: every write re-sends the whole trace,
+so after two consecutive failures the interval doubles to 60s, then 120s
+(`publishIntervalMs`), and the first write that lands snaps it back to 30s.
+Status and visibility changes still jump the queue, and one that fails restarts
+the curve at 30s so a watcher isn't left on a stale status for two minutes. The native uploader mirrors
+the same curve (`MAX_BACKOFF_SHIFT`, parity-tested in `livePublishSeed.test.ts`)
+and skips its immediate retry after a timeout, which only doubles the time the
+radio and the wake lock are held on a link that isn't there.
+
 The consequence is that **a stationary runner publishes nothing**: with
 `distanceFilter` in play, standing still emits no fixes. That is not a bug to
 fix at the recorder; the watcher owns staleness and says so on its own. Status

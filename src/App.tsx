@@ -79,6 +79,11 @@ async function redeemRecovery(cb: { tokenHash: string | null; code: string | nul
 // never leave the user staring at the splash spinner forever.
 const AUTH_INIT_TIMEOUT_MS = 20000;
 
+// An expired token holds getSession() on its refresh, which auth-js retries for ~30s on a weak
+// network (a race start line). Past this, a recently-live stored session opens the app instead
+// (same rule as the offline fallback) and the refresh carries on behind it.
+const AUTH_FAST_BOOT_MS = 2500;
+
 // Resolve an email-change confirmation against SERVER truth (the redirect can
 // lie either way, see emailChangeOutcome). The re-read also refreshes the
 // "waiting for confirmation" banner. `pendingBefore` is user.new_email before the callback.
@@ -144,6 +149,12 @@ export default function App() {
   // a fresh session or explicit SIGNED_OUT clears it, but the null every failed
   // offline refresh emits must NOT bounce the user to login.
   const offlineSessionRef = useRef<Session | null>(null);
+  // A native deep-link auth callback is being redeemed: the session it yields is the one to
+  // use, so the fast boot must not open the device's previous session in the meantime.
+  // Counts callbacks in flight; a fast boot that fell due meanwhile runs once they settle.
+  const nativeCallbackRef = useRef(0);
+  const fastBootDueRef = useRef(false);
+  const adoptStoredRef = useRef<((orLogin: boolean) => void) | null>(null);
 
   // Track the auth session.
   useEffect(() => {
@@ -192,25 +203,34 @@ export default function App() {
       settle(s);
     });
 
-    // Safety net: if auth is still unresolved after the cap, drop to login rather
-    // than spin forever. This can fire BEFORE a slow offline refresh settles, so it
-    // must make the same offline fallback as the resolved path, or a merely-offline
-    // user gets the login screen and a torn-down store.
-    const timer = setTimeout(() => {
-      setSession((curr) => {
-        if (curr !== undefined) return curr;
-        const cached = readOfflineSession();
-        if (cached) {
-          offlineSessionRef.current = cached;
-          return cached;
-        }
-        console.error("Auth init did not settle in time; showing login");
-        return null;
-      });
-    }, AUTH_INIT_TIMEOUT_MS);
+    // Still resolving: adopt the stored session if it qualifies, else keep waiting (or, from
+    // the safety net, drop to login). Must make the same offline fallback as the resolved
+    // path, or a merely-offline user gets the login screen and a torn-down store.
+    const adoptStored = (orLogin: boolean) => setSession((curr) => {
+      if (curr !== undefined) return curr;
+      const cached = readOfflineSession();
+      if (cached) {
+        offlineSessionRef.current = cached;
+        return cached;
+      }
+      if (!orLogin) return curr;
+      console.error("Auth init did not settle in time; showing login");
+      return null;
+    });
+    adoptStoredRef.current = adoptStored;
+    // Not while a web auth callback is being redeemed: the session it yields is the one to use.
+    const fastTimer = classifyAuthUrl(initialUrl).kind === "none"
+      ? setTimeout(() => {
+        if (nativeCallbackRef.current > 0) fastBootDueRef.current = true;
+        else adoptStored(false);
+      }, AUTH_FAST_BOOT_MS)
+      : undefined;
+    // Safety net: never spin forever.
+    const timer = setTimeout(() => adoptStored(true), AUTH_INIT_TIMEOUT_MS);
 
     return () => {
       active = false;
+      clearTimeout(fastTimer);
       clearTimeout(timer);
       sub.subscription.unsubscribe();
     };
@@ -248,7 +268,22 @@ export default function App() {
       } catch { /* Android (unimplemented) or already closed — ignore */ }
     };
 
+    // Once the callback settles (either way), storage holds whichever session is now the one.
     const processUrl = async (url: string) => {
+      const kind = url && url !== lastUrlRef.current ? classifyAuthUrl(url).kind : "none";
+      const isAuth = kind !== "none" && kind !== "cloudOauth";
+      if (isAuth) nativeCallbackRef.current++;
+      try {
+        await handleUrl(url);
+      } finally {
+        if (isAuth && --nativeCallbackRef.current === 0 && fastBootDueRef.current) {
+          fastBootDueRef.current = false;
+          adoptStoredRef.current?.(false);
+        }
+      }
+    };
+
+    const handleUrl = async (url: string) => {
       if (!url || url === lastUrlRef.current) return; // de-dupe appUrlOpen vs getLaunchUrl
       lastUrlRef.current = url;
       const cb = classifyAuthUrl(url);
@@ -448,6 +483,7 @@ export default function App() {
         // Offline boot: the app runs on the locally-mirrored data. Say so —
         // silence would make any staleness look like data loss.
         if (result === "offline") emitAuthNotice("app.offline.usingLocal");
+        if (result === "slow") emitAuthNotice("app.offline.slowLink");
         loadedUidRef.current = session.user.id;
         setStoreFailedUid(null);
         setStoreReady(true);

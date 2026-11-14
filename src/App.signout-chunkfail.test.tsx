@@ -42,6 +42,7 @@ vi.mock("./db", () => ({
   currentUserId: () => "u1",
   flushNow: vi.fn(async () => {}),
   subscribeStoreRefresh: () => () => {},
+  subscribeStoreReconciled: () => () => {},
   clearOfflineMirror: vi.fn(),
 }));
 

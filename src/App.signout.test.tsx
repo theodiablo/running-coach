@@ -67,6 +67,7 @@ vi.mock("./db", () => ({
   isStoreReconciled: () => true,
   isCached: () => true,
   subscribeStoreRefresh: () => () => {},
+  subscribeStoreReconciled: () => () => {},
   clearOfflineMirror: vi.fn(),
 }));
 

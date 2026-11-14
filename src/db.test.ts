@@ -10,29 +10,44 @@ const h = vi.hoisted(() => {
   const upsert = vi.fn<(row: { user_id: string; data: unknown }) => Promise<{ error: null }>>(
     async () => ({ error: null }),
   );
-  const state: { result: { data: unknown; error: unknown } | Error } = {
+  const state: { result: { data: unknown; error: unknown } | Error; sessionUid: string | null } = {
     result: { data: { data: { rc_runs: ["real run"] } }, error: null },
+    sessionUid: "*", // "*": a live session for whichever user is asked for
   };
-  return { upsert, state };
+  const authHeaders: string[] = [];
+  return { upsert, state, authHeaders };
 });
 
 vi.mock("./supabase", () => ({
   supabase: {
+    auth: {
+      getSession: async () => {
+        const id = h.state.sessionUid === "*" ? (await import("./db")).currentUserId() : h.state.sessionUid;
+        if (id === null) return { data: { session: null } };
+        return { data: { session: { access_token: `tok-${id}`, user: { id } } } };
+      },
+    },
     from: () => ({
       select: () => ({
-        eq: () => ({
-          maybeSingle: async () => {
-            if (h.state.result instanceof Error) throw h.state.result;
-            return h.state.result;
-          },
-        }),
+        eq: () => {
+          const q = {
+            setHeader: (_name: string, value: string) => { h.authHeaders.push(value); return q; },
+            maybeSingle: async () => {
+              if (h.state.result instanceof Error) throw h.state.result;
+              // RLS: an anonymous read sees no row, and says nothing about why.
+              if (h.state.sessionUid === null) return { data: null, error: null };
+              return h.state.result;
+            },
+          };
+          return q;
+        },
       }),
       upsert: h.upsert,
     }),
   },
 }));
 
-import { db, isCached, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, OFFLINE_BOOT_MAX_AGE_MS } from "./db";
+import { db, isCached, initStore, clearStore, clearOfflineMirror, flushNow, isStoreLoaded, isStoreReconciled, currentUserId, subscribeStoreRefresh, subscribeStoreReconciled, OFFLINE_BOOT_MAX_AGE_MS, BOOT_READ_BUDGET_MS } from "./db";
 import { UNSYNCED_STATE_KEY, OFFLINE_STATE_KEY } from "./constants";
 
 const loadOk = (data: unknown, updatedAt?: string) => {
@@ -49,6 +64,8 @@ describe("db store", () => {
     vi.useFakeTimers();
     localStorage.clear();
     h.upsert.mockClear();
+    h.state.sessionUid = "*";
+    h.authHeaders.length = 0;
     h.upsert.mockImplementation(async () => ({ error: null }));
     vi.spyOn(console, "error").mockImplementation(() => {});
     clearStore();
@@ -195,6 +212,8 @@ describe("db store — offline durability", () => {
     vi.useFakeTimers();
     localStorage.clear();
     h.upsert.mockClear();
+    h.state.sessionUid = "*";
+    h.authHeaders.length = 0;
     h.upsert.mockImplementation(async () => ({ error: null }));
     vi.spyOn(console, "error").mockImplementation(() => {});
     clearStore();
@@ -285,6 +304,8 @@ describe("db store — offline boot", () => {
     vi.useFakeTimers();
     localStorage.clear();
     h.upsert.mockClear();
+    h.state.sessionUid = "*";
+    h.authHeaders.length = 0;
     h.upsert.mockImplementation(async () => ({ error: null }));
     vi.spyOn(console, "error").mockImplementation(() => {});
     clearStore();
@@ -487,5 +508,238 @@ describe("db store — offline boot", () => {
     await vi.advanceTimersByTimeAsync(700);
     expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeTruthy();
     expect(h.upsert).not.toHaveBeenCalled();
+  });
+});
+
+// A weak network (a race start line): the boot read must never mistake an anonymous answer for
+// an empty account, must not hold the splash when a mirror can open the app, and failed syncs
+// must back off rather than re-send the whole blob every 30s.
+describe("db store — weak network", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    localStorage.clear();
+    h.upsert.mockClear();
+    h.state.sessionUid = "*";
+    h.authHeaders.length = 0;
+    h.upsert.mockImplementation(async () => ({ error: null }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    clearStore();
+  });
+  afterEach(() => {
+    clearStore();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const iso = (t: number) => new Date(t).toISOString();
+  const deferred = <T,>() => {
+    let resolve!: (v: T) => void;
+    const promise = new Promise<T>(r => { resolve = r; });
+    return { promise, resolve };
+  };
+  const seedMirror = async (data: unknown, serverAt: number) => {
+    loadOk(data, iso(serverAt));
+    expect(await initStore("u1")).toBe("loaded");
+  };
+
+  it("pins the session's own token to the boot read", async () => {
+    loadOk({ rc_runs: [] });
+    await initStore("u1");
+    expect(h.authHeaders).toEqual(["Bearer tok-u1"]);
+  });
+
+  it("never reads an anonymous 'no row' as a new account (refresh failed, token expired)", async () => {
+    await seedMirror({ rc_runs: ["real run"] }, Date.now() - 60_000);
+    const mirror = localStorage.getItem(OFFLINE_STATE_KEY);
+    h.state.sessionUid = null;
+    expect(await initStore("u1")).toBe("offline");
+    expect(await db.get("rc_runs")).toEqual(["real run"]);
+    expect(localStorage.getItem(OFFLINE_STATE_KEY)).toBe(mirror);
+
+    clearStore();
+    localStorage.clear();
+    expect(await initStore("u1")).toBe("failed");
+    expect(isStoreLoaded()).toBe(false);
+  });
+
+  it("an anonymous reconcile read never adopts an empty row over the mirror", async () => {
+    await seedMirror({ rc_runs: ["real run"] }, Date.now() - 60_000);
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    loadOk({ rc_runs: ["real run"] }, iso(Date.now() - 60_000));
+    h.state.sessionUid = null;
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await db.get("rc_runs")).toEqual(["real run"]);
+    expect(isStoreReconciled()).toBe(false);
+  });
+
+  it("opens from the mirror when the read outruns the budget, then reconciles on the late read", async () => {
+    const serverAt = Date.now() - 60_000;
+    await seedMirror({ rc_runs: ["mirrored"] }, serverAt);
+    const late = deferred<{ data: unknown; error: null }>();
+    h.state.result = late.promise as never;
+    const booting = initStore("u1");
+    await vi.advanceTimersByTimeAsync(BOOT_READ_BUDGET_MS);
+    expect(await booting).toBe("slow");
+    expect(await db.get("rc_runs")).toEqual(["mirrored"]);
+    expect(isStoreReconciled()).toBe(false);
+
+    const refreshed = vi.fn();
+    const unsub = subscribeStoreRefresh(refreshed);
+    late.resolve({ data: { data: { rc_runs: ["mirrored"] }, updated_at: iso(serverAt) }, error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(isStoreReconciled()).toBe(true);
+    expect(refreshed).not.toHaveBeenCalled(); // unchanged row: no remount
+    // The late read WAS the reconcile: no second read or upsert on the retry timer.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.upsert).not.toHaveBeenCalled();
+    unsub();
+  });
+
+  it("a late read carrying another device's newer write is adopted", async () => {
+    await seedMirror({ rc_runs: ["mirrored"] }, Date.now() - 60_000);
+    const late = deferred<{ data: unknown; error: null }>();
+    h.state.result = late.promise as never;
+    const booting = initStore("u1");
+    await vi.advanceTimersByTimeAsync(BOOT_READ_BUDGET_MS);
+    expect(await booting).toBe("slow");
+    const refreshed = vi.fn();
+    const unsub = subscribeStoreRefresh(refreshed);
+    late.resolve({ data: { data: { rc_runs: ["from the web"] }, updated_at: iso(Date.now()) }, error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await db.get("rc_runs")).toEqual(["from the web"]);
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    unsub();
+  });
+
+  it("a write made before the late read lands is synced once it reconciles", async () => {
+    const serverAt = Date.now() - 60_000;
+    await seedMirror({ rc_runs: ["mirrored"] }, serverAt);
+    const late = deferred<{ data: unknown; error: null }>();
+    h.state.result = late.promise as never;
+    const booting = initStore("u1");
+    await vi.advanceTimersByTimeAsync(BOOT_READ_BUDGET_MS);
+    expect(await booting).toBe("slow");
+    await db.set("rc_notes", "at the start line");
+    late.resolve({ data: { data: { rc_runs: ["mirrored"] }, updated_at: iso(serverAt) }, error: null });
+    h.state.result = { data: { data: { rc_runs: ["mirrored"] }, updated_at: iso(serverAt) }, error: null };
+    await vi.advanceTimersByTimeAsync(700);
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    expect(h.upsert.mock.calls[0][0]).toMatchObject({ data: { rc_runs: ["mirrored"], rc_notes: "at the start line" } });
+  });
+
+  it("without a mirror, a slow read is waited for rather than failed", async () => {
+    const late = deferred<{ data: unknown; error: null }>();
+    h.state.result = late.promise as never;
+    const booting = initStore("u1");
+    await vi.advanceTimersByTimeAsync(BOOT_READ_BUDGET_MS * 3);
+    late.resolve({ data: { data: { rc_runs: ["server"] } }, error: null });
+    expect(await booting).toBe("loaded");
+    expect(await db.get("rc_runs")).toEqual(["server"]);
+  });
+
+  it("backs off failed syncs instead of re-sending every 30s", async () => {
+    loadOk({});
+    await initStore("u1");
+    h.upsert.mockImplementation(async () => ({ error: { message: "offline" } as never }));
+    await db.set("rc_runs", ["saved offline"]);
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.upsert).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.upsert).toHaveBeenCalledTimes(2); // second wait is 60s
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.upsert).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    // 120s, 240s, then capped at 300s: 4 more attempts in 10 minutes, not 20.
+    expect(h.upsert.mock.calls.length).toBeLessThanOrEqual(6);
+
+    // Back online: synced at once, and the backoff starts over.
+    h.upsert.mockImplementation(async () => ({ error: null }));
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("never runs two upserts at once; a write made mid-flight follows the first", async () => {
+    loadOk({});
+    await initStore("u1");
+    const first = deferred<{ error: null }>();
+    h.upsert.mockImplementationOnce(() => first.promise);
+    await db.set("rc_runs", ["a"]);
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+
+    await db.set("rc_runs", ["a", "b"]);
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1); // still waiting on the first
+    expect(JSON.parse(localStorage.getItem(UNSYNCED_STATE_KEY)!).data).toEqual({ rc_runs: ["a", "b"] });
+
+    first.resolve({ error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(h.upsert).toHaveBeenCalledTimes(2);
+    expect(h.upsert.mock.calls[1][0]).toMatchObject({ data: { rc_runs: ["a", "b"] } });
+    expect(JSON.parse(localStorage.getItem(OFFLINE_STATE_KEY)!).data).toEqual({ rc_runs: ["a", "b"] });
+    expect(localStorage.getItem(UNSYNCED_STATE_KEY)).toBeNull();
+  });
+
+  it("an adopting reconcile never re-stamps the server's own row, even when asked again mid-read", async () => {
+    await seedMirror({ rc_runs: ["mirrored"] }, Date.now() - 60_000);
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    const read = deferred<{ data: unknown; error: null }>();
+    h.state.result = read.promise as never;
+    window.dispatchEvent(new Event("online")); // reconcile read goes out
+    window.dispatchEvent(new Event("online")); // asked again while it is on the wire
+    read.resolve({ data: { data: { rc_runs: ["from the web"] }, updated_at: iso(Date.now()) }, error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await db.get("rc_runs")).toEqual(["from the web"]);
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  it("an adopting reconcile resets the backoff for the next failure", async () => {
+    await seedMirror({ rc_runs: ["mirrored"] }, Date.now() - 60_000);
+    loadThrows();
+    expect(await initStore("u1")).toBe("offline");
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 + 120_000); // three unreachable reconciles
+    loadOk({ rc_runs: ["mirrored"] }, iso(Date.now() - 60_000));
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(isStoreReconciled()).toBe(true);
+    h.upsert.mockImplementation(async () => ({ error: { message: "offline" } as never }));
+    await db.set("rc_notes", "x");
+    await settle();
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.upsert).toHaveBeenCalledTimes(2); // 30s, not the 240s the offline stretch had reached
+  });
+
+  it("a re-saved snapshot keeps its edit's time, so it never outranks a later foreign write", async () => {
+    loadOk({});
+    await initStore("u1");
+    h.upsert.mockImplementation(async () => ({ error: { message: "offline" } as never }));
+    await db.set("rc_notes", "edited");
+    const editedAt = Date.now();
+    await settle();
+    await vi.advanceTimersByTimeAsync(5 * 60_000); // retries re-save the snapshot
+    expect(JSON.parse(localStorage.getItem(UNSYNCED_STATE_KEY)!).savedAt).toBe(editedAt);
+  });
+
+  it("tells subscribers when a slow boot reconciles without a remount", async () => {
+    const serverAt = Date.now() - 60_000;
+    await seedMirror({ rc_runs: ["mirrored"] }, serverAt);
+    const late = deferred<{ data: unknown; error: null }>();
+    h.state.result = late.promise as never;
+    const booting = initStore("u1");
+    await vi.advanceTimersByTimeAsync(BOOT_READ_BUDGET_MS);
+    expect(await booting).toBe("slow");
+    const reconciled = vi.fn();
+    const unsub = subscribeStoreReconciled(reconciled);
+    late.resolve({ data: { data: { rc_runs: ["mirrored"] }, updated_at: iso(serverAt) }, error: null });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(reconciled).toHaveBeenCalledTimes(1);
+    unsub();
   });
 });

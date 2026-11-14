@@ -104,26 +104,33 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
 - **Persistence:** `db.get/set(STORAGE_KEYS.*)` (`src/db.ts`,
   `src/constants.ts`). Every state change is mirrored to `db` in the same
   handler that calls `setState`. Writes debounce ~600ms into a single upsert
-  and flush on page hide/unload. Every flush attempt first snapshots the cache
+  and flush on page hide/unload, one at a time (overlapping upserts on a slow
+  link can land out of order). Every flush attempt first snapshots the cache
   to localStorage (`UNSYNCED_STATE_KEY`); a failed upsert retries (online
-  event + timer) and a snapshot newer than the server row is restored on the
-  next boot — an offline save must survive the process being killed. Each
+  event, foreground, and a timer backing off 30s → 5min) and a snapshot newer
+  than the server row is restored on the next boot — an offline save must survive the process being killed. Each
   successful load/flush also mirrors the confirmed blob to `OFFLINE_STATE_KEY`
   for the offline boot below (cleared on sign-out — it's account data).
 - **A failed load must never become a write.** The upsert replaces the whole
   `data` blob, so an unpopulated cache would erase the row. On a failed read `initStore`
   boots from the `OFFLINE_STATE_KEY` mirror when it has one for that user
   (≤7 days old) — a real copy of the row, so the invariant holds — returning
-  `"offline"`; the first server contact then *reconciles before any upsert*
+  `"offline"`; a read still pending after `BOOT_READ_BUDGET_MS` boots the same
+  way (`"slow"`) and reconciles when it lands, so a weak network never holds
+  the splash. The first server contact then *reconciles before any upsert*
   (foreign newer write wins over untouched/older local state, same
   last-write-wins rule as the snapshot restore; `subscribeStoreRefresh`
   remounts the app when the server row is adopted). With no usable mirror it
   returns `"failed"` and the store stays read-only (`isStoreLoaded()`);
   `App.tsx` renders `StoreLoadError` (retry) rather than falling through to
   the app, which would read as a new account and trigger onboarding. Never
-  "recover" from a read failure with an empty default. The auth twin: an
-  offline cold start with an expired token gets its session from
-  `readOfflineSession` (`src/utils/offlineSession.ts`), not the login screen.
+  "recover" from a read failure with an empty default. **An anonymous read is a
+  failed read:** with an expired token whose refresh failed, supabase-js quietly
+  sends the anon key and RLS answers "no row" with no error, so the `app_state`
+  read pins the session's own token (`readRow`). The auth twin: an offline (or,
+  after `AUTH_FAST_BOOT_MS`, a slow) cold start with an expired token gets its
+  session from `readOfflineSession` (`src/utils/offlineSession.ts`), not the
+  login screen or a ~30s refresh.
 - **The first requests after a sign-in can 401.** PostgREST refuses a token
   whose `iat` is ahead of its own clock (`PGRST303`, "JWT issued at future"),
   and Supabase's auth and PostgREST nodes drift by seconds — so only the burst
