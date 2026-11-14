@@ -151,7 +151,10 @@ export default function App() {
   const offlineSessionRef = useRef<Session | null>(null);
   // A native deep-link auth callback is being redeemed: the session it yields is the one to
   // use, so the fast boot must not open the device's previous session in the meantime.
-  const nativeCallbackRef = useRef(false);
+  // Counts callbacks in flight; a fast boot that fell due meanwhile runs once they settle.
+  const nativeCallbackRef = useRef(0);
+  const fastBootDueRef = useRef(false);
+  const adoptStoredRef = useRef<((orLogin: boolean) => void) | null>(null);
 
   // Track the auth session.
   useEffect(() => {
@@ -214,9 +217,13 @@ export default function App() {
       console.error("Auth init did not settle in time; showing login");
       return null;
     });
+    adoptStoredRef.current = adoptStored;
     // Not while a web auth callback is being redeemed: the session it yields is the one to use.
     const fastTimer = classifyAuthUrl(initialUrl).kind === "none"
-      ? setTimeout(() => { if (!nativeCallbackRef.current) adoptStored(false); }, AUTH_FAST_BOOT_MS)
+      ? setTimeout(() => {
+        if (nativeCallbackRef.current > 0) fastBootDueRef.current = true;
+        else adoptStored(false);
+      }, AUTH_FAST_BOOT_MS)
       : undefined;
     // Safety net: never spin forever.
     const timer = setTimeout(() => adoptStored(true), AUTH_INIT_TIMEOUT_MS);
@@ -261,11 +268,25 @@ export default function App() {
       } catch { /* Android (unimplemented) or already closed — ignore */ }
     };
 
+    // Once the callback settles (either way), storage holds whichever session is now the one.
     const processUrl = async (url: string) => {
+      const kind = url && url !== lastUrlRef.current ? classifyAuthUrl(url).kind : "none";
+      const isAuth = kind !== "none" && kind !== "cloudOauth";
+      if (isAuth) nativeCallbackRef.current++;
+      try {
+        await handleUrl(url);
+      } finally {
+        if (isAuth && --nativeCallbackRef.current === 0 && fastBootDueRef.current) {
+          fastBootDueRef.current = false;
+          adoptStoredRef.current?.(false);
+        }
+      }
+    };
+
+    const handleUrl = async (url: string) => {
       if (!url || url === lastUrlRef.current) return; // de-dupe appUrlOpen vs getLaunchUrl
       lastUrlRef.current = url;
       const cb = classifyAuthUrl(url);
-      if (cb.kind !== "none" && cb.kind !== "cloudOauth") nativeCallbackRef.current = true;
       // Read BEFORE any await: an email-change callback updates the session
       // mid-flight, and settleEmailChange needs the pre-callback value to tell
       // "the change just completed" from "that link was never valid".

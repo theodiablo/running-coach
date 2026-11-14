@@ -7,6 +7,7 @@ import { act, render, screen } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   launchUrl: null as string | null,
+  verifyOtp: vi.fn((): Promise<unknown> => new Promise(() => {})),
   initStore: vi.fn(async (): Promise<string> => "slow"),
 }));
 
@@ -26,7 +27,7 @@ vi.mock("./supabase", () => ({
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
       signOut: vi.fn(),
       exchangeCodeForSession: vi.fn(() => new Promise(() => {})),
-      verifyOtp: vi.fn(() => new Promise(() => {})),
+      verifyOtp: h.verifyOtp,
     },
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => new Promise(() => {}) }) }) }),
   },
@@ -81,5 +82,18 @@ describe("native fast boot", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
     expect(h.initStore).not.toHaveBeenCalled();
     expect(screen.queryByText("APP CONTENT")).not.toBeInTheDocument();
+  });
+
+  it("opens the stored session as soon as a link that came in late turns out dead", async () => {
+    h.launchUrl = "solutions.camboulive.run://auth-callback?token_hash=expired&type=recovery";
+    h.verifyOtp.mockImplementationOnce(() => new Promise((resolve) => {
+      setTimeout(() => resolve({ data: { user: null }, error: { message: "Token has expired" } }), 4000);
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<App />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    expect(h.initStore).not.toHaveBeenCalled();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(h.initStore).toHaveBeenCalledWith("u-stored"); // not left on the splash until the 20s net
   });
 });

@@ -217,6 +217,13 @@ describe("publishLiveRun", () => {
     t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
     await publishLiveRun(args("paused"));
     expect(h.insert).toHaveBeenCalledTimes(5); // 30s, not 120s: the watcher still reads "live"
+    // That retry failed too: the backoff resumes rather than staying at 30s for the outage.
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(5);
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(6);
   });
 
   it("swallows a thrown transport error so recording is never affected", async () => {

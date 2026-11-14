@@ -71,8 +71,6 @@ let inFlightWrite: Promise<void> | null = null; // so teardown can wait it out
 let rowCreated = false; // this run's row exists — later writes are plain UPDATEs
 let blocked = false; // a policy rejection — stop hammering the API for this run
 let failures = 0; // consecutive writes that didn't land
-// A status/visibility change whose write didn't land: retried at the base cadence, never backed off.
-let changeUnacked = false;
 
 // Whether this call should hit the network (pure, so the cadence is testable). A status
 // transition (pause/resume/stop) and a change to the public flag always go through: a stationary
@@ -93,7 +91,7 @@ export function shouldPublish(
 export function canPublishNow(status: LiveRunStatus, sharePublic = false): boolean {
   if (blocked) return false;
   return shouldPublish({ now: Date.now(), lastAt: lastPublishAt, status, prevStatus: lastStatus,
-    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic, failures: changeUnacked ? 0 : failures });
+    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic, failures });
 }
 
 // PostgREST surfaces an RLS refusal as 42501 (and PostgREST's own 401/403
@@ -108,11 +106,11 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   if (!user_id) return Promise.resolve();
   const sharePublic = args.sharePublic ?? false;
   if (!shouldPublish({ now: Date.now(), lastAt: lastPublishAt, status: args.status, prevStatus: lastStatus,
-    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic, failures: changeUnacked ? 0 : failures })) {
+    busy: inFlight, sharePublic, prevSharePublic: lastSharePublic, failures })) {
     return Promise.resolve();
   }
-  const carriesChange = changeUnacked || (lastStatus !== null
-    && (args.status !== lastStatus || sharePublic !== lastSharePublic)); // the opening write is not one
+  // A transition that fails restarts the curve at 30s: the watcher must not sit 120s on a stale status.
+  const carriesChange = lastStatus !== null && (args.status !== lastStatus || sharePublic !== lastSharePublic);
 
   inFlight = true;
   // Claim the slot up front: an upload that takes longer than the interval must
@@ -121,8 +119,7 @@ export function publishLiveRun(args: PublishArgs): Promise<void> {
   lastStatus = args.status;
   lastSharePublic = sharePublic;
   const write: Promise<void> = writeRow(user_id, args).then((landed) => {
-    failures = landed ? 0 : failures + 1;
-    changeUnacked = !landed && carriesChange;
+    failures = landed ? 0 : carriesChange ? 1 : failures + 1;
   }).finally(() => {
     inFlight = false;
     if (inFlightWrite === write) inFlightWrite = null;
@@ -376,7 +373,6 @@ export function resetLivePublisher(): void {
   rowCreated = false;
   blocked = false;
   failures = 0;
-  changeUnacked = false;
   // Re-probe once per run: if the migration landed mid-session the next run
   // picks the columns back up; if not, the first write re-latches for free.
   publishTokenColumnMissing = false;
