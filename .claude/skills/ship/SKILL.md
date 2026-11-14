@@ -101,7 +101,6 @@ needs a code fix is diagnosed and reported, not retried.
 
 One short message: what the review found and what was fixed or left (and
 why), the merge commit, the release version and run link, and the next
-manual steps — promote to production (`promote-android.yml` /
-`promote-ios.yml`; name the `version` when promoting iOS right after a
-release) and "Publish app version" once the stores publish. Offer to run
-those; don't run them unasked.
+steps: promotion to production (`/promote`) and, once the stores publish,
+"Publish app version" (`/promote publish`). Offer them; don't run them
+unasked.
