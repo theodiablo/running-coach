@@ -2,6 +2,8 @@
 // nudges): backdrop/positioning and the accept/cancel button pair, so styling and
 // z-index fixes land in one place.
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { isIos } from "../native";
 
 type ModalOverlayProps = { children: ReactNode };
 type ConfirmButtonsProps = {
@@ -33,6 +35,22 @@ export function ConfirmButtons({ onCancel, onAccept, cancelLabel, acceptLabel }:
       <button onClick={onAccept}
         className="py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white">
         {acceptLabel}
+      </button>
+    </div>
+  );
+}
+
+// The buttons under a screen that explains a permission before the OS prompt. iOS gets one
+// "Continue" that always leads to the prompt (App Review 5.1.1(iv): no "Allow", no way to defer);
+// Android keeps the accept/decline pair Google Play's prominent disclosure needs. docs/release.md.
+export function PermissionPrimerButtons({ onCancel, onAccept, cancelLabel, acceptLabel }: ConfirmButtonsProps) {
+  const { t } = useTranslation();
+  if (!isIos) return <ConfirmButtons onCancel={onCancel} onAccept={onAccept} cancelLabel={cancelLabel} acceptLabel={acceptLabel} />;
+  return (
+    <div className="pt-1">
+      <button onClick={onAccept}
+        className="w-full py-2.5 rounded-xl text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white">
+        {t("common.continue")}
       </button>
     </div>
   );

@@ -500,6 +500,10 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   default is `baseline-widely-available` (= ios16.4), so the target is pinned in
   `vite.config.ts` and `src/iosCompat.test.ts` fails CI if the two drift. It
   lowers *syntax* only — no regex feature is ever lowered, and no API polyfilled.
+- **A screen before an OS permission prompt uses `PermissionPrimerButtons`**:
+  one "Continue" on iOS (App Review 5.1.1(iv) rejects "Allow" and "Not now"
+  there), the accept/decline pair Google Play's prominent disclosure needs on
+  Android. `docs/release.md` ("What App Review checks beyond the binary").
 - **Never resolve a promise with a Capacitor plugin proxy** (`async` returning
   it, `.then(m => m.Plugin)`): the proxy answers `then`, so the promise calls
   `Plugin.then()`, which rejects as unimplemented and never settles. Box it

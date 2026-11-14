@@ -173,7 +173,7 @@
     "bullet1": "Le Bluetooth sert <bold>uniquement à trouver et lire ton capteur</bold>, jamais à te localiser.",
     "bullet2": "Ta fréquence cardiaque est enregistrée avec ta sortie, dans ton compte.",
     "bullet3": "Aucune donnée n'est vendue ni partagée avec des tiers.",
-    "policy": "Consulte notre <link>Politique de confidentialité</link>. Lorsque tu touches Autoriser, Android demande l'accès aux appareils Bluetooth à proximité.",
+    "policy": "Consulte notre <link>Politique de confidentialité</link>. Quand tu continues, ton téléphone te demande si Running Coach peut utiliser les appareils Bluetooth à proximité.",
     "accept": "Autoriser et continuer"
   },
   "guides": {

@@ -197,6 +197,29 @@ appears is the previous release. A build Apple marked FAILED/INVALID stops it.
 transient failures; writes never do. As on Android, promotion is not
 publication: run "Publish app version" once the release is live.
 
+## What App Review checks beyond the binary
+
+- **Permission primers (5.1.1(iv)).** A screen that explains a permission before
+  the OS prompt (`BgLocationDisclosure`, `HrSensorDisclosure`,
+  `SessionReminderDisclosure`) renders its buttons through
+  `PermissionPrimerButtons`. On iOS that is one **Continue**, which always leads
+  to the prompt: no "Allow" wording (the OS prompt is where permission is
+  given) and no "Not now" (a primer may not let the user put the prompt off).
+  Android keeps the accept/decline pair, because Google Play's prominent
+  disclosure requires the user to accept explicitly. Primer copy never tells the
+  user which option to pick on the OS prompt. Pinned by
+  `src/modals/permissionPrimers.test.tsx`.
+- **Background audio (2.5.4).** `UIBackgroundModes` declares `audio` for the
+  spoken run guidance: without it iOS won't re-activate playback for a
+  backgrounded app, so cues stop in a locked pocket (`docs/guided-workouts.md`).
+  A reviewer who never starts a guided run hears nothing, so the App Review notes
+  must explain it and link a screen recording, made on a physical iPhone, that
+  starts a run with audio guidance, goes to the Home Screen, and hears a cue.
+- **Paired hardware (2.1).** Because the app pairs a Bluetooth heart-rate
+  sensor, App Review asks for a video of a physical device pairing a real sensor
+  and recording a run with it. Keep its link in the App Review notes, together
+  with the background-audio recording and the demo account.
+
 ## Database migrations
 
 **On merge to `main` this is automatic.** The Supabase GitHub integration
