@@ -92,6 +92,21 @@ describe("migration policy conventions", () => {
     // Fix with (select auth.uid()); a bare call is re-evaluated per row (advisor lint 0003).
     expect(perRow).toEqual([]);
   });
+
+  // Safe only while their table's SELECT policy is a bare `true`: Postgres raises 42P17 once it has a subquery.
+  const SELF_READING_POLICIES = new Set(['races."races insert own unverified"', 'race_editions."race_editions insert own unverified"']);
+
+  it("never reads a policy's own table inside that policy", () => {
+    const selfRef = [...finalPolicies()]
+      .filter(([k]) => !SELF_READING_POLICIES.has(k))
+      .filter(([k, p]) => {
+        const table = k.slice(0, k.indexOf("."));
+        return new RegExp(`\\b(?:from|join)\\s+(?:"?public"?\\.)?"?${table}"?\\b`, "i").test(`${p.using} ${p.check}`);
+      })
+      .map(([k, p]) => `${k} (${p.file})`);
+    // Postgres rejects it at run time (42P17, infinite recursion); do the check in a trigger instead.
+    expect(selfRef).toEqual([]);
+  });
 });
 
 describe("migration function conventions", () => {
