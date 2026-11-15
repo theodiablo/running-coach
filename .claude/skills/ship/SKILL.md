@@ -109,7 +109,7 @@ characters, `|` for a line break), from the PR(s) this release carries.
   `from_track: internal`, `to_track: alpha` (Play's closed-testing track),
   `rollout_percent: 100`, `release_notes`. Leave `version_code` blank only
   when this release is the newest completed one on internal; otherwise pass
-  it from the release run's Android job log.
+  it from the release run's `running-coach-mapping-<code>` artifact name.
 - **iOS → TestFlight "Friends" and "Others".** Dispatch `promote-ios.yml` on
   `main`: `target: testflight`, `version` named explicitly (blank picks the
   previous build while the new one is still processing), `groups:

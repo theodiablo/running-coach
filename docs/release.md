@@ -163,6 +163,10 @@ Console. Promotion is still not publication: production goes through Play
 review, so "Publish app version" stays the separate step that flips the
 update prompt.
 
+`/ship` uses both promotions for beta testers after every release: Android
+`internal → alpha` (closed testing), iOS `testflight` to the "Friends" and
+"Others" groups. Neither touches production.
+
 ## Promoting an iOS build
 
 `promote-ios.yml` (manual dispatch, phone-friendly) is the App Store twin of

@@ -34,7 +34,7 @@ Dispatch `promote-android.yml` on `main`: `from_track: internal`,
 `to_track: production`, `rollout_percent: 100`, `release_notes`. Leave
 `version_code` blank only when the newest completed internal release is this
 version (a release dispatched after it would be picked instead); otherwise
-pass it, read from that release run's Android job log or Play Console (it
+pass it, read from that release run's `running-coach-mapping-<code>` artifact name or Play Console (it
 folds in `run_attempt`, so a re-run upload has a higher code). A staged rollout (`rollout_percent` < 100) only when the maintainer
 asks.
 
