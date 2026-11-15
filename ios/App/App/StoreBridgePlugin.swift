@@ -13,7 +13,17 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "requestReview", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openStorePage", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getInstallInfo", returnType: CAPPluginReturnPromise),
     ]
+
+    private var isTestFlight: Bool {
+        Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+    }
+
+    // TestFlight and Xcode builds can't post an App Store review.
+    @objc func getInstallInfo(_ call: CAPPluginCall) {
+        call.resolve(["fromStore": !isTestFlight])
+    }
 
     // iOS decides (3 a year, never in TestFlight) whether this shows, and never says.
     @objc func requestReview(_ call: CAPPluginCall) {
@@ -33,19 +43,27 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
 
     // TestFlight builds update through TestFlight; store builds get the in-app
     // product sheet. The id is looked up by bundle id when JS doesn't pass one.
+    // `review: true` opens the App Store's write-a-review page instead.
     @objc func openStorePage(_ call: CAPPluginCall) {
-        if Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt" {
+        let review = call.getBool("review") ?? false
+        if !review && isTestFlight {
             open("itms-beta://", call)
             return
         }
+        let show: (String) -> Void = { [weak self] id in
+            if review {
+                self?.open("itms-apps://itunes.apple.com/app/id\(id)?action=write-review", call)
+            } else {
+                self?.present(id: id, call)
+            }
+        }
         let given = call.getString("appId") ?? ""
         if !given.isEmpty {
-            present(id: given, call)
+            show(given)
             return
         }
-        lookupAppId { [weak self] id in
-            guard let self = self else { return }
-            if let id = id { self.present(id: id, call) } else { call.reject("not listed") }
+        lookupAppId { id in
+            if let id = id { show(id) } else { call.reject("not listed") }
         }
     }
 

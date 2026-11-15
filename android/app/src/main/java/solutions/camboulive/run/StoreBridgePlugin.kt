@@ -12,9 +12,8 @@ import com.google.android.play.core.install.InstallStateUpdatedListener
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
-import com.google.android.play.core.review.ReviewManagerFactory
 
-// Google Play's own update and review UIs (docs/release.md, "Store prompts").
+// Google Play's own update flow, and where this copy came from (docs/release.md, "Store prompts").
 // Every Play call is a Task with a failure listener, and each body is wrapped:
 // an exception escaping here would kill the process, not reject the call.
 @CapacitorPlugin(name = "StoreBridge")
@@ -112,21 +111,21 @@ class StoreBridgePlugin : Plugin() {
         } catch (e: Exception) { call.reject(e.message ?: "complete failed") }
     }
 
-    // Play decides (quota) whether the sheet shows, and never says: resolves either way.
+    // Whether Play installed this copy: only then can the runner post a public review.
     @PluginMethod
-    fun requestReview(call: PluginCall) {
-        val act = activity ?: return call.reject("no activity")
+    fun getInstallInfo(call: PluginCall) {
         try {
-            val mgr = ReviewManagerFactory.create(context)
-            mgr.requestReviewFlow()
-                .addOnSuccessListener { info ->
-                    try {
-                        mgr.launchReviewFlow(act, info)
-                            .addOnCompleteListener { call.resolve() }
-                    } catch (e: Exception) { call.reject(e.message ?: "review failed") }
-                }
-                .addOnFailureListener { e -> call.reject(e.message ?: "review failed") }
-        } catch (e: Exception) { call.reject(e.message ?: "review failed") }
+            val pm = context.packageManager
+            val installer = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                pm.getInstallSourceInfo(context.packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getInstallerPackageName(context.packageName)
+            }
+            val ret = JSObject()
+            ret.put("fromStore", installer == "com.android.vending")
+            call.resolve(ret)
+        } catch (e: Exception) { call.reject(e.message ?: "install info failed") }
     }
 
     private fun statusName(status: Int): String = when (status) {

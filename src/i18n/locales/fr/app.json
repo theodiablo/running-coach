@@ -92,6 +92,16 @@
     "readyBody": "Redémarre l'app pour l'installer.",
     "restart": "Redémarrer"
   },
+  "review": {
+    "title": "Un petit coup de pouce",
+    "bodyAndroid": "Je développe Running Coach moi-même. Si l'app te sert, un petit avis sur Google Play m'aiderait à ce que d'autres coureurs la découvrent.",
+    "bodyIos": "Je développe Running Coach moi-même. Si l'app te sert, un petit avis sur l'App Store m'aiderait à ce que d'autres coureurs la découvrent.",
+    "cta": "Laisser un avis",
+    "later": "Plus tard",
+    "never": "Ne plus demander",
+    "settingsRow": "Noter Running Coach",
+    "settingsHint": "Je développe cette app moi-même. Ton avis aide d'autres coureurs à la découvrir."
+  },
   "coachmark": {
     "title": "Ton coach est ici",
     "body": "Dis-lui ce qui s'est passé : une gêne, une semaine ratée, un imprévu. Il te proposera un ajustement de ton plan, que tu valides avant le moindre changement.",

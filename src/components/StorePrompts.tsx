@@ -1,17 +1,19 @@
 import { useEffect } from "react";
 import { isNative } from "../native";
-import { requestStoreReview, startPlayUpdate } from "../storeBridge";
+import { startPlayUpdate, type ReviewChannel } from "../storeBridge";
+import { isStoreReconciled } from "../db";
 import { track } from "../telemetry";
 import { ymd } from "../utils/format";
 import {
-  nextPlayPromptRecord, playPromptDue, reviewPromptDue, type PlayPromptRecord,
+  nextPlayPromptRecord, nextReviewAsk, playPromptDue, reviewCardDue, type PlayPromptRecord,
 } from "../utils/storePrompts";
 import type { AppUpdate } from "../utils/version";
-import type { Run, SettingsState } from "../types";
+import type { ReviewPromptState, Run } from "../types";
 import { PLAY_UPDATE_PROMPT_KEY } from "../constants";
 
-// Opens the stores' own sheets, and only when Home is calm: never over a
-// recorder, a modal or another one-time sheet. Renders nothing.
+// Times the store prompts, only when Home is calm: never over a recorder, a modal
+// or another one-time sheet. Play's update dialog opens here; the review card is
+// handed to Home. Renders nothing.
 export const STORE_PROMPT_DELAY_MS = 1500;
 
 const notStarted = (status: string) => status === "unknown" || status === "failed" || status === "canceled";
@@ -27,17 +29,19 @@ function writePlayPrompt(rec: PlayPromptRecord) {
   try { localStorage.setItem(PLAY_UPDATE_PROMPT_KEY, JSON.stringify(rec)); } catch { /* asks again next launch */ }
 }
 
-export function StorePrompts({ calm, update, runs, reviewAsks, reviewMoment, onMomentSpent }: {
+export function StorePrompts({ calm, update, runs, reviewChannel, reviewState, reviewMoment, onMomentSpent }: {
   calm: boolean;
+  reviewChannel: ReviewChannel | null;
   update: AppUpdate | null;
   runs: Run[];
-  reviewAsks: string[] | undefined;
+  reviewState: ReviewPromptState | undefined;
   reviewMoment: boolean;
-  onMomentSpent: (patch: Partial<SettingsState> | null) => void;
+  onMomentSpent: (ask: number | null) => void;
 }) {
   const playCode = update?.via === "play" && notStarted(update.status) ? update.versionCode : null;
   const today = ymd(new Date());
-  const playDue = playCode != null && playPromptDue(playCode, readPlayPrompt(), today);
+  const playRecord = readPlayPrompt();
+  const playDue = playCode != null && playPromptDue(playCode, playRecord, today);
 
   useEffect(() => {
     if (!calm || !playDue || playCode == null) return;
@@ -49,17 +53,16 @@ export function StorePrompts({ calm, update, runs, reviewAsks, reviewMoment, onM
   }, [calm, playDue, playCode]);
 
   // A run just saved is the moment, spent on the first calm Home after it whether
-  // or not a sheet goes out. One store sheet per moment: an update offer goes first.
-  const reviewDue = isNative && reviewMoment && !playDue && reviewPromptDue({ runs, asks: reviewAsks, today });
+  // or not anything shows. Never while an update is pending or on a day Play's
+  // dialog was offered, and only on the synced copy of the log.
+  const reviewDue = isNative && reviewMoment && !!reviewChannel && !update && playRecord?.at !== today
+    && isStoreReconciled() && reviewCardDue({ runs, state: reviewState, today });
+  const ask = nextReviewAsk(reviewState);
   useEffect(() => {
     if (!calm || !reviewMoment) return;
-    const id = setTimeout(() => {
-      if (!reviewDue) return onMomentSpent(null);
-      onMomentSpent({ reviewAsks: [...(reviewAsks ?? []), ymd(new Date())].slice(-5) });
-      void requestStoreReview().then((asked) => { if (asked) track("review_requested", {}); });
-    }, STORE_PROMPT_DELAY_MS);
+    const id = setTimeout(() => onMomentSpent(reviewDue ? ask : null), STORE_PROMPT_DELAY_MS);
     return () => clearTimeout(id);
-  }, [calm, reviewMoment, reviewDue, reviewAsks, onMomentSpent]);
+  }, [calm, reviewMoment, reviewDue, ask, onMomentSpent]);
 
   return null;
 }

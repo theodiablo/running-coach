@@ -5,12 +5,13 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { rememberAppleGrant } from "./auth/appleSignIn";
-import { isNative, isIos } from "./native";
+import { isNative, isIos, isAndroid } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
-import { versionStatus, resolveAppUpdate, type AppUpdate } from "./utils/version";
-import { playUpdateInfo, onPlayInstallState } from "./storeBridge";
+import { versionStatus, resolveAppUpdate, reviewChannelFor, type AppUpdate } from "./utils/version";
+import { playUpdateInfo, onPlayInstallState, installedFromStore, type ReviewChannel } from "./storeBridge";
+import { APP_STORE_ID } from "./constants";
 import { UpdateRequired } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
 import { clearShareLinkCache } from "./live/shareLinkStore";
@@ -137,6 +138,7 @@ export default function App() {
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
   const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a soft update: Play's flow or the Home card
+  const [reviewChannel, setReviewChannel] = useState<ReviewChannel | null>(null); // where a store review can be asked for
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
@@ -455,10 +457,11 @@ export default function App() {
           : data);
         const status = config ? versionStatus(info.version, config) : "ok";
         const latest = config?.latest_version != null ? String(config.latest_version) : null;
-        const play = await playUpdateInfo();
+        const [play, fromStore] = await Promise.all([playUpdateInfo(), installedFromStore()]);
         if (!cancelled) {
           setUpdateState(status);
           setAppUpdate(resolveAppUpdate(status, latest, play));
+          if (isIos || isAndroid) setReviewChannel(reviewChannelFor(isIos ? "ios" : "android", fromStore, info.version, latest, !!APP_STORE_ID));
         }
       } catch { /* never block the app on a failed version check */ }
     })();
@@ -610,7 +613,7 @@ export default function App() {
     <>
       <RunningCoach key={storeNonce} onSignOut={signOutFlushed} user={session.user}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium}
-        availableUpdate={appUpdate} />
+        availableUpdate={appUpdate} reviewChannel={reviewChannel} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>
   );

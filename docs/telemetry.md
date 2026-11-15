@@ -259,10 +259,12 @@ choice either way.
   is unveiled. Don't read the silence as no demand. See `docs/monetization.md`.
 - Store prompts (`docs/release.md`, "Store prompts"): `app_update_prompted`
   `{outcome:"accepted"|"declined"|"failed"|"unavailable"}` when Play's flexible
-  update dialog was opened, and `review_requested` `{}` when the store's review
-  sheet was asked for (`src/components/StorePrompts.tsx`). The store never says
-  whether the review sheet actually showed, so that event counts asks, not
-  reviews.
+  update dialog was opened (`src/components/StorePrompts.tsx`);
+  `review_card_shown` `{ask}` when the Android review card is first on screen
+  and `review_card_answered` `{answer:"review"|"later"|"never", ask}`;
+  `review_requested` `{ask}` when Apple's review sheet was asked for on iOS,
+  which never says whether it showed, so it counts asks, not reviews
+  (`src/RunningCoach.tsx`). `ask` is 1-4.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 

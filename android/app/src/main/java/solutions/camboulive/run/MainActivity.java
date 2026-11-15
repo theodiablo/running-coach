@@ -37,7 +37,7 @@ public class MainActivity extends BridgeActivity {
         // LivePublish (screen-off live-share uploads), WorkoutGuide (screen-off
         // guided-workout cues) and IndoorSession (the foreground service that
         // holds the process while an indoor session records), StoreBridge (Play's
-        // in-app update and review flows).
+        // in-app update flow).
         registerPlugin(WatchImportPlugin.class);
         registerPlugin(RunPermissionsPlugin.class);
         registerPlugin(LivePublishPlugin.class);

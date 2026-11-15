@@ -140,10 +140,10 @@ listed; until then the iOS sheet looks it up by bundle id.
 
 ## Store prompts (updates and reviews)
 
-Both stores' own UIs run through one local plugin per shell, `StoreBridge`
-(`StoreBridgePlugin.kt`: Play In-App Updates + In-App Review;
-`StoreBridgePlugin.swift`: StoreKit review + `SKStoreProductViewController`),
-wrapped by `src/storeBridge.ts`. Every call degrades to the app's own card.
+One local plugin per shell, `StoreBridge` (`StoreBridgePlugin.kt`: Play In-App
+Updates and the installer check; `StoreBridgePlugin.swift`: StoreKit review,
+`SKStoreProductViewController`, the write-a-review link and the TestFlight
+check), wrapped by `src/storeBridge.ts`. Every call degrades to the app's own card.
 
 - **Android updates: Play is the truth when it answers.** It knows staged
   rollouts and testing tracks, so a closed-testing tester is offered the beta
@@ -159,27 +159,27 @@ wrapped by `src/storeBridge.ts`. Every call degrades to the app's own card.
 - **iOS has no update API.** The store card stays (iOS and non-Play Android);
   its button opens the App Store page in-app, or the TestFlight app on a beta
   build (sandbox receipt).
-- **Review requests are the stores' sheets, at a moment the app picks.** Both
-  stores forbid asking from a button or behind an "Enjoying the app?"
-  question, and neither says whether the sheet showed (Play quota, iOS 3 a
-  year, never in TestFlight or for a Play internal-track install). So
-  `reviewPromptDue` (`src/utils/storePrompts.ts`) gates on a runner who
-  plainly runs with the app (6+ runs, first one 14+ days ago, 3+ in the last 21
-  days, none cross-training) and 120 days since the last ask
-  (`settings.reviewAsks`, synced); the moment is a single run landing, spent on
-  the next calm Home whether or not it asks, and an update offer goes first.
-  Test the Play sheet through internal app sharing: an internal-track install
-  shows it with Submit disabled.
-
-**Gotcha — never open the store link through `@capacitor/browser` on Android**
-(tapping "Update" crashed the app on-device): the plugin's Custom Tabs path
-only catches `ActivityNotFoundException` natively, so any other failure
-launching the tab kills the process. `openStore` (`UpdatePrompt.tsx`) instead
-does a plain top-frame navigation — Capacitor's WebViewClient intercepts
-external hosts (`Bridge.launchIntent`) and hands them to the OS as an
-`ACTION_VIEW` intent, which the Play Store app claims. Use the same pattern for
-any future Android outbound link that a native app should claim; `Browser.open`
-stays correct for iOS (SFSafariViewController, as in OAuth).
+- **Review requests come at a moment the app picks, and only from someone
+  whose review would be public.** The moment is a run the runner just saved
+  from a recorder or the form (dated today or yesterday; not imports, race
+  results or back-fills), spent on the next calm Home whether or not anything
+  shows, on the reconciled store, never while an update is pending.
+  `reviewCardDue` (`src/utils/storePrompts.ts`) gates on a regular runner (6+
+  runs, first one 14+ days ago, 3+ in the last 21 days, none cross-training),
+  up to 4 asks 21+ days apart; "Leave a review" or "Don't ask again" ends it
+  (`settings.reviewPrompt`, synced; an ask counts once actually seen, and only
+  once however often Home remounts). `reviewChannelFor` decides who:
+  - **Android: the developer's own Home card** (`ReviewCard`), linking to the
+    Play listing. The native In-App Review sheet can carry no text of ours and
+    Play forbids opening it from a button or after a question, so it isn't used.
+    Only Play installs (installer check, not sideloaded/debug) and never a
+    tester on a build ahead of production `latest_version`, whose review would
+    be private feedback.
+  - **iOS: Apple's own sheet** at the same moments, no text of ours: 5.6.1
+    disallows custom review prompts. Never in TestFlight or Xcode builds.
+  - **Settings → "Rate Running Coach"** opens the write-a-review page (a link
+    the user taps is allowed on both stores): Android always, iOS once
+    `APP_STORE_ID` is set.
 
 ## Promoting an Android build
 

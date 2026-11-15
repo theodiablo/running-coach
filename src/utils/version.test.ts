@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, versionStatus, resolveAppUpdate } from "./version";
+import { compareVersions, versionStatus, resolveAppUpdate, reviewChannelFor } from "./version";
 
 describe("compareVersions", () => {
   it("orders by numeric segments (not lexically)", () => {
@@ -61,5 +61,23 @@ describe("resolveAppUpdate", () => {
 
   it("leaves the hard gate to UpdateRequired", () => {
     expect(resolveAppUpdate("must-update", "1.2.0", playAnswer({ available: true }))).toBeNull();
+  });
+});
+
+describe("reviewChannelFor", () => {
+  it("Android store installs get the app's own card", () => {
+    expect(reviewChannelFor("android", true, "1.2.0", "1.2.0", false)).toEqual({ prompt: "card", link: true });
+  });
+
+  it("asks nobody whose review couldn't be public", () => {
+    expect(reviewChannelFor("android", false, "1.2.0", "1.2.0", false)).toBeNull();
+    // A Play tester on a build ahead of production.
+    expect(reviewChannelFor("android", true, "1.3.0", "1.2.0", false)).toBeNull();
+    expect(reviewChannelFor("ios", false, "1.2.0", null, true)).toBeNull();
+  });
+
+  it("iOS uses Apple's own sheet, and links to the listing only once it exists", () => {
+    expect(reviewChannelFor("ios", true, "1.2.0", null, false)).toEqual({ prompt: "native", link: false });
+    expect(reviewChannelFor("ios", true, "1.2.0", null, true)).toEqual({ prompt: "native", link: true });
   });
 });

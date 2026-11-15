@@ -5,10 +5,12 @@ import type { Run } from "../types";
 
 vi.mock("../native", () => ({ isNative: true }));
 const { bridge, track } = vi.hoisted(() => ({
-  bridge: { requestStoreReview: vi.fn(), startPlayUpdate: vi.fn() },
+  bridge: { startPlayUpdate: vi.fn() },
   track: vi.fn(),
 }));
 vi.mock("../storeBridge", () => bridge);
+const store = vi.hoisted(() => ({ reconciled: true }));
+vi.mock("../db", () => ({ isStoreReconciled: () => store.reconciled }));
 vi.mock("../telemetry", () => ({ track }));
 
 import { StorePrompts, STORE_PROMPT_DELAY_MS } from "./StorePrompts";
@@ -22,13 +24,14 @@ const daysAgo = (n: number) => {
 const regular = [0, 3, 6, 12, 20, 30].map((n) => ({ date: daysAgo(n), type: "EASY", km: 5 }) as Run);
 const playUpdate = { via: "play" as const, versionCode: 42, status: "unknown", progress: null };
 
-const base = { calm: true, update: null, runs: regular, reviewAsks: undefined, reviewMoment: true };
+const card = { prompt: "card" as const, link: true };
+const base = { calm: true, update: null, runs: regular, reviewChannel: card, reviewState: undefined, reviewMoment: true };
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(TODAY);
   vi.clearAllMocks();
-  bridge.requestStoreReview.mockResolvedValue(true);
+  store.reconciled = true;
   bridge.startPlayUpdate.mockResolvedValue("declined");
   localStorage.clear();
 });
@@ -37,43 +40,70 @@ afterEach(() => vi.useRealTimers());
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(STORE_PROMPT_DELAY_MS); });
 
 describe("StorePrompts", () => {
-  it("asks for a review on a calm Home after a regular runner's run", async () => {
+  it("hands Home the review card after a regular runner's run", async () => {
     const spent = vi.fn();
     render(<StorePrompts {...base} onMomentSpent={spent}/>);
     await settle();
-    expect(bridge.requestStoreReview).toHaveBeenCalledOnce();
-    expect(spent).toHaveBeenCalledWith({ reviewAsks: [daysAgo(0)] });
-    expect(track).toHaveBeenCalledWith("review_requested", {});
+    expect(spent).toHaveBeenCalledWith(1);
+  });
+
+  it("numbers a later ask", async () => {
+    const spent = vi.fn();
+    render(<StorePrompts {...base} reviewState={{ asks: [daysAgo(30)] }} onMomentSpent={spent}/>);
+    await settle();
+    expect(spent).toHaveBeenCalledWith(2);
   });
 
   it("waits while anything else is up", async () => {
     const spent = vi.fn();
     render(<StorePrompts {...base} calm={false} onMomentSpent={spent}/>);
     await settle();
-    expect(bridge.requestStoreReview).not.toHaveBeenCalled();
     expect(spent).not.toHaveBeenCalled();
   });
 
-  it("spends the moment without asking when the runner isn't there yet", async () => {
+  it("spends the moment without a card when the runner isn't there yet", async () => {
     const spent = vi.fn();
     render(<StorePrompts {...base} runs={regular.slice(0, 2)} onMomentSpent={spent}/>);
     await settle();
-    expect(bridge.requestStoreReview).not.toHaveBeenCalled();
     expect(spent).toHaveBeenCalledWith(null);
   });
 
-  it("offers Play's update once per version, and never alongside the review sheet", async () => {
+  it("asks nobody whose review couldn't be public (sideloaded, TestFlight, a Play tester)", async () => {
+    const spent = vi.fn();
+    render(<StorePrompts {...base} reviewChannel={null} onMomentSpent={spent}/>);
+    await settle();
+    expect(spent).toHaveBeenCalledWith(null);
+  });
+
+  it("never asks while an update is waiting", async () => {
+    const spent = vi.fn();
+    render(<StorePrompts {...base} update={{ via: "store", version: "1.2.0" }} onMomentSpent={spent}/>);
+    await settle();
+    expect(spent).toHaveBeenCalledWith(null);
+  });
+
+  it("reads eligibility only from the synced log", async () => {
+    store.reconciled = false;
+    const spent = vi.fn();
+    render(<StorePrompts {...base} onMomentSpent={spent}/>);
+    await settle();
+    expect(spent).toHaveBeenCalledWith(null);
+  });
+
+  it("offers Play's update once per version, and no review card that day", async () => {
     const spent = vi.fn();
     const { rerender } = render(<StorePrompts {...base} update={playUpdate} onMomentSpent={spent}/>);
     await settle();
     expect(bridge.startPlayUpdate).toHaveBeenCalledWith(false);
-    expect(bridge.requestStoreReview).not.toHaveBeenCalled();
+    expect(spent).toHaveBeenCalledWith(null);
     expect(JSON.parse(localStorage.getItem(PLAY_UPDATE_PROMPT_KEY)!)).toMatchObject({ code: 42, asks: 1 });
 
+    spent.mockClear();
     rerender(<StorePrompts {...base} update={playUpdate} calm={false} onMomentSpent={spent}/>);
     rerender(<StorePrompts {...base} update={playUpdate} onMomentSpent={spent}/>);
     await settle();
     expect(bridge.startPlayUpdate).toHaveBeenCalledOnce();
+    expect(spent).toHaveBeenCalledWith(null);
   });
 
   it("leaves a download Play already started alone", async () => {

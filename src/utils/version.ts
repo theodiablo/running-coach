@@ -38,6 +38,14 @@ export type AppUpdate =
 
 type PlayAnswer = { available: boolean; inProgress: boolean; flexibleAllowed: boolean; versionCode: number; status: string } | null;
 
+// A Play tester runs a build newer than production: their review would be private feedback, not a public one.
+export function reviewChannelFor(platform: "android" | "ios", fromStore: boolean, installed: string | null, latest: string | null, hasAppStoreId: boolean) {
+  if (!fromStore) return null;
+  if (platform === "ios") return { prompt: "native" as const, link: hasAppStoreId };
+  if (installed && latest && compareVersions(installed, latest) > 0) return null;
+  return { prompt: "card" as const, link: true };
+}
+
 export function resolveAppUpdate(status: string, latestVersion: string | null, play: PlayAnswer): AppUpdate | null {
   if (status === "must-update") return null;
   if (play) {

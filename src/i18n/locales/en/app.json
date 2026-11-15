@@ -92,6 +92,16 @@
     "readyBody": "Restart the app to install it.",
     "restart": "Restart"
   },
+  "review": {
+    "title": "A small favour",
+    "bodyAndroid": "I build Running Coach myself. If the app is useful to you, a quick review on Google Play would help me get it in front of other runners.",
+    "bodyIos": "I build Running Coach myself. If the app is useful to you, a quick review on the App Store would help me get it in front of other runners.",
+    "cta": "Leave a review",
+    "later": "Not now",
+    "never": "Don't ask again",
+    "settingsRow": "Rate Running Coach",
+    "settingsHint": "I build this app by myself. Your review helps other runners find it."
+  },
   "coachmark": {
     "title": "Your coach lives here",
     "body": "Tell it what happened — a niggle, a missed week, a schedule clash — and it'll suggest a change to your plan. You approve it before anything moves.",

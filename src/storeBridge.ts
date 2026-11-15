@@ -1,7 +1,7 @@
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { isAndroid, isIos, isNative } from "./native";
 import { flushNow } from "./db";
-import { APP_STORE_ID } from "./constants";
+import { APP_STORE_ID, PLAY_STORE_URL } from "./constants";
 
 // The stores' own update and review UIs, through the local StoreBridge plugin
 // (StoreBridgePlugin.kt / .swift). Every call is best-effort: a store that
@@ -28,7 +28,8 @@ type StoreBridgeNative = {
   startUpdate: (o: { immediate: boolean }) => Promise<{ outcome?: "accepted" | "declined" | "failed" }>;
   completeUpdate: () => Promise<void>;
   requestReview: () => Promise<void>;
-  openStorePage: (o: { appId?: string }) => Promise<void>;
+  openStorePage: (o: { appId?: string; review?: boolean }) => Promise<void>;
+  getInstallInfo: () => Promise<{ fromStore?: boolean }>;
   addListener: (event: "updateState", cb: (s: PlayInstallState) => void) => Promise<PluginListenerHandle>;
 };
 
@@ -63,9 +64,9 @@ export function onPlayInstallState(cb: (s: PlayInstallState) => void): () => voi
   return () => { gone = true; void handle?.remove(); };
 }
 
-/** Asks the store for its review sheet. The store decides whether it shows and never says, so this only reports that it asked. */
+/** iOS: Apple's own review sheet (the only review prompt 5.6.1 allows). iOS decides whether it shows and never says. */
 export async function requestStoreReview() {
-  if (!isNative) return false;
+  if (!isIos) return false;
   try { await StoreBridge.requestReview(); return true; } catch { return false; }
 }
 
@@ -73,4 +74,25 @@ export async function requestStoreReview() {
 export async function openAppStorePage() {
   if (!isIos) return false;
   try { await StoreBridge.openStorePage({ appId: APP_STORE_ID || undefined }); return true; } catch { return false; }
+}
+
+/** Whether the store installed this copy (not sideloaded, debug, TestFlight or Xcode): only then can a public review be posted. */
+export async function installedFromStore() {
+  if (!isNative) return false;
+  try { return !!(await StoreBridge.getInstallInfo()).fromStore; } catch { return false; }
+}
+
+// How this install may be asked for a review: Android shows the app's own Home
+// card, iOS uses Apple's sheet (custom prompts are refused there). `link`: a
+// write-a-review page exists for the Settings row.
+export type ReviewChannel = { prompt: "card" | "native"; link: boolean };
+
+/** Opens the store's write-a-review page. Android uses a plain top-frame navigation (docs/release.md). */
+export async function openStoreReview() {
+  if (isAndroid) {
+    window.location.assign(PLAY_STORE_URL);
+    return true;
+  }
+  if (!isIos || !APP_STORE_ID) return false;
+  try { await StoreBridge.openStorePage({ appId: APP_STORE_ID, review: true }); return true; } catch { return false; }
 }
