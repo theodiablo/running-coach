@@ -77,7 +77,10 @@ happens. It opens centered on a one-off forward geocode (`src/utils/geocode.ts`,
 MapTiler's geocoding endpoint — same `VITE_MAPTILER_KEY` as the tiles, already
 covered by the CSP's `connect-src`) of the city/country already typed in the
 form; "jump to my current location" is offered too, but only as one more way to
-seed the pin, never the only option.
+seed the pin, never the only option. Leaflet reports a point picked past the
+antimeridian with a longitude outside ±180 (Napier as −183), so the picker
+folds it back with `wrapLng` (`src/utils/geo.ts`), and `races_coordinate_bounds`
+refuses an out-of-range pin.
 
 ## Moderation
 
