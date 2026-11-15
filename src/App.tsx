@@ -5,11 +5,13 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { rememberAppleGrant } from "./auth/appleSignIn";
-import { isNative, isIos } from "./native";
+import { isNative, isIos, isAndroid } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
-import { versionStatus } from "./utils/version";
+import { versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending, withInstallState, type AppUpdate } from "./utils/version";
+import { playUpdateInfo, onPlayInstallState, installInfo, type PlayInstallState, type ReviewChannel } from "./storeBridge";
+import { APP_STORE_ID } from "./constants";
 import { UpdateRequired } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
 import { clearShareLinkCache } from "./live/shareLinkStore";
@@ -135,7 +137,10 @@ export default function App() {
   const [recovering, setRecovering] = useState<string | null>(null);
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
-  const [latestVersion, setLatestVersion] = useState<string | null>(null); // shown on the Home update card
+  const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a soft update: Play's flow or the Home card
+  const [reviewChannel, setReviewChannel] = useState<ReviewChannel | null>(null); // where a store review can be asked for
+  // must-update, but the store doesn't have it yet; null while the stores are still being asked
+  const [requiredPending, setRequiredPending] = useState<boolean | null>(null);
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
@@ -434,32 +439,58 @@ export default function App() {
   // Native-only version gate: compare the installed app version against the
   // remote app_config row. A failed check (offline, etc.) is ignored so it can
   // never lock the user out. Web is always "latest" (continuously deployed).
-  useEffect(() => {
+  // The newest Play install event, for one that lands before checkVersion has an update to apply it to.
+  const lastInstall = useRef<PlayInstallState | null>(null);
+  const checkVersion = useCallback(async (cancelled: () => boolean = () => false) => {
     if (!isNative) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const info = await CapApp.getInfo();
-        const { data, error: configErr } = await supabase
-          .from("app_config")
-          .select("min_supported_version, latest_version, min_supported_version_ios, latest_version_ios")
-          .eq("id", 1)
-          .maybeSingle();
-        if (configErr) console.error("Could not read app_config", configErr);
-        // Each platform reads its own column pair: the stores roll out
-        // independently (and a partial release can leave one store behind), so a
-        // single shared version would lie to one of them.
-        const config = data && (isIos
-          ? { min_supported_version: data.min_supported_version_ios, latest_version: data.latest_version_ios }
-          : data);
-        if (!cancelled && config) {
-          setUpdateState(versionStatus(info.version, config));
-          setLatestVersion(config.latest_version ?? null);
-        }
-      } catch { /* never block the app on a failed version check */ }
-    })();
-    return () => { cancelled = true; };
+    try {
+      const info = await CapApp.getInfo();
+      const { data, error: configErr } = await supabase
+        .from("app_config")
+        .select("min_supported_version, latest_version, min_supported_version_ios, latest_version_ios")
+        .eq("id", 1)
+        .maybeSingle();
+      if (configErr) console.error("Could not read app_config", configErr);
+      // Each platform reads its own column pair: the stores roll out
+      // independently (and a partial release can leave one store behind), so a
+      // single shared version would lie to one of them.
+      const config = data && (isIos
+        ? { min_supported_version: data.min_supported_version_ios, latest_version: data.latest_version_ios }
+        : data);
+      const status = config ? versionStatus(info.version, config) : "ok";
+      const latest = config?.latest_version != null ? String(config.latest_version) : null;
+      const minSupported = config?.min_supported_version != null ? String(config.min_supported_version) : null;
+      if (cancelled()) return;
+      // The gate goes up at once; what the stores say (a network lookup on iOS) only refines it.
+      // An unread config leaves the gate as it was: a failed "Check again" must not lift it.
+      if (config) {
+        setUpdateState(status);
+        if (status === "must-update") setRequiredPending(null);
+      }
+      const [play, install] = await Promise.all([playUpdateInfo(), installInfo()]);
+      if (cancelled()) return;
+      if (config) setRequiredPending(status === "must-update" && requiredUpdatePending(play, install.storeVersion, minSupported));
+      setAppUpdate(withInstallState(resolveAppUpdate(status, latest, play), lastInstall.current, false));
+      if (isIos || isAndroid) {
+        setReviewChannel(reviewChannelFor(isIos ? "ios" : "android", !!install.fromStore, info.version, latest,
+          !!(APP_STORE_ID || install.appId)));
+      }
+    } catch {
+      setRequiredPending(p => p ?? false); // never leave the gate's button waiting on a failed check
+    }
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- checkVersion sets state only after its awaits
+    void checkVersion(() => cancelled);
+    return () => { cancelled = true; };
+  }, [checkVersion]);
+
+  // A flexible Play download reports its progress here; the Home card follows it.
+  useEffect(() => onPlayInstallState((s) => {
+    lastInstall.current = s;
+    setAppUpdate((prev) => withInstallState(prev, s));
+  }), []);
 
   // Load (or clear) the per-user store when the *user* changes. Keyed on the
   // user id, not the session object, so token refresh / refocus events don't
@@ -543,7 +574,7 @@ export default function App() {
   }, []);
 
   // Hard version gate blocks everything, even the login screen.
-  if (updateState === "must-update") return <UpdateRequired />;
+  if (updateState === "must-update") return <UpdateRequired pending={requiredPending} onRecheck={() => checkVersion()} />;
   if (session === undefined) return <Splash />;
   // A password-reset link landed. The new-password screen comes before the
   // store (it doesn't need app_state, and must not wait on a load that may be
@@ -599,7 +630,7 @@ export default function App() {
     <>
       <RunningCoach key={storeNonce} onSignOut={signOutFlushed} user={session.user}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium}
-        availableUpdate={updateState === "update-available" ? latestVersion : null} />
+        availableUpdate={appUpdate} reviewChannel={reviewChannel} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>
   );

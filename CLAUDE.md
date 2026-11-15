@@ -587,6 +587,12 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `usePrefersReducedMotion`. Enter animations re-fire by remounting via a
   changing `key`; modals animate enter-only; only the Toast animates exit (via
   `usePresence`).
+- **Review asks are timed by `StorePrompts` (`reviewCardDue`) and routed by
+  `reviewChannelFor`**: Android gets the developer's own Home card linking to
+  the listing, iOS gets Apple's native sheet (5.6.1 refuses custom prompts),
+  and never the native review API behind a button or a "do you like it?"
+  question. Only installs whose review would be public. Play's update dialog
+  follows Play, not `app_config`. `docs/release.md` ("Store prompts").
 - **Never `window.confirm`/`alert`/`prompt`** (lint): they block the WebView's JS
   thread, and one raised as the app backgrounds never answers. Confirm in the DOM
   with `ModalOverlay` + `ConfirmButtons`.

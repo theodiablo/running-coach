@@ -67,6 +67,11 @@ import type { RoutineId } from "./stretch/routines";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
+import { StorePrompts } from "./components/StorePrompts";
+import type { ReviewChannel } from "./storeBridge";
+import { ranRecently } from "./utils/storePrompts";
+import { useReviewPrompt } from "./hooks/useReviewPrompt";
+import type { AppUpdate } from "./utils/version";
 import { WhatsNextSheet, type Promotable, type WhatsNextAnswer } from "./modals/WhatsNextSheet";
 import { RACE_DAY_SOURCE } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
@@ -75,7 +80,7 @@ import { LogView } from "./views/LogView";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
-import { coachSessionKey } from "./types";
+import { coachSessionKey, isCrossTraining } from "./types";
 import type {
   CatalogueRace,
   CoachSessionContext,
@@ -93,6 +98,7 @@ import type {
   RunPatch,
   SettingsPage,
   SettingsState,
+  ReviewPromptState,
   ToastAction,
   ToastState,
   UserContextState,
@@ -127,7 +133,7 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null, availableUpdate = null }: {
+export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null, availableUpdate = null, reviewChannel = null }: {
   onSignOut?: () => void;
   // The auth user, owned by App — refreshed via onAuthStateChange (USER_UPDATED
   // after an email/password change), so Settings -> Account stays current.
@@ -138,7 +144,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   premiumUntil?: string | null;
   onRefreshPremium?: () => Promise<string | null>;
   // Store version newer than the installed one (native only), for the Home card.
-  availableUpdate?: string | null;
+  availableUpdate?: AppUpdate | null;
+  reviewChannel?: ReviewChannel | null;
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
@@ -274,6 +281,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     db.set(STORAGE_KEYS.SETTINGS, next);
     return next;
   }), []);
+  const patchReviewPrompt = useCallback((f: (s: ReviewPromptState | undefined) => ReviewPromptState | undefined) => setSettings(prev => {
+    const reviewPrompt = f(prev.reviewPrompt);
+    if (reviewPrompt === prev.reviewPrompt) return prev;
+    const next = { ...prev, reviewPrompt };
+    db.set(STORAGE_KEYS.SETTINGS, next);
+    return next;
+  }), []);
+  const review = useReviewPrompt(reviewChannel, patchReviewPrompt);
   // Both one-time coach signposts mark themselves seen the moment they actually have been
   // (they ride the synced settings blob). The overdue explainer waits for `useSeenOnScreen`;
   // the coachmark overlay only needs Home.
@@ -932,7 +947,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // `opts.skipDetect` is set when the run is created by the Races "log result"
   // flow, which already marks the race done — so we don't double-detect it.
   // `opts.celebrated`: the recorder's finish screen already showed the efforts.
-  const addRuns = (rs: Partial<Run>[], opts: { skipDetect?: boolean; celebrated?: boolean } = {}) => {
+  // `opts.fresh`: saved by the runner from a recorder or the form, not imported.
+  const addRuns = (rs: Partial<Run>[], opts: { skipDetect?: boolean; celebrated?: boolean; fresh?: boolean } = {}) => {
     const added: Run[] = rs.map((r, i) => ({...r, date: r.date || ymd(new Date()), km: Number(r.km) || 0, id: r.id || ("r" + Date.now() + i)} as Run));
     const nextRuns = added.concat(runs).sort((a, b) => b.date.localeCompare(a.date));
     setRuns(nextRuns); db.set(STORAGE_KEYS.RUNS, nextRuns);
@@ -961,6 +977,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
     // import the user is only skimming. Pure and local, so this costs nothing.
+    if (opts.fresh && added.length === 1 && !isCrossTraining(added[0]) && ranRecently(added[0].date)) review.armMoment();
     if (added.length === 1 && !opts.celebrated) {
       const efforts = runAchievements(added[0], nextRuns);
       // One burst per save: race day already fires its own confetti.
@@ -1364,7 +1381,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const shared = {openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1484,6 +1501,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
         scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
+        canRate={!!reviewChannel?.link} onRate={review.rateFromSettings}
         onBackup={()  => { leaveSettings(); exportData(); }}
         onRestore={() => { leaveSettings(); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}
@@ -1515,6 +1533,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
+      <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
+        reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={review.moment} onMomentSpent={review.spendMoment}/>
       {/* After the achievement sheet, never stacked on it. Spent on any answer. */}
       {nextSheet && !achievement && <WhatsNextSheet key={nextSheet.variant} variant={nextSheet.variant}
         label={"label" in nextSheet ? nextSheet.label : undefined} kmRef={nextSheetKm}

@@ -16,6 +16,8 @@ import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import { UpdateCard } from "../components/UpdatePrompt";
+import type { AppUpdate } from "../utils/version";
+import { ReviewCard, type ReviewAnswer } from "../components/ReviewCard";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import { DebriefCard, NextGoalCard, RecoveryCard, SoreRow } from "../components/DebriefCard";
 import { OpenPlanCard } from "../components/OpenPlanCard";
@@ -68,7 +70,8 @@ type DashboardProps = {
   openTracker?: (link?: { wNum: number; sId: string }) => void;
   openIndoor?: (link?: { wNum: number; sId: string; activity?: RunActivity }) => void;
   // Store version newer than the installed one; null when current or unknown.
-  availableUpdate?: string | null;
+  availableUpdate?: AppUpdate | null;
+  reviewCard?: { ask: number; onSeen: () => void; onAnswer: (a: ReviewAnswer) => void } | null;
   // Races whose calendar date moved after the user planned around them.
   dateChanges?: RaceDateChange[];
   applyRaceDateChange?: (c: RaceDateChange) => void;
@@ -101,7 +104,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, reviewCard, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -290,7 +293,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         </button>
       )}
 
-      {availableUpdate && <UpdateCard version={availableUpdate}/>}
+      {availableUpdate && <UpdateCard update={availableUpdate} recorderOpen={recorderOpen}/>}
+      {reviewCard && !recorderOpen && <ReviewCard {...reviewCard}/>}
 
       <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>
 

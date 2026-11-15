@@ -132,19 +132,59 @@ write in `release.yml`. `min_supported_version` / `min_supported_version_ios`
 
 `App.tsx` selects all four columns and compares the installed version
 (`App.getInfo()`) against its platform's pair via `versionStatus`
-(`src/utils/version.ts`); a failed check never blocks the user. iOS store links
-need `APP_STORE_URL` (`src/constants.ts`) filled in once the App Store record
-exists — the update prompt hides its button while it's empty.
+(`src/utils/version.ts`); a failed check never blocks the user. On a Play
+install the *soft* prompt then follows Play instead (next section), so
+`latest_version` matters there only for installs Play can't answer for.
+`APP_STORE_ID` (`src/constants.ts`) is the number in the app's App Store
+Connect URL. The shell doesn't need it (it looks its listing up by bundle id
+once public); the web's "get the app" links do, at launch.
 
-**Gotcha — never open the store link through `@capacitor/browser` on Android**
-(tapping "Update" crashed the app on-device): the plugin's Custom Tabs path
-only catches `ActivityNotFoundException` natively, so any other failure
-launching the tab kills the process. `openStore` (`UpdatePrompt.tsx`) instead
-does a plain top-frame navigation — Capacitor's WebViewClient intercepts
-external hosts (`Bridge.launchIntent`) and hands them to the OS as an
-`ACTION_VIEW` intent, which the Play Store app claims. Use the same pattern for
-any future Android outbound link that a native app should claim; `Browser.open`
-stays correct for iOS (SFSafariViewController, as in OAuth).
+## Store prompts (updates and reviews)
+
+One local plugin per shell, `StoreBridge` (`StoreBridgePlugin.kt`: Play In-App
+Updates and the installer check; `StoreBridgePlugin.swift`: StoreKit review,
+`SKStoreProductViewController`, the write-a-review link and the TestFlight
+check), wrapped by `src/storeBridge.ts`. Every call degrades to the app's own card.
+
+- **Android updates: Play is the truth when it answers.** It knows staged
+  rollouts and testing tracks, so a closed-testing tester is offered the beta
+  and nobody is sent to a listing that only says "Open". `resolveAppUpdate`
+  (`src/utils/version.ts`) picks Play over `app_config` whenever
+  `getUpdateInfo` resolves; a sideloaded/debug install rejects and falls back
+  to the store card. Play's *flexible* dialog opens by itself on a calm Home
+  (`StorePrompts`), once per version code plus one reminder a week later
+  (`playPromptDue`, per device); Home then shows the download and a Restart
+  row, **never while a recorder is open** (`completeUpdate` restarts the
+  process, which would end the run). `min_supported_version` opens Play's
+  *immediate* flow over `UpdateRequired`. A floor the store can't satisfy yet
+  (Play offers this install nothing, or the live App Store version is below
+  it: review or rollout still going) turns the button into "Check again"
+  (`requiredUpdatePending`) instead of a listing that only says "Open".
+- **iOS has no update API.** The store card stays (iOS and non-Play Android);
+  its button opens the App Store page in-app, or the TestFlight app on a beta
+  build (sandbox receipt).
+- **Review requests come at a moment the app picks, and only from someone
+  whose review would be public.** The moment is a run the runner just saved
+  from a recorder or the form (a running run dated today or yesterday; not
+  imports, cloud runs reviewed in the form, race results, cross-training or
+  back-fills), spent on the next calm Home whether or not anything shows, on
+  the reconciled store, never while an update is pending.
+  `reviewCardDue` (`src/utils/storePrompts.ts`) gates on a regular runner (6+
+  runs, first one 14+ days ago, 3+ in the last 21 days, none cross-training),
+  up to 4 asks 21+ days apart; "Leave a review" or "Don't ask again" ends it
+  (`settings.reviewPrompt`, synced; an ask counts once actually seen, and only
+  once however often Home remounts). `reviewChannelFor` decides who:
+  - **Android: the developer's own Home card** (`ReviewCard`), linking to the
+    Play listing. The native In-App Review sheet can carry no text of ours and
+    Play forbids opening it from a button or after a question, so it isn't used.
+    Only Play installs (installer check, not sideloaded/debug) and never a
+    tester on a build ahead of production `latest_version`, whose review would
+    be private feedback.
+  - **iOS: Apple's own sheet** at the same moments, no text of ours: 5.6.1
+    disallows custom review prompts. Never in TestFlight or Xcode builds.
+  - **Settings → "Rate Running Coach"** opens the write-a-review page (a link
+    the user taps is allowed on both stores): Android always, iOS once the app
+    is listed. A review opened from there ends the Home asks too.
 
 ## Promoting an Android build
 

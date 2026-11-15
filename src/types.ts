@@ -18,6 +18,8 @@ export const RUN_ACTIVITIES: RunActivity[] = ["bike", "elliptical", "rower", "ot
 export const isCrossTraining = (run: { type?: string } | null | undefined) =>
   String(run?.type ?? "").toUpperCase() === "OTHER";
 
+export type ReviewPromptState = { asks?: string[]; done?: "review" | "never" };
+
 export type HealthAck = { v?: string | number; at?: string } | null;
 
 export type SettingsState = Record<string, unknown> & {
@@ -78,6 +80,9 @@ export type SettingsState = Record<string, unknown> & {
   stretchSuggest?: boolean;
   stretchVoice?: boolean;
   stretchDismissed?: string;
+  // The Home review card: days it was seen, and the answer that ended it. Synced,
+  // so a second device doesn't ask again; utils/storePrompts.ts.
+  reviewPrompt?: ReviewPromptState;
   // True once this account has sent beta feedback: the pill drops its
   // label and collapses to an icon, because the word was recruitment.
   feedbackSent?: boolean;

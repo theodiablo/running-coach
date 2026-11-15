@@ -77,8 +77,9 @@ announces whatever is staged, and every release run overwrites the staged
 version, so leave it blank only when the version being published is the
 newest release on that platform; otherwise (an older version, a later
 release staged since, a release whose staging step failed) pass it. That run is what
-turns the in-app update card on. Never run it on a guess that review has
-passed.
+turns the in-app update card on (iOS, and Android installs Play can't answer
+for; a Play install's own update dialog follows the rollout by itself). Never
+run it on a guess that review has passed.
 
 ## 7. Report
 

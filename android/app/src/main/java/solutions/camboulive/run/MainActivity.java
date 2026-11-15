@@ -36,13 +36,15 @@ public class MainActivity extends BridgeActivity {
         // RunPermissions (POST_NOTIFICATIONS for the recording-run notification),
         // LivePublish (screen-off live-share uploads), WorkoutGuide (screen-off
         // guided-workout cues) and IndoorSession (the foreground service that
-        // holds the process while an indoor session records).
+        // holds the process while an indoor session records), StoreBridge (Play's
+        // in-app update flow).
         registerPlugin(WatchImportPlugin.class);
         registerPlugin(RunPermissionsPlugin.class);
         registerPlugin(LivePublishPlugin.class);
         registerPlugin(WorkoutGuidePlugin.class);
         registerPlugin(IndoorSessionPlugin.class);
         registerPlugin(ShellDiagPlugin.class);
+        registerPlugin(StoreBridgePlugin.class);
         super.onCreate(savedInstanceState);
 
         // Shell diagnostics (ShellDiagLog). Always on, unlike the GPS log: these
