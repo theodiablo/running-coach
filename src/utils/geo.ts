@@ -175,7 +175,7 @@ export function accuracyOK(pos: { coords?: { accuracy?: number | null } } | null
   return acc == null || acc <= maxM;
 }
 
-// A longitude folded into [-180, 180): a map scrolled past the antimeridian reports e.g. -183.
+// A longitude folded into [-180, 180]: a map scrolled past the antimeridian reports e.g. -183.
 export function wrapLng(lng: number) {
   if (lng >= -180 && lng <= 180) return lng;
   return ((((lng + 180) % 360) + 360) % 360) - 180;

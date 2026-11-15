@@ -184,4 +184,11 @@ describe("wrapLng", () => {
     expect(wrapLng(540)).toBeCloseTo(-180, 9);
     expect(wrapLng(-540)).toBeCloseTo(-180, 9);
   });
+
+  it("keeps the antimeridian itself and folds just past it", () => {
+    expect(wrapLng(180)).toBe(180);
+    expect(wrapLng(-180)).toBe(-180);
+    expect(wrapLng(180.5)).toBeCloseTo(-179.5, 9);
+    expect(wrapLng(-180.5)).toBeCloseTo(179.5, 9);
+  });
 });
