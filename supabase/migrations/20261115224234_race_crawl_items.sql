@@ -7,7 +7,7 @@ create table if not exists public.race_crawl_items (
   source_key  text not null,
   date        date not null,
   verdict     text not null check (verdict in ('newEdition', 'newRace', 'dateChange', 'review')),
-  status      text not null check (status in ('inserted', 'review', 'verified', 'rejected')),
+  status      text not null check (status in ('inserted', 'review', 'waiting', 'verified', 'rejected')),
   race_slug   text,
   edition_id  text,
   url         text not null,

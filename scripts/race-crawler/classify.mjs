@@ -1,6 +1,6 @@
 // Matching a crawled candidate to the catalogue, and the curated policy that
 // decides what is worth proposing. Pure. docs/race-crawler.md.
-import { distinctiveTokens, haversineKm, hostOf, nameTokens, stripAccents } from "./text.mjs";
+import { distinctiveTokens, haversineKm, hostOf, nameTokens, parseDistances, stripAccents } from "./text.mjs";
 
 export const POLICY = {
   minKm: 10, // nothing shorter is ever proposed
@@ -21,12 +21,19 @@ const jaccard = (a, b) => {
   return inter ? inter / (A.size + B.size - inter) : 0;
 };
 
+// Spelling variants of one place are one word: Castelló / Castellón, Donosti / Donostia.
+const sameWord = (a, b) => a === b || (Math.min(a.length, b.length) >= 5 && (a.startsWith(b) || b.startsWith(a)));
+
 const containment = (a, b) => {
-  const A = new Set(a);
-  const B = new Set(b);
-  if (!A.size || !B.size) return null;
-  return [...A].filter((t) => B.has(t)).length / Math.min(A.size, B.size);
+  if (!a.length || !b.length) return null;
+  const A = [...new Set(a)];
+  const B = [...new Set(b)];
+  return A.filter((t) => B.some((u) => sameWord(t, u))).length / Math.min(A.length, B.length);
 };
+
+// A trail race and a road race of the same town are different races (Snowdonia Trail Marathon vs Marathon Eryri).
+const TRAIL_WORDS = /\b(?:trail|mountain|montana|muntanya|mendi|sky|skyrace|ultra|fell|cxm|xtreme)/;
+const isTrail = (name) => TRAIL_WORDS.test(stripAccents(name).toLowerCase());
 
 const HALF_WORDS = /\b(?:media|medio|mitja|semi|half|meia)\b/;
 const MARATHON_WORDS = /\b(?:maraton|marathon|marato|maratona)\b/;
@@ -36,7 +43,8 @@ function raceKind(name) {
   return HALF_WORDS.test(n) ? "half" : "marathon";
 }
 
-const sameDistance = (a, b) => Math.abs(a - b) <= Math.max(0.5, a * 0.03);
+// 5%: a trail "marathon" is rarely 42.2 km to the metre.
+export const sameDistance = (a, b) => Math.abs(a - b) <= Math.max(0.5, a * 0.05);
 
 function score(candidate, race) {
   if (candidate.country && race.country && candidate.country !== race.country) return null;
@@ -51,12 +59,14 @@ function score(candidate, race) {
     !race.distances?.length ||
     candidate.distances.some((d) => race.distances.some((r) => sameDistance(d, r)));
   if (!distanceOk) return null;
+  const roadKind = (n) => !!raceKind(n) && !isTrail(n);
+  if ((isTrail(candidate.name) && roadKind(race.name)) || (roadKind(candidate.name) && isTrail(race.name))) return null;
   const host = hostOf(candidate.organiserUrl);
   const hostMatch = !!host && !PLATFORM_HOSTS.test(host) && host === hostOf(race.url);
   const all = jaccard(nameTokens(candidate.name), nameTokens(race.name));
   // A shared town name is not a shared race: "Carrera de la Prensa Málaga" is not the Málaga marathon.
   const towns = new Set([...nameTokens(candidate.city), ...nameTokens(race.city ?? "")]);
-  const own = (name) => distinctiveTokens(name).filter((t) => !towns.has(t));
+  const own = (name) => distinctiveTokens(name).filter((t) => ![...towns].some((w) => sameWord(t, w)));
   const mine = own(candidate.name);
   const theirs = own(race.name);
   // A bare "<kind> <town>" name is the same race as that kind in that town, sponsor prefix or not
@@ -64,8 +74,10 @@ function score(candidate, race) {
   const kind = raceKind(candidate.name);
   // …and in the same town: the Orihuela half is not the Elche half 25 km away.
   const raceTown = nameTokens(race.city ?? "");
-  const candidateWords = new Set([...nameTokens(candidate.name), ...nameTokens(candidate.city)]);
-  const sameTown = (km != null && km <= 5) || (raceTown.length > 0 && raceTown.every((t) => candidateWords.has(t)));
+  const candidateWords = [...nameTokens(candidate.name), ...nameTokens(candidate.city)];
+  const sameTown =
+    (km != null && km <= 5) ||
+    (raceTown.length > 0 && raceTown.every((t) => candidateWords.some((w) => sameWord(t, w))));
   const bare =
     (!mine.length || !theirs.length) &&
     sameTown &&
@@ -73,7 +85,9 @@ function score(candidate, race) {
     kind === raceKind(race.name) &&
     candidate.distances.length > 0 &&
     race.distances?.length > 0;
-  const name = bare ? 0.6 : (containment(mine, theirs) ?? 0);
+  // The catalogue may carry a sponsor the source drops, never the reverse: a source name with words
+  // of its own ("Cardiff Half Winter Warmer Run") is a different event until a person says otherwise.
+  const name = bare ? (mine.length ? 0.4 : 0.6) : (containment(mine, theirs) ?? 0);
   return { slug: race.slug, hostMatch, all, name, km };
 }
 
@@ -109,7 +123,7 @@ const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(
 const WEEKEND = new Set([0, 6]);
 const VIRTUAL_RE = /\bvirtual\b/i;
 const TBC_RE = /\b(?:tbc|tba|to be (?:confirmed|announced)|provisional|a confirmar|por confirmar|pendiente de confirmar)\b|à confirmer/i;
-const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|randonn|rando\b|walk|hyrox|swimmer)/i;
+const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|training event|entreno)/i;
 
 /**
  * The verdict on one candidate.
@@ -126,6 +140,9 @@ export function classify(candidate, catalogue, today) {
   const ahead = daysBetween(today, candidate.date);
   if (!(ahead >= 0)) return drop("past");
   if (ahead > POLICY.horizonDays) return drop("too far ahead");
+  // A page's fares can belong to the whole event: a name that states its own distance wins.
+  const named = parseDistances(candidate.name);
+  if (named.length) candidate = { ...candidate, distances: named };
   const distances = candidate.distances.filter((d) => d >= POLICY.minKm);
   if (candidate.distances.length && !distances.length) return drop("under 10 km");
 

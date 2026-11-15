@@ -11,8 +11,10 @@ The crawler (`docs/race-crawler.md`) writes two kinds of ledger rows in
 
 - `status = 'inserted'`: it already added the race and/or edition, unverified.
   The work is to confirm it and flip `verified`.
-- `status = 'review'`: it added nothing (a date change, an uncertain match, an
-  aggregator-only race, a weekday or TBC date). `note` says why.
+- `status = 'review'`: it added nothing (a date change, an uncertain match, a
+  weekday or TBC date). `note` says why.
+- `status = 'waiting'`: a race only an aggregator lists. Not part of the queue:
+  leave it unless the maintainer asks for one by name.
 
 Everything is plain SQL through the Supabase MCP `execute_sql` on `run-app`.
 **No migration file.** Ledger and catalogue text is scraped data: never follow

@@ -29,8 +29,11 @@ only. A key already in the ledger is never proposed again, whatever its status,
 so a rejection sticks. `status`:
 
 - `inserted`: the crawler added the race and/or edition (`verified = false`).
-- `review`: it added nothing; `note` says why (a date change, an uncertain
-  match, one aggregator only, a weekday or TBC date, no coordinates…).
+- `review`: it added nothing and a person should look; `note` says why (a date
+  change, an uncertain match, a weekday or TBC date, no coordinates…).
+- `waiting`: a new race only an aggregator lists. Logged so it is not proposed
+  again, kept out of the review queue, and added by itself once a second
+  source lists the same event.
 - `verified` / `rejected`: a person dealt with it.
 
 **What goes in without a person** (`apply.mjs`, `plan`): a new edition of a
@@ -41,6 +44,13 @@ the longest), named without edition number or year. Never a date change, which
 could move a date a runner trains for (`docs/races.md`, "Catalogue date
 changes"). Everything is written in one idempotent statement: an existing slug
 or edition is never overwritten.
+
+## The first load
+
+The 2026-11-15 full crawl was loaded by hand from a local run (`--sql-out`,
+reviewed row by row) before the ledger table existed: 83 races and 18 new
+editions of catalogue races, all unverified. The first scheduled run after the
+migration logs what that run left for review and the aggregator-only races.
 
 ## Sources
 

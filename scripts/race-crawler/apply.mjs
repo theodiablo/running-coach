@@ -1,12 +1,13 @@
 // Turns the crawler's proposals into catalogue rows (always verified = false)
 // and ledger rows (race_crawl_items). Pure, except `runSql`. docs/race-crawler.md.
 import { randomBytes } from "node:crypto";
-import { hostOf, stripAccents } from "./text.mjs";
+import { sameDistance } from "./classify.mjs";
+import { countryCode, hostOf, stripAccents } from "./text.mjs";
 
 // Anything flagged one of these waits for a person, whatever its verdict.
 const BLOCKING = new Set(["no country", "no coordinates", "distance unknown", "weekday", "postponed", "tbc"]);
-const PLATFORM_URL = /running\.life|facebook\.com|instagram\.com/;
-const sameDistance = (a, b) => Math.abs(a - b) <= Math.max(0.5, a * 0.03);
+// Hosts that serve many races (aggregators, social networks, timing companies): never a race's own page.
+const PLATFORM_URL = /running\.life|facebook\.com|instagram\.com|mychip\.es|gesconchip\.es|ocisport\.net/;
 
 export function slugify(s) {
   return stripAccents(s)
@@ -16,17 +17,65 @@ export function slugify(s) {
 }
 
 const ROMAN = /^(?=[ivxlc]+\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?\s+/i;
-const ORDINAL = /^\d{1,3}(?:ª|º|e|eme|ème|th|st|nd|rd|\.)?\s+(?=\p{L})/u;
+const ORDINAL = /^\d{1,3}(?:ª|º|a|e|eme|ème|th|st|nd|rd|er|do|ro|to|mo|vo|no|\.)?\s+(?!k\b|km\b)(?=\p{L})/u;
+// A league or season tag after a comma names the series, not the race ("…, 9e. Circuit Trail Marina 26/27").
+const SERIES = /\d\d\/\d\d|\b(?:circuit|circuito|lliga|liga|copa|ctm|lmvs)\b/i;
+const SMALL = new Set("de del la las los el i y e et du des le les the of and a al en".split(" "));
 
-/** The race's own name: no edition number, no year, not shouting. */
-export function cleanName(name) {
-  let n = String(name).trim().replace(/\s+/g, " ");
-  n = n.replace(ROMAN, "").replace(ORDINAL, "");
-  n = n.replace(/[\s,–-]*\b(?:19|20)\d\d(?:\/\d{2,4})?\s*$/, "").replace(/[\s–-]+$/, "");
-  if (n === n.toUpperCase() && /\p{L}{4}/u.test(n)) {
-    n = n.toLowerCase().replace(/(^|[\s(-])(\p{L})/gu, (m, sep, c) => sep + c.toUpperCase());
-  }
+function titleCase(s) {
+  return s
+    .toLowerCase()
+    .replace(/[\p{L}\d]+/gu, (w, at) => {
+      if (at > 0 && SMALL.has(w)) return w;
+      // No vowel, so an acronym: JJP, GTF, BP.
+      if (!/[aeiouyàáâèéêìíîòóôùúûü\d]/.test(w)) return w.toUpperCase();
+      return w[0].toUpperCase() + w.slice(1);
+    });
+}
+
+const mostlyCaps = (s) => {
+  const letters = s.replace(/[^\p{L}]/gu, "");
+  return letters.length >= 4 && letters.replace(/\p{Lu}/gu, "").length / letters.length < 0.3;
+};
+
+/** The race's own name: no edition number, year or series tag, not shouting. */
+export function cleanName(name, date = "") {
+  const yy = date.slice(2, 4);
+  const parts = String(name)
+    .split(",")
+    .map((p) =>
+      p
+        .trim()
+        .replace(/\s+/g, " ")
+        .replace(/\b(?:19|20)\d\d(?:\/\d{2,4})?\b/g, "")
+        .replace(yy ? new RegExp(`\\s${yy}$`) : /$^/, "")
+        .replace(/[\s.–-]+$/, "")
+        .trim(),
+    )
+    .filter((p, i) => p && (i === 0 || !SERIES.test(p)));
+  let n = parts.join(", ").replace(ROMAN, "").replace(ORDINAL, "");
+  if (mostlyCaps(n)) n = titleCase(n);
   return n.slice(0, 120);
+}
+
+/** An absolute http(s) URL (races_url_web_only), or null. */
+export function webUrl(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`);
+    return /^https?:$/.test(u.protocol) && u.href.length <= 300 ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A display city: the locality, no street or postcode, never the country. */
+export function cleanCity(city, country) {
+  let c = String(city ?? "").split(",").pop().replace(/^\s*\d{4,5}\s+/, "").trim();
+  if (countryCode(c) && countryCode(c) === country) c = "";
+  if (mostlyCaps(c)) c = titleCase(c);
+  return c.slice(0, 80);
 }
 
 function headlineDistance(name, distances) {
@@ -66,7 +115,10 @@ export function plan(p, catalogue, taken) {
   if (p.verdict === "dateChange") return waits(`catalogue has ${p.previousDate}`);
   if (p.verdict === "review") return waits(p.why);
   if (blocking.length) return waits(blocking.join(", "));
-  if (p.verdict === "newRace" && !c.firstHand && !p.alsoIn) return waits("one aggregator only");
+  // Not a person's job: it goes in by itself once a second source lists it.
+  if (p.verdict === "newRace" && !c.firstHand && !p.alsoIn) {
+    return { ledger: { ...ledger, status: "waiting", note: "one aggregator only" } };
+  }
 
   if (p.verdict === "newEdition") {
     const race = catalogue.races.find((r) => r.slug === p.slug);
@@ -78,15 +130,15 @@ export function plan(p, catalogue, taken) {
     return { ledger: { ...ledger, status: "inserted", edition_id: id }, edition };
   }
 
-  const name = cleanName(c.name);
+  const name = cleanName(c.name, c.date);
   const km = headlineDistance(name, p.distances);
-  const city = String(c.city ?? "").split(",").pop().trim().slice(0, 80);
+  const city = cleanCity(c.city, c.country);
   const slug = freeSlug(slugify(name) || "race", taken);
   taken.add(slug);
   const id = `${slug}-${c.date}`;
   taken.add(id);
   const organiser = c.organiserUrl && !PLATFORM_URL.test(hostOf(c.organiserUrl)) ? c.organiserUrl : "";
-  const url = (organiser || (c.firstHand ? c.url : "")).slice(0, 300) || null;
+  const url = webUrl(organiser || (c.firstHand ? c.url : ""));
   const race = { slug, name, city, country: c.country, lat: c.lat, lng: c.lng, distances: [km], url };
   const edition = { id, race_slug: slug, date: c.date, distance_km: km };
   return { ledger: { ...ledger, status: "inserted", race_slug: slug, edition_id: id }, race, edition };

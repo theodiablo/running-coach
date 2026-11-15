@@ -6,7 +6,7 @@ import { parseDistances, countryCode, distinctiveTokens, hostOf } from "../scrip
 // @ts-expect-error — plain ESM script module.
 import { classify, matchRace, mergeSources, worthProposing } from "../scripts/race-crawler/classify.mjs";
 // @ts-expect-error — plain ESM script module.
-import { buildSql, cleanName, plan } from "../scripts/race-crawler/apply.mjs";
+import { buildSql, cleanCity, cleanName, plan, webUrl } from "../scripts/race-crawler/apply.mjs";
 // @ts-expect-error — plain ESM script module.
 import * as rts from "../scripts/race-crawler/sources/rockthesport.mjs";
 // @ts-expect-error — plain ESM script module.
@@ -136,6 +136,8 @@ describe("parseDistances", () => {
     ["42,195 km", [42.2]],
     ["Ultra marathon 100K", [100]],
     ["Raheny 5", []],
+    ["Recaptació íntegra a MARATÓTV3", []],
+    ["MARATO I MITJA MARATO RELLEUS", [21.1, 42.2]],
   ])("%s", (text, km) => expect(parseDistances(text)).toEqual(km));
 });
 
@@ -237,6 +239,18 @@ describe("matchRace", () => {
     const c = candidate({ name: "Hivernale des Templiers", city: "Millau", country: "FR", lat: 44.1, lng: 3.08, distances: [] });
     expect(matchRace(c, [templiers]).kind).toBe("ambiguous");
   });
+  it("leaves a source name with words of its own for review, even in the same town", () => {
+    const cardiff = race({ slug: "cardiff-half", name: "Cardiff Half Marathon", city: "Cardiff", country: "GB", lat: 51.48, lng: -3.18, distances: [21.1] });
+    const c = candidate({ name: "The Cardiff Half Marathon Winter Warmer Run", city: "Cardiff", country: "GB", lat: 51.48, lng: -3.18 });
+    expect(matchRace(c, [cardiff]).kind).toBe("ambiguous");
+  });
+  it("tells a trail marathon from the road marathon of the same town, and matches it to itself", () => {
+    const where = { city: "Llanberis", country: "GB", lat: 53.12, lng: -4.13 };
+    const road = race({ ...where, slug: "marathon-eryri", name: "Marathon Eryri", distances: [42.2] });
+    const trail = race({ ...where, slug: "snowdonia-marathon", name: "Snowdonia Trail Marathon Eryri", distances: [43.9] });
+    const c = candidate({ ...where, name: "Snowdonia Trail Marathon Eryri", distances: [42.2] });
+    expect(matchRace(c, [road, trail])).toMatchObject({ kind: "match", slug: "snowdonia-marathon" });
+  });
   it("never matches across countries or far away", () => {
     expect(matchRace(candidate({ name: "San Silvestre Vallecana", country: "FR" }), CATALOGUE.races).kind).toBe("none");
     expect(matchRace(candidate({ name: "San Silvestre Vallecana", lat: 41.4, lng: 2.17 }), CATALOGUE.races).kind).toBe("none");
@@ -265,6 +279,8 @@ describe("classify", () => {
     [{ name: "Virtual Half" }, "virtual"],
     [{ distances: [10, 15] }, "new race under half marathon"],
     [{ distances: [] }, "distance unknown"],
+    [{ name: "15. AzkoitiAzpeitia lasterketa motza 8,06km", distances: [21.1] }, "under 10 km"],
+    [{ name: "29a Marxa del Terme" }, "not running"],
   ])("drops %o: %s", (over, why) => {
     expect(classify(candidate({ name: "Carrera del Puerto", ...over }), CATALOGUE, TODAY)).toMatchObject({ verdict: "dropped", why });
   });
@@ -300,11 +316,30 @@ describe("apply: cleanName", () => {
   it.each([
     ["XXVI Media Maratón San Sebastián 2027", "Media Maratón San Sebastián"],
     ["42 Carrera Popular CaixaBank Villa de Aranjuez", "Carrera Popular CaixaBank Villa de Aranjuez"],
-    ["MARATÓN DE ESTEPONA JARDIN DE LA COSTA DEL SOL", "Maratón De Estepona Jardin De La Costa Del Sol"],
+    ["MARATÓN DE ESTEPONA JARDIN DE LA COSTA DEL SOL", "Maratón de Estepona Jardin de la Costa del Sol"],
     ["CANFRANC-CANFRANC 2027", "Canfranc-Canfranc"],
     ["10K Valencia Ibercaja", "10K Valencia Ibercaja"],
+    ["10 k y III Maraton-Trail Majadahonda", "10 k y III Maraton-Trail Majadahonda"],
     ["Trail Vielha Molieres 3010 -", "Trail Vielha Molieres 3010"],
-  ])("%s", (raw, clean) => expect(cleanName(raw)).toBe(clean));
+    ["MITJA MARATÓ SAMARUC, 2026, Algemesí", "Mitja Marató Samaruc, Algemesí"],
+    ["Trail Monte Ponoig, Polop de la Marina, 9e. Circuit Trail Marina 26/27", "Trail Monte Ponoig, Polop de la Marina"],
+    ["CURSA TOMBATOSSALS TRAILS DE CASTELLÓ 26", "Cursa Tombatossals Trails de Castelló"],
+  ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
+  it.each([
+    ["17007 Girona", "Girona"],
+    ["Pl. de Espańa, Fonelas", "Fonelas"],
+    ["ALCOI", "Alcoi"],
+    ["Spain", ""],
+  ])("city %s", (raw, clean) => expect(cleanCity(raw, "ES")).toBe(clean));
+});
+
+describe("apply: webUrl", () => {
+  it.each([
+    ["www.benidormhalf.com", "https://www.benidormhalf.com/"],
+    ["http://vinyolsmarato.cat/", "http://vinyolsmarato.cat/"],
+    ["javascript:alert(1)", null],
+    ["", null],
+  ])("%s", (raw, url) => expect(webUrl(raw)).toBe(url));
 });
 
 describe("apply: plan", () => {
@@ -343,11 +378,15 @@ describe("apply: plan", () => {
     [{ verdict: "review", why: "weak name 0.40" }, {}, "weak name 0.40"],
     [{ flags: ["weekday"] }, {}, "weekday"],
     [{ flags: ["tbc", "no coordinates"] }, {}, "tbc, no coordinates"],
-    [{}, { source: "runninglife", firstHand: false }, "one aggregator only"],
     [{ verdict: "newEdition", slug: "dublin-marathon", distances: [21.1] }, {}, "no distance in common with the catalogue race"],
   ])("leaves %o for review", (over, c, note) => {
     const w = plan(proposal(over, c), CATALOGUE, taken());
     expect(w.ledger).toMatchObject({ status: "review", note });
+    expect(w.race ?? w.edition).toBeUndefined();
+  });
+  it("parks an aggregator-only race outside the review queue", () => {
+    const w = plan(proposal({}, { source: "runninglife", firstHand: false }), CATALOGUE, taken());
+    expect(w.ledger).toMatchObject({ status: "waiting", note: "one aggregator only" });
     expect(w.race ?? w.edition).toBeUndefined();
   });
   it("adds an aggregator race once a second source lists it", () => {

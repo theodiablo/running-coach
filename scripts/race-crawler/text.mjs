@@ -5,9 +5,10 @@ const MARATHON_KM = 42.2;
 const MILE_KM = 1.609344;
 const MAX_KM = 500;
 
+// Letter boundaries, not \b: \b treats "Ó" as a non-letter, so it finds "Marató" inside "MARATÓTV3".
 const HALF_RE =
-  /\b(?:half[\s-]?marathon|semi[\s-]?marathon|medi[ao]\s+marat[oó]n|mitja(?:\s+marat[oó])?|meia\s+maratona|halbmarathon)\b/gi;
-const MARATHON_RE = /(ultra[\s-]?)?\b(?:marathon|marat[oó]n|marat[oó]|maratona)\b/gi;
+  /(^|[^\p{L}\d])(?:half[\s-]?marathon|semi[\s-]?marathon|medi[ao]\s+marat[oó]n|mitja(?:\s+marat[oó])?|meia\s+maratona|halbmarathon)(?![\p{L}\d])/giu;
+const MARATHON_RE = /(^|[^\p{L}\d])(ultra[\s-]?)?(?:marathon|marat[oó]n|marat[oó]|maratona)(?![\p{L}\d])/giu;
 const NUM = "(\\d{1,3}(?:[.,]\\d+)?)";
 const KM_RE = new RegExp(`${NUM}\\s?(?:kilom[eè]t(?:er|re)s?|kil[oó]metros?|kms?|k)(?![\\p{L}\\d])`, "giu");
 const MILE_RE = new RegExp(`${NUM}\\s?(?:miles?|mi)(?![\\p{L}\\d])`, "giu");
@@ -26,8 +27,8 @@ export function parseDistances(text) {
   if (!text) return [];
   const found = [];
   let rest = String(text);
-  rest = rest.replace(HALF_RE, () => (found.push(HALF_KM), " "));
-  rest = rest.replace(MARATHON_RE, (m, ultra) => (ultra ? " " : (found.push(MARATHON_KM), " ")));
+  rest = rest.replace(HALF_RE, (m, pre) => (found.push(HALF_KM), `${pre} `));
+  rest = rest.replace(MARATHON_RE, (m, pre, ultra) => (ultra ? `${pre} ` : (found.push(MARATHON_KM), `${pre} `)));
   for (const m of rest.matchAll(RANGE_RE)) found.push(num(m[1]), num(m[2]));
   for (const m of rest.matchAll(KM_RE)) found.push(num(m[1]));
   for (const m of rest.matchAll(MILE_RE)) found.push(num(m[1]) * MILE_KM);
