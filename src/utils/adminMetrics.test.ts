@@ -113,6 +113,16 @@ describe("formatDigest", () => {
     expect(formatDigest(METRICS).text).not.toContain("Flyer QR scans");
   });
 
+  it("adds a crash section only when PostHog is configured", () => {
+    expect(formatDigest(METRICS).text).not.toContain("Crashes");
+    const rows = [{ message: '["Boom"]', events: 3, people: 2, versions: ["1.21.8", ""], is_new: 1 }];
+    const { text } = formatDigest(METRICS, { crashes: rows });
+    expect(text).toContain("Crashes (opt-in reports)");
+    expect(text).toContain("NEW Boom");
+    expect(text).toContain("3 reports from 2 people; builds 1.21.8, web");
+    expect(formatDigest(METRICS, { crashes: new Error("down") }).text).toContain("Couldn't read PostHog");
+  });
+
   it("reports live sharing, and omits the section before the migration", () => {
     const live = {
       since: "2026-11-09T20:00:00+00:00", runs_7d: 4, runs_prev7d: 1, runners_7d: 3, public_7d: 3,

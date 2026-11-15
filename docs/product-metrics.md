@@ -33,6 +33,11 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   people. Share links count runners holding an active link.
 - **Flyer QR scans** come from `qr_scans` (`docs/store-redirect.md`); the
   digest omits the section when the field is absent.
+- **Crashes** come from PostHog, not the database: this week's crash types from
+  opt-in reports, `NEW` when first seen this week, with the builds that sent
+  them. The digest omits the section unless the function has
+  `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID`, and says so when the
+  query fails (`docs/telemetry.md`, "Hearing about crashes").
 
 ## The edge function (`admin-metrics`)
 

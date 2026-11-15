@@ -3,6 +3,7 @@
 // (src/utils/adminMetrics.test.ts). docs/product-metrics.md.
 
 import { jwtClaims } from "./appleAuth.mjs";
+import { formatCrashSection } from "./crashes.mjs";
 
 // USD per million tokens, Anthropic list price. Ignores prompt caching, so the
 // figure is an estimate; a model missing here is reported as unpriced, never
@@ -75,7 +76,7 @@ function liveSection(l) {
   ];
 }
 
-export function formatDigest(m) {
+export function formatDigest(m, { crashes = null } = {}) {
   const day = String(m.generated_at).slice(0, 10);
   const cost = Object.fromEntries(
     ["7d", "30d", "all"].map((w) => [w, estimateCost(m.coach.tokens?.[w])]),
@@ -131,6 +132,7 @@ export function formatDigest(m) {
         ]
       : []),
     ...(m.live ? liveSection(m.live) : []),
+    ...formatCrashSection(crashes),
   ];
   return { subject: `Running Coach - weekly metrics (${day})`, text: lines.join("\n") + "\n" };
 }

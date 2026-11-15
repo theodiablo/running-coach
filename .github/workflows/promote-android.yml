@@ -45,6 +45,10 @@ on:
         description: Create a draft release to finish in Play Console instead
         type: boolean
         default: false
+      ignore_crashes:
+        description: Production only, promote even if PostHog has crash reports from this build
+        type: boolean
+        default: false
       dry_run:
         description: Validate the change with Play, commit nothing
         type: boolean
@@ -83,3 +87,7 @@ jobs:
           RELEASE_NOTES_LANGUAGE: ${{ inputs.release_notes_language }}
           DRAFT: ${{ inputs.draft }}
           DRY_RUN: ${{ inputs.dry_run }}
+          # Release gate: a production promotion stops on crash reports from this build (docs/telemetry.md).
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
+          IGNORE_CRASHES: ${{ inputs.ignore_crashes }}

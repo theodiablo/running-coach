@@ -22,6 +22,7 @@
 import crypto from "node:crypto";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkBuildCrashes } from "../supabase/functions/_shared/crashes.mjs";
 
 const API = "https://api.appstoreconnect.apple.com/v1";
 
@@ -230,6 +231,7 @@ async function main(env) {
     await sleep(60_000);
   }
   console.log(`Promoting build ${buildLabel(build)} to ${target}.`);
+  if (target === "production") await checkBuildCrashes(env, { build: build.build, os: "iOS", buildLabel: buildLabel(build) });
 
   if (target === "testflight") {
     const groupsPage = await call("GET", `/apps/${app.id}/betaGroups?limit=200`);

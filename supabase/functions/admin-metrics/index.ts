@@ -3,26 +3,14 @@
 // ADMIN_USER_ID session at aal2 (MFA) gets the JSON. Everyone else gets 403. docs/product-metrics.md.
 
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
-import { AwsClient } from "npm:aws4fetch@1.0.20";
 import { estimateCost, formatDigest, isAdminCaller, safeEqual } from "../_shared/adminMetrics.mjs";
+import { queryPostHog, recentCrashesSql } from "../_shared/crashes.mjs";
+import { canSendEmail, emailMaintainer } from "../_shared/sesEmail.ts";
 
 const DIGEST_SECRET = Deno.env.get("ADMIN_DIGEST_SECRET") ?? "";
 const ADMIN_USER_ID = Deno.env.get("ADMIN_USER_ID") ?? "";
-const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "theo.camboulive.dev@gmail.com";
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "Running Coach <noreply@camboulive.solutions>";
-const SES_REGION = Deno.env.get("SES_REGION") ?? "eu-west-1";
-const CONFIG_SET = Deno.env.get("SES_CONFIG_SET") ?? "runapp-notify";
-
-const SES_ACCESS_KEY_ID = Deno.env.get("SES_AWS_ACCESS_KEY_ID");
-const SES_SECRET_ACCESS_KEY = Deno.env.get("SES_AWS_SECRET_ACCESS_KEY");
-const aws = SES_ACCESS_KEY_ID && SES_SECRET_ACCESS_KEY
-  ? new AwsClient({
-      accessKeyId: SES_ACCESS_KEY_ID,
-      secretAccessKey: SES_SECRET_ACCESS_KEY,
-      region: SES_REGION,
-      service: "ses",
-    })
-  : null;
+const POSTHOG_PERSONAL_API_KEY = Deno.env.get("POSTHOG_PERSONAL_API_KEY") ?? "";
+const POSTHOG_PROJECT_ID = Deno.env.get("POSTHOG_PROJECT_ID") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -40,24 +28,15 @@ async function loadMetrics() {
   return data;
 }
 
-async function sendEmail(subject: string, text: string) {
-  const res = await aws!.fetch(`https://email.${SES_REGION}.amazonaws.com/v2/email/outbound-emails`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      FromEmailAddress: FROM_EMAIL,
-      Destination: { ToAddresses: [MAINTAINER_EMAIL] },
-      ConfigurationSetName: CONFIG_SET,
-      Content: {
-        Simple: {
-          Subject: { Data: subject, Charset: "UTF-8" },
-          Body: { Text: { Data: text, Charset: "UTF-8" } },
-        },
-      },
-    }),
-  });
-  if (!res.ok) console.error("ses failed", res.status, await res.text());
-  return res.ok;
+// null = PostHog not configured (the digest omits the section); an Error = say it failed.
+async function loadCrashes() {
+  if (!POSTHOG_PERSONAL_API_KEY || !POSTHOG_PROJECT_ID) return null;
+  try {
+    return await queryPostHog({ apiKey: POSTHOG_PERSONAL_API_KEY, projectId: POSTHOG_PROJECT_ID, sql: recentCrashesSql(7) });
+  } catch (err) {
+    console.error("crash query failed", err);
+    return err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 async function digest(req: Request) {
@@ -65,9 +44,10 @@ async function digest(req: Request) {
   if (!DIGEST_SECRET || !safeEqual(req.headers.get("x-admin-digest-secret"), DIGEST_SECRET)) {
     return json({ error: "forbidden" }, 403);
   }
-  const { subject, text } = formatDigest(await loadMetrics());
-  if (!aws) return json({ error: "no SES credentials configured" }, 503);
-  return (await sendEmail(subject, text)) ? json({ ok: true }) : json({ error: "send failed" }, 502);
+  const [metrics, crashes] = await Promise.all([loadMetrics(), loadCrashes()]);
+  const { subject, text } = formatDigest(metrics, { crashes });
+  if (!canSendEmail()) return json({ error: "no SES credentials configured" }, 503);
+  return (await emailMaintainer(subject, text)) ? json({ ok: true }) : json({ error: "send failed" }, 502);
 }
 
 async function dashboard(req: Request) {
