@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Take a finished PR all the way out — independent review by one or more agents sized to the PR, fix what's verified, merge, then release the mobile apps when the change reaches them. Use when the maintainer types /ship [PR number].
+description: Take a finished PR all the way out — independent review by one or more agents sized to the PR, fix what's verified, merge, then release the mobile apps to the beta testers (Play closed testing, TestFlight Friends + Other) when the change reaches them. Use when the maintainer types /ship [PR number].
 disable-model-invocation: true
 argument-hint: "[PR number]"
 ---
@@ -8,7 +8,8 @@ argument-hint: "[PR number]"
 # Ship a PR
 
 Invoking this skill IS the explicit ask CLAUDE.md's "Never merge a PR unless
-explicitly asked" requires, and the ask to cut a mobile release. It covers
+explicitly asked" requires, and the ask to cut a mobile release and put it
+in the beta testers' hands. It covers
 the PR named in the request, else the one open PR for the current branch; if
 neither resolves to a single PR, ask. Nothing else is implied: promoting a
 store build to production and flipping the in-app update prompt stay
@@ -97,10 +98,37 @@ dispatch again for the same merge: once one store shipped, the tag exists,
 and a new dispatch bumps the version and re-ships both stores. A failure that
 needs a code fix is diagnosed and reported, not retried.
 
+### Beta testers
+
+Once a platform's job is green on that release run, hand its build to the
+testers. Write the tester notes once, for both stores, the way `/promote`
+writes release notes (plain words, what changed for the runner, at most 500
+characters, `|` for a line break), from the PR(s) this release carries.
+
+- **Android → closed testing.** Dispatch `promote-android.yml` on `main`:
+  `from_track: internal`, `to_track: alpha` (Play's closed-testing track),
+  `rollout_percent: 100`, `release_notes`. Leave `version_code` blank only
+  when this release is the newest completed one on internal; otherwise pass
+  it from the release run's Android job log.
+- **iOS → TestFlight "Friends" and "Other".** Dispatch `promote-ios.yml` on
+  `main`: `target: testflight`, `version` named explicitly (blank picks the
+  previous build while the new one is still processing), `groups:
+  Friends,Other`, `release_notes`. It waits for processing and submits for
+  Beta App Review when an external group needs it.
+
+Watch both runs as above. A transient failure gets "Re-run failed jobs" once;
+a refusal (a group name that doesn't match, Play rejecting the edit, Beta
+App Review rejecting the build, an expired agreement) is reported with the
+exact message and what clears it, never re-dispatched over. A platform whose
+release upload failed gets no beta step. Neither step touches production or
+the in-app update prompt.
+
 ## 6. Report
 
 One short message: what the review found and what was fixed or left (and
-why), the merge commit, the release version and run link, and the next
+why), the merge commit, the release version and run link, where each beta
+step ended (Play closed testing; TestFlight Friends + Other, or waiting on
+Beta App Review) with its run link and the tester notes used, and the next
 steps: promotion to production (`/promote`) and, once the stores publish,
 "Publish app version" (`/promote publish`). Offer them; don't run them
 unasked.
