@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Download, RotateCw, X } from "lucide-react";
 import { PLAY_STORE_URL, APP_STORE_URL, UPDATE_DISMISSED_KEY } from "../constants";
 import { isIos, isAndroid } from "../native";
-import { completePlayUpdate, openAppStorePage, startPlayUpdate } from "../storeBridge";
+import { completePlayUpdate, openAppStorePage, playUpdateInfo, startPlayUpdate } from "../storeBridge";
 import type { AppUpdate } from "../utils/version";
 
 // The store page, for when the store's own flow can't run. Android must NOT use
@@ -24,9 +24,16 @@ async function openStore() {
   } catch { window.open(url, "_blank", "noopener"); }
 }
 
-// Android goes through Play's own full-screen update first; the store page is the fallback.
+// Play's own path: install a download it already has, else its immediate flow. True when Play ran.
+async function playRequiredUpdate() {
+  if ((await playUpdateInfo())?.status === "downloaded") { await completePlayUpdate(); return true; }
+  const outcome = await startPlayUpdate(true);
+  return outcome === "accepted" || outcome === "declined";
+}
+
+// The store page is the fallback whenever Play's flow didn't actually run.
 async function updateNow() {
-  if (isAndroid && await startPlayUpdate(true)) return;
+  if (isAndroid && await playRequiredUpdate()) return;
   await openStore();
 }
 
@@ -37,7 +44,7 @@ async function updateNow() {
 export function UpdateRequired({ pending = false, onRecheck }: { pending?: boolean; onRecheck?: () => Promise<void> }) {
   const { t } = useTranslation();
   const [checking, setChecking] = useState(false);
-  useEffect(() => { if (isAndroid && !pending) void startPlayUpdate(true); }, [pending]);
+  useEffect(() => { if (isAndroid && !pending) void playRequiredUpdate(); }, [pending]);
   const recheck = async () => {
     setChecking(true);
     try { await onRecheck?.(); } finally { setChecking(false); }
@@ -57,6 +64,11 @@ export function UpdateRequired({ pending = false, onRecheck }: { pending?: boole
           className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors">
           {pending ? t("app.update.checkAgain") : t("app.update.updateNow")}
         </button>
+        {pending && (
+          <button onClick={openStore} className="text-sm font-medium text-slate-400 hover:text-slate-200 py-1">
+            {t(isIos ? "app.update.openStoreIos" : "app.update.openStoreAndroid")}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -70,6 +82,8 @@ export function UpdateCard({ update, recorderOpen = false }: { update: AppUpdate
   const { t } = useTranslation();
   const storeVersion = update.via === "store" ? update.version : null;
   const [dismissed, setDismissed] = useState(() => !!storeVersion && readDismissed() === storeVersion);
+  const [restarting, setRestarting] = useState(false);
+  const restart = () => { setRestarting(true); void completePlayUpdate().finally(() => setRestarting(false)); };
 
   if (update.via === "play") {
     if (update.status === "downloaded") {
@@ -77,7 +91,7 @@ export function UpdateCard({ update, recorderOpen = false }: { update: AppUpdate
       return (
         <Row icon={<RotateCw size={16} className="text-orange-400"/>}
           title={t("app.update.readyTitle")} sub={t("app.update.readyBody")}>
-          <Action onClick={completePlayUpdate}>{t("app.update.restart")}</Action>
+          <Action onClick={restart} disabled={restarting}>{t("app.update.restart")}</Action>
         </Row>
       );
     }
@@ -124,10 +138,10 @@ function Row({ icon, title, sub, children }: { icon: ReactNode; title: string; s
   );
 }
 
-function Action({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+function Action({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: ReactNode }) {
   return (
-    <button onClick={onClick}
-      className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
+    <button onClick={onClick} disabled={disabled}
+      className="bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
       {children}
     </button>
   );

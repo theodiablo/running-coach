@@ -9,8 +9,8 @@ import { isNative, isIos, isAndroid } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
-import { versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending, type AppUpdate } from "./utils/version";
-import { playUpdateInfo, onPlayInstallState, installInfo, type ReviewChannel } from "./storeBridge";
+import { versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending, withInstallState, type AppUpdate } from "./utils/version";
+import { playUpdateInfo, onPlayInstallState, installInfo, type PlayInstallState, type ReviewChannel } from "./storeBridge";
 import { APP_STORE_ID } from "./constants";
 import { UpdateRequired } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
@@ -438,6 +438,8 @@ export default function App() {
   // Native-only version gate: compare the installed app version against the
   // remote app_config row. A failed check (offline, etc.) is ignored so it can
   // never lock the user out. Web is always "latest" (continuously deployed).
+  // The newest Play install event, for one that lands before checkVersion has an update to apply it to.
+  const lastInstall = useRef<PlayInstallState | null>(null);
   const checkVersion = useCallback(async (cancelled: () => boolean = () => false) => {
     if (!isNative) return;
     try {
@@ -457,11 +459,14 @@ export default function App() {
       const status = config ? versionStatus(info.version, config) : "ok";
       const latest = config?.latest_version != null ? String(config.latest_version) : null;
       const minSupported = config?.min_supported_version != null ? String(config.min_supported_version) : null;
+      if (cancelled()) return;
+      // The gate goes up at once; what the stores say (a network lookup on iOS) only refines it.
+      // An unread config leaves the gate as it was: a failed "Check again" must not lift it.
+      if (config) setUpdateState(status);
       const [play, install] = await Promise.all([playUpdateInfo(), installInfo()]);
       if (cancelled()) return;
-      setUpdateState(status);
-      setRequiredPending(status === "must-update" && requiredUpdatePending(play, install.storeVersion, minSupported));
-      setAppUpdate(resolveAppUpdate(status, latest, play));
+      if (config) setRequiredPending(status === "must-update" && requiredUpdatePending(play, install.storeVersion, minSupported));
+      setAppUpdate(withInstallState(resolveAppUpdate(status, latest, play), lastInstall.current, false));
       if (isIos || isAndroid) {
         setReviewChannel(reviewChannelFor(isIos ? "ios" : "android", !!install.fromStore, info.version, latest,
           !!(APP_STORE_ID || install.appId)));
@@ -476,11 +481,10 @@ export default function App() {
   }, [checkVersion]);
 
   // A flexible Play download reports its progress here; the Home card follows it.
-  useEffect(() => onPlayInstallState((s) => setAppUpdate((prev) => {
-    if (prev?.via !== "play") return prev;
-    const progress = s.totalBytes > 0 ? Math.min(1, s.bytesDownloaded / s.totalBytes) : null;
-    return s.status === "installed" || s.status === "canceled" ? null : { ...prev, status: s.status, progress };
-  })), []);
+  useEffect(() => onPlayInstallState((s) => {
+    lastInstall.current = s;
+    setAppUpdate((prev) => withInstallState(prev, s));
+  }), []);
 
   // Load (or clear) the per-user store when the *user* changes. Keyed on the
   // user id, not the session object, so token refresh / refocus events don't

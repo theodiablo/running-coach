@@ -68,9 +68,9 @@ import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
 import { StorePrompts } from "./components/StorePrompts";
-import type { ReviewAnswer } from "./components/ReviewCard";
-import { openStoreReview, requestStoreReview, type ReviewChannel } from "./storeBridge";
-import { ranRecently, withReviewSeen } from "./utils/storePrompts";
+import type { ReviewChannel } from "./storeBridge";
+import { ranRecently } from "./utils/storePrompts";
+import { useReviewPrompt } from "./hooks/useReviewPrompt";
 import type { AppUpdate } from "./utils/version";
 import { WhatsNextSheet, type Promotable, type WhatsNextAnswer } from "./modals/WhatsNextSheet";
 import { RACE_DAY_SOURCE } from "./utils/raceDay";
@@ -80,7 +80,7 @@ import { LogView } from "./views/LogView";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
-import { coachSessionKey } from "./types";
+import { coachSessionKey, isCrossTraining } from "./types";
 import type {
   CatalogueRace,
   CoachSessionContext,
@@ -281,10 +281,6 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     db.set(STORAGE_KEYS.SETTINGS, next);
     return next;
   }), []);
-  // Set when a single run lands; StorePrompts spends it on the next calm Home,
-  // which may show the review card (ask number) until it is answered.
-  const [reviewMoment, setReviewMoment] = useState(false);
-  const [reviewAsk, setReviewAsk] = useState<number | null>(null);
   const patchReviewPrompt = useCallback((f: (s: ReviewPromptState | undefined) => ReviewPromptState | undefined) => setSettings(prev => {
     const reviewPrompt = f(prev.reviewPrompt);
     if (reviewPrompt === prev.reviewPrompt) return prev;
@@ -292,30 +288,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     db.set(STORAGE_KEYS.SETTINGS, next);
     return next;
   }), []);
-  // Idempotent per ask: Home remounts on every tab switch while the card waits.
-  const markReviewSeen = useCallback((ask: number) => {
-    patchReviewPrompt(s => withReviewSeen(s, ymd(new Date()), ask));
-  }, [patchReviewPrompt]);
-  const spendReviewMoment = useCallback((ask: number | null) => {
-    setReviewMoment(false);
-    if (!ask) return;
-    if (reviewChannel?.prompt === "card") { setReviewAsk(ask); return; }
-    markReviewSeen(ask);
-    void requestStoreReview().then(asked => { if (asked) track("review_requested", { ask }); });
-  }, [reviewChannel, markReviewSeen]);
-  const seenReviewAsk = useRef(0);
-  const onReviewSeen = useCallback(() => {
-    if (!reviewAsk || seenReviewAsk.current === reviewAsk) return;
-    seenReviewAsk.current = reviewAsk;
-    markReviewSeen(reviewAsk);
-    track("review_card_shown", { ask: reviewAsk });
-  }, [reviewAsk, markReviewSeen]);
-  const answerReview = (answer: ReviewAnswer) => {
-    track("review_card_answered", { answer, ask: reviewAsk ?? 0 });
-    setReviewAsk(null);
-    if (answer === "never") patchReviewPrompt(s => ({ ...s, done: "never" }));
-    if (answer === "review") void openStoreReview().then(ok => { if (ok) patchReviewPrompt(s => ({ ...s, done: "review" })); });
-  };
+  const review = useReviewPrompt(reviewChannel, patchReviewPrompt);
   // Both one-time coach signposts mark themselves seen the moment they actually have been
   // (they ride the synced settings blob). The overdue explainer waits for `useSeenOnScreen`;
   // the coachmark overlay only needs Home.
@@ -1004,7 +977,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
     // import the user is only skimming. Pure and local, so this costs nothing.
-    if (opts.fresh && added.length === 1 && ranRecently(added[0].date)) setReviewMoment(true);
+    if (opts.fresh && added.length === 1 && !isCrossTraining(added[0]) && ranRecently(added[0].date)) review.armMoment();
     if (added.length === 1 && !opts.celebrated) {
       const efforts = runAchievements(added[0], nextRuns);
       // One burst per save: race day already fires its own confetti.
@@ -1408,8 +1381,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const reviewCard = reviewAsk ? { ask: reviewAsk, onSeen: onReviewSeen, onAnswer: answerReview } : null;
-  const shared = {reviewCard, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1529,7 +1501,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
         scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
-        canRate={!!reviewChannel?.link}
+        canRate={!!reviewChannel?.link} onRate={review.rateFromSettings}
         onBackup={()  => { leaveSettings(); exportData(); }}
         onRestore={() => { leaveSettings(); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}
@@ -1562,7 +1534,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
       <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
-        reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={reviewMoment} onMomentSpent={spendReviewMoment}/>
+        reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={review.moment} onMomentSpent={review.spendMoment}/>
       {/* After the achievement sheet, never stacked on it. Spent on any answer. */}
       {nextSheet && !achievement && <WhatsNextSheet key={nextSheet.variant} variant={nextSheet.variant}
         label={"label" in nextSheet ? nextSheet.label : undefined} kmRef={nextSheetKm}

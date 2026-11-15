@@ -12,7 +12,7 @@ vi.mock("../native", () => ({
 
 const { browserOpen, bridge } = vi.hoisted(() => ({
   browserOpen: vi.fn(),
-  bridge: { startPlayUpdate: vi.fn(), completePlayUpdate: vi.fn(), openAppStorePage: vi.fn() },
+  bridge: { startPlayUpdate: vi.fn(), completePlayUpdate: vi.fn(), openAppStorePage: vi.fn(), playUpdateInfo: vi.fn() },
 }));
 vi.mock("@capacitor/browser", () => ({ Browser: { open: browserOpen } }));
 vi.mock("../storeBridge", () => bridge);
@@ -33,6 +33,8 @@ beforeEach(() => {
   browserOpen.mockResolvedValue(undefined);
   bridge.startPlayUpdate.mockResolvedValue(null);
   bridge.openAppStorePage.mockResolvedValue(false);
+  bridge.playUpdateInfo.mockResolvedValue(null);
+  bridge.completePlayUpdate.mockResolvedValue(undefined);
   platform.isAndroid = false;
   platform.isIos = false;
   localStorage.clear();
@@ -150,5 +152,41 @@ describe("UpdateRequired", () => {
     await waitFor(() => expect(onRecheck).toHaveBeenCalled());
     expect(bridge.startPlayUpdate).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("Android: a failed Play flow still leads to the store", async () => {
+    platform.isAndroid = true;
+    bridge.startPlayUpdate.mockResolvedValue("failed");
+    const assign = spyAssign();
+    render(<UpdateRequired />);
+    fireEvent.click(screen.getByRole("button", { name: "Update now" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(PLAY_STORE_URL));
+  });
+
+  it("Android: installs a download Play already has instead of starting over", async () => {
+    platform.isAndroid = true;
+    bridge.playUpdateInfo.mockResolvedValue({ status: "downloaded" });
+    render(<UpdateRequired />);
+    await waitFor(() => expect(bridge.completePlayUpdate).toHaveBeenCalled());
+    expect(bridge.startPlayUpdate).not.toHaveBeenCalled();
+  });
+
+  it("while the store catches up, the store page stays one tap away", async () => {
+    platform.isAndroid = true;
+    const assign = spyAssign();
+    render(<UpdateRequired pending onRecheck={vi.fn().mockResolvedValue(undefined)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Google Play" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith(PLAY_STORE_URL));
+  });
+});
+
+describe("UpdateCard: restart", () => {
+  it("can't be tapped twice while the install starts", () => {
+    bridge.completePlayUpdate.mockReturnValue(new Promise(() => {}));
+    render(<UpdateCard update={{ via: "play", versionCode: 42, status: "downloaded", progress: 1 }} />);
+    const btn = screen.getByRole("button", { name: "Restart" });
+    fireEvent.click(btn);
+    expect(btn).toBeDisabled();
+    expect(bridge.completePlayUpdate).toHaveBeenCalledOnce();
   });
 });

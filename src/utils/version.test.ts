@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending } from "./version";
+import { compareVersions, versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending, withInstallState } from "./version";
 
 describe("compareVersions", () => {
   it("orders by numeric segments (not lexically)", () => {
@@ -99,5 +99,29 @@ describe("requiredUpdatePending", () => {
 
   it("unknown means not pending: the store button stays", () => {
     expect(requiredUpdatePending(null, undefined, "1.3.0")).toBe(false);
+  });
+});
+
+describe("withInstallState", () => {
+  const play = { via: "play" as const, versionCode: 42, status: "unknown", progress: null };
+  const ev = (status: string, bytesDownloaded = 0, totalBytes = 0) => ({ status, bytesDownloaded, totalBytes });
+
+  it("follows a live download to the restart", () => {
+    expect(withInstallState(play, ev("downloading", 21, 42))).toEqual({ ...play, status: "downloading", progress: 0.5 });
+    expect(withInstallState(play, ev("downloaded", 42, 42))).toMatchObject({ status: "downloaded" });
+    expect(withInstallState(play, ev("installed"))).toBeNull();
+  });
+
+  it("an event that landed before launch finished still reaches the card", () => {
+    expect(withInstallState(play, ev("downloaded", 42, 42), false)).toMatchObject({ status: "downloaded" });
+  });
+
+  it("but a stale cancel never hides a fresh offer", () => {
+    expect(withInstallState(play, ev("canceled"), false)).toBe(play);
+  });
+
+  it("leaves a store card alone", () => {
+    const store = { via: "store" as const, version: "1.2.0" };
+    expect(withInstallState(store, ev("downloaded"))).toBe(store);
   });
 });

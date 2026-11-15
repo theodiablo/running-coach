@@ -16,6 +16,9 @@ import { PLAY_UPDATE_PROMPT_KEY } from "../constants";
 // handed to Home. Renders nothing.
 export const STORE_PROMPT_DELAY_MS = 1500;
 
+// Versions offered this session: caps the dialog even where localStorage can't be written.
+const promptedThisSession = new Set<number>();
+
 const notStarted = (status: string) => status === "unknown" || status === "failed" || status === "canceled";
 
 function readPlayPrompt(): PlayPromptRecord | null {
@@ -41,11 +44,14 @@ export function StorePrompts({ calm, update, runs, reviewChannel, reviewState, r
   const playCode = update?.via === "play" && notStarted(update.status) ? update.versionCode : null;
   const today = ymd(new Date());
   const playRecord = readPlayPrompt();
-  const playDue = playCode != null && playPromptDue(playCode, playRecord, today);
+  const playDue = playCode != null && !promptedThisSession.has(playCode) && playPromptDue(playCode, playRecord, today);
 
   useEffect(() => {
     if (!calm || !playDue || playCode == null) return;
     const id = setTimeout(() => {
+      // Android won't start Play's activity for a backgrounded app; keep the ask for next time.
+      if (document.visibilityState !== "visible") return;
+      promptedThisSession.add(playCode);
       writePlayPrompt(nextPlayPromptRecord(playCode, readPlayPrompt(), ymd(new Date())));
       void startPlayUpdate(false).then((outcome) => track("app_update_prompted", { outcome: outcome ?? "unavailable" }));
     }, STORE_PROMPT_DELAY_MS);

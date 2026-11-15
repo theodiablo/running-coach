@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, LogOut, MessageSquare, Star } from "lucide-react";
-import { openStoreReview } from "../storeBridge";
 import { useDismissable } from "../hooks/useDismissable";
 import { SettingsHub } from "./settings/SettingsHub";
 import { SubPage } from "./settings/SubPage";
@@ -14,6 +13,7 @@ import type { Plan, SettingsPage, SettingsState, UserContextState } from "../typ
 
 type SettingsModalProps = {
   canRate?: boolean;
+  onRate?: () => void;
   settings: SettingsState;
   saveSettings: (settings: SettingsState) => void;
   userContext: UserContextState;
@@ -44,7 +44,7 @@ type SettingsModalProps = {
 // mounts on top and registers its OWN dismiss handler, so back/Escape pops one level.
 // Flows that replace the whole screen (backup, restore, delete account, coach) close
 // settings first; RunningCoach wires their handlers that way.
-export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, canRate = false}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, canRate = false, onRate}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
@@ -78,8 +78,8 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
             </button>
             <p className="text-[11px] text-slate-500 px-1">{t("feedback.settingsHint")}</p>
           </div>
-          {canRate && (
-            <button onClick={() => { void openStoreReview(); }}
+          {canRate && onRate && (
+            <button onClick={onRate}
               className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-left transition-colors">
               <Star size={15} className="text-orange-400 flex-shrink-0"/>
               <span className="flex-1 min-w-0">

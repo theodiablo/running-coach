@@ -62,7 +62,7 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
         }
         let show: (String) -> Void = { [weak self] id in
             if review {
-                self?.open("itms-apps://itunes.apple.com/app/id\(id)?action=write-review", call)
+                self?.open("https://apps.apple.com/app/id\(id)?action=write-review", call)
             } else {
                 self?.present(id: id, call)
             }
@@ -93,9 +93,19 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
             }
             let store = SKStoreProductViewController()
             store.delegate = self
-            store.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: NSNumber(value: num)], completionBlock: nil)
-            host.present(store, animated: true)
-            call.resolve()
+            // Shown only once loaded: a failed load would be a blank sheet that JS took for success.
+            store.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: NSNumber(value: num)]) { loaded, error in
+                DispatchQueue.main.async {
+                    guard loaded, error == nil else {
+                        call.reject(error?.localizedDescription ?? "not loaded")
+                        return
+                    }
+                    var top: UIViewController = host
+                    while let next = top.presentedViewController { top = next }
+                    top.present(store, animated: true)
+                    call.resolve()
+                }
+            }
         }
     }
 
@@ -105,7 +115,9 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
             done(nil, nil)
             return
         }
-        var items = [URLQueryItem(name: "bundleId", value: bundleId)]
+        // The lookup is cached for hours by the CDN: a fresh query keeps the live version honest.
+        var items = [URLQueryItem(name: "bundleId", value: bundleId),
+                     URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970)))]
         if let region = Locale.current.regionCode {
             items.append(URLQueryItem(name: "country", value: region.lowercased()))
         }
@@ -114,7 +126,8 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
             done(nil, nil)
             return
         }
-        URLSession.shared.dataTask(with: url) { data, _, _ in
+        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
+        URLSession.shared.dataTask(with: request) { data, _, _ in
             var id: String?
             var version: String?
             if let data = data,

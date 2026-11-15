@@ -111,4 +111,20 @@ describe("StorePrompts", () => {
     await settle();
     expect(bridge.startPlayUpdate).not.toHaveBeenCalled();
   });
+
+  it.each([["declined", "declined"], [null, "unavailable"]])("reports Play's answer %s as %s", async (answer, outcome) => {
+    bridge.startPlayUpdate.mockResolvedValue(answer);
+    render(<StorePrompts {...base} update={{ ...playUpdate, versionCode: answer ? 50 : 51 }} reviewMoment={false} onMomentSpent={vi.fn()}/>);
+    await settle();
+    expect(track).toHaveBeenCalledWith("app_update_prompted", { outcome });
+  });
+
+  it("never opens Play's dialog from a backgrounded app, and keeps the ask", async () => {
+    const vis = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    render(<StorePrompts {...base} update={{ ...playUpdate, versionCode: 60 }} reviewMoment={false} onMomentSpent={vi.fn()}/>);
+    await settle();
+    expect(bridge.startPlayUpdate).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PLAY_UPDATE_PROMPT_KEY)).toBeNull();
+    vis.mockRestore();
+  });
 });

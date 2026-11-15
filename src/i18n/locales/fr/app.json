@@ -85,6 +85,8 @@
     "pendingBodyIos": "Cette version de Running Coach n'est plus prise en charge, et la nouvelle est encore en route vers l'App Store. Elle y arrive en général en quelques heures.",
     "updateNow": "Mettre à jour maintenant",
     "checkAgain": "Vérifier à nouveau",
+    "openStoreAndroid": "Ouvrir Google Play",
+    "openStoreIos": "Ouvrir l'App Store",
     "title": "Mise à jour disponible",
     "version": "Version {{version}}",
     "update": "Mettre à jour",

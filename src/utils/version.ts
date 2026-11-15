@@ -38,6 +38,18 @@ export type AppUpdate =
 
 type PlayAnswer = { available: boolean; inProgress: boolean; flexibleAllowed: boolean; versionCode: number; status: string } | null;
 
+// Folds a Play install-state event into the update. Only a live or finished
+// download overrides: a stale "canceled" from an earlier attempt must not hide a
+// fresh offer when merged in after launch.
+type InstallEvent = { status: string; bytesDownloaded: number; totalBytes: number };
+export function withInstallState(update: AppUpdate | null, s: InstallEvent | null, live = true): AppUpdate | null {
+  if (!s || update?.via !== "play") return update;
+  if (!live && !["pending", "downloading", "downloaded"].includes(s.status)) return update;
+  if (s.status === "installed" || s.status === "canceled") return null;
+  const progress = s.totalBytes > 0 ? Math.min(1, s.bytesDownloaded / s.totalBytes) : null;
+  return { ...update, status: s.status, progress };
+}
+
 // The hard gate can only be passed once the store has a version that clears it:
 // Play still offering nothing, or a live App Store version below the floor,
 // means it is on its way (review or rollout), so "Update" would lead nowhere.

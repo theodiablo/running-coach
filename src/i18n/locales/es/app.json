@@ -85,6 +85,8 @@
     "pendingBodyIos": "Esta versión de Running Coach ya no es compatible y la nueva todavía está llegando a la App Store. Suele estar disponible en unas horas.",
     "updateNow": "Actualizar ahora",
     "checkAgain": "Volver a comprobar",
+    "openStoreAndroid": "Abrir Google Play",
+    "openStoreIos": "Abrir la App Store",
     "title": "Actualización disponible",
     "version": "Versión {{version}}",
     "update": "Actualizar",

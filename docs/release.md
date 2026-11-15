@@ -165,9 +165,10 @@ check), wrapped by `src/storeBridge.ts`. Every call degrades to the app's own ca
   build (sandbox receipt).
 - **Review requests come at a moment the app picks, and only from someone
   whose review would be public.** The moment is a run the runner just saved
-  from a recorder or the form (dated today or yesterday; not imports, race
-  results or back-fills), spent on the next calm Home whether or not anything
-  shows, on the reconciled store, never while an update is pending.
+  from a recorder or the form (a running run dated today or yesterday; not
+  imports, cloud runs reviewed in the form, race results, cross-training or
+  back-fills), spent on the next calm Home whether or not anything shows, on
+  the reconciled store, never while an update is pending.
   `reviewCardDue` (`src/utils/storePrompts.ts`) gates on a regular runner (6+
   runs, first one 14+ days ago, 3+ in the last 21 days, none cross-training),
   up to 4 asks 21+ days apart; "Leave a review" or "Don't ask again" ends it
@@ -182,8 +183,8 @@ check), wrapped by `src/storeBridge.ts`. Every call degrades to the app's own ca
   - **iOS: Apple's own sheet** at the same moments, no text of ours: 5.6.1
     disallows custom review prompts. Never in TestFlight or Xcode builds.
   - **Settings → "Rate Running Coach"** opens the write-a-review page (a link
-    the user taps is allowed on both stores): Android always, iOS once
-    `APP_STORE_ID` is set.
+    the user taps is allowed on both stores): Android always, iOS once the app
+    is listed. A review opened from there ends the Home asks too.
 
 ## Promoting an Android build
 

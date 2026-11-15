@@ -90,5 +90,6 @@ describe("ranRecently", () => {
     expect(ranRecently(daysAgo(0), now)).toBe(true);
     expect(ranRecently(daysAgo(1), now)).toBe(true);
     expect(ranRecently(daysAgo(2), now)).toBe(false);
+    expect(ranRecently(daysAgo(-1), now)).toBe(false);
   });
 });

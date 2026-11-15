@@ -31,7 +31,8 @@ export function reviewCardDue({ runs, state, today }: { runs: Run[]; state?: Rev
 /** A run dated today or yesterday: the runner just ran, rather than back-filling. */
 export function ranRecently(date: string, now = new Date()) {
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  return daysBetween(date, today) <= 1;
+  const ago = daysBetween(date, today);
+  return ago >= 0 && ago <= 1;
 }
 
 /** The card's ask number (1-based) for the next showing. */
