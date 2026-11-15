@@ -1,10 +1,7 @@
 -- Running Coach — the 100-token cap moves from the insert policy to a trigger.
 --
--- 20260928100349 put the cap inside the "claim own" INSERT policy as a count over
--- live_share_tokens itself. Postgres refuses any policy that reads its own table
--- ("infinite recursion detected in policy", 42P17), so every insert failed: Replace
--- link and first-time Create both answered 500. A trigger's query is not part of
--- policy expansion, so the same count is legal there, and still runs as the caller.
+-- A policy may not read its own table once that table's SELECT policy has a
+-- subquery (42P17, infinite recursion), so the 100-token cap lives in a trigger.
 
 drop policy if exists "live_share_tokens claim own" on public.live_share_tokens;
 create policy "live_share_tokens claim own"

@@ -55,8 +55,9 @@ function finalFunctions(): Map<string, Fn> {
 }
 
 // Final text of every RLS policy, keyed by table + name; an alter replaces only the clauses it names.
-function finalPolicies(): Map<string, { using: string; check: string; file: string }> {
-  const pols = new Map<string, { using: string; check: string; file: string }>();
+type Policy = { cmd: string; using: string; check: string; file: string };
+function finalPolicies(): Map<string, Policy> {
+  const pols = new Map<string, Policy>();
   const STMT = /\b(create|alter|drop)\s+policy\s+(?:if\s+exists\s+)?"([^"]+)"\s+on\s+(?:"?public"?\.)?"?(\w+)"?([^;]*);/gi;
   const clause = (body: string, kw: "using" | "with\\s+check") => {
     const m = new RegExp(`\\b${kw}\\s*\\(`, "i").exec(body);
@@ -72,6 +73,7 @@ function finalPolicies(): Map<string, { using: string; check: string; file: stri
       if (verb.toLowerCase() === "drop") { pols.delete(key); continue; }
       const prev = verb.toLowerCase() === "alter" ? pols.get(key) : undefined;
       pols.set(key, {
+        cmd: /\bfor\s+(select|insert|update|delete|all)\b/i.exec(body)?.[1].toLowerCase() ?? prev?.cmd ?? "all",
         using: clause(body, "using") ?? prev?.using ?? "",
         check: clause(body, "with\\s+check") ?? prev?.check ?? "",
         file: f,
@@ -104,8 +106,18 @@ describe("migration policy conventions", () => {
         return new RegExp(`\\b(?:from|join)\\s+(?:"?public"?\\.)?"?${table}"?\\b`, "i").test(`${p.using} ${p.check}`);
       })
       .map(([k, p]) => `${k} (${p.file})`);
-    // Postgres rejects it at run time (42P17, infinite recursion); do the check in a trigger instead.
+    // 42P17 (infinite recursion) once the table's read policy has a subquery; do the check in a trigger.
     expect(selfRef).toEqual([]);
+  });
+
+  it("keeps a sublink out of the read policy of every table an exempt policy reads", () => {
+    const tables = new Set([...SELF_READING_POLICIES].map(k => k.slice(0, k.indexOf("."))));
+    const withSublink = [...finalPolicies()]
+      .filter(([k, p]) => tables.has(k.slice(0, k.indexOf("."))) && (p.cmd === "select" || p.cmd === "all"))
+      .filter(([, p]) => /\b(select|exists)\b/i.test(p.using))
+      .map(([k, p]) => `${k} (${p.file})`);
+    // A subquery here turns the exempt insert caps into 42P17; move them to a trigger first.
+    expect(withSublink).toEqual([]);
   });
 });
 
