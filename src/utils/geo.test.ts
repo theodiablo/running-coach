@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { haversineM, distanceKm, elevGainM, flattenTrack, simplify, segments, accuracyOK, type TrackPointOrGap } from "./geo";
+import { haversineM, distanceKm, elevGainM, flattenTrack, simplify, segments, accuracyOK, wrapLng, type TrackPointOrGap } from "./geo";
 
 const pt = (lat: number, lng: number): [number, number] => [lat, lng];
 const pos = (alt: number | null): { lat: number; lng: number; alt: number | null } => ({ lat: 0, lng: 0, alt });
@@ -168,5 +168,20 @@ describe("accuracyOK", () => {
   it("accepts good fixes and missing accuracy", () => {
     expect(ok({ coords: { accuracy: 10 } })).toBe(true);
     expect(ok({ coords: {} })).toBe(true);
+  });
+});
+
+describe("wrapLng", () => {
+  it("leaves an in-range longitude alone", () => {
+    expect(wrapLng(2.35)).toBe(2.35);
+    expect(wrapLng(-179.5)).toBe(-179.5);
+    expect(wrapLng(0)).toBe(0);
+  });
+
+  it("folds a longitude picked across the antimeridian back into range", () => {
+    expect(wrapLng(-183.081444763957)).toBeCloseTo(176.918555236043, 9);
+    expect(wrapLng(190)).toBeCloseTo(-170, 9);
+    expect(wrapLng(540)).toBeCloseTo(-180, 9);
+    expect(wrapLng(-540)).toBeCloseTo(-180, 9);
   });
 });
