@@ -6,6 +6,8 @@ import { parseDistances, countryCode, distinctiveTokens, hostOf } from "../scrip
 // @ts-expect-error — plain ESM script module.
 import { classify, matchRace, mergeSources, worthProposing } from "../scripts/race-crawler/classify.mjs";
 // @ts-expect-error — plain ESM script module.
+import { buildSql, cleanName, plan } from "../scripts/race-crawler/apply.mjs";
+// @ts-expect-error — plain ESM script module.
 import * as rts from "../scripts/race-crawler/sources/rockthesport.mjs";
 // @ts-expect-error — plain ESM script module.
 import * as rl from "../scripts/race-crawler/sources/runninglife.mjs";
@@ -291,5 +293,81 @@ describe("mergeSources", () => {
   });
   it("drops a sub-marathon new race only an aggregator lists", () => {
     expect(worthProposing({ minor: true })).toBe(false);
+  });
+});
+
+describe("apply: cleanName", () => {
+  it.each([
+    ["XXVI Media Maratón San Sebastián 2027", "Media Maratón San Sebastián"],
+    ["42 Carrera Popular CaixaBank Villa de Aranjuez", "Carrera Popular CaixaBank Villa de Aranjuez"],
+    ["MARATÓN DE ESTEPONA JARDIN DE LA COSTA DEL SOL", "Maratón De Estepona Jardin De La Costa Del Sol"],
+    ["CANFRANC-CANFRANC 2027", "Canfranc-Canfranc"],
+    ["10K Valencia Ibercaja", "10K Valencia Ibercaja"],
+    ["Trail Vielha Molieres 3010 -", "Trail Vielha Molieres 3010"],
+  ])("%s", (raw, clean) => expect(cleanName(raw)).toBe(clean));
+});
+
+describe("apply: plan", () => {
+  const taken = () => new Set([...CATALOGUE.races.map((r) => r.slug), ...CATALOGUE.editions.map((e) => e.id)]);
+  const proposal = (over: Record<string, unknown>, c: Record<string, unknown> = {}) => ({
+    verdict: "newRace",
+    distances: [21.1],
+    flags: [],
+    why: "",
+    candidate: candidate({ source: "rockthesport", firstHand: true, name: "XII Mitja Marató Ripoll 2027", city: "Ripoll", ...c }),
+    ...over,
+  });
+
+  it("adds a clean first-hand new race with one edition at its headline distance", () => {
+    const w = plan(proposal({ distances: [10, 21.1] }), CATALOGUE, taken());
+    expect(w.ledger).toMatchObject({ status: "inserted", race_slug: "mitja-marato-ripoll", edition_id: "mitja-marato-ripoll-2027-03-07" });
+    expect(w.race).toMatchObject({ name: "Mitja Marató Ripoll", country: "ES", distances: [21.1] });
+    expect(w.edition).toMatchObject({ race_slug: "mitja-marato-ripoll", distance_km: 21.1 });
+  });
+  it("never takes a slug already in use", () => {
+    const used = taken();
+    used.add("mitja-marato-ripoll");
+    expect(plan(proposal({}), CATALOGUE, used).race.slug).toBe("mitja-marato-ripoll-2");
+  });
+  it("adds a new edition at the catalogue race's own distance", () => {
+    const w = plan(
+      proposal({ verdict: "newEdition", slug: "dublin-marathon", distances: [10, 42.2] }, { name: "Dublin Marathon", country: "IE" }),
+      CATALOGUE,
+      taken(),
+    );
+    expect(w.race).toBeUndefined();
+    expect(w.edition).toEqual({ id: "dublin-marathon-2027-03-07", race_slug: "dublin-marathon", date: "2027-03-07", distance_km: 42.2 });
+  });
+  it.each([
+    [{ verdict: "dateChange", previousDate: "2027-04-11" }, {}, "catalogue has 2027-04-11"],
+    [{ verdict: "review", why: "weak name 0.40" }, {}, "weak name 0.40"],
+    [{ flags: ["weekday"] }, {}, "weekday"],
+    [{ flags: ["tbc", "no coordinates"] }, {}, "tbc, no coordinates"],
+    [{}, { source: "runninglife", firstHand: false }, "one aggregator only"],
+    [{ verdict: "newEdition", slug: "dublin-marathon", distances: [21.1] }, {}, "no distance in common with the catalogue race"],
+  ])("leaves %o for review", (over, c, note) => {
+    const w = plan(proposal(over, c), CATALOGUE, taken());
+    expect(w.ledger).toMatchObject({ status: "review", note });
+    expect(w.race ?? w.edition).toBeUndefined();
+  });
+  it("adds an aggregator race once a second source lists it", () => {
+    const w = plan(proposal({ alsoIn: [{ source: "x", url: "u" }] }, { source: "runninglife", firstHand: false }), CATALOGUE, taken());
+    expect(w.ledger.status).toBe("inserted");
+  });
+});
+
+describe("apply: buildSql", () => {
+  it("carries the rows as one dollar-quoted literal whose tag the data cannot close", () => {
+    const sql = buildSql({ races: [{ name: "O'Brien $$ Run" }], editions: [], ledger: [] });
+    const tag = sql.match(/\$(crawl_[0-9a-f]+)\$/)![1];
+    expect(sql.split(`$${tag}$`)).toHaveLength(3);
+    expect(sql).toContain("O'Brien $$ Run");
+  });
+});
+
+describe("classify: tbc", () => {
+  it("flags a date the source itself calls provisional", () => {
+    const v = classify(candidate({ name: "Carrera del Puerto", text: "21 km, scheduled for 7 March 2027 (TBC)." }), CATALOGUE, TODAY);
+    expect(v.flags).toContain("tbc");
   });
 });

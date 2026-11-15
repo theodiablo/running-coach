@@ -2,24 +2,45 @@
 
 A scheduled script that finds new races and editions for the shared catalogue
 (`docs/races.md`) without an LLM: fixed parsers over structured data the sources
-already publish. **Phase 1 is dry-run**: it reads the sources and the live
-catalogue and writes a report; it never writes to the database. Adding rows stays
-the maintainer's call, through the same SQL as `validate-contribution`.
+already publish. It adds the clean proposals to the catalogue as **unverified**
+rows and logs every proposal in a ledger; a person (the `review-race-crawl`
+skill) verifies, fixes or rejects them.
 
 ## Running it
 
-- **Scheduled:** `.github/workflows/race-crawler.yml`, Mon + Thu. The report is
-  the job summary and the `race-crawl-report` artifact (`.md` + `.json`).
+- **Scheduled:** `.github/workflows/race-crawler.yml`, Mondays. It writes
+  through the Supabase Management API with the `SUPABASE_ACCESS_TOKEN` secret
+  the release workflows already use; without it, or with `dry_run`, it only
+  reports. The report is the job summary and the `race-crawl-report` artifact.
 - **By hand:** `SUPABASE_URL=https://<ref>.supabase.co node scripts/race-crawler/crawl.mjs`
-  (`--sources`, `--countries ES,FR,GB,IE`, `--since-days 8`, `--max-pages N`,
-  `--state file`, `--out prefix`). The catalogue is read with the public anon
-  key from `src/config.ts`: the same read every app client does.
-- **Not repeated:** `--state` remembers what was proposed (180 days), so each
-  report lists only what is new since the last run. In CI the state rides the
-  Actions cache; twice a week keeps it inside the cache's 7-day eviction.
+  reports only (`--sources`, `--countries ES,FR,GB,IE`, `--since-days 8`,
+  `--max-pages N`, `--state file`, `--out prefix`). `--sql-out file` writes the
+  statement it would run, for review; `--apply` (with `SUPABASE_PROJECT_REF` +
+  `SUPABASE_ACCESS_TOKEN`) runs it. The catalogue is read with the public anon
+  key from `src/config.ts`.
 - **Polite by construction:** one request per second per host, a named
   user-agent, only paths `robots.txt` allows (Rock the Sport disallows `/api/`,
   so pages only). A source that fails is reported; it never loses the others' run.
+
+## The ledger (`race_crawl_items`)
+
+One row per proposed event, keyed by source, source key and date, service-role
+only. A key already in the ledger is never proposed again, whatever its status,
+so a rejection sticks. `status`:
+
+- `inserted`: the crawler added the race and/or edition (`verified = false`).
+- `review`: it added nothing; `note` says why (a date change, an uncertain
+  match, one aggregator only, a weekday or TBC date, no coordinates…).
+- `verified` / `rejected`: a person dealt with it.
+
+**What goes in without a person** (`apply.mjs`, `plan`): a new edition of a
+matched race, at the race's own distance; a new race from a registration
+platform, or from an aggregator once a second source lists it. One race per
+event, at its headline distance (the half of a "media maratón" with a 10K, else
+the longest), named without edition number or year. Never a date change, which
+could move a date a runner trains for (`docs/races.md`, "Catalogue date
+changes"). Everything is written in one idempotent statement: an existing slug
+or edition is never overwritten.
 
 ## Sources
 
@@ -62,10 +83,8 @@ too (a marathon's breakfast run shares its site). Anything in between is
 A matched candidate is `known` (the edition exists), `dateChange` (an upcoming
 edition within 75 days of it), or `newEdition`.
 
-## Next phases
+## Next
 
-1. Staging table + auto-insert of clean first-hand proposals as
-   `verified = false` rows (service role, from the workflow).
-2. A review skill over the staged rows, like `validate-contribution`.
-3. More sources, one adapter each: Find a Race (UK) and RunIreland (Ireland,
-   WordPress events API) as second sources.
+More sources, one adapter each: Find a Race (UK) and RunIreland (Ireland,
+WordPress events API) as second sources, which also lets aggregator-only races
+in through the two-source rule.

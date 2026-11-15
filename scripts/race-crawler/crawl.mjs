@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { classify, mergeSources, worthProposing } from "./classify.mjs";
 import { parseDistances } from "./text.mjs";
+import { LEDGER_KEYS_SQL, buildSql, ledgerKey, plan, runSql } from "./apply.mjs";
 import * as rts from "./sources/rockthesport.mjs";
 import * as rl from "./sources/runninglife.mjs";
 
@@ -24,6 +25,8 @@ const { values: args } = parseArgs({
     "delay-ms": { type: "string", default: "1000" },
     out: { type: "string", default: "race-crawl-report" },
     state: { type: "string" },
+    apply: { type: "boolean", default: false },
+    "sql-out": { type: "string" },
   },
 });
 const sinceDays = Number(args["since-days"]);
@@ -137,7 +140,7 @@ async function crawlRunningLife(stats, countries, catalogue) {
 }
 
 function markdown(report) {
-  const lines = [`# Race crawl ${report.generatedAt.slice(0, 10)} (dry run)`, ""];
+  const lines = [`# Race crawl ${report.generatedAt.slice(0, 10)}`, ""];
   for (const s of report.sources) {
     lines.push(
       `- **${s.id}**: ${s.discovered} discovered, ${s.fetched} pages fetched, ${s.candidates} parsed` +
@@ -147,6 +150,13 @@ function markdown(report) {
   lines.push("", `Dropped: ${Object.entries(report.dropped).map(([k, n]) => `${k} ${n}`).join(", ") || "none"}`);
   lines.push(`Already in the catalogue: ${report.known}`, "");
   if (report.alreadyReported) lines.push(`Proposed in an earlier run, not repeated: ${report.alreadyReported}`, "");
+  const { planned, written } = report;
+  lines.push(
+    written
+      ? `Written: ${written.races} races, ${written.editions} editions (unverified), ${written.ledger} ledger rows.`
+      : `Dry run: would add ${planned.races} races and ${planned.editions} editions (unverified); ${planned.review} wait for review.`,
+    "",
+  );
   const sections = [
     ["New editions of catalogue races", (p) => p.verdict === "newEdition"],
     ["Date changes", (p) => p.verdict === "dateChange"],
@@ -161,7 +171,13 @@ function markdown(report) {
     lines.push("| Date | Race | Where | km | Catalogue | Notes |", "|---|---|---|---|---|---|");
     for (const p of rows.slice(0, 200)) {
       const c = p.candidate;
-      const notes = [p.previousDate && `was ${p.previousDate}`, p.why, ...p.flags, p.alsoIn && "two sources"];
+      const notes = [
+        p.status === "inserted" ? "**added**" : `waits: ${p.note}`,
+        p.previousDate && `was ${p.previousDate}`,
+        p.why,
+        ...p.flags,
+        p.alsoIn && "two sources",
+      ];
       lines.push(
         `| ${c.date} | [${c.name.replace(/\|/g, "/")}](${c.url}) | ${[c.city, c.country].filter(Boolean).join(", ")} ` +
           `| ${p.distances.join(", ")} | ${p.slug ?? ""} | ${notes.filter(Boolean).join("; ")} |`,
@@ -210,17 +226,43 @@ async function main() {
   const worth = all.filter(worthProposing);
   dropped["new race under marathon, one aggregator only"] = all.length - worth.length;
 
-  // What an earlier run already proposed is not repeated, until it has been dealt with or changes.
-  const state = args.state && existsSync(args.state) ? JSON.parse(readFileSync(args.state, "utf8")) : { seen: {} };
-  const keyOf = (p) => `${p.candidate.source}:${p.candidate.sourceKey}:${p.candidate.date}:${p.verdict}`;
-  const merged = worth.filter((p) => !state.seen[keyOf(p)]);
-  // Rock the Sport is crawled by lastmod, so its proposals are absent from most runs: keep them a while.
-  const keepFrom = new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10);
-  const seen = Object.fromEntries(Object.entries(state.seen).filter(([, day]) => day >= keepFrom));
-  for (const p of worth) seen[keyOf(p)] ??= today;
-  if (args.state) {
-    mkdirSync(dirname(resolve(args.state)), { recursive: true });
-    writeFileSync(args.state, JSON.stringify({ seen }));
+  // What an earlier run already proposed is not repeated: the ledger table when writing, else a state file.
+  const keyOf = (p) => ledgerKey(p.candidate);
+  const db = { projectRef: process.env.SUPABASE_PROJECT_REF, accessToken: process.env.SUPABASE_ACCESS_TOKEN };
+  if (args.apply && !(db.projectRef && db.accessToken)) {
+    throw new Error("--apply needs SUPABASE_PROJECT_REF and SUPABASE_ACCESS_TOKEN.");
+  }
+  let seenKeys;
+  if (args.apply) {
+    seenKeys = new Set((await runSql(LEDGER_KEYS_SQL, db)).map((r) => r.key));
+  } else {
+    const state = args.state && existsSync(args.state) ? JSON.parse(readFileSync(args.state, "utf8")) : { seen: {} };
+    seenKeys = new Set(Object.keys(state.seen));
+    const keepFrom = new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10);
+    const seen = Object.fromEntries(Object.entries(state.seen).filter(([, day]) => day >= keepFrom));
+    for (const p of worth) seen[keyOf(p)] ??= today;
+    if (args.state) {
+      mkdirSync(dirname(resolve(args.state)), { recursive: true });
+      writeFileSync(args.state, JSON.stringify({ seen }));
+    }
+  }
+  const merged = worth.filter((p) => !seenKeys.has(keyOf(p)));
+
+  const taken = new Set([...catalogue.races.map((r) => r.slug), ...catalogue.editions.map((e) => e.id)]);
+  const writes = { races: [], editions: [], ledger: [] };
+  for (const p of merged) {
+    const w = plan(p, catalogue, taken);
+    p.status = w.ledger.status;
+    p.note = w.ledger.note;
+    writes.ledger.push(w.ledger);
+    if (w.race) writes.races.push(w.race);
+    if (w.edition) writes.editions.push(w.edition);
+  }
+  let written = null;
+  if (writes.ledger.length && (args.apply || args["sql-out"])) {
+    const sql = buildSql(writes);
+    if (args["sql-out"]) writeFileSync(args["sql-out"], sql);
+    if (args.apply) written = (await runSql(sql, db))[0];
   }
   const alreadyReported = worth.length - merged.length;
   const report = {
@@ -230,6 +272,8 @@ async function main() {
     dropped,
     known,
     alreadyReported,
+    planned: { races: writes.races.length, editions: writes.editions.length, review: merged.length - writes.editions.length },
+    written,
     proposals: merged,
   };
 
