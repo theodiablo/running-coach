@@ -139,7 +139,8 @@ export default function App() {
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
   const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a soft update: Play's flow or the Home card
   const [reviewChannel, setReviewChannel] = useState<ReviewChannel | null>(null); // where a store review can be asked for
-  const [requiredPending, setRequiredPending] = useState(false); // must-update, but the store doesn't have it yet
+  // must-update, but the store doesn't have it yet; null while the stores are still being asked
+  const [requiredPending, setRequiredPending] = useState<boolean | null>(null);
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
@@ -462,7 +463,10 @@ export default function App() {
       if (cancelled()) return;
       // The gate goes up at once; what the stores say (a network lookup on iOS) only refines it.
       // An unread config leaves the gate as it was: a failed "Check again" must not lift it.
-      if (config) setUpdateState(status);
+      if (config) {
+        setUpdateState(status);
+        if (status === "must-update") setRequiredPending(null);
+      }
       const [play, install] = await Promise.all([playUpdateInfo(), installInfo()]);
       if (cancelled()) return;
       if (config) setRequiredPending(status === "must-update" && requiredUpdatePending(play, install.storeVersion, minSupported));
@@ -471,7 +475,9 @@ export default function App() {
         setReviewChannel(reviewChannelFor(isIos ? "ios" : "android", !!install.fromStore, info.version, latest,
           !!(APP_STORE_ID || install.appId)));
       }
-    } catch { /* never block the app on a failed version check */ }
+    } catch {
+      setRequiredPending(p => p ?? false); // never leave the gate's button waiting on a failed check
+    }
   }, []);
   useEffect(() => {
     let cancelled = false;

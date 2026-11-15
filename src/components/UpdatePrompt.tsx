@@ -40,11 +40,11 @@ async function updateNow() {
 // Hard gate below the minimum supported version: full-screen, non-dismissible.
 // Android opens Play's immediate update over it. `pending`: the store has no
 // version clearing the gate yet, so the button checks again rather than open a
-// listing that only says "Open".
-export function UpdateRequired({ pending = false, onRecheck }: { pending?: boolean; onRecheck?: () => Promise<void> }) {
+// listing that only says "Open"; null while the stores are still being asked.
+export function UpdateRequired({ pending = false, onRecheck }: { pending?: boolean | null; onRecheck?: () => Promise<void> }) {
   const { t } = useTranslation();
   const [checking, setChecking] = useState(false);
-  useEffect(() => { if (isAndroid && !pending) void playRequiredUpdate(); }, [pending]);
+  useEffect(() => { if (isAndroid && pending === false) void playRequiredUpdate(); }, [pending]);
   const recheck = async () => {
     setChecking(true);
     try { await onRecheck?.(); } finally { setChecking(false); }
@@ -60,7 +60,7 @@ export function UpdateRequired({ pending = false, onRecheck }: { pending?: boole
         <p className="text-sm text-slate-400">
           {pending ? t(isIos ? "app.update.pendingBodyIos" : "app.update.pendingBodyAndroid") : t("app.update.requiredBody")}
         </p>
-        <button onClick={pending ? recheck : updateNow} disabled={checking}
+        <button onClick={pending ? recheck : updateNow} disabled={checking || pending === null}
           className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors">
           {pending ? t("app.update.checkAgain") : t("app.update.updateNow")}
         </button>

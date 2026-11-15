@@ -112,7 +112,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       // runs" — carryPrefill ends that class of bug.
       ...carryPrefill(prefill),
       ...runFormToPatch(f),
-    }], { celebrated: !!prefill?.celebrated, fresh: !prefill?.extId });
+    }], { celebrated: !!prefill?.celebrated, fresh: !prefill?.extId && !prefill?.hcId });
     setBusy(false); onSaved?.(saved || [], link); onDone();
   };
 

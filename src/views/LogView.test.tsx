@@ -100,6 +100,14 @@ describe("LogView", () => {
     expect(addRuns.mock.calls[0][1]).toEqual({ celebrated: true, fresh: true });
     expect(addRuns.mock.calls[0][0][0]).not.toHaveProperty("celebrated");
   });
+
+  // Only a run the runner just saved is a moment to ask for a review, never an import reviewed here.
+  it.each([["cloud", { extId: "suunto:1" }], ["watch", { hcId: "hc-1" }]])("a %s import isn't a fresh run", (_k, ids) => {
+    const addRuns = vi.fn();
+    setup({ addRuns, prefill: { date: "2026-08-15", type: "EASY", km: 5, durationSec: 1500, source: "watch", ...ids } });
+    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
+    expect(addRuns.mock.calls[0][1]).toMatchObject({ fresh: false });
+  });
 });
 
 // The review form rebuilds the run from its own fields, so anything the recorder measured that the form can't edit must be

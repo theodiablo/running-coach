@@ -16,6 +16,8 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
         CAPPluginMethod(name: "getInstallInfo", returnType: CAPPluginReturnPromise),
     ]
 
+    private var loadingSheet = false
+
     private var isTestFlight: Bool {
         Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
     }
@@ -91,11 +93,18 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
                 call.reject("no view controller")
                 return
             }
+            // A second tap while the sheet loads would stack a second sheet on the first.
+            guard !self.loadingSheet else {
+                call.reject("already opening")
+                return
+            }
+            self.loadingSheet = true
             let store = SKStoreProductViewController()
             store.delegate = self
             // Shown only once loaded: a failed load would be a blank sheet that JS took for success.
             store.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: NSNumber(value: num)]) { loaded, error in
                 DispatchQueue.main.async {
+                    self.loadingSheet = false
                     guard loaded, error == nil else {
                         call.reject(error?.localizedDescription ?? "not loaded")
                         return

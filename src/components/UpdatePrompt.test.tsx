@@ -190,3 +190,20 @@ describe("UpdateCard: restart", () => {
     expect(bridge.completePlayUpdate).toHaveBeenCalledOnce();
   });
 });
+
+describe("UpdateRequired: while the stores are asked", () => {
+  it("offers nothing to tap that could lead to a dead listing", () => {
+    platform.isIos = true;
+    render(<UpdateRequired pending={null} />);
+    expect(screen.getByRole("button", { name: "Update now" })).toBeDisabled();
+    expect(bridge.openAppStorePage).not.toHaveBeenCalled();
+  });
+
+  it("Android: Play's flow waits for the answer too", async () => {
+    platform.isAndroid = true;
+    render(<UpdateRequired pending={null} />);
+    await Promise.resolve();
+    expect(bridge.startPlayUpdate).not.toHaveBeenCalled();
+    expect(bridge.playUpdateInfo).not.toHaveBeenCalled();
+  });
+});
