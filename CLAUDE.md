@@ -750,6 +750,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
 - `docs/races.md` — race catalogue, contributions, badges.
+- `docs/race-crawler.md` — the scheduled catalogue crawler: sources, curated policy, matching.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/run-celebration.md` — the finish-screen celebration: headline pools, own-log facts, the rare draw.
 - `docs/run-analysis.md` — the moving clock (paused time out of splits and pace) and the running-only (run/walk) breakdown.

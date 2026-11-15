@@ -1,0 +1,63 @@
+# Race-catalogue crawler, dry run: reads Rock the Sport and running.life plus the
+# live catalogue (anon key, read-only) and reports what to add. It writes nothing
+# to the database. The report is the job summary and an artifact; what an earlier
+# run proposed is not repeated (state rides the Actions cache, kept warm by
+# running twice a week). Detail: docs/race-crawler.md.
+
+name: Race crawler
+
+on:
+  schedule:
+    - cron: "37 4 * * 1,4" # Mon + Thu 04:37 UTC (off the hour: shared runner capacity)
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Comma-separated sources"
+        default: "rockthesport,runninglife"
+      since_days:
+        description: "Rock the Sport: pages changed in the last N days"
+        default: "8"
+      max_pages:
+        description: "Cap per sitemap / country calendar (0 = no cap)"
+        default: "0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: race-crawler
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Restore crawl state
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .race-crawler/state.json
+          key: race-crawler-state-${{ github.run_id }}
+          restore-keys: race-crawler-state-
+      - name: Crawl
+        env:
+          SUPABASE_URL: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
+          SOURCES: ${{ inputs.sources || 'rockthesport,runninglife' }}
+          SINCE_DAYS: ${{ inputs.since_days || '8' }}
+          MAX_PAGES: ${{ inputs.max_pages || '0' }}
+        run: |
+          node scripts/race-crawler/crawl.mjs \
+            --sources "$SOURCES" --since-days "$SINCE_DAYS" --max-pages "$MAX_PAGES" \
+            --state .race-crawler/state.json --out .race-crawler/report
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: race-crawl-report
+          path: .race-crawler/report.*
+          retention-days: 30
+          if-no-files-found: ignore
