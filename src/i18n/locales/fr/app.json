@@ -81,7 +81,10 @@
   "update": {
     "requiredTitle": "Mise à jour requise",
     "requiredBody": "Cette version de Running Coach n'est plus prise en charge. Mets-la à jour vers la dernière version pour continuer à utiliser l'app.",
+    "pendingBodyAndroid": "Cette version de Running Coach n'est plus prise en charge, et la nouvelle est encore en route vers Google Play. Elle y arrive en général en quelques heures.",
+    "pendingBodyIos": "Cette version de Running Coach n'est plus prise en charge, et la nouvelle est encore en route vers l'App Store. Elle y arrive en général en quelques heures.",
     "updateNow": "Mettre à jour maintenant",
+    "checkAgain": "Vérifier à nouveau",
     "title": "Mise à jour disponible",
     "version": "Version {{version}}",
     "update": "Mettre à jour",
@@ -94,8 +97,8 @@
   },
   "review": {
     "title": "Un petit coup de pouce",
-    "bodyAndroid": "Je développe Running Coach moi-même. Si l'app te sert, un petit avis sur Google Play m'aiderait à ce que d'autres coureurs la découvrent.",
-    "bodyIos": "Je développe Running Coach moi-même. Si l'app te sert, un petit avis sur l'App Store m'aiderait à ce que d'autres coureurs la découvrent.",
+    "bodyAndroid": "Je développe Running Coach moi-même. Si l'app te sert, un petit avis sur Google Play m'aiderait à la faire connaître à d'autres coureurs.",
+    "bodyIos": "Je développe Running Coach moi-même. Si l'app te sert, un petit avis sur l'App Store m'aiderait à la faire connaître à d'autres coureurs.",
     "cta": "Laisser un avis",
     "later": "Plus tard",
     "never": "Ne plus demander",

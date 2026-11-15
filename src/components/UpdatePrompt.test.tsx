@@ -139,4 +139,16 @@ describe("UpdateRequired", () => {
     await waitFor(() => expect(bridge.startPlayUpdate).toHaveBeenCalledTimes(2));
     expect(assign).not.toHaveBeenCalled();
   });
+
+  it("store doesn't have it yet: checks again instead of a listing that says Open", async () => {
+    platform.isAndroid = true;
+    const assign = spyAssign();
+    const onRecheck = vi.fn().mockResolvedValue(undefined);
+    render(<UpdateRequired pending onRecheck={onRecheck} />);
+    expect(screen.getByText(/still on its way to Google Play/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(onRecheck).toHaveBeenCalled());
+    expect(bridge.startPlayUpdate).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
 });

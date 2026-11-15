@@ -38,6 +38,18 @@ export type AppUpdate =
 
 type PlayAnswer = { available: boolean; inProgress: boolean; flexibleAllowed: boolean; versionCode: number; status: string } | null;
 
+// The hard gate can only be passed once the store has a version that clears it:
+// Play still offering nothing, or a live App Store version below the floor,
+// means it is on its way (review or rollout), so "Update" would lead nowhere.
+export function requiredUpdatePending(
+  play: { available: boolean; inProgress: boolean; status: string } | null,
+  storeVersion: string | null | undefined,
+  minSupported: string | null,
+) {
+  if (play) return !play.available && !play.inProgress && play.status !== "downloaded";
+  return !!storeVersion && !!minSupported && compareVersions(storeVersion, minSupported) < 0;
+}
+
 // A Play tester runs a build newer than production: their review would be private feedback, not a public one.
 export function reviewChannelFor(platform: "android" | "ios", fromStore: boolean, installed: string | null, latest: string | null, hasAppStoreId: boolean) {
   if (!fromStore) return null;

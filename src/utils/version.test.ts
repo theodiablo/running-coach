@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, versionStatus, resolveAppUpdate, reviewChannelFor } from "./version";
+import { compareVersions, versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending } from "./version";
 
 describe("compareVersions", () => {
   it("orders by numeric segments (not lexically)", () => {
@@ -79,5 +79,25 @@ describe("reviewChannelFor", () => {
   it("iOS uses Apple's own sheet, and links to the listing only once it exists", () => {
     expect(reviewChannelFor("ios", true, "1.2.0", null, false)).toEqual({ prompt: "native", link: false });
     expect(reviewChannelFor("ios", true, "1.2.0", null, true)).toEqual({ prompt: "native", link: true });
+  });
+});
+
+describe("requiredUpdatePending", () => {
+  const play = (o: Partial<{ available: boolean; inProgress: boolean; status: string }> = {}) =>
+    ({ available: false, inProgress: false, status: "unknown", ...o });
+
+  it("Android: pending while Play has nothing to offer this install yet", () => {
+    expect(requiredUpdatePending(play(), null, "1.3.0")).toBe(true);
+    expect(requiredUpdatePending(play({ available: true }), null, "1.3.0")).toBe(false);
+    expect(requiredUpdatePending(play({ status: "downloaded" }), null, "1.3.0")).toBe(false);
+  });
+
+  it("iOS: pending while the live App Store version is below the floor", () => {
+    expect(requiredUpdatePending(null, "1.2.0", "1.3.0")).toBe(true);
+    expect(requiredUpdatePending(null, "1.3.0", "1.3.0")).toBe(false);
+  });
+
+  it("unknown means not pending: the store button stays", () => {
+    expect(requiredUpdatePending(null, undefined, "1.3.0")).toBe(false);
   });
 });

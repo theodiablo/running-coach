@@ -81,7 +81,10 @@
   "update": {
     "requiredTitle": "Actualización necesaria",
     "requiredBody": "Esta versión de Running Coach ya no es compatible. Actualiza a la última versión para seguir usando la app.",
+    "pendingBodyAndroid": "Esta versión de Running Coach ya no es compatible y la nueva todavía está llegando a Google Play. Suele estar disponible en unas horas.",
+    "pendingBodyIos": "Esta versión de Running Coach ya no es compatible y la nueva todavía está llegando a la App Store. Suele estar disponible en unas horas.",
     "updateNow": "Actualizar ahora",
+    "checkAgain": "Volver a comprobar",
     "title": "Actualización disponible",
     "version": "Versión {{version}}",
     "update": "Actualizar",

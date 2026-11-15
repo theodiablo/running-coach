@@ -185,10 +185,13 @@ export const PLAY_UPDATE_PROMPT_KEY = "rc_play_update_prompt";
 export const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=solutions.camboulive.run";
 
-// The App Store's numeric app id (App Store Connect → App Information → Apple
-// ID). Empty until the app is listed: the iOS update sheet looks the id up by
-// bundle id meanwhile, and store links fall back to the TestFlight opt-in.
+// The App Store's numeric app id: the number in the app's App Store Connect URL
+// (appstoreconnect.apple.com/apps/<id>/…). Optional for the shell, which finds it by
+// bundle id once the app is public; web "get the app" links need it.
 export const APP_STORE_ID = "";
+
+// The developer's first name, signing the review card in every language.
+export const DEVELOPER_SIGNATURE = "Théo";
 export const APP_STORE_URL = APP_STORE_ID ? `https://apps.apple.com/app/id${APP_STORE_ID}` : "";
 
 // Public TestFlight opt-in for the iOS beta, surfaced on the marketing landing.

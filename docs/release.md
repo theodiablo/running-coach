@@ -135,8 +135,9 @@ write in `release.yml`. `min_supported_version` / `min_supported_version_ios`
 (`src/utils/version.ts`); a failed check never blocks the user. On a Play
 install the *soft* prompt then follows Play instead (next section), so
 `latest_version` matters there only for installs Play can't answer for.
-`APP_STORE_ID` (`src/constants.ts`) wants the numeric Apple ID once the app is
-listed; until then the iOS sheet looks it up by bundle id.
+`APP_STORE_ID` (`src/constants.ts`) is the number in the app's App Store
+Connect URL. The shell doesn't need it (it looks its listing up by bundle id
+once public); the web's "get the app" links do, at launch.
 
 ## Store prompts (updates and reviews)
 
@@ -155,7 +156,10 @@ check), wrapped by `src/storeBridge.ts`. Every call degrades to the app's own ca
   (`playPromptDue`, per device); Home then shows the download and a Restart
   row, **never while a recorder is open** (`completeUpdate` restarts the
   process, which would end the run). `min_supported_version` opens Play's
-  *immediate* flow over `UpdateRequired`.
+  *immediate* flow over `UpdateRequired`. A floor the store can't satisfy yet
+  (Play offers this install nothing, or the live App Store version is below
+  it: review or rollout still going) turns the button into "Check again"
+  (`requiredUpdatePending`) instead of a listing that only says "Open".
 - **iOS has no update API.** The store card stays (iOS and non-Play Android);
   its button opens the App Store page in-app, or the TestFlight app on a beta
   build (sandbox receipt).

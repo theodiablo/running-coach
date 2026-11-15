@@ -10,6 +10,7 @@ describe("ReviewCard", () => {
     render(<ReviewCard ask={1} onSeen={vi.fn()} onAnswer={vi.fn()}/>);
     expect(screen.getByText(/I build Running Coach myself/)).toBeInTheDocument();
     expect(screen.getByText(/Google Play/)).toBeInTheDocument();
+    expect(screen.getByText("Théo")).toBeInTheDocument();
   });
 
   it("asks no question before the button", () => {

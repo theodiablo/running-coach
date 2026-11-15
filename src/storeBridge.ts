@@ -29,7 +29,7 @@ type StoreBridgeNative = {
   completeUpdate: () => Promise<void>;
   requestReview: () => Promise<void>;
   openStorePage: (o: { appId?: string; review?: boolean }) => Promise<void>;
-  getInstallInfo: () => Promise<{ fromStore?: boolean }>;
+  getInstallInfo: () => Promise<InstallInfo>;
   addListener: (event: "updateState", cb: (s: PlayInstallState) => void) => Promise<PluginListenerHandle>;
 };
 
@@ -76,10 +76,13 @@ export async function openAppStorePage() {
   try { await StoreBridge.openStorePage({ appId: APP_STORE_ID || undefined }); return true; } catch { return false; }
 }
 
-/** Whether the store installed this copy (not sideloaded, debug, TestFlight or Xcode): only then can a public review be posted. */
-export async function installedFromStore() {
-  if (!isNative) return false;
-  try { return !!(await StoreBridge.getInstallInfo()).fromStore; } catch { return false; }
+// `fromStore`: the store installed this copy (not sideloaded, debug, TestFlight
+// or Xcode), so a review would be public. iOS adds its public listing, if any.
+export type InstallInfo = { fromStore?: boolean; appId?: string; storeVersion?: string };
+
+export async function installInfo(): Promise<InstallInfo> {
+  if (!isNative) return {};
+  try { return await StoreBridge.getInstallInfo(); } catch { return {}; }
 }
 
 // How this install may be asked for a review: Android shows the app's own Home
@@ -93,6 +96,6 @@ export async function openStoreReview() {
     window.location.assign(PLAY_STORE_URL);
     return true;
   }
-  if (!isIos || !APP_STORE_ID) return false;
-  try { await StoreBridge.openStorePage({ appId: APP_STORE_ID, review: true }); return true; } catch { return false; }
+  if (!isIos) return false;
+  try { await StoreBridge.openStorePage({ appId: APP_STORE_ID || undefined, review: true }); return true; } catch { return false; }
 }

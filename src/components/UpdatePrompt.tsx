@@ -30,13 +30,18 @@ async function updateNow() {
   await openStore();
 }
 
-// Hard gate: the installed app is below the minimum supported version (e.g. after
-// a breaking backend change). Full-screen and non-dismissible. On Android, Play's
-// immediate update opens over it straight away; this screen is what's left if the
-// runner backs out of it.
-export function UpdateRequired() {
+// Hard gate below the minimum supported version: full-screen, non-dismissible.
+// Android opens Play's immediate update over it. `pending`: the store has no
+// version clearing the gate yet, so the button checks again rather than open a
+// listing that only says "Open".
+export function UpdateRequired({ pending = false, onRecheck }: { pending?: boolean; onRecheck?: () => Promise<void> }) {
   const { t } = useTranslation();
-  useEffect(() => { if (isAndroid) void startPlayUpdate(true); }, []);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => { if (isAndroid && !pending) void startPlayUpdate(true); }, [pending]);
+  const recheck = async () => {
+    setChecking(true);
+    try { await onRecheck?.(); } finally { setChecking(false); }
+  };
   return (
     <div className="fixed inset-0 z-[3000] bg-slate-900 flex items-center justify-center p-6"
       style={{ paddingTop: "calc(1.5rem + var(--safe-top))", paddingBottom: "calc(1.5rem + var(--safe-bottom))" }}>
@@ -46,11 +51,11 @@ export function UpdateRequired() {
         </div>
         <h1 className="text-xl font-bold text-white">{t("app.update.requiredTitle")}</h1>
         <p className="text-sm text-slate-400">
-          {t("app.update.requiredBody")}
+          {pending ? t(isIos ? "app.update.pendingBodyIos" : "app.update.pendingBodyAndroid") : t("app.update.requiredBody")}
         </p>
-        <button onClick={updateNow}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors">
-          {t("app.update.updateNow")}
+        <button onClick={pending ? recheck : updateNow} disabled={checking}
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors">
+          {pending ? t("app.update.checkAgain") : t("app.update.updateNow")}
         </button>
       </div>
     </div>

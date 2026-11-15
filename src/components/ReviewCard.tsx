@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Star } from "lucide-react";
 import { isIos } from "../native";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
+import { DEVELOPER_SIGNATURE } from "../constants";
 
 export type ReviewAnswer = "review" | "later" | "never";
 
@@ -23,6 +24,7 @@ export function ReviewCard({ ask, onSeen, onAnswer }: {
         <div className="flex-1 min-w-0 space-y-1">
           <p className="text-sm font-medium text-slate-100">{t("app.review.title")}</p>
           <p className="text-xs text-slate-300 leading-relaxed">{t(isIos ? "app.review.bodyIos" : "app.review.bodyAndroid")}</p>
+          <p className="text-xs text-slate-400 italic">{DEVELOPER_SIGNATURE}</p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2 pl-11">

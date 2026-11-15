@@ -20,9 +20,19 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
         Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
     }
 
-    // TestFlight and Xcode builds can't post an App Store review.
+    // TestFlight and Xcode builds can't post an App Store review. A store install
+    // also gets its listing (id, live version), found by bundle id once public.
     @objc func getInstallInfo(_ call: CAPPluginCall) {
-        call.resolve(["fromStore": !isTestFlight])
+        if isTestFlight {
+            call.resolve(["fromStore": false])
+            return
+        }
+        lookupListing { id, version in
+            var ret: [String: Any] = ["fromStore": true]
+            if let id = id { ret["appId"] = id }
+            if let version = version { ret["storeVersion"] = version }
+            call.resolve(ret)
+        }
     }
 
     // iOS decides (3 a year, never in TestFlight) whether this shows, and never says.
@@ -62,7 +72,7 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
             show(given)
             return
         }
-        lookupAppId { id in
+        lookupListing { id, _ in
             if let id = id { show(id) } else { call.reject("not listed") }
         }
     }
@@ -89,10 +99,10 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
         }
     }
 
-    private func lookupAppId(_ done: @escaping (String?) -> Void) {
+    private func lookupListing(_ done: @escaping (String?, String?) -> Void) {
         guard let bundleId = Bundle.main.bundleIdentifier,
               var comps = URLComponents(string: "https://itunes.apple.com/lookup") else {
-            done(nil)
+            done(nil, nil)
             return
         }
         var items = [URLQueryItem(name: "bundleId", value: bundleId)]
@@ -101,18 +111,19 @@ public class StoreBridgePlugin: CAPPlugin, CAPBridgedPlugin, SKStoreProductViewC
         }
         comps.queryItems = items
         guard let url = comps.url else {
-            done(nil)
+            done(nil, nil)
             return
         }
         URLSession.shared.dataTask(with: url) { data, _, _ in
             var id: String?
+            var version: String?
             if let data = data,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let results = json["results"] as? [[String: Any]],
-               let track = results.first?["trackId"] as? NSNumber {
-                id = track.stringValue
+               let first = (json["results"] as? [[String: Any]])?.first {
+                id = (first["trackId"] as? NSNumber)?.stringValue
+                version = first["version"] as? String
             }
-            done(id)
+            done(id, version)
         }.resume()
     }
 
