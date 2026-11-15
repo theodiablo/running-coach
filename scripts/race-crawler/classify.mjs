@@ -62,8 +62,13 @@ function score(candidate, race) {
   // A bare "<kind> <town>" name is the same race as that kind in that town, sponsor prefix or not
   // ("Dublin Marathon" is the "Irish Life Dublin Marathon"), but only when the kinds and distances agree.
   const kind = raceKind(candidate.name);
+  // …and in the same town: the Orihuela half is not the Elche half 25 km away.
+  const raceTown = nameTokens(race.city ?? "");
+  const candidateWords = new Set([...nameTokens(candidate.name), ...nameTokens(candidate.city)]);
+  const sameTown = (km != null && km <= 5) || (raceTown.length > 0 && raceTown.every((t) => candidateWords.has(t)));
   const bare =
     (!mine.length || !theirs.length) &&
+    sameTown &&
     !!kind &&
     kind === raceKind(race.name) &&
     candidate.distances.length > 0 &&
@@ -84,6 +89,10 @@ export function matchRace(candidate, races) {
     return { kind: "match", slug: byHost[0].slug, why: "organiser site" };
   }
   const strong = scored.filter((s) => s.name >= 0.6).sort((a, b) => b.all - a.all);
+  // With no distance to agree on, a name alone ("Hivernale des Templiers") can be a sister event.
+  if (strong.length && !candidate.distances.length) {
+    return { kind: "ambiguous", slug: strong[0].slug, why: "no distance to confirm" };
+  }
   if (strong.length === 1 || (strong.length > 1 && strong[0].all - strong[1].all >= 0.15)) {
     return { kind: "match", slug: strong[0].slug, why: `name ${strong[0].all.toFixed(2)}` };
   }

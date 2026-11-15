@@ -225,6 +225,16 @@ describe("matchRace", () => {
     });
     expect(matchRace(candidate({ ...dublin, name: "Dublin Half Marathon", distances: [] }), CATALOGUE.races).kind).toBe("none");
   });
+  it("does not take a half in a nearby town for the catalogue's '<kind> <town>' race", () => {
+    const elche = race({ slug: "media-maraton-elche", name: "Media Maratón de Elche", city: "Elche", lat: 38.27, lng: -0.7, distances: [21.1] });
+    const c = candidate({ name: 'Medio Maratón Nacional "Ciudad de Orihuela"', city: "Orihuela", lat: 38.08, lng: -0.94 });
+    expect(matchRace(c, [elche]).kind).toBe("none");
+  });
+  it("leaves a name-only match with no distance for review", () => {
+    const templiers = race({ slug: "templiers", name: "Festival des Templiers", city: "Millau", country: "FR", lat: 44.1, lng: 3.08, distances: [80] });
+    const c = candidate({ name: "Hivernale des Templiers", city: "Millau", country: "FR", lat: 44.1, lng: 3.08, distances: [] });
+    expect(matchRace(c, [templiers]).kind).toBe("ambiguous");
+  });
   it("never matches across countries or far away", () => {
     expect(matchRace(candidate({ name: "San Silvestre Vallecana", country: "FR" }), CATALOGUE.races).kind).toBe("none");
     expect(matchRace(candidate({ name: "San Silvestre Vallecana", lat: 41.4, lng: 2.17 }), CATALOGUE.races).kind).toBe("none");
