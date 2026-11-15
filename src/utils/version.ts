@@ -27,3 +27,25 @@ export function versionStatus(current: string | number | null | undefined, confi
   if (config.latest_version && compareVersions(current, config.latest_version) < 0) return "update-available";
   return "ok";
 }
+
+// How a soft update reaches the runner. Play, when it answers, is the truth on
+// Android (it knows rollouts and testing tracks); app_config is the fallback
+// for a store that can't answer (iOS, sideloaded installs).
+export type PlayUpdateState = { versionCode: number; status: string; progress: number | null };
+export type AppUpdate =
+  | ({ via: "play" } & PlayUpdateState)
+  | { via: "store"; version: string };
+
+type PlayAnswer = { available: boolean; inProgress: boolean; flexibleAllowed: boolean; versionCode: number; status: string } | null;
+
+export function resolveAppUpdate(status: string, latestVersion: string | null, play: PlayAnswer): AppUpdate | null {
+  if (status === "must-update") return null;
+  if (play) {
+    if (play.status === "downloaded" || play.inProgress || (play.available && play.flexibleAllowed)) {
+      return { via: "play", versionCode: play.versionCode, status: play.status, progress: null };
+    }
+    if (play.available && status === "update-available" && latestVersion) return { via: "store", version: latestVersion };
+    return null;
+  }
+  return status === "update-available" && latestVersion ? { via: "store", version: latestVersion } : null;
+}

@@ -213,7 +213,9 @@ The app compares its installed `versionName` against the `app_config` row
 (`supabase/migrations/20260623120000_app_config.sql`) on launch:
 
 - `latest_version` / `latest_version_ios` — what the update prompt compares
-  against: users on an older version see a "Version X is ready" card on Home,
+  against (on iOS, and on Android installs Play can't answer for: a Play
+  install follows Play's own in-app update, `docs/release.md`): users on an
+  older version see an "Update available" card on Home,
   dismissible per device and per version (a newer `latest_version` brings it
   back). **Not set automatically.** The release workflow only *stages* the
   uploaded version (below); you promote it when the store publishes.

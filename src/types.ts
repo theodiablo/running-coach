@@ -78,6 +78,9 @@ export type SettingsState = Record<string, unknown> & {
   stretchSuggest?: boolean;
   stretchVoice?: boolean;
   stretchDismissed?: string;
+  // Days the store review sheet was requested (newest last, capped). Synced, so
+  // a second device doesn't ask again; utils/storePrompts.ts.
+  reviewAsks?: string[];
   // True once this account has sent beta feedback: the pill drops its
   // label and collapses to an icon, because the word was recruitment.
   feedbackSent?: boolean;

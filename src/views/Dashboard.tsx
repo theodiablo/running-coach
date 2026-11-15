@@ -16,6 +16,7 @@ import { CoachAvatar } from "../components/CoachAvatar";
 import { HRTarget } from "../components/HRTarget";
 import { RunRow } from "../components/RunRow";
 import { UpdateCard } from "../components/UpdatePrompt";
+import type { AppUpdate } from "../utils/version";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import { DebriefCard, NextGoalCard, RecoveryCard, SoreRow } from "../components/DebriefCard";
 import { OpenPlanCard } from "../components/OpenPlanCard";
@@ -68,7 +69,7 @@ type DashboardProps = {
   openTracker?: (link?: { wNum: number; sId: string }) => void;
   openIndoor?: (link?: { wNum: number; sId: string; activity?: RunActivity }) => void;
   // Store version newer than the installed one; null when current or unknown.
-  availableUpdate?: string | null;
+  availableUpdate?: AppUpdate | null;
   // Races whose calendar date moved after the user planned around them.
   dateChanges?: RaceDateChange[];
   applyRaceDateChange?: (c: RaceDateChange) => void;
@@ -290,7 +291,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         </button>
       )}
 
-      {availableUpdate && <UpdateCard version={availableUpdate}/>}
+      {availableUpdate && <UpdateCard update={availableUpdate} recorderOpen={recorderOpen}/>}
 
       <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>
 

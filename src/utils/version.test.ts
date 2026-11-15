@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, versionStatus } from "./version";
+import { compareVersions, versionStatus, resolveAppUpdate } from "./version";
 
 describe("compareVersions", () => {
   it("orders by numeric segments (not lexically)", () => {
@@ -31,5 +31,35 @@ describe("versionStatus", () => {
   it("is ok at or above latest", () => {
     expect(versionStatus("1.5.0", cfg)).toBe("ok");
     expect(versionStatus("1.6.0", cfg)).toBe("ok");
+  });
+});
+
+describe("resolveAppUpdate", () => {
+  const playAnswer = (o: Partial<{ available: boolean; inProgress: boolean; flexibleAllowed: boolean; status: string }> = {}) =>
+    ({ available: false, inProgress: false, flexibleAllowed: true, versionCode: 42, status: "unknown", ...o });
+
+  it("Play is the truth on Android when it answers, over app_config", () => {
+    expect(resolveAppUpdate("ok", null, playAnswer({ available: true }))).toEqual({ via: "play", versionCode: 42, status: "unknown", progress: null });
+    // app_config flipped before Play has the build for this device: no dead "Update".
+    expect(resolveAppUpdate("update-available", "1.2.0", playAnswer())).toBeNull();
+  });
+
+  it("keeps following a download already started", () => {
+    expect(resolveAppUpdate("ok", null, playAnswer({ status: "downloaded" }))?.via).toBe("play");
+    expect(resolveAppUpdate("ok", null, playAnswer({ inProgress: true }))?.via).toBe("play");
+  });
+
+  it("falls back to the store card when Play can't run a flexible flow", () => {
+    expect(resolveAppUpdate("update-available", "1.2.0", playAnswer({ available: true, flexibleAllowed: false })))
+      .toEqual({ via: "store", version: "1.2.0" });
+  });
+
+  it("uses app_config where no store answers (iOS, sideloaded)", () => {
+    expect(resolveAppUpdate("update-available", "1.2.0", null)).toEqual({ via: "store", version: "1.2.0" });
+    expect(resolveAppUpdate("ok", "1.2.0", null)).toBeNull();
+  });
+
+  it("leaves the hard gate to UpdateRequired", () => {
+    expect(resolveAppUpdate("must-update", "1.2.0", playAnswer({ available: true }))).toBeNull();
   });
 });

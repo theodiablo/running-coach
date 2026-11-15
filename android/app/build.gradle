@@ -94,6 +94,10 @@ dependencies {
     // (No explicit kotlin-stdlib — KGP 2.x adds its own matching stdlib.)
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation "androidx.health.connect:connect-client:1.1.0-alpha02"
+
+    // StoreBridgePlugin: Play's in-app update and in-app review flows.
+    implementation "com.google.android.play:app-update:2.1.0"
+    implementation "com.google.android.play:review:2.0.2"
 }
 
 apply from: 'capacitor.build.gradle'

@@ -67,6 +67,8 @@ import type { RoutineId } from "./stretch/routines";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
+import { StorePrompts } from "./components/StorePrompts";
+import type { AppUpdate } from "./utils/version";
 import { WhatsNextSheet, type Promotable, type WhatsNextAnswer } from "./modals/WhatsNextSheet";
 import { RACE_DAY_SOURCE } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
@@ -138,7 +140,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   premiumUntil?: string | null;
   onRefreshPremium?: () => Promise<string | null>;
   // Store version newer than the installed one (native only), for the Home card.
-  availableUpdate?: string | null;
+  availableUpdate?: AppUpdate | null;
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
@@ -274,6 +276,12 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     db.set(STORAGE_KEYS.SETTINGS, next);
     return next;
   }), []);
+  // Set when a single run lands; StorePrompts spends it on the next calm Home.
+  const [reviewMoment, setReviewMoment] = useState(false);
+  const spendReviewMoment = useCallback((patch: Partial<SettingsState> | null) => {
+    setReviewMoment(false);
+    if (patch) patchSettings(patch);
+  }, [patchSettings]);
   // Both one-time coach signposts mark themselves seen the moment they actually have been
   // (they ride the synced settings blob). The overdue explainer waits for `useSeenOnScreen`;
   // the coachmark overlay only needs Home.
@@ -961,6 +969,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
     // import the user is only skimming. Pure and local, so this costs nothing.
+    if (added.length === 1) setReviewMoment(true);
     if (added.length === 1 && !opts.celebrated) {
       const efforts = runAchievements(added[0], nextRuns);
       // One burst per save: race day already fires its own confetti.
@@ -1515,6 +1524,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
+      <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
+        reviewAsks={settings.reviewAsks} reviewMoment={reviewMoment} onMomentSpent={spendReviewMoment}/>
       {/* After the achievement sheet, never stacked on it. Spent on any answer. */}
       {nextSheet && !achievement && <WhatsNextSheet key={nextSheet.variant} variant={nextSheet.variant}
         label={"label" in nextSheet ? nextSheet.label : undefined} kmRef={nextSheetKm}

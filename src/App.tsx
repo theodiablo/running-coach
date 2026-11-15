@@ -9,7 +9,8 @@ import { isNative, isIos } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
-import { versionStatus } from "./utils/version";
+import { versionStatus, resolveAppUpdate, type AppUpdate } from "./utils/version";
+import { playUpdateInfo, onPlayInstallState } from "./storeBridge";
 import { UpdateRequired } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
 import { clearShareLinkCache } from "./live/shareLinkStore";
@@ -135,7 +136,7 @@ export default function App() {
   const [recovering, setRecovering] = useState<string | null>(null);
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
-  const [latestVersion, setLatestVersion] = useState<string | null>(null); // shown on the Home update card
+  const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a soft update: Play's flow or the Home card
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
@@ -452,14 +453,24 @@ export default function App() {
         const config = data && (isIos
           ? { min_supported_version: data.min_supported_version_ios, latest_version: data.latest_version_ios }
           : data);
-        if (!cancelled && config) {
-          setUpdateState(versionStatus(info.version, config));
-          setLatestVersion(config.latest_version ?? null);
+        const status = config ? versionStatus(info.version, config) : "ok";
+        const latest = config?.latest_version != null ? String(config.latest_version) : null;
+        const play = await playUpdateInfo();
+        if (!cancelled) {
+          setUpdateState(status);
+          setAppUpdate(resolveAppUpdate(status, latest, play));
         }
       } catch { /* never block the app on a failed version check */ }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // A flexible Play download reports its progress here; the Home card follows it.
+  useEffect(() => onPlayInstallState((s) => setAppUpdate((prev) => {
+    if (prev?.via !== "play") return prev;
+    const progress = s.totalBytes > 0 ? Math.min(1, s.bytesDownloaded / s.totalBytes) : null;
+    return s.status === "installed" || s.status === "canceled" ? null : { ...prev, status: s.status, progress };
+  })), []);
 
   // Load (or clear) the per-user store when the *user* changes. Keyed on the
   // user id, not the session object, so token refresh / refocus events don't
@@ -599,7 +610,7 @@ export default function App() {
     <>
       <RunningCoach key={storeNonce} onSignOut={signOutFlushed} user={session.user}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium}
-        availableUpdate={updateState === "update-available" ? latestVersion : null} />
+        availableUpdate={appUpdate} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>
   );

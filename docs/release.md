@@ -132,9 +132,44 @@ write in `release.yml`. `min_supported_version` / `min_supported_version_ios`
 
 `App.tsx` selects all four columns and compares the installed version
 (`App.getInfo()`) against its platform's pair via `versionStatus`
-(`src/utils/version.ts`); a failed check never blocks the user. iOS store links
-need `APP_STORE_URL` (`src/constants.ts`) filled in once the App Store record
-exists — the update prompt hides its button while it's empty.
+(`src/utils/version.ts`); a failed check never blocks the user. On a Play
+install the *soft* prompt then follows Play instead (next section), so
+`latest_version` matters there only for installs Play can't answer for.
+`APP_STORE_ID` (`src/constants.ts`) wants the numeric Apple ID once the app is
+listed; until then the iOS sheet looks it up by bundle id.
+
+## Store prompts (updates and reviews)
+
+Both stores' own UIs run through one local plugin per shell, `StoreBridge`
+(`StoreBridgePlugin.kt`: Play In-App Updates + In-App Review;
+`StoreBridgePlugin.swift`: StoreKit review + `SKStoreProductViewController`),
+wrapped by `src/storeBridge.ts`. Every call degrades to the app's own card.
+
+- **Android updates: Play is the truth when it answers.** It knows staged
+  rollouts and testing tracks, so a closed-testing tester is offered the beta
+  and nobody is sent to a listing that only says "Open". `resolveAppUpdate`
+  (`src/utils/version.ts`) picks Play over `app_config` whenever
+  `getUpdateInfo` resolves; a sideloaded/debug install rejects and falls back
+  to the store card. Play's *flexible* dialog opens by itself on a calm Home
+  (`StorePrompts`), once per version code plus one reminder a week later
+  (`playPromptDue`, per device); Home then shows the download and a Restart
+  row, **never while a recorder is open** (`completeUpdate` restarts the
+  process, which would end the run). `min_supported_version` opens Play's
+  *immediate* flow over `UpdateRequired`.
+- **iOS has no update API.** The store card stays (iOS and non-Play Android);
+  its button opens the App Store page in-app, or the TestFlight app on a beta
+  build (sandbox receipt).
+- **Review requests are the stores' sheets, at a moment the app picks.** Both
+  stores forbid asking from a button or behind an "Enjoying the app?"
+  question, and neither says whether the sheet showed (Play quota, iOS 3 a
+  year, never in TestFlight or for a Play internal-track install). So
+  `reviewPromptDue` (`src/utils/storePrompts.ts`) gates on a runner who
+  plainly runs with the app (6+ runs, first one 14+ days ago, 3+ in the last 21
+  days, none cross-training) and 120 days since the last ask
+  (`settings.reviewAsks`, synced); the moment is a single run landing, spent on
+  the next calm Home whether or not it asks, and an update offer goes first.
+  Test the Play sheet through internal app sharing: an internal-track install
+  shows it with Submit disabled.
 
 **Gotcha — never open the store link through `@capacitor/browser` on Android**
 (tapping "Update" crashed the app on-device): the plugin's Custom Tabs path

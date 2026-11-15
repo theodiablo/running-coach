@@ -257,6 +257,12 @@ choice either way.
   sell — but it is **dormant today**: premium entry points are hidden from free
   users (`canShowPremiumTeaser === false`), so this fires ~never until the tier
   is unveiled. Don't read the silence as no demand. See `docs/monetization.md`.
+- Store prompts (`docs/release.md`, "Store prompts"): `app_update_prompted`
+  `{outcome:"accepted"|"declined"|"failed"|"unavailable"}` when Play's flexible
+  update dialog was opened, and `review_requested` `{}` when the store's review
+  sheet was asked for (`src/components/StorePrompts.tsx`). The store never says
+  whether the review sheet actually showed, so that event counts asks, not
+  reviews.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 

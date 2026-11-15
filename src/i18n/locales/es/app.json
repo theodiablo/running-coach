@@ -82,12 +82,15 @@
     "requiredTitle": "Actualización necesaria",
     "requiredBody": "Esta versión de Running Coach ya no es compatible. Actualiza a la última versión para seguir usando la app.",
     "updateNow": "Actualizar ahora",
-    "title": "La versión {{version}} ya está lista",
-    "bodyAndroid": "Actualiza desde Google Play para tener las últimas mejoras.",
-    "bodyIos": "Actualiza desde la App Store para tener las últimas mejoras.",
+    "title": "Actualización disponible",
+    "version": "Versión {{version}}",
     "update": "Actualizar",
     "dismiss": "Descartar",
-    "later": "Más tarde"
+    "downloading": "Descargando la actualización",
+    "downloadingBody": "En segundo plano, puedes seguir.",
+    "readyTitle": "Actualización descargada",
+    "readyBody": "Reinicia la app para instalarla.",
+    "restart": "Reiniciar"
   },
   "coachmark": {
     "title": "Tu entrenador está aquí",
