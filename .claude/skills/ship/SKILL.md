@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Take a finished PR all the way out — independent review by one or more agents sized to the PR, fix what's verified, merge, then release the mobile apps to the beta testers (Play closed testing, TestFlight Friends + Other) when the change reaches them. Use when the maintainer types /ship [PR number].
+description: Take a finished PR all the way out — independent review by one or more agents sized to the PR, fix what's verified, merge, then release the mobile apps to the beta testers (Play closed testing, TestFlight Friends + Others) when the change reaches them. Use when the maintainer types /ship [PR number].
 disable-model-invocation: true
 argument-hint: "[PR number]"
 ---
@@ -110,10 +110,10 @@ characters, `|` for a line break), from the PR(s) this release carries.
   `rollout_percent: 100`, `release_notes`. Leave `version_code` blank only
   when this release is the newest completed one on internal; otherwise pass
   it from the release run's Android job log.
-- **iOS → TestFlight "Friends" and "Other".** Dispatch `promote-ios.yml` on
+- **iOS → TestFlight "Friends" and "Others".** Dispatch `promote-ios.yml` on
   `main`: `target: testflight`, `version` named explicitly (blank picks the
   previous build while the new one is still processing), `groups:
-  Friends,Other`, `release_notes`. It waits for processing and submits for
+  Friends,Others`, `release_notes`. It waits for processing and submits for
   Beta App Review when an external group needs it.
 
 Watch both runs as above. A transient failure gets "Re-run failed jobs" once;
@@ -127,7 +127,7 @@ the in-app update prompt.
 
 One short message: what the review found and what was fixed or left (and
 why), the merge commit, the release version and run link, where each beta
-step ended (Play closed testing; TestFlight Friends + Other, or waiting on
+step ended (Play closed testing; TestFlight Friends + Others, or waiting on
 Beta App Review) with its run link and the tester notes used, and the next
 steps: promotion to production (`/promote`) and, once the stores publish,
 "Publish app version" (`/promote publish`). Offer them; don't run them
