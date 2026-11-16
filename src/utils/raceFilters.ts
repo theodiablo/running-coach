@@ -56,6 +56,13 @@ export function rangeLabel(t: Translate, r: DistanceRange) {
   return t("races.filters.between", { from: stopLabel(t, r.min), to: stopLabel(t, r.max) });
 }
 
+// A thumb dragged past the other one takes its place, so two stacked thumbs can always be pulled
+// apart whichever of them sits on top.
+export function dragThumb(r: DistanceRange, thumb: "min" | "max", v: number): DistanceRange {
+  if (thumb === "min") return v <= r.max ? { min: v, max: r.max } : { min: r.max, max: v };
+  return v >= r.min ? { min: r.min, max: v } : { min: v, max: r.min };
+}
+
 // The km bounds a range stands for; null is unbounded on that side.
 export function rangeKm(r: DistanceRange): { minKm: number | null; maxKm: number | null } {
   return {

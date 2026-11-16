@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ANY_DISTANCE, DEFAULT_FILTERS, LAST_STOP, activeFilterCount, kmInRange, matchingEditions, nearestStop,
+  ANY_DISTANCE, DEFAULT_FILTERS, LAST_STOP, activeFilterCount, dragThumb, kmInRange, matchingEditions, nearestStop,
   rangeKm, readFilters, searchParams, whenUntil,
 } from "./raceFilters";
 import type { CatalogueRace } from "../types";
@@ -20,6 +20,18 @@ describe("distance range", () => {
     expect(nearestStop(21.0975)).toBe(4);
     expect(nearestStop(42.195)).toBe(6);
     expect(nearestStop(8)).toBe(2);
+  });
+});
+
+describe("dragThumb", () => {
+  it("moves a thumb within its side", () => {
+    expect(dragThumb({ min: 2, max: 4 }, "min", 3)).toEqual({ min: 3, max: 4 });
+    expect(dragThumb({ min: 2, max: 4 }, "max", 6)).toEqual({ min: 2, max: 6 });
+  });
+  it("pulls stacked thumbs apart whichever one is on top, at either end", () => {
+    expect(dragThumb({ min: 0, max: 0 }, "min", 3)).toEqual({ min: 0, max: 3 });
+    expect(dragThumb({ min: LAST_STOP, max: LAST_STOP }, "max", 5)).toEqual({ min: 5, max: LAST_STOP });
+    expect(dragThumb({ min: 4, max: 4 }, "max", 2)).toEqual({ min: 2, max: 4 });
   });
 });
 
