@@ -8,6 +8,7 @@ import { authErrorMessage, isInvalidCredentials, isEmailTaken } from "./utils/au
 import { passwordProblem } from "./utils/account";
 import { isNative, isAndroid } from "./native";
 import { nativeAppleSignIn } from "./auth/appleSignIn";
+import { oauthClosedByUser, oauthOpened, oauthPageLoaded, settleOAuth, trackAuthCancelled, trackAuthCompleted, trackAuthFailed, trackAuthStarted } from "./auth/authTelemetry";
 import { PRIVACY_URL, PASSWORD_MIN_LENGTH } from "./constants";
 
 // What the visitor came here to do. It picks the copy and which call the one
@@ -40,6 +41,19 @@ type LoginScreenProps = {
   // next tap rather than a hunt.
   resetLinkFailed?: boolean;
 };
+
+// iOS only: the sheet reports its own load and a user-initiated close, the one
+// sign of a sign-in that never came back (docs/telemetry.md, "Sign-in").
+// Telemetry only: a listener that fails to attach must never block the sign-in.
+async function watchOAuthSheet(provider: "google" | "apple") {
+  const attached = await Promise.allSettled([
+    Browser.addListener("browserPageLoaded", oauthPageLoaded),
+    Browser.addListener("browserFinished", oauthClosedByUser),
+  ]);
+  oauthOpened(provider, () => {
+    for (const r of attached) if (r.status === "fulfilled") void r.value.remove();
+  });
+}
 
 // `authError` is a native deep-link sign-in failure surfaced by App.tsx (e.g. the
 // user cancels Google/Apple consent); shown until the user takes another action.
@@ -94,6 +108,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
   async function withOAuth(provider: "google" | "apple") {
     setBusy(true);
     setMsg(null);
+    trackAuthStarted(provider);
     // In the shell, open the provider in the system browser ourselves and let the
     // deep link bring the result back (App.tsx completes the exchange). On the web
     // Supabase performs the redirect for us.
@@ -102,6 +117,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       options: { redirectTo: authRedirectTo(), skipBrowserRedirect: isNative },
     });
     if (error) {
+      trackAuthFailed(provider, "request", error);
       noteError(error);
       setBusy(false);
       return;
@@ -112,6 +128,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       // A top-frame navigation is handed to the OS browser by Bridge.launchIntent and the
       // provider returns via deep link (App.tsx); the WebView stays put, so re-enabling the form is correct.
       if (isAndroid) {
+        oauthOpened(provider);
         window.location.assign(data.url);
         setBusy(false);
         return;
@@ -120,8 +137,11 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       // intent interception there) and stays over the app until the deep link
       // lands, when App.tsx closes it.
       try {
+        await watchOAuthSheet(provider);
         await Browser.open({ url: data.url });
       } catch (err) {
+        settleOAuth();
+        trackAuthFailed(provider, "browser", err);
         noteError(err);
       }
       // The external tab handles the rest; the WebView itself is NOT redirected, so
@@ -143,21 +163,30 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
     try {
       outcome = await nativeAppleSignIn();
     } catch (err) {
+      trackAuthStarted("apple_native");
+      trackAuthFailed("apple_native", "request", err);
       noteError(err);
       setBusy(false);
       return;
     }
     if (outcome === null) return withOAuth("apple");
+    // Counted once the sheet has answered: a null outcome means it never showed.
+    trackAuthStarted("apple_native");
+    if (outcome === "signed-in") trackAuthCompleted("apple_native");
+    else trackAuthCancelled("apple_native");
     // Signed in: App.tsx's auth listener swaps the screen. Cancelled: say nothing.
     setBusy(false);
   }
 
   async function signIn() {
+    trackAuthStarted("password");
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      trackAuthCompleted("password");
       // onAuthStateChange in App handles the transition
     } catch (err) {
+      trackAuthFailed("password", "request", err);
       // Neither we nor the user can tell "no account" from "wrong password"
       // here — but the user knows which they meant, so offer both doors.
       if (isInvalidCredentials(err)) { onClearAuthError?.(); setMsg(null); setFork("signin-failed"); }
@@ -173,6 +202,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       note("err", t("settings.account.passwordRules"));
       return;
     }
+    trackAuthStarted("signup");
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -183,14 +213,17 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       onClearAuthError?.();
       // An address that already has an account gets a decoy user with no identities and no email.
       if (data?.user?.identities?.length === 0) {
+        trackAuthFailed("signup", "request", "email_exists");
         setMsg(null);
         setFork("email-taken");
         return;
       }
+      trackAuthCompleted("signup");
       setMsg(null);
       setFork(null);
       setSent({ kind: "signup", email: email.trim() });
     } catch (err) {
+      trackAuthFailed("signup", "request", err);
       noteError(err);
       if (isEmailTaken(err)) setFork("email-taken");
     }

@@ -23,7 +23,7 @@ describe("classifyAuthUrl", () => {
 
   it("surfaces a provider error", () => {
     const url = "solutions.camboulive.run://auth-callback?error=access_denied&error_description=User%20cancelled";
-    expect(classifyAuthUrl(url)).toEqual({ kind: "error", message: "User cancelled" });
+    expect(classifyAuthUrl(url)).toEqual({ kind: "error", message: "User cancelled", code: "access_denied" });
   });
 
   it("recognises an email-change confirmation link", () => {
@@ -89,7 +89,7 @@ describe("classifyAuthUrl", () => {
   // implicit flow uses the fragment only.
   it("reads callback params from the fragment too", () => {
     const url = "solutions.camboulive.run://auth-callback#error=access_denied&error_description=Email+link+is+invalid+or+has+expired";
-    expect(classifyAuthUrl(url)).toEqual({ kind: "error", message: "Email link is invalid or has expired" });
+    expect(classifyAuthUrl(url)).toEqual({ kind: "error", message: "Email link is invalid or has expired", code: "access_denied" });
     expect(classifyAuthUrl("solutions.camboulive.run://auth-callback#message=Accepted")).toEqual({ kind: "notice", message: "Accepted" });
   });
 

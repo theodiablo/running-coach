@@ -21,6 +21,8 @@ import { readRecoveryBuffer } from "./utils/runRecovery";
 import { INDOOR_RUN_KEY } from "./constants";
 import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
+import { settleOAuth, trackAuthCompleted, trackAuthFailed } from "./auth/authTelemetry";
+import i18n from "./i18n";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
 import { StoreLoadError } from "./components/StoreLoadError";
@@ -267,6 +269,7 @@ export default function App() {
     // SFSafariViewController stays on screen over the app — close it once the
     // callback lands. Browser.close() is unimplemented on Android; ignore.
     const closeAuthBrowser = async () => {
+      settleOAuth();
       try {
         const { Browser } = await import("@capacitor/browser");
         await Browser.close();
@@ -313,9 +316,12 @@ export default function App() {
         // the login screen; signed IN it can only be an email-change link, and an
         // expired/used link does NOT mean the change failed, so let the server have the last word.
         case "error":
+          if (!signedIn) trackAuthFailed(settleOAuth(), "provider", cb.code);
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore, { failure: cb.message });
-          else reportAuthError(cb.message);
+          else {
+            reportAuthError(cb.message);
+          }
           return;
         // Password-reset link. Ahead of "code" in classifyAuthUrl for a
         // reason: exchanged as an ordinary sign-in it would drop the user into
@@ -346,10 +352,14 @@ export default function App() {
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore);
           return;
-        case "code":
+        case "code": {
+          const method = signedIn ? null : settleOAuth();
           closeAuthBrowser();
           try {
-            const { data } = await supabase.auth.exchangeCodeForSession(cb.code);
+            // A failed exchange is returned, not thrown.
+            const { data, error } = await supabase.auth.exchangeCodeForSession(cb.code);
+            if (error) throw error;
+            if (method) trackAuthCompleted(method);
             // Signed in already: an email-change confirmation, not a sign-in.
             // The exchange handed us a fresh user, so skip the extra round trip.
             if (signedIn) await settleEmailChange(pendingBefore, { user: data.session?.user ?? null });
@@ -359,9 +369,14 @@ export default function App() {
             // the flow, so a link opened elsewhere fails here even though the
             // change landed server-side. Never report that as a failure.
             if (signedIn) await settleEmailChange(pendingBefore, { failure: err instanceof Error ? err.message : "exchange failed" });
-            else reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+            else {
+              if (method) trackAuthFailed(method, "exchange", err);
+              // An email link's code is single-use and needs this install's verifier; the account may be confirmed anyway.
+              reportAuthError(i18n.t(method === "deeplink" ? "login.linkSignInFailed" : "login.callbackFailed"));
+            }
           }
           return;
+        }
         case "none":
           return;
       }

@@ -265,6 +265,31 @@ choice either way.
   `review_requested` `{ask}` when Apple's review sheet was asked for on iOS,
   which never says whether it showed, so it counts asks, not reviews
   (`src/RunningCoach.tsx`). `ask` is 1-4.
+- Sign-in (`src/auth/authTelemetry.ts`, fired from `src/LoginScreen.tsx` and
+  the native callback in `src/App.tsx`): `auth_started` `{method}`,
+  `auth_completed` `{method}`, `auth_failed` `{method, stage, code}` and
+  `auth_cancelled` `{method, loaded?, secs?}`. `method` is `password` |
+  `signup` | `google` | `apple` | `apple_native` | `deeplink` (a native callback
+  no in-app tap started: an email link, or one that outlived an app restart).
+  `stage` is where it broke: `request` (the call to Supabase, or the native
+  Apple sheet), `browser` (the in-app browser wouldn't open), `provider` (the
+  callback came back carrying an error), `exchange` (the PKCE code was refused).
+  `code` is GoTrue's own snake_case error code, else `network` / `timeout` (the
+  request never got an answer) / `http_<status>` / `unknown` — never the message,
+  which can echo an address. `auth_cancelled` on the browser flow is iOS-only:
+  the user closed SFSafariViewController themselves, with `loaded` (its first
+  page finished loading, successfully or not) and `secs` it was open (capped at
+  600), so "never got a page" reads apart from "saw Google and gave up". Android
+  hands OAuth to the system browser, which reports nothing back (its callback is
+  still credited to the provider tapped). `apple_native` starts only once the
+  sheet answers; a device that can't show it falls back to the browser flow and
+  counts as `apple`. A web OAuth
+  completion isn't counted (the page itself redirects); a `signup` completes
+  when the confirmation mail is sent. Events fired before sign-in are anonymous
+  and join the account's person when `identifyUser` runs, so one failed attempt
+  can be read in the context of the account that eventually got in. Like every
+  event they need analytics consent; on native the consent screen comes before
+  the login screen, so the choice has been made by the time any of these fire.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 
