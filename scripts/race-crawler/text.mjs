@@ -61,7 +61,17 @@ const ROMAN_RE = /^(?=[ivxl]+$)(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$/;
 // Plural too: "36èmes foulées", "2es".
 const ORDINAL_RE = /^\d+(?:a|o|e|er|eme|ª|º|th|st|nd|rd)s?$/;
 const YEAR_RE = /^(?:19|20)\d\d$/;
-export const DISTANCE_TOKEN_RE = /^(?:\d+(?:k|km)?|k|km|kms)$/;
+// A distance written in a name ("10 km", "21K"): not what tells one race from another.
+const DISTANCE_IN_NAME = /\b\d+(?:[.,]\d+)?\s?(?:kms?|k)\b/gi;
+/**
+ * A name without the distances it states or a leading edition count ("42 Carrera Popular…"); any other
+ * number stays: "Trail 3 Cims" is not "Trail 5 Cims".
+ */
+export const withoutDistances = (name) =>
+  String(name ?? "")
+    .replace(DISTANCE_IN_NAME, " ")
+    .replace(/^\s*\d{1,3}[.ºª°]?\s+(?=\p{L})/u, "");
+const DISTANCE_TOKEN_RE = /^(?:k|km|kms)$/;
 
 // A league or season tag after a comma names the series, not the race ("…, 9e. Circuit Trail Marina 26/27").
 export const SERIES = /\d\d\/\d\d|\b(?:circuit|circuito|lliga|liga|copa|ctm|lmvs)\b/i;
@@ -93,7 +103,7 @@ export function nameTokens(name) {
 
 /** The tokens that tell one race from another in the same town. */
 export function distinctiveTokens(name) {
-  return nameTokens(name).filter((t) => !GENERIC.has(t) && !DISTANCE_TOKEN_RE.test(t));
+  return nameTokens(withoutDistances(name)).filter((t) => !GENERIC.has(t) && !DISTANCE_TOKEN_RE.test(t));
 }
 
 let countryIndex;

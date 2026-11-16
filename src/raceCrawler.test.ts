@@ -453,6 +453,11 @@ describe("matchRace", () => {
       expect(matchRace(c, [vannes])).toMatchObject({ kind: "match", slug: "les-foulees-de-vannes" });
     }
   });
+  it("keeps two races apart when only a number differs", () => {
+    const five = race({ slug: "trail-5-cims", name: "Trail 5 Cims Getafe", city: "Getafe", lat: 40.3, lng: -3.73, distances: [30] });
+    const c = candidate({ source: "rockthesport", firstHand: true, name: "Trail 3 Cims Getafe", city: "Getafe", lat: 40.3, lng: -3.73, distances: [30] });
+    expect(matchRace(c, [five]).kind).not.toBe("match");
+  });
   it("does not call two French races the same for a shared 'foulées'", () => {
     const montbazin = race({
       slug: "36emes-foulees-des-droits-de-l-homme",

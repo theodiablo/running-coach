@@ -1,6 +1,6 @@
 // Matching a crawled candidate to the catalogue, and the curated policy that
 // decides what is worth proposing. Pure. docs/race-crawler.md.
-import { DISTANCE_TOKEN_RE, distinctiveTokens, haversineKm, hostOf, nameTokens, parseDistances, stripAccents, withoutSeries } from "./text.mjs";
+import { distinctiveTokens, haversineKm, withoutDistances, hostOf, nameTokens, parseDistances, stripAccents, withoutSeries } from "./text.mjs";
 
 export const POLICY = {
   minKm: 10, // nothing shorter is ever proposed
@@ -59,11 +59,14 @@ function score(candidate, race) {
   // The same name in the same place is the same race, whatever distances the page lists today
   // ("Trail Sástago": town + generic word leaves nothing distinctive to compare).
   // Two words at least: a bare town name says nothing about which race it is.
-  // A distance in one name and not the other ("Foulées de Vannes 10 km") is no difference of race.
-  const tokens = (n) => [...new Set(nameTokens(withoutSeries(n)).filter((t) => !DISTANCE_TOKEN_RE.test(t)))].sort();
-  const mineAll = tokens(candidate.name);
+  // The full names, or the names without their distances ("Foulées de Vannes 10 km"), two words at least.
+  const sameName = (strip) => {
+    const words = (n) => [...new Set(nameTokens(strip(withoutSeries(n))))].sort().join(" ");
+    const mine = words(candidate.name);
+    return mine.split(" ").length >= 2 && mine === words(race.name);
+  };
   const near = km != null ? km <= 10 : sameCity;
-  if (mineAll.length >= 2 && mineAll.join(" ") === tokens(race.name).join(" ") && near) {
+  if (near && (sameName((n) => n) || sameName(withoutDistances))) {
     return { slug: race.slug, hostMatch: false, all: 1, name: 1, km };
   }
   const distanceOk =
