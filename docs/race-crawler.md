@@ -93,9 +93,10 @@ and Popup Races (they refuse GitHub's runners).
 - **Running only, 10 km and up.** Distances below 10 km are dropped; an event
   with only short distances is dropped. Multisport, walks, virtual, cancelled
   and past events are dropped.
-- **New races are a higher bar than new editions.** A race the catalogue lacks
-  needs a half marathon or longer, and a marathon or longer when only an
-  aggregator lists it (a half seen in two sources still counts).
+- **New races, 10 km and up too.** The catalogue pages and filters its races,
+  so a race it lacks needs no more than an edition does (`minNewRaceKm`); an
+  aggregator-only one still waits for a second source (`minNewRaceKmSecondHand`
+  is the bar for logging it). Raise either to ask more of new races.
 - **Aggregator dates are never trusted alone**: every Find a Race or
   running.life proposal is flagged "second-hand date", to be confirmed on the organiser's site, as the
   curation rules in `docs/races.md` require. Weekday dates are flagged.
