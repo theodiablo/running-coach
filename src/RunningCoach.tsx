@@ -113,6 +113,20 @@ import type { CoachChatSnapshot } from "./modals/CoachChat";
 // Lazy: the stretching sheet, player and figures load on first open.
 const StretchSheet = lazy(() => import("./modals/StretchSheet").then(m => ({ default: m.StretchSheet })));
 
+// The participations with `editionId`'s goal set, or the same array when there's nothing to change.
+function withGoal(parts: Participation[], editionId: string | null | undefined, goalSec: number) {
+  if (!editionId || !goalSec || !parts.some(p => p.editionId === editionId && p.goalSec !== goalSec)) return parts;
+  return parts.map(p => p.editionId === editionId ? { ...p, goalSec } : p);
+}
+
+// Every catalogue edition the account refers to: its races, its target, and the plan's RACE sessions.
+function referencedEditionIds(parts: Participation[] = [], settings: Partial<SettingsState> | null, plan: Plan | null) {
+  const ids = parts.map(p => p.editionId);
+  ids.push(settings?.targetEditionId);
+  for (const w of plan?.weeks || []) for (const x of w.sessions || []) ids.push(x.editionId);
+  return [...new Set(ids.filter((id): id is string => !!id))];
+}
+
 // Pure helper: thanks the user once when a maintainer verifies their OWN catalogue contribution.
 // `ackVerified` (personal blob) records acknowledged ids; returns updated races + fresh ids.
 // Seeds silently on the first reconcile so a pre-existing set never floods.
@@ -454,7 +468,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       // Load the shared catalogue WITHOUT blocking the splash: a slow/down
       // Supabase must not delay the app. On resolve, publish it and thank the
       // user for any of their contributions that a maintainer has since verified.
-      loadCatalogue().then(cat => {
+      loadCatalogue({ editionIds: referencedEditionIds(loaded.participations, s, p), userId: currentUserId() }).then(cat => {
         setCatalogue(cat);
         // Merge onto the freshest races (racesRef), NOT the boot snapshot: the
         // user may have wishlisted/logged during the load, and that change must
@@ -779,7 +793,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // Toggle whether a wishlisted race is folded into the current plan: persists the flag and,
   // with an active plan, rebuilds it keeping done/skipped. False when there is no plan or race.
-  const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
+  // The plan a rebuild with these settings would produce (progress carried), or null when none applies.
+  const rebuiltPlan = (s: SettingsState, parts: Participation[]): Plan | null => {
     // A plan with no race folds the races in too: rebuilt from what it was built for.
     if (plan && goalKind(plan) !== "race") {
       const g = plan.goal;
@@ -787,17 +802,38 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         kind: goalKind(plan) as "block" | "open", target: g?.target ?? "healthy", light: !!g?.light,
         distanceKm: Number(g?.distanceKm) || Number(s.distanceKm) || 10, goalSec: g?.paceSource === "goal" ? s.goalSec : "",
       }, { runs, races: secondaryRaces(parts, null), afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
-      savePlan(carryProgress(plan, built, "rebuild"));
-      return true;
+      return carryProgress(plan, built, "rebuild");
     }
     // A race already run is not rebuilt: it would collapse the plan and drop its recovery.
-    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate <= ymd(new Date())) return false;
+    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate <= ymd(new Date())) return null;
     const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
       { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
         style: s.planStyle, level: s.trainingLevel, runWalk: s, recovery: true,
         afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
-    savePlan(carryProgress(plan, np, "rebuild"));
-    return true;
+    return carryProgress(plan, np, "rebuild");
+  };
+  const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
+    const next = rebuiltPlan(s, parts);
+    if (next) savePlan(next);
+    return !!next;
+  };
+
+  // The training target's goal drives the plan's paces: preview the rebuild, then apply it with an Undo.
+  const previewTargetGoal = (goalSec: number) =>
+    plan && goalKind(plan) === "race" ? rebuiltPlan({ ...settings, goalSec }, races.participations || []) : null;
+  const updateTargetGoal = (goalSec: number) => {
+    const prevSettings = settings, prevPlan = plan, prevRaces = races;
+    const next = { ...settings, goalSec };
+    saveSettings(next);
+    // The goal also rides on the race itself, so it is still there once another race is the target.
+    const parts = withGoal(races.participations || [], settings.targetEditionId, goalSec);
+    if (parts !== races.participations) commitRaces({ ...races, participations: parts });
+    const rebuilt = !!plan && goalKind(plan) === "race" && rebuildPlanWith(next, parts);
+    showToast(t(rebuilt ? "races.goal.planUpdated" : "races.goal.saved"), "ok", { label: t("common.undo"), onClick: () => {
+      saveSettings(prevSettings);
+      commitRaces(prevRaces);
+      if (rebuilt && prevPlan) restorePlan(prevPlan);
+    } });
   };
 
   const setRaceInPlan = (editionId: string, inPlan: boolean) => {
@@ -843,14 +879,21 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // Re-fetch + re-hydrate the catalogue (after a user contributes), so the new
   // entry shows immediately — contributions are instant + global.
-  const refreshCatalogue = async () => { setCatalogue(await loadCatalogue()); };
+  const refreshCatalogue = async () => {
+    setCatalogue([...await loadCatalogue({ editionIds: referencedEditionIds(races.participations, settings, plan), userId: currentUserId() })]);
+  };
 
   // Promote a catalogue edition to the training target: stash the prefill and open PlanView's
   // setup. Nothing is committed until the user picks a goal and builds (PlanView sets
   // targetEditionId), so no unrealistic auto-goal is left behind.
   const promoteEdition = (joined: JoinedEdition | Promotable) => {
     const e = joined.edition;
-    setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e) });
+    const goalSec = (races.participations || []).find(p => p.editionId === e.id)?.goalSec || null;
+    // The outgoing target keeps the goal it was trained for on its own race.
+    const outgoing = settings.targetEditionId !== e.id ? settings.targetEditionId : null;
+    const kept = withGoal(races.participations || [], outgoing, Number(settings.goalSec) || 0);
+    if (kept !== races.participations) commitRaces({ ...races, participations: kept });
+    setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e), goalSec });
     setTab("plan");
     track("race_target_set", {});
   };
@@ -1381,7 +1424,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1426,7 +1469,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {toastP.rendered && <Toast key={toastP.rendered.id} {...toastP.rendered} closing={toastP.closing}/>}
       {celebrate   && <Confetti onDone={() => setCelebrate(false)}/>}
       {onboarding  && <OnboardingWizard settings={settings}
-        catalogue={catalogue} addRace={addRace} addEdition={addEdition}
+        addRace={addRace} addEdition={addEdition}
         refreshCatalogue={refreshCatalogue} showToast={showToast}
         onSaveProgress={(partial, step) => saveSettings({...settings, ...partial, onboardStep: step})}
         onComplete={result => {
@@ -1528,7 +1571,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </ChunkLoadBoundary>
       )}
       {showRaceForm && <RaceFormModal
-        catalogue={catalogue} addRace={addRace} addEdition={addEdition}
+        addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}

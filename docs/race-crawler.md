@@ -101,6 +101,10 @@ and Popup Races (they refuse GitHub's runners).
   running.life proposal is flagged "second-hand date", to be confirmed on the organiser's site, as the
   curation rules in `docs/races.md` require. Weekday dates are flagged.
 
+- **Terrain:** a new race is `trail` when its source says so (Rock the Sport's
+  `sport`) or its name has a trail word (`isTrail`), else `road`
+  (`docs/races.md`).
+
 ## Matching (`matchRace`)
 
 Same country, within 30 km (or the same city when a side has no pin), at least

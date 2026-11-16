@@ -602,8 +602,12 @@ describe("apply: plan", () => {
   it("adds a clean first-hand new race with one edition at its headline distance", () => {
     const w = plan(proposal({ distances: [10, 21.1] }), CATALOGUE, taken());
     expect(w.ledger).toMatchObject({ status: "inserted", race_slug: "mitja-marato-ripoll", edition_id: "mitja-marato-ripoll-2027-03-07" });
-    expect(w.race).toMatchObject({ name: "Mitja Marató Ripoll", country: "ES", distances: [21.1] });
+    expect(w.race).toMatchObject({ name: "Mitja Marató Ripoll", country: "ES", distances: [21.1], terrain: "road" });
     expect(w.edition).toMatchObject({ race_slug: "mitja-marato-ripoll", distance_km: 21.1 });
+  });
+  it("marks a race trail by its source's sport or its name", () => {
+    expect(plan(proposal({}, { name: "Trail Serra de Ripoll 2027" }), CATALOGUE, taken()).race.terrain).toBe("trail");
+    expect(plan(proposal({}, { sport: "trail" }), CATALOGUE, taken()).race.terrain).toBe("trail");
   });
   it("never takes a slug already in use", () => {
     const used = taken();

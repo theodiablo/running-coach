@@ -1,40 +1,50 @@
-// Race helpers: catalogue lookups, race-day auto-detection, PB flagging. The catalogue is shared data
-// from Supabase (src/races.ts listRaces) held in a module-level cache hydrated once at boot, read through
-// synchronous lookups. Detection/PB helpers are pure over `participations`.
+// Race helpers: catalogue lookups, race-day auto-detection, PB flagging. The catalogue is searched
+// server-side (src/races.ts searchRaces); this module caches only the races the app must resolve
+// synchronously: the account's own (loaded at boot) plus any it has seen in a search result.
+// Detection/PB helpers are pure over `participations`.
 
-import { listRaces } from "../races";
+import { listKnownRaces } from "../races";
 import type { BuildPlanOptions } from "./plan";
 import type { CatalogueRace, JoinedEdition, Participation, RaceCandidate, Run } from "../types";
 
-// Module-level cache: the grouped races (each with an `editions` array) plus a
-// flat edition→race join derived from them. Empty until hydrateCatalogue runs;
-// a failed fetch simply leaves it empty and every lookup degrades gracefully
-// (findEdition → null → callers fall back to the participation snapshot).
+// Empty until loaded; a failed fetch leaves it so, and findEdition → null makes callers fall back
+// to the participation snapshot.
 let _races: CatalogueRace[] = [];
 let _editions: JoinedEdition[] = [];
 
-// Flatten grouped races into the edition-joined shape lookups expect: each entry
-// carries the race fields plus `raceId` and the single `edition`.
-function flatten(races: CatalogueRace[]): JoinedEdition[] {
+// Each race's editions as the edition-joined shape lookups expect (race fields + raceId + edition).
+export function flattenRaces(races: CatalogueRace[]): JoinedEdition[] {
   return races.flatMap(r =>
     (r.editions || []).map((e) => ({ ...r, raceId: r.id, edition: e }))
   );
 }
 
-// Populate the cache from fetched data (src/races.ts → listRaces). Called once at
-// boot and again after a user contributes, so new entries appear immediately.
+// Replace the cache (boot load, tests).
 export function hydrateCatalogue(races: CatalogueRace[] = []) {
   _races = races || [];
-  _editions = flatten(_races);
+  _editions = flattenRaces(_races);
 }
 
-// Fetch the shared catalogue and hydrate the cache. Failure-tolerant: listRaces
-// already returns [] on error, so a down/slow Supabase just leaves an empty
-// catalogue and the app still renders. Returns the grouped races.
-export async function loadCatalogue() {
+// Merge races into the cache, newest copy winning, so an edition picked from a search resolves.
+export function rememberRaces(races: CatalogueRace[] = []) {
+  if (!races.length) return;
+  const byId = new Map(_races.map(r => [r.id, r]));
+  for (const r of races) {
+    const race = { ...r };
+    delete race.distKm;
+    byId.set(r.id, race);
+  }
+  hydrateCatalogue([...byId.values()]);
+}
+
+export function knownRaces() { return _races; }
+
+// Fetch the races this account references (its participations, target, plan races and own
+// contributions) into the cache. Failure-tolerant; returns the cached races.
+export async function loadCatalogue(scope: { editionIds?: string[]; userId?: string | null } = {}) {
   let races: CatalogueRace[] = [];
-  try { races = await listRaces(); } catch (err) { console.error("catalogue load failed", err); }
-  hydrateCatalogue(races);
+  try { races = await listKnownRaces(scope); } catch (err) { console.error("catalogue load failed", err); }
+  rememberRaces(races);
   return _races;
 }
 
@@ -43,19 +53,6 @@ export async function loadCatalogue() {
 export function findEdition(editionId?: string | null) {
   if (!editionId) return null;
   return _editions.find(e => e.edition.id === editionId) || null;
-}
-
-// Free-text search over joined editions for the onboarding race picker. Matches
-// the race name / city / country, and by default hides editions whose date has
-// already passed (a stale past date would build a degenerate plan). `today` is a
-// YYYY-MM-DD string; pass it from the caller so the function stays pure.
-export function searchEditions(query: string, today: string, { upcomingOnly = true }: { upcomingOnly?: boolean } = {}) {
-  const q = (query || "").trim().toLowerCase();
-  return _editions.filter(e => {
-    if (upcomingOnly && today && e.edition.date < today) return false;
-    if (!q) return true;
-    return (e.name + " " + e.city + " " + e.country).toLowerCase().includes(q);
-  });
 }
 
 // A human label for a participation/edition, e.g. "Behobia-San Sebastián 2026".

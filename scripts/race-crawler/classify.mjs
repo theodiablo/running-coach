@@ -35,7 +35,7 @@ const containment = (a, b) => {
 
 // A trail race and a road race of the same town are different races (Snowdonia Trail Marathon vs Marathon Eryri).
 const TRAIL_WORDS = /\b(?:trail|mountain|montana|muntanya|mendi|sky|skyrace|ultra|fell|cxm|xtreme)/;
-const isTrail = (name) => TRAIL_WORDS.test(stripAccents(name).toLowerCase());
+export const isTrail = (name) => TRAIL_WORDS.test(stripAccents(name).toLowerCase());
 
 const HALF_WORDS = /\b(?:media|medio|mitja|semi|half|meia)\b/;
 const MARATHON_WORDS = /\b(?:maraton|marathon|marato|maratona)\b/;

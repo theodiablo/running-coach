@@ -6,6 +6,8 @@ import { effortsFor, type BestEffortKey } from "./bestEfforts";
 import { raceKey } from "./openPlan";
 import { upcomingRace } from "./raceDay";
 import { DEBRIEF_ASK_DAYS, type PhaseInfo } from "./planPhase";
+import { ymd } from "./format";
+import type { RaceSearchParams } from "../races";
 import type { JoinedEdition, Participation, Plan, Run } from "../types";
 
 export type WhatsNextVariant = "afterRace" | "raceFirst" | "manual";
@@ -42,6 +44,20 @@ export function wishlistLead(parts: Participation[] | undefined, today: string):
 
 type Fix = { lat: number; lng: number };
 export type Suggestion = { e: JoinedEdition; distM: number | null };
+
+// The server query behind the suggestions: the window and distance raceSuggestions keeps, so the
+// page it ranks is already the right slice of the catalogue.
+export function suggestionSearch(today: string, km: number, loc: Fix | null): RaceSearchParams {
+  const tol = Math.max(1.5, km * 0.25);
+  const at = (days: number) => ymd(new Date(new Date(today + "T00:00:00").getTime() + days * 86400000));
+  return {
+    from: at(SUGGEST_MIN_DAYS), to: at(SUGGEST_MAX_DAYS),
+    minKm: km > 0 ? Math.max(0, km - tol) : null, maxKm: km > 0 ? km + tol : null,
+    near: loc, sort: loc ? "distance" : "date",
+    // With no distance to aim at, the client keeps only standard ones: ask for the most a page holds.
+    limit: km > 0 ? 30 : 50,
+  };
+}
 
 // Catalogue editions 6-24 weeks out, near the distance just raced (any standard
 // distance when unknown), not already on the list; nearest first when the

@@ -1,7 +1,7 @@
 // Turns the crawler's proposals into catalogue rows (always verified = false)
 // and ledger rows (race_crawl_items). Pure, except `runSql`. docs/race-crawler.md.
 import { randomBytes } from "node:crypto";
-import { sameDistance } from "./classify.mjs";
+import { isTrail, sameDistance } from "./classify.mjs";
 import { countryCode, hostOf, isSeriesPart, stripAccents } from "./text.mjs";
 
 // Anything flagged one of these waits for a person, whatever its verdict.
@@ -160,7 +160,8 @@ export function plan(p, catalogue, taken) {
   taken.add(id);
   const organiser = c.organiserUrl && !PLATFORM_URL.test(hostOf(c.organiserUrl)) ? c.organiserUrl : "";
   const url = webUrl(organiser || (c.firstHand ? c.url : ""));
-  const race = { slug, name, city, country: c.country, lat: c.lat, lng: c.lng, distances: [km], url };
+  const terrain = c.sport === "trail" || isTrail(name) ? "trail" : "road";
+  const race = { slug, name, city, country: c.country, lat: c.lat, lng: c.lng, distances: [km], url, terrain };
   const edition = { id, race_slug: slug, date: c.date, distance_km: km };
   return { ledger: { ...ledger, status: "inserted", race_slug: slug, edition_id: id }, race, edition };
 }
@@ -178,10 +179,10 @@ export function buildSql({ races, editions, ledger }) {
   return `
 with data as (select ${data} as d),
 new_races as (
-  insert into public.races (slug, name, city, country, lat, lng, distances, url, verified, created_by)
-  select r.slug, r.name, nullif(r.city, ''), r.country, r.lat, r.lng, r.distances, r.url, false, null
+  insert into public.races (slug, name, city, country, lat, lng, distances, url, terrain, verified, created_by)
+  select r.slug, r.name, nullif(r.city, ''), r.country, r.lat, r.lng, r.distances, r.url, r.terrain, false, null
   from data, jsonb_to_recordset(d->'races')
-    as r(slug text, name text, city text, country text, lat double precision, lng double precision, distances jsonb, url text)
+    as r(slug text, name text, city text, country text, lat double precision, lng double precision, distances jsonb, url text, terrain text)
   on conflict do nothing
   returning slug
 ),

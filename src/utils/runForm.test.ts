@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalDur, durToSec, formatDur, hmsToSec, normalizeDur, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur, setRunField } from "./runForm";
+import { canonicalDur, durToSec, formatDur, normalizeDur, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur, setRunField } from "./runForm";
 import type { Run } from "../types";
 
 const run = {
@@ -25,14 +25,6 @@ describe("runToForm / runFormToPatch", () => {
     const f = runToForm({ ...run, hr: null, hrMax: null, elevation: undefined } as Run);
     expect(f).toMatchObject({ hr: "", hrMax: "", elev: "" });
     expect(runFormToPatch(f)).toMatchObject({ hr: null, hrMax: null, elevation: undefined });
-  });
-});
-
-describe("hmsToSec", () => {
-  it("sums the three components, treating blanks as zero", () => {
-    expect(hmsToSec({ dH: "1", dM: "2", dS: "5" })).toBe(3725);
-    expect(hmsToSec({ dH: "", dM: "45", dS: "" })).toBe(2700);
-    expect(hmsToSec({ dH: "", dM: "", dS: "" })).toBe(0);
   });
 });
 

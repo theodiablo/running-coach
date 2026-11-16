@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { detectAnyRace, bestTimesByDistance, isPersonalBest, findEdition, searchEditions, hydrateCatalogue, raceDateChanges } from "./races";
+import { detectAnyRace, bestTimesByDistance, isPersonalBest, findEdition, hydrateCatalogue, rememberRaces, raceDateChanges } from "./races";
 import type { CatalogueRace, Participation } from "../types";
 
 type TestRaceCandidate = { editionId?: string; date: string; distanceKm: number };
@@ -11,7 +11,6 @@ const detectAny = detectAnyRace as unknown as (run: TestRun, candidates: TestRac
 const bestTimes = bestTimesByDistance as unknown as (participations: TestParticipation[]) => Record<number, number>;
 const personalBest = isPersonalBest as unknown as (participation: TestParticipation, participations: TestParticipation[]) => boolean;
 const find = findEdition as unknown as (editionId: string | null) => TestJoinedEdition | null;
-const search = searchEditions as unknown as (query: string, today: string, options?: { upcomingOnly?: boolean }) => TestJoinedEdition[];
 
 // The catalogue is now fetched data, not a bundle, so hydrate a tiny fixture
 // before the lookup tests (mirrors what loadCatalogue does at runtime).
@@ -93,31 +92,18 @@ describe("findEdition", () => {
   });
 });
 
-describe("searchEditions", () => {
-  const past = "1900-01-01";   // keep every curated edition in range
-  const future = "2999-01-01"; // exclude every curated edition
-  it("matches on race name (case-insensitive)", () => {
-    const hits = search("berlin", past);
-    expect(hits.length).toBeGreaterThan(0);
-    expect(hits.every(e => e.name.toLowerCase().includes("berlin"))).toBe(true);
+describe("rememberRaces", () => {
+  it("adds a searched race so its editions resolve, keeping the cached ones", () => {
+    rememberRaces([{ id: "new-race", name: "New Race", editions: [{ id: "new-race-2027-05-02", date: "2027-05-02", distanceKm: 10 }], distKm: 4 }] as CatalogueRace[]);
+    expect(find("new-race-2027-05-02")?.name).toBe("New Race");
+    expect(find("behobia-san-sebastian-2026-11-08")).not.toBeNull();
   });
-  it("matches on city", () => {
-    expect(search("paris", past).length).toBeGreaterThan(0);
-  });
-  it("returns joined editions usable as a promote target", () => {
-    const [e] = search("berlin", past);
-    expect(e!.raceId).toBeTruthy();
-    expect(e!.edition.date).toBeTruthy();
-    expect(e!.edition.distanceKm).toBeGreaterThan(0);
-  });
-  it("hides past editions by default", () => {
-    expect(search("", future)).toHaveLength(0);
-  });
-  it("includes past editions when upcomingOnly is false", () => {
-    expect(search("", future, { upcomingOnly: false }).length).toBeGreaterThan(0);
-  });
-  it("returns all upcoming editions for an empty query", () => {
-    expect(search("", past).length).toBeGreaterThan(1);
+  it("replaces a cached race with the newer copy and drops the search-only distance", () => {
+    rememberRaces([{ id: "new-race", name: "New Race (moved)", editions: [{ id: "new-race-2027-05-09", date: "2027-05-09", distanceKm: 10 }] }] as CatalogueRace[]);
+    expect(find("new-race-2027-05-02")).toBeNull();
+    const e = find("new-race-2027-05-09");
+    expect(e?.name).toBe("New Race (moved)");
+    expect((e as { distKm?: number } | null)?.distKm).toBeUndefined();
   });
 });
 

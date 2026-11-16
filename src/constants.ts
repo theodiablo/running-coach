@@ -60,6 +60,9 @@ export const OFFLINE_STATE_KEY = "rc_offline_state";
 // install, mirrors the other one-shot recording prompts above.
 export const BATTERY_NUDGE_KEY = "rc_battery_nudge";
 
+// localStorage: the Races tab's Find filters. Per-device, NOT synced: a browsing convenience.
+export const RACE_FILTERS_KEY = "rc_race_filters";
+
 // localStorage flag: last "share this run" choice. Per-device, NOT synced: a synced
 // "on" would put a run on the air from a device the user never armed. The ONE sharing
 // switch (docs/live-sharing.md): on means readable at the standing link, and it also

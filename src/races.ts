@@ -14,6 +14,7 @@ type RaceRow = {
   url?: string | null;
   verified?: boolean;
   created_by?: string | null;
+  terrain?: string | null;
 };
 
 type EditionRow = {
@@ -34,6 +35,7 @@ type AddRaceInput = {
   lng?: number | null;
   distances?: number[];
   url?: string | null;
+  terrain?: RaceTerrain | null;
 };
 
 type AddEditionInput = { raceSlug: string; date: string; distanceKm: number; elevation?: number };
@@ -41,7 +43,7 @@ type ReportRaceInput = { raceSlug?: string | null; editionId?: string | null; re
 
 // Shared race catalogue access (Phase 2). Mirrors src/routes.ts: direct supabase queries,
 // owner-scoped writes, failure-tolerant reads. The app imports catalogue lookups via
-// src/utils/races.ts, which hydrates from listRaces() here. Personal data (participations)
+// src/utils/races.ts, which caches the account's own races from listKnownRaces(). Personal data (participations)
 // stays in the app_state blob.
 
 // Map a DB race row + its editions to the joined shape the app already uses
@@ -72,6 +74,7 @@ function toRace(row: RaceRow, editions: EditionRow[] = []): CatalogueRace {
     url: raceUrl(row.url),
     verified: row.verified,
     createdBy: row.created_by,
+    terrain: row.terrain === "road" || row.terrain === "trail" ? row.terrain : null,
     editions: (editions || [])
       .map((e): CatalogueEdition => ({
         id: e.id,
@@ -85,18 +88,127 @@ function toRace(row: RaceRow, editions: EditionRow[] = []): CatalogueRace {
   };
 }
 
-// Every race grouped with its editions. Failure-tolerant: a failed fetch returns
-// [] (the app still renders; My Races falls back to participation snapshots).
-export async function listRaces(): Promise<CatalogueRace[]> {
-  const [racesRes, edsRes] = await Promise.all([
-    supabase.from("races").select("slug, name, city, country, lat, lng, distances, url, verified, created_by"),
-    supabase.from("race_editions").select("id, race_slug, date, distance_km, elevation, verified, created_by"),
+const RACE_COLS = "slug, name, city, country, lat, lng, distances, url, verified, created_by, terrain";
+const EDITION_COLS = "id, race_slug, date, distance_km, elevation, verified, created_by";
+
+// The races this account needs offline (src/utils/races.ts caches them): the editions it planned
+// around plus its own contributions (races, and dates added to anyone's race). Failure-tolerant: [] on error, callers keep their snapshots.
+export async function listKnownRaces({ editionIds = [], userId = null }: { editionIds?: string[]; userId?: string | null }): Promise<CatalogueRace[]> {
+  const ids = [...new Set(editionIds.filter(Boolean))];
+  const none = { data: [] as { race_slug: string }[], error: null };
+  const [edsRes, mineRes, myEdsRes] = await Promise.all([
+    ids.length ? supabase.from("race_editions").select("race_slug").in("id", ids) : Promise.resolve(none),
+    userId ? supabase.from("races").select("slug").eq("created_by", userId) : Promise.resolve({ data: [] as { slug: string }[], error: null }),
+    userId ? supabase.from("race_editions").select("race_slug").eq("created_by", userId) : Promise.resolve(none),
   ]);
-  if (racesRes.error) { console.error("races load failed", racesRes.error); return []; }
-  if (edsRes.error) { console.error("race_editions load failed", edsRes.error); return []; }
+  const failed = edsRes.error || mineRes.error || myEdsRes.error;
+  if (failed) { console.error("known races load failed", failed); return []; }
+  const slugs = [...new Set([
+    ...(edsRes.data || []).map(e => e.race_slug), ...(mineRes.data || []).map(r => r.slug), ...(myEdsRes.data || []).map(e => e.race_slug),
+  ])];
+  if (!slugs.length) return [];
+  const [racesRes, allEdsRes] = await Promise.all([
+    supabase.from("races").select(RACE_COLS).in("slug", slugs),
+    supabase.from("race_editions").select(EDITION_COLS).in("race_slug", slugs),
+  ]);
+  if (racesRes.error || allEdsRes.error) { console.error("known races load failed", racesRes.error || allEdsRes.error); return []; }
   const byRace: Record<string, EditionRow[]> = {};
-  for (const e of edsRes.data || []) (byRace[e.race_slug] ||= []).push(e);
+  for (const e of allEdsRes.data || []) (byRace[e.race_slug] ||= []).push(e);
   return (racesRes.data || []).map(r => toRace(r, byRace[r.slug]));
+}
+
+export type RaceTerrain = "road" | "trail";
+export type RaceSearchParams = {
+  query?: string;
+  minKm?: number | null;
+  maxKm?: number | null;
+  from?: string | null;
+  to?: string | null;
+  countries?: string[];
+  terrain?: RaceTerrain | null;
+  verifiedOnly?: boolean;
+  near?: { lat: number; lng: number } | null;
+  radiusKm?: number | null;
+  sort?: "date" | "distance";
+  limit?: number;
+};
+export type RaceCursor = { key: number; slug: string };
+export type RaceSearchPage = { races: CatalogueRace[]; next: RaceCursor | null; total: number | null };
+type SearchRow = RaceRow & { editions?: EditionRow[] | null; dist_km?: number | null };
+
+// ~1 km grid: Near me never sends a precise position (docs/races.md).
+const coarse = (v: number) => Math.round(v * 100) / 100;
+
+// Pages already fetched this session, so going back to a filter or the tab answers at once.
+// Short-lived and memory-only: the catalogue changes weekly, a contribution clears it.
+export const SEARCH_CACHE_MS = 5 * 60 * 1000;
+const SEARCH_CACHE_MAX = 50;
+const searchCache = new Map<string, { at: number; page: RaceSearchPage }>();
+const cacheKey = (params: RaceSearchParams, after: RaceCursor | null) => JSON.stringify([params, after]);
+
+export function peekRaceSearch(params: RaceSearchParams, after: RaceCursor | null = null, now = Date.now()): RaceSearchPage | null {
+  const hit = searchCache.get(cacheKey(params, after));
+  return hit && now - hit.at < SEARCH_CACHE_MS ? hit.page : null;
+}
+
+// Bumped whenever the cache is dropped, so a mounted search asks again (a contribution shows at once).
+let searchCacheVersion = 0;
+export const raceSearchVersion = () => searchCacheVersion;
+
+export function clearRaceSearchCache() {
+  searchCache.clear();
+  countriesCache = null;
+  searchCacheVersion++;
+}
+
+// One page of the shared catalogue, filtered and sorted server-side (search_races). Throws on a
+// failed call so the screen can offer a retry rather than read it as "no races".
+export async function searchRaces(params: RaceSearchParams, after: RaceCursor | null = null): Promise<RaceSearchPage> {
+  const cached = peekRaceSearch(params, after);
+  if (cached) return cached;
+  const { data, error } = await supabase.rpc("search_races", {
+    p_query: params.query?.trim() || null,
+    p_min_km: params.minKm ?? null,
+    p_max_km: params.maxKm ?? null,
+    p_from: params.from || null,
+    p_to: params.to || null,
+    p_countries: params.countries?.length ? params.countries : null,
+    p_terrain: params.terrain || null,
+    p_verified_only: !!params.verifiedOnly,
+    p_lat: params.near ? coarse(params.near.lat) : null,
+    p_lng: params.near ? coarse(params.near.lng) : null,
+    p_radius_km: params.near ? params.radiusKm ?? null : null,
+    p_sort: params.sort === "distance" && params.near ? "distance" : "date",
+    p_after_key: after?.key ?? null,
+    p_after_slug: after?.slug ?? null,
+    p_limit: params.limit ?? 20,
+  });
+  if (error) throw error;
+  const page = (data || {}) as { races?: SearchRow[]; next?: RaceCursor | null; total?: number | null };
+  const result = {
+    races: (page.races || []).map(r => ({ ...toRace(r, r.editions || []), distKm: r.dist_km ?? null })),
+    next: page.next || null,
+    total: page.total ?? null,
+  };
+  const key = cacheKey(params, after);
+  searchCache.delete(key);
+  searchCache.set(key, { at: Date.now(), page: result });
+  while (searchCache.size > SEARCH_CACHE_MAX) searchCache.delete(searchCache.keys().next().value as string);
+  return result;
+}
+
+export type RaceCountry = { country: string; races: number };
+let countriesCache: { at: number; list: RaceCountry[] } | null = null;
+
+// Countries with an upcoming race and how many, most first; cached like a search page. [] on error:
+// the filter just offers none, and the next open asks again.
+export async function listRaceCountries(): Promise<RaceCountry[]> {
+  if (countriesCache && Date.now() - countriesCache.at < SEARCH_CACHE_MS) return countriesCache.list;
+  const { data, error } = await supabase.rpc("race_countries");
+  if (error) { console.error("race countries load failed", error); return []; }
+  const list = ((data || []) as RaceCountry[]).map(r => ({ country: r.country, races: Number(r.races) || 0 }));
+  countriesCache = { at: Date.now(), list };
+  return list;
 }
 
 // kebab-case a name into a slug (strip accents/punctuation, collapse to dashes).
@@ -112,7 +224,7 @@ const isUniqueViolation = (err: { code?: string } | null | undefined) => err?.co
 // Add a new race (always unverified, owned by the signed-in user). Generates a
 // slug from the name, falling back to name-city if that slug is taken, so two
 // different races with the same name don't collide. Returns the joined race.
-export async function addRace({ name, city, country, lat, lng, distances, url }: AddRaceInput) {
+export async function addRace({ name, city, country, lat, lng, distances, url, terrain }: AddRaceInput) {
   const user_id = currentUserId();
   if (!user_id) throw new Error("Not signed in");
   const raceName = name || "";
@@ -122,10 +234,10 @@ export async function addRace({ name, city, country, lat, lng, distances, url }:
   for (const slug of candidates) {
     const { data, error } = await supabase
       .from("races")
-      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), verified: false, created_by: user_id })
-      .select("slug, name, city, country, lat, lng, distances, url, verified, created_by")
+      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, verified: false, created_by: user_id })
+      .select(RACE_COLS)
       .single();
-    if (!error) return toRace(data, []);
+    if (!error) { clearRaceSearchCache(); return toRace(data, []); }
     if (!isUniqueViolation(error)) { lastErr = error; break; }
     lastErr = error; // slug taken — try the next candidate
   }
@@ -156,6 +268,7 @@ export async function addEdition({ raceSlug, date, distanceKm, elevation = 0 }: 
       .insert({ id, ...row })
       .select("id, race_slug, date, distance_km, elevation, verified")
       .single();
+    if (!error) clearRaceSearchCache();
     if (!error) return { id: data.id, date: data.date, distanceKm: data.distance_km, elevation: data.elevation, verified: data.verified };
     if (!isUniqueViolation(error)) throw error;
   }

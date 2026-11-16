@@ -20,7 +20,10 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./races", () => ({
-  listRaces: async () => [],
+  peekRaceSearch: () => null,
+  raceSearchVersion: () => 0,
+  searchRaces: async () => ({ races: [], next: null, total: 0 }),
+  listKnownRaces: async () => [],
   addRace: vi.fn(),
   addEdition: vi.fn(),
   reportRace: vi.fn(),
