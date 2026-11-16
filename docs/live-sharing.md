@@ -355,8 +355,8 @@ behavior `/live-watch/*` → the `supabase-functions` origin):
   served for those seconds. That bound is the trade for N spectators of one
   runner costing one function call and one database read per 10s per edge
   location, not N.
-- **Web origin only.** The path exists on `WEB_APP_ORIGIN` (PR previews
-  included); anywhere else the page reads direct. **The edge is never the
+- **Web origin only.** The path exists on `WEB_APP_ORIGIN`; anywhere else
+  (PR previews on their own origin, dev) the page reads direct. **The edge is never the
   last word on "not live"**: a non-JSON answer (the SPA fallback, while the
   behavior isn't deployed) or a cached `{ live: false }` is re-read direct in
   the same call. That also makes the merge order-free: the bundle, the
