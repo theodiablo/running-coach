@@ -42,6 +42,7 @@
     "back": "Utiliser une autre adresse"
   },
   "genericError": "Une erreur est survenue.",
+  "callbackFailed": "La connexion n'a pas abouti. Réessaie.",
   "dataSync": "Tes données sont synchronisées en toute sécurité avec ton compte.",
   "privacy": "Confidentialité",
   "bgLocation": {

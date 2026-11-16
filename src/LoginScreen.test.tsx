@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn, browserOpen, env } = vi.hoisted(() => ({
+const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn, browserOpen, browserListeners, track, env } = vi.hoisted(() => ({
   env: { isNative: false },
   browserOpen: vi.fn(),
+  browserListeners: new Map<string, () => void>(),
+  track: vi.fn(),
   nativeAppleSignIn: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
@@ -15,7 +17,16 @@ vi.mock("./supabase", () => ({
   authRedirectTo: () => "http://localhost/",
 }));
 vi.mock("./native", () => ({ get isNative() { return env.isNative; }, isAndroid: false }));
-vi.mock("@capacitor/browser", () => ({ Browser: { open: browserOpen } }));
+vi.mock("@capacitor/browser", () => ({
+  Browser: {
+    open: browserOpen,
+    addListener: vi.fn(async (event: string, cb: () => void) => {
+      browserListeners.set(event, cb);
+      return { remove: vi.fn(async () => { browserListeners.delete(event); }) };
+    }),
+  },
+}));
+vi.mock("./telemetry", () => ({ track }));
 vi.mock("./auth/appleSignIn", () => ({ nativeAppleSignIn }));
 
 import LoginScreen from "./LoginScreen";
@@ -33,6 +44,7 @@ const invalidCredentials = () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  browserListeners.clear();
   env.isNative = false;
   signUp.mockResolvedValue({ error: null });
   signInWithPassword.mockResolvedValue({ error: null });
@@ -306,6 +318,30 @@ describe("LoginScreen — social sign-in", () => {
       provider,
       options: { redirectTo: "http://localhost/", skipBrowserRedirect: false },
     }));
+  });
+});
+
+describe("LoginScreen — sign-in telemetry", () => {
+  it("records a failed password sign-in by code only", async () => {
+    signInWithPassword.mockResolvedValue(invalidCredentials());
+    render(<LoginScreen />);
+    type();
+    fireEvent.click(submitButton());
+    await vi.waitFor(() => expect(track).toHaveBeenCalledWith("auth_failed", { method: "password", stage: "request", code: "invalid_credentials" }));
+    expect(track).toHaveBeenCalledWith("auth_started", { method: "password" });
+    expect(JSON.stringify(track.mock.calls)).not.toContain("runner@example.com");
+  });
+
+  it("on iOS, records a Google sheet the user closed without coming back", async () => {
+    env.isNative = true;
+    signInWithOAuth.mockResolvedValue({ data: { url: "https://example.supabase.co/auth/v1/authorize?provider=google" }, error: null });
+    browserOpen.mockResolvedValue(undefined);
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    browserListeners.get("browserFinished")?.();
+    expect(track).toHaveBeenCalledWith("auth_cancelled", expect.objectContaining({ method: "google", loaded: false }));
+    expect(browserListeners.size).toBe(0);
   });
 });
 

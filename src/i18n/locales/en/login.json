@@ -42,6 +42,7 @@
     "back": "Use a different address"
   },
   "genericError": "Something went wrong.",
+  "callbackFailed": "Sign-in didn't finish. Please try again.",
   "dataSync": "Your data syncs securely to your account.",
   "privacy": "Privacy",
   "bgLocation": {

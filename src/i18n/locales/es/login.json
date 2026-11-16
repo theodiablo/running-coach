@@ -42,6 +42,7 @@
     "back": "Usar otra dirección"
   },
   "genericError": "Algo salió mal.",
+  "callbackFailed": "No se pudo completar el inicio de sesión. Inténtalo de nuevo.",
   "dataSync": "Tus datos se sincronizan de forma segura con tu cuenta.",
   "privacy": "Privacidad",
   "bgLocation": {
