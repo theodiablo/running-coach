@@ -42,8 +42,6 @@ permissions:
 env:
   AWS_REGION: eu-west-1
   FROM_EMAIL: Running Coach <noreply@camboulive.solutions>
-  # Repo secret, so the address stays out of the repo and the logs.
-  REPORT_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
 
 jobs:
   report:
@@ -67,6 +65,8 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SES_REPORT_AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: eu-west-1
+          # Repo secret, scoped to this step, so the address stays out of the repo and the logs.
+          REPORT_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
         run: |
           set -euo pipefail
           since="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
