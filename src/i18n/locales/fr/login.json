@@ -43,6 +43,7 @@
   },
   "genericError": "Une erreur est survenue.",
   "callbackFailed": "La connexion n'a pas abouti. Réessaie.",
+  "linkSignInFailed": "Ce lien n'a pas pu te connecter ici. Si tu as confirmé ton e-mail, connecte-toi avec ton e-mail et ton mot de passe.",
   "dataSync": "Tes données sont synchronisées en toute sécurité avec ton compte.",
   "privacy": "Confidentialité",
   "bgLocation": {

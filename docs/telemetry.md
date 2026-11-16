@@ -280,7 +280,10 @@ choice either way.
   the user closed SFSafariViewController themselves, with `loaded` (its first
   page finished loading, successfully or not) and `secs` it was open (capped at
   600), so "never got a page" reads apart from "saw Google and gave up". Android
-  hands OAuth to the system browser, which reports nothing back. A web OAuth
+  hands OAuth to the system browser, which reports nothing back (its callback is
+  still credited to the provider tapped). `apple_native` starts only once the
+  sheet answers; a device that can't show it falls back to the browser flow and
+  counts as `apple`. A web OAuth
   completion isn't counted (the page itself redirects); a `signup` completes
   when the confirmation mail is sent. Events fired before sign-in are anonymous
   and join the account's person when `identifyUser` runs, so one failed attempt

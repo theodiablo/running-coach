@@ -269,6 +269,7 @@ export default function App() {
     // SFSafariViewController stays on screen over the app — close it once the
     // callback lands. Browser.close() is unimplemented on Android; ignore.
     const closeAuthBrowser = async () => {
+      settleOAuth();
       try {
         const { Browser } = await import("@capacitor/browser");
         await Browser.close();
@@ -315,10 +316,10 @@ export default function App() {
         // the login screen; signed IN it can only be an email-change link, and an
         // expired/used link does NOT mean the change failed, so let the server have the last word.
         case "error":
+          if (!signedIn) trackAuthFailed(settleOAuth(), "provider", cb.code);
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore, { failure: cb.message });
           else {
-            trackAuthFailed(settleOAuth(), "provider", cb.code);
             reportAuthError(cb.message);
           }
           return;
@@ -352,8 +353,8 @@ export default function App() {
           if (signedIn) await settleEmailChange(pendingBefore);
           return;
         case "code": {
-          closeAuthBrowser();
           const method = signedIn ? null : settleOAuth();
+          closeAuthBrowser();
           try {
             // A failed exchange is returned, not thrown.
             const { data, error } = await supabase.auth.exchangeCodeForSession(cb.code);
@@ -370,7 +371,8 @@ export default function App() {
             if (signedIn) await settleEmailChange(pendingBefore, { failure: err instanceof Error ? err.message : "exchange failed" });
             else {
               if (method) trackAuthFailed(method, "exchange", err);
-              reportAuthError(i18n.t("login.callbackFailed"));
+              // An email link's code is single-use and needs this install's verifier; the account may be confirmed anyway.
+              reportAuthError(i18n.t(method === "deeplink" ? "login.linkSignInFailed" : "login.callbackFailed"));
             }
           }
           return;

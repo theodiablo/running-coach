@@ -46,15 +46,13 @@ type LoginScreenProps = {
 // sign of a sign-in that never came back (docs/telemetry.md, "Sign-in").
 // Telemetry only: a listener that fails to attach must never block the sign-in.
 async function watchOAuthSheet(provider: "google" | "apple") {
-  try {
-    const [loaded, finished] = await Promise.all([
-      Browser.addListener("browserPageLoaded", oauthPageLoaded),
-      Browser.addListener("browserFinished", oauthClosedByUser),
-    ]);
-    oauthOpened(provider, () => { void loaded.remove(); void finished.remove(); });
-  } catch {
-    oauthOpened(provider);
-  }
+  const attached = await Promise.allSettled([
+    Browser.addListener("browserPageLoaded", oauthPageLoaded),
+    Browser.addListener("browserFinished", oauthClosedByUser),
+  ]);
+  oauthOpened(provider, () => {
+    for (const r of attached) if (r.status === "fulfilled") void r.value.remove();
+  });
 }
 
 // `authError` is a native deep-link sign-in failure surfaced by App.tsx (e.g. the
@@ -130,6 +128,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
       // A top-frame navigation is handed to the OS browser by Bridge.launchIntent and the
       // provider returns via deep link (App.tsx); the WebView stays put, so re-enabling the form is correct.
       if (isAndroid) {
+        oauthOpened(provider);
         window.location.assign(data.url);
         setBusy(false);
         return;
@@ -164,12 +163,15 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
     try {
       outcome = await nativeAppleSignIn();
     } catch (err) {
+      trackAuthStarted("apple_native");
       trackAuthFailed("apple_native", "request", err);
       noteError(err);
       setBusy(false);
       return;
     }
     if (outcome === null) return withOAuth("apple");
+    // Counted once the sheet has answered: a null outcome means it never showed.
+    trackAuthStarted("apple_native");
     if (outcome === "signed-in") trackAuthCompleted("apple_native");
     else trackAuthCancelled("apple_native");
     // Signed in: App.tsx's auth listener swaps the screen. Cancelled: say nothing.

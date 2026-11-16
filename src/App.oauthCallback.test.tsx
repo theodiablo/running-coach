@@ -55,6 +55,7 @@ vi.mock("./db", () => ({
 vi.mock("./RunningCoach", () => ({ default: () => <div>The app</div> }));
 
 import App from "./App";
+import { oauthOpened } from "./auth/authTelemetry";
 
 beforeEach(() => {
   h.track.mockClear();
@@ -62,16 +63,25 @@ beforeEach(() => {
 });
 
 describe("native OAuth callback, signed out", () => {
-  it("says the sign-in didn't finish when the exchange is refused, rather than nothing", async () => {
+  it("points an unexchangeable email link at the password sign-in, rather than saying nothing", async () => {
     h.launchUrl = "solutions.camboulive.run://auth-callback?code=c1";
     h.exchange.mockResolvedValue({
       data: { session: null, user: null },
       error: Object.assign(new Error("PKCE code verifier not found in storage."), { code: "pkce_code_verifier_not_found", status: 400 }),
     });
     render(<App />);
-    expect(await screen.findByText("Sign-in didn't finish. Please try again.")).toBeInTheDocument();
+    expect(await screen.findByText(/That link couldn't sign you in here/)).toBeInTheDocument();
     expect(screen.queryByText(/PKCE/)).not.toBeInTheDocument();
     expect(h.track).toHaveBeenCalledWith("auth_failed", { method: "deeplink", stage: "exchange", code: "pkce_code_verifier_not_found" });
+  });
+
+  it("asks for another try when a Google sign-in started here is refused", async () => {
+    oauthOpened("google");
+    h.launchUrl = "solutions.camboulive.run://auth-callback?code=c3";
+    h.exchange.mockResolvedValue({ data: { session: null, user: null }, error: Object.assign(new Error("invalid flow state"), { code: "flow_state_not_found", status: 404 }) });
+    render(<App />);
+    expect(await screen.findByText("Sign-in didn't finish. Please try again.")).toBeInTheDocument();
+    expect(h.track).toHaveBeenCalledWith("auth_failed", { method: "google", stage: "exchange", code: "flow_state_not_found" });
   });
 
   it("records a completed exchange", async () => {

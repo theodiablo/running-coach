@@ -43,6 +43,7 @@
   },
   "genericError": "Something went wrong.",
   "callbackFailed": "Sign-in didn't finish. Please try again.",
+  "linkSignInFailed": "That link couldn't sign you in here. If you've confirmed your email, sign in with your email and password.",
   "dataSync": "Your data syncs securely to your account.",
   "privacy": "Privacy",
   "bgLocation": {
