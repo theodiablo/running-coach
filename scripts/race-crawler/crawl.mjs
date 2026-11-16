@@ -23,7 +23,7 @@ const { values: args } = parseArgs({
     "since-days": { type: "string", default: "15" },
     "max-pages": { type: "string", default: "0" },
     "delay-ms": { type: "string", default: "1000" },
-    out: { type: "string", default: "race-crawl-report" },
+    out: { type: "string", default: "race-crawl-report/report" },
     state: { type: "string" },
     apply: { type: "boolean", default: false },
     "sql-out": { type: "string" },
@@ -48,16 +48,36 @@ const onSourceHost = (u) => {
 };
 
 async function get(url) {
-  if (!onSourceHost(url)) return null;
+  // Redirects are followed by hand, so a request never reaches a host outside the sources.
+  for (let hop = 0; hop < 5; hop++) {
+    if (!onSourceHost(url)) throw new Error(`off-source URL: ${url}`);
+    const res = await fetchOnce(url);
+    if (res.redirect) {
+      url = new URL(res.redirect, url).href;
+      continue;
+    }
+    return res.body;
+  }
+  throw new Error(`too many redirects: ${url}`);
+}
+
+async function fetchOnce(url) {
   const host = new URL(url).host;
   for (let attempt = 1; ; attempt++) {
     const wait = (lastHit.get(host) ?? 0) + delayMs - Date.now();
     if (wait > 0) await sleep(wait);
     lastHit.set(host, Date.now());
     try {
-      const res = await fetch(url, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30_000) });
-      if (res.ok) return onSourceHost(res.url) ? await res.text() : null;
-      if (res.status === 404 || res.status === 410) return null;
+      const res = await fetch(url, {
+        headers: { "user-agent": USER_AGENT },
+        redirect: "manual",
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        return { redirect: res.headers.get("location") };
+      }
+      if (res.ok) return { body: await res.text() };
+      if (res.status === 404 || res.status === 410) return { body: null };
       throw new Error(`HTTP ${res.status}`);
     } catch (err) {
       if (attempt >= 3) throw new Error(`${url}: ${err.message}`, { cause: err });
