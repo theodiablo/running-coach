@@ -128,11 +128,11 @@ export function plan(p, catalogue, taken) {
   const blocking = p.flags.filter((f) => BLOCKING.has(f));
   if (p.verdict === "dateChange") return waits(`catalogue has ${p.previousDate}`);
   if (p.verdict === "review") return waits(p.why);
-  if (blocking.length) return waits(blocking.join(", "));
-  // Not a person's job: it goes in by itself once a second source lists it.
+  // Not a person's job: it goes in by itself once a second source lists it, and its flags are checked then.
   if (p.verdict === "newRace" && !c.firstHand && !p.alsoIn) {
     return { ledger: { ...ledger, status: "waiting", note: "one aggregator only" } };
   }
+  if (blocking.length) return waits(blocking.join(", "));
 
   // An aggregator lists next year's edition before the organiser has a date (Toulouse 2027), so its new
   // edition of a known race waits for a person unless a second source agrees.

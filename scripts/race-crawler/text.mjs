@@ -14,7 +14,7 @@ const NUM = "(\\d{1,3}(?:[.,]\\d+)?)";
 const KM_RE = new RegExp(`${NUM}\\s?(?:kilom[eè]t(?:er|re)s?|kil[oó]metros?|kms?|k)(?![\\p{L}\\d]|\\s?\\/\\s?h)`, "giu");
 // A relay's legs ("Relais 4x10km", "Duo 2 x 12 km"): no runner races that distance as one race.
 const RELAY_RE = new RegExp(`\\b\\d+\\s?[x×]\\s?${NUM}\\s?(?:kms?|k|kil[oó]metros?|kilom[eè]t(?:er|re)s?)(?![\\p{L}\\d])`, "giu");
-const MILE_RE = new RegExp(`${NUM}\\s?(?:miles?|mi)(?![\\p{L}\\d])`, "giu");
+const MILE_RE = new RegExp(`${NUM}\\s?(?:miles?|mi|millas?|milles?)(?![\\p{L}\\d])`, "giu");
 const RANGE_RE = new RegExp(`between ${NUM} and ${NUM} kilomet`, "gi");
 
 const num = (s) => Number(s.replace(",", "."));
