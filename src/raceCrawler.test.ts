@@ -13,6 +13,8 @@ import * as rts from "../scripts/race-crawler/sources/rockthesport.mjs";
 import * as rl from "../scripts/race-crawler/sources/runninglife.mjs";
 // @ts-expect-error — plain ESM script module.
 import * as far from "../scripts/race-crawler/sources/findarace.mjs";
+// @ts-expect-error — plain ESM script module.
+import * as ats from "../scripts/race-crawler/sources/atssport.mjs";
 
 const TODAY = "2026-11-15";
 const ld = (obj: unknown) => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;
@@ -301,6 +303,97 @@ describe("findarace", () => {
   });
 });
 
+const atsCourse = (name: string, type: string) =>
+  `<a data-toggle="collapse" href="#parcours-1">\n ${name} </a></h4></div><div class="panel-body">` +
+  `<p><strong>Départ :</strong> <span class="text-theme">Samedi</span></p>` +
+  `<p><strong>Distance :</strong> <span class="text-theme">${type}</span></p></div>`;
+const ATS_URL = "https://ats-sport.com/epreuve.php?id_epreuve=9660";
+const atsPage = (...courses: string[]) =>
+  ld({
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    name: "Semi-Marathon de SETE ",
+    startDate: "2027-10-02T00:00:00",
+    endDate: "2027-10-02",
+    eventStatus: "https://schema.org/EventScheduled",
+    url: ATS_URL,
+    location: { "@type": "Place", address: { addressLocality: "St Girons", addressRegion: "09", addressCountry: "France" } },
+  }) + courses.join("");
+
+describe("atssport", () => {
+  it("discovers event pages only", () => {
+    const xml =
+      "<urlset><url><loc>https://ats-sport.com/epreuve.php?id_epreuve=9660</loc><lastmod>2026-11-14</lastmod></url>" +
+      "<url><loc>https://ats-sport.com/resultats_epreuve.php?epreuve=8035&amp;parcours=20451</loc><lastmod>2026-11-14</lastmod></url>" +
+      "<url><loc>https://ats-sport.com/epreuve.php?id_epreuve=1</loc><lastmod>2025-01-01</lastmod></url></urlset>";
+    expect(ats.discover(xml, "2026-11-01").map((u: { url: string }) => u.url)).toEqual([ATS_URL]);
+  });
+  it("keeps the running courses, with a distance from the name or the course type", () => {
+    const c = ats.parse(
+      atsPage(
+        atsCourse("Semi Marathon de  Sète", "Semi Marathon"),
+        atsCourse("le 10km", "Course sur route"),
+        atsCourse("Trail des Salines 23Km, 1500 D+", "Trail"),
+        atsCourse("Marche Nordique 12 km", "Marche nordique"),
+        atsCourse("Courses enfants 1 km", "Course enfant"),
+        atsCourse("La Gravel 63 kms (ANNULE)", "Trail"),
+      ),
+      ATS_URL,
+    );
+    expect(c).toMatchObject({
+      sourceKey: "9660",
+      firstHand: true,
+      name: "Semi-Marathon de SETE",
+      date: "2027-10-02",
+      city: "St Girons",
+      region: "09",
+      country: "FR",
+      lat: null,
+      distances: [10, 21.1, 23],
+      running: true,
+    });
+  });
+  it("leaves out bike, dog, walk and kids' courses whatever their type", () => {
+    const c = ats.parse(
+      atsPage(
+        atsCourse("XC 45 km", "Cross-country VTT"),
+        atsCourse("Cani 25 km", "Cani-cross"),
+        atsCourse("Rando 30 km", "Rando semi-nocturne"),
+        atsCourse("Trail enfants 2 km", "Trail"),
+        atsCourse("Course pédestre 15 km", "Course pédestre"),
+        atsCourse("Trail du Canigou 42 km", "Trail"),
+        atsCourse("Foulées de Marcheprime 12 km", "Course sur route"),
+      ),
+      ATS_URL,
+    );
+    expect(c.distances).toEqual([12, 15, 42.2]);
+  });
+  it("is not running when no course is", () => {
+    const c = ats.parse(atsPage(atsCourse("Format S Solo", "Swimrun"), atsCourse("128 KMS", "Cyclotourisme")), ATS_URL);
+    expect(c.running).toBe(false);
+  });
+  it("looks the town up by its official name, in its département, and only trusts a same-name commune", () => {
+    const c = ats.parse(atsPage(atsCourse("10 km", "Course sur route")), ATS_URL);
+    const q = new URL(ats.communeQuery(c));
+    expect(q.host).toBe("geo.api.gouv.fr");
+    expect(q.searchParams.get("nom")).toBe("Saint Girons");
+    expect(q.searchParams.get("codeDepartement")).toBe("09");
+    const found = [
+      { nom: "Vielle-Saint-Girons", centre: { coordinates: [-1.32, 43.94] } },
+      { nom: "Saint-Girons", centre: { coordinates: [1.1591, 42.9681] } },
+    ];
+    expect(ats.pickCommune(found, "St Girons")).toEqual({ lat: 42.9681, lng: 1.1591 });
+    expect(ats.pickCommune([found[0]], "St Girons")).toBeNull();
+    const twins = [
+      { nom: "Saint-Denis", centre: { coordinates: [2.35, 48.93] } },
+      { nom: "Saint-Denis", centre: { coordinates: [55.45, -20.88] } },
+    ];
+    expect(ats.pickCommune(twins, "Saint Denis")).toBeNull();
+    expect(ats.pickCommune(null, "St Girons")).toBeNull();
+    expect(ats.communeQuery({ ...c, country: "ES" })).toBeNull();
+  });
+});
+
 describe("matchRace", () => {
   it("matches on the organiser's own site", () => {
     const c = rts.parse(RTS_PAGE, "https://web.rockthesport.com/es/event/xxvi-media-maraton-san-sebastian-2027");
@@ -437,6 +530,15 @@ describe("apply: cleanName", () => {
     ["X-Trail Valencia", "X-Trail Valencia"],
     ["10K Circuit de Jerez, Jerez", "10K Circuit de Jerez, Jerez"],
     ["Lliga de Muntanya València Sud. 26/27", ""],
+    ["TRAIL DES FOULEES POUSSANAISES (7ème édition)", "Trail des Foulees Poussanaises"],
+    ["Trail Nocturne de l'Ecoparc Catalan - 4ème édition", "Trail Nocturne de l'Ecoparc Catalan"],
+    ["35° BOUCLES DE MAGUELONE", "Boucles de Maguelone"],
+    ["Clermont l'Hérault Urban Trail CHUT 2026 By GROUPAMA", "Clermont l'Hérault Urban Trail CHUT"],
+    ["Run by the Sea", "Run by the Sea"],
+    ["Media Maratón Elche 7ª edición", "Media Maratón Elche"],
+    ["Trail 4e Édition des Lacs", "Trail des Lacs"],
+    ["Trail 1a Edición Sierra", "Trail Sierra"],
+    ["Semi-Marathon de Paris - Édition 2027", "Semi-Marathon de Paris"],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([
     ["17007 Girona", "Girona"],

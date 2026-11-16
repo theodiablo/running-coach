@@ -10,14 +10,12 @@ const TARGETS = [
   // France, first-hand: registration and timing platforms.
   ["ats-sport sitemap", "https://ats-sport.com/sitemap.xml"],
   ["ats-sport event", "https://ats-sport.com/epreuve.php?id_epreuve=9138"],
+  ["geo.api.gouv.fr commune", "https://geo.api.gouv.fr/communes?nom=Saint-Girons&codeDepartement=09&fields=nom,centre"],
   ["protiming home", "https://www.protiming.fr/"],
   ["protiming event", "https://www.protiming.fr/events/8537-la-course-des-3-ponts"],
   ["le-sportif calendar", "https://www.le-sportif.com/Calendar/CalendarSearch.aspx"],
   ["klikego home", "https://www.klikego.com/"],
   ["njuko sitemap", "https://njuko.com/sitemap.xml"],
-  // France, second-hand: the largest calendar.
-  ["finishers sitemap", "https://www.finishers.com/sitemap/events.xml"],
-  ["finishers event", "https://www.finishers.com/course/roc-d-azur-trail"],
   // Ireland: RunIreland's calendar is empty since 2020, so these instead.
   ["eventmaster.ie", "https://eventmaster.ie/"],
   ["popupraces.ie sitemap", "https://www.popupraces.ie/sitemap_index.xml"],

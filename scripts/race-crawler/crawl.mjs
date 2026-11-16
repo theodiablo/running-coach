@@ -12,6 +12,7 @@ import { LEDGER_KEYS_SQL, buildSql, ledgerKey, plan, runSql } from "./apply.mjs"
 import * as rts from "./sources/rockthesport.mjs";
 import * as rl from "./sources/runninglife.mjs";
 import * as far from "./sources/findarace.mjs";
+import * as ats from "./sources/atssport.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const USER_AGENT = "running-coach-race-crawler/1.0 (weekly; race catalogue)";
@@ -20,7 +21,7 @@ const PROPOSED = new Set(["newEdition", "dateChange", "newRace", "review"]);
 const { values: args } = parseArgs({
   options: {
     // running.life answers GitHub's runners with a Cloudflare challenge: a local run only.
-    sources: { type: "string", default: "rockthesport,findarace" },
+    sources: { type: "string", default: "rockthesport,findarace,atssport" },
     countries: { type: "string", default: "ES,FR,GB,IE" },
     "since-days": { type: "string", default: "15" },
     "max-pages": { type: "string", default: "0" },
@@ -40,7 +41,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lastHit = new Map();
 
 // Only the sources' own hosts: a URL read off a scraped page is never followed elsewhere.
-const SOURCE_HOSTS = new Set(["web.rockthesport.com", "running.life", "findarace.com"]);
+const SOURCE_HOSTS = new Set(["web.rockthesport.com", "running.life", "findarace.com", "ats-sport.com", ats.GEO_HOST]);
 const onSourceHost = (u) => {
   try {
     return SOURCE_HOSTS.has(new URL(u).host);
@@ -129,6 +130,30 @@ async function getPage(url, stats) {
   }
 }
 
+// A town's centre for a source whose pages carry no coordinates. Best effort: a failed lookup leaves
+// the candidate unpinned (review), never fails the run.
+const communes = new Map();
+async function locate(c, source) {
+  const query = c.lat == null && c.running && source.communeQuery?.(c);
+  if (!query) return c;
+  if (!communes.has(query)) {
+    let body = null;
+    try {
+      body = await get(query);
+    } catch {
+      // Left unpinned.
+    }
+    let results = null;
+    try {
+      results = body && JSON.parse(body);
+    } catch {
+      // Left unpinned.
+    }
+    communes.set(query, source.pickCommune(results, c.city));
+  }
+  return { ...c, ...communes.get(query) };
+}
+
 // Event pages from sitemaps, those changed in the last --since-days only.
 async function crawlSitemaps(stats, source, keep = () => true) {
   const since = new Date(Date.now() - sinceDays * 86_400_000).toISOString().slice(0, 10);
@@ -144,7 +169,7 @@ async function crawlSitemaps(stats, source, keep = () => true) {
       stats.fetched++;
       const c = html && source.parse(html, url);
       if (!c) stats.unparsed++;
-      else if (keep(c)) candidates.push(c);
+      else if (keep(c)) candidates.push(await locate(c, source));
       else stats.elsewhere = (stats.elsewhere ?? 0) + 1;
     }
   }
@@ -256,6 +281,7 @@ async function main() {
     rockthesport: (stats) => crawlSitemaps(stats, rts),
     // Find a Race lists races worldwide; only the countries asked for.
     findarace: (stats) => crawlSitemaps(stats, far, (c) => countries.includes(c.country)),
+    atssport: (stats) => crawlSitemaps(stats, ats),
     runninglife: (stats) => crawlRunningLife(stats, countries, catalogue, seenKeys),
   };
   const sources = [];
