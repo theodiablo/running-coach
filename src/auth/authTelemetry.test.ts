@@ -62,6 +62,13 @@ describe("the in-app browser round trip", () => {
     expect(track).not.toHaveBeenCalled();
   });
 
+  it("forgets a tap abandoned long before the callback", () => {
+    vi.useFakeTimers();
+    oauthOpened("google");
+    vi.advanceTimersByTime(11 * 60_000);
+    expect(settleOAuth()).toBe("deeplink");
+  });
+
   it("names a callback nobody started here a deep link", () => {
     expect(settleOAuth()).toBe("deeplink");
   });

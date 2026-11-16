@@ -84,6 +84,13 @@ describe("native OAuth callback, signed out", () => {
     expect(h.track).toHaveBeenCalledWith("auth_failed", { method: "google", stage: "exchange", code: "flow_state_not_found" });
   });
 
+  it("credits a provider error to the sheet that was open", async () => {
+    oauthOpened("google");
+    h.launchUrl = "solutions.camboulive.run://auth-callback?error=server_error&error_description=Unable%20to%20exchange";
+    render(<App />);
+    await waitFor(() => expect(h.track).toHaveBeenCalledWith("auth_failed", { method: "google", stage: "provider", code: "server_error" }));
+  });
+
   it("records a completed exchange", async () => {
     h.launchUrl = "solutions.camboulive.run://auth-callback?code=c2";
     h.exchange.mockResolvedValue({ data: { session: { user: { id: "u1" } } }, error: null });

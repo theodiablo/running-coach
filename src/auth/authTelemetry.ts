@@ -67,10 +67,11 @@ export function oauthClosedByUser() {
 }
 
 // Called when an auth deep link lands: the provider that started it, or
-// "deeplink" for an email link or a callback that survived an app restart.
+// "deeplink" for an email link, a restart, or a tap abandoned long ago
+// (Android's system browser never says it was closed).
 export function settleOAuth(): AuthMethod {
   const p = pending;
   pending = null;
   p?.cleanup();
-  return p?.provider ?? "deeplink";
+  return p && Date.now() - p.at <= MAX_SECS * 1000 ? p.provider : "deeplink";
 }
