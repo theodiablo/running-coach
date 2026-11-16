@@ -4,8 +4,10 @@ import { distinctiveTokens, haversineKm, hostOf, nameTokens, parseDistances, str
 
 export const POLICY = {
   minKm: 10, // nothing shorter is ever proposed
-  minNewRaceKm: 21.1, // a race the catalogue lacks needs a half marathon or longer…
-  minNewRaceKmSecondHand: 42.2, // …and a marathon or longer when only an aggregator lists it
+  // A race the catalogue lacks: the same bar as an edition since the catalogue pages and filters.
+  // Raise these to ask more of new races, and more still of an aggregator-only one.
+  minNewRaceKm: 10,
+  minNewRaceKmSecondHand: 10,
   nearKm: 30, // city-level pins sit kilometres from a hand-placed start
   dateChangeDays: 75, // same edition moved, vs next year's edition
   horizonDays: 550,
@@ -176,7 +178,7 @@ export function classify(candidate, catalogue, today) {
   if (match.kind === "none") {
     if (!distances.length) return drop("distance unknown");
     const longest = Math.max(...distances);
-    if (longest < POLICY.minNewRaceKm) return drop("new race under half marathon");
+    if (longest < POLICY.minNewRaceKm) return drop(`new race under ${POLICY.minNewRaceKm} km`);
     return { verdict: "newRace", distances, flags, why: "", minor: !candidate.firstHand && longest < POLICY.minNewRaceKmSecondHand };
   }
   if (match.kind === "ambiguous") return { verdict: "review", slug: match.slug, distances, flags, why: match.why };

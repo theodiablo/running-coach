@@ -10,7 +10,10 @@ const HALF_RE =
   /(^|[^\p{L}\d])(?:half[\s-]?marathon|semi[\s-]?marathon|medi[ao]\s+marat[oó]n|mitja(?:\s+marat[oó])?|meia\s+maratona|halbmarathon)(?![\p{L}\d])/giu;
 const MARATHON_RE = /(^|[^\p{L}\d])(ultra[\s-]?)?(?:marathon|marat[oó]n|marat[oó]|maratona)(?![\p{L}\d])/giu;
 const NUM = "(\\d{1,3}(?:[.,]\\d+)?)";
-const KM_RE = new RegExp(`${NUM}\\s?(?:kilom[eè]t(?:er|re)s?|kil[oó]metros?|kms?|k)(?![\\p{L}\\d])`, "giu");
+// Not a speed ("10 km/h").
+const KM_RE = new RegExp(`${NUM}\\s?(?:kilom[eè]t(?:er|re)s?|kil[oó]metros?|kms?|k)(?![\\p{L}\\d]|\\s?\\/\\s?h)`, "giu");
+// A relay's legs ("Relais 4x10km", "Duo 2 x 12 km"): no runner races that distance as one race.
+const RELAY_RE = new RegExp(`\\b\\d+\\s?[x×]\\s?${NUM}\\s?(?:kms?|k|kil[oó]metros?|kilom[eè]t(?:er|re)s?)(?![\\p{L}\\d])`, "giu");
 const MILE_RE = new RegExp(`${NUM}\\s?(?:miles?|mi)(?![\\p{L}\\d])`, "giu");
 const RANGE_RE = new RegExp(`between ${NUM} and ${NUM} kilomet`, "gi");
 
@@ -30,6 +33,7 @@ export function parseDistances(text, { explicitWins = false } = {}) {
   if (!text) return [];
   const found = [];
   let rest = String(text);
+  rest = rest.replace(RELAY_RE, " ");
   rest = rest.replace(HALF_RE, (m, pre) => (found.push(HALF_KM), `${pre} `));
   rest = rest.replace(MARATHON_RE, (m, pre, ultra) => (ultra ? `${pre} ` : (found.push(MARATHON_KM), `${pre} `)));
   const fromWords = found.length;

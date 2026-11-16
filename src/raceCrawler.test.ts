@@ -129,6 +129,15 @@ const candidate = (over: Record<string, unknown>) => ({
   ...over,
 });
 
+describe("parseDistances: not race distances", () => {
+  it.each([
+    ["Relais 4x10km", []],
+    ["Duo 2 x 12 km", []],
+    ["Relais 4x10km et 25 km", [25]],
+    ["Allure 10 km/h", []],
+  ])("%s", (text, kms) => expect(parseDistances(text)).toEqual(kms));
+});
+
 describe("parseDistances", () => {
   it.each([
     ["CARRERA 10KM | MEDIO MARATÓN 21KM", [10, 21.1]],
@@ -199,6 +208,25 @@ describe("rockthesport", () => {
     const { distances } = rts.parse(page, "https://web.rockthesport.com/es/event/miut");
     expect(distances).toEqual(expect.arrayContaining([40, 110]));
     expect(distances).not.toContain(42.2);
+  });
+  it("takes no distance from a walk, kids', relay or bike fare", () => {
+    const page = RTS_PAGE.replace(
+      "</body>",
+      flight('{"publicName":"Marcha 12K","description":"","active":true},' +
+        '{"publicName":"Niños 10k","description":"","active":true},' +
+        '{"publicName":"Relevos 4x10km","description":"","active":true},' +
+        '{"publicName":"Carrera 15K","description":"","active":true}') + "</body>",
+    );
+    const { distances } = rts.parse(page, "https://web.rockthesport.com/es/event/x");
+    expect(distances).toContain(15);
+    expect(distances).not.toContain(12);
+  });
+  it("never reads a filtered-out fare back from the fare names list", () => {
+    const page =
+      ld({ "@type": "SportsEvent", name: "Marcha Solidaria", startDate: "2027-04-04T09:30:00", sport: "running" }) +
+      flight('{"publicName":"Marcha 12K","description":"","active":true}') +
+      flight('"tariffNames":{"a":"Marcha 12K"}');
+    expect(rts.parse(page, "https://web.rockthesport.com/es/event/x").distances).toEqual([]);
   });
   it("returns null for a page with no event", () => {
     expect(rts.parse("<html></html>", "https://web.rockthesport.com/es/event/x")).toBeNull();
@@ -474,7 +502,6 @@ describe("classify", () => {
     [{ status: "cancelled" }, "cancelled"],
     [{ date: "2026-11-01" }, "past"],
     [{ name: "Virtual Half" }, "virtual"],
-    [{ distances: [10, 15] }, "new race under half marathon"],
     [{ distances: [] }, "distance unknown"],
     [{ date: "2027-02-30" }, "invalid date"],
     [{ name: "15. AzkoitiAzpeitia lasterketa motza 8,06km", distances: [21.1] }, "under 10 km"],
@@ -486,10 +513,14 @@ describe("classify", () => {
     const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-07-10", endDate: "2027-07-11" }), CATALOGUE, TODAY);
     expect(v.flags).toContain("multi-day");
   });
-  it("proposes a new race of a half marathon or longer, flagging what needs checking", () => {
+  it("proposes a new race of 10 km or longer, flagging what needs checking", () => {
     const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-03-10" }), CATALOGUE, TODAY);
-    expect(v).toMatchObject({ verdict: "newRace", distances: [21.1], minor: true });
+    expect(v).toMatchObject({ verdict: "newRace", distances: [21.1], minor: false });
     expect(v.flags).toEqual(expect.arrayContaining(["second-hand date", "weekday"]));
+  });
+  it("proposes a new 10K, from an aggregator too", () => {
+    const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-03-14", distances: [5, 10] }), CATALOGUE, TODAY);
+    expect(v).toMatchObject({ verdict: "newRace", distances: [10], minor: false });
   });
 });
 
@@ -509,7 +540,7 @@ describe("mergeSources", () => {
     expect(merged[0].alsoIn).toEqual([{ source: "runninglife", url: a.candidate.url }]);
     expect(worthProposing(merged[0])).toBe(true);
   });
-  it("drops a sub-marathon new race only an aggregator lists", () => {
+  it("drops a minor new race (under the second-hand bar) only an aggregator lists", () => {
     expect(worthProposing({ minor: true })).toBe(false);
   });
 });
