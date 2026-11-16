@@ -331,6 +331,38 @@ live sharing; most reads simply come back empty.
 - Same-account watching (`useLiveRun`) never touches `live-watch` and isn't
   counted: a runner watching themselves isn't adoption.
 
+## Edge cache
+
+Supabase's own Cloudflare never caches a function response (`cf-cache-status:
+DYNAMIC` whatever the headers; its CDN caching is Storage-only), so the public
+page's polls are cached by **our** CloudFront instead (`infra/site.tf`,
+behavior `/live-watch/*` → the `supabase-functions` origin):
+
+- **The token rides the path** (`/live-watch/<token>`), because the managed
+  `CachingOptimized` policy keys on the path alone; a custom cache policy would
+  be a resource the Terraform apply role can't create. Nothing else (query,
+  headers, cookies) reaches supabase.co on that path.
+- **Only a uniform 200 is shared.** `live-watch` sends `s-maxage=10` on a path
+  read's `{ live }` answer and `no-store` on everything else, so an error or a
+  429 is never replayed to a run's other spectators. A ?t= or batch read is
+  never cacheable.
+- **The view count still happens direct.** The cached read carries no viewer
+  id, so `fetchLiveWatch` polls direct with `v` until it has seen the broadcast
+  live once (`countedBroadcast`, per `started_at`), then switches to the cache;
+  a new `started_at` seen through the cache sends one more direct read.
+- **The cost is up to 10s of staleness**, on top of the 30s cadence: a run that
+  ends, is hidden (`share_public` off) or has its link retired can still be
+  served for those seconds. That bound is the trade for N spectators of one
+  runner costing one function call and one database read per 10s per edge
+  location, not N.
+- **Web origin only.** The path exists on `WEB_APP_ORIGIN` (PR previews
+  included); anywhere else the page reads direct. **The edge is never the
+  last word on "not live"**: a non-JSON answer (the SPA fallback, while the
+  behavior isn't deployed) or a cached `{ live: false }` is re-read direct in
+  the same call. That also makes the merge order-free: the bundle, the
+  function and the CloudFront behavior can land in any order.
+- The batch read (following several runners) is a POST and stays uncached.
+
 ## Known limits
 
 - **Two devices recording the same account** share one row, last writer wins

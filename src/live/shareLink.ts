@@ -102,23 +102,47 @@ export const watchViewerId = (): string => {
   return viewerId;
 };
 
+// The edge-cached read: our CloudFront serves /live-watch/<token> from a seconds-long cache shared by every spectator of
+// the run, so it only exists on the web origin it fronts (docs/live-sharing.md, "Edge cache").
+const edgeWatchUrl = (token: string): string | null =>
+  typeof window !== "undefined" && window.location.origin === WEB_APP_ORIGIN
+    ? `/live-watch/${encodeURIComponent(token)}` : null;
+
+// The broadcast (started_at) each token's view was counted for. Until a direct read has seen it live, the page polls
+// direct with its viewer id; afterwards through the edge cache, which carries none.
+const countedBroadcast = new Map<string, string>();
+
 export async function fetchLiveWatch(token: string, signal?: AbortSignal): Promise<WatchResult> {
   const v = watchViewerId();
+  const edge = countedBroadcast.has(token) ? edgeWatchUrl(token) : null;
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}${v ? `&v=${v}` : ""}`,
-      {
-        signal,
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      },
-    );
+    const res = edge
+      ? await fetch(edge, { signal })
+      : await fetch(
+        `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}${v ? `&v=${v}` : ""}`,
+        { signal, headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
+      );
     if (res.status === 429) {
       const secs = Number(res.headers.get("Retry-After"));
       return { kind: "error", retryAfterMs: Number.isFinite(secs) && secs > 0 ? secs * 1000 : undefined };
     }
-    if (!res.ok) return { kind: "error" };
+    // Not JSON is the SPA fallback answering for a missing origin: an outage, never "the run ended".
+    if (!res.ok || !res.headers.get("Content-Type")?.includes("json")) {
+      if (!edge) return { kind: "error" };
+      // The cache path itself failed: read direct now rather than leave the page dark until it recovers.
+      countedBroadcast.delete(token);
+      return await fetchLiveWatch(token, signal);
+    }
     const body = await res.json().catch(() => null) as { live?: boolean; run?: PublicLiveRun } | null;
-    if (!body?.live || !body.run) return { kind: "none" };
+    if (!body?.live || !body.run) {
+      if (!edge) return { kind: "none" };
+      // A run's end (or an older function that can't read the path) is confirmed direct before the page says so.
+      countedBroadcast.delete(token);
+      return await fetchLiveWatch(token, signal);
+    }
+    const started = String(body.run.started_at);
+    if (!edge) countedBroadcast.set(token, started);
+    else if (countedBroadcast.get(token) !== started) countedBroadcast.delete(token);
     return { kind: "live", run: body.run };
   } catch {
     return { kind: "error" };
