@@ -279,6 +279,7 @@ describe("classify", () => {
     [{ name: "Virtual Half" }, "virtual"],
     [{ distances: [10, 15] }, "new race under half marathon"],
     [{ distances: [] }, "distance unknown"],
+    [{ date: "2027-02-30" }, "invalid date"],
     [{ name: "15. AzkoitiAzpeitia lasterketa motza 8,06km", distances: [21.1] }, "under 10 km"],
     [{ name: "29a Marxa del Terme" }, "not running"],
   ])("drops %o: %s", (over, why) => {
@@ -415,6 +416,12 @@ describe("apply: buildSql", () => {
     const tag = sql.match(/\$(crawl_[0-9a-f]+)\$/)![1];
     expect(sql.split(`$${tag}$`)).toHaveLength(3);
     expect(sql).toContain("O'Brien $$ Run");
+  });
+  it("strips what Postgres's jsonb refuses, so one scraped string can't abort the write", () => {
+    const sql = buildSql({ races: [{ name: "Bad\u0000name \ud800" }], editions: [], ledger: [] });
+    expect(sql).not.toContain("\\u0000");
+    expect(sql).not.toMatch(/\\ud800/i);
+    expect(sql).toContain("Badname");
   });
 });
 

@@ -119,6 +119,11 @@ export function matchRace(candidate, races) {
 }
 
 const dayMs = 86_400_000;
+const isRealDate = (d) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d))) return false;
+  const t = new Date(`${d}T00:00:00Z`);
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+};
 const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / dayMs);
 const WEEKEND = new Set([0, 6]);
 const VIRTUAL_RE = /\bvirtual\b/i;
@@ -137,6 +142,8 @@ export function classify(candidate, catalogue, today) {
   if (candidate.status === "cancelled") return drop("cancelled");
   if (VIRTUAL_RE.test(`${candidate.name} ${candidate.text ?? ""}`)) return drop("virtual");
   if (NOT_A_RUN_RE.test(candidate.name)) return drop("not running");
+  // An impossible date (2027-02-30) would roll over here and abort the write at Postgres's date cast.
+  if (!isRealDate(candidate.date)) return drop("invalid date");
   const ahead = daysBetween(today, candidate.date);
   if (!(ahead >= 0)) return drop("past");
   if (ahead > POLICY.horizonDays) return drop("too far ahead");

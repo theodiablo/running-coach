@@ -37,7 +37,18 @@ const today = new Date().toISOString().slice(0, 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lastHit = new Map();
 
+// Only the sources' own hosts: a URL read off a scraped page is never followed elsewhere.
+const SOURCE_HOSTS = new Set(["web.rockthesport.com", "running.life"]);
+const onSourceHost = (u) => {
+  try {
+    return SOURCE_HOSTS.has(new URL(u).host);
+  } catch {
+    return false;
+  }
+};
+
 async function get(url) {
+  if (!onSourceHost(url)) return null;
   const host = new URL(url).host;
   for (let attempt = 1; ; attempt++) {
     const wait = (lastHit.get(host) ?? 0) + delayMs - Date.now();
@@ -45,7 +56,7 @@ async function get(url) {
     lastHit.set(host, Date.now());
     try {
       const res = await fetch(url, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(30_000) });
-      if (res.ok) return await res.text();
+      if (res.ok) return onSourceHost(res.url) ? await res.text() : null;
       if (res.status === 404 || res.status === 410) return null;
       throw new Error(`HTTP ${res.status}`);
     } catch (err) {
@@ -179,7 +190,7 @@ function markdown(report) {
         p.alsoIn && "two sources",
       ];
       lines.push(
-        `| ${c.date} | [${c.name.replace(/\|/g, "/")}](${c.url}) | ${[c.city, c.country].filter(Boolean).join(", ")} ` +
+        `| ${c.date} | [${c.name.replace(/[|[\]]/g, " ")}](${encodeURI(c.url)}) | ${[c.city, c.country].filter(Boolean).join(", ")} ` +
           `| ${p.distances.join(", ")} | ${p.slug ?? ""} | ${notes.filter(Boolean).join("; ")} |`,
       );
     }

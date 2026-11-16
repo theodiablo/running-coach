@@ -150,7 +150,10 @@ export function plan(p, catalogue, taken) {
 
 /** One idempotent statement writing every row; the data rides a dollar-quoted JSON literal. */
 export function buildSql({ races, editions, ledger }) {
-  const json = JSON.stringify({ races, editions, ledger });
+  // Postgres's jsonb refuses \u0000 and lone surrogates: one such scraped string would abort the week's write.
+  const json = JSON.stringify({ races, editions, ledger }, (k, v) =>
+    typeof v === "string" ? v.replaceAll(String.fromCharCode(0), "").toWellFormed() : v,
+  );
   let tag;
   do tag = `crawl_${randomBytes(6).toString("hex")}`;
   while (json.includes(tag));
