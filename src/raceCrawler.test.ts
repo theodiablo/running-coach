@@ -11,6 +11,10 @@ import { buildSql, cleanCity, cleanName, plan, webUrl } from "../scripts/race-cr
 import * as rts from "../scripts/race-crawler/sources/rockthesport.mjs";
 // @ts-expect-error — plain ESM script module.
 import * as rl from "../scripts/race-crawler/sources/runninglife.mjs";
+// @ts-expect-error — plain ESM script module.
+import * as far from "../scripts/race-crawler/sources/findarace.mjs";
+// @ts-expect-error — plain ESM script module.
+import * as ats from "../scripts/race-crawler/sources/atssport.mjs";
 
 const TODAY = "2026-11-15";
 const ld = (obj: unknown) => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;
@@ -218,6 +222,178 @@ describe("runninglife", () => {
   });
 });
 
+const crumbs = (...names: string[]) =>
+  ld({
+    "@type": "BreadcrumbList",
+    itemListElement: names.map((name, i) => ({ "@type": "ListItem", position: i + 1, name })),
+  });
+const farEvent = (over: Record<string, unknown> = {}) =>
+  ld({
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    name: "Hampton Court Palace Running Festival Presented by Voltarol",
+    startDate: "2027-10-17T09:00:00+01:00",
+    endDate: "2027-10-17",
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    description: "Run a flat 10K or half marathon amid palace history.",
+    organizer: { "@type": "Organization", url: "https://findarace.com/runthroughevents" },
+    location: {
+      "@type": "Place",
+      name: "East Molesey, Surrey",
+      address: "Hampton Court Palace, Molesey, East Molesey KT8 9BN, UK",
+      geo: { "@type": "GeoCoordinates", latitude: 51.4046971, longitude: -0.3417534 },
+    },
+    offers: [{ "@type": "Offer", name: "Half Marathon" }, { "@type": "Offer", name: "10k" }],
+    ...over,
+  });
+const FAR_URL = "https://findarace.com/events/hampton-court-palace-half-marathon/17th-october-2027";
+
+describe("findarace", () => {
+  it("parses an event page: offers for distances, the address for town and country", () => {
+    const c = far.parse(farEvent() + crumbs("Home", "Running", "Half Marathon", "Hampton Court"), FAR_URL);
+    expect(c).toMatchObject({
+      sourceKey: "hampton-court-palace-half-marathon",
+      firstHand: false,
+      name: "Hampton Court Palace Running Festival",
+      date: "2027-10-17",
+      city: "East Molesey",
+      country: "GB",
+      lat: 51.4046971,
+      distances: [10, 21.1],
+      running: true,
+      organiserUrl: "",
+    });
+  });
+  it("keys an event by its slug, so its edition URL and its event URL are one ledger row", () => {
+    const html = farEvent() + crumbs("Home", "Running", "X");
+    expect(far.parse(html, "https://findarace.com/events/hampton-court-palace-half-marathon").sourceKey).toBe(
+      far.parse(html, FAR_URL).sourceKey,
+    );
+  });
+  it("leaves other sports and online events out of running", () => {
+    expect(far.parse(farEvent() + crumbs("Home", "Walk or Run", "X"), FAR_URL).running).toBe(true);
+    expect(far.parse(farEvent() + crumbs("Home", "Walking", "X"), FAR_URL).running).toBe(false);
+    expect(far.parse(farEvent() + crumbs("Home", "Duathlon", "Sprint", "X"), FAR_URL).running).toBe(false);
+    const online = farEvent({ eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" });
+    expect(far.parse(online + crumbs("Home", "Running", "X"), FAR_URL).running).toBe(false);
+    // A short trail names no sport: the name is left to classify.
+    expect(far.parse(farEvent() + crumbs("Home", "Leeds Half Marathon"), FAR_URL).running).toBe(true);
+  });
+  it("falls back to the name, then the description, for distances", () => {
+    const noKm = farEvent({ name: "Colchester Half Marathon", offers: [{ name: "General Entry" }] });
+    expect(far.parse(noKm, FAR_URL).distances).toEqual([21.1]);
+    const bare = farEvent({ name: "Squirrel Challenge", offers: [] });
+    expect(far.parse(bare, FAR_URL).distances).toEqual([10, 21.1]);
+  });
+  it("reads town and country off UK, Irish and cut-short addresses", () => {
+    expect(far.addressParts("Graves Park, Sheffield, S8 8LL, United Kingdom")).toEqual({ city: "Sheffield", country: "GB" });
+    expect(far.addressParts("Durham Amateur Rowing Club, Durham, DH1 3, UK")).toEqual({ city: "Durham", country: "GB" });
+    expect(far.addressParts("Custom House Quay, Dublin 1, D01 F5P2, Ireland")).toEqual({ city: "Dublin 1", country: "IE" });
+    expect(far.addressParts("Barcelona")).toEqual({ city: "", country: "" });
+  });
+  it("never takes a county or a UK nation for the town", () => {
+    expect(far.addressParts("Ware, Hertfordshire, SG12 9AA, United Kingdom")).toEqual({ city: "Ware", country: "GB" });
+    expect(far.addressParts("Seaford, E Sussex, BN25 1AA, England")).toEqual({ city: "Seaford", country: "GB" });
+    expect(far.addressParts("Ashton Court, Bristol, England, United Kingdom")).toEqual({ city: "Bristol", country: "GB" });
+    expect(far.addressParts("Hyde Park, London, W2 2UH, UK")).toEqual({ city: "London", country: "GB" });
+  });
+  it("returns null for a page with no event", () => {
+    expect(far.parse("<html></html>", FAR_URL)).toBeNull();
+  });
+});
+
+const atsCourse = (name: string, type: string) =>
+  `<a data-toggle="collapse" href="#parcours-1">\n ${name} </a></h4></div><div class="panel-body">` +
+  `<p><strong>Départ :</strong> <span class="text-theme">Samedi</span></p>` +
+  `<p><strong>Distance :</strong> <span class="text-theme">${type}</span></p></div>`;
+const ATS_URL = "https://ats-sport.com/epreuve.php?id_epreuve=9660";
+const atsPage = (...courses: string[]) =>
+  ld({
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    name: "Semi-Marathon de SETE ",
+    startDate: "2027-10-02T00:00:00",
+    endDate: "2027-10-02",
+    eventStatus: "https://schema.org/EventScheduled",
+    url: ATS_URL,
+    location: { "@type": "Place", address: { addressLocality: "St Girons", addressRegion: "09", addressCountry: "France" } },
+  }) + courses.join("");
+
+describe("atssport", () => {
+  it("discovers event pages only", () => {
+    const xml =
+      "<urlset><url><loc>https://ats-sport.com/epreuve.php?id_epreuve=9660</loc><lastmod>2026-11-14</lastmod></url>" +
+      "<url><loc>https://ats-sport.com/resultats_epreuve.php?epreuve=8035&amp;parcours=20451</loc><lastmod>2026-11-14</lastmod></url>" +
+      "<url><loc>https://ats-sport.com/epreuve.php?id_epreuve=1</loc><lastmod>2025-01-01</lastmod></url></urlset>";
+    expect(ats.discover(xml, "2026-11-01").map((u: { url: string }) => u.url)).toEqual([ATS_URL]);
+  });
+  it("keeps the running courses, with a distance from the name or the course type", () => {
+    const c = ats.parse(
+      atsPage(
+        atsCourse("Semi Marathon de  Sète", "Semi Marathon"),
+        atsCourse("le 10km", "Course sur route"),
+        atsCourse("Trail des Salines 23Km, 1500 D+", "Trail"),
+        atsCourse("Marche Nordique 12 km", "Marche nordique"),
+        atsCourse("Courses enfants 1 km", "Course enfant"),
+        atsCourse("La Gravel 63 kms (ANNULE)", "Trail"),
+      ),
+      ATS_URL,
+    );
+    expect(c).toMatchObject({
+      sourceKey: "9660",
+      firstHand: true,
+      name: "Semi-Marathon de SETE",
+      date: "2027-10-02",
+      city: "St Girons",
+      region: "09",
+      country: "FR",
+      lat: null,
+      distances: [10, 21.1, 23],
+      running: true,
+    });
+  });
+  it("leaves out bike, dog, walk and kids' courses whatever their type", () => {
+    const c = ats.parse(
+      atsPage(
+        atsCourse("XC 45 km", "Cross-country VTT"),
+        atsCourse("Cani 25 km", "Cani-cross"),
+        atsCourse("Rando 30 km", "Rando semi-nocturne"),
+        atsCourse("Trail enfants 2 km", "Trail"),
+        atsCourse("Course pédestre 15 km", "Course pédestre"),
+        atsCourse("Trail du Canigou 42 km", "Trail"),
+        atsCourse("Foulées de Marcheprime 12 km", "Course sur route"),
+      ),
+      ATS_URL,
+    );
+    expect(c.distances).toEqual([12, 15, 42.2]);
+  });
+  it("is not running when no course is", () => {
+    const c = ats.parse(atsPage(atsCourse("Format S Solo", "Swimrun"), atsCourse("128 KMS", "Cyclotourisme")), ATS_URL);
+    expect(c.running).toBe(false);
+  });
+  it("looks the town up by its official name, in its département, and only trusts a same-name commune", () => {
+    const c = ats.parse(atsPage(atsCourse("10 km", "Course sur route")), ATS_URL);
+    const q = new URL(ats.communeQuery(c));
+    expect(q.host).toBe("geo.api.gouv.fr");
+    expect(q.searchParams.get("nom")).toBe("Saint Girons");
+    expect(q.searchParams.get("codeDepartement")).toBe("09");
+    const found = [
+      { nom: "Vielle-Saint-Girons", centre: { coordinates: [-1.32, 43.94] } },
+      { nom: "Saint-Girons", centre: { coordinates: [1.1591, 42.9681] } },
+    ];
+    expect(ats.pickCommune(found, "St Girons")).toEqual({ lat: 42.9681, lng: 1.1591 });
+    expect(ats.pickCommune([found[0]], "St Girons")).toBeNull();
+    const twins = [
+      { nom: "Saint-Denis", centre: { coordinates: [2.35, 48.93] } },
+      { nom: "Saint-Denis", centre: { coordinates: [55.45, -20.88] } },
+    ];
+    expect(ats.pickCommune(twins, "Saint Denis")).toBeNull();
+    expect(ats.pickCommune(null, "St Girons")).toBeNull();
+    expect(ats.communeQuery({ ...c, country: "ES" })).toBeNull();
+  });
+});
+
 describe("matchRace", () => {
   it("matches on the organiser's own site", () => {
     const c = rts.parse(RTS_PAGE, "https://web.rockthesport.com/es/event/xxvi-media-maraton-san-sebastian-2027");
@@ -354,6 +530,15 @@ describe("apply: cleanName", () => {
     ["X-Trail Valencia", "X-Trail Valencia"],
     ["10K Circuit de Jerez, Jerez", "10K Circuit de Jerez, Jerez"],
     ["Lliga de Muntanya València Sud. 26/27", ""],
+    ["TRAIL DES FOULEES POUSSANAISES (7ème édition)", "Trail des Foulees Poussanaises"],
+    ["Trail Nocturne de l'Ecoparc Catalan - 4ème édition", "Trail Nocturne de l'Ecoparc Catalan"],
+    ["35° BOUCLES DE MAGUELONE", "Boucles de Maguelone"],
+    ["Clermont l'Hérault Urban Trail CHUT 2026 By GROUPAMA", "Clermont l'Hérault Urban Trail CHUT"],
+    ["Run by the Sea", "Run by the Sea"],
+    ["Media Maratón Elche 7ª edición", "Media Maratón Elche"],
+    ["Trail 4e Édition des Lacs", "Trail des Lacs"],
+    ["Trail 1a Edición Sierra", "Trail Sierra"],
+    ["Semi-Marathon de Paris - Édition 2027", "Semi-Marathon de Paris"],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([
     ["17007 Girona", "Girona"],

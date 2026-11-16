@@ -137,7 +137,7 @@ const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(
 const WEEKEND = new Set([0, 6]);
 const VIRTUAL_RE = /\bvirtual\b/i;
 const TBC_RE = /\b(?:tbc|tba|to be (?:confirmed|announced)|provisional|a confirmar|por confirmar|pendiente de confirmar)\b|à confirmer/i;
-const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|training event|entreno)/i;
+const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|sportive|training event|entreno)/i;
 
 /**
  * The verdict on one candidate.

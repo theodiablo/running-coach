@@ -1,4 +1,4 @@
-# Race-catalogue crawler: reads Rock the Sport and running.life, adds the clean
+# Race-catalogue crawler: reads Rock the Sport, Find a Race and ATS Sport, adds the clean
 # proposals to the catalogue as UNVERIFIED rows and logs every proposal in
 # race_crawl_items (the ledger the review skill works from). The report is the
 # job summary and an artifact. Detail: docs/race-crawler.md.
@@ -12,9 +12,10 @@ on:
     inputs:
       sources:
         description: "Comma-separated sources"
-        default: "rockthesport,runninglife"
+        # runninglife is local-only: Cloudflare refuses GitHub's runners.
+        default: "rockthesport,findarace,atssport"
       since_days:
-        description: "Rock the Sport: pages changed in the last N days"
+        description: "Sitemap sources: pages changed in the last N days"
         default: "15"
       max_pages:
         description: "Cap per sitemap / country calendar (0 = no cap)"
@@ -48,7 +49,7 @@ jobs:
           SUPABASE_URL: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SOURCES: ${{ inputs.sources || 'rockthesport,runninglife' }}
+          SOURCES: ${{ inputs.sources || 'rockthesport,findarace,atssport' }}
           SINCE_DAYS: ${{ inputs.since_days || '15' }}
           MAX_PAGES: ${{ inputs.max_pages || '0' }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}

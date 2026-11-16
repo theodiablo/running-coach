@@ -63,19 +63,30 @@ migration logs what that run left for review and the aggregator-only races.
 Before adding a source, run the **Race source probe** workflow
 (`race-source-probe.yml`, `scripts/race-crawler/probe.mjs`): it requests one
 page per candidate from GitHub's runners, which some sites refuse even though
-they answer a desk (running.life returned 403 to the first scheduled run).
+they answer a desk. Also read the site's terms, not only its robots.txt.
+
+running.life is **local only** (`--sources runninglife`): Cloudflare answers
+GitHub's runners with a challenge (403), its race sitemaps included, so the
+scheduled run leaves it out. A feed or an allowance agreed with running.life is
+the way back into the schedule, not a way round the challenge.
 
 
 | Source | Countries | Kind | Discovery | Extraction |
 |---|---|---|---|---|
 | Rock the Sport | ES (also PT, AD, MX, PA) | registration platform: first-hand | per-country event sitemaps, by `lastmod` | `SportsEvent` JSON-LD + the page's Next.js payload (`subsports`, fare names and descriptions, city, country) |
-| running.life | ES, FR, GB, IE | aggregator: second-hand | per-country calendar, 20 events a page | the listing's `ItemList` JSON-LD; the event page only for survivors (full description, organiser link) |
+| Find a Race | GB (some IE, FR, ES) | listings, some entries: second-hand | `events-current` (each event's next edition) and `events-future` sitemaps, by `lastmod` | `SportsEvent` JSON-LD (offer names for distances, address for town and country); the breadcrumb's sport keeps out triathlons and the like |
+| ATS Sport | FR (mostly the south) | registration and timing platform: first-hand | the sitemap's `epreuve.php` URLs, by `lastmod` | `SportsEvent` JSON-LD (name, date, town, département) + the course list: each course's type keeps the runs ("Trail", "Course sur route", "Semi Marathon"…), its name gives the distance. No coordinates on the page: the town's centre comes from geo.api.gouv.fr (official name, same département), best effort |
+| running.life (local only) | ES, FR, GB, IE | aggregator: second-hand | per-country calendar, 20 events a page | the listing's `ItemList` JSON-LD; the event page only for survivors (full description, organiser link) |
 
 A source is an adapter in `scripts/race-crawler/sources/` returning the same
 candidate shape (`rockthesport.mjs` is the reference). Parsers are pure and
 tested on fixtures shaped like the real pages (`src/raceCrawler.test.ts`), so a
-site redesign fails a test, not the catalogue. Sources checked and left out
-(Cloudflare, robots, terms): see the PR that added this.
+site redesign fails a test, not the catalogue. Checked and left out:
+RunIreland (its events calendar has held almost nothing since 2020), njuko
+(registration pages only, no public list of events), Finishers (its terms forbid
+automated collection, and building a calendar from its data, without written
+agreement), the FFA calendar (robots.txt disallows it), and Protiming, Klikego
+and Popup Races (they refuse GitHub's runners).
 
 ## Curated policy (`classify.mjs`, `POLICY`)
 
@@ -85,8 +96,8 @@ site redesign fails a test, not the catalogue. Sources checked and left out
 - **New races are a higher bar than new editions.** A race the catalogue lacks
   needs a half marathon or longer, and a marathon or longer when only an
   aggregator lists it (a half seen in two sources still counts).
-- **Aggregator dates are never trusted alone**: every running.life proposal is
-  flagged "second-hand date", to be confirmed on the organiser's site, as the
+- **Aggregator dates are never trusted alone**: every Find a Race or
+  running.life proposal is flagged "second-hand date", to be confirmed on the organiser's site, as the
   curation rules in `docs/races.md` require. Weekday dates are flagged.
 
 - **Terrain:** a new race is `trail` when its source says so (Rock the Sport's
@@ -111,6 +122,8 @@ edition within 75 days of it), or `newEdition`.
 
 ## Next
 
-More sources, one adapter each: Find a Race (UK) and RunIreland (Ireland,
-WordPress events API) as second sources, which also lets aggregator-only races
-in through the two-source rule.
+France has only ATS Sport, which is regional, and Ireland only what Find a
+Race lists. Candidates: Le-Sportif (French registration platform; answers
+GitHub, but its pages carry no structured data) and Eventmaster (Irish
+registration). The FFA's calendar would be the complete French source, but
+only with the federation's agreement.
