@@ -129,6 +129,15 @@ const candidate = (over: Record<string, unknown>) => ({
   ...over,
 });
 
+describe("parseDistances: not race distances", () => {
+  it.each([
+    ["Relais 4x10km", []],
+    ["Duo 2 x 12 km", []],
+    ["Relais 4x10km et 25 km", [25]],
+    ["Allure 10 km/h", []],
+  ])("%s", (text, kms) => expect(parseDistances(text)).toEqual(kms));
+});
+
 describe("parseDistances", () => {
   it.each([
     ["CARRERA 10KM | MEDIO MARATÓN 21KM", [10, 21.1]],
@@ -199,6 +208,18 @@ describe("rockthesport", () => {
     const { distances } = rts.parse(page, "https://web.rockthesport.com/es/event/miut");
     expect(distances).toEqual(expect.arrayContaining([40, 110]));
     expect(distances).not.toContain(42.2);
+  });
+  it("takes no distance from a walk, kids', relay or bike fare", () => {
+    const page = RTS_PAGE.replace(
+      "</body>",
+      flight('{"publicName":"Marcha 12K","description":"","active":true},' +
+        '{"publicName":"Niños 10k","description":"","active":true},' +
+        '{"publicName":"Relevos 4x10km","description":"","active":true},' +
+        '{"publicName":"Carrera 15K","description":"","active":true}') + "</body>",
+    );
+    const { distances } = rts.parse(page, "https://web.rockthesport.com/es/event/x");
+    expect(distances).toContain(15);
+    expect(distances).not.toContain(12);
   });
   it("returns null for a page with no event", () => {
     expect(rts.parse("<html></html>", "https://web.rockthesport.com/es/event/x")).toBeNull();

@@ -312,7 +312,9 @@ async function main() {
   }
   const all = mergeSources(proposals).sort((a, b) => a.candidate.date.localeCompare(b.candidate.date));
   const worth = all.filter(worthProposing);
-  dropped[`new race under ${POLICY.minNewRaceKmSecondHand} km, one aggregator only`] = all.length - worth.length;
+  if (all.length > worth.length) {
+    dropped[`new race under ${POLICY.minNewRaceKmSecondHand} km, one aggregator only`] = all.length - worth.length;
+  }
 
   const keyOf = (p) => ledgerKey(p.candidate);
   if (!args.apply && args.state) {
