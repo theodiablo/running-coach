@@ -20,7 +20,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./races", () => ({
-  listRaces: async () => [],
+  listKnownRaces: async () => [],
   addRace: vi.fn(),
   addEdition: vi.fn(),
   reportRace: vi.fn(),

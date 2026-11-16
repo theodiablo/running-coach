@@ -331,6 +331,8 @@ export type Participation = Record<string, unknown> & {
   runId?: string | null;
   source?: string;
   notes?: string;
+  // The runner's goal finish time for this race; the training target's own goal stays settings.goalSec.
+  goalSec?: number | null;
 };
 
 export type RacesState = Record<string, unknown> & {
@@ -362,6 +364,9 @@ export type CatalogueRace = Record<string, unknown> & {
   url?: string | null;
   createdBy?: string | null;
   verified?: boolean;
+  terrain?: "road" | "trail" | null;
+  // Set on a search result only, from the coarse Near me point.
+  distKm?: number | null;
   editions: CatalogueEdition[];
 };
 

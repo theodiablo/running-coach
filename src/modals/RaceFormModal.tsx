@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { MapPin, Check, Plus, AlertTriangle, Loader } from "lucide-react";
@@ -6,6 +6,8 @@ import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { track } from "../telemetry";
 import { LocationPicker } from "../components/LocationPicker";
 import { deleteRace } from "../races";
+import type { RaceTerrain } from "../races";
+import { useRaceSearch } from "../hooks/useRaceSearch";
 import { notifyContribution } from "../notify";
 import { countryCode, countryName } from "../utils/country";
 import type { CatalogueRace, CatalogueEdition } from "../types";
@@ -22,8 +24,7 @@ type RaceForm = {
 };
 type RaceFormPrefill = { date?: string; distanceKm?: string | number; elevation?: string | number };
 type RaceFormModalProps = {
-  catalogue: CatalogueRace[];
-  addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null }) => Promise<CatalogueRace>;
+  addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null; terrain?: RaceTerrain | null }) => Promise<CatalogueRace>;
   addEdition: (edition: { raceSlug: string; date: string; distanceKm: number; elevation: number }) => Promise<CatalogueEdition>;
   onContributed?: () => void | Promise<void>;
   showToast: (msg: string, type?: string) => void;
@@ -34,15 +35,16 @@ type RaceFormModalProps = {
 
 // "Add a race": contributes to the SHARED catalogue (instant, global); new entries are always unverified
 // and tagged so. A live duplicate search steers a user adding a new date to the existing race (add an edition).
-// Props: catalogue, addRace/addEdition, onContributed, showToast, onClose; `prefill` seeds the form;
+// Props: addRace/addEdition, onContributed, showToast, onClose; `prefill` seeds the form;
 // `onCreated(editionId)` hands the new edition back to the caller instead of toast-and-close.
-export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, showToast, onClose, prefill, onCreated }: RaceFormModalProps) {
+export function RaceFormModal({ addRace, addEdition, onContributed, showToast, onClose, prefill, onCreated }: RaceFormModalProps) {
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const [selected, setSelected] = useState<CatalogueRace | null>(null); // an existing race to add a date to
   const [f, setF] = useState<RaceForm>({ name: "", city: "", country: "", url: "",
     date: prefill?.date || "", distanceKm: prefill?.distanceKm ?? "", elevation: prefill?.elevation ?? "" });
   const [loc, setLoc] = useState<LatLng | null>(null);   // { lat, lng } picked on the map
+  const [terrain, setTerrain] = useState<RaceTerrain>("road");
   const [showPicker, setShowPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -50,13 +52,9 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
   const typedCountry = countryCode(f.country);
 
   // Live duplicate search on the name field (skipped once a race is selected).
-  const matches = useMemo(() => {
-    const q = f.name.trim().toLowerCase();
-    if (selected || q.length < 2) return [];
-    return (catalogue || [])
-      .filter(r => (r.name + " " + (r.city || "") + " " + (r.country || "")).toLowerCase().includes(q))
-      .slice(0, 5);
-  }, [catalogue, f.name, selected]);
+  const q = f.name.trim();
+  const dupes = useRaceSearch({ query: q, limit: 5 }, !selected && q.length >= 2);
+  const matches = !selected && q.length >= 2 ? dupes.races : [];
 
   const submit = async () => {
     setErr("");
@@ -81,7 +79,7 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
         name = f.name.trim();
         const race = await addRace({
           name, city: f.city.trim() || null, country,
-          lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: f.url.trim() || null,
+          lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: f.url.trim() || null, terrain,
         });
         raceSlug = race.slug || race.id;
         createdRaceSlug = raceSlug;
@@ -149,6 +147,17 @@ export function RaceFormModal({ catalogue, addRace, addEdition, onContributed, s
                   <input value={f.country} onChange={e => set("country", e.target.value)} placeholder={t("races.form.countryPlaceholder")} maxLength={2}
                     autoCapitalize="characters" aria-required="true" className={INPUT_CLS}/>
                   {typedCountry && <p className="text-[11px] text-slate-400 mt-1 truncate">{countryName(typedCountry, i18n.language) || typedCountry}</p>}</div>
+              </div>
+              <div role="radiogroup" aria-label={t("races.filters.terrain")}>
+                <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
+                <div className="flex bg-slate-900 rounded-xl p-1 gap-1">
+                  {(["road", "trail"] as const).map(v => (
+                    <button key={v} role="radio" aria-checked={terrain === v} onClick={() => setTerrain(v)}
+                      className={"flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors " + (terrain === v ? "bg-slate-700 text-white" : "text-slate-400 hover:text-slate-200")}>
+                      {t("races.filters." + v)}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div><label className={LABEL_CLS}>{t("races.form.officialSite")}</label>
                 <input value={f.url} onChange={e => set("url", e.target.value)} placeholder={t("races.form.officialSitePlaceholder")} maxLength={300} className={INPUT_CLS}/></div>

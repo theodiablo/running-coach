@@ -4,10 +4,12 @@ import { WhatsNextSheet } from "./WhatsNextSheet";
 import { track } from "../telemetry";
 import { dismissTop } from "../utils/backDismiss";
 import { hydrateCatalogue } from "../utils/races";
+import { searchRaces } from "../races";
 import type { BlockRecap } from "../utils/blockRecap";
 import type { Participation, Run } from "../types";
 
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
+vi.mock("../races", () => ({ searchRaces: vi.fn(async () => ({ races: [], next: null, total: 0 })) }));
 vi.useFakeTimers({ shouldAdvanceTime: true });
 vi.setSystemTime(new Date("2026-10-20T09:00:00"));
 
@@ -93,13 +95,14 @@ describe("WhatsNextSheet", () => {
       { choice: "race", edition: expect.objectContaining({ name: "Valencia 10K", edition: expect.objectContaining({ id: "ed1", date: "2026-12-06" }) }) }, "fired");
   });
 
-  it("suggests catalogue races when nothing is on the list", () => {
-    hydrateCatalogue([{ id: "r1", name: "City 10K", editions: [{ id: "e1", date: "2026-12-20", distanceKm: 10 }] }] as never);
+  it("suggests catalogue races when nothing is on the list", async () => {
+    vi.mocked(searchRaces).mockResolvedValue({ races: [{ id: "r1", name: "City 10K", editions: [{ id: "e1", date: "2026-12-20", distanceKm: 10 }] }], next: null, total: 1 });
     const onAnswer = mount();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: /Fired up/ }));
     expect(screen.getByText("Races that fit")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Train for it" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Train for it" }));
+    expect(vi.mocked(searchRaces).mock.calls[0][0]).toMatchObject({ from: "2026-12-01", to: "2027-04-06", minKm: 7.5, maxKm: 12.5 });
     expect(onAnswer.mock.calls[0][0]).toMatchObject({ choice: "race", edition: { name: "City 10K" } });
   });
 

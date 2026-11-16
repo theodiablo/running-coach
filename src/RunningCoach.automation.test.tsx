@@ -30,7 +30,7 @@ vi.mock("./db", () => ({
   subscribeStoreReconciled: (cb: () => void) => { reconciledListeners.add(cb); return () => { reconciledListeners.delete(cb); }; },
   isCached: () => cached,
 }));
-vi.mock("./races", () => ({ listRaces: async () => [], addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
+vi.mock("./races", () => ({ listKnownRaces: async () => [], addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
 vi.mock("./telemetry", () => ({ track: vi.fn() }));
 vi.mock("./modals/CoachChat", () => ({
   CoachChat: ({ onNavigate }: { onNavigate: (t: string) => void }) => <button onClick={() => onNavigate("next")}>Open what's next</button>,

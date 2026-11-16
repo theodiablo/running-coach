@@ -113,6 +113,14 @@ import type { CoachChatSnapshot } from "./modals/CoachChat";
 // Lazy: the stretching sheet, player and figures load on first open.
 const StretchSheet = lazy(() => import("./modals/StretchSheet").then(m => ({ default: m.StretchSheet })));
 
+// Every catalogue edition the account refers to: its races, its target, and the plan's RACE sessions.
+function referencedEditionIds(parts: Participation[] = [], settings: Partial<SettingsState> | null, plan: Plan | null) {
+  const ids = parts.map(p => p.editionId);
+  ids.push(settings?.targetEditionId);
+  for (const w of plan?.weeks || []) for (const x of w.sessions || []) ids.push(x.editionId);
+  return [...new Set(ids.filter((id): id is string => !!id))];
+}
+
 // Pure helper: thanks the user once when a maintainer verifies their OWN catalogue contribution.
 // `ackVerified` (personal blob) records acknowledged ids; returns updated races + fresh ids.
 // Seeds silently on the first reconcile so a pre-existing set never floods.
@@ -454,7 +462,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       // Load the shared catalogue WITHOUT blocking the splash: a slow/down
       // Supabase must not delay the app. On resolve, publish it and thank the
       // user for any of their contributions that a maintainer has since verified.
-      loadCatalogue().then(cat => {
+      loadCatalogue({ editionIds: referencedEditionIds(loaded.participations, s, p), userId: currentUserId() }).then(cat => {
         setCatalogue(cat);
         // Merge onto the freshest races (racesRef), NOT the boot snapshot: the
         // user may have wishlisted/logged during the load, and that change must
@@ -843,7 +851,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // Re-fetch + re-hydrate the catalogue (after a user contributes), so the new
   // entry shows immediately — contributions are instant + global.
-  const refreshCatalogue = async () => { setCatalogue(await loadCatalogue()); };
+  const refreshCatalogue = async () => {
+    setCatalogue([...await loadCatalogue({ editionIds: referencedEditionIds(races.participations, settings, plan), userId: currentUserId() })]);
+  };
 
   // Promote a catalogue edition to the training target: stash the prefill and open PlanView's
   // setup. Nothing is committed until the user picks a goal and builds (PlanView sets
@@ -1528,7 +1538,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </ChunkLoadBoundary>
       )}
       {showRaceForm && <RaceFormModal
-        catalogue={catalogue} addRace={addRace} addEdition={addEdition}
+        addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
