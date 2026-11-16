@@ -353,6 +353,19 @@ describe("atssport", () => {
       running: true,
     });
   });
+  it("leaves out bike, dog, walk and kids' courses whatever their type", () => {
+    const c = ats.parse(
+      atsPage(
+        atsCourse("XC 45 km", "Cross-country VTT"),
+        atsCourse("Cani 25 km", "Cani-cross"),
+        atsCourse("Rando 30 km", "Rando semi-nocturne"),
+        atsCourse("Trail enfants 2 km", "Trail"),
+        atsCourse("Course pédestre 15 km", "Course pédestre"),
+      ),
+      ATS_URL,
+    );
+    expect(c.distances).toEqual([15]);
+  });
   it("is not running when no course is", () => {
     const c = ats.parse(atsPage(atsCourse("Format S Solo", "Swimrun"), atsCourse("128 KMS", "Cyclotourisme")), ATS_URL);
     expect(c.running).toBe(false);
@@ -369,6 +382,11 @@ describe("atssport", () => {
     ];
     expect(ats.pickCommune(found, "St Girons")).toEqual({ lat: 42.9681, lng: 1.1591 });
     expect(ats.pickCommune([found[0]], "St Girons")).toBeNull();
+    const twins = [
+      { nom: "Saint-Denis", centre: { coordinates: [2.35, 48.93] } },
+      { nom: "Saint-Denis", centre: { coordinates: [55.45, -20.88] } },
+    ];
+    expect(ats.pickCommune(twins, "Saint Denis")).toBeNull();
     expect(ats.pickCommune(null, "St Girons")).toBeNull();
     expect(ats.communeQuery({ ...c, country: "ES" })).toBeNull();
   });
@@ -516,6 +534,9 @@ describe("apply: cleanName", () => {
     ["Clermont l'Hérault Urban Trail CHUT 2026 By GROUPAMA", "Clermont l'Hérault Urban Trail CHUT"],
     ["Run by the Sea", "Run by the Sea"],
     ["Media Maratón Elche 7ª edición", "Media Maratón Elche"],
+    ["Trail 4e Édition des Lacs", "Trail des Lacs"],
+    ["Trail 1a Edición Sierra", "Trail Sierra"],
+    ["Semi-Marathon de Paris - Édition 2027", "Semi-Marathon de Paris"],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([
     ["17007 Girona", "Girona"],

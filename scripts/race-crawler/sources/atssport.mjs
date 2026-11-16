@@ -12,7 +12,10 @@ export const GEO_HOST = "geo.api.gouv.fr";
 
 const STATUS = { EventCancelled: "cancelled", EventPostponed: "postponed", EventScheduled: "scheduled" };
 // A course's own type ("Distance :" on the page); kids' races, walks, bikes and swimruns are not runs.
-const RUN_TYPE = /trail|course sur route|course nature|semi|marathon|cross|kilom[eè]tre vertical|course [aà] pied|hors stade/i;
+const RUN_TYPE =
+  /\btrail\b|course sur route|course nature|\bsemi[ -]?marathon|\bmarathon|\bcross\b(?!-country vtt)|kilom[eè]tre vertical|course [aà] pied|course p[ée]destre|hors stade/i;
+// A bike, dog, walk or kids' course, whatever its type says ("VTT trail", "Cani-cross", "Trail enfants").
+const NOT_RUN = /\bvtt\b|v[ée]lo|bike|cani|marche|rando|enfant|kid|jeune|poussin|benjamin|crossfit/i;
 const TYPE_KM = { "semi marathon": 21.1, "semi-marathon": 21.1, marathon: 42.2 };
 const CANCELLED = /\bannul[ée]e?\b/i;
 
@@ -20,7 +23,7 @@ const CANCELLED = /\bannul[ée]e?\b/i;
 export function discover(sitemapXml, sinceIso) {
   const out = [];
   for (const m of sitemapXml.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
-    const loc = m[1].match(/<loc>([^<]+)<\/loc>/)?.[1]?.replace(/&amp;/g, "&");
+    const loc = m[1].match(/<loc>([^<]+)<\/loc>/)?.[1]?.trim().replace(/&amp;/g, "&");
     const lastmod = m[1].match(/<lastmod>([^<]+)<\/lastmod>/)?.[1] ?? "";
     if (!loc || !/\/epreuve\.php\?id_epreuve=\d+$/.test(loc)) continue;
     if (!sinceIso || !lastmod || lastmod.slice(0, 10) >= sinceIso) out.push({ url: loc, lastmod });
@@ -49,7 +52,9 @@ export function courses(html) {
 export function parse(html, url) {
   const ev = jsonLdBlocks(html).find((b) => b["@type"] === "SportsEvent");
   if (!ev?.name || !ev.startDate) return null;
-  const runs = courses(html).filter((c) => RUN_TYPE.test(c.type) && !CANCELLED.test(c.name));
+  const runs = courses(html).filter(
+    (c) => RUN_TYPE.test(c.type) && !NOT_RUN.test(`${c.type} ${c.name}`) && !CANCELLED.test(c.name),
+  );
   const distances = runs.flatMap((c) => {
     const km = parseDistances(c.name, { explicitWins: true });
     return km.length ? km : (TYPE_KM[c.type.toLowerCase()] ?? []);
@@ -89,17 +94,19 @@ const officialName = (city) =>
 /** The commune search for a candidate's town, or null when there is nothing to look up. */
 export function communeQuery(c) {
   if (c.country !== "FR" || !c.city) return null;
-  const params = new URLSearchParams({ nom: officialName(c.city), fields: "nom,centre,codeDepartement", boost: "population", limit: "5" });
+  const params = new URLSearchParams({ nom: officialName(c.city), fields: "nom,centre,codeDepartement", boost: "population", limit: "10" });
   if (/^(?:\d{2,3}|2[AB])$/i.test(c.region)) params.set("codeDepartement", c.region.toUpperCase());
   return `https://${GEO_HOST}/communes?${params}`;
 }
 
 const key = (s) => stripAccents(s).toLowerCase().replace(/[^a-z]+/g, " ").trim();
 
-/** The commune's centre, only when its name is the town's; else null. */
+/** The commune's centre, only when exactly one commune bears the town's name; else null. */
 export function pickCommune(results, city) {
   const want = key(officialName(city));
-  const hit = (Array.isArray(results) ? results : []).find((r) => key(r?.nom ?? "") === want);
+  const same = (Array.isArray(results) ? results : []).filter((r) => key(r?.nom ?? "") === want);
+  // Without a département, Saint-Denis (93) and Saint-Denis (974) both answer: no guess.
+  const hit = same.length === 1 ? same[0] : null;
   const [lng, lat] = hit?.centre?.coordinates ?? [];
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }

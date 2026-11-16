@@ -58,7 +58,14 @@ export function cleanName(name, date = "") {
         .trim(),
     )
     .filter((p, i) => p && !isSeriesPart(p, i));
-  let n = parts.join(", ").replace(EDITION, "").replace(ROMAN_DASH, "").replace(ROMAN, "").replace(ORDINAL, "");
+  let n = parts
+    .join(", ")
+    .replace(EDITION, " ")
+    .replace(/\s*(?:[–-]\s*)?(?:é|e)dition$/iu, "")
+    .trim()
+    .replace(ROMAN_DASH, "")
+    .replace(ROMAN, "")
+    .replace(ORDINAL, "");
   if (mostlyCaps(n)) n = titleCase(n);
   else n = n.replace(SPONSOR_TAIL, "");
   n = n.replace(/\s+/g, " ").replace(/[\s.,–-]+$/, "").trim();
