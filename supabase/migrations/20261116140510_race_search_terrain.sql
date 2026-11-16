@@ -22,7 +22,7 @@ create or replace function public.search_races(
   p_max_km double precision default null,
   p_from date default null,
   p_to date default null,
-  p_country text default null,
+  p_countries text[] default null,
   p_terrain text default null,
   p_verified_only boolean default false,
   p_lat double precision default null,
@@ -76,7 +76,7 @@ as $$
     where (a.next_date is not null or (p.q is not null and a.last_date is not null and p_from is null and p_to is null))
       and (p.q is null or translate(lower(r.name || ' ' || coalesce(r.city, '') || ' ' || coalesce(r.country, '')),
         'áàâäãåéèêëíìîïóòôöõúùûüñçœ', 'aaaaaaeeeeiiiiooooouuuunco') like '%' || p.q || '%')
-      and (p_country is null or r.country = p_country)
+      and (coalesce(cardinality(p_countries), 0) = 0 or r.country = any(p_countries))
       and (p_terrain is null or r.terrain is null or r.terrain = p_terrain)
       and (not coalesce(p_verified_only, false) or r.verified)
   ),
@@ -110,7 +110,7 @@ as $$
   );
 $$;
 
-grant execute on function public.search_races(text, double precision, double precision, date, date, text, text, boolean, double precision, double precision, double precision, text, double precision, text, integer) to anon, authenticated;
+grant execute on function public.search_races(text, double precision, double precision, date, date, text[], text, boolean, double precision, double precision, double precision, text, double precision, text, integer) to anon, authenticated;
 
 -- Countries with an upcoming race, for the Find tab's country filter.
 create or replace function public.race_countries()

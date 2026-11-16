@@ -5,6 +5,7 @@ vi.mock("../telemetry", () => ({ track: vi.fn() }));
 vi.mock("../notify", () => ({ notifyContribution: vi.fn() }));
 vi.mock("../races", () => ({
   deleteRace: vi.fn().mockResolvedValue(undefined),
+  peekRaceSearch: () => null,
   searchRaces: vi.fn().mockResolvedValue({ races: [], next: null, total: 0 }),
 }));
 vi.mock("../components/LocationPicker", () => ({ LocationPicker: () => null }));

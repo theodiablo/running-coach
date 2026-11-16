@@ -163,14 +163,17 @@
     "when3": "Les 3 prochains mois",
     "when6": "Les 6 prochains mois",
     "when12": "L'année prochaine",
-    "country": "Pays",
-    "anyCountry": "Tous les pays",
     "withinKm": "À moins de {{km}} km",
     "verifiedOnly": "Vérifiées seulement",
     "verifiedOnlyHint": "Masquer les courses que personne n'a encore vérifiées",
     "sortSoonest": "Tri : les plus proches dans le temps",
     "sortNearest": "Tri : les plus proches de toi",
-    "clearAll": "Tout effacer"
+    "clearAll": "Tout effacer",
+    "countries": "Pays",
+    "countriesCount_one": "{{count}} pays",
+    "countriesCount_other": "{{count}} pays",
+    "moreCountries_one": "+{{count}} autre",
+    "moreCountries_other": "+{{count}} autres"
   },
   "row": {
     "moreDates_one": "+{{count}} date",

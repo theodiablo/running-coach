@@ -9,7 +9,8 @@ afterEach(cleanup);
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
 vi.mock("../races", () => ({
   reportRace: vi.fn().mockResolvedValue(undefined),
-  listRaceCountries: vi.fn().mockResolvedValue([{ country: "ES", races: 3 }]),
+  listRaceCountries: vi.fn().mockResolvedValue([{ country: "ES", races: 3 }, { country: "FR", races: 2 }]),
+  peekRaceSearch: vi.fn(() => null),
   searchRaces: vi.fn(),
 }));
 vi.mock("../components/races/RaceMiniMap", () => ({ RaceMiniMap: () => null }));
@@ -180,5 +181,18 @@ describe("RacesView · find", () => {
     await vi.waitFor(() => expect(vi.mocked(searchRaces).mock.calls.at(-1)?.[0]).toMatchObject({ minKm: 10, maxKm: 21.1, terrain: "trail" }));
     expect(JSON.parse(localStorage.getItem("rc_race_filters") || "{}")).toMatchObject({ distance: { min: 2, max: 4 }, terrain: "trail" });
     expect(await screen.findByText("No races match — try a different search.")).toBeInTheDocument();
+  });
+});
+
+describe("RacesView · countries and the session cache", () => {
+  it("filters by several countries at once", async () => {
+    localStorage.clear();
+    vi.mocked(searchRaces).mockResolvedValue({ races: [], next: null, total: 0 });
+    renderRaces([]);
+    fireEvent.click(screen.getByRole("button", { name: "Find a race" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Spain/ }));
+    await vi.waitFor(() => expect(vi.mocked(searchRaces).mock.calls.at(-1)?.[0]).toMatchObject({ countries: ["ES"] }));
+    expect(screen.getByRole("button", { name: "Remove filter: Spain" })).toBeInTheDocument();
   });
 });

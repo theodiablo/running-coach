@@ -26,7 +26,7 @@ races module.
 
 **The catalogue is searched on the server, never downloaded whole.**
 `search_races` (security invoker, executable by anon) takes the text, a km
-range, a date window, country, terrain, verified-only and an optional point +
+range, a date window, any of several countries, terrain, verified-only and an optional point +
 radius, and returns one page of races (20 by default) with all their editions,
 a keyset cursor (`{key, slug}`: days to the next matching edition, or km away
 when sorted by distance) and, on the first page, the total. An edition matches
@@ -38,7 +38,11 @@ lists the countries with an upcoming race for the country filter.
 `useRaceSearch` (`src/hooks/`) is the one client: debounced 300 ms, a late
 response for an older query dropped, Load more appending by cursor. Find,
 the onboarding race picker, the "Add a race" duplicate check and What's next?
-suggestions all go through it. Near me sends the fix rounded to 0.01° (~1 km)
+suggestions all go through it. `searchRaces` keeps the pages it fetched in memory
+for 5 minutes (`SEARCH_CACHE_MS`, 50 pages; `race_countries` the same), so going
+back to a filter or the tab answers at once with no debounce; a contribution
+clears it, a failure is never cached, and nothing is persisted (the catalogue
+changes weekly and the query is milliseconds). Near me sends the fix rounded to 0.01° (~1 km)
 and only as a call argument: it is never stored or sent to telemetry.
 
 Filters live in `src/utils/raceFilters.ts`: the distance slider's stops

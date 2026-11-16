@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { searchRaces } from "../races";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { peekRaceSearch, searchRaces } from "../races";
 import type { RaceCursor, RaceSearchParams } from "../races";
 import { rememberRaces } from "../utils/races";
 import type { CatalogueRace } from "../types";
@@ -19,7 +19,8 @@ export type RaceSearch = {
 };
 
 // Paged server-side catalogue search. Loading is derived (the settled key lags the asked one), so
-// no state is set synchronously in the effect; a late response for an older key is dropped.
+// no state is set synchronously in the effect; a late response for an older key is dropped. A page
+// cached this session renders at once, with no debounce.
 export function useRaceSearch(params: RaceSearchParams, enabled = true): RaceSearch {
   const query = JSON.stringify(params);
   const [attempt, setAttempt] = useState(0);
@@ -27,8 +28,9 @@ export function useRaceSearch(params: RaceSearchParams, enabled = true): RaceSea
   const [settled, setSettled] = useState<Settled | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
+
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || peekRaceSearch(JSON.parse(query) as RaceSearchParams)) return;
     let live = true;
     const timer = setTimeout(async () => {
       try {
@@ -44,7 +46,11 @@ export function useRaceSearch(params: RaceSearchParams, enabled = true): RaceSea
     return () => { live = false; clearTimeout(timer); };
   }, [key, query, enabled]);
 
-  const current = settled?.key === key ? settled : null;
+  const current = useMemo<Settled | null>(() => {
+    if (settled?.key === key) return settled;
+    const cached = enabled ? peekRaceSearch(JSON.parse(query) as RaceSearchParams) : null;
+    return cached ? { key, ...cached, error: false } : null;
+  }, [settled, key, query, enabled]);
 
   const loadMore = useCallback(() => {
     if (!current?.next || loadingMore) return;
@@ -53,9 +59,10 @@ export function useRaceSearch(params: RaceSearchParams, enabled = true): RaceSea
     searchRaces(JSON.parse(query) as RaceSearchParams, current.next)
       .then(page => {
         rememberRaces(page.races);
-        setSettled(s => s && s.key === asked
-          ? { ...s, races: [...s.races, ...page.races.filter(r => !s.races.some(x => x.id === r.id))], next: page.next }
-          : s);
+        setSettled(s => {
+          const base = s && s.key === asked ? s : current;
+          return { ...base, races: [...base.races, ...page.races.filter(r => !base.races.some(x => x.id === r.id))], next: page.next };
+        });
       })
       .catch(err => console.error("race search page failed", err))
       .finally(() => setLoadingMore(false));

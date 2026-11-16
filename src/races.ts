@@ -119,7 +119,7 @@ export type RaceSearchParams = {
   maxKm?: number | null;
   from?: string | null;
   to?: string | null;
-  country?: string | null;
+  countries?: string[];
   terrain?: RaceTerrain | null;
   verifiedOnly?: boolean;
   near?: { lat: number; lng: number } | null;
@@ -134,16 +134,35 @@ type SearchRow = RaceRow & { editions?: EditionRow[] | null; dist_km?: number | 
 // ~1 km grid: Near me never sends a precise position (docs/races.md).
 const coarse = (v: number) => Math.round(v * 100) / 100;
 
+// Pages already fetched this session, so going back to a filter or the tab answers at once.
+// Short-lived and memory-only: the catalogue changes weekly, a contribution clears it.
+export const SEARCH_CACHE_MS = 5 * 60 * 1000;
+const SEARCH_CACHE_MAX = 50;
+const searchCache = new Map<string, { at: number; page: RaceSearchPage }>();
+const cacheKey = (params: RaceSearchParams, after: RaceCursor | null) => JSON.stringify([params, after]);
+
+export function peekRaceSearch(params: RaceSearchParams, after: RaceCursor | null = null, now = Date.now()): RaceSearchPage | null {
+  const hit = searchCache.get(cacheKey(params, after));
+  return hit && now - hit.at < SEARCH_CACHE_MS ? hit.page : null;
+}
+
+export function clearRaceSearchCache() {
+  searchCache.clear();
+  countriesCache = null;
+}
+
 // One page of the shared catalogue, filtered and sorted server-side (search_races). Throws on a
 // failed call so the screen can offer a retry rather than read it as "no races".
 export async function searchRaces(params: RaceSearchParams, after: RaceCursor | null = null): Promise<RaceSearchPage> {
+  const cached = peekRaceSearch(params, after);
+  if (cached) return cached;
   const { data, error } = await supabase.rpc("search_races", {
     p_query: params.query?.trim() || null,
     p_min_km: params.minKm ?? null,
     p_max_km: params.maxKm ?? null,
     p_from: params.from || null,
     p_to: params.to || null,
-    p_country: params.country || null,
+    p_countries: params.countries?.length ? params.countries : null,
     p_terrain: params.terrain || null,
     p_verified_only: !!params.verifiedOnly,
     p_lat: params.near ? coarse(params.near.lat) : null,
@@ -156,18 +175,30 @@ export async function searchRaces(params: RaceSearchParams, after: RaceCursor | 
   });
   if (error) throw error;
   const page = (data || {}) as { races?: SearchRow[]; next?: RaceCursor | null; total?: number | null };
-  return {
+  const result = {
     races: (page.races || []).map(r => ({ ...toRace(r, r.editions || []), distKm: r.dist_km ?? null })),
     next: page.next || null,
     total: page.total ?? null,
   };
+  const key = cacheKey(params, after);
+  searchCache.delete(key);
+  searchCache.set(key, { at: Date.now(), page: result });
+  while (searchCache.size > SEARCH_CACHE_MAX) searchCache.delete(searchCache.keys().next().value as string);
+  return result;
 }
 
-// Countries with an upcoming race and how many, most first. [] on error: the filter just offers none.
-export async function listRaceCountries(): Promise<{ country: string; races: number }[]> {
+export type RaceCountry = { country: string; races: number };
+let countriesCache: { at: number; list: RaceCountry[] } | null = null;
+
+// Countries with an upcoming race and how many, most first; cached like a search page. [] on error:
+// the filter just offers none, and the next open asks again.
+export async function listRaceCountries(): Promise<RaceCountry[]> {
+  if (countriesCache && Date.now() - countriesCache.at < SEARCH_CACHE_MS) return countriesCache.list;
   const { data, error } = await supabase.rpc("race_countries");
   if (error) { console.error("race countries load failed", error); return []; }
-  return ((data || []) as { country: string; races: number }[]).map(r => ({ country: r.country, races: Number(r.races) || 0 }));
+  const list = ((data || []) as RaceCountry[]).map(r => ({ country: r.country, races: Number(r.races) || 0 }));
+  countriesCache = { at: Date.now(), list };
+  return list;
 }
 
 // kebab-case a name into a slug (strip accents/punctuation, collapse to dashes).
@@ -196,7 +227,7 @@ export async function addRace({ name, city, country, lat, lng, distances, url, t
       .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, verified: false, created_by: user_id })
       .select(RACE_COLS)
       .single();
-    if (!error) return toRace(data, []);
+    if (!error) { clearRaceSearchCache(); return toRace(data, []); }
     if (!isUniqueViolation(error)) { lastErr = error; break; }
     lastErr = error; // slug taken — try the next candidate
   }
@@ -227,6 +258,7 @@ export async function addEdition({ raceSlug, date, distanceKm, elevation = 0 }: 
       .insert({ id, ...row })
       .select("id, race_slug, date, distance_km, elevation, verified")
       .single();
+    if (!error) clearRaceSearchCache();
     if (!error) return { id: data.id, date: data.date, distanceKm: data.distance_km, elevation: data.elevation, verified: data.verified };
     if (!isUniqueViolation(error)) throw error;
   }

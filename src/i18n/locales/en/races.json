@@ -163,14 +163,17 @@
     "when3": "Next 3 months",
     "when6": "Next 6 months",
     "when12": "Next year",
-    "country": "Country",
-    "anyCountry": "Any country",
     "withinKm": "Within {{km}} km",
     "verifiedOnly": "Verified only",
     "verifiedOnlyHint": "Hide races nobody has checked yet",
     "sortSoonest": "Sorted: soonest",
     "sortNearest": "Sorted: nearest",
-    "clearAll": "Clear all"
+    "clearAll": "Clear all",
+    "countries": "Countries",
+    "countriesCount_one": "{{count}} country",
+    "countriesCount_other": "{{count}} countries",
+    "moreCountries_one": "+{{count}} more",
+    "moreCountries_other": "+{{count}} more"
   },
   "row": {
     "moreDates_one": "+{{count}} date",

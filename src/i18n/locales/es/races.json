@@ -163,14 +163,17 @@
     "when3": "Próximos 3 meses",
     "when6": "Próximos 6 meses",
     "when12": "El próximo año",
-    "country": "País",
-    "anyCountry": "Cualquier país",
     "withinKm": "A menos de {{km}} km",
     "verifiedOnly": "Solo verificadas",
     "verifiedOnlyHint": "Ocultar las carreras que nadie ha revisado aún",
     "sortSoonest": "Orden: más pronto",
     "sortNearest": "Orden: más cerca",
-    "clearAll": "Borrar todo"
+    "clearAll": "Borrar todo",
+    "countries": "Países",
+    "countriesCount_one": "{{count}} país",
+    "countriesCount_other": "{{count}} países",
+    "moreCountries_one": "+{{count}} más",
+    "moreCountries_other": "+{{count}} más"
   },
   "row": {
     "moreDates_one": "+{{count}} fecha",

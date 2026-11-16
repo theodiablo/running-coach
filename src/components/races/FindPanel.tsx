@@ -9,7 +9,7 @@ import { listRaceCountries } from "../../races";
 import { countryName } from "../../utils/country";
 import { ymd } from "../../utils/format";
 import {
-  ANY_DISTANCE, DEFAULT_FILTERS, RADII, WHEN_MONTHS, activeFilterCount, isAnyDistance, kmInRange,
+  ANY_DISTANCE, DEFAULT_FILTERS, MAX_COUNTRIES, RADII, WHEN_MONTHS, activeFilterCount, isAnyDistance, kmInRange,
   matchingEditions, nearestStop, rangeLabel, readFilters, searchParams,
 } from "../../utils/raceFilters";
 import type { RaceFilters } from "../../utils/raceFilters";
@@ -30,6 +30,7 @@ const CHIP = "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3
 const chipCls = (on: boolean) => CHIP + (on
   ? "bg-orange-500/15 border-orange-500/50 text-orange-300"
   : "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500");
+const COUNTRY_PREVIEW = 8;
 const LBL = "text-[11px] font-semibold uppercase tracking-widest text-slate-500";
 
 function loadFilters(): RaceFilters {
@@ -42,6 +43,7 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
   const [query, setQuery] = useState("");
   const [filters, setFiltersState] = useState<RaceFilters>(loadFilters);
   const [panel, setPanel] = useState(false);
+  const [allCountries, setAllCountries] = useState(false);
   const [countries, setCountries] = useState<{ country: string; races: number }[] | null>(null);
   const near = useNearMeFilter("find_near_me");
   const f: RaceFilters = { ...filters, near: near.nearMe, radius: near.radius };
@@ -67,6 +69,15 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
   const myOn = myStop != null && f.distance.min === myStop && f.distance.max === myStop;
   const count = activeFilterCount(f);
   const name = (code: string) => countryName(code, i18n.language) || code;
+  const countriesLabel = f.countries.length === 1 ? name(f.countries[0]) : t("races.filters.countriesCount", { count: f.countries.length });
+  const toggleCountry = (code: string) => setFilters({
+    countries: f.countries.includes(code) ? f.countries.filter(c => c !== code) : [...f.countries, code].slice(-MAX_COUNTRIES),
+  });
+  // The busiest countries first; a picked one always shows, even past the fold.
+  const listed = countries || [];
+  const picked = f.countries.filter(c => !listed.some(x => x.country === c)).map(country => ({ country, races: 0 }));
+  const shownCountries = [...picked, ...(allCountries ? listed : listed.filter((c, i) => i < COUNTRY_PREVIEW || f.countries.includes(c.country)))];
+  const hiddenCountries = allCountries ? 0 : listed.length - shownCountries.length + picked.length;
   const monthFmt = (d: string) => new Date(d + "T12:00:00").toLocaleDateString(currentLocaleTag(), { month: "long", year: "numeric" });
 
   // Month headers only make sense when the list is in date order.
@@ -113,10 +124,10 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
             {t("races.filters.when" + f.when)}<X size={12}/>
           </button>
         )}
-        {f.country && (
-          <button onClick={() => setFilters({ country: null })} className={chipCls(true)}
-            aria-label={t("races.filters.remove", { name: name(f.country) })}>
-            {name(f.country)}<X size={12}/>
+        {f.countries.length > 0 && (
+          <button onClick={() => setFilters({ countries: [] })} className={chipCls(true)}
+            aria-label={t("races.filters.remove", { name: countriesLabel })}>
+            {countriesLabel}<X size={12}/>
           </button>
         )}
         {f.verifiedOnly && (
@@ -161,12 +172,23 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
           </div>
 
           <div>
-            <label className={LBL + " block mb-1.5"} htmlFor="race-country">{t("races.filters.country")}</label>
-            <select id="race-country" value={f.country || ""} onChange={e => setFilters({ country: e.target.value || null })} className={INPUT_CLS}>
-              <option value="">{t("races.filters.anyCountry")}</option>
-              {f.country && !countries?.some(c => c.country === f.country) && <option value={f.country}>{name(f.country)}</option>}
-              {(countries || []).map(c => <option key={c.country} value={c.country}>{name(c.country) + " (" + c.races + ")"}</option>)}
-            </select>
+            <p className={LBL + " mb-1.5"}>{t("races.filters.countries")}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {shownCountries.map(c => {
+                const on = f.countries.includes(c.country);
+                return (
+                  <button key={c.country} onClick={() => toggleCountry(c.country)} aria-pressed={on} className={chipCls(on)}>
+                    {name(c.country)}{c.races > 0 && <span className={on ? "text-orange-300/70" : "text-slate-500"}>{c.races}</span>}
+                  </button>
+                );
+              })}
+              {countries == null && <Loader size={14} className="animate-spin text-slate-500 self-center"/>}
+              {hiddenCountries > 0 && (
+                <button onClick={() => setAllCountries(true)} className="text-xs font-semibold text-orange-400 hover:text-orange-300 px-1">
+                  {t("races.filters.moreCountries", { count: hiddenCountries })}
+                </button>
+              )}
+            </div>
           </div>
 
           <div>
