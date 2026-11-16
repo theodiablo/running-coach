@@ -61,10 +61,13 @@ export function parse(html, url) {
   const tariffNames = jsonAt(flight, /"tariffNames":(\{[^}]*\})/) ?? {};
   const sport = String(ev.sport ?? "").toLowerCase();
   // A fare's name can hide its distance ("MIUT LEGEND"); its description often carries it ("110 KMS 7200D+").
-  const fares = [...flight.matchAll(/"publicName":"((?:[^"\\]|\\.)*)","description":"((?:[^"\\]|\\.)*)"/g)]
-    .map((m) => `${m[1]} ${m[2]}`.trim())
-    .filter((f) => !NOT_A_RUN_FARE.test(f));
-  const labels = (fares.length ? fares : Object.values(tariffNames)).join(" | ");
+  const allFares = [...flight.matchAll(/"publicName":"((?:[^"\\]|\\.)*)","description":"((?:[^"\\]|\\.)*)"/g)].map(
+    (m) => `${m[1]} ${m[2]}`.trim(),
+  );
+  // The fare names list is only a fallback for a page with no fares, never for fares all filtered out.
+  const isRun = (f) => !NOT_A_RUN_FARE.test(f);
+  const fares = allFares.filter(isRun);
+  const labels = (allFares.length ? fares : Object.values(tariffNames).map(String).filter(isRun)).join(" | ");
   const fromSubsports = subsports.map((s) => SUBSPORT_KM[s]).filter(Boolean);
   const geo = ev.location?.geo ?? {};
   const lat = Number(geo.latitude ?? location.latitude);
@@ -83,7 +86,7 @@ export function parse(html, url) {
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
     distances: [
-      ...new Set([...fromSubsports, ...fares.flatMap((f) => parseDistances(f, { explicitWins: true })), ...parseDistances(fares.length ? "" : labels)]),
+      ...new Set([...fromSubsports, ...fares.flatMap((f) => parseDistances(f, { explicitWins: true })), ...parseDistances(allFares.length ? "" : labels)]),
     ].sort((a, b) => a - b),
     running: RUNNING_SPORTS.has(sport),
     sport,

@@ -221,6 +221,13 @@ describe("rockthesport", () => {
     expect(distances).toContain(15);
     expect(distances).not.toContain(12);
   });
+  it("never reads a filtered-out fare back from the fare names list", () => {
+    const page =
+      ld({ "@type": "SportsEvent", name: "Marcha Solidaria", startDate: "2027-04-04T09:30:00", sport: "running" }) +
+      flight('{"publicName":"Marcha 12K","description":"","active":true}') +
+      flight('"tariffNames":{"a":"Marcha 12K"}');
+    expect(rts.parse(page, "https://web.rockthesport.com/es/event/x").distances).toEqual([]);
+  });
   it("returns null for a page with no event", () => {
     expect(rts.parse("<html></html>", "https://web.rockthesport.com/es/event/x")).toBeNull();
   });
