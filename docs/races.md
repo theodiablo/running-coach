@@ -56,6 +56,10 @@ a user's contribution is a one-off SQL data fix, not a migration (see
   Aggregators were used only where noted in the PR. Coordinates of added races
   are hand-placed near the named start (±300 m). An `elevation` of 0 means unknown.
 
+New races and editions are found by the crawler (`docs/race-crawler.md`). It
+adds only **unverified** rows (`created_by` null), so the "unverified" tag shows
+until the `review-race-crawl` skill checks them against these same rules.
+
 ## Contributions & Discover
 
 Contributions are instant + global + unverified. "Add a race"

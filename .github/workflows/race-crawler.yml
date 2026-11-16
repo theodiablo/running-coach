@@ -1,0 +1,69 @@
+# Race-catalogue crawler: reads Rock the Sport and running.life, adds the clean
+# proposals to the catalogue as UNVERIFIED rows and logs every proposal in
+# race_crawl_items (the ledger the review skill works from). The report is the
+# job summary and an artifact. Detail: docs/race-crawler.md.
+
+name: Race crawler
+
+on:
+  schedule:
+    - cron: "37 4 * * 1" # Mondays 04:37 UTC (off the hour: shared runner capacity)
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Comma-separated sources"
+        default: "rockthesport,runninglife"
+      since_days:
+        description: "Rock the Sport: pages changed in the last N days"
+        default: "15"
+      max_pages:
+        description: "Cap per sitemap / country calendar (0 = no cap)"
+        default: "0"
+      dry_run:
+        description: "Report only, write nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: race-crawler
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Crawl
+        env:
+          SUPABASE_URL: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SOURCES: ${{ inputs.sources || 'rockthesport,runninglife' }}
+          SINCE_DAYS: ${{ inputs.since_days || '15' }}
+          MAX_PAGES: ${{ inputs.max_pages || '0' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          apply=--apply
+          if [ "$DRY_RUN" = "true" ]; then apply=; fi
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            apply=
+            echo "::warning::SUPABASE_ACCESS_TOKEN is not set: report only, nothing written."
+          fi
+          node scripts/race-crawler/crawl.mjs $apply \
+            --sources "$SOURCES" --since-days "$SINCE_DAYS" --max-pages "$MAX_PAGES" \
+            --out race-crawl-report/report
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: race-crawl-report
+          path: race-crawl-report/
+          retention-days: 30
+          if-no-files-found: ignore
