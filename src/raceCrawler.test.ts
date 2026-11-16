@@ -417,6 +417,10 @@ describe("apply: buildSql", () => {
     expect(sql.split(`$${tag}$`)).toHaveLength(3);
     expect(sql).toContain("O'Brien $$ Run");
   });
+  it("never records a row as inserted that the statement did not write", () => {
+    const sql = buildSql({ races: [], editions: [], ledger: [] });
+    expect(sql).toMatch(/case when l\.status = 'inserted' and not exists \(select 1 from new_editions n where n\.id = l\.edition_id\)/);
+  });
   it("strips what Postgres's jsonb refuses, so one scraped string can't abort the write", () => {
     const sql = buildSql({ races: [{ name: "Bad\u0000name \ud800" }], editions: [], ledger: [] });
     expect(sql).not.toContain("\\u0000");

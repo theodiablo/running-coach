@@ -13,7 +13,7 @@ skill) verifies, fixes or rejects them.
   the release workflows already use; without it, or with `dry_run`, it only
   reports. The report is the job summary and the `race-crawl-report` artifact.
 - **By hand:** `SUPABASE_URL=https://<ref>.supabase.co node scripts/race-crawler/crawl.mjs`
-  reports only (`--sources`, `--countries ES,FR,GB,IE`, `--since-days 8`,
+  reports only (`--sources`, `--countries ES,FR,GB,IE`, `--since-days 15`,
   `--max-pages N`, `--state file`, `--out prefix`). `--sql-out file` writes the
   statement it would run, for review; `--apply` (with `SUPABASE_PROJECT_REF` +
   `SUPABASE_ACCESS_TOKEN`) runs it. The catalogue is read with the public anon

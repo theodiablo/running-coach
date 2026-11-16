@@ -135,6 +135,7 @@ export function plan(p, catalogue, taken) {
   }
 
   const name = cleanName(c.name, c.date);
+  if (!name) return waits("no usable name");
   const km = headlineDistance(name, p.distances);
   const city = cleanCity(c.city, c.country);
   const slug = freeSlug(slugify(name) || "race", taken);
@@ -181,7 +182,13 @@ new_editions as (
 ),
 ledger as (
   insert into public.race_crawl_items (source, source_key, date, verdict, status, race_slug, edition_id, url, candidate, note)
-  select l.source, l.source_key, l.date, l.verdict, l.status, l.race_slug, l.edition_id, l.url, l.candidate, l.note
+  -- A row planned as inserted that the catalogue already had (a contribution landed meanwhile) waits for a person.
+  select l.source, l.source_key, l.date, l.verdict,
+         case when l.status = 'inserted' and not exists (select 1 from new_editions n where n.id = l.edition_id)
+              then 'review' else l.status end,
+         l.race_slug, l.edition_id, l.url, l.candidate,
+         case when l.status = 'inserted' and not exists (select 1 from new_editions n where n.id = l.edition_id)
+              then 'not written: already in the catalogue' else l.note end
   from data, jsonb_to_recordset(d->'ledger')
     as l(source text, source_key text, date date, verdict text, status text, race_slug text,
          edition_id text, url text, candidate jsonb, note text)
