@@ -232,6 +232,7 @@ Deno.serve(async (req) => {
 
     // 1) Maintainer notice. The email body is built from validated DB rows, not
     // from arbitrary caller-controlled notification payloads.
+    if (!MAINTAINER_EMAIL) console.warn("MAINTAINER_EMAIL is not set: maintainer notice skipped");
     if (MAINTAINER_EMAIL) await sendEmail(
       MAINTAINER_EMAIL,
       context.maintainerSubject,

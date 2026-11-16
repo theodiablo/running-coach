@@ -60,12 +60,15 @@ const DISTANCE_TOKEN_RE = /^\d+(?:k|km)?$/;
 
 // A league or season tag after a comma names the series, not the race ("…, 9e. Circuit Trail Marina 26/27").
 export const SERIES = /\d\d\/\d\d|\b(?:circuit|circuito|lliga|liga|copa|ctm|lmvs)\b/i;
+// Only these also condemn the leading part: "circuit", "copa", "liga" are words of real race names too.
+export const SEASON_TAG = /\d\d\/\d\d|\b(?:ctm|lmvs)\b/i;
+export const isSeriesPart = (part, index) => (index === 0 ? SEASON_TAG : SERIES).test(part);
 
 /** A name without its series tags: the comma-separated parts that are not a league or season. */
 export const withoutSeries = (name) =>
   String(name ?? "")
     .split(",")
-    .filter((p) => !SERIES.test(p))
+    .filter((p, i) => !isSeriesPart(p, i))
     .join(",");
 
 export function stripAccents(s) {

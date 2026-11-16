@@ -3,7 +3,10 @@ import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 // @ts-expect-error — plain ESM script module.
-import { fillSupportEmail } from "../scripts/support-email.mjs";
+import { fillSupportEmail, run } from "../scripts/support-email.mjs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PERSONAL = /[\w.+-]+@(?:gmail|googlemail|hotmail|outlook|yahoo|icloud|proton(?:mail)?)\.[a-z.]+/i;
 
@@ -34,5 +37,17 @@ describe("support-email", () => {
   });
   it("points to the app when no address is configured", () => {
     expect(fillSupportEmail(page, "")).not.toContain("%VITE_SUPPORT_EMAIL%");
+  });
+  it("inserts the address literally, never as a replacement pattern", () => {
+    expect(fillSupportEmail(page, "a$&b@example.com")).toContain("mailto:a$&amp;b@example.com");
+  });
+  it("refuses a production build without an address, or with a page missing", () => {
+    const dist = mkdtempSync(join(tmpdir(), "support-email-"));
+    writeFileSync(join(dist, "privacy.html"), page);
+    writeFileSync(join(dist, "disclaimer.html"), page);
+    expect(() => run(dist, { REQUIRE_SUPPORT_EMAIL: "1" })).toThrow(/required/);
+    const partial = mkdtempSync(join(tmpdir(), "support-email-"));
+    writeFileSync(join(partial, "privacy.html"), page);
+    expect(() => run(partial, { VITE_SUPPORT_EMAIL: "help@example.com" })).toThrow(/missing/);
   });
 });

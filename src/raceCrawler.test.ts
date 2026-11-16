@@ -266,6 +266,12 @@ describe("matchRace", () => {
     const c = candidate({ name: "V Trail Sástago 2027", city: "Sástago", lat: 41.32, lng: -0.35, distances: [13, 22] });
     expect(matchRace(c, [sastago])).toMatchObject({ kind: "match", slug: "trail-sastago" });
   });
+  it("never takes two races for one because only the town is left of their names", () => {
+    const where = { city: "Polop", lat: 38.62, lng: -0.13 };
+    const copa = race({ ...where, slug: "copa-foo-polop", name: "Copa Foo, Polop", distances: [21.1] });
+    const c = candidate({ ...where, name: "Liga Bar, Polop", distances: [10] });
+    expect(matchRace(c, [copa]).kind).toBe("none");
+  });
   it("never matches across countries or far away", () => {
     expect(matchRace(candidate({ name: "San Silvestre Vallecana", country: "FR" }), CATALOGUE.races).kind).toBe("none");
     expect(matchRace(candidate({ name: "San Silvestre Vallecana", lat: 41.4, lng: 2.17 }), CATALOGUE.races).kind).toBe("none");
@@ -345,6 +351,8 @@ describe("apply: cleanName", () => {
     ["Trail Monte Ponoig, Polop de la Marina, 9e. Circuit Trail Marina 26/27", "Trail Monte Ponoig, Polop de la Marina"],
     ["CURSA TOMBATOSSALS TRAILS DE CASTELLÓ 26", "Cursa Tombatossals Trails de Castelló"],
     ["IV-Domusa Teknik 15 MLK (26km)", "Domusa Teknik 15 MLK (26km)"],
+    ["X-Trail Valencia", "X-Trail Valencia"],
+    ["10K Circuit de Jerez, Jerez", "10K Circuit de Jerez, Jerez"],
     ["Lliga de Muntanya València Sud. 26/27", ""],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([

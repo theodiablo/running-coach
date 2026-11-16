@@ -56,8 +56,11 @@ function score(candidate, race) {
   if (km == null && !sameCity) return null;
   // The same name in the same place is the same race, whatever distances the page lists today
   // ("Trail Sástago": town + generic word leaves nothing distinctive to compare).
-  const tokens = (n) => [...new Set(nameTokens(withoutSeries(n)))].sort().join(" ");
-  if (tokens(candidate.name) && tokens(candidate.name) === tokens(race.name) && (sameCity || (km != null && km <= 10))) {
+  // Two words at least: a bare town name says nothing about which race it is.
+  const tokens = (n) => [...new Set(nameTokens(withoutSeries(n)))].sort();
+  const mineAll = tokens(candidate.name);
+  const near = km != null ? km <= 10 : sameCity;
+  if (mineAll.length >= 2 && mineAll.join(" ") === tokens(race.name).join(" ") && near) {
     return { slug: race.slug, hostMatch: false, all: 1, name: 1, km };
   }
   const distanceOk =
