@@ -2,7 +2,7 @@
 // and ledger rows (race_crawl_items). Pure, except `runSql`. docs/race-crawler.md.
 import { randomBytes } from "node:crypto";
 import { sameDistance } from "./classify.mjs";
-import { countryCode, hostOf, stripAccents } from "./text.mjs";
+import { SERIES, countryCode, hostOf, stripAccents } from "./text.mjs";
 
 // Anything flagged one of these waits for a person, whatever its verdict.
 const BLOCKING = new Set(["no country", "no coordinates", "distance unknown", "weekday", "postponed", "tbc", "multi-day"]);
@@ -16,10 +16,8 @@ export function slugify(s) {
     .replace(/^-+|-+$/g, "");
 }
 
-const ROMAN = /^(?=[ivxlc]+\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?\s+/i;
+const ROMAN = /^(?=[ivxlc]+\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?(?:\s*[-–]\s*|\s+)/i;
 const ORDINAL = /^\d{1,3}(?:ª|º|a|e|eme|ème|th|st|nd|rd|er|do|ro|to|mo|vo|no|\.)?\s+(?!k\b|km\b)(?=\p{L})/u;
-// A league or season tag after a comma names the series, not the race ("…, 9e. Circuit Trail Marina 26/27").
-const SERIES = /\d\d\/\d\d|\b(?:circuit|circuito|lliga|liga|copa|ctm|lmvs)\b/i;
 const SMALL = new Set("de del la las los el i y e et du des le les the of and a al en".split(" "));
 
 function titleCase(s) {
@@ -52,7 +50,7 @@ export function cleanName(name, date = "") {
         .replace(/[\s.–-]+$/, "")
         .trim(),
     )
-    .filter((p, i) => p && (i === 0 || !SERIES.test(p)));
+    .filter((p) => p && !SERIES.test(p));
   let n = parts.join(", ").replace(ROMAN, "").replace(ORDINAL, "");
   if (mostlyCaps(n)) n = titleCase(n);
   return n.slice(0, 120);
@@ -136,6 +134,8 @@ export function plan(p, catalogue, taken) {
 
   const name = cleanName(c.name, c.date);
   if (!name) return waits("no usable name");
+  // A cleaned name the catalogue already has is that race seen under another page, not a new one.
+  if (catalogue.races.some((r) => slugify(r.name) === slugify(name))) return waits("a race with this name exists");
   const km = headlineDistance(name, p.distances);
   const city = cleanCity(c.city, c.country);
   const slug = freeSlug(slugify(name) || "race", taken);

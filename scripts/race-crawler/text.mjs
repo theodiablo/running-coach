@@ -58,6 +58,16 @@ const ORDINAL_RE = /^\d+(?:a|o|e|er|eme|ª|º|th|st|nd|rd)$/;
 const YEAR_RE = /^(?:19|20)\d\d$/;
 const DISTANCE_TOKEN_RE = /^\d+(?:k|km)?$/;
 
+// A league or season tag after a comma names the series, not the race ("…, 9e. Circuit Trail Marina 26/27").
+export const SERIES = /\d\d\/\d\d|\b(?:circuit|circuito|lliga|liga|copa|ctm|lmvs)\b/i;
+
+/** A name without its series tags: the comma-separated parts that are not a league or season. */
+export const withoutSeries = (name) =>
+  String(name ?? "")
+    .split(",")
+    .filter((p) => !SERIES.test(p))
+    .join(",");
+
 export function stripAccents(s) {
   return String(s ?? "")
     .normalize("NFD")
