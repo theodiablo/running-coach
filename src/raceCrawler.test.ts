@@ -415,6 +415,9 @@ describe("atssport", () => {
     expect(ats.parse(page("La 37e édition aura lieu le dimanche 10 mai 2026."), ATS_URL).dateDoubt).toBe(true);
     expect(ats.parse(page("La 38e édition aura lieu le dimanche 9 mai 2027."), ATS_URL).dateDoubt).toBe(false);
     expect(ats.parse(page("Départ aux arènes."), ATS_URL).dateDoubt).toBe(false);
+    expect(ats.parse(page("28 km : nés en 2005 et avant. 17 km : nés en 2009."), ATS_URL).dateDoubt).toBe(false);
+    expect(ats.parse(page("Une course qui existe depuis 2012."), ATS_URL).dateDoubt).toBe(false);
+    expect(ats.parse(page("Le samedi 25 avril 2025 à partir de 9h."), ATS_URL).dateDoubt).toBe(true);
   });
   it("is not running when no course is", () => {
     const c = ats.parse(atsPage(atsCourse("Format S Solo", "Swimrun"), atsCourse("128 KMS", "Cyclotourisme")), ATS_URL);
@@ -443,6 +446,13 @@ describe("atssport", () => {
 });
 
 describe("matchRace", () => {
+  it("still knows a French race whose only word is generic, distance named or not", () => {
+    const vannes = race({ slug: "les-foulees-de-vannes", name: "Les Foulées de Vannes", city: "Vannes", country: "FR", lat: 47.65, lng: -2.76, distances: [10] });
+    for (const name of ["Foulées de Vannes 10 km", "Foulées de Vannes 10K", "36èmes Foulées de Vannes"]) {
+      const c = candidate({ source: "atssport", firstHand: true, name, city: "Vannes", country: "FR", lat: 47.651, lng: -2.761, distances: [10] });
+      expect(matchRace(c, [vannes])).toMatchObject({ kind: "match", slug: "les-foulees-de-vannes" });
+    }
+  });
   it("does not call two French races the same for a shared 'foulées'", () => {
     const montbazin = race({
       slug: "36emes-foulees-des-droits-de-l-homme",

@@ -62,10 +62,11 @@ export function parse(html, url) {
   });
   const address = ev.location?.address ?? {};
   // An old page's structured date moves a year on by itself (the 2026 edition shows 2027, same weekday)
-  // while its text still says 2026: a page whose text names years, none of them the event's, is doubtful.
-  const year = String(ev.startDate).slice(0, 4);
-  const textYears = new Set(String(ev.description ?? "").match(/\b20\d\d\b/g) ?? []);
-  const dateDoubt = textYears.size > 0 && !textYears.has(year);
+  // while its text still dates the race a year or two earlier. Birth years ("nés en 2009") don't count.
+  const year = Number(String(ev.startDate).slice(0, 4));
+  const description = String(ev.description ?? "").replace(/\bn[ée]e?s?\s+(?:en|entre|de)?\s*20\d\d(?:\s*(?:et|à|-)\s*20\d\d)?/gi, " ");
+  const textYears = new Set((description.match(/\b20\d\d\b/g) ?? []).map(Number));
+  const dateDoubt = !textYears.has(year) && (textYears.has(year - 1) || textYears.has(year - 2));
   return {
     source: id,
     sourceKey: url.match(/id_epreuve=(\d+)/)?.[1] ?? url,

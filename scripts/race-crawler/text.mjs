@@ -61,7 +61,7 @@ const ROMAN_RE = /^(?=[ivxl]+$)(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$/;
 // Plural too: "36èmes foulées", "2es".
 const ORDINAL_RE = /^\d+(?:a|o|e|er|eme|ª|º|th|st|nd|rd)s?$/;
 const YEAR_RE = /^(?:19|20)\d\d$/;
-const DISTANCE_TOKEN_RE = /^\d+(?:k|km)?$/;
+export const DISTANCE_TOKEN_RE = /^(?:\d+(?:k|km)?|k|km|kms)$/;
 
 // A league or season tag after a comma names the series, not the race ("…, 9e. Circuit Trail Marina 26/27").
 export const SERIES = /\d\d\/\d\d|\b(?:circuit|circuito|lliga|liga|copa|ctm|lmvs)\b/i;
