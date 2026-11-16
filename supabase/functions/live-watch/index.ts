@@ -74,7 +74,11 @@ function rateLimited(req: Request, weight = 1): boolean {
 async function readToken(req: Request): Promise<{ token: string | null; viewer: string | null; fromPath: boolean }> {
   const url = new URL(req.url);
   const inPath = /\/live-watch\/([^/]+)$/.exec(url.pathname)?.[1];
-  if (inPath) return { token: decodeURIComponent(inPath), viewer: null, fromPath: true };
+  if (inPath) {
+    let token: string | null = null;
+    try { token = decodeURIComponent(inPath); } catch { /* malformed escape: the uniform miss */ }
+    return { token, viewer: null, fromPath: true };
+  }
   const params = url.searchParams;
   const fromQuery = params.get("t");
   if (fromQuery) return { token: fromQuery, viewer: validViewer(params.get("v")), fromPath: false };

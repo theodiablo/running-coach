@@ -342,24 +342,27 @@ behavior `/live-watch/*` → the `supabase-functions` origin):
   `CachingOptimized` policy keys on the path alone; a custom cache policy would
   be a resource the Terraform apply role can't create. Nothing else (query,
   headers, cookies) reaches supabase.co on that path.
-- **Only a uniform 200 is shared.** `live-watch` sends `s-maxage=10` on a path
-  read's `{ live }` answer and `no-store` on everything else, so an error or a
-  429 is never replayed to a run's other spectators. A ?t= or batch read is
-  never cacheable.
+- **Only a uniform 200 is meant to be shared.** `live-watch` sends
+  `s-maxage=10` on a path read's `{ live }` answer and `no-store` on everything
+  else. CachingOptimized's 1s minimum TTL still lets a 5xx sit at a PoP for a
+  second or so; what keeps that harmless is the client, which re-reads direct
+  on anything but a live answer from the edge. A ?t= or batch read is never
+  cacheable.
 - **The view count still happens direct.** The cached read carries no viewer
   id, so `fetchLiveWatch` polls direct with `v` until it has seen the broadcast
   live once (`countedBroadcast`, per `started_at`), then switches to the cache;
   a new `started_at` seen through the cache sends one more direct read.
-- **The cost is up to 10s of staleness**, on top of the 30s cadence: a run that
+- **The cost is about 10s of staleness** (possibly up to ~20s when a regional
+  edge cache and a PoP each hold it), on top of the 30s cadence: a run that
   ends, is hidden (`share_public` off) or has its link retired can still be
   served for those seconds. That bound is the trade for N spectators of one
   runner costing one function call and one database read per 10s per edge
   location, not N.
 - **Web origin only.** The path exists on `WEB_APP_ORIGIN`; anywhere else
   (PR previews on their own origin, dev) the page reads direct. **The edge is never the
-  last word on "not live"**: a non-JSON answer (the SPA fallback, while the
-  behavior isn't deployed) or a cached `{ live: false }` is re-read direct in
-  the same call. That also makes the merge order-free: the bundle, the
+  last word**: a cached `{ live: false }`, a non-JSON answer (the SPA fallback,
+  while the behavior isn't deployed), any non-200 including a 429, or a network
+  failure is re-read direct in the same call. That also makes the merge order-free: the bundle, the
   function and the CloudFront behavior can land in any order.
 - The batch read (following several runners) is a POST and stays uncached.
 

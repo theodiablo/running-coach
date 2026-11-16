@@ -73,4 +73,37 @@ describe("fetchLiveWatch on the web origin (edge cache)", () => {
     await expect(fetchLiveWatch(token)).resolves.toMatchObject({ kind: "live" });
     expect(urls()[2]).toContain(`t=${token}`);
   });
+
+  it("re-reads direct when the edge path is rate limited or unreachable", async () => {
+    const token = "e".repeat(22);
+    const limited = { ok: false, status: 429, headers: { get: (k: string) => (k === "Retry-After" ? "60" : null) }, json: async () => ({}) } as unknown as Response;
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(live("s1"))
+      .mockResolvedValueOnce(limited)
+      .mockResolvedValueOnce(live("s1"))
+      .mockRejectedValueOnce(new Error("blocked"))
+      .mockResolvedValueOnce(live("s1"));
+    await fetchLiveWatch(token);
+    await expect(fetchLiveWatch(token)).resolves.toMatchObject({ kind: "live" });
+    await expect(fetchLiveWatch(token)).resolves.toMatchObject({ kind: "live" });
+    const [, edge429, direct1, edgeThrow, direct2] = urls();
+    expect([edge429, edgeThrow]).toEqual([`/live-watch/${token}`, `/live-watch/${token}`]);
+    for (const u of [direct1, direct2]) expect(u).toContain(`t=${token}`);
+  });
+
+  it("reports 'none' only once a direct read agrees, and 'error' when that read fails", async () => {
+    const token = "f".repeat(22);
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(live("s1"))
+      .mockResolvedValueOnce(json({ live: false }))
+      .mockResolvedValueOnce(json({ live: false }))
+      .mockResolvedValueOnce(live("s1"))
+      .mockResolvedValueOnce(json({ live: false }))
+      .mockRejectedValueOnce(new Error("offline"));
+    await fetchLiveWatch(token);
+    await expect(fetchLiveWatch(token)).resolves.toEqual({ kind: "none" });
+    await fetchLiveWatch(token);
+    await expect(fetchLiveWatch(token)).resolves.toEqual({ kind: "error" });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(6);
+  });
 });

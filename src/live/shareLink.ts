@@ -115,38 +115,35 @@ const countedBroadcast = new Map<string, string>();
 export async function fetchLiveWatch(token: string, signal?: AbortSignal): Promise<WatchResult> {
   const v = watchViewerId();
   const edge = countedBroadcast.has(token) ? edgeWatchUrl(token) : null;
+  // The edge is never the last word: anything but a live answer through it is re-read direct, once.
+  const direct = (): Promise<WatchResult> => {
+    countedBroadcast.delete(token);
+    return fetchLiveWatch(token, signal);
+  };
+  let res: Response;
   try {
-    const res = edge
+    res = edge
       ? await fetch(edge, { signal })
       : await fetch(
         `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}${v ? `&v=${v}` : ""}`,
         { signal, headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
       );
-    if (res.status === 429) {
-      const secs = Number(res.headers.get("Retry-After"));
-      return { kind: "error", retryAfterMs: Number.isFinite(secs) && secs > 0 ? secs * 1000 : undefined };
-    }
-    // Not JSON is the SPA fallback answering for a missing origin: an outage, never "the run ended".
-    if (!res.ok || !res.headers.get("Content-Type")?.includes("json")) {
-      if (!edge) return { kind: "error" };
-      // The cache path itself failed: read direct now rather than leave the page dark until it recovers.
-      countedBroadcast.delete(token);
-      return await fetchLiveWatch(token, signal);
-    }
-    const body = await res.json().catch(() => null) as { live?: boolean; run?: PublicLiveRun } | null;
-    if (!body?.live || !body.run) {
-      if (!edge) return { kind: "none" };
-      // A run's end (or an older function that can't read the path) is confirmed direct before the page says so.
-      countedBroadcast.delete(token);
-      return await fetchLiveWatch(token, signal);
-    }
-    const started = String(body.run.started_at);
-    if (!edge) countedBroadcast.set(token, started);
-    else if (countedBroadcast.get(token) !== started) countedBroadcast.delete(token);
-    return { kind: "live", run: body.run };
   } catch {
-    return { kind: "error" };
+    return edge ? direct() : { kind: "error" };
   }
+  if (edge && (!res.ok || !res.headers.get("Content-Type")?.includes("json"))) return direct();
+  if (res.status === 429) {
+    const secs = Number(res.headers.get("Retry-After"));
+    return { kind: "error", retryAfterMs: Number.isFinite(secs) && secs > 0 ? secs * 1000 : undefined };
+  }
+  // Not JSON is the SPA fallback answering for a missing origin: an outage, never "the run ended".
+  if (!res.ok || !res.headers.get("Content-Type")?.includes("json")) return { kind: "error" };
+  const body = await res.json().catch(() => null) as { live?: boolean; run?: PublicLiveRun } | null;
+  if (!body?.live || !body.run) return edge ? direct() : { kind: "none" };
+  const started = String(body.run.started_at);
+  if (!edge) countedBroadcast.set(token, started);
+  else if (countedBroadcast.get(token) !== started) countedBroadcast.delete(token);
+  return { kind: "live", run: body.run };
 }
 
 // ── The batch read (following several runners) ──────────────────────────────
