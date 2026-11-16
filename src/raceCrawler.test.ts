@@ -251,7 +251,7 @@ describe("findarace", () => {
   it("parses an event page: offers for distances, the address for town and country", () => {
     const c = far.parse(farEvent() + crumbs("Home", "Running", "Half Marathon", "Hampton Court"), FAR_URL);
     expect(c).toMatchObject({
-      sourceKey: "hampton-court-palace-half-marathon/17th-october-2027",
+      sourceKey: "hampton-court-palace-half-marathon",
       firstHand: false,
       name: "Hampton Court Palace Running Festival",
       date: "2027-10-17",
@@ -263,7 +263,15 @@ describe("findarace", () => {
       organiserUrl: "",
     });
   });
+  it("keys an event by its slug, so its edition URL and its event URL are one ledger row", () => {
+    const html = farEvent() + crumbs("Home", "Running", "X");
+    expect(far.parse(html, "https://findarace.com/events/hampton-court-palace-half-marathon").sourceKey).toBe(
+      far.parse(html, FAR_URL).sourceKey,
+    );
+  });
   it("leaves other sports and online events out of running", () => {
+    expect(far.parse(farEvent() + crumbs("Home", "Walk or Run", "X"), FAR_URL).running).toBe(true);
+    expect(far.parse(farEvent() + crumbs("Home", "Walking", "X"), FAR_URL).running).toBe(false);
     expect(far.parse(farEvent() + crumbs("Home", "Duathlon", "Sprint", "X"), FAR_URL).running).toBe(false);
     const online = farEvent({ eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" });
     expect(far.parse(online + crumbs("Home", "Running", "X"), FAR_URL).running).toBe(false);
@@ -281,6 +289,12 @@ describe("findarace", () => {
     expect(far.addressParts("Durham Amateur Rowing Club, Durham, DH1 3, UK")).toEqual({ city: "Durham", country: "GB" });
     expect(far.addressParts("Custom House Quay, Dublin 1, D01 F5P2, Ireland")).toEqual({ city: "Dublin 1", country: "IE" });
     expect(far.addressParts("Barcelona")).toEqual({ city: "", country: "" });
+  });
+  it("never takes a county or a UK nation for the town", () => {
+    expect(far.addressParts("Ware, Hertfordshire, SG12 9AA, United Kingdom")).toEqual({ city: "Ware", country: "GB" });
+    expect(far.addressParts("Seaford, E Sussex, BN25 1AA, England")).toEqual({ city: "Seaford", country: "GB" });
+    expect(far.addressParts("Ashton Court, Bristol, England, United Kingdom")).toEqual({ city: "Bristol", country: "GB" });
+    expect(far.addressParts("Hyde Park, London, W2 2UH, UK")).toEqual({ city: "London", country: "GB" });
   });
   it("returns null for a page with no event", () => {
     expect(far.parse("<html></html>", FAR_URL)).toBeNull();

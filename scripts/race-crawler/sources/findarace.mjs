@@ -2,6 +2,7 @@
 // for discovery, the event page's schema.org SportsEvent for extraction. Organisers
 // list their own races but many enter elsewhere, so dates count as second-hand.
 import { countryCode, jsonLdBlocks, parseDistances } from "../text.mjs";
+export { discover } from "./rockthesport.mjs";
 
 export const id = "findarace";
 export const firstHand = false;
@@ -11,12 +12,22 @@ export const SITEMAPS = ["events-current", "events-future"].map((s) => `${BASE}/
 
 const STATUS = { EventCancelled: "cancelled", EventPostponed: "postponed", EventScheduled: "scheduled" };
 // The breadcrumb's sport, or its kind of race when that comes first ("Half Marathon").
-const OTHER_SPORT = /athlon|swim|cycl|sportive|bike|obstacle|ocr|walk|hik|paddle|kayak|row|ski/i;
+const OTHER_SPORT = /athlon|\b(?:swim|cycl|sportive|bike|obstacle|ocr|walk|hik|paddle|kayak|rowing|ski)/i;
+const RUN = /\brun/i;
 const SPONSOR = /\s+(?:presented|powered|sponsored) by\b.*$|\s+in association with\b.*$/i;
 
 // A UK postcode, alone or after the town ("East Molesey KT8 9BN"); an Eircode ("D01 F5P2").
 // Some are cut short ("DH1 3").
 const POSTCODE = /(?:^|\s+)(?:[A-Z]{1,2}\d[A-Z\d]?(?:\s*\d[A-Z]{0,2})?|[A-Z]\d{2}\s?[A-Z\d]{4})$/i;
+
+// A UK nation or county is never the town ("Ware, Hertfordshire, SG12 9AA", "…, Seaford, England").
+const REGION = new RegExp(
+  "^(?:(?:north|south|east|west|n|s|e|w|greater|mid)\\.?\\s+)?(?:england|scotland|wales|northern ireland|" +
+    "\\S*shire|surrey|kent|essex|sussex|norfolk|suffolk|devon|cornwall|dorset|somerset|cumbria|northumberland|" +
+    "rutland|middlesex|merseyside|greater london|greater manchester|tyne and wear|midlands|yorkshire|isle of wight|gwynedd|powys|" +
+    "conwy|ceredigion|fife|highland|co\\.?\\s+\\S+|county\\s+\\S+)$",
+  "i",
+);
 
 /** Town and country of a free-text address ("Graves Park, Sheffield, S8 8LL, United Kingdom"). */
 export function addressParts(address) {
@@ -24,9 +35,14 @@ export function addressParts(address) {
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
-  const country = parts.length > 1 ? countryCode(parts.at(-1)) : "";
-  const towns = (country ? parts.slice(0, -1) : parts).map((p) => p.replace(POSTCODE, "").trim()).filter(Boolean);
-  return { city: parts.length > 1 ? (towns.at(-1) ?? "") : "", country };
+  if (parts.length < 2) return { city: "", country: "" };
+  const country = countryCode(parts.at(-1));
+  // The town sits with the postcode ("East Molesey KT8 9BN") or before it, counties aside.
+  const rest = country ? parts.slice(0, -1) : parts;
+  const withCode = rest.findIndex((p) => POSTCODE.test(p));
+  const before = (withCode >= 0 ? rest.slice(0, withCode + 1) : rest).map((p) => p.replace(POSTCODE, "").trim());
+  const towns = before.filter((p) => p && !REGION.test(p));
+  return { city: towns.at(-1) ?? "", country };
 }
 
 /** One candidate from an event page, or null when it carries no event. */
@@ -51,7 +67,8 @@ export function parse(html, url) {
   if (!distances.length) distances = parseDistances(ev.description);
   return {
     source: id,
-    sourceKey: url.split("/events/")[1] ?? url,
+    // The event's slug: its next edition and later ones sit at /events/<slug> and /events/<slug>/<date>.
+    sourceKey: (url.split("/events/")[1] ?? url).split("/")[0],
     url,
     firstHand,
     name,
@@ -63,7 +80,7 @@ export function parse(html, url) {
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
     distances: [...new Set(distances)].sort((a, b) => a - b),
-    running: !OTHER_SPORT.test(sport) && !online,
+    running: (RUN.test(sport) || !OTHER_SPORT.test(sport)) && !online,
     sport: online ? "virtual" : sport.toLowerCase(),
     status: STATUS[String(ev.eventStatus ?? "").split("/").pop()] ?? "scheduled",
     // The organizer link is the organiser's Find a Race page, not their own site.

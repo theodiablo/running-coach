@@ -136,7 +136,7 @@ async function crawlSitemaps(stats, source, keep = () => true) {
   for (const sitemap of source.SITEMAPS) {
     const xml = await get(sitemap);
     if (!xml) continue;
-    let urls = rts.discover(xml, since);
+    let urls = source.discover(xml, since);
     stats.discovered += urls.length;
     if (maxPages) urls = urls.slice(0, maxPages);
     for (const { url } of urls) {
@@ -145,6 +145,7 @@ async function crawlSitemaps(stats, source, keep = () => true) {
       const c = html && source.parse(html, url);
       if (!c) stats.unparsed++;
       else if (keep(c)) candidates.push(c);
+      else stats.elsewhere = (stats.elsewhere ?? 0) + 1;
     }
   }
   return candidates;
@@ -191,6 +192,7 @@ function markdown(report) {
   for (const s of report.sources) {
     lines.push(
       `- **${s.id}**: ${s.discovered} discovered, ${s.fetched} pages fetched, ${s.candidates} parsed` +
+        (s.elsewhere ? `, ${s.elsewhere} outside --countries` : "") +
         (s.pageErrors ? `, ${s.pageErrors} pages failed (last: ${s.lastPageError})` : "") +
         (s.error ? `, FAILED: ${s.error}` : ""),
     );
