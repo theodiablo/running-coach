@@ -11,6 +11,8 @@ import { buildSql, cleanCity, cleanName, plan, webUrl } from "../scripts/race-cr
 import * as rts from "../scripts/race-crawler/sources/rockthesport.mjs";
 // @ts-expect-error — plain ESM script module.
 import * as rl from "../scripts/race-crawler/sources/runninglife.mjs";
+// @ts-expect-error — plain ESM script module.
+import * as far from "../scripts/race-crawler/sources/findarace.mjs";
 
 const TODAY = "2026-11-15";
 const ld = (obj: unknown) => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`;
@@ -215,6 +217,87 @@ describe("runninglife", () => {
       ld(rlEvent("Dublin Marathon", "2027-10-24", "Full description.")) +
       '<a href="https://irishlifedublinmarathon.ie/" target="_blank" data-out="website" data-out-race="1">Website</a>';
     expect(rl.parseEvent(html)).toEqual({ description: "Full description.", organiserUrl: "https://irishlifedublinmarathon.ie/" });
+  });
+});
+
+const crumbs = (...names: string[]) =>
+  ld({
+    "@type": "BreadcrumbList",
+    itemListElement: names.map((name, i) => ({ "@type": "ListItem", position: i + 1, name })),
+  });
+const farEvent = (over: Record<string, unknown> = {}) =>
+  ld({
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    name: "Hampton Court Palace Running Festival Presented by Voltarol",
+    startDate: "2027-10-17T09:00:00+01:00",
+    endDate: "2027-10-17",
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    description: "Run a flat 10K or half marathon amid palace history.",
+    organizer: { "@type": "Organization", url: "https://findarace.com/runthroughevents" },
+    location: {
+      "@type": "Place",
+      name: "East Molesey, Surrey",
+      address: "Hampton Court Palace, Molesey, East Molesey KT8 9BN, UK",
+      geo: { "@type": "GeoCoordinates", latitude: 51.4046971, longitude: -0.3417534 },
+    },
+    offers: [{ "@type": "Offer", name: "Half Marathon" }, { "@type": "Offer", name: "10k" }],
+    ...over,
+  });
+const FAR_URL = "https://findarace.com/events/hampton-court-palace-half-marathon/17th-october-2027";
+
+describe("findarace", () => {
+  it("parses an event page: offers for distances, the address for town and country", () => {
+    const c = far.parse(farEvent() + crumbs("Home", "Running", "Half Marathon", "Hampton Court"), FAR_URL);
+    expect(c).toMatchObject({
+      sourceKey: "hampton-court-palace-half-marathon",
+      firstHand: false,
+      name: "Hampton Court Palace Running Festival",
+      date: "2027-10-17",
+      city: "East Molesey",
+      country: "GB",
+      lat: 51.4046971,
+      distances: [10, 21.1],
+      running: true,
+      organiserUrl: "",
+    });
+  });
+  it("keys an event by its slug, so its edition URL and its event URL are one ledger row", () => {
+    const html = farEvent() + crumbs("Home", "Running", "X");
+    expect(far.parse(html, "https://findarace.com/events/hampton-court-palace-half-marathon").sourceKey).toBe(
+      far.parse(html, FAR_URL).sourceKey,
+    );
+  });
+  it("leaves other sports and online events out of running", () => {
+    expect(far.parse(farEvent() + crumbs("Home", "Walk or Run", "X"), FAR_URL).running).toBe(true);
+    expect(far.parse(farEvent() + crumbs("Home", "Walking", "X"), FAR_URL).running).toBe(false);
+    expect(far.parse(farEvent() + crumbs("Home", "Duathlon", "Sprint", "X"), FAR_URL).running).toBe(false);
+    const online = farEvent({ eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode" });
+    expect(far.parse(online + crumbs("Home", "Running", "X"), FAR_URL).running).toBe(false);
+    // A short trail names no sport: the name is left to classify.
+    expect(far.parse(farEvent() + crumbs("Home", "Leeds Half Marathon"), FAR_URL).running).toBe(true);
+  });
+  it("falls back to the name, then the description, for distances", () => {
+    const noKm = farEvent({ name: "Colchester Half Marathon", offers: [{ name: "General Entry" }] });
+    expect(far.parse(noKm, FAR_URL).distances).toEqual([21.1]);
+    const bare = farEvent({ name: "Squirrel Challenge", offers: [] });
+    expect(far.parse(bare, FAR_URL).distances).toEqual([10, 21.1]);
+  });
+  it("reads town and country off UK, Irish and cut-short addresses", () => {
+    expect(far.addressParts("Graves Park, Sheffield, S8 8LL, United Kingdom")).toEqual({ city: "Sheffield", country: "GB" });
+    expect(far.addressParts("Durham Amateur Rowing Club, Durham, DH1 3, UK")).toEqual({ city: "Durham", country: "GB" });
+    expect(far.addressParts("Custom House Quay, Dublin 1, D01 F5P2, Ireland")).toEqual({ city: "Dublin 1", country: "IE" });
+    expect(far.addressParts("Barcelona")).toEqual({ city: "", country: "" });
+  });
+  it("never takes a county or a UK nation for the town", () => {
+    expect(far.addressParts("Ware, Hertfordshire, SG12 9AA, United Kingdom")).toEqual({ city: "Ware", country: "GB" });
+    expect(far.addressParts("Seaford, E Sussex, BN25 1AA, England")).toEqual({ city: "Seaford", country: "GB" });
+    expect(far.addressParts("Ashton Court, Bristol, England, United Kingdom")).toEqual({ city: "Bristol", country: "GB" });
+    expect(far.addressParts("Hyde Park, London, W2 2UH, UK")).toEqual({ city: "London", country: "GB" });
+  });
+  it("returns null for a page with no event", () => {
+    expect(far.parse("<html></html>", FAR_URL)).toBeNull();
   });
 });
 
