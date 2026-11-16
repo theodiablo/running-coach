@@ -186,6 +186,16 @@ describe("rockthesport", () => {
       organiserUrl: "www.mediadonosti.com",
     });
   });
+  it("reads a fare's distance from its description when its name has none", () => {
+    const page = RTS_PAGE.replace(
+      "</body>",
+      flight('{"publicName":"MIUT LEGEND","description":"110 KMS 7200D+","active":true},' +
+        '{"publicName":"MIUT MARATHON","description":"40 KMS 1500D+","active":true}') + "</body>",
+    );
+    const { distances } = rts.parse(page, "https://web.rockthesport.com/es/event/miut");
+    expect(distances).toEqual(expect.arrayContaining([40, 110]));
+    expect(distances).not.toContain(42.2);
+  });
   it("returns null for a page with no event", () => {
     expect(rts.parse("<html></html>", "https://web.rockthesport.com/es/event/x")).toBeNull();
   });

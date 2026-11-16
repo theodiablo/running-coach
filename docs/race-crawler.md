@@ -59,7 +59,7 @@ migration logs what that run left for review and the aggregator-only races.
 
 | Source | Countries | Kind | Discovery | Extraction |
 |---|---|---|---|---|
-| Rock the Sport | ES (also PT, AD, MX, PA) | registration platform: first-hand | per-country event sitemaps, by `lastmod` | `SportsEvent` JSON-LD + the page's Next.js payload (`subsports`, fare names, city, country) |
+| Rock the Sport | ES (also PT, AD, MX, PA) | registration platform: first-hand | per-country event sitemaps, by `lastmod` | `SportsEvent` JSON-LD + the page's Next.js payload (`subsports`, fare names and descriptions, city, country) |
 | running.life | ES, FR, GB, IE | aggregator: second-hand | per-country calendar, 20 events a page | the listing's `ItemList` JSON-LD; the event page only for survivors (full description, organiser link) |
 
 A source is an adapter in `scripts/race-crawler/sources/` returning the same
