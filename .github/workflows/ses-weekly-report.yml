@@ -21,7 +21,7 @@
 #       { "Effect": "Allow",
 #         "Action": "ses:SendEmail",
 #         "Resource": ["arn:aws:ses:eu-west-1:*:identity/camboulive.solutions",
-#                      "arn:aws:ses:eu-west-1:*:identity/theo.camboulive.dev@gmail.com"] }
+#                      "arn:aws:ses:eu-west-1:*:identity/<maintainer address>"] }
 #     ]
 #   }
 #
@@ -42,7 +42,8 @@ permissions:
 env:
   AWS_REGION: eu-west-1
   FROM_EMAIL: Running Coach <noreply@camboulive.solutions>
-  REPORT_EMAIL: theo.camboulive.dev@gmail.com
+  # Repo secret, so the address stays out of the repo and the logs.
+  REPORT_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
 
 jobs:
   report:
@@ -116,11 +117,15 @@ jobs:
             } >> report.md
           fi
 
+          if [ -z "$REPORT_EMAIL" ]; then
+            echo "::warning::MAINTAINER_EMAIL secret not set: report not emailed (counts are in the job summary)"
+          else
           aws sesv2 send-email \
             --from-email-address "$FROM_EMAIL" \
             --destination "ToAddresses=$REPORT_EMAIL" \
             --content "{\"Simple\":{\"Subject\":{\"Data\":\"Running Coach - SES weekly report\"},\"Body\":{\"Text\":{\"Data\":$(jq -Rs . report.md)}}}}" \
             || echo "::warning::report email failed to send (counts are in the job summary; addresses are not)"
+          fi
 
           # Loud failure => GitHub notifies the maintainer.
           fail=""

@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 150
     env:
       # A step's own env is not visible to its `if`, so this lives at job level.
-      SES_CONFIGURED: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID != '' }}
+      SES_CONFIGURED: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID != '' && secrets.MAINTAINER_EMAIL != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -71,7 +71,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SES_REPORT_AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: eu-west-1
           FROM_EMAIL: Running Coach <noreply@camboulive.solutions>
-          REPORT_EMAIL: theo.camboulive.dev@gmail.com
+          REPORT_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           {

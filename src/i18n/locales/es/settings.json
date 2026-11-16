@@ -101,7 +101,8 @@
   "deleteAccount": {
     "title": "Eliminar cuenta",
     "body": "Esta acción eliminará permanentemente tu cuenta y todos los datos asociados: entrenamientos, rutas GPS, plan de entrenamiento y ajustes. <bold>No se puede deshacer.</bold>",
-    "error": "Algo salió mal. Inténtalo de nuevo o escribe a theo.camboulive.dev@gmail.com."
+    "error": "Algo salió mal. Inténtalo de nuevo.",
+    "errorWithEmail": "Algo salió mal. Inténtalo de nuevo o escribe a {{email}}."
   },
   "hr": {
     "title": "Frecuencia cardíaca",

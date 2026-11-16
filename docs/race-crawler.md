@@ -13,7 +13,8 @@ skill) verifies, fixes or rejects them.
   the release workflows already use; without it, or with `dry_run`, it only
   reports. The report is the job summary and the `race-crawl-report` artifact.
   A failed run emails the maintainer through SES (the `SES_REPORT_AWS_*` user
-  `ses-weekly-report.yml` already uses), with the run link and the report's head.
+  `ses-weekly-report.yml` already uses, to the `MAINTAINER_EMAIL` repo secret),
+  with the run link and the report's head.
 - **By hand:** `SUPABASE_URL=https://<ref>.supabase.co node scripts/race-crawler/crawl.mjs`
   reports only (`--sources`, `--countries ES,FR,GB,IE`, `--since-days 15`,
   `--max-pages N`, `--state file`, `--out prefix`). `--sql-out file` writes the
