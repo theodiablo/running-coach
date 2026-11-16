@@ -139,7 +139,7 @@ const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(
 const WEEKEND = new Set([0, 6]);
 const VIRTUAL_RE = /\bvirtual\b/i;
 const TBC_RE = /\b(?:tbc|tba|to be (?:confirmed|announced)|provisional|a confirmar|por confirmar|pendiente de confirmar)\b|à confirmer/i;
-const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|sportive|training event|entreno)/i;
+const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|sportive|training event|entreno|infantil|ni[ñn]os|enfants?\b|kids?\b|benjam[ií]n)/i;
 
 /**
  * The verdict on one candidate.
@@ -165,6 +165,7 @@ export function classify(candidate, catalogue, today) {
   if (candidate.distances.length && !distances.length) return drop("under 10 km");
 
   if (candidate.status === "postponed") flags.push("postponed");
+  if (candidate.dateDoubt) flags.push("date not confirmed by the page");
   // A source's date is the event's first day; the race itself can be on any of them (Snowdonia: 10K Saturday, marathon Sunday).
   if (candidate.endDate && candidate.endDate > candidate.date) flags.push("multi-day");
   if (TBC_RE.test(`${candidate.name} ${candidate.text ?? ""}`)) flags.push("tbc");

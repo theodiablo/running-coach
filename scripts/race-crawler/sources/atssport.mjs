@@ -61,6 +61,11 @@ export function parse(html, url) {
     return km.length ? km : (TYPE_KM[c.type.toLowerCase()] ?? []);
   });
   const address = ev.location?.address ?? {};
+  // An old page's structured date moves a year on by itself (the 2026 edition shows 2027, same weekday)
+  // while its text still says 2026: a page whose text names years, none of them the event's, is doubtful.
+  const year = String(ev.startDate).slice(0, 4);
+  const textYears = new Set(String(ev.description ?? "").match(/\b20\d\d\b/g) ?? []);
+  const dateDoubt = textYears.size > 0 && !textYears.has(year);
   return {
     source: id,
     sourceKey: url.match(/id_epreuve=(\d+)/)?.[1] ?? url,
@@ -79,6 +84,7 @@ export function parse(html, url) {
     running: runs.length > 0,
     sport: runs.map((c) => c.type.toLowerCase()).join(", "),
     status: STATUS[String(ev.eventStatus ?? "").split("/").pop()] ?? "scheduled",
+    dateDoubt,
     organiserUrl: "",
     text: runs.map((c) => c.name).join(" | "),
   };

@@ -403,6 +403,19 @@ describe("atssport", () => {
     );
     expect(c.distances).toEqual([12, 15, 42.2]);
   });
+  it("doubts a date its own page's text does not name the year of", () => {
+    const page = (description: string) =>
+      ld({
+        "@type": "SportsEvent",
+        name: "La Ronde de Saint-Georges",
+        startDate: "2027-05-09T00:00:00",
+        description,
+        location: { address: { addressLocality: "Saint-Georges-d'Orques", addressRegion: "34", addressCountry: "France" } },
+      }) + atsCourse("11 km", "Course sur route");
+    expect(ats.parse(page("La 37e édition aura lieu le dimanche 10 mai 2026."), ATS_URL).dateDoubt).toBe(true);
+    expect(ats.parse(page("La 38e édition aura lieu le dimanche 9 mai 2027."), ATS_URL).dateDoubt).toBe(false);
+    expect(ats.parse(page("Départ aux arènes."), ATS_URL).dateDoubt).toBe(false);
+  });
   it("is not running when no course is", () => {
     const c = ats.parse(atsPage(atsCourse("Format S Solo", "Swimrun"), atsCourse("128 KMS", "Cyclotourisme")), ATS_URL);
     expect(c.running).toBe(false);
@@ -430,6 +443,28 @@ describe("atssport", () => {
 });
 
 describe("matchRace", () => {
+  it("does not call two French races the same for a shared 'foulées'", () => {
+    const montbazin = race({
+      slug: "36emes-foulees-des-droits-de-l-homme",
+      name: "36èmes foulées des droits de l'Homme",
+      city: "Montbazin",
+      country: "FR",
+      lat: 43.5163,
+      lng: 3.6967,
+      distances: [12],
+    });
+    const poussan = candidate({
+      source: "atssport",
+      firstHand: true,
+      name: "TRAIL DES FOULEES POUSSANAISES (7ème édition)",
+      city: "Poussan",
+      country: "FR",
+      lat: 43.4976,
+      lng: 3.6623,
+      distances: [12.5, 21.1],
+    });
+    expect(matchRace(poussan, [montbazin]).kind).toBe("none");
+  });
   it("matches on the organiser's own site", () => {
     const c = rts.parse(RTS_PAGE, "https://web.rockthesport.com/es/event/xxvi-media-maraton-san-sebastian-2027");
     expect(matchRace(c, CATALOGUE.races)).toMatchObject({ kind: "match", slug: "media-maraton-donostia" });
@@ -513,6 +548,7 @@ describe("classify", () => {
     [{ date: "2027-02-30" }, "invalid date"],
     [{ name: "15. AzkoitiAzpeitia lasterketa motza 8,06km", distances: [21.1] }, "under 10 km"],
     [{ name: "29a Marxa del Terme" }, "not running"],
+    [{ name: "Carrera Infantil de la Primavera" }, "not running"],
   ])("drops %o: %s", (over, why) => {
     expect(classify(candidate({ name: "Carrera del Puerto", ...over }), CATALOGUE, TODAY)).toMatchObject({ verdict: "dropped", why });
   });
@@ -650,6 +686,10 @@ describe("apply: plan", () => {
     const w = plan(proposal(over, c), CATALOGUE, taken());
     expect(w.ledger).toMatchObject({ status: "review", note });
     expect(w.race ?? w.edition).toBeUndefined();
+  });
+  it("leaves a doubtful date for review", () => {
+    const w = plan(proposal({ flags: ["date not confirmed by the page"] }), CATALOGUE, taken());
+    expect(w.ledger).toMatchObject({ status: "review", note: "date not confirmed by the page" });
   });
   it("parks an aggregator-only race outside the review queue", () => {
     const w = plan(proposal({}, { source: "runninglife", firstHand: false }), CATALOGUE, taken());

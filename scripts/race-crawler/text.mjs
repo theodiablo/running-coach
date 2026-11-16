@@ -54,11 +54,12 @@ const GENERIC = new Set(
     "maraton marathon marato maratona media medio mitja semi half carrera cursa course courses run race running " +
     "trail popular internacional international ciudad city ville villa km edicion edition gran grand great " +
     "premio prix road festival series san sant saint silvestre sylvestre cross corrida nocturne nocturna " +
-    "solidaria solidari solidaire popular"
+    "solidaria solidari solidaire popular foulee foulees ronde boucle boucles"
   ).split(" "),
 );
 const ROMAN_RE = /^(?=[ivxl]+$)(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$/;
-const ORDINAL_RE = /^\d+(?:a|o|e|er|eme|ª|º|th|st|nd|rd)$/;
+// Plural too: "36èmes foulées", "2es".
+const ORDINAL_RE = /^\d+(?:a|o|e|er|eme|ª|º|th|st|nd|rd)s?$/;
 const YEAR_RE = /^(?:19|20)\d\d$/;
 const DISTANCE_TOKEN_RE = /^\d+(?:k|km)?$/;
 
