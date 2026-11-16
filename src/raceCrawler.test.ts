@@ -361,10 +361,12 @@ describe("atssport", () => {
         atsCourse("Rando 30 km", "Rando semi-nocturne"),
         atsCourse("Trail enfants 2 km", "Trail"),
         atsCourse("Course pédestre 15 km", "Course pédestre"),
+        atsCourse("Trail du Canigou 42 km", "Trail"),
+        atsCourse("Foulées de Marcheprime 12 km", "Course sur route"),
       ),
       ATS_URL,
     );
-    expect(c.distances).toEqual([15]);
+    expect(c.distances).toEqual([12, 15, 42.2]);
   });
   it("is not running when no course is", () => {
     const c = ats.parse(atsPage(atsCourse("Format S Solo", "Swimrun"), atsCourse("128 KMS", "Cyclotourisme")), ATS_URL);

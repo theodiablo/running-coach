@@ -13,9 +13,10 @@ export const GEO_HOST = "geo.api.gouv.fr";
 const STATUS = { EventCancelled: "cancelled", EventPostponed: "postponed", EventScheduled: "scheduled" };
 // A course's own type ("Distance :" on the page); kids' races, walks, bikes and swimruns are not runs.
 const RUN_TYPE =
-  /\btrail\b|course sur route|course nature|\bsemi[ -]?marathon|\bmarathon|\bcross\b(?!-country vtt)|kilom[eè]tre vertical|course [aà] pied|course p[ée]destre|hors stade/i;
+  /\btrails?\b|course sur route|course nature|\bsemi[ -]?marathon|\bmarathon|\bcross\b(?!-country vtt)|kilom[eè]tre vertical|course [aà] pied|course p[ée]destre|hors stade/i;
 // A bike, dog, walk or kids' course, whatever its type says ("VTT trail", "Cani-cross", "Trail enfants").
-const NOT_RUN = /\bvtt\b|v[ée]lo|bike|cani|marche|rando|enfant|kid|jeune|poussin|benjamin|crossfit/i;
+const NOT_RUN =
+  /\bvtt\b|\bv[ée]lo\b|\bbike|\bcani(?:-?cross|-?rando)?\b|\bmarches?\b|\brando(?:nn[ée]e)?s?\b|\benfants?\b|\bkids?\b|\bjeunes?\b|\bpoussins?\b|\bbenjamins?\b|crossfit/i;
 const TYPE_KM = { "semi marathon": 21.1, "semi-marathon": 21.1, marathon: 42.2 };
 const CANCELLED = /\bannul[ée]e?\b/i;
 
