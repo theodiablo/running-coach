@@ -54,6 +54,14 @@ Note that "replace" counts as destructive. Renaming a resource, or changing an
 attribute that forces replacement, will trip this guard. That is intended: on a
 bucket, replacement means the data goes away.
 
+### A distribution edit also "changes" two IAM policies
+
+`role_boundary` and `tf_apply` interpolate `aws_cloudfront_distribution.site.arn`,
+so any in-place edit to the distribution defers those policy documents to apply
+and the plan lists both policies as updated (`known after apply`), plus the two
+deferred data reads in the PR comment's count. The ARN doesn't change in place,
+so they apply identical; only a *replaced* distribution would really change them.
+
 ### The CI roles, and what they can do
 
 | Role | Secret | Trust | Can |
