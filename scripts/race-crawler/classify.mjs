@@ -147,6 +147,8 @@ export function classify(candidate, catalogue, today) {
   if (candidate.distances.length && !distances.length) return drop("under 10 km");
 
   if (candidate.status === "postponed") flags.push("postponed");
+  // A source's date is the event's first day; the race itself can be on any of them (Snowdonia: 10K Saturday, marathon Sunday).
+  if (candidate.endDate && candidate.endDate > candidate.date) flags.push("multi-day");
   if (TBC_RE.test(`${candidate.name} ${candidate.text ?? ""}`)) flags.push("tbc");
   if (!candidate.country) flags.push("no country");
   if (candidate.lat == null) flags.push("no coordinates");

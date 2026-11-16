@@ -37,8 +37,11 @@ so a rejection sticks. `status`:
 - `verified` / `rejected`: a person dealt with it.
 
 **What goes in without a person** (`apply.mjs`, `plan`): a new edition of a
-matched race, at the race's own distance; a new race from a registration
-platform, or from an aggregator once a second source lists it. One race per
+matched race, at the race's own distance, or a new race, when a registration
+platform lists it or two sources agree. An aggregator alone is never enough: it
+lists next year's edition before the organiser announces a date (Toulouse 2027
+in the first review), and gives a multi-day event's first day, which need not
+be race day (Snowdonia, Mont-Saint-Michel), so multi-day events always wait. One race per
 event, at its headline distance (the half of a "media maratón" with a 10K, else
 the longest), named without edition number or year. Never a date change, which
 could move a date a runner trains for (`docs/races.md`, "Catalogue date

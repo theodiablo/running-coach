@@ -5,7 +5,7 @@ import { sameDistance } from "./classify.mjs";
 import { countryCode, hostOf, stripAccents } from "./text.mjs";
 
 // Anything flagged one of these waits for a person, whatever its verdict.
-const BLOCKING = new Set(["no country", "no coordinates", "distance unknown", "weekday", "postponed", "tbc"]);
+const BLOCKING = new Set(["no country", "no coordinates", "distance unknown", "weekday", "postponed", "tbc", "multi-day"]);
 // Hosts that serve many races (aggregators, social networks, timing companies): never a race's own page.
 const PLATFORM_URL = /running\.life|facebook\.com|instagram\.com|mychip\.es|gesconchip\.es|ocisport\.net/;
 
@@ -119,6 +119,10 @@ export function plan(p, catalogue, taken) {
   if (p.verdict === "newRace" && !c.firstHand && !p.alsoIn) {
     return { ledger: { ...ledger, status: "waiting", note: "one aggregator only" } };
   }
+
+  // An aggregator lists next year's edition before the organiser has a date (Toulouse 2027), so its new
+  // edition of a known race waits for a person unless a second source agrees.
+  if (p.verdict === "newEdition" && !c.firstHand && !p.alsoIn) return waits("one aggregator only");
 
   if (p.verdict === "newEdition") {
     const race = catalogue.races.find((r) => r.slug === p.slug);

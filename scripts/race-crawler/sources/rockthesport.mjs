@@ -69,6 +69,7 @@ export function parse(html, url) {
     firstHand,
     name: ev.name.trim(),
     date: ev.startDate.slice(0, 10),
+    endDate: String(ev.endDate ?? ev.startDate).slice(0, 10),
     city: location.city ?? ev.location?.address?.addressLocality ?? "",
     region: location.province ?? "",
     country: countryCode(location.country),

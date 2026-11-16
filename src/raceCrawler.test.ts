@@ -284,6 +284,10 @@ describe("classify", () => {
   ])("drops %o: %s", (over, why) => {
     expect(classify(candidate({ name: "Carrera del Puerto", ...over }), CATALOGUE, TODAY)).toMatchObject({ verdict: "dropped", why });
   });
+  it("flags a multi-day event, whose first day need not be race day", () => {
+    const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-07-10", endDate: "2027-07-11" }), CATALOGUE, TODAY);
+    expect(v.flags).toContain("multi-day");
+  });
   it("proposes a new race of a half marathon or longer, flagging what needs checking", () => {
     const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-03-10" }), CATALOGUE, TODAY);
     expect(v).toMatchObject({ verdict: "newRace", distances: [21.1], minor: true });
@@ -364,6 +368,15 @@ describe("apply: plan", () => {
     used.add("mitja-marato-ripoll");
     expect(plan(proposal({}), CATALOGUE, used).race.slug).toBe("mitja-marato-ripoll-2");
   });
+  it("leaves an aggregator-only new edition of a known race for review", () => {
+    const w = plan(
+      proposal({ verdict: "newEdition", slug: "dublin-marathon", distances: [42.2] }, { source: "runninglife", firstHand: false }),
+      CATALOGUE,
+      taken(),
+    );
+    expect(w.ledger).toMatchObject({ status: "review", note: "one aggregator only" });
+    expect(w.edition).toBeUndefined();
+  });
   it("adds a new edition at the catalogue race's own distance", () => {
     const w = plan(
       proposal({ verdict: "newEdition", slug: "dublin-marathon", distances: [10, 42.2] }, { name: "Dublin Marathon", country: "IE" }),
@@ -377,6 +390,7 @@ describe("apply: plan", () => {
     [{ verdict: "dateChange", previousDate: "2027-04-11" }, {}, "catalogue has 2027-04-11"],
     [{ verdict: "review", why: "weak name 0.40" }, {}, "weak name 0.40"],
     [{ flags: ["weekday"] }, {}, "weekday"],
+    [{ flags: ["multi-day"] }, {}, "multi-day"],
     [{ flags: ["tbc", "no coordinates"] }, {}, "tbc, no coordinates"],
     [{ verdict: "newEdition", slug: "dublin-marathon", distances: [21.1] }, {}, "no distance in common with the catalogue race"],
   ])("leaves %o for review", (over, c, note) => {

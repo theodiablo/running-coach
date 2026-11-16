@@ -26,6 +26,7 @@ function candidate(ev) {
     firstHand,
     name: String(ev.name).trim(),
     date: String(ev.startDate).slice(0, 10),
+    endDate: String(ev.endDate ?? ev.startDate).slice(0, 10),
     city: address.addressLocality ?? ev.location?.name ?? "",
     region: address.addressRegion ?? "",
     country: countryCode(address.addressCountry),
