@@ -66,10 +66,9 @@ page per candidate from GitHub's runners, which some sites refuse even though
 they answer a desk. Also read the site's terms, not only its robots.txt.
 
 running.life is **local only** (`--sources runninglife`): Cloudflare answers
-GitHub's runners with a challenge (403), so the scheduled run leaves it out.
-Its operator, MyRunResults, forbids robots and scraping without written consent
-in its own site's terms; a feed agreed with them is the way back into the
-schedule, not a way round the challenge.
+GitHub's runners with a challenge (403), its race sitemaps included, so the
+scheduled run leaves it out. A feed or an allowance agreed with running.life is
+the way back into the schedule, not a way round the challenge.
 
 
 | Source | Countries | Kind | Discovery | Extraction |
