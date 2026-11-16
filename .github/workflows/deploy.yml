@@ -46,6 +46,7 @@ jobs:
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
           # Public support address for crash trace mailto links. Set as a repo variable.
           VITE_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          REQUIRE_SUPPORT_EMAIL: "1"
           # Polar (AccessLink) OAuth client id — public/publishable, inlined at
           # build time. The Polar import provider is invisible if unset (web-only,
           # dormant); the client SECRET lives only in the polar-import edge

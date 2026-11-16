@@ -94,7 +94,8 @@ lookup) and best-effort invokes the `notify-contribution` edge function
 (`supabase/functions/`), which emails the maintainer + thanks the contributor
 via AWS SES (SigV4-signed with `aws4fetch`; keys in
 `SES_AWS_ACCESS_KEY_ID`/`SES_AWS_SECRET_ACCESS_KEY`, optional
-`SES_REGION`/`FROM_EMAIL`/`MAINTAINER_EMAIL`; degrades to a no-op if unset).
+`SES_REGION`/`FROM_EMAIL`/`MAINTAINER_EMAIL`; degrades to a no-op if unset, and
+without `MAINTAINER_EMAIL` only the maintainer notice is skipped).
 `notify-contribution` must only send from validated DB rows owned by the caller
 and dedupes in `contribution_notifications`; callers pass stable row ids
 (`raceSlug`, `editionId`, `reportId`, `feedbackId`), not arbitrary email

@@ -5,6 +5,8 @@ import { Trash2, AlertTriangle } from "lucide-react";
 import { supabase } from "../supabase";
 import { revokeAppleGrants } from "../auth/appleSignIn";
 
+const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || "";
+
 type DeleteAccountModalProps = { onSignOut: () => void; onClose: () => void };
 
 export function DeleteAccountModal({ onSignOut, onClose }: DeleteAccountModalProps) {
@@ -21,7 +23,7 @@ export function DeleteAccountModal({ onSignOut, onClose }: DeleteAccountModalPro
     await revokeAppleGrants((await supabase.auth.getSession()).data.session);
     const { error: rpcError } = await supabase.rpc("delete_my_account");
     if (rpcError) {
-      setError(t("settings.deleteAccount.error"));
+      setError(SUPPORT_EMAIL ? t("settings.deleteAccount.errorWithEmail", { email: SUPPORT_EMAIL }) : t("settings.deleteAccount.error"));
       setBusy(false);
       return;
     }

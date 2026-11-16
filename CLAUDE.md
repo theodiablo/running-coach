@@ -620,6 +620,11 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `goToRuns(ids, label)` (`RunningCoach.tsx`) — transient highlight + navigate
   + scroll — not a bare text toast.
 - Show whole-minute durations with `fmt.mins`, never `minutes / 60`.
+- **No personal email address in the repo** (`src/noPersonalEmail.test.ts`).
+  Mail to the maintainer goes to the `MAINTAINER_EMAIL` secret (repo secret in
+  workflows, function secret in edge functions); a contact address shown to
+  users is `VITE_SUPPORT_EMAIL` (repo variable `SUPPORT_EMAIL`), filled into the
+  static legal pages at build time by `scripts/support-email.mjs`.
 - **Icon-only buttons need an `aria-label`** (plus `aria-pressed` for
   toggles); buttons with adjacent visible text don't get double-labeled.
 - **An on/off control shows its state in colour, not only in its icon or

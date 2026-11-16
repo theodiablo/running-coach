@@ -35,6 +35,9 @@ jobs:
   crawl:
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    env:
+      # A step's own env is not visible to its `if`, so this lives at job level.
+      SES_CONFIGURED: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID != '' && secrets.MAINTAINER_EMAIL != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -59,6 +62,28 @@ jobs:
           node scripts/race-crawler/crawl.mjs $apply \
             --sources "$SOURCES" --since-days "$SINCE_DAYS" --max-pages "$MAX_PAGES" \
             --out race-crawl-report/report
+      - name: Email the maintainer on failure
+        # Same SES sender and IAM user as ses-weekly-report.yml; a failure there stays a warning so the
+        # run still reads red for the crawl itself.
+        if: failure() && env.SES_CONFIGURED == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SES_REPORT_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-west-1
+          FROM_EMAIL: Running Coach <noreply@camboulive.solutions>
+          REPORT_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "The race crawler run failed: $RUN_URL"
+            echo
+            if [ -f race-crawl-report/report.md ]; then head -n 12 race-crawl-report/report.md; else echo "No report was written: the run failed before the end (see the log)."; fi
+          } > failure.txt
+          aws sesv2 send-email \
+            --from-email-address "$FROM_EMAIL" \
+            --destination "ToAddresses=$REPORT_EMAIL" \
+            --content "{\"Simple\":{\"Subject\":{\"Data\":\"Running Coach - race crawler failed\"},\"Body\":{\"Text\":{\"Data\":$(jq -Rs . failure.txt)}}}}" \
+            || echo "::warning::failure email could not be sent"
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

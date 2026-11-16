@@ -101,7 +101,8 @@
   "deleteAccount": {
     "title": "Delete account",
     "body": "This permanently deletes your account and all associated data — runs, GPS routes, training plan, and settings. <bold>This cannot be undone.</bold>",
-    "error": "Something went wrong. Please try again or email theo.camboulive.dev@gmail.com."
+    "error": "Something went wrong. Please try again.",
+    "errorWithEmail": "Something went wrong. Please try again or email {{email}}."
   },
   "hr": {
     "title": "Heart rate",

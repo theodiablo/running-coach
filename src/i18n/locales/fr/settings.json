@@ -101,7 +101,8 @@
   "deleteAccount": {
     "title": "Supprimer le compte",
     "body": "Cette action supprime définitivement ton compte et toutes les données associées : sorties, itinéraires GPS, plan d'entraînement et paramètres. <bold>Elle est irréversible.</bold>",
-    "error": "Une erreur s'est produite. Réessaie ou écris à theo.camboulive.dev@gmail.com."
+    "error": "Une erreur s'est produite. Réessaie.",
+    "errorWithEmail": "Une erreur s'est produite. Réessaie ou écris à {{email}}."
   },
   "hr": {
     "title": "Fréquence cardiaque",

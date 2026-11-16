@@ -5,7 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { AwsClient } from "npm:aws4fetch@1.0.20";
 
-const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "theo.camboulive.dev@gmail.com";
+const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "";
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "Running Coach <noreply@camboulive.solutions>";
 const SES_REGION = Deno.env.get("SES_REGION") ?? "eu-west-1";
 const CONFIG_SET = Deno.env.get("SES_CONFIG_SET") ?? "runapp-notify";
@@ -232,7 +232,8 @@ Deno.serve(async (req) => {
 
     // 1) Maintainer notice. The email body is built from validated DB rows, not
     // from arbitrary caller-controlled notification payloads.
-    await sendEmail(
+    if (!MAINTAINER_EMAIL) console.warn("MAINTAINER_EMAIL is not set: maintainer notice skipped");
+    if (MAINTAINER_EMAIL) await sendEmail(
       MAINTAINER_EMAIL,
       context.maintainerSubject,
       `Contributor: ${user.email ?? "unknown"}\n\n${context.maintainerText}`,
