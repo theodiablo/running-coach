@@ -5,7 +5,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import { INPUT_CLS } from "../constants";
 import { fmt, ymd } from "../utils/format";
 import { durToSec, secToDur } from "../utils/runForm";
-import { goalSuggestions, paceChanges, predictRaceSec, roundGoal } from "../utils/raceGoal";
+import { goalSuggestions, isPlausibleGoal, paceChanges, predictRaceSec, roundGoal } from "../utils/raceGoal";
 import { countryName } from "../utils/country";
 import { fmtKm } from "../hooks/useNearMeFilter";
 import { DurationInput } from "../components/DurationInput";
@@ -77,7 +77,8 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
   const goalSec = durToSec(goalDraft);
   const predicted = predictRaceSec(runs, ed.distanceKm, ed.elevation || 0, today);
   const suggestions = goalSuggestions(predicted);
-  const goalChanged = goalSec > 0 && goalSec !== savedGoal;
+  // A half-typed time (1:30 on the way to 1:30:00) is no goal: nobody races faster than 2:30/km.
+  const goalChanged = isPlausibleGoal(goalSec, ed.distanceKm) && goalSec !== savedGoal;
   const preview = isTarget && goalChanged && previewTargetGoal ? previewTargetGoal(goalSec) : null;
   const changes = preview ? paceChanges(plan, preview, today) : [];
   const days = daysTo(ed.date, today);
@@ -127,9 +128,9 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
 
         {editions.length > 1 && (
           <Section label={t("races.sheet.editions")}>
-            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("races.sheet.editions")}>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("races.sheet.editions")}>
               {editions.map(e => (
-                <button key={e.id} role="radio" aria-checked={e.id === ed.id} onClick={() => { setSelId(e.id); setLogging(false); }}
+                <button key={e.id} aria-pressed={e.id === ed.id} onClick={() => { setSelId(e.id); setLogging(false); }}
                   className={"text-left rounded-xl border px-3 py-1.5 text-xs transition-colors " + (e.id === ed.id
                     ? "border-orange-500 bg-orange-500/10 text-orange-200" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500")
                     + (e.date < today ? " opacity-70" : "")}>
@@ -140,7 +141,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
           </Section>
         )}
 
-        {!done && (upcoming || savedGoal > 0) && (
+        {!done && (upcoming || (!isTarget && savedGoal > 0)) && (
           <Section label={t(isTarget ? "races.goal.targetLabel" : "races.goal.label")}>
             <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 space-y-3">
               <div className="flex items-center gap-3">

@@ -148,11 +148,11 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
                     autoCapitalize="characters" aria-required="true" className={INPUT_CLS}/>
                   {typedCountry && <p className="text-[11px] text-slate-400 mt-1 truncate">{countryName(typedCountry, i18n.language) || typedCountry}</p>}</div>
               </div>
-              <div role="radiogroup" aria-label={t("races.filters.terrain")}>
+              <div role="group" aria-label={t("races.filters.terrain")}>
                 <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
                 <div className="flex bg-slate-900 rounded-xl p-1 gap-1">
                   {(["road", "trail"] as const).map(v => (
-                    <button key={v} role="radio" aria-checked={terrain === v} onClick={() => setTerrain(v)}
+                    <button key={v} aria-pressed={terrain === v} onClick={() => setTerrain(v)}
                       className={"flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors " + (terrain === v ? "bg-slate-700 text-white" : "text-slate-400 hover:text-slate-200")}>
                       {t("races.filters." + v)}
                     </button>

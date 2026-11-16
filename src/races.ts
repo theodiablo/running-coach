@@ -92,15 +92,20 @@ const RACE_COLS = "slug, name, city, country, lat, lng, distances, url, verified
 const EDITION_COLS = "id, race_slug, date, distance_km, elevation, verified, created_by";
 
 // The races this account needs offline (src/utils/races.ts caches them): the editions it planned
-// around plus its own contributions. Failure-tolerant: [] on error, callers keep their snapshots.
+// around plus its own contributions (races, and dates added to anyone's race). Failure-tolerant: [] on error, callers keep their snapshots.
 export async function listKnownRaces({ editionIds = [], userId = null }: { editionIds?: string[]; userId?: string | null }): Promise<CatalogueRace[]> {
   const ids = [...new Set(editionIds.filter(Boolean))];
-  const [edsRes, mineRes] = await Promise.all([
-    ids.length ? supabase.from("race_editions").select("race_slug").in("id", ids) : Promise.resolve({ data: [] as { race_slug: string }[], error: null }),
+  const none = { data: [] as { race_slug: string }[], error: null };
+  const [edsRes, mineRes, myEdsRes] = await Promise.all([
+    ids.length ? supabase.from("race_editions").select("race_slug").in("id", ids) : Promise.resolve(none),
     userId ? supabase.from("races").select("slug").eq("created_by", userId) : Promise.resolve({ data: [] as { slug: string }[], error: null }),
+    userId ? supabase.from("race_editions").select("race_slug").eq("created_by", userId) : Promise.resolve(none),
   ]);
-  if (edsRes.error || mineRes.error) { console.error("known races load failed", edsRes.error || mineRes.error); return []; }
-  const slugs = [...new Set([...(edsRes.data || []).map(e => e.race_slug), ...(mineRes.data || []).map(r => r.slug)])];
+  const failed = edsRes.error || mineRes.error || myEdsRes.error;
+  if (failed) { console.error("known races load failed", failed); return []; }
+  const slugs = [...new Set([
+    ...(edsRes.data || []).map(e => e.race_slug), ...(mineRes.data || []).map(r => r.slug), ...(myEdsRes.data || []).map(e => e.race_slug),
+  ])];
   if (!slugs.length) return [];
   const [racesRes, allEdsRes] = await Promise.all([
     supabase.from("races").select(RACE_COLS).in("slug", slugs),
@@ -146,9 +151,14 @@ export function peekRaceSearch(params: RaceSearchParams, after: RaceCursor | nul
   return hit && now - hit.at < SEARCH_CACHE_MS ? hit.page : null;
 }
 
+// Bumped whenever the cache is dropped, so a mounted search asks again (a contribution shows at once).
+let searchCacheVersion = 0;
+export const raceSearchVersion = () => searchCacheVersion;
+
 export function clearRaceSearchCache() {
   searchCache.clear();
   countriesCache = null;
+  searchCacheVersion++;
 }
 
 // One page of the shared catalogue, filtered and sorted server-side (search_races). Throws on a

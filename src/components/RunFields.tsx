@@ -52,12 +52,6 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
   // can't collide on them, which would point a label at the wrong input.
   const fid = (name: string) => (phScope === "log.edit" ? "edit-" : "log-") + name;
   const durId = fid("dur");
-  // React restores the caret by index, landing before a colon the format just
-  // inserted; put it back at the end once the value settles. A range selected in
-  // the meantime (select-all then retype) is left alone, or the replacement would
-  // become an append.
-
-
   return (
     <>
       <div className="grid grid-cols-2 gap-3">

@@ -53,7 +53,9 @@ export function suggestionSearch(today: string, km: number, loc: Fix | null): Ra
   return {
     from: at(SUGGEST_MIN_DAYS), to: at(SUGGEST_MAX_DAYS),
     minKm: km > 0 ? Math.max(0, km - tol) : null, maxKm: km > 0 ? km + tol : null,
-    near: loc, sort: loc ? "distance" : "date", limit: 30,
+    near: loc, sort: loc ? "distance" : "date",
+    // With no distance to aim at, the client keeps only standard ones: ask for the most a page holds.
+    limit: km > 0 ? 30 : 50,
   };
 }
 

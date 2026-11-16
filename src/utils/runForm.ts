@@ -105,10 +105,6 @@ export function setRunField(
   return next;
 }
 
-// Separate h/m/s boxes, kept for the race-time entry in RacesView. The run form
-// no longer has them — see `dur`.
-export const hmsToSec = (f: { dH: string; dM: string; dS: string }) =>
-  (parseInt(f.dH, 10) || 0) * 3600 + (parseInt(f.dM, 10) || 0) * 60 + (parseInt(f.dS, 10) || 0);
 
 // A run needs a distance and some duration; the rest is optional. Cross-training ("OTHER") has no
 // comparable distance to ask for (docs/indoor-sessions.md). Errors are per field so the message sits

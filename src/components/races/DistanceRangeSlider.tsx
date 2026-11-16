@@ -19,7 +19,9 @@ export function DistanceRangeSlider({ value, onChange }: Props) {
         <div className="absolute inset-x-0 top-3 h-1 rounded-full bg-slate-700"/>
         <div className={"absolute top-3 h-1 rounded-full " + (any ? "bg-slate-500" : "bg-orange-500")}
           style={{ left: pct(value.min) + "%", right: (100 - pct(value.max)) + "%" }}/>
+        {/* Thumbs stacked at the right end: only the lower one can still move, so it goes on top. */}
         <input type="range" min={0} max={LAST_STOP} step={1} value={value.min}
+          style={{ zIndex: value.min === value.max && value.min > 0 ? 2 : 1 }}
           aria-label={t("races.filters.shortest")} aria-valuetext={stopLabel(t, value.min)}
           onChange={e => onChange({ min: Math.min(Number(e.target.value), value.max), max: value.max })}/>
         <input type="range" min={0} max={LAST_STOP} step={1} value={value.max}

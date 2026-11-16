@@ -9,7 +9,7 @@ import type { BlockRecap } from "../utils/blockRecap";
 import type { Participation, Run } from "../types";
 
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
-vi.mock("../races", () => ({ peekRaceSearch: () => null, searchRaces: vi.fn(async () => ({ races: [], next: null, total: 0 })) }));
+vi.mock("../races", () => ({ peekRaceSearch: () => null, raceSearchVersion: () => 0, searchRaces: vi.fn(async () => ({ races: [], next: null, total: 0 })) }));
 vi.useFakeTimers({ shouldAdvanceTime: true });
 vi.setSystemTime(new Date("2026-10-20T09:00:00"));
 

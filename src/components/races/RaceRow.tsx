@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, Mountain, Target } from "lucide-react";
 import { currentLocaleTag } from "../../i18n";
 import { fmtKm } from "../../hooks/useNearMeFilter";
+import { countryName } from "../../utils/country";
 import type { CatalogueEdition, CatalogueRace } from "../../types";
 
 type Props = {
@@ -16,7 +17,7 @@ type Props = {
 
 // One catalogue race in Find: a calendar tile for its next date, place, distances, and its state.
 export function RaceRow({ race, editions, highlightKm, onList, isTarget, onOpen }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const lead = editions[0];
   const d = lead ? new Date(lead.date + "T12:00:00") : null;
   const kms = [...new Set((race.editions || []).map(e => e.distanceKm))].sort((a, b) => a - b);
@@ -35,7 +36,7 @@ export function RaceRow({ race, editions, highlightKm, onList, isTarget, onOpen 
       <div className="flex-1 min-w-0">
         <p className="font-semibold leading-snug line-clamp-2">{race.name}</p>
         <p className="text-xs text-slate-400 truncate">
-          {[race.city, race.country].filter(Boolean).join(", ")}
+          {[race.city, race.country ? countryName(String(race.country), i18n.language) || race.country : null].filter(Boolean).join(", ")}
           {lead && lead.date.slice(0, 4) !== String(new Date().getFullYear()) ? " · " + lead.date.slice(0, 4) : ""}
           {more > 0 ? " · " + t("races.row.moreDates", { count: more }) : ""}
         </p>

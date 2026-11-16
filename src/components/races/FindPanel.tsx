@@ -57,10 +57,12 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
   };
   const openPanel = () => {
     setPanel(p => !p);
-    if (countries == null) void listRaceCountries().then(setCountries);
+    // An empty answer (a failed load) stays null, so the next open asks again.
+    if (countries == null) void listRaceCountries().then(list => setCountries(list.length ? list : null));
   };
   const clearAll = () => {
     setQuery("");
+    setAllCountries(false);
     setFilters({ ...DEFAULT_FILTERS, sort: filters.sort });
     if (near.nearMe) void near.toggleNearMe();
   };
@@ -150,9 +152,9 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
 
           <div>
             <p className={LBL + " mb-1.5"}>{t("races.filters.terrain")}</p>
-            <div className="flex bg-slate-900 rounded-xl p-1 gap-1" role="radiogroup" aria-label={t("races.filters.terrain")}>
+            <div className="flex bg-slate-900 rounded-xl p-1 gap-1" role="group" aria-label={t("races.filters.terrain")}>
               {([null, "road", "trail"] as const).map(v => (
-                <button key={v ?? "all"} role="radio" aria-checked={f.terrain === v} onClick={() => setFilters({ terrain: v })}
+                <button key={v ?? "all"} aria-pressed={f.terrain === v} onClick={() => setFilters({ terrain: v })}
                   className={"flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors " + (f.terrain === v ? "bg-slate-700 text-white" : "text-slate-400 hover:text-slate-200")}>
                   {t(v ? "races.filters." + v : "races.filters.allTerrain")}
                 </button>
@@ -218,7 +220,7 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
 
       <div className="flex items-center justify-between text-xs text-slate-400 px-0.5 min-h-5">
         <span aria-live="polite">
-          {search.status === "ready" && search.total != null && t(count || query.trim() ? "races.find.matchCount" : "races.find.upcomingCount", { count: search.total })}
+          {search.status === "ready" && !!search.total && t(count || query.trim() ? "races.find.matchCount" : "races.find.upcomingCount", { count: search.total })}
         </span>
         <span className="flex items-center gap-3">
           {near.nearMe && (

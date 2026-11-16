@@ -59,7 +59,8 @@ words, or ≥ 30 m of climb per km), for review with `review-race-crawl`.
 `src/utils/races.ts` keeps a module cache that only holds the races the app
 must resolve synchronously (`findEdition`): at boot `loadCatalogue` fetches the
 editions the account refers to (participations, `targetEditionId`, the plan's
-RACE sessions) plus its own contributions (`listKnownRaces`), and every search
+RACE sessions) plus its own contributions, races and dates added to
+anyone's race alike (`listKnownRaces`), and every search
 result is merged in (`rememberRaces`) so an edition picked from a search
 resolves. **Failure-tolerant:** a failed fetch leaves the cache empty and the
 app still renders (My Races falls back to participation snapshots); the boot
@@ -100,14 +101,19 @@ Tapping a race (Find, or a card in My Races) opens `RaceSheet`
 (`src/modals/RaceSheet.tsx`): its dates and distances, a still map of the start
 (`RaceMiniMap`, cached tiles), the official site, and the runner's goal. A goal
 belongs to the participation (`goalSec`, synced); typing one on a race not yet
-listed lists it. The training target's goal stays `settings.goalSec`: there the
+listed lists it. The training target's goal stays `settings.goalSec`, mirrored
+onto its participation (by `updateTargetGoal`, and for the outgoing target by
+`promoteEdition`) so it survives the race no longer being the target. There the
 field previews what the new goal does to the plan's paces (`paceChanges` over
 the hub's `previewTargetGoal`, which builds the rebuild without saving it) and
 "Update plan" applies it through `updateTargetGoal` (`rebuildPlanWith`, so
 `carryProgress` keeps done/skipped) with an Undo. "Set as target" carries the
 race's goal into Plan setup (`PlanPrefill.goalSec`). Suggestions come from
-`predictRaceSec` (`src/utils/raceGoal.ts`): the same best-effort Riegel
-projection as Progress, over the last 12 weeks, grade-adjusted for the climb.
+`predictRaceSec` (`src/utils/raceGoal.ts`): the same best-effort Riegel method
+as Progress, over the last 84 days, grade-adjusted for the edition's climb. The
+preview waits for a plausible goal (`isPlausibleGoal`, no faster than 2:30/km),
+so a half-typed time builds nothing; `paceChanges` reads both plans from the
+first week the rebuild wrote, past the `past-` week `carryProgress` keeps.
 
 ## Contributions & Discover
 

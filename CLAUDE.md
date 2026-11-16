@@ -691,8 +691,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `secToDur` (`src/utils/runForm.ts`); the field only ever appends or pops a
   digit, with the caret pinned to the end, so there is no caret arithmetic to
   get wrong. Every digit string is a valid duration, which is why there is no
-  "hours or minutes at least" rule any more. (`hmsToSec` survives for
-  `RacesView`'s separate race-time entry.)
+  "hours or minutes at least" rule any more. `DurationInput`
+  (`src/components/`) is the one field, shared with the race result and goal.
 - **The form (`RunFields`, shared by Log and Edit) is two tiers**: what a run
   needs (when/what/how far/how long) is always visible, the optional metrics sit
   behind one row that opens filled when the form arrives carrying any of them

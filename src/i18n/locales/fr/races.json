@@ -166,7 +166,7 @@
     "withinKm": "À moins de {{km}} km",
     "verifiedOnly": "Vérifiées seulement",
     "verifiedOnlyHint": "Masquer les courses que personne n'a encore vérifiées",
-    "sortSoonest": "Tri : les plus proches dans le temps",
+    "sortSoonest": "Tri : par date",
     "sortNearest": "Tri : les plus proches de toi",
     "clearAll": "Tout effacer",
     "countries": "Pays",
@@ -219,6 +219,7 @@
     "saved": "Objectif enregistré.",
     "savedToast": "Objectif enregistré.",
     "savedListedToast": "Objectif enregistré et course ajoutée à ta liste.",
-    "short": "objectif {{time}}"
+    "short": "objectif {{time}}",
+    "cleared": "Objectif retiré."
   }
 }

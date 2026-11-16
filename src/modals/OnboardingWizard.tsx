@@ -148,7 +148,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, addRace,
   const [distance, setDistance] = useState<DistanceRange>(ANY_DISTANCE);
   const { nearMe, radius, setRadius, loc, status: locStatus, toggleNearMe } = useNearMeFilter("onboarding_find_near_me");
   const pickerFilters: RaceFilters = { ...DEFAULT_FILTERS, distance, near: nearMe, radius, sort: nearMe ? "distance" : "date" };
-  const search = useRaceSearch(searchParams(query, pickerFilters, loc), cur === "race" || cur === "liveRace");
+  const search = useRaceSearch({ ...searchParams(query, pickerFilters, loc), from: today }, cur === "race" || cur === "liveRace");
 
   // No-race ("get fit") branch picks. `selKey` tracks the chosen tile (so "5K"
   // and "Just run more" both map to 5 km but stay visually distinct).

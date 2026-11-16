@@ -11,6 +11,7 @@ vi.mock("../races", () => ({
   reportRace: vi.fn().mockResolvedValue(undefined),
   listRaceCountries: vi.fn().mockResolvedValue([{ country: "ES", races: 3 }, { country: "FR", races: 2 }]),
   peekRaceSearch: vi.fn(() => null),
+  raceSearchVersion: () => 0,
   searchRaces: vi.fn(),
 }));
 vi.mock("../components/races/RaceMiniMap", () => ({ RaceMiniMap: () => null }));
@@ -140,6 +141,18 @@ describe("RacesView · race page", () => {
     expect(updateTargetGoal).toHaveBeenCalledWith(6000);
   });
 
+  it("previews nothing while a target goal is still being typed", () => {
+    const previewTargetGoal = vi.fn(() => null);
+    renderRaces([upcoming()], {
+      plan: { weeks: [] }, previewTargetGoal, updateTargetGoal: vi.fn(),
+      settings: { raceDate: FUTURE, distanceKm: 21.1, goalSec: 6300, targetEditionId: "ed-2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Spring Half 2026/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your goal" }), { target: { value: "130" } });
+    expect(previewTargetGoal).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save goal" })).toBeDisabled();
+  });
+
   it("carries a race to Plan setup from its page", () => {
     const props = renderRaces([upcoming()]);
     fireEvent.click(screen.getByRole("button", { name: /Spring Half 2026/ }));
@@ -177,7 +190,7 @@ describe("RacesView · find", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
     fireEvent.change(screen.getByRole("slider", { name: "Shortest distance" }), { target: { value: "2" } });
     fireEvent.change(screen.getByRole("slider", { name: "Longest distance" }), { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("radio", { name: "Trail" }));
+    fireEvent.click(screen.getByRole("button", { name: "Trail" }));
     await vi.waitFor(() => expect(vi.mocked(searchRaces).mock.calls.at(-1)?.[0]).toMatchObject({ minKm: 10, maxKm: 21.1, terrain: "trail" }));
     expect(JSON.parse(localStorage.getItem("rc_race_filters") || "{}")).toMatchObject({ distance: { min: 2, max: 4 }, terrain: "trail" });
     expect(await screen.findByText("No races match — try a different search.")).toBeInTheDocument();

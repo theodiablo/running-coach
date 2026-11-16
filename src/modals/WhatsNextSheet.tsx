@@ -111,7 +111,12 @@ export function WhatsNextSheet({ variant, label, kmRef, recap, blockRunner, part
               </button>
             </div>
             {near.status === "denied" && <p role="alert" className="text-xs text-amber-300">{t("whatsNext.race.denied")}</p>}
-            {suggestions.length
+            {found.status === "loading" ? <p className="text-xs text-slate-500">{t("races.find.searching")}</p>
+              : found.status === "error" ? (
+                <p className="text-xs text-slate-400">{t("races.find.searchFailed")}{" "}
+                  <button onClick={found.retry} className="font-semibold text-orange-400 hover:text-orange-300">{t("races.find.retry")}</button></p>
+              )
+              : suggestions.length
               ? suggestions.map(({ e, distM }) => raceRow(String(e.name), e.edition.date, Number(e.edition.distanceKm) || 0,
                   () => answer({ choice: "race", edition: e }), distM != null ? Math.round(distM / 1000) + " km" : undefined))
               : <p className="text-xs text-slate-400">{t("whatsNext.race.none")}</p>}

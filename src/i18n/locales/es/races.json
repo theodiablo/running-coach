@@ -166,7 +166,7 @@
     "withinKm": "A menos de {{km}} km",
     "verifiedOnly": "Solo verificadas",
     "verifiedOnlyHint": "Ocultar las carreras que nadie ha revisado aún",
-    "sortSoonest": "Orden: más pronto",
+    "sortSoonest": "Orden: por fecha",
     "sortNearest": "Orden: más cerca",
     "clearAll": "Borrar todo",
     "countries": "Países",
@@ -219,6 +219,7 @@
     "saved": "Objetivo guardado.",
     "savedToast": "Objetivo guardado.",
     "savedListedToast": "Objetivo guardado y carrera añadida a tu lista.",
-    "short": "objetivo {{time}}"
+    "short": "objetivo {{time}}",
+    "cleared": "Objetivo quitado."
   }
 }

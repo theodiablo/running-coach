@@ -6,6 +6,7 @@ vi.mock("../notify", () => ({ notifyContribution: vi.fn() }));
 vi.mock("../races", () => ({
   deleteRace: vi.fn().mockResolvedValue(undefined),
   peekRaceSearch: () => null,
+  raceSearchVersion: () => 0,
   searchRaces: vi.fn().mockResolvedValue({ races: [], next: null, total: 0 }),
 }));
 vi.mock("../components/LocationPicker", () => ({ LocationPicker: () => null }));
@@ -81,7 +82,7 @@ describe("RaceFormModal duplicates and terrain", () => {
     const { addRace } = setup();
     typeName("Trail des Crêtes");
     typeCountry("FR");
-    fireEvent.click(screen.getByRole("radio", { name: "Trail" }));
+    fireEvent.click(screen.getByRole("button", { name: "Trail" }));
     submit();
     await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ terrain: "trail" })));
   });

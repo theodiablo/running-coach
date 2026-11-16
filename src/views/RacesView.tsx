@@ -96,7 +96,7 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
   const setGoal = (joined: JoinedRace, goalSec: number | null) => {
     const listed = parts.some(p => p.editionId === joined.edition.id);
     upsertPart(joined, { goalSec });
-    showToast(t(listed ? "races.goal.savedToast" : "races.goal.savedListedToast"));
+    showToast(t(!goalSec ? "races.goal.cleared" : listed ? "races.goal.savedToast" : "races.goal.savedListedToast"));
   };
 
   const report = (raceSlug: string, reason: string, note: string) => {

@@ -30,7 +30,7 @@ vi.mock("./db", () => ({
   subscribeStoreReconciled: (cb: () => void) => { reconciledListeners.add(cb); return () => { reconciledListeners.delete(cb); }; },
   isCached: () => cached,
 }));
-vi.mock("./races", () => ({ listKnownRaces: async () => [], peekRaceSearch: () => null, searchRaces: async () => ({ races: [], next: null, total: 0 }), addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
+vi.mock("./races", () => ({ listKnownRaces: async () => [], peekRaceSearch: () => null, raceSearchVersion: () => 0, searchRaces: async () => ({ races: [], next: null, total: 0 }), addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
 vi.mock("./telemetry", () => ({ track: vi.fn() }));
 vi.mock("./modals/CoachChat", () => ({
   CoachChat: ({ onNavigate }: { onNavigate: (t: string) => void }) => <button onClick={() => onNavigate("next")}>Open what's next</button>,

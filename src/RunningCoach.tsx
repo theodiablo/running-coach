@@ -113,6 +113,12 @@ import type { CoachChatSnapshot } from "./modals/CoachChat";
 // Lazy: the stretching sheet, player and figures load on first open.
 const StretchSheet = lazy(() => import("./modals/StretchSheet").then(m => ({ default: m.StretchSheet })));
 
+// The participations with `editionId`'s goal set, or the same array when there's nothing to change.
+function withGoal(parts: Participation[], editionId: string | null | undefined, goalSec: number) {
+  if (!editionId || !goalSec || !parts.some(p => p.editionId === editionId && p.goalSec !== goalSec)) return parts;
+  return parts.map(p => p.editionId === editionId ? { ...p, goalSec } : p);
+}
+
 // Every catalogue edition the account refers to: its races, its target, and the plan's RACE sessions.
 function referencedEditionIds(parts: Participation[] = [], settings: Partial<SettingsState> | null, plan: Plan | null) {
   const ids = parts.map(p => p.editionId);
@@ -816,12 +822,16 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const previewTargetGoal = (goalSec: number) =>
     plan && goalKind(plan) === "race" ? rebuiltPlan({ ...settings, goalSec }, races.participations || []) : null;
   const updateTargetGoal = (goalSec: number) => {
-    const prevSettings = settings, prevPlan = plan;
+    const prevSettings = settings, prevPlan = plan, prevRaces = races;
     const next = { ...settings, goalSec };
     saveSettings(next);
-    const rebuilt = !!plan && goalKind(plan) === "race" && rebuildPlanWith(next, races.participations || []);
+    // The goal also rides on the race itself, so it is still there once another race is the target.
+    const parts = withGoal(races.participations || [], settings.targetEditionId, goalSec);
+    if (parts !== races.participations) commitRaces({ ...races, participations: parts });
+    const rebuilt = !!plan && goalKind(plan) === "race" && rebuildPlanWith(next, parts);
     showToast(t(rebuilt ? "races.goal.planUpdated" : "races.goal.saved"), "ok", { label: t("common.undo"), onClick: () => {
       saveSettings(prevSettings);
+      commitRaces(prevRaces);
       if (rebuilt && prevPlan) restorePlan(prevPlan);
     } });
   };
@@ -879,6 +889,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const promoteEdition = (joined: JoinedEdition | Promotable) => {
     const e = joined.edition;
     const goalSec = (races.participations || []).find(p => p.editionId === e.id)?.goalSec || null;
+    // The outgoing target keeps the goal it was trained for on its own race.
+    const outgoing = settings.targetEditionId !== e.id ? settings.targetEditionId : null;
+    const kept = withGoal(races.participations || [], outgoing, Number(settings.goalSec) || 0);
+    if (kept !== races.participations) commitRaces({ ...races, participations: kept });
     setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e), goalSec });
     setTab("plan");
     track("race_target_set", {});

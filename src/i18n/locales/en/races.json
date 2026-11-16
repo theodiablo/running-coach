@@ -219,6 +219,7 @@
     "saved": "Goal saved.",
     "savedToast": "Goal saved.",
     "savedListedToast": "Goal saved and race added to your list.",
-    "short": "goal {{time}}"
+    "short": "goal {{time}}",
+    "cleared": "Goal cleared."
   }
 }

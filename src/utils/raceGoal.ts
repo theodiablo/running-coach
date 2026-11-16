@@ -3,6 +3,7 @@
 import { VERT_COST } from "../constants";
 import { bestEffortAnchor, riegel } from "./predictions";
 import { addDays } from "./format";
+import { HISTORY_ID_PREFIX } from "./plan";
 import { isCrossTraining } from "../types";
 import type { Plan, Run } from "../types";
 
@@ -17,6 +18,9 @@ export function predictRaceSec(runs: Run[] | null | undefined, km: number, eleva
   if (!best) return null;
   return riegel(best.durationSec, best.km, km + VERT_COST * Math.max(0, elevation || 0) / 1000);
 }
+
+export const FASTEST_GOAL_PACE = 150;
+export const isPlausibleGoal = (sec: number, km: number) => sec > 0 && km > 0 && sec / km >= FASTEST_GOAL_PACE;
 
 // Goal times read as round numbers: 5 s steps under an hour, 30 s above.
 export function roundGoal(sec: number): number {
@@ -39,15 +43,20 @@ export type PaceChange = { type: string; before: number; after: number };
 const PACE_TYPES = ["EASY", "LONG", "TEMPO", "INTERVALS"] as const;
 
 // Race pace, then the next open session of each type, before and after a rebuild; only rows that move.
+// A rebuild keeps this week as `past-` history with its old paces, so both plans are read from the
+// first week the rebuild actually wrote.
 export function paceChanges(before: Plan | null | undefined, after: Plan | null | undefined, today: string): PaceChange[] {
   if (!before || !after) return [];
   const out: PaceChange[] = [];
   if (before.racePace && after.racePace && Math.round(before.racePace) !== Math.round(after.racePace)) {
     out.push({ type: "RACE", before: before.racePace, after: after.racePace });
   }
+  const isCarried = (id: string) => id.startsWith(HISTORY_ID_PREFIX);
+  const firstNew = (after.weeks || []).find(w => (w.sessions || []).some(s => !isCarried(s.id)))?.startDate || today;
+  const from = firstNew > today ? firstNew : today;
   const nextPace = (plan: Plan, type: string) => {
     for (const w of plan.weeks || []) for (const s of w.sessions || []) {
-      if (s.type === type && s.date >= today && !s.done && !s.skipped && s.pace > 0) return s.pace;
+      if (s.type === type && s.date >= from && !isCarried(s.id) && !s.done && !s.skipped && s.pace > 0) return s.pace;
     }
     return null;
   };

@@ -1,5 +1,7 @@
 -- Races catalogue goes server-side: a terrain column and the paged search Find, onboarding and What's next? call (docs/races.md).
 
+set local lock_timeout = '5s';
+
 alter table public.races add column if not exists terrain text;
 alter table public.races drop constraint if exists races_terrain_values;
 alter table public.races add constraint races_terrain_values check (terrain is null or terrain in ('road', 'trail'));
@@ -40,7 +42,8 @@ set search_path = ''
 as $$
   with params as (
     select
-      nullif(translate(lower(trim(coalesce(p_query, ''))), 'áàâäãåéèêëíìîïóòôöõúùûüñçœ', 'aaaaaaeeeeiiiiooooouuuunco'), '') as q,
+      nullif(replace(replace(replace(translate(lower(trim(left(coalesce(p_query, ''), 100))),
+        'áàâäãåéèêëíìîïóòôöõúùûüñçœ', 'aaaaaaeeeeiiiiooooouuuunco'), '\', '\\'), '%', '\%'), '_', '\_'), '') as q,
       greatest(1, least(coalesce(p_limit, 20), 50)) as lim,
       current_date as today
   ),
@@ -66,10 +69,10 @@ as $$
   matched as (
     select r.*, a.editions, a.next_date, a.last_date,
       case when p_lat is null or p_lng is null or r.lat is null or r.lng is null then null
-        else 2 * 6371 * asin(sqrt(
+        else 2 * 6371 * asin(least(1, sqrt(greatest(0,
           power(sin(radians(r.lat - p_lat) / 2), 2)
           + cos(radians(p_lat)) * cos(radians(r.lat)) * power(sin(radians(r.lng - p_lng) / 2), 2)
-        )) end as dist_km
+        )))) end as dist_km
     from public.races r
     join agg a on a.race_slug = r.slug
     cross join params p

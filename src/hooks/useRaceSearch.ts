@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { peekRaceSearch, searchRaces } from "../races";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { peekRaceSearch, raceSearchVersion, searchRaces } from "../races";
 import type { RaceCursor, RaceSearchParams } from "../races";
 import { rememberRaces } from "../utils/races";
 import type { CatalogueRace } from "../types";
@@ -24,10 +24,12 @@ export type RaceSearch = {
 export function useRaceSearch(params: RaceSearchParams, enabled = true): RaceSearch {
   const query = JSON.stringify(params);
   const [attempt, setAttempt] = useState(0);
-  const key = query + "#" + attempt;
+  // A dropped cache (a contribution) is a new key too, so a mounted list asks again.
+  const key = query + "#" + attempt + "#" + raceSearchVersion();
   const [settled, setSettled] = useState<Settled | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-
+  const [loadingMoreKey, setLoadingMoreKey] = useState<string | null>(null);
+  const latest = useRef(key);
+  useEffect(() => { latest.current = key; }, [key]);
 
   useEffect(() => {
     if (!enabled || peekRaceSearch(JSON.parse(query) as RaceSearchParams)) return;
@@ -52,20 +54,22 @@ export function useRaceSearch(params: RaceSearchParams, enabled = true): RaceSea
     return cached ? { key, ...cached, error: false } : null;
   }, [settled, key, query, enabled]);
 
+  const loadingMore = loadingMoreKey === key;
   const loadMore = useCallback(() => {
     if (!current?.next || loadingMore) return;
     const asked = current.key;
-    setLoadingMore(true);
+    setLoadingMoreKey(asked);
     searchRaces(JSON.parse(query) as RaceSearchParams, current.next)
       .then(page => {
         rememberRaces(page.races);
+        if (latest.current !== asked) return;
         setSettled(s => {
           const base = s && s.key === asked ? s : current;
           return { ...base, races: [...base.races, ...page.races.filter(r => !base.races.some(x => x.id === r.id))], next: page.next };
         });
       })
       .catch(err => console.error("race search page failed", err))
-      .finally(() => setLoadingMore(false));
+      .finally(() => setLoadingMoreKey(k => k === asked ? null : k));
   }, [current, loadingMore, query]);
 
   const retry = useCallback(() => setAttempt(a => a + 1), []);
