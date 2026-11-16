@@ -11,7 +11,7 @@ export function makeLiveModel({ apiKey, model, systemPrompt, baseUrl = "https://
         headers: {
           "content-type": "application/json",
           "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "anthropic-version": "2026-10-21",
         },
         body: JSON.stringify({
           model,

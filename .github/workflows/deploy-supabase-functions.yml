@@ -7,7 +7,8 @@ name: Deploy Supabase functions
 # source actually imports from _shared, not just coach-agent by name.
 #
 # Uses the Supabase CLI (a devDependency, so `npx supabase` needs no extra
-# install) against the linked project via SUPABASE_ACCESS_TOKEN — CLI deploy
+# install), targeting --remote=<ref> with --yes (CLI v3 refuses unattended
+# hosted changes otherwise) via SUPABASE_ACCESS_TOKEN — CLI deploy
 # reads files straight off disk, unlike the interactive-session path (see
 # CLAUDE.md) which goes through the Supabase MCP tools instead.
 on:
@@ -136,7 +137,7 @@ jobs:
           fi
           for name in $FUNCS; do
             echo "::group::Deploying $name"
-            npx supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_REF"
+            npx supabase functions deploy "$name" --remote="$SUPABASE_PROJECT_REF" --yes
             echo "::endgroup::"
           done
           echo "### Deployed functions" >> "$GITHUB_STEP_SUMMARY"

@@ -3,7 +3,7 @@
 // "not live" case answers an identical `{ live: false }`. Detail: docs/live-sharing.md.
 // The token is DURABLE (v4, `live_share_tokens`): a retired token is terminal and must never fall through to the legacy per-run column.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { isValidShareToken } from "../_shared/liveShare.mjs";
 import {
   answerEntry, BATCH_MAX_BODY, HEAD_COLUMNS, parseBatchBody, parseBatchViewer, validTokens, validViewer, wantsFull,

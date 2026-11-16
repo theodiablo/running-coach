@@ -150,7 +150,7 @@ function StatusLine({ data, state }: { data: RunnerData; state: LiveRowState }) 
   const fresh = freshness(state);
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" aria-hidden />{fresh ? t(fresh.key, fresh.params) : ""}
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" aria-hidden />{fresh ? t(fresh.key, fresh.params ?? {}) : ""}
     </span>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
+import type { TFunction } from "i18next";
 import { TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, ReferenceLine } from "recharts";
 import { VERT_COST } from "../constants";
@@ -249,7 +250,7 @@ function EstimatePair({bt, ht, km}: {bt: number; ht: number | null; km: number})
 }
 
 // "1:01 over" / "3:20 to spare" — the direction stated, never a bare signed number.
-const gapLabel = (diffSec: number, t: (k: string, v?: Record<string, unknown>) => string) =>
+const gapLabel = (diffSec: number, t: TFunction) =>
   Math.abs(diffSec) < 30
     ? t("progress.predictions.gapLevel")
     : t("progress.predictions." + (diffSec > 0 ? "gapOver" : "gapUnder"), {d: fmt.dur(Math.abs(diffSec))});

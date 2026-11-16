@@ -50,7 +50,7 @@ export function EmailSection({ user, showToast }: { user: User; showToast?: (msg
       // instead of showing the raw "email rate limit exceeded".
       const mapped = authErrorMessage(err);
       setError(mapped
-        ? { text: t(mapped.key, mapped.vars), tone: mapped.tone }
+        ? { text: t(mapped.key, mapped.vars ?? {}), tone: mapped.tone }
         : { text: err.message || t("settings.account.emailError"), tone: "error" });
       return;
     }
