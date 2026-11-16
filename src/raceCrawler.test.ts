@@ -474,7 +474,6 @@ describe("classify", () => {
     [{ status: "cancelled" }, "cancelled"],
     [{ date: "2026-11-01" }, "past"],
     [{ name: "Virtual Half" }, "virtual"],
-    [{ distances: [10, 15] }, "new race under half marathon"],
     [{ distances: [] }, "distance unknown"],
     [{ date: "2027-02-30" }, "invalid date"],
     [{ name: "15. AzkoitiAzpeitia lasterketa motza 8,06km", distances: [21.1] }, "under 10 km"],
@@ -486,10 +485,14 @@ describe("classify", () => {
     const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-07-10", endDate: "2027-07-11" }), CATALOGUE, TODAY);
     expect(v.flags).toContain("multi-day");
   });
-  it("proposes a new race of a half marathon or longer, flagging what needs checking", () => {
+  it("proposes a new race of 10 km or longer, flagging what needs checking", () => {
     const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-03-10" }), CATALOGUE, TODAY);
-    expect(v).toMatchObject({ verdict: "newRace", distances: [21.1], minor: true });
+    expect(v).toMatchObject({ verdict: "newRace", distances: [21.1], minor: false });
     expect(v.flags).toEqual(expect.arrayContaining(["second-hand date", "weekday"]));
+  });
+  it("proposes a new 10K, from an aggregator too", () => {
+    const v = classify(candidate({ name: "Carrera del Puerto", date: "2027-03-14", distances: [5, 10] }), CATALOGUE, TODAY);
+    expect(v).toMatchObject({ verdict: "newRace", distances: [10], minor: false });
   });
 });
 
@@ -509,7 +512,7 @@ describe("mergeSources", () => {
     expect(merged[0].alsoIn).toEqual([{ source: "runninglife", url: a.candidate.url }]);
     expect(worthProposing(merged[0])).toBe(true);
   });
-  it("drops a sub-marathon new race only an aggregator lists", () => {
+  it("drops a minor new race (under the second-hand bar) only an aggregator lists", () => {
     expect(worthProposing({ minor: true })).toBe(false);
   });
 });
