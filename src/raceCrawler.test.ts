@@ -510,6 +510,12 @@ describe("apply: cleanName", () => {
     ["X-Trail Valencia", "X-Trail Valencia"],
     ["10K Circuit de Jerez, Jerez", "10K Circuit de Jerez, Jerez"],
     ["Lliga de Muntanya València Sud. 26/27", ""],
+    ["TRAIL DES FOULEES POUSSANAISES (7ème édition)", "Trail des Foulees Poussanaises"],
+    ["Trail Nocturne de l'Ecoparc Catalan - 4ème édition", "Trail Nocturne de l'Ecoparc Catalan"],
+    ["35° BOUCLES DE MAGUELONE", "Boucles de Maguelone"],
+    ["Clermont l'Hérault Urban Trail CHUT 2026 By GROUPAMA", "Clermont l'Hérault Urban Trail CHUT"],
+    ["Run by the Sea", "Run by the Sea"],
+    ["Media Maratón Elche 7ª edición", "Media Maratón Elche"],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([
     ["17007 Girona", "Girona"],
