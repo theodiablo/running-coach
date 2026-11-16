@@ -22,17 +22,22 @@ function snap(km) {
   return Math.round(km * 10) / 10;
 }
 
-/** Every race distance (km) a label or sentence names, ascending and de-duplicated. */
-export function parseDistances(text) {
+/**
+ * Every race distance (km) a label or sentence names, ascending and de-duplicated. With `explicitWins`,
+ * a stated figure beats the kind word beside it ("MIUT MARATHON 40 KMS" is 40, not 42.2).
+ */
+export function parseDistances(text, { explicitWins = false } = {}) {
   if (!text) return [];
   const found = [];
   let rest = String(text);
   rest = rest.replace(HALF_RE, (m, pre) => (found.push(HALF_KM), `${pre} `));
   rest = rest.replace(MARATHON_RE, (m, pre, ultra) => (ultra ? `${pre} ` : (found.push(MARATHON_KM), `${pre} `)));
+  const fromWords = found.length;
   for (const m of rest.matchAll(RANGE_RE)) found.push(num(m[1]), num(m[2]));
   for (const m of rest.matchAll(KM_RE)) found.push(num(m[1]));
   for (const m of rest.matchAll(MILE_RE)) found.push(num(m[1]) * MILE_KM);
-  const kms = found.map(snap).filter((km) => km > 0 && km <= MAX_KM);
+  const kept = explicitWins && found.length > fromWords ? found.slice(fromWords) : found;
+  const kms = kept.map(snap).filter((km) => km > 0 && km <= MAX_KM);
   return [...new Set(kms)].sort((a, b) => a - b);
 }
 

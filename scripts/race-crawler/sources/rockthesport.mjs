@@ -57,7 +57,11 @@ export function parse(html, url) {
   const subsports = jsonAt(flight, /"subsports":(\[[^\]]*\])/) ?? [];
   const tariffNames = jsonAt(flight, /"tariffNames":(\{[^}]*\})/) ?? {};
   const sport = String(ev.sport ?? "").toLowerCase();
-  const labels = Object.values(tariffNames).join(" | ");
+  // A fare's name can hide its distance ("MIUT LEGEND"); its description often carries it ("110 KMS 7200D+").
+  const fares = [...flight.matchAll(/"publicName":"((?:[^"\\]|\\.)*)","description":"((?:[^"\\]|\\.)*)"/g)].map(
+    (m) => `${m[1]} ${m[2]}`.trim(),
+  );
+  const labels = (fares.length ? fares : Object.values(tariffNames)).join(" | ");
   const fromSubsports = subsports.map((s) => SUBSPORT_KM[s]).filter(Boolean);
   const geo = ev.location?.geo ?? {};
   const lat = Number(geo.latitude ?? location.latitude);
@@ -75,7 +79,9 @@ export function parse(html, url) {
     country: countryCode(location.country),
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
-    distances: [...new Set([...fromSubsports, ...parseDistances(labels)])].sort((a, b) => a - b),
+    distances: [
+      ...new Set([...fromSubsports, ...fares.flatMap((f) => parseDistances(f, { explicitWins: true })), ...parseDistances(fares.length ? "" : labels)]),
+    ].sort((a, b) => a - b),
     running: RUNNING_SPORTS.has(sport),
     sport,
     status: STATUS[String(ev.eventStatus ?? "").split("/").pop()] ?? "scheduled",
