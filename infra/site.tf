@@ -206,6 +206,20 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
+  # The public watch page's polls (docs/live-sharing.md, "Edge cache"): the token is in the path because
+  # CachingOptimized keys on the path alone, and nothing else (query, headers, cookies) reaches supabase.co.
+  # live-watch sends s-maxage=10 on its uniform 200s and no-store on everything else.
+  ordered_cache_behavior {
+    path_pattern               = "/live-watch/*"
+    target_origin_id           = "supabase-functions"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # CachingOptimized
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security.id
+  }
+
   # A single-page app: any path not found in the bucket is the router's job,
   # not a real 403/404.
   custom_error_response {

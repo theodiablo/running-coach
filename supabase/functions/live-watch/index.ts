@@ -34,8 +34,9 @@ const CORS = {
   "Access-Control-Max-Age": "7200",
 };
 
-// no-store, because a shared CDN/proxy cache keyed on the URL would go on
-// serving a run's position after the runner ended the broadcast.
+// no-store by default: a shared cache keyed on a ?t= URL would keep serving a run after its broadcast ended. The one
+// cacheable shape is the path-token read CloudFront fronts (EDGE_CACHE), bounded to seconds. docs/live-sharing.md.
+const EDGE_CACHE = "public, max-age=0, s-maxage=10";
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
@@ -68,14 +69,22 @@ function rateLimited(req: Request, weight = 1): boolean {
   return entry.count > RATE_MAX;
 }
 
-// The token may arrive as ?t= (the page's own polling) or in a JSON body; the viewer id rides alongside.
-async function readToken(req: Request): Promise<{ token: string | null; viewer: string | null }> {
-  const params = new URL(req.url).searchParams;
+// The token may arrive in the path (/live-watch/<token>, the edge-cached read), as ?t= (the page's first poll, carrying
+// the viewer id) or in a JSON body.
+async function readToken(req: Request): Promise<{ token: string | null; viewer: string | null; fromPath: boolean }> {
+  const url = new URL(req.url);
+  const inPath = /\/live-watch\/([^/]+)$/.exec(url.pathname)?.[1];
+  if (inPath) {
+    let token: string | null = null;
+    try { token = decodeURIComponent(inPath); } catch { /* malformed escape: the uniform miss */ }
+    return { token, viewer: null, fromPath: true };
+  }
+  const params = url.searchParams;
   const fromQuery = params.get("t");
-  if (fromQuery) return { token: fromQuery, viewer: validViewer(params.get("v")) };
-  if (req.method !== "POST") return { token: null, viewer: null };
+  if (fromQuery) return { token: fromQuery, viewer: validViewer(params.get("v")), fromPath: false };
+  if (req.method !== "POST") return { token: null, viewer: null, fromPath: false };
   const body = await req.json().catch(() => null) as { token?: unknown; v?: unknown } | null;
-  return { token: typeof body?.token === "string" ? body.token : null, viewer: validViewer(body?.v) };
+  return { token: typeof body?.token === "string" ? body.token : null, viewer: validViewer(body?.v), fromPath: false };
 }
 
 // PostgREST answers a missing table from its schema cache (PGRST205) and the
@@ -295,39 +304,11 @@ Deno.serve(async (req) => {
 
     if (rateLimited(req)) return limited();
 
-    const { token, viewer } = await readToken(req);
-    // Reject a malformed token before touching the database — a crawler walking
-    // short strings costs us a regex, not a query. Same response as everything
-    // else, so it stays indistinguishable from a well-formed miss.
-    if (!isValidShareToken(token)) return notLive();
-
-    const admin = makeAdmin();
-
-    const claim = await admin
-      .from("live_share_tokens")
-      .select("user_id, revoked_at")
-      .eq("token", token)
-      .maybeSingle();
-
-    // The ledger table may not exist yet (functions and migrations deploy separately on merge): answer "nothing live", not a
-    // 500, which the page retries forever and leaves every shared link stuck in an error state.
-    if (isMissingRelation(claim.error)) {
-      console.error("live-watch: live_share_tokens missing — apply the standing-link migration");
-      return notLive();
-    }
-    if (claim.error) throw claim.error;
-
-    if (claim.data) {
-      // Retired, or an account since deleted: terminal. NOT a fall-through to
-      // the legacy column — see the header.
-      if (claim.data.revoked_at || !claim.data.user_id) return notLive();
-      return await serveRun(admin, { userId: String(claim.data.user_id) }, viewer);
-    }
-
-    // No ledger row at all: a link minted by a pre-v4 bundle, still within its
-    // own run. Retire this branch (and revoke the column's write) once
-    // min_supported_version clears the last bundle that mints one.
-    return await serveRun(admin, { legacyToken: token }, null);
+    const { token, viewer, fromPath } = await readToken(req);
+    const res = await serveSingle(token, viewer);
+    // Only a uniform 200 is shared: an error or a 429 must never be replayed to every spectator of the run.
+    if (fromPath && res.status === 200) res.headers.set("Cache-Control", EDGE_CACHE);
+    return res;
   } catch (err) {
     console.error("live-watch error", err);
     // Never leak the failure shape to an anonymous caller. The page treats a
@@ -336,3 +317,38 @@ Deno.serve(async (req) => {
     return json({ error: "unavailable" }, 500);
   }
 });
+
+async function serveSingle(token: string | null, viewer: string | null): Promise<Response> {
+  // Reject a malformed token before touching the database — a crawler walking
+  // short strings costs us a regex, not a query. Same response as everything
+  // else, so it stays indistinguishable from a well-formed miss.
+  if (!isValidShareToken(token)) return notLive();
+
+  const admin = makeAdmin();
+
+  const claim = await admin
+    .from("live_share_tokens")
+    .select("user_id, revoked_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  // The ledger table may not exist yet (functions and migrations deploy separately on merge): answer "nothing live", not a
+  // 500, which the page retries forever and leaves every shared link stuck in an error state.
+  if (isMissingRelation(claim.error)) {
+    console.error("live-watch: live_share_tokens missing — apply the standing-link migration");
+    return notLive();
+  }
+  if (claim.error) throw claim.error;
+
+  if (claim.data) {
+    // Retired, or an account since deleted: terminal. NOT a fall-through to
+    // the legacy column — see the header.
+    if (claim.data.revoked_at || !claim.data.user_id) return notLive();
+    return await serveRun(admin, { userId: String(claim.data.user_id) }, viewer);
+  }
+
+  // No ledger row at all: a link minted by a pre-v4 bundle, still within its
+  // own run. Retire this branch (and revoke the column's write) once
+  // min_supported_version clears the last bundle that mints one.
+  return await serveRun(admin, { legacyToken: token! }, null);
+}

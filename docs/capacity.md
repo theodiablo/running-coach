@@ -49,6 +49,10 @@ None of these is a global cap: total coach spend grows linearly with active
 users, and total ORS usage with active premium users. The live-sharing limiters are best-effort; they
 reset when an isolate recycles and don't add up across concurrent isolates.
 
+The public watch page's single-runner polls are edge-cached by our CloudFront for 10s
+(`docs/live-sharing.md`, "Edge cache"), so a crowd watching one runner costs about one
+`live-watch` call per 10s per edge location; the multi-runner batch read is not cached.
+
 ## Shared third-party quotas
 - **Anthropic API** (coach): org-level rate limits and spend.
 - **OpenRouteService** (route finder): one key, one quota for every user.

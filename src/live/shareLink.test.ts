@@ -142,7 +142,7 @@ describe("fetchLiveWatch", () => {
   const ok = (body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) => ({
     ok: (init.status ?? 200) < 400,
     status: init.status ?? 200,
-    headers: { get: (k: string) => init.headers?.[k] ?? null },
+    headers: { get: (k: string) => ({ "Content-Type": "application/json", ...init.headers })[k] ?? null },
     json: async () => body,
   });
 
@@ -171,6 +171,10 @@ describe("fetchLiveWatch", () => {
 
     vi.mocked(fetch).mockResolvedValue(ok({}, { status: 500 }) as unknown as Response);
     await expect(fetchLiveWatch(token)).resolves.toEqual({ kind: "error" });
+
+    // The SPA fallback answering 200 with index.html for a missing origin is an outage too.
+    vi.mocked(fetch).mockResolvedValue(ok({}, { headers: { "Content-Type": "text/html" } }) as unknown as Response);
+    await expect(fetchLiveWatch(token)).resolves.toEqual({ kind: "error" });
   });
 
   it("passes a rate limit's Retry-After back to the caller", async () => {
@@ -181,7 +185,7 @@ describe("fetchLiveWatch", () => {
 
   it("survives a body that isn't the shape we expect", async () => {
     vi.mocked(fetch).mockResolvedValue({
-      ok: true, status: 200, headers: { get: () => null },
+      ok: true, status: 200, headers: { get: () => "application/json" },
       json: async () => { throw new Error("not json"); },
     } as unknown as Response);
     await expect(fetchLiveWatch(token)).resolves.toEqual({ kind: "none" });
@@ -193,7 +197,7 @@ describe("fetchLiveWatchBatch", () => {
   const ok = (body: unknown, init: { status?: number; headers?: Record<string, string> } = {}) => ({
     ok: (init.status ?? 200) < 400,
     status: init.status ?? 200,
-    headers: { get: (k: string) => init.headers?.[k] ?? null },
+    headers: { get: (k: string) => ({ "Content-Type": "application/json", ...init.headers })[k] ?? null },
     json: async () => body,
   }) as unknown as Response;
 
