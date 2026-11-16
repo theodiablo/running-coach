@@ -129,6 +129,13 @@ const candidate = (over: Record<string, unknown>) => ({
   ...over,
 });
 
+describe("parseDistances: miles in Spanish and French", () => {
+  it.each([
+    ["IX CROSS 5 MILLAS VILLAMANTILLA", [8]],
+    ["Les 10 milles de Paris", [16.1]],
+  ])("%s", (text, kms) => expect(parseDistances(text)).toEqual(kms));
+});
+
 describe("parseDistances: not race distances", () => {
   it.each([
     ["Relais 4x10km", []],
@@ -648,6 +655,16 @@ describe("apply: plan", () => {
     const w = plan(proposal({}, { source: "runninglife", firstHand: false }), CATALOGUE, taken());
     expect(w.ledger).toMatchObject({ status: "waiting", note: "one aggregator only" });
     expect(w.race ?? w.edition).toBeUndefined();
+  });
+  it("parks a flagged aggregator-only race too: its flags are checked once a second source lists it", () => {
+    const w = plan(proposal({ flags: ["weekday", "multi-day"] }, { source: "findarace", firstHand: false }), CATALOGUE, taken());
+    expect(w.ledger).toMatchObject({ status: "waiting", note: "one aggregator only" });
+    const second = plan(
+      proposal({ flags: ["weekday"], alsoIn: [{ source: "x", url: "u" }] }, { source: "findarace", firstHand: false }),
+      CATALOGUE,
+      taken(),
+    );
+    expect(second.ledger).toMatchObject({ status: "review", note: "weekday" });
   });
   it("never adds a second race under a name the catalogue already has", () => {
     const withRipoll = { ...CATALOGUE, races: [...CATALOGUE.races, race({ slug: "mitja-marato-ripoll", name: "Mitja Marató Ripoll" })] };
