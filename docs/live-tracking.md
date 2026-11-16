@@ -727,8 +727,9 @@ epoch-ms value arrives as a `Long` — which is how `chronometerStartMs` was
 silently dropped (no ticking clock) until this was found. The
 dependency is **pinned exact** (no `^`) so the patch always matches; on a
 version bump, check whether upstream fixed the lifecycle permission check (repo
-issue tracker was silent as of 1.2.26 and the plugin lags on Capacitor majors —
-see its issue #156), then regenerate
+issue tracker was silent as of 1.2.26; 1.3.1 still has it, and only moved the
+service's `startForeground` into a `promote()` it also calls on permission grant —
+see its issues #153 and #156), then regenerate
 (`npx patch-package @capacitor-community/background-geolocation`) or delete the
 patch.
 

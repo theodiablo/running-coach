@@ -86,7 +86,7 @@ export function LiveRunStatus({ state }: { state: LiveRowState }) {
     </p>
   ) : (
     <p className="text-[11px] text-center text-slate-500">
-      {paused ? t("liveShare.watch.paused") + " · " : ""}{fresh ? t(fresh.key, fresh.params) : ""}
+      {paused ? t("liveShare.watch.paused") + " · " : ""}{fresh ? t(fresh.key, fresh.params ?? {}) : ""}
     </p>
   );
 }

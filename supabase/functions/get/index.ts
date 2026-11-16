@@ -3,7 +3,7 @@
 // (or the web app) and counts the scan: platform + campaign tag only, never an
 // IP or user agent. Public by design, so no JWT. docs/store-redirect.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import { routeScan } from "../_shared/storeRedirect.mjs";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

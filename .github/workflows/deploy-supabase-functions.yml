@@ -136,7 +136,7 @@ jobs:
           fi
           for name in $FUNCS; do
             echo "::group::Deploying $name"
-            npx supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_REF"
+            npx supabase functions deploy "$name" --remote="$SUPABASE_PROJECT_REF" --yes
             echo "::endgroup::"
           done
           echo "### Deployed functions" >> "$GITHUB_STEP_SUMMARY"
