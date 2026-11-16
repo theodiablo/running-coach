@@ -11,6 +11,7 @@ import { parseDistances } from "./text.mjs";
 import { LEDGER_KEYS_SQL, buildSql, ledgerKey, plan, runSql } from "./apply.mjs";
 import * as rts from "./sources/rockthesport.mjs";
 import * as rl from "./sources/runninglife.mjs";
+import * as far from "./sources/findarace.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const USER_AGENT = "running-coach-race-crawler/1.0 (weekly; race catalogue)";
@@ -18,7 +19,8 @@ const PROPOSED = new Set(["newEdition", "dateChange", "newRace", "review"]);
 
 const { values: args } = parseArgs({
   options: {
-    sources: { type: "string", default: "rockthesport,runninglife" },
+    // running.life answers GitHub's runners with a Cloudflare challenge: a local run only.
+    sources: { type: "string", default: "rockthesport,findarace" },
     countries: { type: "string", default: "ES,FR,GB,IE" },
     "since-days": { type: "string", default: "15" },
     "max-pages": { type: "string", default: "0" },
@@ -38,7 +40,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lastHit = new Map();
 
 // Only the sources' own hosts: a URL read off a scraped page is never followed elsewhere.
-const SOURCE_HOSTS = new Set(["web.rockthesport.com", "running.life"]);
+const SOURCE_HOSTS = new Set(["web.rockthesport.com", "running.life", "findarace.com"]);
 const onSourceHost = (u) => {
   try {
     return SOURCE_HOSTS.has(new URL(u).host);
@@ -127,10 +129,11 @@ async function getPage(url, stats) {
   }
 }
 
-async function crawlRockTheSport(stats) {
+// Event pages from sitemaps, those changed in the last --since-days only.
+async function crawlSitemaps(stats, source, keep = () => true) {
   const since = new Date(Date.now() - sinceDays * 86_400_000).toISOString().slice(0, 10);
   const candidates = [];
-  for (const sitemap of rts.SITEMAPS) {
+  for (const sitemap of source.SITEMAPS) {
     const xml = await get(sitemap);
     if (!xml) continue;
     let urls = rts.discover(xml, since);
@@ -139,9 +142,9 @@ async function crawlRockTheSport(stats) {
     for (const { url } of urls) {
       const html = await getPage(url, stats);
       stats.fetched++;
-      const c = html && rts.parse(html, url);
-      if (c) candidates.push(c);
-      else stats.unparsed++;
+      const c = html && source.parse(html, url);
+      if (!c) stats.unparsed++;
+      else if (keep(c)) candidates.push(c);
     }
   }
   return candidates;
@@ -248,7 +251,9 @@ async function main() {
   const countries = args.countries.split(",").map((c) => c.trim().toUpperCase());
   const wanted = args.sources.split(",").map((s) => s.trim());
   const crawlers = {
-    rockthesport: (stats) => crawlRockTheSport(stats),
+    rockthesport: (stats) => crawlSitemaps(stats, rts),
+    // Find a Race lists races worldwide; only the countries asked for.
+    findarace: (stats) => crawlSitemaps(stats, far, (c) => countries.includes(c.country)),
     runninglife: (stats) => crawlRunningLife(stats, countries, catalogue, seenKeys),
   };
   const sources = [];

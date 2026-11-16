@@ -97,6 +97,8 @@ function buildCountryIndex() {
     ["uk", "GB"],
     ["great britain", "GB"],
     ["espana", "ES"],
+    ["espanya", "ES"],
+    ["eire", "IE"],
   ]);
   const names = new Intl.DisplayNames(["en"], { type: "region" });
   const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
