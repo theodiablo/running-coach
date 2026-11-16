@@ -3,7 +3,7 @@
 // suunto-import's sync), so it answers inside Suunto's 2-second budget. Never non-2xx for content problems: 4xx/5xx feed Suunto's
 // retry + circuit breaker and would pause ALL notifications. Docs: docs/integrations-suunto.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 
 const WEBHOOK_SECRET = Deno.env.get("SUUNTO_WEBHOOK_SECRET");
 

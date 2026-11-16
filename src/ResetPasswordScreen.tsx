@@ -32,7 +32,7 @@ export default function ResetPasswordScreen({ email, onDone }: { email?: string 
     setBusy(false);
     if (err) {
       const mapped = authErrorMessage(err);
-      setError(mapped ? t(mapped.key, mapped.vars) : err.message || t("login.newPassword.error"));
+      setError(mapped ? t(mapped.key, mapped.vars ?? {}) : err.message || t("login.newPassword.error"));
       return;
     }
     // Parked, not emitted: RunningCoach owns the only toast and mounts as this

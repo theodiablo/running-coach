@@ -2,8 +2,8 @@
 // tools, validated server-side before the user sees them; no auto-apply.
 // Architecture, trust boundary, actions, and deploy/secrets: docs/coach-agent.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
-import Anthropic from "npm:@anthropic-ai/sdk@0.126.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import Anthropic from "npm:@anthropic-ai/sdk@1.8.0";
 import { isMistralModel, makeMistralModel } from "../_shared/coach/mistral.mjs";
 import { generateProposal, SYSTEM_PROMPT } from "../_shared/coach/engine.mjs";
 import { validatePlan, formatValidation } from "../_shared/coach/validation.mjs";

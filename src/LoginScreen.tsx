@@ -78,7 +78,7 @@ export default function LoginScreen({ authError, onClearAuthError, intent = "sig
   // maps, rather than trading a specific error for a vaguer one.
   const noteError = (err: unknown) => {
     const mapped = authErrorMessage(err);
-    if (mapped) note(mapped.tone === "info" ? "info" : "err", t(mapped.key, mapped.vars));
+    if (mapped) note(mapped.tone === "info" ? "info" : "err", t(mapped.key, mapped.vars ?? {}));
     else note("err", err instanceof Error ? err.message : t("login.genericError"));
   };
   // Local form messages take precedence; otherwise fall back to a deep-link error.

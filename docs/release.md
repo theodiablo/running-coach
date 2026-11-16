@@ -295,7 +295,8 @@ minutes after the squash-merge, with no manual step.
   If it hasn't landed after ~15 minutes, look at the integration's run in the
   Supabase dashboard (Project Settings → Integrations → GitHub), and fall back
   to `supabase db push` from a linked checkout of `main`, which applies the
-  same file under the same version.
+  same file under the same version. CLI v3 asks before any hosted change and
+  fails unattended without `--yes`; `--remote=<ref>` names the project.
 
 ## Deploying Supabase edge functions
 

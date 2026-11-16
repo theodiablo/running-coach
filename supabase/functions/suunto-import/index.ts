@@ -3,7 +3,7 @@
 // client acks after saving; webhook-staged workouts are acked by key, NEVER via the cursor (it would skip the backfill gap).
 // Endpoint paths etc. are marked CALIBRATE for the first live pass. Architecture: docs/integrations-suunto.md.
 
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.119.0";
 import { fitMissIsTerminal, fitPath, looksLikeFit } from "../_shared/suunto/fitExport.mjs";
 
 const SUUNTO_CLIENT_ID = Deno.env.get("SUUNTO_CLIENT_ID");

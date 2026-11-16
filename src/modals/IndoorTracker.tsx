@@ -214,7 +214,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
             {!liveHr ? (hrSrc
               ? t("tracker.hr.postRun", { store: hrSrc.id === "healthkit" ? "Apple Health" : "Health Connect" })
               : t("tracker.indoor.noSensor"))
-              : t(hrLine.key, hrLine.params)}
+              : t(hrLine.key, hrLine.params ?? {})}
           </p>
           {/* The nudge only fires on Start, so without this a "Not now" leaves
               no way to set a sensor up — on the screen where HR is the session.

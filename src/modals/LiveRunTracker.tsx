@@ -765,7 +765,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
                 <span className={"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs "
                   + (hrFresh ? "border-emerald-500/40 text-emerald-300" : "border-slate-700 text-slate-400")}>
                   <HeartPulse size={12} />
-                  {hrFresh ? t("tracker.ready.hrLive", { bpm: stats.hr }) : t(hrLine.key, hrLine.params)}
+                  {hrFresh ? t("tracker.ready.hrLive", { bpm: stats.hr }) : t(hrLine.key, hrLine.params ?? {})}
                 </span>
               )}
               {hrSrc && !hrSrc.live && (
@@ -840,7 +840,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
             </div>
             {liveHr && (
               <p className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-                <BetaBadge />{t(hrLine.key, hrLine.params)}
+                <BetaBadge />{t(hrLine.key, hrLine.params ?? {})}
               </p>
             )}
             {trim && trim.trimmedSec >= 60 && (
