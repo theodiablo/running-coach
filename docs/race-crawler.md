@@ -60,6 +60,12 @@ migration logs what that run left for review and the aggregator-only races.
 
 ## Sources
 
+Before adding a source, run the **Race source probe** workflow
+(`race-source-probe.yml`, `scripts/race-crawler/probe.mjs`): it requests one
+page per candidate from GitHub's runners, which some sites refuse even though
+they answer a desk (running.life returned 403 to the first scheduled run).
+
+
 | Source | Countries | Kind | Discovery | Extraction |
 |---|---|---|---|---|
 | Rock the Sport | ES (also PT, AD, MX, PA) | registration platform: first-hand | per-country event sitemaps, by `lastmod` | `SportsEvent` JSON-LD + the page's Next.js payload (`subsports`, fare names and descriptions, city, country) |
