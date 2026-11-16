@@ -2,12 +2,6 @@ import { useState } from "react";
 import { geoSource } from "../geo/source";
 import { track } from "../telemetry";
 
-// Shared race-search filter constants: event distance bands (km) and "near
-// me" radius (km). Used by the Races tab's Find panel and the onboarding
-// race picker so the two never drift.
-export const BANDS = [5, 10, 21.1, 42.2];
-export const RADII = [25, 50, 100, 500];
-
 export type LocationFix = { lat: number; lng: number };
 
 // One-off geolocation fix + "near me" toggle, reused by every race search

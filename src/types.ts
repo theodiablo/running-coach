@@ -293,6 +293,7 @@ export type PlanPrefill = {
   raceElevation: number;
   editionId: string;
   label: string;
+  goalSec?: number | null;
 };
 
 // A suggested LOOP route from the "Find a route" finder. NOT a recorded trace: never

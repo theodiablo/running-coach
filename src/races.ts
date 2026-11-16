@@ -163,6 +163,13 @@ export async function searchRaces(params: RaceSearchParams, after: RaceCursor | 
   };
 }
 
+// Countries with an upcoming race and how many, most first. [] on error: the filter just offers none.
+export async function listRaceCountries(): Promise<{ country: string; races: number }[]> {
+  const { data, error } = await supabase.rpc("race_countries");
+  if (error) { console.error("race countries load failed", error); return []; }
+  return ((data || []) as { country: string; races: number }[]).map(r => ({ country: r.country, races: Number(r.races) || 0 }));
+}
+
 // kebab-case a name into a slug (strip accents/punctuation, collapse to dashes).
 function slugify(s: string) {
   return (s || "")

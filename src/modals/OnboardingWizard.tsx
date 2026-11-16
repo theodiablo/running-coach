@@ -8,7 +8,7 @@ import { GoalConfigurator } from "../components/GoalConfigurator";
 import { StylePicker } from "../components/StylePicker";
 import { runWalkConfig, type RunWalkConfig } from "../utils/runwalk";
 import { Chip } from "../components/RaceFilterChips";
-import { RADII, useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
+import { useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
 import {
   trainingLevels, isStyleId, isTrainingLevel, recommendStyle, suggestPlanSessions,
   type StyleId, type TrainingLevel,
@@ -31,7 +31,7 @@ import { useBlePairing, type BleDevice } from "../hooks/useBlePairing";
 import { BleScanList } from "../components/BleScanList";
 import { editionLabel, findEdition } from "../utils/races";
 import { useRaceSearch } from "../hooks/useRaceSearch";
-import { ANY_DISTANCE, DEFAULT_FILTERS, matchingEditions, searchParams } from "../utils/raceFilters";
+import { ANY_DISTANCE, DEFAULT_FILTERS, RADII, matchingEditions, searchParams } from "../utils/raceFilters";
 import type { DistanceRange, RaceFilters } from "../utils/raceFilters";
 import { DistanceRangeSlider } from "../components/races/DistanceRangeSlider";
 import { deriveAge, runnerAge, tanakaMaxHR } from "../utils/hr";
@@ -76,7 +76,6 @@ type OnboardingWizardProps = {
   settings: SettingsState;
   onSaveProgress: (partial: OnboardingProgress, step: number) => void;
   onComplete: (payload: OnboardingCompletePayload) => void;
-  catalogue: CatalogueRace[];
   addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null }) => Promise<CatalogueRace>;
   addEdition: (edition: { raceSlug: string; date: string; distanceKm: number; elevation: number }) => Promise<CatalogueEdition>;
   refreshCatalogue: () => void | Promise<void>;
@@ -86,7 +85,7 @@ type OnboardingWizardProps = {
 // Guided first-run onboarding; the branch sequence is the pure `onboardingSteps(intent)`. The health & safety step is the
 // mandatory gate and the only way in (header "Skip" jumps TO it, never around it); `summary` is an in-memory celebration
 // after it. All input is local draft state, committed only via onComplete.
-export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogue, addRace, addEdition, refreshCatalogue, showToast}: OnboardingWizardProps) {
+export function OnboardingWizard({settings, onSaveProgress, onComplete, addRace, addEdition, refreshCatalogue, showToast}: OnboardingWizardProps) {
   const { t } = useTranslation();
   // Language: synced preference falling back to the live UI language; a tap
   // switches immediately and persists rc_lang (per-device) so a resumed

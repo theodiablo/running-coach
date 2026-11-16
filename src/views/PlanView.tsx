@@ -132,7 +132,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   // ── Edit drafts ─────────────────────────────────────────────────────────
   const [draft,        setDraft]       = useState<PlanSessionInput[]>(settings.planSessions || [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}]);
   const [draftDate,    setDraftDate]   = useState<string>(planPrefill?.raceDate ?? futureDate(settings.raceDate));
-  const [draftGoal,    setDraftGoal]   = useState<PlanDraftValue>(planPrefill ? "" : settings.goalSec);
+  const [draftGoal,    setDraftGoal]   = useState<PlanDraftValue>(planPrefill ? planPrefill.goalSec || "" : settings.goalSec);
   const [draftDist,    setDraftDist]   = useState<PlanDraftValue>(planPrefill?.distanceKm ?? (settings.distanceKm || ""));
   const [draftElev,    setDraftElev]   = useState<PlanDraftValue>(planPrefill?.raceElevation ?? (settings.raceElevation || 0));
   const [draftStyle,   setDraftStyle]  = useState<StyleId | null>(isStyleId(settings.planStyle) ? settings.planStyle : null);
@@ -178,7 +178,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
       setDraftDate(planPrefill.raceDate);
       setDraftDist(planPrefill.distanceKm);
       setDraftElev(planPrefill.raceElevation || 0);
-      setDraftGoal("");
+      setDraftGoal(planPrefill.goalSec || "");
       setEditSection("goal");
       setEditing(true);
     }

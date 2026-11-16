@@ -111,3 +111,21 @@ as $$
 $$;
 
 grant execute on function public.search_races(text, double precision, double precision, date, date, text, text, boolean, double precision, double precision, double precision, text, double precision, text, integer) to anon, authenticated;
+
+-- Countries with an upcoming race, for the Find tab's country filter.
+create or replace function public.race_countries()
+returns table (country text, races bigint)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select r.country, count(distinct r.slug)
+  from public.races r
+  join public.race_editions e on e.race_slug = r.slug
+  where e.date >= current_date and r.country is not null
+  group by r.country
+  order by 2 desc, 1;
+$$;
+
+grant execute on function public.race_countries() to anon, authenticated;

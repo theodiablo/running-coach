@@ -47,8 +47,14 @@ Same bar as `validate-contribution` and the curation rules in
 `docs/races.md`: the organiser's own site (or the federation calendar), the
 registration platform for a Rock the Sport item. An aggregator page is never
 enough on its own. Check the date is announced (not guessed, not TBC), the
-weekday, the name, the start within ~300 m, the distance and the URL. Look for
-a duplicate already in the catalogue under another slug.
+weekday, the name, the start within ~300 m, the distance, the URL and the
+`terrain` (`road` or `trail`: the crawler guesses it from the source's sport and
+the name). Look for a duplicate already in the catalogue under another slug.
+
+The terrain of races added before the column existed was guessed too (trail
+words, or ≥ 30 m of climb per km). When asked to review terrain, list
+`select slug, name, terrain from public.races order by terrain, name` and fix
+the misses with `update public.races set terrain = '...' where slug = '...'`.
 
 Can't confirm (site unreachable, no date announced yet): leave it, say so.
 

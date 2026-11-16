@@ -1,10 +1,11 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Plus } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { RUN_ACTIVITIES } from "../types";
+import { DurationInput } from "./DurationInput";
 import { fmt } from "../utils/format";
-import { EFFORT_UNSET, canonicalDur, durToSec, formatDur, normalizeDur, type RunFormErrors, type RunFormValues } from "../utils/runForm";
+import { EFFORT_UNSET, durToSec, type RunFormErrors, type RunFormValues } from "../utils/runForm";
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
 
@@ -47,7 +48,6 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
 
   const effort = Number(f.effort);
 
-  const durRef = useRef<HTMLInputElement | null>(null);
   // Ids are scoped per form instance so the Log view and an open Edit modal
   // can't collide on them, which would point a label at the wrong input.
   const fid = (name: string) => (phScope === "log.edit" ? "edit-" : "log-") + name;
@@ -56,11 +56,7 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
   // inserted; put it back at the end once the value settles. A range selected in
   // the meantime (select-all then retype) is left alone, or the replacement would
   // become an append.
-  const pinEnd = () => requestAnimationFrame(() => {
-    const el = durRef.current;
-    if (!el || el.selectionStart !== el.selectionEnd) return;
-    el.setSelectionRange(el.value.length, el.value.length);
-  });
+
 
   return (
     <>
@@ -95,28 +91,10 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
         </div>
       )}
       <div data-field="duration"><label className={LABEL_CLS} htmlFor={durId}>{t("log.fields.duration")}</label>
-        {/* One masked field, not three boxes: digits fill from the right, so a
-            time is typed in the order a watch face shows it. Editing is
-            append/backspace only — the caret is pinned to the end, which is
-            what keeps this free of caret arithmetic. */}
-        <input id={durId} type="text" inputMode="numeric" autoComplete="off"
-          placeholder={t("log.fields.durationPh")} value={formatDur(f.dur)}
+        <DurationInput id={durId} value={f.dur} onChange={v => set("dur", v)}
+          placeholder={t("log.fields.durationPh")}
           aria-invalid={errors?.duration || undefined}
           aria-describedby={errors?.duration ? durId + "-err" : durId + "-hint"}
-          // Settled on blur, not per digit: mid-entry "1571" is half of 1:57:13, not 15:71.
-          onChange={e => { set("dur", normalizeDur(e.target.value)); pinEnd(); }}
-          onBlur={() => { const c = canonicalDur(f.dur); if (c !== f.dur) set("dur", c); }}
-          onKeyDown={e => {
-            // Only intercept when the caret is a point. Over a selection the
-            // browser's own delete is what makes select-all-then-retype work,
-            // and popping one digit instead would be actively wrong.
-            const el = e.currentTarget;
-            if (e.key !== "Backspace" || el.selectionStart !== el.selectionEnd) return;
-            e.preventDefault();
-            set("dur", f.dur.slice(0, -1));
-          }}
-          onFocus={pinEnd} onClick={pinEnd}
-          ref={durRef}
           className={errCls(errors?.duration) + " text-lg font-semibold tabular-nums text-center"}/>
         {errors?.duration
           ? <p id={durId + "-err"} className="text-xs text-red-300 mt-1.5">{t("log.validation.duration")}</p>
