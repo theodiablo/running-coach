@@ -337,7 +337,11 @@ async function main() {
     p.status = w.ledger.status;
     p.note = w.ledger.note;
     writes.ledger.push(w.ledger);
-    if (w.race) writes.races.push(w.race);
+    if (w.race) {
+      writes.races.push(w.race);
+      // Two pages of one race in one run (an old edition's page, rolled forward): the second is not new.
+      catalogue.races.push(w.race);
+    }
     if (w.edition) writes.editions.push(w.edition);
   }
   let written = null;

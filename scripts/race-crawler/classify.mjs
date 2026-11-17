@@ -1,6 +1,6 @@
 // Matching a crawled candidate to the catalogue, and the curated policy that
 // decides what is worth proposing. Pure. docs/race-crawler.md.
-import { distinctiveTokens, haversineKm, hostOf, nameTokens, parseDistances, stripAccents, withoutSeries } from "./text.mjs";
+import { distinctiveTokens, haversineKm, withoutDistances, hostOf, nameTokens, parseDistances, stripAccents, withoutSeries } from "./text.mjs";
 
 export const POLICY = {
   minKm: 10, // nothing shorter is ever proposed
@@ -59,10 +59,14 @@ function score(candidate, race) {
   // The same name in the same place is the same race, whatever distances the page lists today
   // ("Trail Sástago": town + generic word leaves nothing distinctive to compare).
   // Two words at least: a bare town name says nothing about which race it is.
-  const tokens = (n) => [...new Set(nameTokens(withoutSeries(n)))].sort();
-  const mineAll = tokens(candidate.name);
+  // The full names, or the names without their distances ("Foulées de Vannes 10 km"), two words at least.
+  const sameName = (strip) => {
+    const words = (n) => [...new Set(nameTokens(strip(withoutSeries(n))))].sort().join(" ");
+    const mine = words(candidate.name);
+    return mine.split(" ").length >= 2 && mine === words(race.name);
+  };
   const near = km != null ? km <= 10 : sameCity;
-  if (mineAll.length >= 2 && mineAll.join(" ") === tokens(race.name).join(" ") && near) {
+  if (near && (sameName((n) => n) || sameName(withoutDistances))) {
     return { slug: race.slug, hostMatch: false, all: 1, name: 1, km };
   }
   const distanceOk =
@@ -139,7 +143,7 @@ const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(
 const WEEKEND = new Set([0, 6]);
 const VIRTUAL_RE = /\bvirtual\b/i;
 const TBC_RE = /\b(?:tbc|tba|to be (?:confirmed|announced)|provisional|a confirmar|por confirmar|pendiente de confirmar)\b|à confirmer/i;
-const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|sportive|training event|entreno)/i;
+const NOT_A_RUN_RE = /\b(?:duatl|triatl|duathl|triathl|aquatl|swimrun|canicross|run\s*(?:and|&)\s*bike|bike|v[eé]lo|btt|mtb|marcha|marxa|caminada|senderis|randonn|rando\b|walk|hyrox|swimmer|sportive|training event|entreno|infantil|ni[ñn]os|enfants?\b|kids?\b)/i;
 
 /**
  * The verdict on one candidate.
@@ -165,6 +169,7 @@ export function classify(candidate, catalogue, today) {
   if (candidate.distances.length && !distances.length) return drop("under 10 km");
 
   if (candidate.status === "postponed") flags.push("postponed");
+  if (candidate.dateDoubt) flags.push("date not confirmed by the page");
   // A source's date is the event's first day; the race itself can be on any of them (Snowdonia: 10K Saturday, marathon Sunday).
   if (candidate.endDate && candidate.endDate > candidate.date) flags.push("multi-day");
   if (TBC_RE.test(`${candidate.name} ${candidate.text ?? ""}`)) flags.push("tbc");

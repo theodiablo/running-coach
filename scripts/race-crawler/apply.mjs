@@ -5,7 +5,16 @@ import { isTrail, sameDistance } from "./classify.mjs";
 import { countryCode, hostOf, isSeriesPart, stripAccents } from "./text.mjs";
 
 // Anything flagged one of these waits for a person, whatever its verdict.
-const BLOCKING = new Set(["no country", "no coordinates", "distance unknown", "weekday", "postponed", "tbc", "multi-day"]);
+const BLOCKING = new Set([
+  "no country",
+  "no coordinates",
+  "distance unknown",
+  "weekday",
+  "postponed",
+  "tbc",
+  "multi-day",
+  "date not confirmed by the page",
+]);
 // Hosts that serve many races (aggregators, social networks, timing companies): never a race's own page.
 const PLATFORM_URL = /running\.life|facebook\.com|instagram\.com|mychip\.es|gesconchip\.es|ocisport\.net/;
 
