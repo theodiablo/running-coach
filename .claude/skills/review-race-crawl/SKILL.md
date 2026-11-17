@@ -56,6 +56,12 @@ words, or ≥ 30 m of climb per km). When asked to review terrain, list
 `select slug, name, terrain from public.races order by terrain, name` and fix
 the misses with `update public.races set terrain = '...' where slug = '...'`.
 
+**Small-town races:** when the stored point is the town or city centre and the
+organiser names no start more precise than the town, accept it as is (the
+maintainer's rule); the ~300 m check applies only when the organiser gives a
+specific start that is clearly elsewhere, in a larger city or beyond walking
+distance of the centre.
+
 Can't confirm (site unreachable, no date announced yet): leave it, say so.
 
 ## 3. Apply
