@@ -47,7 +47,8 @@ Same bar as `validate-contribution` and the curation rules in
 `docs/races.md`: the organiser's own site (or the federation calendar), the
 registration platform for a Rock the Sport item. An aggregator page is never
 enough on its own. Check the date is announced (not guessed, not TBC), the
-weekday, the name, the start within ~300 m, the distance, the URL and the
+weekday, the name, the start within ~300 m (small-town exception in
+`docs/races.md`), the distance, the URL and the
 `terrain` (`road` or `trail`: the crawler guesses it from the source's sport and
 the name). Look for a duplicate already in the catalogue under another slug.
 
@@ -55,12 +56,6 @@ The terrain of races added before the column existed was guessed too (trail
 words, or ≥ 30 m of climb per km). When asked to review terrain, list
 `select slug, name, terrain from public.races order by terrain, name` and fix
 the misses with `update public.races set terrain = '...' where slug = '...'`.
-
-**Small-town races:** when the stored point is the town or city centre and the
-organiser names no start more precise than the town, accept it as is (the
-maintainer's rule); the ~300 m check applies only when the organiser gives a
-specific start that is clearly elsewhere, in a larger city or beyond walking
-distance of the centre.
 
 Can't confirm (site unreachable, no date announced yet): leave it, say so.
 

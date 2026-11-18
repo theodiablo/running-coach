@@ -85,6 +85,9 @@ a user's contribution is a one-off SQL data fix, not a migration (see
   (or `rc_settings.targetEditionId`) references it; if so, keep the id and
   update `date` / `race_slug`. The user's snapshot and plan keep the old date,
   so tell them.
+- **Start coordinates within ~300 m of the named start.** A village or small
+  town whose organiser names only the town is the exception: its centre point
+  stands. A city whose organiser names no start stays unverified.
 - Edition inserts join `public.races`: most curated races were added outside
   migrations, so a fresh database simply skips them.
 - The 2026-09-28 pass used official organiser sites wherever they resolved.
