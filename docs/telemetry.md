@@ -165,8 +165,9 @@ choice either way.
   on every tab switch and on the header brand-mark reset (`homeNonce`), and a
   ref would re-fire on each, inflating the metric. So it reads as
   "how many people are carrying open sessions and how many" — and
-  `overdue_resolved` `{action:"done"|"skip"|"coach"}` when one of the card's
-  actions is used (`src/views/Dashboard.tsx`). Counts and an enum only, never a
+  `overdue_resolved` `{action:"done"|"skip"|"change"}` when one of the card's
+  actions is used (`"change"` replaced `"coach"` when "Adjust my plan" began
+  opening the Change my plan sheet) (`src/views/Dashboard.tsx`). Counts and an enum only, never a
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
@@ -178,14 +179,25 @@ choice either way.
   `runPlanAutomation` appends the next blocks; `open_plan_autostarted`
   `{hadRuns:boolean}` when it starts a plan for a runner who never answered
   (`src/RunningCoach.tsx`). Enums only, never a race or a time.
+- "Change my plan" (`docs/training-plan.md`): `plan_change_opened`
+  `{source:"plan"|"overdue"}` when the sheet is opened, and
+  `plan_change_picked` `{choice:"goal"|"avail"|"style"|"session"|"coach"}`
+  for the answer (`src/views/PlanView.tsx`, `src/RunningCoach.tsx`). Enums
+  only. It answers whether runners now find how to change their plan, and
+  which change they come for.
 - `debrief_answered` `{answer:"ran"|"didnt"|"moved"|"feel"}` — the post-race
   debrief card on Home (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
   An enum only: never the time, the race or the effort chosen.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.
+- `did_it_picked` `{choice:"details"|"saved"|"tick"}` — the answer to "I did
+  it" on a plan session (`src/modals/DidItSheet.tsx`, Home and Plan): add the
+  run's details, pick a saved run, or just tick it off. An enum only. It
+  replaced three buttons on the card, so it says which of them was needed.
 - `session_reconciled` `{moved, gap}` — a run already in the log was named as
-  the one that settled a plan session ("I already ran this", `ReconcileSheet`).
+  the one that settled a plan session ("I did it" → "Pick a run I already
+  saved", or an overdue row's link; `ReconcileSheet`).
   `gap` is the whole-day distance between the run and the session (0-3, see
   `MATCH_WINDOW_DAYS`) and `moved` whether the session was re-dated onto the
   run's day. A boolean and a small integer only — never a date or a description.
@@ -220,10 +232,10 @@ choice either way.
   runner resolves the tracker's resume card (`src/modals/LiveRunTracker.tsx`).
   Measures how often recordings are interrupted and whether recovery works.
 - Coach agent events: `coach_opened`
-  `{source:"header"|"dashboard"|"plan_session"|"settings"|"other"}` when the
+  `{source:"header"|"dashboard"|"plan_session"|"change_plan"|"settings"|"recovery"|"other"}` when the
   chat is opened, fired in the hub's one `openCoach` seam
   (`src/RunningCoach.tsx`) so every entry point is counted the same way — it's
-  how the header button's pull is compared against the dashboard card and the
+  how the header button's pull is compared against the Change my plan sheet and the
   per-session "Ask coach". Pairs with `coach_message_sent` as an
   open→first-message funnel (an open with no message is an abandoned chat).
   `coach_message_sent` `{followUp}` when the user sends a

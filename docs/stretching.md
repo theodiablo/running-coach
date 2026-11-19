@@ -65,7 +65,9 @@ decides". Keep the two in step when a rule below changes.
      planned today and nothing logged today: recovery mobility.
   Saving a live (GPS) run opens the sheet straight on that cool-down, by the
   same rule, after the post-run reward sheet if one shows (`offerStretchAfterRun`
-  in `RunningCoach`); closing it leaves the Home banner as the way back.
+  in `RunningCoach`); closing it leaves the Home banner as the way back. The banner is Home's
+  attention slot (CLAUDE.md, "Home shows one thing that needs attention"), ahead of open
+  sessions; the always-on stretching row is the footer of Home's week card.
   Off when `settings.stretchSuggest === false`, when `stretchDismissed` is today
   ("Not today", whose toast links to Training profile), and while a recorder is
   open: the player's audio and screen lock would fight the recorder's, so

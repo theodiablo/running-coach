@@ -44,7 +44,7 @@
     "distanceLabel": "Race distance (km)",
     "distancePlaceholder": "e.g. 21.1",
     "elevationLabel": "Race elevation gain (m)",
-    "elevationHint": "Total climb on the course — sets training paces to the flat-equivalent effort.",
+    "elevationHint": "Total climb on the course. Hilly races get gentler paces, so the effort matches.",
     "addedToast": "Added to the catalogue — set as your race.",
     "dateInPast": "Pick a race date after today."
   },

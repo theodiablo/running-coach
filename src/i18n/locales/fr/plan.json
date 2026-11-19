@@ -1,13 +1,12 @@
 {
-  "title": "Ton plan d'entraînement",
-  "editPlan": "Modifier le plan",
+  "title": "Ton plan",
   "editShort": "Modifier",
   "reassurance": "Modifier l'un ou l'autre reconstruit tes séances restantes ; les sorties terminées sont conservées.",
   "pastWeeks": "Semaines passées",
   "notConfigured": "non configuré",
-  "longRunNudge": "Pour atteindre ton objectif, les sorties longues vont jusqu'à ~{{peak}}, au-delà de ta plus longue journée d'entraînement ({{longest}}). C'est normal pour cette distance ; envisage d'allonger ce jour dans Modifier le plan.",
+  "longRunNudge": "Pour atteindre ton objectif, les sorties longues vont jusqu'à ~{{peak}}, au-delà de ta plus longue journée d'entraînement ({{longest}}). C'est normal pour cette distance. Pour faire de la place, allonge ce jour dans Modifier mon plan → Les jours où je peux courir.",
   "week": {
-    "label": "Sem. {{number}}",
+    "label": "Semaine {{number}}",
     "now": "cette semaine",
     "stillOpen_one": "1 ouverte",
     "stillOpen_other": "{{count}} ouvertes"
@@ -17,9 +16,44 @@
     "availTitle": "Ta disponibilité",
     "styleTitle": "Style d'entraînement"
   },
+  "summary": {
+    "eyebrow": "Tu prépares",
+    "race": "Course de {{dist}} km",
+    "when": "{{race}} · {{date}}",
+    "goal": "Objectif : {{goal}}.",
+    "noGoal": "Pas d'objectif de temps, juste la ligne d'arrivée.",
+    "days_one": "{{count}} sortie par semaine, {{duration}}.",
+    "days_other": "{{count}} sorties par semaine, {{duration}} chacune.",
+    "customDays_one": "{{count}} sortie par semaine : {{days}}.",
+    "customDays_other": "{{count}} sorties par semaine : {{days}}.",
+    "style": "Style : {{style}}."
+  },
+  "change": {
+    "button": "Modifier mon plan",
+    "title": "Que veux-tu changer ?",
+    "note": "Tu verras chaque changement avant qu'il soit enregistré.",
+    "goal": "Ma course ou mon temps visé",
+    "goalSub": "Une autre course, une nouvelle date, un autre temps",
+    "goalOpen": "Ce que je prépare",
+    "goalOpenSub": "Préparer une course, ou changer d'objectif",
+    "avail": "Les jours où je peux courir",
+    "availSub": "Plus ou moins de jours, ou moins de temps par sortie",
+    "style": "L'intensité du plan",
+    "styleSub": "Plus doux, surtout facile, ou plus de vitesse",
+    "session": "Une seule séance",
+    "sessionSub": "Déplacer, raccourcir ou échanger une séance",
+    "coach": "Autre chose",
+    "coachSub": "Blessure, vacances, une semaine ratée : parles-en à ton coach",
+    "sessionHint": "Touche Modifier sur la séance à déplacer, raccourcir ou échanger.",
+    "heading": {
+      "goal": "Ta course ou ton objectif",
+      "avail": "Tes jours pour courir",
+      "style": "L'intensité du plan"
+    }
+  },
   "goalRow": {
     "subtitle": "ce que tu prépares",
-    "summary": "{{dist}} km · sous {{goal}} · {{date}}{{elev}}",
+    "summary": "{{dist}} km · objectif {{goal}} · {{date}}{{elev}}",
     "summaryNoGoal": "{{dist}} km · {{date}}{{elev}}"
   },
   "availRow": {
@@ -85,17 +119,16 @@
   },
   "session": {
     "skipped": "ignorée",
-    "coachNotes": "Notes du coach",
+    "coachNotes": "Comment faire",
     "askCoach": "Demander au coach",
     "moreActions": "Plus d'actions",
     "skippedReassure": "Pas de stress, le plan s'adapte.",
     "skip": "Ignorer cette séance",
     "startRun": "Démarrer",
-    "logIt": "Saisir",
-    "edit": "Modifier la séance"
+    "change": "Modifier"
   },
   "promote": {
-    "newTarget": "Nouvel objectif d'entraînement",
+    "newTarget": "Ta prochaine course",
     "yourRace": "Ta course"
   },
   "progress": {
@@ -123,7 +156,7 @@
     "distance": "Distance de la course (km)",
     "distancePlaceholder": "p. ex. 21,1",
     "raceElevation": "Dénivelé positif de la course (m)",
-    "elevationHelp": "Dénivelé total du parcours ; il permet d'ajuster les allures d'entraînement à l'effort équivalent sur le plat.",
+    "elevationHelp": "Dénivelé total du parcours. Sur un parcours vallonné, les allures sont plus douces pour un effort équivalent.",
     "trainingDays": "Jours et durées d'entraînement",
     "trainingStyle": "Style d'entraînement",
     "hrNudge": "Ajoute ton profil de FC dans les Paramètres pour afficher une zone cible à chaque séance.",

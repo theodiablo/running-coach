@@ -111,3 +111,16 @@ export function nextBadge(badges: Badge[] = []) {
 export function unlockedIds(badges: Badge[] = []) {
   return badges.filter(b => b.unlocked).map(b => b.id);
 }
+
+export type BadgeMoment = { kind: "unlocked"; badge: Badge; more: number } | { kind: "closer"; badge: Badge };
+
+// What a run just did for the badges, for the finish screen: one it unlocked, else the locked
+// one it moved closest to completion. Run badges only: races and stretching never move on a run.
+export function badgeMoment(run: Run, before: Run[] = []): BadgeMoment | null {
+  const was = new Map(computeBadges(before).map(b => [b.id, b]));
+  const now = computeBadges([run, ...before]);
+  const fresh = now.filter(b => b.unlocked && !was.get(b.id)?.unlocked);
+  if (fresh.length) return { kind: "unlocked", badge: fresh[0], more: fresh.length - 1 };
+  const moved = now.filter(b => !b.unlocked && b.progress > (was.get(b.id)?.progress ?? 0));
+  return moved.length ? { kind: "closer", badge: nextBadge(moved)! } : null;
+}

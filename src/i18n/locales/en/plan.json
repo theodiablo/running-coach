@@ -1,25 +1,59 @@
 {
-  "title": "Your training plan",
-  "editPlan": "Edit plan",
+  "title": "Your plan",
   "editShort": "Edit",
   "reassurance": "Changing either rebuilds your remaining sessions — done runs stay.",
   "pastWeeks": "Past weeks",
   "notConfigured": "not configured",
-  "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance — consider lengthening your long day in Edit plan.",
+  "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance. To make room, lengthen your long day in Change my plan → The days I can run.",
   "week": {
-    "label": "W{{number}}",
-    "now": "now",
-    "stillOpen_one": "1 open",
-    "stillOpen_other": "{{count}} open"
+    "label": "Week {{number}}",
+    "now": "this week",
+    "stillOpen_one": "1 still open",
+    "stillOpen_other": "{{count}} still open"
   },
   "edit": {
     "goalTitle": "Your goal",
     "availTitle": "Your availability",
     "styleTitle": "Training style"
   },
+  "summary": {
+    "eyebrow": "Training for",
+    "race": "{{dist}} km race",
+    "when": "{{race}} · {{date}}",
+    "goal": "Aiming for {{goal}}.",
+    "noGoal": "No time goal, just the finish line.",
+    "days_one": "{{count}} run a week, {{duration}}.",
+    "days_other": "{{count}} runs a week, {{duration}} each.",
+    "customDays_one": "{{count}} run a week: {{days}}.",
+    "customDays_other": "{{count}} runs a week: {{days}}.",
+    "style": "Style: {{style}}."
+  },
+  "change": {
+    "button": "Change my plan",
+    "title": "What do you want to change?",
+    "note": "You'll see every change before it's saved.",
+    "goal": "My race or goal time",
+    "goalSub": "Another race, a new date, a different finish time",
+    "goalOpen": "What I'm training for",
+    "goalOpenSub": "Train for a race, or pick a different focus",
+    "avail": "The days I can run",
+    "availSub": "More or fewer days, or less time per run",
+    "style": "How hard it feels",
+    "styleSub": "Gentler, mostly easy, or more speed work",
+    "session": "Just one session",
+    "sessionSub": "Move, shorten or swap a single run",
+    "coach": "Something else",
+    "coachSub": "Injury, holiday, a missed week: tell your coach",
+    "sessionHint": "Tap Change on the session you want to move, shorten or swap.",
+    "heading": {
+      "goal": "Your race or goal",
+      "avail": "Your running days",
+      "style": "How hard it feels"
+    }
+  },
   "goalRow": {
     "subtitle": "what you're training for",
-    "summary": "{{dist}} km · sub {{goal}} · {{date}}{{elev}}",
+    "summary": "{{dist}} km · goal {{goal}} · {{date}}{{elev}}",
     "summaryNoGoal": "{{dist}} km · {{date}}{{elev}}"
   },
   "availRow": {
@@ -48,9 +82,21 @@
         "lots": "5+ days suits experienced runners; beginners risk injury at this volume."
       },
       "band": {
-        "short": { "label": "Short", "sub": "~30 min", "word": "~30 min" },
-        "med": { "label": "Medium", "sub": "45–60 min", "word": "45–60 min" },
-        "long": { "label": "Long", "sub": "1 h+", "word": "1 h+" }
+        "short": {
+          "label": "Short",
+          "sub": "~30 min",
+          "word": "~30 min"
+        },
+        "med": {
+          "label": "Medium",
+          "sub": "45–60 min",
+          "word": "45–60 min"
+        },
+        "long": {
+          "label": "Long",
+          "sub": "1 h+",
+          "word": "1 h+"
+        }
       }
     },
     "custom": {
@@ -73,17 +119,16 @@
   },
   "session": {
     "skipped": "skipped",
-    "coachNotes": "Coach notes",
+    "coachNotes": "How to run it",
     "askCoach": "Ask coach about this run",
     "moreActions": "More actions",
     "skippedReassure": "No stress — the plan adapts.",
     "skip": "Skip this session",
     "startRun": "Start run",
-    "logIt": "Log it",
-    "edit": "Edit session"
+    "change": "Change"
   },
   "promote": {
-    "newTarget": "New training target",
+    "newTarget": "Your next race",
     "yourRace": "Your race"
   },
   "progress": {
@@ -111,7 +156,7 @@
     "distance": "Race distance (km)",
     "distancePlaceholder": "e.g. 21.1",
     "raceElevation": "Race elevation gain (m)",
-    "elevationHelp": "Total climb on the course — sets training paces to the flat-equivalent effort.",
+    "elevationHelp": "Total climb on the course. Hilly races get gentler paces, so the effort matches.",
     "trainingDays": "Training days and durations",
     "trainingStyle": "Training style",
     "hrNudge": "Add your HR profile in Settings to unlock heart rate targets on every session.",

@@ -534,8 +534,8 @@ by `coachUsage()` (`src/coach.ts`) on chat open; the ring is `src/modals/CoachUs
 
 Entry points: every one of them funnels through the hub's single `openCoach`
 seam (`src/RunningCoach.tsx`) — the app header button (global, the primary
-entry), the Dashboard card (the discovery surface, with explanatory copy), the
-per-session "Ask coach" in `PlanSessionRow` (the only one that passes a
+entry), "Something else" in the Change my plan sheet (`ChangePlanSheet`, source
+`"change_plan"`), the per-session "Ask coach" in `PlanSessionRow` (the only one that passes a
 `CoachSessionContext`), and Settings. **All of them are gated on a plan
 existing**, matching the chat's own `showCoach && plan` render gate: with no
 plan there is nothing to edit, so an ungated entry point would open an empty

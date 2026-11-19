@@ -329,7 +329,7 @@ describe("RunningCoach · plan automation", () => {
     };
     const logTheRace = async () => {
       await boot();
-      fireEvent.click(screen.getByRole("button", { name: "Record a run" }));
+      fireEvent.click(screen.getByRole("button", { name: "Add a run" }));
       fireEvent.click(screen.getByRole("button", { name: /Enter it manually/ }));
       fireEvent.change(screen.getByLabelText("Distance (km)"), { target: { value: "10" } });
       fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "4800" } });

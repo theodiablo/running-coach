@@ -221,3 +221,24 @@ describe("setLocale", () => {
     expect(dayName(6).toLowerCase().startsWith("dim")).toBe(true);
   });
 });
+
+// ---- plain words (CLAUDE.md "Plain words, one name per thing") --------------
+describe("plain words", () => {
+  const dicts = { en, es, fr } as unknown as Record<string, Tree>;
+  const at = (d: Tree, path: string) => path.split(".").reduce<unknown>((n, k) => (n as Tree)[k], d);
+
+  it.each(Object.keys(dicts))("%s names session types and phases in sentence case, not capitals", lang => {
+    for (const group of ["common.types", "common.phases"])
+      for (const [key, v] of Object.entries(at(dicts[lang], group) as Record<string, string>))
+        expect(v === v.toUpperCase() && v.length > 3, `${group}.${key} = "${v}"`).toBe(false);
+  });
+
+  it.each(Object.keys(dicts))("%s gives a session's step-by-step one name on Home and Plan", lang => {
+    expect(at(dicts[lang], "dashboard.session.howItUnfolds")).toBe(at(dicts[lang], "plan.session.coachNotes"));
+  });
+
+  it.each(Object.keys(dicts))("%s explains every session type for beginners", lang => {
+    expect(Object.keys(at(dicts[lang], "common.typeHints") as Tree).sort())
+      .toEqual(Object.keys(at(dicts[lang], "common.types") as Tree).sort());
+  });
+});

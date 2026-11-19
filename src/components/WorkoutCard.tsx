@@ -48,7 +48,7 @@ export const WorkoutCard = forwardRef<HTMLButtonElement, WorkoutCardProps>(
       <button ref={ref} onClick={onEdit} aria-label={t("tracker.setup.edit")}
         className={"w-full text-left bg-slate-800 hover:bg-slate-700/70 border border-slate-700 rounded-xl px-3 py-2.5 space-y-2 transition-colors " + className}>
         <span className="flex items-center gap-2">
-          <span className={"text-[11px] font-bold uppercase tracking-wide " + ((TCLR as Record<string, string>)[typeKey] || "text-slate-300")}>{badge}</span>
+          <span className={"text-[11px] font-bold " + ((TCLR as Record<string, string>)[typeKey] || "text-slate-300")}>{badge}</span>
           <span className="flex-1 min-w-0 truncate text-sm font-semibold text-white">{workoutTitle(spec, t)}</span>
           <span className="text-xs font-semibold text-orange-300">{t("tracker.setup.editShort")}</span>
         </span>

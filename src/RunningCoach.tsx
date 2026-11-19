@@ -314,7 +314,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // patchSettings queued in the same tick.
   const setTab = (next: string) => {
     // The editor request is one-shot: left set, every later Plan visit would reopen it.
-    if (next !== "plan") setPlanEditNonce(0);
+    if (next !== "plan") { setPlanEditNonce(0); setPlanChangeNonce(0); }
     if (next !== "dash") {
       const spend: Partial<SettingsState> = {};
       let spent = false;
@@ -370,6 +370,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Set only by the coach's "change your goal" link: PlanView opens straight
   // into its editor rather than the plan it is asking the runner to rebuild.
   const [planEditNonce, setPlanEditNonce] = useState(0);
+  // Same one-shot shape for "Change my plan" opened from Home: the Plan tab arrives on its sheet.
+  const [planChangeNonce, setPlanChangeNonce] = useState(0);
   // Which Progress sub-tab to open, and a nonce so navigating there again (even
   // to the same sub-tab) re-applies it.
   const [progressSub,  setProgressSub]  = useState<ProgressSub>("log");
@@ -1117,6 +1119,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Opens the Plan tab straight on its goal editor (the one-shot request is
   // cleared by setTab on the way out).
   const openPlanGoalEdit = () => { setPlanEditNonce(n => n + 1); setTab("plan"); };
+  const openChangePlan = (source: "overdue") => {
+    track("plan_change_opened", { source });
+    setPlanChangeNonce(n => n + 1); setTab("plan");
+  };
 
   // The runner's own plan edit (src/utils/planEdit.ts). Warnings were already
   // shown and accepted in the sheet; the toast's Undo restores the plan as it
@@ -1424,7 +1430,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, openChangePlan, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1646,7 +1652,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       <div key={`${tab}:${homeNonce}`} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:`calc(64px + var(--safe-bottom)${recorderMinimized ? " + 80px" : ""})`}}>
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}
-          openEditNonce={planEditNonce}/>}
+          openEditNonce={planEditNonce} openChangeNonce={planChangeNonce}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
           onSaved={(saved, link) => {
             // The link is whatever the form ended up with: the session the

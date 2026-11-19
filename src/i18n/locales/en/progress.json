@@ -1,6 +1,6 @@
 {
   "tabs": {
-    "log": "Log",
+    "log": "History",
     "stats": "Stats",
     "badges": "Badges"
   },
@@ -116,14 +116,14 @@
     "subtitle": "Projected from your strongest run in the selected window",
     "needRun": "Log a run of 3 km or more to estimate your race times.",
     "distanceKm": "{{d}} km",
-    "bestEffortEstimate": "Best-effort estimate",
-    "hrEstimate": "HR-modelled estimate",
+    "bestEffortEstimate": "From your fastest run",
+    "hrEstimate": "From your heart rate",
     "pacePerKm": "{{pace}}/km",
     "runSummary": "({{km}} km in {{dur}})",
     "runSummaryClimb": "({{km}} km in {{dur}}, {{climb}} m climb)",
-    "bestEffortExplainer": "<0>Best-effort</0> projects your strongest run {{run}} to each distance with Riegel's formula.",
-    "hrExplainer": "<0>HR-modelled</0> fits your pace against heart rate across {{n}} runs and extrapolates to threshold effort (~{{thr}} bpm) — so easy runs handled well count too, not just your fastest day.",
-    "hrExplainerCapped": "<0>HR-modelled</0> fits your pace against heart rate across {{n}} runs and reads it off at ~{{thr}} bpm — as far past your hardest logged effort as the data will carry. Log a harder session to project all the way to threshold (~{{full}} bpm).",
+    "bestEffortExplainer": "<0>From your fastest run</0>: your strongest run {{run}}, projected to each distance with Riegel's formula.",
+    "hrExplainer": "<0>From your heart rate</0>: we compare your pace with your heart rate across {{n}} runs and extrapolate to threshold effort (~{{thr}} bpm), so easy runs handled well count too, not just your fastest day.",
+    "hrExplainerCapped": "<0>From your heart rate</0>: we compare your pace with your heart rate across {{n}} runs and read it off at ~{{thr}} bpm, as far past your hardest logged effort as the data will carry. Log a harder session to project all the way to threshold (~{{full}} bpm).",
     "hrLockedNoData": "The HR-based estimate needs your max HR in Settings and runs logged with an average heart rate. Nothing recorded one yet.",
     "hrLockedFew": "The HR-based estimate needs {{runs}} more run(s) with an average heart rate in this period. Widen the period above if you have older ones.",
     "hrLockedSpread": "Your HR-logged runs all sit at much the same effort. About {{bpm}} bpm more range between your easiest and hardest run unlocks the HR-based estimate.",

@@ -46,8 +46,8 @@ export function RebuildPreview({ diff, raceDate, onApply, onBack, onKeep }: Rebu
         <span className="w-14 flex-shrink-0 text-xs text-slate-500 pt-0.5">{fmt.sht(c.date)}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            {typeChanged && <span className="text-xs font-bold uppercase line-through text-slate-500">{typeLabel(b!)}</span>}
-            <span className={"text-xs font-bold uppercase " + (a ? typeClass(cur.type) : "line-through text-slate-500")}>{typeLabel(cur)}</span>
+            {typeChanged && <span className="text-xs font-bold line-through text-slate-500">{typeLabel(b!)}</span>}
+            <span className={"text-xs font-bold " + (a ? typeClass(cur.type) : "line-through text-slate-500")}>{typeLabel(cur)}</span>
             {tag && <span className={"text-[10px] font-semibold uppercase tracking-wide rounded px-1 " + (a ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700 text-slate-400")}>{tag}</span>}
           </div>
           {a && b && !typeChanged && !kmChanged && <p className="text-xs text-slate-400 mt-0.5">{a.desc}</p>}

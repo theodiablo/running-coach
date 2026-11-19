@@ -5,20 +5,20 @@
       "blurb": "Progresión clásica: una tirada larga semanal y sesiones alternas de tempo y series."
     },
     "polarized": {
-      "label": "Polarizado 80/20",
-      "blurb": "Principalmente rodajes realmente suaves y una sesión exigente por semana. Es ideal si sueles correr todo a intensidad media-alta."
+      "label": "Sobre todo suave",
+      "blurb": "Polarizado 80/20: principalmente rodajes realmente suaves y una sesión exigente por semana. Ideal si sueles correr todo a intensidad media-alta."
     },
     "runwalk": {
       "label": "Correr/Caminar",
       "blurb": "Intervalos suaves de carrera y caminata, sin series. Termina con buenas sensaciones. Ideal para empezar o volver a correr."
     },
     "lowfreq": {
-      "label": "Calidad en 3 días",
-      "blurb": "Tres sesiones específicas por semana: series, tempo y tirada larga. Puedes añadir entrenamiento cruzado los demás días. Funciona mejor con tres días de entrenamiento."
+      "label": "Tres sesiones clave",
+      "blurb": "Calidad en 3 días: tres sesiones específicas por semana (series, tempo y tirada larga), con entrenamiento cruzado opcional los demás días. Funciona mejor con tres días de entrenamiento."
     },
     "hansons": {
-      "label": "Estilo Hansons",
-      "blurb": "Mayor frecuencia, una tirada larga moderada y limitada, y tempo al ritmo objetivo de carrera. Funciona mejor con 5 o 6 días de entrenamiento para media maratón o maratón."
+      "label": "Correr casi a diario",
+      "blurb": "Estilo Hansons: mayor frecuencia, una tirada larga moderada y limitada, y tempo al ritmo objetivo de carrera. Funciona mejor con 5 o 6 días de entrenamiento para media maratón o maratón."
     }
   },
   "levels": {

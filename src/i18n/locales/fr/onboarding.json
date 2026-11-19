@@ -44,7 +44,7 @@
     "distanceLabel": "Distance de la course (km)",
     "distancePlaceholder": "ex. 21,1",
     "elevationLabel": "Dénivelé positif de la course (m)",
-    "elevationHint": "Dénivelé positif total du parcours ; il permet d'ajuster les allures d'entraînement à l'effort équivalent sur le plat.",
+    "elevationHint": "Dénivelé total du parcours. Sur un parcours vallonné, les allures sont plus douces pour un effort équivalent.",
     "addedToast": "Ajoutée au catalogue et définie comme ta course objectif.",
     "dateInPast": "Choisis une date de course après aujourd'hui."
   },

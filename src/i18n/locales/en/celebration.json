@@ -149,6 +149,12 @@
   },
   "summary": "{{km}} km · {{dur}} · {{pace}}/km",
   "summaryIndoor": "{{dur}}",
+  "badge": {
+    "unlocked": "Badge unlocked",
+    "more_one": "and {{count}} more",
+    "more_other": "and {{count}} more",
+    "closer": "Closer to {{label}}: {{hint}}"
+  },
   "continue": "Continue",
   "tapHint": "Tap to see your summary",
   "rareTag": "Rare one: 1 in 100"

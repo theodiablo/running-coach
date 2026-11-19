@@ -21,10 +21,10 @@
     "completed": "Completed"
   },
   "upcoming": {
-    "trainingTarget": "Training target",
+    "trainingTarget": "Training for this",
     "inYourPlan": "In your plan",
     "daysToGo": "days to go",
-    "setAsTarget": "Set as target",
+    "setAsTarget": "Train for this race",
     "removeFromPlan": "Remove from plan",
     "addToPlanTitle": "Add this race to your plan",
     "inPlan": "In plan",
@@ -187,7 +187,7 @@
     "passed": "passed",
     "editions": "Dates and distances",
     "addToList": "Add to my races",
-    "setTarget": "Set as training target",
+    "setTarget": "Train for this race",
     "logResult": "Log my result",
     "removeFromList": "Remove from my races",
     "where": "Where",

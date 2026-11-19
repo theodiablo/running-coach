@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { RacesView } from "./RacesView";
 import { searchRaces } from "../races";
 import type { CatalogueRace } from "../types";
@@ -156,7 +156,8 @@ describe("RacesView · race page", () => {
   it("carries a race to Plan setup from its page", () => {
     const props = renderRaces([upcoming()]);
     fireEvent.click(screen.getByRole("button", { name: /Spring Half 2026/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Set as training target" }));
+    // The row and the race page say the same thing; this is the page's.
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Train for this race" }));
     expect(props.promoteEdition).toHaveBeenCalledWith(expect.objectContaining({ edition: expect.objectContaining({ id: "ed-2" }) }));
   });
 });
