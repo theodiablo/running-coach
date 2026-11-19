@@ -28,7 +28,7 @@ export function slugify(s) {
 const ROMAN = /^(?=[ivxlc]+\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?\s+/i;
 // "IV-Domusa" is an edition number; a lone letter before a hyphen is a name ("X-Trail", "I-Run").
 const ROMAN_DASH = /^(?=[ivxlc]{2,}\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?\s*[-–]\s*/i;
-const ORDINAL = /^\d{1,3}(?:ª|º|°|a|e|eme|ème|th|st|nd|rd|er|do|ro|to|mo|vo|no|\.)?\s+(?!k\b|km\b)(?=\p{L})/u;
+const ORDINAL = /^\d{1,3}(?:ª|º|°|a|e|èmes|emes|eme|ème|th|st|nd|rd|er|do|ro|to|mo|vo|no|\.)?\s+(?!k\b|km\b)(?=\p{L})/u;
 // "(7ème édition)", "- 4ème édition", "7ª edición", "7th edition", "édition 12", anywhere in the name.
 const EDITION =
   /\s*[(–-]?\s*(?:\d{1,3}\s*(?:ª|º|°|e|è|ème|eme|th|st|nd|rd|er|a)\.?\s*(?:é|e)di[tc]i[oó]n|(?:é|e)dition\s+\d{1,3})\s*\)?/giu;
@@ -67,14 +67,14 @@ export function cleanName(name, date = "") {
         .trim(),
     )
     .filter((p, i) => p && !isSeriesPart(p, i));
-  let n = parts
+  const joined = parts
     .join(", ")
     .replace(EDITION, " ")
     .replace(/\s*(?:[–-]\s*)?(?:é|e)dition$/iu, "")
-    .trim()
-    .replace(ROMAN_DASH, "")
-    .replace(ROMAN, "")
-    .replace(ORDINAL, "");
+    .trim();
+  let n = joined.replace(ROMAN_DASH, "").replace(ROMAN, "").replace(ORDINAL, "");
+  // "36èmes foulées…" leaves a lower-case word at the front.
+  if (n !== joined) n = n.charAt(0).toUpperCase() + n.slice(1);
   if (mostlyCaps(n)) n = titleCase(n);
   else n = n.replace(SPONSOR_TAIL, "");
   n = n.replace(/\s+/g, " ").replace(/[\s.,–-]+$/, "").trim();

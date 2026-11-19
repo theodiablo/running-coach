@@ -628,6 +628,7 @@ describe("apply: cleanName", () => {
     ["Trail 4e Édition des Lacs", "Trail des Lacs"],
     ["Trail 1a Edición Sierra", "Trail Sierra"],
     ["Semi-Marathon de Paris - Édition 2027", "Semi-Marathon de Paris"],
+    [" \t36èmes foulées des droits de l'Homme", "Foulées des droits de l'Homme"],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([
     ["17007 Girona", "Girona"],
