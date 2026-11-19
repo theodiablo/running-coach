@@ -27,8 +27,8 @@ type PlanSessionRowProps = {
   openSettings: (page?: SettingsPage) => void;
 };
 
-// One plan session with labeled actions: "Start run" (open the recorder) and "Log it" (a
-// run already done); Skip sits in an overflow (⋯) menu so it doesn't read as delete.
+// One plan session with labeled actions: "Start run" (open the recorder), "Log it" (a
+// run already done) and "Change"; Skip sits in an overflow (⋯) menu so it doesn't read as delete.
 // The Dashboard's next-session card offers the same two verbs through the same handlers.
 export function PlanSessionRow({
   session: s, settings, notesOpen, onToggleNotes,
@@ -126,6 +126,12 @@ export function PlanSessionRow({
           <PenLine size={13}/>{t("plan.session.logIt")}
         </button>
         <span className="flex-1"/>
+        {onEdit && (
+          <button onClick={onEdit}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700 transition-colors">
+            <Pencil size={13}/>{t("plan.session.change")}
+          </button>
+        )}
         <button onClick={() => setMenuOpen(v => !v)}
           aria-label={t("plan.session.moreActions")} aria-expanded={menuOpen}
           className={"w-9 h-9 rounded-lg border flex items-center justify-center transition-colors " +
@@ -139,12 +145,6 @@ export function PlanSessionRow({
         {menuOpen && (
           <div
             className="absolute right-4 bottom-[calc(100%+6px)] z-20 w-56 rounded-xl bg-slate-800 border border-slate-600 shadow-2xl overflow-hidden animate-expand">
-            {onEdit && (
-              <button onClick={() => { setMenuOpen(false); onEdit(); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
-                <Pencil size={14} className="text-slate-300"/>{t("plan.session.edit")}
-              </button>
-            )}
             <button onClick={() => { setMenuOpen(false); onAskCoach(); }}
               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
               <MessageCircle size={14} className="text-orange-400"/>{t("plan.session.askCoach")}

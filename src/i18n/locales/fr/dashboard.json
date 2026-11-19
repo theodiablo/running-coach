@@ -70,7 +70,7 @@
   "overdue": {
     "title_one": "1 séance encore ouverte",
     "title_other": "{{count}} séances encore ouvertes",
-    "subtitle": "La vie fait des siennes. Coche ce que tu as fait, passe ce que tu n'as pas fait, ou demande à ton coach de remodeler le plan.",
+    "subtitle": "La vie fait des siennes. Coche ce que tu as fait, passe ce que tu n'as pas fait, ou adapte ton plan.",
     "more_one": "1 autre dans ton plan",
     "more_other": "{{count}} autres dans ton plan",
     "adjust": "Ajuster mon plan",
@@ -102,8 +102,8 @@
   "setUpPlan": "Configurer mon plan",
   "allSessionsDone": "Toutes les séances à venir sont terminées !",
   "coach": {
-    "title": "Ajuste ton plan avec ton coach",
-    "subtitle": "Une gêne, une semaine manquée ou un imprévu ? Demande un ajustement."
+    "title": "Modifier mon plan",
+    "subtitle": "Nouvelle course, moins de jours, une gêne ou une semaine ratée"
   },
   "recentRuns": "Sorties récentes",
   "viewAll": "Tout voir",

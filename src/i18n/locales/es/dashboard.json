@@ -70,7 +70,7 @@
   "overdue": {
     "title_one": "1 sesión pendiente",
     "title_other": "{{count}} sesiones pendientes",
-    "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o pide a tu entrenador que reajuste el plan.",
+    "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o adapta tu plan.",
     "more_one": "1 más en tu plan",
     "more_other": "{{count}} más en tu plan",
     "adjust": "Ajustar mi plan",
@@ -102,8 +102,8 @@
   "setUpPlan": "Configurar mi plan",
   "allSessionsDone": "¡Todas las próximas sesiones completadas!",
   "coach": {
-    "title": "Ajusta tu plan con tu entrenador",
-    "subtitle": "¿Una molestia, una semana sin entrenar o un conflicto de horarios? Pide un ajuste."
+    "title": "Cambiar mi plan",
+    "subtitle": "Otra carrera, menos días, una molestia o una semana perdida"
   },
   "recentRuns": "Entrenamientos recientes",
   "viewAll": "Ver todas",

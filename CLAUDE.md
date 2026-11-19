@@ -285,6 +285,11 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   phase the app shows. The goal is `settings.goalSec`, never
   `plan.goalSec` (buildPlan substitutes 7200 for an empty one). Detail:
   `docs/training-plan.md` ("Where the runner stands"), `docs/races.md`.
+- **Changing the plan has one door: `ChangePlanSheet`** asks what to change
+  (race/goal, days, style, one session, the coach) and each answer opens one
+  part. A new surface that changes the plan opens it (`openChangePlan`), never
+  its own route into the editor; detail: `docs/training-plan.md` ("Changing the
+  plan: one door").
 - **The runner's own plan edits warn, never block.** Move/swap, retype,
   resize, add and delete go through `src/utils/planEdit.ts` (free for
   everyone); `editIssues` runs the shared validator and the sheet shows what an

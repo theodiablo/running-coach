@@ -235,7 +235,7 @@ export function coachSessionKey(ctx?: CoachSessionContext | null): string | null
 // never changes what the coach is told. Pass one at every call site so the
 // entry points stay comparable; "other" is the defensive fallback for a bare
 // `onClick={openCoach}` wiring that hands us a click event instead.
-export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "recovery" | "other";
+export type CoachSource = "header" | "dashboard" | "plan_session" | "change_plan" | "settings" | "recovery" | "other";
 
 export type PlanWeek = Record<string, unknown> & {
   weekNumber: number;

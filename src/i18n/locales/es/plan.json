@@ -1,11 +1,11 @@
 {
-  "title": "Tu plan de entrenamiento",
+  "title": "Tu plan",
   "editPlan": "Editar plan",
   "editShort": "Editar",
   "reassurance": "Cambiar cualquiera de los dos reconstruye tus sesiones restantes; los entrenamientos completados se conservan.",
   "pastWeeks": "Semanas anteriores",
   "notConfigured": "sin configurar",
-  "longRunNudge": "Para alcanzar tu objetivo, las tiradas largas llegan a ~{{peak}}, por encima de tu día de entrenamiento más largo ({{longest}}). Es normal para esta distancia; valora alargar ese día en Editar plan.",
+  "longRunNudge": "Para alcanzar tu objetivo, las tiradas largas llegan a ~{{peak}}, por encima de tu día de entrenamiento más largo ({{longest}}). Es normal para esta distancia. Para hacerle sitio, alarga ese día en Cambiar mi plan → Los días que puedo correr.",
   "week": {
     "label": "Sem. {{number}}",
     "now": "esta semana",
@@ -16,6 +16,41 @@
     "goalTitle": "Tu objetivo",
     "availTitle": "Tu disponibilidad",
     "styleTitle": "Estilo de entrenamiento"
+  },
+  "summary": {
+    "eyebrow": "Te preparas para",
+    "race": "Carrera de {{dist}} km",
+    "when": "{{race}} · {{date}}",
+    "goal": "Objetivo: {{goal}}.",
+    "noGoal": "Sin objetivo de tiempo, solo llegar a la meta.",
+    "days_one": "{{count}} entrenamiento por semana, {{duration}}.",
+    "days_other": "{{count}} entrenamientos por semana, {{duration}} cada uno.",
+    "customDays_one": "{{count}} entrenamiento por semana: {{days}}.",
+    "customDays_other": "{{count}} entrenamientos por semana: {{days}}.",
+    "style": "Estilo {{style}}."
+  },
+  "change": {
+    "button": "Cambiar mi plan",
+    "title": "¿Qué quieres cambiar?",
+    "note": "Verás cada cambio antes de guardarlo.",
+    "goal": "Mi carrera o mi tiempo objetivo",
+    "goalSub": "Otra carrera, otra fecha, otro tiempo",
+    "goalOpen": "Para qué me preparo",
+    "goalOpenSub": "Preparar una carrera, o cambiar de enfoque",
+    "avail": "Los días que puedo correr",
+    "availSub": "Más o menos días, o menos tiempo por sesión",
+    "style": "Lo exigente que es",
+    "styleSub": "Más suave, sobre todo fácil, o más velocidad",
+    "session": "Solo una sesión",
+    "sessionSub": "Mover, acortar o intercambiar una sesión",
+    "coach": "Otra cosa",
+    "coachSub": "Lesión, vacaciones, una semana perdida: cuéntaselo a tu entrenador",
+    "sessionHint": "Toca Cambiar en la sesión que quieras mover, acortar o intercambiar.",
+    "heading": {
+      "goal": "Tu carrera u objetivo",
+      "avail": "Tus días para correr",
+      "style": "Lo exigente que es"
+    }
   },
   "goalRow": {
     "subtitle": "para qué te preparas",
@@ -92,7 +127,7 @@
     "skip": "Omitir esta sesión",
     "startRun": "Empezar",
     "logIt": "Registrar",
-    "edit": "Editar sesión"
+    "change": "Cambiar"
   },
   "promote": {
     "newTarget": "Nuevo objetivo de entrenamiento",

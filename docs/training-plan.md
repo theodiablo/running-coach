@@ -473,14 +473,36 @@ no `Date` or i18n work, so it lives in `_shared/coach/phase.mjs` and
   needs a date after today (`min`, an inline message, and `canBuild`);
   onboarding's race step enforces the same.
 
+## Changing the plan: one door
+
+Every way the runner changes their plan starts from one question, asked by
+`ChangePlanSheet` (`src/modals/`): *what do you want to change?* Race or goal,
+running days, how hard it feels (the style), just one session, or something
+else (the coach, `CoachSource` `"change_plan"`). It is RecordSheet's pattern:
+one sheet that sorts the intent, each answer leading somewhere single-purpose.
+
+- The Plan tab heads the plan with one sentence (what it's for, the goal, the
+  days, the style) and a **Change my plan** button. Home's doors (the coach
+  card, "Adjust my plan" on overdue sessions) open the Plan tab on the same
+  sheet through the hub's `openChangePlan` (`openChangeNonce`).
+- Goal, days and style each open the existing editor showing **only that part**
+  (`solo` in `PlanView`); the first-time setup and a promote ("Set as target")
+  still walk all three. The rebuild preview and its Apply are unchanged.
+- "Just one session" leaves a hint over the weeks; every editable session shows
+  a visible **Change** (no longer hidden in the ⋯ menu).
+- A new door that changes the plan opens this sheet; it doesn't invent its own
+  route into the editor. A door that already carries the answer (a promote, the
+  coach's `app:goal` link, the debrief's "It was moved") may go straight to the
+  editor.
+
 ## Manual edits
 
 The runner can edit their own plan: move a session (or swap it with the one on
 the day they pick), change its type or distance, delete it, or add one. It is
 free for everyone: the coach is for judgment, not calendar shuffling, and a
 change of day should not cost a coach round. `src/utils/planEdit.ts` is the one
-set of operations and `SessionEditSheet` the one surface (the Plan tab's
-session ⋯ menu, and "Add a session" under each live week); `editSession` in
+set of operations and `SessionEditSheet` the one surface (each session's
+**Change** button, and "Add a session" under each live week); `editSession` in
 `RunningCoach.tsx` applies them, with an Undo toast.
 
 - **Warn, never block, on training rules.** `editIssues` runs the shared

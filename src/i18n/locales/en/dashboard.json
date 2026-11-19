@@ -70,7 +70,7 @@
   "overdue": {
     "title_one": "1 session still open",
     "title_other": "{{count}} sessions still open",
-    "subtitle": "Life happens. Tick off what you did, skip what you didn't, or let your coach reshape the plan.",
+    "subtitle": "Life happens. Tick off what you did, skip what you didn't, or change your plan around it.",
     "more_one": "1 more in your plan",
     "more_other": "{{count}} more in your plan",
     "adjust": "Adjust my plan",
@@ -102,8 +102,8 @@
   "setUpPlan": "Set Up My Plan",
   "allSessionsDone": "All upcoming sessions done!",
   "coach": {
-    "title": "Adjust your plan with your coach",
-    "subtitle": "Niggle, missed week, or a schedule clash? Ask for a tweak."
+    "title": "Change my plan",
+    "subtitle": "New race, fewer days, a niggle or a missed week"
   },
   "recentRuns": "Recent runs",
   "viewAll": "View all",

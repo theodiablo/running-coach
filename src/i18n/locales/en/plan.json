@@ -1,11 +1,11 @@
 {
-  "title": "Your training plan",
+  "title": "Your plan",
   "editPlan": "Edit plan",
   "editShort": "Edit",
   "reassurance": "Changing either rebuilds your remaining sessions — done runs stay.",
   "pastWeeks": "Past weeks",
   "notConfigured": "not configured",
-  "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance — consider lengthening your long day in Edit plan.",
+  "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance. To make room, lengthen your long day in Change my plan → The days I can run.",
   "week": {
     "label": "W{{number}}",
     "now": "now",
@@ -16,6 +16,41 @@
     "goalTitle": "Your goal",
     "availTitle": "Your availability",
     "styleTitle": "Training style"
+  },
+  "summary": {
+    "eyebrow": "Training for",
+    "race": "{{dist}} km race",
+    "when": "{{race}} · {{date}}",
+    "goal": "Aiming for {{goal}}.",
+    "noGoal": "No time goal, just the finish line.",
+    "days_one": "{{count}} run a week, {{duration}}.",
+    "days_other": "{{count}} runs a week, {{duration}} each.",
+    "customDays_one": "{{count}} run a week: {{days}}.",
+    "customDays_other": "{{count}} runs a week: {{days}}.",
+    "style": "{{style}} style."
+  },
+  "change": {
+    "button": "Change my plan",
+    "title": "What do you want to change?",
+    "note": "You'll see every change before it's saved.",
+    "goal": "My race or goal time",
+    "goalSub": "Another race, a new date, a different finish time",
+    "goalOpen": "What I'm training for",
+    "goalOpenSub": "Train for a race, or pick a different focus",
+    "avail": "The days I can run",
+    "availSub": "More or fewer days, or less time per run",
+    "style": "How hard it feels",
+    "styleSub": "Gentler, mostly easy, or more speed work",
+    "session": "Just one session",
+    "sessionSub": "Move, shorten or swap a single run",
+    "coach": "Something else",
+    "coachSub": "Injury, holiday, a missed week: tell your coach",
+    "sessionHint": "Tap Change on the session you want to move, shorten or swap.",
+    "heading": {
+      "goal": "Your race or goal",
+      "avail": "Your running days",
+      "style": "How hard it feels"
+    }
   },
   "goalRow": {
     "subtitle": "what you're training for",
@@ -48,9 +83,21 @@
         "lots": "5+ days suits experienced runners; beginners risk injury at this volume."
       },
       "band": {
-        "short": { "label": "Short", "sub": "~30 min", "word": "~30 min" },
-        "med": { "label": "Medium", "sub": "45–60 min", "word": "45–60 min" },
-        "long": { "label": "Long", "sub": "1 h+", "word": "1 h+" }
+        "short": {
+          "label": "Short",
+          "sub": "~30 min",
+          "word": "~30 min"
+        },
+        "med": {
+          "label": "Medium",
+          "sub": "45–60 min",
+          "word": "45–60 min"
+        },
+        "long": {
+          "label": "Long",
+          "sub": "1 h+",
+          "word": "1 h+"
+        }
       }
     },
     "custom": {
@@ -80,7 +127,7 @@
     "skip": "Skip this session",
     "startRun": "Start run",
     "logIt": "Log it",
-    "edit": "Edit session"
+    "change": "Change"
   },
   "promote": {
     "newTarget": "New training target",

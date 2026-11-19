@@ -78,7 +78,8 @@ describe("PlanView · after the race", () => {
 
   it("keeps a still-future race date when the editor opens", () => {
     const { view } = renderPlan({ plan: planWith("2026-10-20"), settings: settingsOf("2026-10-20") });
-    fireEvent.click(screen.getAllByRole("button", { name: /Edit/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Change my plan" }));
+    fireEvent.click(screen.getByRole("button", { name: /^My race or goal time/ }));
     expect(dateInput(view.container).value).toBe("2026-10-20");
   });
 });

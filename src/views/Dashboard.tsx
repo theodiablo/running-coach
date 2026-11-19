@@ -85,6 +85,8 @@ type DashboardProps = {
   settleRace?: (runId: string | null, timeSec: number | null) => boolean;
   skipRace?: () => void;
   openPlanGoalEdit?: () => void;
+  // "Change my plan": the Plan tab opens on the sheet that asks what to change.
+  openChangePlan?: (source: "home" | "overdue") => void;
   updateRun?: (id: string, patch: RunPatch) => void;
   // "Make the rest lighter" in the recovery after a race: the hub edits the plan and toasts the Undo.
   lightenRecovery?: () => void;
@@ -104,7 +106,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, reviewCard, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, openChangePlan, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, reviewCard, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -493,7 +495,10 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             </button>
           )}
           <button
-            onClick={() => { track("overdue_resolved", {action: "coach"}); openCoach(null, "dashboard"); }}
+            onClick={() => {
+              track("overdue_resolved", {action: "change"});
+              if (openChangePlan) openChangePlan("overdue"); else openCoach(null, "dashboard");
+            }}
             className="w-full mt-3 flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-100 py-2.5 rounded-xl text-sm font-semibold transition-colors">
             <CoachAvatar chip size={15}/>{t("dashboard.overdue.adjust")}
           </button>
@@ -621,7 +626,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       )}
 
       {plan && !afterRace && (
-        <button onClick={() => openCoach(null, "dashboard")}
+        <button onClick={() => (openChangePlan ? openChangePlan("home") : openCoach(null, "dashboard"))}
           className="w-full bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
           <CoachAvatar chip size={18}/>
           <div className="flex-1 min-w-0">
