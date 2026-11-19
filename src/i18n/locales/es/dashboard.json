@@ -4,7 +4,7 @@
   "greetingAnon": "Qué bien verte 🏃‍♂️",
   "race": {
     "title": "Día de carrera",
-    "summary": "{{distance}} km · objetivo: menos de {{goal}} · {{pace}}/km",
+    "summary": "{{distance}} km · objetivo {{goal}} · {{pace}}/km",
     "summaryNoGoal": "{{distance}} km · sin objetivo de tiempo",
     "daysToGo": "días restantes",
     "nextUp": "Próxima: ",
@@ -82,7 +82,7 @@
     "today": "Sesión de hoy",
     "upNext": "Próxima sesión",
     "viewInPlan": "Ver en tu plan",
-    "howItUnfolds": "Cómo se desarrolla",
+    "howItUnfolds": "Cómo hacerlo",
     "skipTitle": "Omitir esta sesión",
     "startRun": "Empezar",
     "logIt": "Registrar",

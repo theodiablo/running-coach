@@ -585,6 +585,12 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   for logged runs. No em dashes (`—`) in either locale (lint);
   `src/i18n/i18n.test.ts` enforces the `tu`/`vous` split; the register and
   vocabulary rules are on you to keep.
+- **Plain words, one name per thing.** Every screen is read by beginners: plain
+  word first, the runner's term second (a style is "Mostly easy" with "Polarized
+  80/20" in its description), sentence case (never ALL-CAPS types or phases),
+  and one name for one thing on every screen ("How to run it" on Home and Plan).
+  Runner words a runner needs (Tempo, Intervals) stay, explained by
+  `common.typeHints` inside "How to run it". `src/i18n/i18n.test.ts` pins it.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
   the one `@theme` block in `src/index.css` (Tailwind v4 CSS-first, no
   `tailwind.config`). Transform/opacity-only and short. A global

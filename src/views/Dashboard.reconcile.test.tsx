@@ -85,7 +85,7 @@ describe("Dashboard next-session card · reconciling an already-recorded run", (
     renderDash();
     fireEvent.click(alreadyRan()!);
     fireEvent.click(screen.getByRole("button", {name: "Count it"}));
-    expect(screen.getByText(/Tempo/)).toBeInTheDocument();
+    expect(screen.getByText(/Tempo 8km is done/)).toBeInTheDocument();
     expect(screen.getByText(/8\.2 km in 40:12/)).toBeInTheDocument();
   });
 

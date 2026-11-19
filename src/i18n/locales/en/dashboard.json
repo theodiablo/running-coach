@@ -4,7 +4,7 @@
   "greetingAnon": "Good to see you 🏃‍♂️",
   "race": {
     "title": "Race Day",
-    "summary": "{{distance}}km · target sub {{goal}} · {{pace}}/km",
+    "summary": "{{distance}} km · goal {{goal}} · {{pace}}/km",
     "summaryNoGoal": "{{distance}}km · no time goal set",
     "daysToGo": "days to go",
     "nextUp": "Next up: ",
@@ -82,7 +82,7 @@
     "today": "Today's session",
     "upNext": "Up next",
     "viewInPlan": "View in your plan",
-    "howItUnfolds": "How it unfolds",
+    "howItUnfolds": "How to run it",
     "skipTitle": "Skip this session",
     "startRun": "Start run",
     "logIt": "Log it",

@@ -37,7 +37,7 @@ describe("PlanView · Change my plan", () => {
   it("says what the plan is for in one sentence, with one button to change it", () => {
     renderPlan();
     expect(screen.getByText("10 km race · 13 Dec")).toBeInTheDocument();
-    expect(screen.getByText(/^Aiming for 50:00\. 3 runs a week: .*\. Balanced style\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Aiming for 50:00\. 3 runs a week: .*\. Style: Balanced\.$/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Edit$/ })).toBeNull();
   });
 

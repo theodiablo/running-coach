@@ -5,20 +5,20 @@
       "blurb": "Progression classique : une sortie longue chaque semaine, avec des séances tempo et de fractionné en alternance."
     },
     "polarized": {
-      "label": "Polarisé 80/20",
-      "blurb": "Surtout des footings très faciles et une séance intense par semaine. Idéal si tu as tendance à courir toutes tes sorties à une allure assez soutenue."
+      "label": "Surtout facile",
+      "blurb": "Polarisé 80/20 : surtout des footings vraiment faciles et une séance intense par semaine. Idéal si tu as tendance à courir toutes tes sorties à une allure assez soutenue."
     },
     "runwalk": {
       "label": "Course/Marche",
       "blurb": "Des intervalles doux de course et de marche, sans travail de vitesse. Termine en forme. Idéal pour débuter ou reprendre."
     },
     "lowfreq": {
-      "label": "Qualité en 3 jours",
-      "blurb": "Trois séances ciblées par semaine : fractionné, tempo et sortie longue. Tu peux ajouter de l'entraînement croisé les autres jours. Cette méthode fonctionne mieux avec trois jours d'entraînement."
+      "label": "Trois séances clés",
+      "blurb": "Qualité en 3 jours : trois séances ciblées par semaine (fractionné, tempo et sortie longue), avec de l'entraînement croisé facultatif les autres jours. Fonctionne mieux avec trois jours d'entraînement."
     },
     "hansons": {
-      "label": "Style Hansons",
-      "blurb": "Fréquence plus élevée, sortie longue modérée et plafonnée, et tempo à l'allure de course visée. Idéal avec 5 à 6 jours d'entraînement pour un semi-marathon ou un marathon."
+      "label": "Courir presque tous les jours",
+      "blurb": "Style Hansons : fréquence plus élevée, sortie longue modérée et plafonnée, et tempo à l'allure de course visée. Idéal avec 5 à 6 jours d'entraînement pour un semi-marathon ou un marathon."
     }
   },
   "levels": {

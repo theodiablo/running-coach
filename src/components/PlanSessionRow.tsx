@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, MessageCircle, MoreHorizontal, PenLine, Pencil, Play, RotateCcw, Route, SkipForward } from "lucide-react";
+import { Check, ChevronDown, ListChecks, MessageCircle, MoreHorizontal, PenLine, Pencil, Play, RotateCcw, Route, SkipForward } from "lucide-react";
 import { TCLR } from "../constants";
 import { fmt } from "../utils/format";
 import { sessionMeta } from "../utils/plan";
@@ -52,7 +52,7 @@ export function PlanSessionRow({
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={"text-xs font-bold uppercase " + typeClass(s.type)}>{type}</span>
+            <span className={"text-xs font-bold " + typeClass(s.type)}>{type}</span>
             <span className="text-xs text-slate-500">{fmt.sht(s.date)}</span>
           </div>
           <p className="text-sm font-semibold text-slate-400 line-through leading-snug mt-0.5">{title}</p>
@@ -93,11 +93,11 @@ export function PlanSessionRow({
       {/* Body — tap toggles the coach-notes breakdown */}
       <div className="px-4 py-3 cursor-pointer select-none" onClick={onToggleNotes}>
         <div className="flex items-center gap-2">
-          <span className={"text-xs font-bold uppercase " + typeClass(s.type)}>{type}</span>
+          <span className={"text-xs font-bold " + typeClass(s.type)}>{type}</span>
           <span className="text-xs text-slate-400 whitespace-nowrap">{fmt.sht(s.date)}</span>
           <span className="flex-1"/>
           <span className={"text-xs flex items-center gap-1 " + (notesOpen ? "text-orange-400" : "text-slate-500")}>
-            <MessageCircle size={12}/>{t("plan.session.coachNotes")}
+            <ListChecks size={12}/>{t("plan.session.coachNotes")}
             <ChevronDown size={12} className={"transition-transform " + (notesOpen ? "rotate-180" : "")}/>
           </span>
         </div>
@@ -106,6 +106,7 @@ export function PlanSessionRow({
         <HRTarget type={s.type} settings={settings} openSettings={openSettings}/>
         {notesOpen && (
           <div className="mt-2 rounded-lg bg-slate-900/70 px-3 py-2.5 space-y-1.5 animate-expand" onClick={e => e.stopPropagation()}>
+            <p className="text-xs text-slate-300 leading-relaxed">{t("common.typeHints." + s.type, { defaultValue: "" })}</p>
             {sessionSteps(s).map(st => (
               <p key={st.label} className="text-xs text-slate-400 leading-relaxed">
                 <span className="text-slate-300 font-semibold">{st.label}: </span>{st.detail}

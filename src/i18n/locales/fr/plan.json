@@ -7,7 +7,7 @@
   "notConfigured": "non configuré",
   "longRunNudge": "Pour atteindre ton objectif, les sorties longues vont jusqu'à ~{{peak}}, au-delà de ta plus longue journée d'entraînement ({{longest}}). C'est normal pour cette distance. Pour faire de la place, allonge ce jour dans Modifier mon plan → Les jours où je peux courir.",
   "week": {
-    "label": "Sem. {{number}}",
+    "label": "Semaine {{number}}",
     "now": "cette semaine",
     "stillOpen_one": "1 ouverte",
     "stillOpen_other": "{{count}} ouvertes"
@@ -27,7 +27,7 @@
     "days_other": "{{count}} sorties par semaine, {{duration}} chacune.",
     "customDays_one": "{{count}} sortie par semaine : {{days}}.",
     "customDays_other": "{{count}} sorties par semaine : {{days}}.",
-    "style": "Style {{style}}."
+    "style": "Style : {{style}}."
   },
   "change": {
     "button": "Modifier mon plan",
@@ -54,7 +54,7 @@
   },
   "goalRow": {
     "subtitle": "ce que tu prépares",
-    "summary": "{{dist}} km · sous {{goal}} · {{date}}{{elev}}",
+    "summary": "{{dist}} km · objectif {{goal}} · {{date}}{{elev}}",
     "summaryNoGoal": "{{dist}} km · {{date}}{{elev}}"
   },
   "availRow": {
@@ -120,7 +120,7 @@
   },
   "session": {
     "skipped": "ignorée",
-    "coachNotes": "Notes du coach",
+    "coachNotes": "Comment faire",
     "askCoach": "Demander au coach",
     "moreActions": "Plus d'actions",
     "skippedReassure": "Pas de stress, le plan s'adapte.",
@@ -130,7 +130,7 @@
     "change": "Modifier"
   },
   "promote": {
-    "newTarget": "Nouvel objectif d'entraînement",
+    "newTarget": "Ta prochaine course",
     "yourRace": "Ta course"
   },
   "progress": {
@@ -158,7 +158,7 @@
     "distance": "Distance de la course (km)",
     "distancePlaceholder": "p. ex. 21,1",
     "raceElevation": "Dénivelé positif de la course (m)",
-    "elevationHelp": "Dénivelé total du parcours ; il permet d'ajuster les allures d'entraînement à l'effort équivalent sur le plat.",
+    "elevationHelp": "Dénivelé total du parcours. Sur un parcours vallonné, les allures sont plus douces pour un effort équivalent.",
     "trainingDays": "Jours et durées d'entraînement",
     "trainingStyle": "Style d'entraînement",
     "hrNudge": "Ajoute ton profil de FC dans les Paramètres pour afficher une zone cible à chaque séance.",

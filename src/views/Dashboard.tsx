@@ -451,7 +451,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             {overdueShown.map(s => (
               <div key={s.id} className="flex items-center gap-2 rounded-xl bg-slate-800/70 px-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <p className={"text-[11px] font-bold uppercase tracking-wide " + sessionTypeClass(s.type, TCLR)}>
+                  <p className={"text-[11px] font-bold " + sessionTypeClass(s.type, TCLR)}>
                     {t("common.types." + s.type, {defaultValue: s.type})}
                   </p>
                   <p className="text-xs text-slate-300 truncate">{describeSession(s)}</p>
@@ -539,7 +539,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             className={"border-2 rounded-2xl p-4 " + (advanced ? "animate-slide-up " : "") + sessionTypeClass(nextSess.type, TBG)}>
             <button onClick={() => goTab("plan")} className="w-full text-left group" title={t("dashboard.session.viewInPlan")}>
               <div className="flex items-start justify-between gap-2">
-                <span className={"text-xs font-bold uppercase tracking-wide " + sessionTypeClass(nextSess.type, TCLR)}>
+                <span className={"text-xs font-bold " + sessionTypeClass(nextSess.type, TCLR)}>
                   {t("common.types." + nextSess.type, {defaultValue: nextSess.type})}
                 </span>
                 <ChevronRight size={16} className="text-slate-500 group-hover:text-slate-300 transition-colors flex-shrink-0 mt-0.5"/>
@@ -557,6 +557,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             </button>
             {showSteps && (
               <div className="mt-2 space-y-1.5 border-l-2 border-slate-700 pl-3">
+                <p className="text-xs text-slate-300 leading-snug">{t("common.typeHints." + nextSess.type, {defaultValue: ""})}</p>
                 {sessionSteps(nextSess).map(st => (
                   <p key={st.label} className="text-xs text-slate-400 leading-snug">
                     <span className="text-slate-300 font-semibold">{st.label}: </span>{st.detail}

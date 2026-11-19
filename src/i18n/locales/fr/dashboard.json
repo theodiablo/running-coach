@@ -4,7 +4,7 @@
   "greetingAnon": "Ça fait plaisir de te voir 🏃‍♂️",
   "race": {
     "title": "Jour de course",
-    "summary": "{{distance}} km · objectif : moins de {{goal}} · {{pace}}/km",
+    "summary": "{{distance}} km · objectif {{goal}} · {{pace}}/km",
     "summaryNoGoal": "{{distance}} km · pas d'objectif de temps",
     "daysToGo": "jours restants",
     "nextUp": "À suivre : ",
@@ -82,7 +82,7 @@
     "today": "Séance du jour",
     "upNext": "À venir",
     "viewInPlan": "Voir dans ton plan",
-    "howItUnfolds": "Comment ça se déroule",
+    "howItUnfolds": "Comment faire",
     "skipTitle": "Passer cette séance",
     "startRun": "Démarrer",
     "logIt": "Saisir",

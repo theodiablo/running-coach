@@ -7,10 +7,10 @@
   "notConfigured": "not configured",
   "longRunNudge": "Your goal builds long runs up to ~{{peak}}, longer than your longest training day ({{longest}}). That's expected for this distance. To make room, lengthen your long day in Change my plan → The days I can run.",
   "week": {
-    "label": "W{{number}}",
-    "now": "now",
-    "stillOpen_one": "1 open",
-    "stillOpen_other": "{{count}} open"
+    "label": "Week {{number}}",
+    "now": "this week",
+    "stillOpen_one": "1 still open",
+    "stillOpen_other": "{{count}} still open"
   },
   "edit": {
     "goalTitle": "Your goal",
@@ -27,7 +27,7 @@
     "days_other": "{{count}} runs a week, {{duration}} each.",
     "customDays_one": "{{count}} run a week: {{days}}.",
     "customDays_other": "{{count}} runs a week: {{days}}.",
-    "style": "{{style}} style."
+    "style": "Style: {{style}}."
   },
   "change": {
     "button": "Change my plan",
@@ -54,7 +54,7 @@
   },
   "goalRow": {
     "subtitle": "what you're training for",
-    "summary": "{{dist}} km · sub {{goal}} · {{date}}{{elev}}",
+    "summary": "{{dist}} km · goal {{goal}} · {{date}}{{elev}}",
     "summaryNoGoal": "{{dist}} km · {{date}}{{elev}}"
   },
   "availRow": {
@@ -120,7 +120,7 @@
   },
   "session": {
     "skipped": "skipped",
-    "coachNotes": "Coach notes",
+    "coachNotes": "How to run it",
     "askCoach": "Ask coach about this run",
     "moreActions": "More actions",
     "skippedReassure": "No stress — the plan adapts.",
@@ -130,7 +130,7 @@
     "change": "Change"
   },
   "promote": {
-    "newTarget": "New training target",
+    "newTarget": "Your next race",
     "yourRace": "Your race"
   },
   "progress": {
@@ -158,7 +158,7 @@
     "distance": "Race distance (km)",
     "distancePlaceholder": "e.g. 21.1",
     "raceElevation": "Race elevation gain (m)",
-    "elevationHelp": "Total climb on the course — sets training paces to the flat-equivalent effort.",
+    "elevationHelp": "Total climb on the course. Hilly races get gentler paces, so the effort matches.",
     "trainingDays": "Training days and durations",
     "trainingStyle": "Training style",
     "hrNudge": "Add your HR profile in Settings to unlock heart rate targets on every session.",
