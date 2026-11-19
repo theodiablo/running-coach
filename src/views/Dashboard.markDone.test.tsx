@@ -127,19 +127,24 @@ describe("Dashboard overdue rows · feedback", () => {
 });
 
 describe("Dashboard · a calmer Home", () => {
+  // A run today brings the cool-down suggestion; an open session waits behind it.
+  const ranToday = {id: "r1", date: "2026-03-10", type: "EASY", km: 5, durationSec: 1800};
+  const stretching = {stretchLog: [], openStretch: vi.fn(), saveSettings: vi.fn()};
+
   it("shows one thing that needs attention at a time", () => {
-    // An open session and a badge in reach: only the open session shows.
-    renderDash(planOf([sess("missed", "2026-03-08")]),
-      {runs: [{id: "r1", date: "2026-03-09", type: "EASY", km: 4, durationSec: 1500}]});
-    expect(screen.getByText("1 session still open")).toBeInTheDocument();
-    // The stretch suggestion, next in line, waits its turn.
-    expect(screen.queryByText(/^Cool down/)).toBeNull();
+    renderDash(planOf([sess("missed", "2026-03-08")]), {runs: [ranToday], ...stretching});
+    expect(screen.getByText(/^Cool down/)).toBeInTheDocument();
+    expect(screen.queryByText("1 session still open")).toBeNull();
   });
 
-  it("always keeps the next badge in reach, in the week card", () => {
-    renderDash(planOf([sess("missed", "2026-03-08")]),
-      {runs: [{id: "r1", date: "2026-03-09", type: "EASY", km: 4, durationSec: 1500}]});
-    expect(screen.getByText(/Next badge/).closest("button")!.textContent).toBe("Next badge · First 5K · 1 km to go");
+  it("puts a race date change first, and keeps stretching reachable in the week card", () => {
+    renderDash(planOf([sess("missed", "2026-03-08")]), {runs: [ranToday], ...stretching,
+      dateChanges: [{editionId: "e1", label: "City 10K", oldDate: "2026-05-01", newDate: "2026-05-08", isTarget: false}],
+      applyRaceDateChange: vi.fn(), keepRaceDate: vi.fn()});
+    expect(screen.getAllByText(/City 10K/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Cool down/)).toBeNull();
+    expect(screen.queryByText("1 session still open")).toBeNull();
+    expect(screen.getByText("Stretching")).toBeInTheDocument();
   });
 
   it("sums the week up in one line instead of stat tiles", () => {

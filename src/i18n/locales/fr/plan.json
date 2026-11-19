@@ -1,6 +1,5 @@
 {
   "title": "Ton plan",
-  "editPlan": "Modifier le plan",
   "editShort": "Modifier",
   "reassurance": "Modifier l'un ou l'autre reconstruit tes séances restantes ; les sorties terminées sont conservées.",
   "pastWeeks": "Semaines passées",
@@ -18,7 +17,7 @@
     "styleTitle": "Style d'entraînement"
   },
   "summary": {
-    "eyebrow": "Objectif",
+    "eyebrow": "Tu prépares",
     "race": "Course de {{dist}} km",
     "when": "{{race}} · {{date}}",
     "goal": "Objectif : {{goal}}.",
@@ -48,7 +47,7 @@
     "sessionHint": "Touche Modifier sur la séance à déplacer, raccourcir ou échanger.",
     "heading": {
       "goal": "Ta course ou ton objectif",
-      "avail": "Tes jours de course",
+      "avail": "Tes jours pour courir",
       "style": "L'intensité du plan"
     }
   },

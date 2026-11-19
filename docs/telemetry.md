@@ -180,7 +180,7 @@ choice either way.
   `{hadRuns:boolean}` when it starts a plan for a runner who never answered
   (`src/RunningCoach.tsx`). Enums only, never a race or a time.
 - "Change my plan" (`docs/training-plan.md`): `plan_change_opened`
-  `{source:"plan"|"home"|"overdue"}` when the sheet is opened, and
+  `{source:"plan"|"overdue"}` when the sheet is opened, and
   `plan_change_picked` `{choice:"goal"|"avail"|"style"|"session"|"coach"}`
   for the answer (`src/views/PlanView.tsx`, `src/RunningCoach.tsx`). Enums
   only. It answers whether runners now find how to change their plan, and

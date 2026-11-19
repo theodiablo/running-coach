@@ -99,6 +99,13 @@ describe("PlanView · Change my plan", () => {
     expect(screen.queryByText(/^Tap Change on the session/)).toBeNull();
   });
 
+  it("shows every part when the race date has passed, so it can be fixed", () => {
+    renderPlan({ settings: { ...settings, raceDate: "2026-09-10" }, openChangeNonce: 1 });
+    pick(/^The days I can run/);
+    expect(document.querySelector('input[type="date"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Preview changes" })).toBeDisabled();
+  });
+
   it("arrives on the sheet when a door elsewhere asked for it", () => {
     renderPlan({ openChangeNonce: 1 });
     expect(screen.getByText("What do you want to change?")).toBeInTheDocument();

@@ -88,7 +88,7 @@
       "metaRun": "{{date}} · {{detail}}",
       "runDetail": "{{km}} km en {{dur}}"
     },
-    "alreadyRan": "Je l'ai déjà faite",
+    "alreadyRan": "Lier une sortie déjà enregistrée",
     "notToday": "Pas aujourd'hui ?"
   },
   "week": {

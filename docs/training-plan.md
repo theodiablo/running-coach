@@ -483,9 +483,8 @@ else (the coach, `CoachSource` `"change_plan"`). It is RecordSheet's pattern:
 one sheet that sorts the intent, each answer leading somewhere single-purpose.
 
 - The Plan tab heads the plan with one sentence (what it's for, the goal, the
-  days, the style) and a **Change my plan** button. Home's doors (the coach
-  card, "Adjust my plan" on overdue sessions) open the Plan tab on the same
-  sheet through the hub's `openChangePlan` (`openChangeNonce`).
+  days, the style) and a **Change my plan** button. Home's door ("Adjust my plan"
+  on overdue sessions) opens the Plan tab on the same sheet through the hub's `openChangePlan` (`openChangeNonce`).
 - Goal, days and style each open the existing editor showing **only that part**
   (`solo` in `PlanView`); the first-time setup and a promote ("Set as target")
   still walk all three. The rebuild preview and its Apply are unchanged.

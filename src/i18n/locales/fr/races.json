@@ -21,7 +21,7 @@
     "completed": "Terminées"
   },
   "upcoming": {
-    "trainingTarget": "Objectif d'entraînement",
+    "trainingTarget": "En préparation",
     "inYourPlan": "Dans ton plan",
     "daysToGo": "jours restants",
     "setAsTarget": "Préparer cette course",
@@ -187,7 +187,7 @@
     "passed": "passée",
     "editions": "Dates et distances",
     "addToList": "Ajouter à mes courses",
-    "setTarget": "En faire mon objectif",
+    "setTarget": "Préparer cette course",
     "logResult": "Saisir mon résultat",
     "removeFromList": "Retirer de mes courses",
     "where": "Où",

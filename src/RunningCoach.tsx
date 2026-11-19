@@ -1119,7 +1119,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Opens the Plan tab straight on its goal editor (the one-shot request is
   // cleared by setTab on the way out).
   const openPlanGoalEdit = () => { setPlanEditNonce(n => n + 1); setTab("plan"); };
-  const openChangePlan = (source: "home" | "overdue") => {
+  const openChangePlan = (source: "overdue") => {
     track("plan_change_opened", { source });
     setPlanChangeNonce(n => n + 1); setTab("plan");
   };

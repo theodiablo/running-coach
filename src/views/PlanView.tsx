@@ -228,7 +228,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const [prevEditNonce, setPrevEditNonce] = useState(openEditNonce);
   if (openEditNonce !== prevEditNonce) {
     setPrevEditNonce(openEditNonce);
-    if (openEditNonce && plan) { setChanging(false); openEdit("goal"); }
+    if (openEditNonce && plan && !promoting) { setChanging(false); openEdit("goal"); }
   }
   const [prevChangeNonce, setPrevChangeNonce] = useState(openChangeNonce);
   if (openChangeNonce !== prevChangeNonce) {
@@ -316,7 +316,8 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     const isSetup = !plan && !promoting;
     // Changing an existing plan shows only the part the runner chose; setup and a promote walk all three.
     const solo = !!plan && !promoting && !!editSection;
-    const shown = (section: EditSection) => !solo || editSection === section;
+    // A draft that can't build (a race date already past) also shows the goal, so the date can be fixed.
+    const shown = (section: EditSection) => !solo || editSection === section || (section === "goal" && !canBuild);
     const ctaLabel = isSetup ? t("plan.setup.generate") : promoting ? t("plan.setup.buildMyPlan") : t("plan.setup.previewChanges");
     const modeToggle = (
       <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
@@ -340,7 +341,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               <ArrowLeft size={18}/>
             </button>
           )}
-          <h2 className="text-lg font-bold">{isSetup ? t("plan.title") : solo ? t("plan.change.heading." + editSection) : t("plan.editPlan")}</h2>
+          <h2 className="text-lg font-bold">{isSetup ? t("plan.title") : solo ? t("plan.change.heading." + editSection) : t("plan.change.button")}</h2>
         </div>
 
         {promoting && planPrefill && <PromoteBanner prefill={planPrefill} onCancel={cancelPromote}/>}

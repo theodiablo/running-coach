@@ -21,7 +21,7 @@
     "completed": "Completadas"
   },
   "upcoming": {
-    "trainingTarget": "Objetivo de entrenamiento",
+    "trainingTarget": "En preparación",
     "inYourPlan": "En tu plan",
     "daysToGo": "días restantes",
     "setAsTarget": "Prepararme para esta carrera",
@@ -187,7 +187,7 @@
     "passed": "pasada",
     "editions": "Fechas y distancias",
     "addToList": "Añadir a mis carreras",
-    "setTarget": "Ponerla como objetivo",
+    "setTarget": "Prepararme para esta carrera",
     "logResult": "Registrar mi resultado",
     "removeFromList": "Quitar de mis carreras",
     "where": "Dónde",

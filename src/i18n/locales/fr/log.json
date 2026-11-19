@@ -22,7 +22,7 @@
     "saved": "Choisir une sortie déjà enregistrée",
     "savedSub": "Depuis ta montre ou un enregistrement précédent",
     "tick": "Juste la cocher",
-    "tickSub": "Aucun détail enregistré, la séance est marquée faite",
+    "tickSub": "Aucun détail enregistré, la séance est marquée comme faite",
     "tickLocked": "Tu pourras la cocher le {{date}}. Déjà faite ? Ajoute les détails de la sortie, elle sera enregistrée aussi."
   },
   "session": {
