@@ -667,6 +667,17 @@ describe("apply: plan", () => {
     expect(plan(proposal({}, { name: "Trail Serra de Ripoll 2027" }), CATALOGUE, taken()).race.terrain).toBe("trail");
     expect(plan(proposal({}, { sport: "trail" }), CATALOGUE, taken()).race.terrain).toBe("trail");
   });
+  it.each([
+    "SANTKUTRAIL 2027",
+    "IV-Domusa Teknik 15 MLK (26km)",
+    "GR322 Nafarroa Xtrem 2027",
+    "XVII Gegant de Pedra, Ondara, 9e. Circuit Trail Marina 26/27",
+  ])("marks %s trail", (name) => {
+    expect(plan(proposal({}, { name }), CATALOGUE, taken()).race.terrain).toBe("trail");
+  });
+  it.each(["Mitja Marató Ripoll 2027", "Salomon Run Barcelona 2027", "Cursa Grau 2027"])("leaves %s road", (name) => {
+    expect(plan(proposal({}, { name }), CATALOGUE, taken()).race.terrain).toBe("road");
+  });
   it("never takes a slug already in use", () => {
     const used = taken();
     used.add("mitja-marato-ripoll");

@@ -109,6 +109,11 @@ function headlineDistance(name, distances) {
   return Math.max(...distances);
 }
 
+// Mountain races the matcher's trail words miss: a word ending in "trail" (Santkutrail), Basque
+// mendi lasterketa (MLK), a waymarked GR path, "Xtrem".
+const TRAIL_TERRAIN = /trail\b|\bmlk\b|\bgr ?\d{1,4}\b|\bxtrem\b/;
+const trailTerrain = (name) => isTrail(name) || TRAIL_TERRAIN.test(stripAccents(name).toLowerCase());
+
 function freeSlug(base, taken) {
   if (!taken.has(base)) return base;
   for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
@@ -169,7 +174,8 @@ export function plan(p, catalogue, taken) {
   taken.add(id);
   const organiser = c.organiserUrl && !PLATFORM_URL.test(hostOf(c.organiserUrl)) ? c.organiserUrl : "";
   const url = webUrl(organiser || (c.firstHand ? c.url : ""));
-  const terrain = c.sport === "trail" || isTrail(name) ? "trail" : "road";
+  // The source's own name too: cleaning drops a series tag ("…, Circuit Trail Marina") that says trail.
+  const terrain = c.sport === "trail" || trailTerrain(c.name) || trailTerrain(name) ? "trail" : "road";
   const race = { slug, name, city, country: c.country, lat: c.lat, lng: c.lng, distances: [km], url, terrain };
   const edition = { id, race_slug: slug, date: c.date, distance_km: km };
   return { ledger: { ...ledger, status: "inserted", race_slug: slug, edition_id: id }, race, edition };
