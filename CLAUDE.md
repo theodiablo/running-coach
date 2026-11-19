@@ -700,9 +700,10 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - **Home shows one thing that needs attention at a time.** The page is the
   phase card, today's session, ONE attention `slot` (in `Dashboard.tsx`, most
   pressing first: race date change, stretch suggestion, open sessions, update,
-  review ask, next badge), the week card (`WeekStripCard`, with the stretching
-  row as its footer) and recent runs. A new Home card joins the slot's order;
-  it never stacks as another always-on card.
+  review ask), the week card (`WeekStripCard`, with the next badge and the
+  stretching row as its footer) and recent runs. A new Home card joins the
+  slot's order; it never stacks as another always-on card. Badges also show on
+  the finish screen (`docs/run-celebration.md`).
 - **Duration is one masked field, not h/m/s boxes.** `RunFormValues.dur` is the
   raw digit string, filling right to left (`4300` → 43:00, `15207` → 1:52:07) —
   the order a watch face is already written in, and one keyboard on a phone

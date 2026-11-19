@@ -48,12 +48,19 @@ Copy follows the `badges.ts` stance: a break is "welcome back", never a broken
 streak. An accidental recording (under 200 m and 2 min; indoor under 1 min) gets
 no celebration at all.
 
+**The badge row** (`badgeMoment`, `src/utils/badges.ts`) diffs the run badges
+before and after this run: a badge it unlocked is shown with its icon (and "and
+n more"), earns confetti and holds the screen like a best effort; otherwise the
+locked badge it moved closest to completion gets one line ("Closer to Century:
+14 km to go"). Race and stretching badges never move on a run, so only the log
+is read. The hub's "Badge unlocked" toast after saving still fires.
+
 ## Timing
 
 The thumb that just held Finish lifts onto this screen, so taps are ignored for
 the first ~0.45 s. Without effort rows it moves on to the summary by itself
-after 4 s or on a tap; with effort rows it waits for Continue, since there is
-something to read.
+after 4 s or on a tap; with effort rows or an unlocked badge it waits for
+Continue, since there is something to read.
 
 ## One reward per run
 

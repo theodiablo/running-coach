@@ -256,8 +256,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     : stretch && openStretch && saveSettings ? "stretch"
     : overdueShown.length ? "overdue"
     : availableUpdate ? "update"
-    : reviewCard && !recorderOpen ? "review"
-    : nb ? "badge" : null;
+    : reviewCard && !recorderOpen ? "review" : null;
 
   return (
     <div className="p-4 space-y-5 max-w-lg mx-auto">
@@ -560,23 +559,24 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         </div>
       )}
 
-      {slot === "badge" && nb && (
-        <button onClick={() => goProgress("badges")}
-          className="w-full bg-slate-800 rounded-xl p-3 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
-          <Award size={20} className="text-orange-400 flex-shrink-0"/>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-400">{t("dashboard.nextBadge")}</p>
-            <p className="text-sm font-semibold truncate">{nb.label + (nb.hint ? " · " + nb.hint : "")}</p>
-            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
-              <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full" style={{width: Math.round(nb.progress * 100) + "%"}}/>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-slate-600 flex-shrink-0"/>
-        </button>
-      )}
-
-
       <WeekStripCard plan={plan} runs={runs} today={today}>
+        {nb && (
+          <button onClick={() => goProgress("badges")}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-t border-slate-700/60 hover:bg-slate-700/40 transition-colors">
+            <Award size={18} className="text-orange-400 flex-shrink-0"/>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm truncate">
+                <span className="text-slate-400">{t("dashboard.nextBadge")} · </span>
+                <span className="font-semibold">{nb.label}</span>
+                {nb.hint && <span className="text-slate-400">{" · " + nb.hint}</span>}
+              </p>
+              <div className="h-1 bg-slate-700 rounded-full overflow-hidden mt-1.5">
+                <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full" style={{width: Math.round(nb.progress * 100) + "%"}}/>
+              </div>
+            </div>
+            <ChevronRight size={16} className="text-slate-600 flex-shrink-0"/>
+          </button>
+        )}
         {!stretch && openStretch && !recorderOpen && (
           <button onClick={() => openStretch()}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-t border-slate-700/60 hover:bg-slate-700/40 transition-colors">

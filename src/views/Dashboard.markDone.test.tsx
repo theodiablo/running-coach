@@ -132,7 +132,14 @@ describe("Dashboard · a calmer Home", () => {
     renderDash(planOf([sess("missed", "2026-03-08")]),
       {runs: [{id: "r1", date: "2026-03-09", type: "EASY", km: 4, durationSec: 1500}]});
     expect(screen.getByText("1 session still open")).toBeInTheDocument();
-    expect(screen.queryByText("Next badge")).toBeNull();
+    // The stretch suggestion, next in line, waits its turn.
+    expect(screen.queryByText(/^Cool down/)).toBeNull();
+  });
+
+  it("always keeps the next badge in reach, in the week card", () => {
+    renderDash(planOf([sess("missed", "2026-03-08")]),
+      {runs: [{id: "r1", date: "2026-03-09", type: "EASY", km: 4, durationSec: 1500}]});
+    expect(screen.getByText(/Next badge/).closest("button")!.textContent).toBe("Next badge · First 5K · 1 km to go");
   });
 
   it("sums the week up in one line instead of stat tiles", () => {

@@ -1,12 +1,17 @@
 import { Footprints, Medal, Trophy, Gauge, CalendarCheck, CalendarHeart,
   Star, Flag, MapPin, Mountain, PersonStanding, Sparkles, Award } from "lucide-react";
-import type { ComponentType } from "react";
+import { createElement, type ComponentType } from "react";
 
 // Lucide icons referenced by name from src/utils/badges.ts (kept React-free).
 const ICONS = { Footprints, Medal, Trophy, Gauge, CalendarCheck, CalendarHeart,
   Star, Flag, MapPin, Mountain, PersonStanding, Sparkles };
 
 type BadgeIconName = keyof typeof ICONS;
+
+/** A badge's icon on its own (the finish screen). */
+export function BadgeGlyph({ name, size, className }: { name: string; size: number; className?: string }) {
+  return createElement(ICONS[name as BadgeIconName] || Award, { size, className });
+}
 type BadgeData = {
   Icon: string;
   unlocked: boolean;

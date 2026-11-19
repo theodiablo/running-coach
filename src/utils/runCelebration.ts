@@ -4,6 +4,7 @@
 
 import copy from "../i18n/locales/en/celebration.json";
 import { isPersonalBest, runAchievements, type EffortRank } from "./bestEfforts";
+import { badgeMoment, type BadgeMoment } from "./badges";
 import { fmt, weekKey } from "./format";
 import { buildSplits } from "./runSplits";
 import { isCrossTraining, type PlanSession, type Run } from "../types";
@@ -26,6 +27,8 @@ export type Celebration = {
   confetti: boolean;
   // Drawn from the rare pool: the screen says so.
   rare: boolean;
+  // A badge this run unlocked, or the one it moved closest (docs/run-celebration.md).
+  badge: BadgeMoment | null;
 };
 
 export type CelebrationInput = {
@@ -219,5 +222,7 @@ export function buildCelebration(input: CelebrationInput): Celebration | null {
   }
   const headline = pick(headKeys(pool), recent, rand);
 
-  return { headline, fact, efforts, confetti: rare || pb || fact?.weight === 3, rare };
+  const badge = badgeMoment(run, runs);
+  const unlocked = badge?.kind === "unlocked";
+  return { headline, fact, efforts, confetti: rare || pb || unlocked || fact?.weight === 3, rare, badge };
 }

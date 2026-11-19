@@ -149,6 +149,12 @@
   },
   "summary": "{{km}} km · {{dur}} · {{pace}}/km",
   "summaryIndoor": "{{dur}}",
+  "badge": {
+    "unlocked": "Badge débloqué",
+    "more_one": "et {{count}} autre",
+    "more_other": "et {{count}} autres",
+    "closer": "Plus près de {{label}} : {{hint}}"
+  },
   "continue": "Continuer",
   "tapHint": "Touche pour voir ton résumé",
   "rareTag": "Message rare : 1 sur 100"
