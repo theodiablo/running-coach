@@ -132,6 +132,8 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const [openSess,     setOpenSess]    = useState<string | null>(null);
   // A promote ("Set as target") opens the edit screen pre-filled.
   const [editing,      setEditing]     = useState(!!planPrefill || !!openEditNonce);
+  // Set when an edit opens on a draft that can't build (a past race date): the goal shows too, for the whole edit.
+  const [goalForced,   setGoalForced]  = useState(false);
   // Which accordion section is expanded on the edit screen (one at a time).
   const [editSection,  setEditSection] = useState<EditSection>("goal");
   // The "Change my plan" sheet, and the hint it leaves when "Just one session" was picked.
@@ -220,6 +222,8 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     setDraftKind(openNow ? "improve" : "race");
     setDraftTarget(plan?.goal?.target ?? settings.openTarget ?? "healthy");
     setDraftLight(!!(plan?.goal?.light ?? settings.lightPlan));
+    const seededDate = futureDate(settings.raceDate);
+    setGoalForced(!openNow && !(seededDate > ymd(new Date()) && !!settings.distanceKm));
     setEditSection(section);
     setEditing(true);
   };
@@ -316,8 +320,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     const isSetup = !plan && !promoting;
     // Changing an existing plan shows only the part the runner chose; setup and a promote walk all three.
     const solo = !!plan && !promoting && !!editSection;
-    // A draft that can't build (a race date already past) also shows the goal, so the date can be fixed.
-    const shown = (section: EditSection) => !solo || editSection === section || (section === "goal" && !canBuild);
+    const shown = (section: EditSection) => !solo || editSection === section || (section === "goal" && goalForced);
     const ctaLabel = isSetup ? t("plan.setup.generate") : promoting ? t("plan.setup.buildMyPlan") : t("plan.setup.previewChanges");
     const modeToggle = (
       <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5 flex-shrink-0">

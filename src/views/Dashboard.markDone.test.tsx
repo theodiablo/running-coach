@@ -110,7 +110,7 @@ describe("Dashboard next-session card · I did it", () => {
 
   it("carries two verbs, not five", () => {
     renderDash(planOf([sess("today", "2026-03-10")]));
-    expect(screen.queryByRole("button", {name: /Log it|Mark as done|I already ran this/})).toBeNull();
+    expect(screen.queryByRole("button", {name: /Log it|Mark as done|I already ran this|Link a run I already saved/})).toBeNull();
   });
 });
 

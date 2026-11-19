@@ -102,8 +102,12 @@ describe("PlanView · Change my plan", () => {
   it("shows every part when the race date has passed, so it can be fixed", () => {
     renderPlan({ settings: { ...settings, raceDate: "2026-09-10" }, openChangeNonce: 1 });
     pick(/^The days I can run/);
-    expect(document.querySelector('input[type="date"]')).not.toBeNull();
+    const date = document.querySelector('input[type="date"]') as HTMLInputElement;
     expect(screen.getByRole("button", { name: "Preview changes" })).toBeDisabled();
+    fireEvent.change(date, { target: { value: "2026-12-20" } });
+    // The date stays on screen once it's valid, so the runner can see what they picked.
+    expect((document.querySelector('input[type="date"]') as HTMLInputElement).value).toBe("2026-12-20");
+    expect(screen.getByRole("button", { name: "Preview changes" })).toBeEnabled();
   });
 
   it("arrives on the sheet when a door elsewhere asked for it", () => {
