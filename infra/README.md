@@ -382,7 +382,10 @@ over:
    assume, can still write to the production origin's `pr/`.
 
 The previews origin has no SPA fallback: a bare `/pr/<n>/` or a deep link is a
-403, so previews are entered at their `index.html`.
+403, so previews are entered at their `index.html`, and auth redirects return
+there too (`webAuthRedirect`, `src/utils/authCallback.ts`). That is why the
+allow-list entry needs the `/**` glob: an exact `previews.camboulive.solutions/`
+doesn't match `/pr/<n>/index.html`, and GoTrue falls back to the Site URL.
 
 ## Rotating the SMTP credentials
 

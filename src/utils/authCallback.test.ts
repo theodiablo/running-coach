@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyAuthUrl, emailChangeOutcome } from "./authCallback";
+import { classifyAuthUrl, emailChangeOutcome, webAuthRedirect } from "./authCallback";
 import { CLOUD_OAUTH } from "../cloudOauthPreinit";
 
 // The routing rules for native deep links. Order matters: a cloud provider's
@@ -135,5 +135,24 @@ describe("emailChangeOutcome", () => {
   it("falls back to what GoTrue said when the account can't be re-read", () => {
     expect(emailChangeOutcome("new@x.com", null)).toEqual(pending);           // link accepted
     expect(emailChangeOutcome("new@x.com", null, "otp_expired")).toEqual(failed); // link rejected
+  });
+});
+
+describe("webAuthRedirect", () => {
+  it("returns the production site to its root, where the SPA fallback serves the app", () => {
+    expect(webAuthRedirect("https://run.camboulive.solutions", "/")).toBe("https://run.camboulive.solutions/");
+  });
+
+  it("returns a PR preview to its own index.html, not the empty origin root", () => {
+    expect(webAuthRedirect("https://previews.camboulive.solutions", "/pr/42/"))
+      .toBe("https://previews.camboulive.solutions/pr/42/index.html");
+  });
+
+  it("tolerates a base without its trailing slash", () => {
+    expect(webAuthRedirect("https://x.test", "/pr/7")).toBe("https://x.test/pr/7/index.html");
+  });
+
+  it("falls back to the root for a relative base", () => {
+    expect(webAuthRedirect("http://localhost", "./")).toBe("http://localhost/");
   });
 });

@@ -90,3 +90,10 @@ export function emailChangeOutcome(
   // (expired, or already used — opening the same one twice).
   return { key: "app.toasts.emailChangeFailed", type: "err" };
 }
+
+// Where a web auth flow returns: the deploy's own base. A PR preview's origin has no SPA fallback and nothing at `/`
+// (infra/README.md), so a nested base must name its index.html or the `?code=` lands on a 403.
+export function webAuthRedirect(origin: string, base: string): string {
+  const b = base.startsWith("/") ? base.replace(/\/?$/, "/") : "/";
+  return b === "/" ? `${origin}/` : `${origin}${b}index.html`;
+}
