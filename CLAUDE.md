@@ -327,8 +327,8 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
 - **A run and the session it settled are linked by `runId`, never guessed
   silently.** `src/utils/sessionMatch.ts` is the one matcher (±3 days, the
   `isCrossTraining` line, one run settles one session) and it only *proposes* —
-  the save screen offers its match with a decline, the Dashboard's "I already
-  ran this" opens `ReconcileSheet`; both apply through `linkSess`, which writes
+  the save screen offers its match with a decline, "I did it" → "Pick a run I
+  already saved" (Home and Plan) and an overdue row's link open `ReconcileSheet`; both apply through `linkSess`, which writes
   `done` + `runId` (and may re-date the session to the day it happened, only
   inside its own week). **A `runId` never outlives its `done` or its run** —
   unticking/skipping clears it, `deleteRun` calls `releaseRun`, `carryProgress`
@@ -693,8 +693,16 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   used to log a run straight from a plan session and auto-tick it; a prefilled
   arrival says which session it will tick off rather than doing it silently.
   A plan session offers the same two verbs everywhere (Dashboard card and
-  `PlanSessionRow`): **Start run** opens a recorder, **Log it** opens the form —
-  a new surface must not invent a third word for either.
+  `PlanSessionRow`): **Start run** opens a recorder, **I did it** opens
+  `DidItSheet` (add the run's details → the form, pick a saved run →
+  `ReconcileSheet`, just tick it off) — a new surface must not invent a third
+  word for either, nor put those choices back on the card.
+- **Home shows one thing that needs attention at a time.** The page is the
+  phase card, today's session, ONE attention `slot` (in `Dashboard.tsx`, most
+  pressing first: race date change, stretch suggestion, open sessions, update,
+  review ask, next badge), the week card (`WeekStripCard`, with the stretching
+  row as its footer) and recent runs. A new Home card joins the slot's order;
+  it never stacks as another always-on card.
 - **Duration is one masked field, not h/m/s boxes.** `RunFormValues.dur` is the
   raw digit string, filling right to left (`4300` → 43:00, `15207` → 1:52:07) —
   the order a watch face is already written in, and one keyboard on a phone

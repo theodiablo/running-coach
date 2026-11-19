@@ -61,11 +61,6 @@
       "nothing": "No queda nada que aligerar"
     }
   },
-  "stats": {
-    "thisWeek": "Esta semana",
-    "runsRecorded": "Entrenamientos registrados",
-    "total": "Total"
-  },
   "nextBadge": "Próxima insignia",
   "overdue": {
     "title_one": "1 sesión pendiente",
@@ -85,9 +80,6 @@
     "howItUnfolds": "Cómo hacerlo",
     "skipTitle": "Omitir esta sesión",
     "startRun": "Empezar",
-    "logIt": "Registrar",
-    "markDone": "Marcar hecha",
-    "markDoneLocked": "Podrás marcarla el {{date}}. ¿La hiciste antes? Usa Registrar y así se guarda el entrenamiento.",
     "confirm": {
       "kicker": "Completada",
       "done": "Bien, {{title}} está hecha.",
@@ -96,20 +88,24 @@
       "metaRun": "{{date}} · {{detail}}",
       "runDetail": "{{km}} km en {{dur}}"
     },
-    "alreadyRan": "Ya la hice"
+    "alreadyRan": "Ya la hice",
+    "notToday": "¿Hoy no?"
+  },
+  "week": {
+    "title": "Esta semana",
+    "plan_one": "{{done}} de {{count}} sesión · {{km}} km",
+    "plan_other": "{{done}} de {{count}} sesiones · {{km}} km",
+    "runs_one": "{{count}} entrenamiento · {{km}} km",
+    "runs_other": "{{count}} entrenamientos · {{km}} km"
   },
   "noPlan": "Aún no tienes plan de entrenamiento. ¿Empezamos?",
   "setUpPlan": "Configurar mi plan",
   "allSessionsDone": "¡Todas las próximas sesiones completadas!",
-  "coach": {
-    "title": "Cambiar mi plan",
-    "subtitle": "Otra carrera, menos días, una molestia o una semana perdida"
-  },
   "recentRuns": "Entrenamientos recientes",
   "viewAll": "Ver todas",
   "empty": {
     "noRuns": "Aún no hay entrenamientos registrados.",
-    "hint": "Toca Registrar abajo para añadir el primero.",
+    "hint": "Toca + abajo para añadir tu primer entrenamiento.",
     "restore": "¿Tenías datos de una versión anterior? Abre Ajustes (engranaje, arriba a la derecha) → Restaurar."
   },
   "recovery": {

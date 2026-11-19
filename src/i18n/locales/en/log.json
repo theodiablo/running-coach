@@ -14,6 +14,17 @@
     "manual": "Enter it manually",
     "manualSub": "A run you've already done"
   },
+  "didIt": {
+    "button": "I did it",
+    "title": "How do you want to record it?",
+    "details": "Add the run's details",
+    "detailsSub": "Time and distance, so it counts in your progress",
+    "saved": "Pick a run I already saved",
+    "savedSub": "From your watch or an earlier recording",
+    "tick": "Just tick it off",
+    "tickSub": "No details saved, the session is marked done",
+    "tickLocked": "You can tick this off on {{date}}. Ran it early? Add the run's details so it's saved too."
+  },
   "session": {
     "heading": "Week {{week}} · {{date}}",
     "targetRun": "{{type}} · {{km}} km at {{pace}}/km",

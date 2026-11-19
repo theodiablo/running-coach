@@ -402,8 +402,9 @@ It only ever **proposes**. Two surfaces apply it, both by a confirmed tap:
   cross-training's *synthetic* km (`buildPlan` mints one to satisfy the coach
   validator), so anything reading it for display must go through
   `isCrossTraining` first.
-- **After the fact** (`ReconcileSheet`, from the next-session card's "I already
-  ran this" and from an overdue row's link button — the same case one day
+- **After the fact** (`ReconcileSheet`, from "I did it" → "Pick a run I already
+  saved" on the next-session card and on a Plan row (`DidItSheet`), and from an
+  overdue row's link button — the same case one day
   later, whose only other action is the evidence-free tick this replaces).
   Ranked candidates, best preselected, nothing applied until "Count it".
 

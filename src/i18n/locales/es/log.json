@@ -14,6 +14,17 @@
     "manual": "Introducirlo a mano",
     "manualSub": "Un entrenamiento que ya has hecho"
   },
+  "didIt": {
+    "button": "Ya lo hice",
+    "title": "¿Cómo quieres registrarlo?",
+    "details": "Añadir los datos del entrenamiento",
+    "detailsSub": "Tiempo y distancia, para que cuente en tu progreso",
+    "saved": "Elegir un entrenamiento ya guardado",
+    "savedSub": "De tu reloj o de una grabación anterior",
+    "tick": "Solo marcarla como hecha",
+    "tickSub": "No se guardan datos, la sesión queda marcada como hecha",
+    "tickLocked": "Podrás marcarla el {{date}}. ¿La hiciste antes? Añade los datos del entrenamiento y así también se guarda."
+  },
   "session": {
     "heading": "Semana {{week}} · {{date}}",
     "targetRun": "{{type}} · {{km}} km a {{pace}}/km",

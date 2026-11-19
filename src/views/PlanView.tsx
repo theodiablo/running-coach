@@ -17,10 +17,13 @@ import { SessionEditSheet, type SessionEditTarget } from "../modals/SessionEditS
 import { addSlot, isEditableSession, type SessionEdit } from "../utils/planEdit";
 import { RebuildPreview } from "../components/RebuildPreview";
 import { ChangePlanSheet, type ChangePlanChoice } from "../modals/ChangePlanSheet";
+import { DidItSheet } from "../modals/DidItSheet";
+import { ReconcileSheet } from "../modals/ReconcileSheet";
+import { candidateRuns, canMoveSessionTo } from "../utils/sessionMatch";
 import { track } from "../telemetry";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, CoachSource, OpenTarget, Plan, PlanPrefill, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
+import type { CoachSessionContext, CoachSource, OpenTarget, Plan, PlanPrefill, PlanSession, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
 import { canRecordSession, carryProgress, isElapsedWeek, planSessionPrefill, sessionRecorderActivity, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 import { planPhase } from "../utils/planPhase";
@@ -72,6 +75,8 @@ type PlanViewProps = {
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
   editSession: (edit: SessionEdit, warnings: number) => void;
+  // Names the saved run that settled a session ("I did it" → a run already saved).
+  linkSess?: (weekNumber: number, sessionId: string, runId: string, date?: string) => void;
   openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
@@ -100,7 +105,7 @@ type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 type PendingBuild = { plan: Plan; settings: SettingsState };
 
-export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, openChangeNonce, isPremium = false, openWhatsNext}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, linkSess, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, openChangeNonce, isPremium = false, openWhatsNext}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -166,6 +171,9 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   // The concrete sessions the current draft resolves to (Simple mode synthesises them).
   const resolvedSessions = draftMode === "simple" ? sessionsFromSimple(draftDays, draftBand) : draft;
 
+  // "I did it" on a session, and its "a run I already saved" follow-up.
+  const [didIt, setDidIt] = useState<(PlanSession & { wNum: number }) | null>(null);
+  const [reconciling, setReconciling] = useState<(PlanSession & { wNum: number }) | null>(null);
   // The runner's own session editor (add or edit), when open.
   const [editTarget,   setEditTarget]  = useState<SessionEditTarget | null>(null);
 
@@ -552,7 +560,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
                 onRecord={canRecordSession(s) ? () => (s.type === "OTHER"
                   ? openIndoor({wNum: wk.weekNumber, sId: s.id, activity: sessionRecorderActivity(s)})
                   : openTracker({wNum: wk.weekNumber, sId: s.id})) : undefined}
-                onDone={() => goLog(planSessionPrefill(s, wk.weekNumber))}
+                onDone={() => setDidIt({ ...s, wNum: wk.weekNumber })}
                 onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                 onSkip={() => skipSess(wk.weekNumber, s.id)}
                 onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}
@@ -590,6 +598,22 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
           onClose={() => setEditTarget(null)}/>
       )}
 
+      {didIt && (
+        <DidItSheet session={didIt} canTick={didIt.date <= todayStr}
+          hasSavedRuns={!!linkSess && candidateRuns(plan, didIt, runs).length > 0}
+          onPick={choice => {
+            if (choice === "details") goLog(planSessionPrefill(didIt, didIt.wNum));
+            else if (choice === "saved") setReconciling(didIt);
+            else toggleSess(didIt.wNum, didIt.id);
+          }}
+          onClose={() => setDidIt(null)}/>
+      )}
+      {reconciling && linkSess && (
+        <ReconcileSheet session={reconciling} runs={candidateRuns(plan, reconciling, runs)}
+          canMoveTo={date => canMoveSessionTo(plan, reconciling.wNum, date)}
+          onConfirm={(runId, moveTo) => { linkSess(reconciling.wNum, reconciling.id, runId, moveTo || undefined); setReconciling(null); }}
+          onClose={() => setReconciling(null)}/>
+      )}
       {changing && (
         <ChangePlanSheet openPlan={openNow} onPick={pickChange} onClose={() => setChanging(false)}/>
       )}

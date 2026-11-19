@@ -14,6 +14,17 @@
     "manual": "Saisir manuellement",
     "manualSub": "Une sortie que tu as déjà faite"
   },
+  "didIt": {
+    "button": "C'est fait",
+    "title": "Comment veux-tu l'enregistrer ?",
+    "details": "Ajouter les détails de la sortie",
+    "detailsSub": "Temps et distance, pour qu'elle compte dans ta progression",
+    "saved": "Choisir une sortie déjà enregistrée",
+    "savedSub": "Depuis ta montre ou un enregistrement précédent",
+    "tick": "Juste la cocher",
+    "tickSub": "Aucun détail enregistré, la séance est marquée faite",
+    "tickLocked": "Tu pourras la cocher le {{date}}. Déjà faite ? Ajoute les détails de la sortie, elle sera enregistrée aussi."
+  },
   "session": {
     "heading": "Semaine {{week}} · {{date}}",
     "targetRun": "{{type}} · {{km}} km à {{pace}}/km",

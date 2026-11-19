@@ -36,7 +36,11 @@ const renderDash = (over: Record<string, unknown> = {}) => {
   return props;
 };
 
-const alreadyRan = () => screen.queryByRole("button", {name: "I already ran this"});
+// "I did it" → "Pick a run I already saved" (DidItSheet), opened on first use.
+const alreadyRan = () => {
+  if (!screen.queryByRole("dialog")) fireEvent.click(screen.getByRole("button", {name: /^I did it$/}));
+  return screen.queryByRole("button", {name: /^Pick a run I already saved/});
+};
 
 describe("Dashboard next-session card · reconciling an already-recorded run", () => {
   it("offers the reconcile route instead of telling you to come back tomorrow", () => {

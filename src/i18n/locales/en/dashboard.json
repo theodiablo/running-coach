@@ -61,11 +61,6 @@
       "nothing": "Nothing left to lighten"
     }
   },
-  "stats": {
-    "thisWeek": "This week",
-    "runsRecorded": "Runs recorded",
-    "total": "Total"
-  },
   "nextBadge": "Next badge",
   "overdue": {
     "title_one": "1 session still open",
@@ -85,9 +80,6 @@
     "howItUnfolds": "How to run it",
     "skipTitle": "Skip this session",
     "startRun": "Start run",
-    "logIt": "Log it",
-    "markDone": "Mark as done",
-    "markDoneLocked": "You can tick this off on {{date}}. Ran it early? Use Log it, so the run is saved too.",
     "confirm": {
       "kicker": "Ticked off",
       "done": "Nice, {{title}} is done.",
@@ -96,20 +88,24 @@
       "metaRun": "{{date}} · {{detail}}",
       "runDetail": "{{km}} km in {{dur}}"
     },
-    "alreadyRan": "I already ran this"
+    "alreadyRan": "I already ran this",
+    "notToday": "Not today?"
+  },
+  "week": {
+    "title": "This week",
+    "plan_one": "{{done}} of {{count}} session · {{km}} km",
+    "plan_other": "{{done}} of {{count}} sessions · {{km}} km",
+    "runs_one": "{{count}} run · {{km}} km",
+    "runs_other": "{{count}} runs · {{km}} km"
   },
   "noPlan": "No training plan yet. Ready to get started?",
   "setUpPlan": "Set Up My Plan",
   "allSessionsDone": "All upcoming sessions done!",
-  "coach": {
-    "title": "Change my plan",
-    "subtitle": "New race, fewer days, a niggle or a missed week"
-  },
   "recentRuns": "Recent runs",
   "viewAll": "View all",
   "empty": {
     "noRuns": "No runs yet.",
-    "hint": "Tap Record below to add your first one.",
+    "hint": "Tap + below to add your first run.",
     "restore": "Had data from a previous version? Open Settings (gear, top right) → Restore."
   },
   "recovery": {

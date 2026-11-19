@@ -191,8 +191,13 @@ choice either way.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.
+- `did_it_picked` `{choice:"details"|"saved"|"tick"}` — the answer to "I did
+  it" on a plan session (`src/modals/DidItSheet.tsx`, Home and Plan): add the
+  run's details, pick a saved run, or just tick it off. An enum only. It
+  replaced three buttons on the card, so it says which of them was needed.
 - `session_reconciled` `{moved, gap}` — a run already in the log was named as
-  the one that settled a plan session ("I already ran this", `ReconcileSheet`).
+  the one that settled a plan session ("I did it" → "Pick a run I already
+  saved", or an overdue row's link; `ReconcileSheet`).
   `gap` is the whole-day distance between the run and the session (0-3, see
   `MATCH_WINDOW_DAYS`) and `moved` whether the session was re-dated onto the
   run's day. A boolean and a small integer only — never a date or a description.
@@ -230,7 +235,7 @@ choice either way.
   `{source:"header"|"dashboard"|"plan_session"|"change_plan"|"settings"|"recovery"|"other"}` when the
   chat is opened, fired in the hub's one `openCoach` seam
   (`src/RunningCoach.tsx`) so every entry point is counted the same way — it's
-  how the header button's pull is compared against the dashboard card and the
+  how the header button's pull is compared against the Change my plan sheet and the
   per-session "Ask coach". Pairs with `coach_message_sent` as an
   open→first-message funnel (an open with no message is an abandoned chat).
   `coach_message_sent` `{followUp}` when the user sends a

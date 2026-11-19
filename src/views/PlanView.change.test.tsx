@@ -104,3 +104,22 @@ describe("PlanView · Change my plan", () => {
     expect(screen.getByText("What do you want to change?")).toBeInTheDocument();
   });
 });
+
+describe("PlanView · I did it on a session", () => {
+  const today = { id: "w1d3", date: "2026-09-16", type: "EASY", desc: "Easy run", km: 5, pace: 360 };
+  const todayPlan = () => ({ ...plan(), weeks: [{ weekNumber: 1, startDate: "2026-09-14", phase: "BASE", sessions: [today] }] }) as unknown as Plan;
+
+  it("ticks a session off without a run when that's all the runner wants", () => {
+    const props = renderPlan({ plan: todayPlan() });
+    fireEvent.click(screen.getByRole("button", { name: "I did it" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Just tick it off/ }));
+    expect(props.toggleSess).toHaveBeenCalledWith(1, "w1d3");
+  });
+
+  it("opens the form for the run's details", () => {
+    const props = renderPlan({ plan: todayPlan() });
+    fireEvent.click(screen.getByRole("button", { name: "I did it" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Add the run's details/ }));
+    expect(props.goLog).toHaveBeenCalledWith(expect.objectContaining({ date: "2026-09-16", km: 5 }));
+  });
+});

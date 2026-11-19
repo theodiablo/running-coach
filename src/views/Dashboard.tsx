@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PenLine, PersonStanding, Play, Radio, Route, RotateCcw, X, Zap } from "lucide-react";
+import { Activity, Award, CalendarClock, Check, ChevronRight, Link2, PersonStanding, Play, Radio, RotateCcw, X } from "lucide-react";
 import { TBG, TCLR } from "../constants";
 import { track } from "../telemetry";
 import type { LiveRunRow } from "../live/publisher";
-import { fmt, ymd, weekStart } from "../utils/format";
+import { fmt, ymd } from "../utils/format";
 import { describeSession } from "../utils/sessionDesc";
 import { computeBadges, nextBadge } from "../utils/badges";
 import { overdueSessions, nextSession } from "../utils/overdue";
@@ -28,6 +28,8 @@ import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
+import { DidItSheet } from "../modals/DidItSheet";
+import { WeekStripCard } from "../components/WeekStripCard";
 import { RecoverySoreSheet } from "../modals/RecoverySoreSheet";
 import { RaceDayCard, RaceDayPlanRow } from "../components/RaceDayCard";
 import { hasTestRun, inRaceDayMode, upcomingRace } from "../utils/raceDay";
@@ -162,10 +164,8 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const answer = (a: "ran" | "didnt" | "moved" | "feel") => track("debrief_answered", { answer: a });
   const nextSess = nextSession(plan, today) as DashboardSession | null;
   const nextIsToday = nextSess && nextSess.date === ymd(today);
-  // A session dated in the future can't already be done — ungated, the card
-  // refilled under the same button and a repeated tap ticked off sessions weeks
-  // out. Ran it early? "Log it" saves the run and ticks the session.
-  const canMarkDone = !!nextSess && nextSess.date <= todayStr;
+  // "I did it" sheet: the one door for every way a done session gets recorded (DidItSheet).
+  const [didIt, setDidIt] = useState<DashboardSession | null>(null);
   // Runs already in the log that could BE this session — the answer to "I ran
   // Thursday's tempo on Wednesday", which no amount of date-gating can give.
   // Proposed only: nothing links until the sheet is confirmed.
@@ -173,7 +173,6 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   // Recomputed per render rather than memoised: `today` and the selectors above
   // are rebuilt every render anyway, so a dep array would never hold. Each call
   // is one pass over `runs`.
-  const nextCandidates = nextSess ? candidateRuns(plan, nextSess, runs) : [];
   const reconcileOptions = reconciling ? candidateRuns(plan, reconciling, runs) : [];
   // Sessions the runner never got to. Only the freshest few are rendered — a
   // month away must not come back as a wall of guilt.
@@ -252,18 +251,13 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
     showOverdueCoachIntro && overdueCount > 0,
     () => markCoachOverdueIntroSeen?.(),
   );
-  const wkMon = weekStart(today);
-  // Running kilometres only: a cross-training session's distance is not one
-  // (docs/indoor-sessions.md), and these tiles are read as training volume.
-  const runOnly = runs.filter(r => !isCrossTraining(r));
-  const wkKm  = runOnly.filter(r => new Date(r.date + "T00:00:00") >= wkMon).reduce((s, r) => s + (r.km||0), 0);
-  const totKm = runOnly.reduce((s, r) => s + (r.km||0), 0);
-
-  const statCards = [
-    {l:t("dashboard.stats.thisWeek"),  v:wkKm.toFixed(1)+" km",  c:"text-orange-400",  I:Zap},
-    {l:t("dashboard.stats.runsRecorded"), v:String(runs.length),    c:"text-sky-400",     I:Activity},
-    {l:t("dashboard.stats.total"),       v:totKm.toFixed(0)+" km", c:"text-emerald-400", I:Route},
-  ];
+  // Home shows one thing that needs attention, the most pressing first.
+  const slot = dateChanges?.length && applyRaceDateChange && keepRaceDate ? "dates"
+    : stretch && openStretch && saveSettings ? "stretch"
+    : overdueShown.length ? "overdue"
+    : availableUpdate ? "update"
+    : reviewCard && !recorderOpen ? "review"
+    : nb ? "badge" : null;
 
   return (
     <div className="p-4 space-y-5 max-w-lg mx-auto">
@@ -295,11 +289,6 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         </button>
       )}
 
-      {availableUpdate && <UpdateCard update={availableUpdate} recorderOpen={recorderOpen}/>}
-      {reviewCard && !recorderOpen && <ReviewCard {...reviewCard}/>}
-
-      <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>
-
       {liveRun && openLiveWatch && (
         <button onClick={openLiveWatch}
           className="w-full rounded-xl p-3.5 flex items-center gap-3 text-left border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15 transition-colors">
@@ -315,14 +304,6 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             <Radio size={14}/>{t("liveShare.banner.action")}
           </span>
         </button>
-      )}
-
-      {stretch && openStretch && saveSettings && (
-        <StretchBanner suggestion={stretch} onStart={() => openStretch(stretch)}
-          onDismiss={() => {
-            saveSettings({ ...settings, stretchDismissed: todayStr });
-            showToast(t("stretch.banner.dismissed"), "ok", { label: t("stretch.banner.settings"), onClick: () => openSettings("training") });
-          }}/>
       )}
 
       {raceDay ? (
@@ -395,44 +376,118 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
 
       {phase?.recovery && <SoreRow onOpen={() => setSoreOpen(true)}/>}
 
-      <div className="grid grid-cols-3 gap-3">
-        {statCards.map(card => (
-          <div key={card.l} className="bg-slate-800 rounded-xl p-3">
-            <card.I size={15} className={card.c}/>
-            <p className={"text-xl font-bold mt-1 leading-tight " + card.c}>{card.v}</p>
-            <p className="text-slate-400 text-xs">{card.l}</p>
-          </div>
-        ))}
-      </div>
-
-      {!stretch && openStretch && !recorderOpen && (
-        <button onClick={() => openStretch()}
-          className="w-full bg-slate-800 rounded-xl p-3 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
-          <PersonStanding size={20} className="text-teal-400 flex-shrink-0"/>
-          <div className="flex-1 min-w-0">
-            <p className="flex items-center gap-2 text-sm font-semibold">{t("stretch.home.title")}</p>
-            <p className="text-xs text-slate-400 truncate">{(n => n > 0 ? t("stretch.sheet.week", { count: n }) : t("stretch.home.sub"))(stretchesThisWeek(stretchLog, today))}</p>
-          </div>
-          <ChevronRight size={16} className="text-slate-500 flex-shrink-0"/>
-        </button>
-      )}
-
-      {nb && (
-        <button onClick={() => goProgress("badges")}
-          className="w-full bg-slate-800 rounded-xl p-3 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
-          <Award size={20} className="text-orange-400 flex-shrink-0"/>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-400">{t("dashboard.nextBadge")}</p>
-            <p className="text-sm font-semibold truncate">{nb.label + (nb.hint ? " · " + nb.hint : "")}</p>
-            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
-              <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full" style={{width: Math.round(nb.progress * 100) + "%"}}/>
+      {confirmed ? (
+        <div>
+          <p className="text-emerald-300 text-xs font-bold uppercase tracking-widest mb-2">
+            {t("dashboard.session.confirm.kicker")}
+          </p>
+          <div className="border-2 border-emerald-500/40 bg-emerald-500/10 rounded-2xl p-4 animate-slide-up">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-full bg-emerald-500 text-slate-900 flex items-center justify-center flex-shrink-0 animate-pop" aria-hidden>
+                <Check size={17} strokeWidth={3}/>
+              </span>
+              <div className="min-w-0" role="status">
+                <p className="text-sm text-white leading-snug">
+                  {t(confirmed.skipped ? "dashboard.session.confirm.skipped" : "dashboard.session.confirm.done", {title: confirmed.title})}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">{confirmed.meta}</p>
+              </div>
+            </div>
+            <div className="flex justify-center mt-3">
+              <button onClick={undoConfirmed}
+                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">
+                <RotateCcw size={13}/>{t("common.undo")}
+              </button>
             </div>
           </div>
-          <ChevronRight size={16} className="text-slate-600 flex-shrink-0"/>
-        </button>
+        </div>
+      ) : nextSess ? (
+        <div>
+          <p className="text-orange-300 text-xs font-bold uppercase tracking-widest mb-2">
+            {nextIsToday ? t("dashboard.session.today") : t("dashboard.session.upNext")}
+          </p>
+          <div key={"sess-" + advanced}
+            className={"border-2 rounded-2xl p-4 " + (advanced ? "animate-slide-up " : "") + sessionTypeClass(nextSess.type, TBG)}>
+            <button onClick={() => goTab("plan")} className="w-full text-left group" title={t("dashboard.session.viewInPlan")}>
+              <div className="flex items-start justify-between gap-2">
+                <span className={"text-xs font-bold " + sessionTypeClass(nextSess.type, TCLR)}>
+                  {t("common.types." + nextSess.type, {defaultValue: nextSess.type})}
+                </span>
+                <ChevronRight size={16} className="text-slate-500 group-hover:text-slate-300 transition-colors flex-shrink-0 mt-0.5"/>
+              </div>
+              <p className="text-white text-base font-medium mt-1 leading-snug">{describeSession(nextSess)}</p>
+              <p className="text-slate-400 text-xs mt-2">
+                {fmt.sht(nextSess.date) + " · " + sessionMeta(nextSess)}
+              </p>
+            </button>
+            <HRTarget type={nextSess.type} settings={settings} openSettings={openSettings}/>
+            <button onClick={() => setShowSteps(v => !v)}
+              className="mt-2 flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+              <ChevronRight size={12} className={"transition-transform " + (showSteps ? "rotate-90" : "")}/>
+              {t("dashboard.session.howItUnfolds")}
+            </button>
+            {showSteps && (
+              <div className="mt-2 space-y-1.5 border-l-2 border-slate-700 pl-3">
+                <p className="text-xs text-slate-300 leading-snug">{t("common.typeHints." + nextSess.type, {defaultValue: ""})}</p>
+                {sessionSteps(nextSess).map(st => (
+                  <p key={st.label} className="text-xs text-slate-400 leading-snug">
+                    <span className="text-slate-300 font-semibold">{st.label}: </span>{st.detail}
+                  </p>
+                ))}
+              </div>
+            )}
+            {/* The same two verbs as the plan row (PlanSessionRow): Start run opens the recorder,
+                I did it asks how the done session gets recorded (DidItSheet). */}
+            <div className="flex gap-2 mt-3">
+              {canRecordSession(nextSess) && <button
+                onClick={() => nextSess.type === "OTHER"
+                  ? openIndoor?.({ wNum: nextSess.wNum, sId: nextSess.id, activity: sessionRecorderActivity(nextSess) })
+                  : openTracker?.({ wNum: nextSess.wNum, sId: nextSess.id })}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                <Play size={15}/>{t("dashboard.session.startRun")}
+              </button>}
+              <button onClick={() => setDidIt(nextSess)}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                <Check size={15}/>{t("log.didIt.button")}
+              </button>
+            </div>
+            <p className="mt-2.5 text-center text-xs text-slate-500">
+              {t("dashboard.session.notToday")}{" "}
+              <button onClick={() => settleSess(nextSess, true)} title={t("dashboard.session.skipTitle")}
+                className="font-semibold text-slate-400 hover:text-slate-200 transition-colors">
+                {t("common.skip")}
+              </button>
+            </p>
+          </div>
+        </div>
+      ) : raceDay ? (
+        <RaceDayPlanRow upcoming={!!raceDayRace} onClick={planRaceDay}/>
+      ) : !plan ? (
+        <div className="bg-slate-800 rounded-xl p-5 text-center space-y-3">
+          <p className="text-slate-400 text-sm">{t("dashboard.noPlan")}</p>
+          <button
+            onClick={() => goTab("plan")}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors">
+            {t("dashboard.setUpPlan")}
+          </button>
+        </div>
+      ) : afterRace ? null : (
+        <div className="bg-slate-800 rounded-xl p-4 text-center text-slate-400 text-sm">{t("dashboard.allSessionsDone")}</div>
       )}
 
-      {overdueShown.length > 0 && (
+      {/* One slot for whatever needs attention most (`slot`); the rest waits its turn. */}
+      {slot === "dates" && <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>}
+      {slot === "update" && availableUpdate && <UpdateCard update={availableUpdate} recorderOpen={recorderOpen}/>}
+      {slot === "review" && reviewCard && <ReviewCard {...reviewCard}/>}
+      {slot === "stretch" && stretch && openStretch && saveSettings && (
+        <StretchBanner suggestion={stretch} onStart={() => openStretch(stretch)}
+          onDismiss={() => {
+            saveSettings({ ...settings, stretchDismissed: todayStr });
+            showToast(t("stretch.banner.dismissed"), "ok", { label: t("stretch.banner.settings"), onClick: () => openSettings("training") });
+          }}/>
+      )}
+
+      {slot === "overdue" && (
         <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4">
           <div className="flex items-start gap-2.5">
             <CalendarClock size={18} className="text-amber-300 flex-shrink-0 mt-0.5"/>
@@ -505,138 +560,35 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
         </div>
       )}
 
-      {confirmed ? (
-        <div>
-          <p className="text-emerald-300 text-xs font-bold uppercase tracking-widest mb-2">
-            {t("dashboard.session.confirm.kicker")}
-          </p>
-          <div className="border-2 border-emerald-500/40 bg-emerald-500/10 rounded-2xl p-4 animate-slide-up">
-            <div className="flex items-center gap-3">
-              <span className="w-8 h-8 rounded-full bg-emerald-500 text-slate-900 flex items-center justify-center flex-shrink-0 animate-pop" aria-hidden>
-                <Check size={17} strokeWidth={3}/>
-              </span>
-              <div className="min-w-0" role="status">
-                <p className="text-sm text-white leading-snug">
-                  {t(confirmed.skipped ? "dashboard.session.confirm.skipped" : "dashboard.session.confirm.done", {title: confirmed.title})}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">{confirmed.meta}</p>
-              </div>
-            </div>
-            <div className="flex justify-center mt-3">
-              <button onClick={undoConfirmed}
-                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">
-                <RotateCcw size={13}/>{t("common.undo")}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : nextSess ? (
-        <div>
-          <p className="text-orange-300 text-xs font-bold uppercase tracking-widest mb-2">
-            {nextIsToday ? t("dashboard.session.today") : t("dashboard.session.upNext")}
-          </p>
-          <div key={"sess-" + advanced}
-            className={"border-2 rounded-2xl p-4 " + (advanced ? "animate-slide-up " : "") + sessionTypeClass(nextSess.type, TBG)}>
-            <button onClick={() => goTab("plan")} className="w-full text-left group" title={t("dashboard.session.viewInPlan")}>
-              <div className="flex items-start justify-between gap-2">
-                <span className={"text-xs font-bold " + sessionTypeClass(nextSess.type, TCLR)}>
-                  {t("common.types." + nextSess.type, {defaultValue: nextSess.type})}
-                </span>
-                <ChevronRight size={16} className="text-slate-500 group-hover:text-slate-300 transition-colors flex-shrink-0 mt-0.5"/>
-              </div>
-              <p className="text-white text-base font-medium mt-1 leading-snug">{describeSession(nextSess)}</p>
-              <p className="text-slate-400 text-xs mt-2">
-                {fmt.sht(nextSess.date) + " · " + sessionMeta(nextSess)}
-              </p>
-            </button>
-            <HRTarget type={nextSess.type} settings={settings} openSettings={openSettings}/>
-            <button onClick={() => setShowSteps(v => !v)}
-              className="mt-2 flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors">
-              <ChevronRight size={12} className={"transition-transform " + (showSteps ? "rotate-90" : "")}/>
-              {t("dashboard.session.howItUnfolds")}
-            </button>
-            {showSteps && (
-              <div className="mt-2 space-y-1.5 border-l-2 border-slate-700 pl-3">
-                <p className="text-xs text-slate-300 leading-snug">{t("common.typeHints." + nextSess.type, {defaultValue: ""})}</p>
-                {sessionSteps(nextSess).map(st => (
-                  <p key={st.label} className="text-xs text-slate-400 leading-snug">
-                    <span className="text-slate-300 font-semibold">{st.label}: </span>{st.detail}
-                  </p>
-                ))}
-              </div>
-            )}
-            {/* Same two verbs, same wiring as the plan row (PlanSessionRow):
-                Start run opens the recorder, Log it fills in a run already done.
-                Ticking off without logging anything stays available, quieter. */}
-            <div className="flex gap-2 mt-3">
-              {canRecordSession(nextSess) && <button
-                onClick={() => nextSess.type === "OTHER"
-                  ? openIndoor?.({ wNum: nextSess.wNum, sId: nextSess.id, activity: sessionRecorderActivity(nextSess) })
-                  : openTracker?.({ wNum: nextSess.wNum, sId: nextSess.id })}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                <Play size={15}/>{t("dashboard.session.startRun")}
-              </button>}
-              <button
-                onClick={() => goLog(planSessionPrefill(nextSess, nextSess.wNum))}
-                className="flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
-                <PenLine size={15}/>{t("dashboard.session.logIt")}
-              </button>
-            </div>
-            <div className="flex gap-4 mt-2.5 justify-center">
-              {canMarkDone && (
-                <button
-                  onClick={() => settleSess(nextSess, false)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors">
-                  <Check size={13}/>{t("dashboard.session.markDone")}
-                </button>
-              )}
-              <button
-                onClick={() => settleSess(nextSess, true)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors"
-                title={t("dashboard.session.skipTitle")}>
-                <X size={13}/>{t("common.skip")}
-              </button>
-            </div>
-            {/* Ran it already, on some other day? Name the run instead of being
-                told to come back tomorrow. */}
-            {nextCandidates.length > 0 ? (
-              <button onClick={() => setReconciling(nextSess)}
-                className="mt-2.5 w-full py-2 rounded-xl border border-orange-500/40 bg-orange-500/10 hover:bg-orange-500/20 text-orange-200 text-xs font-semibold transition-colors">
-                {t("dashboard.session.alreadyRan")}
-              </button>
-            ) : !canMarkDone && (
-              <p className="mt-2.5 text-center text-xs text-slate-500 leading-snug">
-                {t("dashboard.session.markDoneLocked", {date: fmt.sht(nextSess.date)})}
-              </p>
-            )}
-          </div>
-        </div>
-      ) : raceDay ? (
-        <RaceDayPlanRow upcoming={!!raceDayRace} onClick={planRaceDay}/>
-      ) : !plan ? (
-        <div className="bg-slate-800 rounded-xl p-5 text-center space-y-3">
-          <p className="text-slate-400 text-sm">{t("dashboard.noPlan")}</p>
-          <button
-            onClick={() => goTab("plan")}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-            {t("dashboard.setUpPlan")}
-          </button>
-        </div>
-      ) : afterRace ? null : (
-        <div className="bg-slate-800 rounded-xl p-4 text-center text-slate-400 text-sm">{t("dashboard.allSessionsDone")}</div>
-      )}
-
-      {plan && !afterRace && (
-        <button onClick={() => (openChangePlan ? openChangePlan("home") : openCoach(null, "dashboard"))}
-          className="w-full bg-slate-800 rounded-xl p-3.5 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
-          <CoachAvatar chip size={18}/>
+      {slot === "badge" && nb && (
+        <button onClick={() => goProgress("badges")}
+          className="w-full bg-slate-800 rounded-xl p-3 flex items-center gap-3 text-left hover:bg-slate-700/70 transition-colors">
+          <Award size={20} className="text-orange-400 flex-shrink-0"/>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">{t("dashboard.coach.title")}</p>
-            <p className="text-xs text-slate-400">{t("dashboard.coach.subtitle")}</p>
+            <p className="text-xs text-slate-400">{t("dashboard.nextBadge")}</p>
+            <p className="text-sm font-semibold truncate">{nb.label + (nb.hint ? " · " + nb.hint : "")}</p>
+            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
+              <div className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full" style={{width: Math.round(nb.progress * 100) + "%"}}/>
+            </div>
           </div>
           <ChevronRight size={16} className="text-slate-600 flex-shrink-0"/>
         </button>
       )}
+
+
+      <WeekStripCard plan={plan} runs={runs} today={today}>
+        {!stretch && openStretch && !recorderOpen && (
+          <button onClick={() => openStretch()}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-t border-slate-700/60 hover:bg-slate-700/40 transition-colors">
+            <PersonStanding size={20} className="text-teal-400 flex-shrink-0"/>
+            <div className="flex-1 min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold">{t("stretch.home.title")}</p>
+              <p className="text-xs text-slate-400 truncate">{(n => n > 0 ? t("stretch.sheet.week", { count: n }) : t("stretch.home.sub"))(stretchesThisWeek(stretchLog, today))}</p>
+            </div>
+            <ChevronRight size={16} className="text-slate-500 flex-shrink-0"/>
+          </button>
+        )}
+      </WeekStripCard>
 
       {runs.length > 0 && (
         <div>
@@ -686,6 +638,16 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
             if (run) settleRace?.(run.id, run.durationSec || null);
           }}
           onClose={() => setReconcilingRace(false)}/>
+      )}
+
+      {didIt && (
+        <DidItSheet session={didIt} canTick={didIt.date <= todayStr} hasSavedRuns={candidateRuns(plan, didIt, runs).length > 0}
+          onPick={choice => {
+            if (choice === "details") goLog(planSessionPrefill(didIt, didIt.wNum));
+            else if (choice === "saved") setReconciling(didIt);
+            else settleSess(didIt, false);
+          }}
+          onClose={() => setDidIt(null)}/>
       )}
 
       {reconciling && (
