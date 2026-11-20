@@ -628,6 +628,7 @@ describe("apply: cleanName", () => {
     ["Trail 4e Édition des Lacs", "Trail des Lacs"],
     ["Trail 1a Edición Sierra", "Trail Sierra"],
     ["Semi-Marathon de Paris - Édition 2027", "Semi-Marathon de Paris"],
+    [" \t36èmes foulées des droits de l'Homme", "Foulées des droits de l'Homme"],
   ])("%s", (raw, clean) => expect(cleanName(raw, "2026-12-13")).toBe(clean));
   it.each([
     ["17007 Girona", "Girona"],
@@ -667,6 +668,21 @@ describe("apply: plan", () => {
     expect(plan(proposal({}, { name: "Trail Serra de Ripoll 2027" }), CATALOGUE, taken()).race.terrain).toBe("trail");
     expect(plan(proposal({}, { sport: "trail" }), CATALOGUE, taken()).race.terrain).toBe("trail");
   });
+  it.each([
+    "SANTKUTRAIL 2027",
+    "IV-Domusa Teknik 15 MLK (26km)",
+    "GR322 Nafarroa Xtrem 2027",
+    "Travesía GR-10 Pirineos",
+    "XVII Gegant de Pedra, Ondara, 9e. Circuit Trail Marina 26/27",
+  ])("marks %s trail", (name) => {
+    expect(plan(proposal({}, { name }), CATALOGUE, taken()).race.terrain).toBe("trail");
+  });
+  it.each(["Mitja Marató Ripoll 2027", "Salomon Run Barcelona 2027", "MLK Day 10K", "2027 MLK 5K", "GR 10K", "Gran Premio 10K"])(
+    "leaves %s road",
+    (name) => {
+      expect(plan(proposal({}, { name }), CATALOGUE, taken()).race.terrain).toBe("road");
+    },
+  );
   it("never takes a slug already in use", () => {
     const used = taken();
     used.add("mitja-marato-ripoll");

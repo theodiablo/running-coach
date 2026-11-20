@@ -28,7 +28,7 @@ export function slugify(s) {
 const ROMAN = /^(?=[ivxlc]+\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?\s+/i;
 // "IV-Domusa" is an edition number; a lone letter before a hyphen is a name ("X-Trail", "I-Run").
 const ROMAN_DASH = /^(?=[ivxlc]{2,}\b)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})\b\.?\s*[-–]\s*/i;
-const ORDINAL = /^\d{1,3}(?:ª|º|°|a|e|eme|ème|th|st|nd|rd|er|do|ro|to|mo|vo|no|\.)?\s+(?!k\b|km\b)(?=\p{L})/u;
+const ORDINAL = /^\d{1,3}(?:ª|º|°|a|e|èmes|emes|eme|ème|th|st|nd|rd|er|do|ro|to|mo|vo|no|\.)?\s+(?!k\b|km\b)(?=\p{L})/u;
 // "(7ème édition)", "- 4ème édition", "7ª edición", "7th edition", "édition 12", anywhere in the name.
 const EDITION =
   /\s*[(–-]?\s*(?:\d{1,3}\s*(?:ª|º|°|e|è|ème|eme|th|st|nd|rd|er|a)\.?\s*(?:é|e)di[tc]i[oó]n|(?:é|e)dition\s+\d{1,3})\s*\)?/giu;
@@ -67,14 +67,14 @@ export function cleanName(name, date = "") {
         .trim(),
     )
     .filter((p, i) => p && !isSeriesPart(p, i));
-  let n = parts
+  const joined = parts
     .join(", ")
     .replace(EDITION, " ")
     .replace(/\s*(?:[–-]\s*)?(?:é|e)dition$/iu, "")
-    .trim()
-    .replace(ROMAN_DASH, "")
-    .replace(ROMAN, "")
-    .replace(ORDINAL, "");
+    .trim();
+  let n = joined.replace(ROMAN_DASH, "").replace(ROMAN, "").replace(ORDINAL, "");
+  // "36èmes foulées…" leaves a lower-case word at the front.
+  if (n !== joined) n = n.charAt(0).toUpperCase() + n.slice(1);
   if (mostlyCaps(n)) n = titleCase(n);
   else n = n.replace(SPONSOR_TAIL, "");
   n = n.replace(/\s+/g, " ").replace(/[\s.,–-]+$/, "").trim();
@@ -108,6 +108,11 @@ function headlineDistance(name, distances) {
   if (/\b(?:maraton|marathon|marato|maratona)\b/.test(n) && has(42.2)) return has(42.2);
   return Math.max(...distances);
 }
+
+// Mountain races the matcher's trail words miss: a word ending in "trail" (Santkutrail), Basque
+// mendi lasterketa after its length ("15 MLK"; a bare MLK is Martin Luther King Day), a GR path, "Xtrem".
+const TRAIL_TERRAIN = /trail\b|(?:^|\D)\d{1,3}\s*mlk\b|\bgr[ -]?\d{1,4}\b|\bxtrem\b/;
+const trailTerrain = (name) => isTrail(name) || TRAIL_TERRAIN.test(stripAccents(name).toLowerCase());
 
 function freeSlug(base, taken) {
   if (!taken.has(base)) return base;
@@ -169,7 +174,8 @@ export function plan(p, catalogue, taken) {
   taken.add(id);
   const organiser = c.organiserUrl && !PLATFORM_URL.test(hostOf(c.organiserUrl)) ? c.organiserUrl : "";
   const url = webUrl(organiser || (c.firstHand ? c.url : ""));
-  const terrain = c.sport === "trail" || isTrail(name) ? "trail" : "road";
+  // The source's own name too: cleaning drops a series tag ("…, Circuit Trail Marina") that says trail.
+  const terrain = c.sport === "trail" || trailTerrain(c.name) || trailTerrain(name) ? "trail" : "road";
   const race = { slug, name, city, country: c.country, lat: c.lat, lng: c.lng, distances: [km], url, terrain };
   const edition = { id, race_slug: slug, date: c.date, distance_km: km };
   return { ledger: { ...ledger, status: "inserted", race_slug: slug, edition_id: id }, race, edition };
