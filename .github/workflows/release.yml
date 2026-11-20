@@ -355,7 +355,7 @@ jobs:
           echo "Staged pending_version=$VERSION_NAME — run the 'Publish app version' workflow once the Play rollout is live to show the update prompt."
 
   ios:
-    runs-on: macos-15
+    runs-on: xcode-27  # only GitHub image with Xcode 27; still a preview label
     needs: [prepare, web-build]
     env:
       ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
@@ -398,17 +398,19 @@ jobs:
           name: native-web-dist
           path: dist
 
-      # App Store uploads require Xcode 26+ (Apple's April 2026 floor); the
-      # macos-15 image still DEFAULTS to Xcode 16.x, so select explicitly.
-      - name: Select Xcode 26
+      # Build with the iOS 27 SDK or later: the newest Xcode 27+ on the image,
+      # never its default, so a default change can't move the SDK backwards.
+      - name: Select Xcode 27+ (iOS 27+ SDK)
         run: |
-          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          XCODE_APP=$({ ls -d /Applications/Xcode_*.app 2>/dev/null || true; } | { grep -E '/Xcode_(2[7-9]|[3-9][0-9])(\.[0-9]+)*\.app$' || true; } | sort -V | tail -n 1)
           if [ -z "$XCODE_APP" ]; then
-            echo "::error::No Xcode 26.x on this runner image — App Store uploads require Xcode 26+. Bump the runner image or the glob."
+            echo "::error::No Xcode 27+ on this runner image; App Store builds need the iOS 27 SDK."
             exit 1
           fi
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version); echo "iOS SDK $SDK"
+          [ "${SDK%%.*}" -ge 27 ] || { echo "::error::Expected the iOS 27+ SDK, got $SDK"; exit 1; }
 
       - name: Sync Capacitor
         run: npx cap sync ios
