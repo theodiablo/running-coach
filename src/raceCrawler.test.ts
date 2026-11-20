@@ -677,7 +677,7 @@ describe("apply: plan", () => {
   ])("marks %s trail", (name) => {
     expect(plan(proposal({}, { name }), CATALOGUE, taken()).race.terrain).toBe("trail");
   });
-  it.each(["Mitja Marató Ripoll 2027", "Salomon Run Barcelona 2027", "MLK Day 10K", "GR 10K", "Gran Premio 10K"])(
+  it.each(["Mitja Marató Ripoll 2027", "Salomon Run Barcelona 2027", "MLK Day 10K", "2027 MLK 5K", "GR 10K", "Gran Premio 10K"])(
     "leaves %s road",
     (name) => {
       expect(plan(proposal({}, { name }), CATALOGUE, taken()).race.terrain).toBe("road");
