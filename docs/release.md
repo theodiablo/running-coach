@@ -86,6 +86,22 @@ Other iOS signing gotchas, all hit in practice:
   though the app never writes to Health — HealthKit framework presence alone
   triggers it, so keep that key when touching Info.plist.
 
+## iOS toolchain (Xcode 27+, scene lifecycle)
+
+Both iOS jobs (`ios-pr.yml`, `release.yml`) run on GitHub's `xcode-27` image and
+select the newest Xcode 27+ on it, failing if `xcrun` reports an iOS SDK below 27.
+That label is still a GitHub *preview*; move to the GA macOS image that ships
+Xcode 27 once one exists. The deployment target (15.4) is a floor, not a ceiling:
+bumping the SDK never drops older devices.
+
+Built with the iOS 27 SDK, an app without the **UIScene lifecycle** does not
+launch, so `Info.plist` declares a `UIApplicationSceneManifest` and
+`SceneDelegate.swift` forwards to Capacitor's `SceneDelegateProxy`. The window
+still comes from `Main.storyboard` (`UISceneStoryboardFile`), which is what keeps
+`MainViewController` registering the local plugins. URL opens and universal
+links (auth callbacks, Polar return) arrive through the scene delegate: UIKit no
+longer calls the app-delegate versions, so never add those back to `AppDelegate`.
+
 ## iPhone-only (no iPad build)
 
 Both iOS targets (`App` and the `LiveActivityWidget` extension, which must match
