@@ -48,15 +48,16 @@ jobs:
       # Match release.yml's toolchain (App Store uploads require Xcode 26+, and
       # the macos-15 image defaults to 16.x) so "compiles on the PR" and
       # "compiles at release" are the same claim.
-      - name: Select Xcode 26
+      - name: Select Xcode 26.2 (iOS 26.2 SDK)
         run: |
-          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          XCODE_APP=$(ls -d /Applications/Xcode_26.2*.app 2>/dev/null | sort -V | tail -n 1)
           if [ -z "$XCODE_APP" ]; then
-            echo "::error::No Xcode 26.x on this runner image — keep this in sync with release.yml."
+            echo "::error::No Xcode 26.2 on this runner image, keep this in sync with release.yml."
             exit 1
           fi
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version | grep -qx "26.2" || { echo "::error::Expected the iOS 26.2 SDK"; exit 1; }
 
       # Swift compilation never reads the web bundle; a stub dist satisfies
       # `cap sync`'s webDir copy without building (or leaking secrets to) the

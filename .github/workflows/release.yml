@@ -400,15 +400,16 @@ jobs:
 
       # App Store uploads require Xcode 26+ (Apple's April 2026 floor); the
       # macos-15 image still DEFAULTS to Xcode 16.x, so select explicitly.
-      - name: Select Xcode 26
+      - name: Select Xcode 26.2 (iOS 26.2 SDK)
         run: |
-          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          XCODE_APP=$(ls -d /Applications/Xcode_26.2*.app 2>/dev/null | sort -V | tail -n 1)
           if [ -z "$XCODE_APP" ]; then
-            echo "::error::No Xcode 26.x on this runner image — App Store uploads require Xcode 26+. Bump the runner image or the glob."
+            echo "::error::No Xcode 26.2 on this runner image, bump the runner image or this pin."
             exit 1
           fi
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version | grep -qx "26.2" || { echo "::error::Expected the iOS 26.2 SDK"; exit 1; }
 
       - name: Sync Capacitor
         run: npx cap sync ios
