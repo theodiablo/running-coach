@@ -415,6 +415,13 @@ the permission strings, `UIBackgroundModes` (`location`, `bluetooth-central`,
 the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
 `App.entitlements` carries the HealthKit capability.
 
+The shell runs on the **UIScene lifecycle** (required from the iOS 27 SDK,
+`docs/release.md`). The scene, not the process, owns the window and so the
+WebView: iOS may disconnect a backgrounded scene to reclaim memory while the
+process (and its native GPS/BLE journals) lives on, and reconnecting cold-boots
+the JS. A "WebView restarted mid-run" on iOS is that, and the journals are the
+recovery path, as on Android.
+
 ## Android permission gotchas
 
 - **The permission prompt silently no-ops when Location Services are off:**

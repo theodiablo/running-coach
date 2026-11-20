@@ -98,9 +98,10 @@ Built with the iOS 27 SDK, an app without the **UIScene lifecycle** does not
 launch, so `Info.plist` declares a `UIApplicationSceneManifest` and
 `SceneDelegate.swift` forwards to Capacitor's `SceneDelegateProxy`. The window
 still comes from `Main.storyboard` (`UISceneStoryboardFile`), which is what keeps
-`MainViewController` registering the local plugins. URL opens and universal
-links (auth callbacks, Polar return) arrive through the scene delegate: UIKit no
-longer calls the app-delegate versions, so never add those back to `AppDelegate`.
+`MainViewController` registering the local plugins. Custom-scheme URL
+opens (auth callbacks, the Polar/Suunto/COROS returns) arrive through the scene
+delegate: UIKit no longer calls the app-delegate versions, so never add those
+back to `AppDelegate`.
 
 ## iPhone-only (no iPad build)
 
