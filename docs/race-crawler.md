@@ -103,7 +103,7 @@ and Popup Races (they refuse GitHub's runners).
 
 - **Terrain:** a new race is `trail` when its source says so (Rock the Sport's
   `sport`) or its name, as the source gives it or cleaned, has a trail word
-  (`isTrail`, plus a word ending in "trail", MLK, a GR path or "Xtrem"), else
+  (`isTrail`, plus a word ending in "trail", a length then MLK, a GR path or "Xtrem"), else
   `road` (`docs/races.md`). The source's own name counts because cleaning drops
   a series tag ("…, Circuit Trail Marina") that says trail.
 

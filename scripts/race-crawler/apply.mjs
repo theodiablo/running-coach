@@ -110,8 +110,8 @@ function headlineDistance(name, distances) {
 }
 
 // Mountain races the matcher's trail words miss: a word ending in "trail" (Santkutrail), Basque
-// mendi lasterketa (MLK), a waymarked GR path, "Xtrem".
-const TRAIL_TERRAIN = /trail\b|\bmlk\b|\bgr ?\d{1,4}\b|\bxtrem\b/;
+// mendi lasterketa after its length ("15 MLK"; a bare MLK is Martin Luther King Day), a GR path, "Xtrem".
+const TRAIL_TERRAIN = /trail\b|\d\s*mlk\b|\bgr[ -]?\d{1,4}\b|\bxtrem\b/;
 const trailTerrain = (name) => isTrail(name) || TRAIL_TERRAIN.test(stripAccents(name).toLowerCase());
 
 function freeSlug(base, taken) {
