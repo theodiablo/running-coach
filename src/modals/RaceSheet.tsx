@@ -137,7 +137,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
             <a href={url} target="_blank" rel="noopener noreferrer"
               className="mt-3 w-full flex flex-col items-center justify-center bg-slate-800/80 border border-slate-600 hover:border-slate-400 text-slate-100 py-2 rounded-xl transition-colors">
               <span className="inline-flex items-center gap-1.5 text-sm font-bold">
-                {t(upcoming ? "races.sheet.signUpOfficial" : "races.card.officialSite")}<ExternalLink size={14}/>
+                {t(editions.some(e => e.date >= today) ? "races.sheet.signUpOfficial" : "races.card.officialSite")}<ExternalLink size={14}/>
               </span>
               {host && <span className="text-[11px] text-slate-400">{host}</span>}
             </a>
