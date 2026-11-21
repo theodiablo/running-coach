@@ -18,7 +18,7 @@ select src, code, what, n from (
            multiIf(startsWith(p, '/auth/v1/admin/') and m not in ('GET', 'HEAD', 'OPTIONS'), 'auth-admin',
                    st >= 500 and startsWith(p, '/auth/v1/'), 'auth', st >= 500, 'api',
                    st = 429, 'rate-limited', st in (403, 404, 405), 'probing', '') as src,
-           if(src = 'auth-admin', m, toString(st)) as code,
+           multiIf(src = 'auth-admin', m, src = 'probing', '403/404/405', toString(st)) as code,
            if(s[3] = 'v1' and has(['auth', 'rest', 'functions', 'realtime', 'storage', 'graphql'], s[2]),
               concat('/', s[2], '/v1/', if(has([
                 'token', 'signup', 'recover', 'verify', 'user', 'logout', 'otp', 'magiclink', 'authorize',
