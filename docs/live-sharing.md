@@ -303,9 +303,24 @@ the gap. It runs on a failed status too, so a blocked websocket still gets its
 initial read before falling through to polling.
 
 The hook is mounted **once**, in `RunningCoach`, and threaded through the
-`shared` bag — two consumers (banner + modal) must not open two channels. It
-subscribes for any signed-in `uid`, whether or not that account has ever used
-live sharing; most reads simply come back empty.
+`shared` bag — two consumers (banner + modal) must not open two channels.
+
+**A channel is a Realtime connection, and the plan caps them** (200 concurrent
+on Free, 500 on Pro), so the hook holds one only while the page is visible
+**and** the account has gone on air before (`settings.liveShareUsed`, set by
+the recorder whenever a broadcast starts), or this session has seen its run
+live (latched for the session, so the channel outlives that run's DELETE).
+Everyone else gets the same snapshot read on activation and on every return to
+the page, and no socket. Each subscription takes its own topic: `channel(topic)`
+hands back a same-topic channel still waiting on its leave reply, which would
+silently drop the new bindings after a quick hide-and-show. That torn-down
+channel's late `CLOSED` is ignored rather than read as Realtime failing (which
+would start the poll).
+
+**The gap**: a session loaded before the account's flag synced, and that has
+not seen a run live, learns of a broadcast on its next return to the page (or
+reload), not instantly. That covers an account's first broadcast, and every
+account that shared before the flag existed until its next broadcast syncs.
 
 ## Usage metrics
 

@@ -251,7 +251,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Live run sharing: subscribed ONCE here (not per consumer) so the dashboard
   // banner and the watch modal share a single Realtime channel. Free feature —
   // no premium gate (see docs/live-sharing.md).
-  const liveRun = useLiveRun(user?.id);
+  const liveRun = useLiveRun(user?.id, settings.liveShareUsed === true);
   // Plan session the tracker was opened from ("Record run" on a session card),
   // threaded into the save prefill so LogView's onSaved ticks it off.
   const [trackerLink, setTrackerLink] = useState<{ wNum: number; sId: string } | null>(null);

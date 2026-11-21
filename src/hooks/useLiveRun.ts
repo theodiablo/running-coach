@@ -1,7 +1,7 @@
 // Live run sharing, the watcher half: follows the user's own `live_runs` row so another
-// session can watch. Mounted ONCE (RunningCoach) and threaded via `shared`. Load: one
-// select on activation, then Realtime pushes; polling only as a fallback while
-// Realtime is down and the page is visible.
+// session can watch. Mounted ONCE (RunningCoach). A Realtime channel is held only while
+// the page is visible AND the account has broadcast before or a run is live now; otherwise
+// one read on activation and on every return to the page. docs/live-sharing.md.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
@@ -28,7 +28,9 @@ export type LiveRun = {
   refresh: () => void;
 };
 
-export function useLiveRun(uid: string | null | undefined): LiveRun {
+let channelSeq = 0;
+
+export function useLiveRun(uid: string | null | undefined, sharesLive = true): LiveRun {
   const [fetched, setFetched] = useState<LiveRunRow | null>(null);
   // Derived, not cleared in an effect: a sign-out must hide the row on the very
   // next render, without a cascading setState.
@@ -37,6 +39,7 @@ export function useLiveRun(uid: string | null | undefined): LiveRun {
   // established (blocked websocket, project without Realtime).
   const [realtimeOk, setRealtimeOk] = useState(true);
   const aliveRef = useRef(true);
+  const [visible, setVisible] = useState(() => document.visibilityState === "visible");
 
   const fetchRow = useCallback(async () => {
     if (!uid) return;
@@ -58,37 +61,54 @@ export function useLiveRun(uid: string | null | undefined): LiveRun {
     return () => { aliveRef.current = false; };
   }, []);
 
-  // Realtime subscription plus the one snapshot read. The read runs from the subscribe
+  // Once this session has seen the account live it keeps following, so a later broadcast still
+  // arrives before the synced flag does. Latched during render (the uid it was seen for).
+  const [sawLiveFor, setSawLiveFor] = useState<string | null>(null);
+  if (row && uid && sawLiveFor !== uid) setSawLiveFor(uid);
+
+  // Every open session holds a Realtime connection, and the plan caps them: none while hidden,
+  // none for an account that has never gone on air unless a read found its run live.
+  const subscribe = !!uid && visible && (sharesLive || sawLiveFor === uid || !!row);
+
+  // The activation read, which a session holding no channel otherwise never makes.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchRow sets state only after an awaited network read
+    if (uid) void fetchRow();
+  }, [uid, fetchRow]);
+
+  // Realtime subscription plus its snapshot read. The read runs from the subscribe
   // callback so an update between snapshot and subscription can't slip through; it also
   // runs on a FAILED status so a blocked websocket still gets its initial read.
   useEffect(() => {
-    if (!uid) return;
+    if (!subscribe) return;
+    // A channel torn down on purpose reports CLOSED; that must not read as Realtime failing.
+    let disposed = false;
+    // A unique topic: channel() hands back a same-topic channel still mid-leave, which drops our bindings.
     const channel = supabase
-      .channel(`live_runs:${uid}`)
+      .channel(`live_runs:${uid}:${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "live_runs", filter: `user_id=eq.${uid}` },
         payload => {
-          if (!aliveRef.current) return;
+          if (!aliveRef.current || disposed) return;
           if (payload.eventType === "DELETE") setFetched(null);
           else setFetched(payload.new as LiveRunRow);
         },
       )
       .subscribe(status => {
-        if (!aliveRef.current) return;
+        if (!aliveRef.current || disposed) return;
         if (status === "SUBSCRIBED") setRealtimeOk(true);
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeOk(false);
         else return; // still connecting — nothing settled yet
         void fetchRow();
       });
-    return () => { void supabase.removeChannel(channel); };
-  }, [uid, fetchRow]);
+    return () => { disposed = true; void supabase.removeChannel(channel); };
+  }, [subscribe, uid, fetchRow]);
 
   const active = isActive(row);
 
   // Cheap catch-up when the user comes back to the app: one read, no timer. The
-  // visibility is also held in state, because it gates the poll below.
-  const [visible, setVisible] = useState(() => document.visibilityState === "visible");
+  // visibility is also held in state, because it gates the channel and the poll.
   useEffect(() => {
     if (!uid) return;
     const onVis = () => {
@@ -104,10 +124,10 @@ export function useLiveRun(uid: string | null | undefined): LiveRun {
   // with Realtime down, `active` only becomes true through this poll. Cadence instead:
   // 30s while a run is live, slow otherwise, paused while the tab is hidden.
   useEffect(() => {
-    if (!uid || realtimeOk || !visible) return;
+    if (!subscribe || realtimeOk) return;
     const id = setInterval(() => { void fetchRow(); }, active ? POLL_MS : IDLE_POLL_MS);
     return () => clearInterval(id);
-  }, [uid, realtimeOk, visible, active, fetchRow]);
+  }, [subscribe, realtimeOk, active, fetchRow]);
 
   return { row, active, refresh: fetchRow };
 }

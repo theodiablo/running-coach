@@ -53,6 +53,12 @@ The public watch page's single-runner polls are edge-cached by our CloudFront fo
 (`docs/live-sharing.md`, "Edge cache"), so a crowd watching one runner costs about one
 `live-watch` call per 10s per edge location; the multi-runner batch read is not cached.
 
+## Realtime connections
+Supabase caps concurrent Realtime connections per project (200 Free, 500 Pro).
+Only `useLiveRun` opens one: while the app is visible, and only for accounts
+that have broadcast a live run (`docs/live-sharing.md`, "Load discipline on the
+watcher"). Past the cap a channel fails and the banner falls back to polling.
+
 ## Shared third-party quotas
 - **Anthropic API** (coach): org-level rate limits and spend.
 - **OpenRouteService** (route finder): one key, one quota for every user.
