@@ -7,6 +7,7 @@ import { fmt, ymd } from "../utils/format";
 import { durToSec, secToDur } from "../utils/runForm";
 import { goalSuggestions, isPlausibleGoal, paceChanges, predictRaceSec, roundGoal } from "../utils/raceGoal";
 import { countryName } from "../utils/country";
+import { editionChoices } from "../utils/raceEditions";
 import { fmtKm } from "../hooks/useNearMeFilter";
 import { DurationInput } from "../components/DurationInput";
 import { RaceMiniMap } from "../components/races/RaceMiniMap";
@@ -70,10 +71,12 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
     setPrevEd(ed?.id);
     setGoalDraft(secToDur(savedGoal));
   }
+  const [showPast, setShowPast] = useState(false);
   const [logging, setLogging] = useState(false);
   const [reporting, setReporting] = useState(false);
 
   if (!ed || !joined) return null;
+  const choices = editionChoices(editions, today, ed.id, showPast);
   const goalSec = durToSec(goalDraft);
   const predicted = predictRaceSec(runs, ed.distanceKm, ed.elevation || 0, today);
   const suggestions = goalSuggestions(predicted);
@@ -126,10 +129,10 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
           </div>
         </div>
 
-        {editions.length > 1 && (
-          <Section label={t("races.sheet.editions")}>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("races.sheet.editions")}>
-              {editions.map(e => (
+        {(choices.chips.length > 0 || choices.canTogglePast) && (
+          <Section label={choices.chips.length > 0 ? t("races.sheet.editions") : undefined}>
+            {choices.chips.length > 0 && <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("races.sheet.editions")}>
+              {choices.chips.map(e => (
                 <button key={e.id} aria-pressed={e.id === ed.id} onClick={() => { setSelId(e.id); setLogging(false); }}
                   className={"text-left rounded-xl border px-3 py-1.5 text-xs transition-colors " + (e.id === ed.id
                     ? "border-orange-500 bg-orange-500/10 text-orange-200" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500")
@@ -137,7 +140,13 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
                   <span className="block text-sm font-bold">{e.distanceKm} km</span>{fmt.sht(e.date) + " " + e.date.slice(0, 4)}
                 </button>
               ))}
-            </div>
+            </div>}
+            {choices.canTogglePast && (
+              <button onClick={() => setShowPast(v => !v)} aria-expanded={showPast}
+                className={"text-xs font-semibold text-slate-400 hover:text-slate-200" + (choices.chips.length > 0 ? " mt-2" : "")}>
+                {showPast ? t("races.sheet.hidePast") : t("races.sheet.showPast", { count: choices.pastCount })}
+              </button>
+            )}
           </Section>
         )}
 
