@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowRight, ChevronLeft, ExternalLink, Flag, Mountain, Navigation, Star, Target, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarX, ChevronLeft, ExternalLink, Flag, Mountain, Navigation, Star, Target, Trash2 } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { INPUT_CLS } from "../constants";
 import { fmt, ymd } from "../utils/format";
@@ -118,6 +118,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
             {isTarget && <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-300 bg-orange-500/15 px-2 py-0.5 rounded-md"><Target size={12}/>{t("races.upcoming.trainingTarget")}</span>}
             {!isTarget && part && !done && <span className="text-xs font-semibold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md">{t("races.card.onYourList")}</span>}
             {race.terrain === "trail" && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md"><Mountain size={12}/>{t("races.filters.trail")}</span>}
+            {!editions.some(e => e.date >= today) && <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md"><CalendarX size={12}/>{t("races.row.noUpcoming")}</span>}
             {race.verified === false && <UnverifiedTag/>}
           </div>
           <div className="grid grid-cols-3 gap-2 mt-4">

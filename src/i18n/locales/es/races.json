@@ -178,6 +178,7 @@
   "row": {
     "moreDates_one": "+{{count}} fecha",
     "moreDates_other": "+{{count}} fechas",
+    "noUpcoming": "Sin fecha próxima",
     "unverified": "Sin verificar"
   },
   "sheet": {
