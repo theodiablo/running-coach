@@ -2,3 +2,11 @@
 reviews:
   auto_review:
     drafts: true
+    # CI-fix loops push often; the default pauses reviews after 5 commits.
+    auto_pause_after_reviewed_commits: 0
+knowledge_base:
+  code_guidelines:
+    # CLAUDE.md is auto-detected; its docs/ deep dives need an explicit repo-wide scope.
+    filePatterns:
+      - files: "docs/*.md"
+        applyTo: "**"
