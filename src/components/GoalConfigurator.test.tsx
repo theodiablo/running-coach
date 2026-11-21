@@ -45,7 +45,7 @@ describe("GoalConfigurator typed goal", () => {
     const { onChange, time, pace } = setup(6300);
     onChange.mockClear();
     for (const el of [pace, time]) { fireEvent.focus(el); fireEvent.blur(el); }
-    fireEvent.focus(pace);
+    pace.focus();
     fireEvent.keyDown(pace, { key: "Enter" });
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -55,5 +55,8 @@ describe("GoalConfigurator typed goal", () => {
     fireEvent.focus(time);
     expect(time.selectionStart).toBe(0);
     expect(time.selectionEnd).toBe(time.value.length);
+    time.setSelectionRange(time.value.length, time.value.length);
+    fireEvent.click(time);
+    expect(time.selectionStart).toBe(0);
   });
 });
