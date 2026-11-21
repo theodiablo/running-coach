@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowRight, ChevronLeft, ExternalLink, Flag, Mountain, Navigation, Star, Target, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarX, ChevronLeft, ExternalLink, Flag, Mountain, Navigation, Star, Target, Trash2 } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { INPUT_CLS } from "../constants";
 import { fmt, ymd } from "../utils/format";
 import { durToSec, secToDur } from "../utils/runForm";
 import { goalSuggestions, isPlausibleGoal, paceChanges, predictRaceSec, roundGoal } from "../utils/raceGoal";
 import { countryName } from "../utils/country";
+import { editionChoices } from "../utils/raceEditions";
 import { fmtKm } from "../hooks/useNearMeFilter";
 import { DurationInput } from "../components/DurationInput";
 import { RaceMiniMap } from "../components/races/RaceMiniMap";
@@ -31,6 +32,10 @@ type Props = {
   previewTargetGoal?: (goalSec: number) => Plan | null;
   updateTargetGoal?: (goalSec: number) => void;
   onClose: () => void;
+};
+
+const hostOf = (url: string) => {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
 };
 
 const daysTo = (date: string, today: string) =>
@@ -70,10 +75,12 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
     setPrevEd(ed?.id);
     setGoalDraft(secToDur(savedGoal));
   }
+  const [showPast, setShowPast] = useState(false);
   const [logging, setLogging] = useState(false);
   const [reporting, setReporting] = useState(false);
 
   if (!ed || !joined) return null;
+  const choices = editionChoices(editions, today, ed.id, showPast);
   const goalSec = durToSec(goalDraft);
   const predicted = predictRaceSec(runs, ed.distanceKm, ed.elevation || 0, today);
   const suggestions = goalSuggestions(predicted);
@@ -86,6 +93,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
   const lng = typeof race.lng === "number" ? race.lng : null;
   const place = [race.city, race.country ? countryName(String(race.country), i18n.language) || race.country : null].filter(Boolean).join(", ");
   const url = typeof race.url === "string" ? race.url : null;
+  const host = url ? hostOf(url) : "";
   const distKm = typeof race.distKm === "number" ? race.distKm : null;
 
   // A non-target goal saves as soon as it settles; on a race not yet listed it lists it too.
@@ -115,6 +123,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
             {isTarget && <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-300 bg-orange-500/15 px-2 py-0.5 rounded-md"><Target size={12}/>{t("races.upcoming.trainingTarget")}</span>}
             {!isTarget && part && !done && <span className="text-xs font-semibold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md">{t("races.card.onYourList")}</span>}
             {race.terrain === "trail" && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md"><Mountain size={12}/>{t("races.filters.trail")}</span>}
+            {!editions.some(e => e.date >= today) && <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md"><CalendarX size={12}/>{t("races.row.noUpcoming")}</span>}
             {race.verified === false && <UnverifiedTag/>}
           </div>
           <div className="grid grid-cols-3 gap-2 mt-4">
@@ -124,12 +133,21 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
               ? <Stat value={part?.timeSec ? fmt.dur(part.timeSec) : "–"} label={t("races.sheet.yourTime")}/>
               : <Stat value={upcoming ? String(days) : "–"} label={upcoming ? t("races.upcoming.daysToGo") : t("races.sheet.passed")}/>}
           </div>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer"
+              className="mt-3 w-full flex flex-col items-center justify-center bg-slate-800/80 border border-slate-600 hover:border-slate-400 text-slate-100 py-2 rounded-xl transition-colors">
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold">
+                {t(editions.some(e => e.date >= today) ? "races.sheet.signUpOfficial" : "races.card.officialSite")}<ExternalLink size={14}/>
+              </span>
+              {host && <span className="text-[11px] text-slate-400">{host}</span>}
+            </a>
+          )}
         </div>
 
-        {editions.length > 1 && (
-          <Section label={t("races.sheet.editions")}>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("races.sheet.editions")}>
-              {editions.map(e => (
+        {(choices.chips.length > 0 || choices.canTogglePast) && (
+          <Section label={choices.chips.length > 0 ? t("races.sheet.editions") : undefined}>
+            {choices.chips.length > 0 && <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("races.sheet.editions")}>
+              {choices.chips.map(e => (
                 <button key={e.id} aria-pressed={e.id === ed.id} onClick={() => { setSelId(e.id); setLogging(false); }}
                   className={"text-left rounded-xl border px-3 py-1.5 text-xs transition-colors " + (e.id === ed.id
                     ? "border-orange-500 bg-orange-500/10 text-orange-200" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-500")
@@ -137,11 +155,18 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
                   <span className="block text-sm font-bold">{e.distanceKm} km</span>{fmt.sht(e.date) + " " + e.date.slice(0, 4)}
                 </button>
               ))}
-            </div>
+            </div>}
+            {choices.canTogglePast && (
+              <button onClick={() => setShowPast(v => !v)} aria-expanded={showPast}
+                className={"text-xs font-semibold text-slate-400 hover:text-slate-200" + (choices.chips.length > 0 ? " mt-2" : "")}>
+                {showPast ? t("races.sheet.hidePast") : t("races.sheet.showPast", { count: choices.pastCount })}
+              </button>
+            )}
           </Section>
         )}
 
-        {!done && (upcoming || (!isTarget && savedGoal > 0)) && (
+        {/* A goal is asked for once the runner trains for the race; a goal already saved stays visible. */}
+        {!done && ((isTarget && upcoming) || (!isTarget && savedGoal > 0)) && (
           <Section label={t(isTarget ? "races.goal.targetLabel" : "races.goal.label")}>
             <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 space-y-3">
               <div className="flex items-center gap-3">
@@ -230,18 +255,11 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
           </div>
         </Section>
 
-        {(lat != null && lng != null) || url || distKm != null ? (
+        {(lat != null && lng != null) || distKm != null ? (
           <Section label={t("races.sheet.where")}>
             <div className="space-y-2">
               {lat != null && lng != null && <RaceMiniMap lat={lat} lng={lng} label={t("races.sheet.mapLabel", { name: race.name })}/>}
-              <div className="flex items-center justify-between gap-3 text-sm">
-                {url ? (
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-orange-400 hover:text-orange-300">
-                    {t("races.card.officialSite")}<ExternalLink size={12}/>
-                  </a>
-                ) : <span/>}
-                {distKm != null && <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Navigation size={11}/>{t("races.card.away", { dist: fmtKm(distKm * 1000) })}</span>}
-              </div>
+              {distKm != null && <p className="flex justify-end"><span className="inline-flex items-center gap-1 text-xs text-slate-400"><Navigation size={11}/>{t("races.card.away", { dist: fmtKm(distKm * 1000) })}</span></p>}
             </div>
           </Section>
         ) : null}

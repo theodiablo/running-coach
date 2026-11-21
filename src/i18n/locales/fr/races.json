@@ -178,6 +178,7 @@
   "row": {
     "moreDates_one": "+{{count}} date",
     "moreDates_other": "+{{count}} dates",
+    "noUpcoming": "Pas de date à venir",
     "unverified": "Non vérifiée"
   },
   "sheet": {
@@ -186,6 +187,10 @@
     "yourTime": "ton temps",
     "passed": "passée",
     "editions": "Dates et distances",
+    "showPast_one": "Voir 1 édition passée",
+    "showPast_other": "Voir les {{count}} éditions passées",
+    "hidePast": "Masquer les éditions passées",
+    "signUpOfficial": "S'inscrire sur le site officiel",
     "addToList": "Ajouter à mes courses",
     "setTarget": "Préparer cette course",
     "logResult": "Saisir mon résultat",

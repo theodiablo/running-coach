@@ -178,6 +178,7 @@
   "row": {
     "moreDates_one": "+{{count}} date",
     "moreDates_other": "+{{count}} dates",
+    "noUpcoming": "No upcoming date",
     "unverified": "Unverified"
   },
   "sheet": {
@@ -186,6 +187,10 @@
     "yourTime": "your time",
     "passed": "passed",
     "editions": "Dates and distances",
+    "showPast_one": "Show 1 past edition",
+    "showPast_other": "Show {{count}} past editions",
+    "hidePast": "Hide past editions",
+    "signUpOfficial": "Sign up on the official site",
     "addToList": "Add to my races",
     "setTarget": "Train for this race",
     "logResult": "Log my result",

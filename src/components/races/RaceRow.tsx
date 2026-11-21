@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Check, Mountain, Target } from "lucide-react";
+import { AlertTriangle, CalendarX, Check, Mountain, Target } from "lucide-react";
 import { currentLocaleTag } from "../../i18n";
 import { fmtKm } from "../../hooks/useNearMeFilter";
 import { countryName } from "../../utils/country";
+import { ymd } from "../../utils/format";
 import type { CatalogueEdition, CatalogueRace } from "../../types";
 
 type Props = {
@@ -22,14 +23,18 @@ export function RaceRow({ race, editions, highlightKm, onList, isTarget, onOpen 
   const d = lead ? new Date(lead.date + "T12:00:00") : null;
   const kms = [...new Set((race.editions || []).map(e => e.distanceKm))].sort((a, b) => a - b);
   const more = editions.filter(e => e.date !== lead?.date).length;
+  const today = ymd(new Date());
+  // Every edition behind us and none announced: the row must not read like an upcoming race.
+  const noUpcoming = !(race.editions || editions).some(e => e.date >= today);
   return (
     <button onClick={onOpen}
-      className="w-full flex items-center gap-3 text-left bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl px-3 py-2.5 transition-colors">
+      className={"w-full flex items-center gap-3 text-left border rounded-2xl px-3 py-2.5 transition-colors " + (noUpcoming
+        ? "bg-slate-800/50 border-slate-700/60 hover:border-slate-500 opacity-80" : "bg-slate-800 border-slate-700 hover:border-slate-500")}>
       <div className="w-11 shrink-0 rounded-xl bg-slate-900 py-1 text-center">
         {d ? (
           <>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-orange-400">{d.toLocaleDateString(currentLocaleTag(), { month: "short" })}</p>
-            <p className="text-lg font-extrabold leading-tight tabular-nums">{d.getDate()}</p>
+            <p className={"text-[10px] font-bold uppercase tracking-wide " + (noUpcoming ? "text-slate-500" : "text-orange-400")}>{d.toLocaleDateString(currentLocaleTag(), { month: "short" })}</p>
+            <p className={"text-lg font-extrabold leading-tight tabular-nums" + (noUpcoming ? " text-slate-400" : "")}>{d.getDate()}</p>
           </>
         ) : <p className="text-[10px] text-slate-500 py-2">–</p>}
       </div>
@@ -48,6 +53,11 @@ export function RaceRow({ race, editions, highlightKm, onList, isTarget, onOpen 
           {race.terrain === "trail" && (
             <span className="inline-flex items-center gap-0.5 text-[10.5px] font-bold px-1.5 py-px rounded-md bg-emerald-500/10 text-emerald-300">
               <Mountain size={10}/>{t("races.filters.trail")}
+            </span>
+          )}
+          {noUpcoming && (
+            <span className="inline-flex items-center gap-0.5 text-[10.5px] font-bold px-1.5 py-px rounded-md bg-slate-700/50 text-slate-400">
+              <CalendarX size={10}/>{t("races.row.noUpcoming")}
             </span>
           )}
           {isTarget ? (

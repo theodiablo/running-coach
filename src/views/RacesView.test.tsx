@@ -112,8 +112,14 @@ const FUTURE = "2026-06-14";
 const upcoming = (extra: Partial<Participation> = {}) => part({ raceDate: FUTURE, editionId: "ed-2", label: "Spring Half 2026", distanceKm: 21.1, ...extra });
 
 describe("RacesView · race page", () => {
-  it("opens a listed race and saves a goal typed for it", () => {
-    const props = renderRaces([upcoming()]);
+  it("asks for no goal on a race the runner doesn't train for", () => {
+    renderRaces([upcoming()]);
+    fireEvent.click(screen.getByRole("button", { name: /Spring Half 2026/ }));
+    expect(screen.queryByRole("textbox", { name: "Your goal" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a goal already saved on a listed race, and saves a change to it", () => {
+    const props = renderRaces([upcoming({ goalSec: 6600 })]);
     fireEvent.click(screen.getByRole("button", { name: /Spring Half 2026/ }));
     const goal = screen.getByRole("textbox", { name: "Your goal" });
     fireEvent.change(goal, { target: { value: "14500" } });
