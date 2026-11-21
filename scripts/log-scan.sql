@@ -1,19 +1,41 @@
 -- Daily Supabase log scan (scripts/log-scan.sh). Returns ONLY anomalies: a quiet
 -- day is zero rows. Thresholds live here; see docs/monitoring.md before tuning.
 -- Columns are counts and codes only: the job summary is public. Never output an
--- IP, a user id, a name or a log message; a path is cut to its route (first
--- three segments) and id-masked, and log-scan.sh filters every cell again.
+-- IP, a user id, a name or a log message. A path is attacker-chosen text, so it
+-- only ever surfaces as a label from the fixed lists below ('other' otherwise);
+-- add a table or function there when it ships. log-scan.sh filters cells again.
 select src, code, what, n from (
 
   -- Failures -----------------------------------------------------------------
 
-  -- Auth 5xx at the gateway: a failing /recover or /signup locks users out.
-  select 'auth' as src, log_attributes['response.status_code'] as code,
-         replaceRegexpAll(arrayStringConcat(arraySlice(splitByChar('/', log_attributes['request.path']), 1, 4), '/'), '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
-  from logs
-  where source = 'edge_logs' and startsWith(log_attributes['request.path'], '/auth/v1/')
-    and toInt32OrZero(log_attributes['response.status_code']) >= 500
-  group by code, what having n >= 1
+  -- Gateway: auth 5xx (users locked out), other 5xx, admin API writes (no edge
+  -- function calls it: outside dashboard use, the service-role key is in use),
+  -- 429s, and 403/404/405 probing. 401 is the known signed-out-client noise.
+  select src, code, what, count() as n
+  from (
+    select log_attributes['request.path'] as p, log_attributes['request.method'] as m,
+           toInt32OrZero(log_attributes['response.status_code']) as st, splitByChar('/', p) as s,
+           multiIf(startsWith(p, '/auth/v1/admin/') and m not in ('GET', 'HEAD', 'OPTIONS'), 'auth-admin',
+                   st >= 500 and startsWith(p, '/auth/v1/'), 'auth', st >= 500, 'api',
+                   st = 429, 'rate-limited', st in (403, 404, 405), 'probing', '') as src,
+           if(src = 'auth-admin', m, toString(st)) as code,
+           if(s[3] = 'v1' and has(['auth', 'rest', 'functions', 'realtime', 'storage', 'graphql'], s[2]),
+              concat('/', s[2], '/v1/', if(has([
+                'token', 'signup', 'recover', 'verify', 'user', 'logout', 'otp', 'magiclink', 'authorize',
+                'callback', 'admin', 'settings', 'health', 'factors', 'resend', 'reauthenticate', 'invite',
+                'rpc', 'agent_rounds', 'agent_trajectories', 'agent_usage', 'app_config', 'app_state',
+                'apple_auth_grants', 'beta_feedback', 'coach_feedback', 'contribution_notifications',
+                'integration_connections', 'integration_staged_workouts', 'integration_sync_usage',
+                'live_broadcast_viewers', 'live_broadcasts', 'live_runs', 'live_share_tokens', 'polar_tokens',
+                'profiles', 'qr_scans', 'race_editions', 'race_reports', 'races', 'route_suggest_usage',
+                'run_routes', 'saved_routes', 'shell_diagnostics', 'websocket', 'object', 'bucket'], s[4]),
+                s[4], 'other')), 'other') as what
+    from logs
+    where source = 'edge_logs'
+  )
+  where src != ''
+  group by src, code, what
+  having n >= multiIf(src in ('auth', 'auth-admin'), 1, src = 'api', 3, src = 'rate-limited', 10, 50)
 
   union all
   -- GoTrue's own error lines (its access log carries no route).
@@ -23,19 +45,12 @@ select src, code, what, n from (
   group by code having n >= 1
 
   union all
-  -- Other gateway 5xx (REST, realtime, storage); ids masked out of paths.
-  select 'api' as src, log_attributes['response.status_code'] as code,
-         replaceRegexpAll(arrayStringConcat(arraySlice(splitByChar('/', log_attributes['request.path']), 1, 4), '/'), '[0-9A-Za-z_-]{20,}', ':id') as what,
-         count() as n
-  from logs
-  where source = 'edge_logs' and not startsWith(log_attributes['request.path'], '/auth/v1/')
-    and toInt32OrZero(log_attributes['response.status_code']) >= 500
-  group by code, what having n >= 3
-
-  union all
   -- Any 5xx from an edge function.
   select 'function' as src, log_attributes['response.status_code'] as code,
-         replaceRegexpAll(arrayStringConcat(arraySlice(splitByChar('/', log_attributes['request.pathname']), 1, 4), '/'), '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
+         if(has(['admin-metrics', 'apple-auth', 'coach-agent', 'coros-import', 'get', 'live-publish',
+                 'live-watch', 'notify-contribution', 'polar-import', 'route-suggest', 'suunto-import',
+                 'suunto-webhook'], splitByChar('/', log_attributes['request.pathname'])[4]),
+            splitByChar('/', log_attributes['request.pathname'])[4], 'other') as what, count() as n
   from logs
   where source = 'function_edge_logs' and toInt32OrZero(log_attributes['response.status_code']) >= 500
   group by code, what having n >= 1
@@ -58,7 +73,10 @@ select src, code, what, n from (
   union all
   -- Calls of 30 s or more: a function drifting toward its wall-clock limit.
   select 'function-slow' as src, '>=30s' as code,
-         replaceRegexpAll(arrayStringConcat(arraySlice(splitByChar('/', log_attributes['request.pathname']), 1, 4), '/'), '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
+         if(has(['admin-metrics', 'apple-auth', 'coach-agent', 'coros-import', 'get', 'live-publish',
+                 'live-watch', 'notify-contribution', 'polar-import', 'route-suggest', 'suunto-import',
+                 'suunto-webhook'], splitByChar('/', log_attributes['request.pathname'])[4]),
+            splitByChar('/', log_attributes['request.pathname'])[4], 'other') as what, count() as n
   from logs
   where source = 'function_edge_logs' and toFloat64OrZero(log_attributes['execution_time_ms']) >= 30000
   group by what having n >= 3
@@ -103,16 +121,6 @@ select src, code, what, n from (
   having n >= 1
 
   union all
-  -- Admin API writes (create/delete users, set passwords). No edge function calls
-  -- it, so outside your own dashboard use this means the service-role key is in use.
-  select 'auth-admin' as src, log_attributes['request.method'] as code,
-         replaceRegexpAll(arrayStringConcat(arraySlice(splitByChar('/', log_attributes['request.path']), 1, 4), '/'), '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
-  from logs
-  where source = 'edge_logs' and startsWith(log_attributes['request.path'], '/auth/v1/admin/')
-    and log_attributes['request.method'] not in ('GET', 'HEAD', 'OPTIONS')
-  group by code, what having n >= 1
-
-  union all
   -- Signup / reset bursts: throwaway accounts multiply coach budgets and catalogue
   -- caps; a reset burst can be someone mail-bombing an address.
   select 'auth-burst' as src, JSONExtractString(event_message, 'auth_audit_event', 'action') as code,
@@ -121,23 +129,6 @@ select src, code, what, n from (
   where source = 'auth_audit_logs'
     and JSONExtractString(event_message, 'auth_audit_event', 'action') in ('user_signedup', 'user_recovery_requested')
   group by code having n >= 20
-
-  union all
-  -- Rate limits being hit (mailer cooldown, coach daily limit, live-watch throttle).
-  select 'rate-limited' as src, '429' as code,
-         replaceRegexpAll(arrayStringConcat(arraySlice(splitByChar('/', log_attributes['request.path']), 1, 4), '/'), '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
-  from logs
-  where source = 'edge_logs' and log_attributes['response.status_code'] = '429'
-  group by what having n >= 10
-
-  union all
-  -- 403/404/405 bursts: someone probing endpoints or RPCs. 401 is the known
-  -- signed-out-client noise.
-  select 'probing' as src, log_attributes['response.status_code'] as code,
-         replaceRegexpAll(splitByChar('/', log_attributes['request.path'])[2], '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
-  from logs
-  where source = 'edge_logs' and log_attributes['response.status_code'] in ('403', '404', '405')
-  group by code, what having n >= 50
 
   union all
   -- Coach volume: the model bill. About 75 calls on a normal day.

@@ -41,7 +41,7 @@ password reset, no 5xx, no 429s, no failed sign-ins).
 | Auth admin API writes (`/auth/v1/admin/*`, not GET) | 1 | No edge function calls it, so outside your own dashboard edits this means the service-role key is in someone's hands. |
 | Signups, or password-reset requests | 20 a day each | Throwaway accounts multiply coach budgets and catalogue caps; a reset burst can be someone mail-bombing an address. |
 | 429 responses | 10 per path | Rate limits being hit: mailer cooldown, coach daily limit, live-watch throttle (share-token guessing). |
-| 403/404/405 | 50 per API | Someone probing endpoints or RPCs. 401 is the known signed-out noise. |
+| 403/404/405 | 50 per route | Someone probing endpoints or RPCs (unknown paths pool under `other`). 401 is the known signed-out noise. |
 | Coach calls | 400 a day | The model bill. |
 | Addresses with 150+ coach calls | 1 address | One client scripting the coach. |
 
@@ -64,9 +64,12 @@ returns 401. Correct refusals, but the app shouldn't be syncing without a sessio
 Tune by editing the SQL (a threshold, or a SQLSTATE moved into the known list),
 or `ACCEPTED_LINTS` once a finding is reviewed. Output is counts and codes only:
 this repo's Actions summaries are public, so never add a column with a message,
-an IP, a user id or a name (audit lines carry display names). A path is cut to
-its route (first three segments, ids masked), and `log-scan.sh` keeps only a safe
-charset in every cell, since a request path is attacker-chosen text. The query travels
+an IP, a user id or a name (audit lines carry display names). A request path is
+attacker-chosen text, so it never reaches the summary as written: it maps to a
+label from fixed lists in the SQL (API, then table, auth endpoint or function),
+and anything else reads `other`. A new table or edge function goes on those
+lists, which `src/logScan.test.ts` enforces. `log-scan.sh` also keeps only a safe
+charset in every cell. The query travels
 in a GET URL: the script strips comments and whitespace (about 8 KB encoded), so
 keep new branches lean.
 
