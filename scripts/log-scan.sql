@@ -134,7 +134,7 @@ select src, code, what, n from (
   -- 403/404/405 bursts: someone probing endpoints or RPCs. 401 is the known
   -- signed-out-client noise.
   select 'probing' as src, log_attributes['response.status_code'] as code,
-         splitByChar('/', log_attributes['request.path'])[2] as what, count() as n
+         replaceRegexpAll(splitByChar('/', log_attributes['request.path'])[2], '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
   from logs
   where source = 'edge_logs' and log_attributes['response.status_code'] in ('403', '404', '405')
   group by code, what having n >= 50
