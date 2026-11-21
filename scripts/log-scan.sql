@@ -1,14 +1,14 @@
 -- Daily Supabase log scan (scripts/log-scan.sh). Returns ONLY anomalies: a quiet
 -- day is zero rows. Thresholds live here; see docs/monitoring.md before tuning.
 -- Columns are counts and codes only: the job summary is public. Never output an
--- IP, a user id, a name or a log message.
+-- IP, a user id, a name or a log message; every path goes through the id mask.
 select src, code, what, n from (
 
   -- Failures -----------------------------------------------------------------
 
   -- Auth 5xx at the gateway: a failing /recover or /signup locks users out.
   select 'auth' as src, log_attributes['response.status_code'] as code,
-         log_attributes['request.path'] as what, count() as n
+         replaceRegexpAll(log_attributes['request.path'], '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
   from logs
   where source = 'edge_logs' and startsWith(log_attributes['request.path'], '/auth/v1/')
     and toInt32OrZero(log_attributes['response.status_code']) >= 500
@@ -34,7 +34,7 @@ select src, code, what, n from (
   union all
   -- Any 5xx from an edge function.
   select 'function' as src, log_attributes['response.status_code'] as code,
-         log_attributes['request.pathname'] as what, count() as n
+         replaceRegexpAll(log_attributes['request.pathname'], '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
   from logs
   where source = 'function_edge_logs' and toInt32OrZero(log_attributes['response.status_code']) >= 500
   group by code, what having n >= 1
@@ -56,7 +56,8 @@ select src, code, what, n from (
 
   union all
   -- Calls of 30 s or more: a function drifting toward its wall-clock limit.
-  select 'function-slow' as src, '>=30s' as code, log_attributes['request.pathname'] as what, count() as n
+  select 'function-slow' as src, '>=30s' as code,
+         replaceRegexpAll(log_attributes['request.pathname'], '[0-9A-Za-z_-]{20,}', ':id') as what, count() as n
   from logs
   where source = 'function_edge_logs' and toFloat64OrZero(log_attributes['execution_time_ms']) >= 30000
   group by what having n >= 3
@@ -95,7 +96,7 @@ select src, code, what, n from (
     select log_attributes['request.headers.cf_connecting_ip'] as ip, count() as c
     from logs
     where source = 'edge_logs' and log_attributes['request.path'] = '/auth/v1/token'
-      and log_attributes['response.status_code'] = '400'
+      and log_attributes['response.status_code'] = '400' and ip != ''
     group by ip having c >= 10
   )
   having n >= 1
@@ -151,6 +152,7 @@ select src, code, what, n from (
     select log_attributes['request.headers.cf_connecting_ip'] as ip, count() as c
     from logs
     where source = 'function_edge_logs' and log_attributes['request.pathname'] = '/functions/v1/coach-agent'
+      and ip != ''
     group by ip having c >= 150
   )
   having n >= 1

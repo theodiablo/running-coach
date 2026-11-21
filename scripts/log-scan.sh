@@ -12,6 +12,8 @@ api="https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF:?}"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 
 # WARN/ERROR findings already reviewed, as lint:object. INFO lints are not checked.
+# The API lists one lint per finding with its own metadata; a grouped shape
+# (findings[]) is read too.
 ACCEPTED_LINTS='authenticated_security_definer_function_executable:delete_my_account
 auth_leaked_password_protection:Auth'
 
@@ -44,7 +46,7 @@ if advisors="$(get "$api/advisors/security")"; then
   new_lints="$(jq -c --arg accepted "$ACCEPTED_LINTS" '
     ($accepted | split("\n")) as $ok
     | [.lints[]? | select(.level != "INFO") as $l
-       | ($l.findings // [{}])[]
+       | ($l.findings // [$l])[]
        | "\($l.level) \($l.name):\(.metadata.name // .metadata.entity // "")"
        | select((split(" ")[1]) as $k | $ok | index($k) | not)]' <<<"$advisors")"
 else
