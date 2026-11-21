@@ -79,13 +79,19 @@ keep new branches lean.
    this project only, permissions **Logs: Read** and **Advisors: Read**, nothing
    else, with an expiry. A classic token reaches every project and every
    setting on the account; never use one here. When it expires the scan fails
-   with "Log query failed", which is the reminder to rotate it.
+   with "Log query failed"; the expiry check below warns a week before.
 2. **Environment.** GitHub → Settings → Environments → `monitoring`, Deployment
    branches → Selected → `main` (the same rule as `production`, `backup` and
    `terraform-apply`). Add the token as the environment secret
    `SUPABASE_LOGS_TOKEN`. The job reads `SUPABASE_PROJECT_REF`, an existing repo
    variable.
-3. Run it once with **Run workflow** to confirm it passes.
+3. **Expiry date.** Add the token's expiry as the `monitoring` environment
+   variable `SUPABASE_LOGS_TOKEN_EXPIRES` (`YYYY-MM-DD`). Supabase can't report
+   it, so the job reads it from there: the summary shows the days left, and the
+   job fails (GitHub emails you) from 7 days before the date, after the scan has
+   still run. Update both the secret and the date at each rotation; without the
+   variable the job only warns.
+4. Run it once with **Run workflow** to confirm it passes.
 
 Until the secret exists the job skips with a warning instead of failing.
 
