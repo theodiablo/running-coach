@@ -34,7 +34,7 @@ aggregators only as a last resort, and say so. Check each field:
   weekday: road races are Sat/Sun.
 - **Name**: rename to the official name (drop `#1 -` style prefixes). The
   `slug` and edition `id` never change: participations link by them.
-- **City/country/coordinates**: start area within ~300 m (small-town
+- **City/country/coordinates**: start area within ~300 m (town-centre
   exception: `docs/races.md`, "Curating the verified set").
 - **Distance**: from the race rules or course map. `elevation` 0 means unknown.
 - **URL**: the organiser's page, if the row has none.
