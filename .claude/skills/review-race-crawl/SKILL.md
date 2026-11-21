@@ -47,7 +47,7 @@ Same bar as `validate-contribution` and the curation rules in
 `docs/races.md`: the organiser's own site (or the federation calendar), the
 registration platform for a Rock the Sport item. An aggregator page is never
 enough on its own. Check the date is announced (not guessed, not TBC), the
-weekday, the name, the start within ~300 m (small-town exception in
+weekday, the name, the start within ~300 m (town-centre exception in
 `docs/races.md`), the distance, the URL and the
 `terrain` (`road` or `trail`: the crawler guesses it from the source's sport and
 the name). Look for a duplicate already in the catalogue under another slug.
