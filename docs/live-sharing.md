@@ -308,14 +308,19 @@ The hook is mounted **once**, in `RunningCoach`, and threaded through the
 **A channel is a Realtime connection, and the plan caps them** (200 concurrent
 on Free, 500 on Pro), so the hook holds one only while the page is visible
 **and** the account has gone on air before (`settings.liveShareUsed`, set by
-the recorder the first time a broadcast starts) or its snapshot read just found
-a run live. Everyone else gets the same snapshot read on activation and on every
-return to the page, and no socket. A channel torn down on purpose reports
-`CLOSED` to its callback later, after a new one may be up, so that report is
-ignored rather than read as Realtime failing (which would start the poll). The
-one gap: an account's *first* broadcast reaches a session that was already open
-and visible on its next return to the page (or reload), not instantly, because
-the synced flag only arrives there with the next load.
+the recorder whenever a broadcast starts), or this session has seen its run
+live (latched for the session, so the channel outlives that run's DELETE).
+Everyone else gets the same snapshot read on activation and on every return to
+the page, and no socket. Each subscription takes its own topic: `channel(topic)`
+hands back a same-topic channel still waiting on its leave reply, which would
+silently drop the new bindings after a quick hide-and-show. That torn-down
+channel's late `CLOSED` is ignored rather than read as Realtime failing (which
+would start the poll).
+
+**The gap**: a session loaded before the account's flag synced, and that has
+not seen a run live, learns of a broadcast on its next return to the page (or
+reload), not instantly. That covers an account's first broadcast, and every
+account that shared before the flag existed until its next broadcast syncs.
 
 ## Usage metrics
 

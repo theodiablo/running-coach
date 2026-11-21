@@ -7,6 +7,7 @@ const rt = vi.hoisted(() => ({
   opened: 0,
   removed: 0,
   reads: 0,
+  emit: null as unknown as (p: { eventType: string; new?: unknown }) => void,
 }));
 
 vi.mock("../supabase", () => {
@@ -15,20 +16,39 @@ vi.mock("../supabase", () => {
     eq: () => query,
     maybeSingle: () => { rt.reads++; return Promise.resolve({ data: rt.row, error: null }); },
   };
-  type Ch = { cb?: (s: string) => void; on: () => Ch; subscribe: (cb: (s: string) => void) => Ch };
-  const makeChannel = (): Ch => {
+  // Modelled on realtime-js: channel(topic) hands back a same-topic channel until its leave is
+  // acknowledged, a repeated binding is dropped, and subscribe() on a leaving channel does nothing.
+  type Payload = { eventType: string; new?: unknown };
+  type Ch = {
+    leaving: boolean; status?: (s: string) => void; binding?: (p: Payload) => void;
+    on: (t: string, f: unknown, cb: (p: Payload) => void) => Ch; subscribe: (cb: (s: string) => void) => Ch;
+  };
+  const byTopic = new Map<string, Ch>();
+  rt.emit = (p: Payload) => byTopic.forEach(ch => { if (!ch.leaving) ch.binding?.(p); });
+  const channel = (topic: string): Ch => {
+    const existing = byTopic.get(topic);
+    if (existing) return existing;
     const ch: Ch = {
-      on: () => ch,
-      subscribe: cb => { ch.cb = cb; rt.opened++; queueMicrotask(() => cb("SUBSCRIBED")); return ch; },
+      leaving: false,
+      on: (_t, _f, cb) => { ch.binding ??= cb; return ch; },
+      subscribe: cb => {
+        if (ch.leaving) return ch;
+        ch.status = cb; rt.opened++; queueMicrotask(() => cb("SUBSCRIBED")); return ch;
+      },
     };
+    byTopic.set(topic, ch);
     return ch;
   };
   return {
     supabase: {
       from: () => query,
-      channel: makeChannel,
-      // supabase-js reports the teardown to the OLD callback later, after a new channel may be up.
-      removeChannel: (ch: Ch) => { rt.removed++; setTimeout(() => ch.cb?.("CLOSED"), 1000); return Promise.resolve(); },
+      channel,
+      removeChannel: (ch: Ch) => {
+        rt.removed++; ch.leaving = true;
+        // The server's leave reply lands a round trip later, after a new channel may be up.
+        setTimeout(() => { ch.status?.("CLOSED"); byTopic.forEach((c, k) => { if (c === ch) byTopic.delete(k); }); }, 1000);
+        return Promise.resolve();
+      },
     },
   };
 });
@@ -100,5 +120,26 @@ describe("useLiveRun channel", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("gets a working channel back after a quick hide-and-show", async () => {
+    const { result } = renderHook(() => useLiveRun("u1", true));
+    await waitFor(() => expect(rt.opened).toBe(1));
+    setHidden(true);
+    setHidden(false);
+    await waitFor(() => expect(rt.opened).toBe(2));
+    act(() => rt.emit({ eventType: "INSERT", new: liveRow() }));
+    expect(result.current.active).toBe(true);
+  });
+
+  it("keeps following an account it saw live after that run's row is deleted", async () => {
+    rt.row = liveRow();
+    const { result } = renderHook(() => useLiveRun("u1", false));
+    await waitFor(() => expect(result.current.active).toBe(true));
+    act(() => rt.emit({ eventType: "DELETE" }));
+    expect(result.current.row).toBeNull();
+    expect(rt.removed).toBe(0);
+    act(() => rt.emit({ eventType: "INSERT", new: liveRow() }));
+    expect(result.current.active).toBe(true);
   });
 });

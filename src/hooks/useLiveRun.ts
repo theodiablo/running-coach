@@ -28,6 +28,8 @@ export type LiveRun = {
   refresh: () => void;
 };
 
+let channelSeq = 0;
+
 export function useLiveRun(uid: string | null | undefined, sharesLive = true): LiveRun {
   const [fetched, setFetched] = useState<LiveRunRow | null>(null);
   // Derived, not cleared in an effect: a sign-out must hide the row on the very
@@ -59,9 +61,14 @@ export function useLiveRun(uid: string | null | undefined, sharesLive = true): L
     return () => { aliveRef.current = false; };
   }, []);
 
+  // Once this session has seen the account live it keeps following, so a later broadcast still
+  // arrives before the synced flag does. Latched during render (the uid it was seen for).
+  const [sawLiveFor, setSawLiveFor] = useState<string | null>(null);
+  if (row && uid && sawLiveFor !== uid) setSawLiveFor(uid);
+
   // Every open session holds a Realtime connection, and the plan caps them: none while hidden,
-  // none for an account that has never gone on air unless a read just found its run live.
-  const subscribe = !!uid && visible && (sharesLive || !!row);
+  // none for an account that has never gone on air unless a read found its run live.
+  const subscribe = !!uid && visible && (sharesLive || sawLiveFor === uid || !!row);
 
   // The activation read, which a session holding no channel otherwise never makes.
   useEffect(() => {
@@ -76,8 +83,9 @@ export function useLiveRun(uid: string | null | undefined, sharesLive = true): L
     if (!subscribe) return;
     // A channel torn down on purpose reports CLOSED; that must not read as Realtime failing.
     let disposed = false;
+    // A unique topic: channel() hands back a same-topic channel still mid-leave, which drops our bindings.
     const channel = supabase
-      .channel(`live_runs:${uid}`)
+      .channel(`live_runs:${uid}:${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "live_runs", filter: `user_id=eq.${uid}` },
