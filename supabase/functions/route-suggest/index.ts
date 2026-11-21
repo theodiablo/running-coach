@@ -3,7 +3,7 @@
 // budget and premium gate (profiles.premium_until; src/premium.ts is a UI hint only) and returns
 // raw GeoJSON; scoring stays in client code. See docs/route-finder.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.2";
 import { isPremiumActive } from "../_shared/premium.mjs";
 
 const ORS_API_KEY = Deno.env.get("ORS_API_KEY");

@@ -2,7 +2,7 @@
 // JWT for the digest): the weekly workflow POSTs `x-admin-digest-secret` and gets the digest emailed; a signed-in
 // ADMIN_USER_ID session at aal2 (MFA) gets the JSON. Everyone else gets 403. docs/product-metrics.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import { createClient } from "npm:@supabase/supabase-js@2.119.2";
 import { AwsClient } from "npm:aws4fetch@1.0.20";
 import { estimateCost, formatDigest, isAdminCaller, safeEqual } from "../_shared/adminMetrics.mjs";
 
