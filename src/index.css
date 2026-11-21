@@ -62,6 +62,18 @@ textarea,
   [contenteditable]:not([contenteditable="false"]) {
     font-size: 16px;
   }
+  /* WebKit draws date/time fields at their own intrinsic size and height (none when empty),
+     so they overflow a grid cell and never match the text boxes beside them. */
+  input[type="date"],
+  input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.5em;
+  }
 }
 
 /* Animation primitives (Tailwind v4 CSS-first config). Each `--animate-*` token
