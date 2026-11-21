@@ -177,6 +177,55 @@ describe("publishLiveRun", () => {
     expect(h.insert).toHaveBeenCalledTimes(2);
   });
 
+  it("stretches the cadence while writes keep failing, and snaps back once one lands", async () => {
+    h.insert.mockRejectedValue(new Error("offline"));
+    let t = START;
+    await publishLiveRun(args()); // 1st failure: next try still 30s out
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args()); // 2nd failure: now 60s
+    expect(h.insert).toHaveBeenCalledTimes(2);
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args());
+    expect(h.insert).toHaveBeenCalledTimes(2);
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args()); // 3rd failure: now 120s, the cap
+    expect(h.insert).toHaveBeenCalledTimes(3);
+    t += LIVE_PUBLISH_INTERVAL_MS * 3; vi.setSystemTime(t);
+    await publishLiveRun(args());
+    expect(h.insert).toHaveBeenCalledTimes(3);
+    // A pause still goes out at once: the watcher must not sit on a stale status.
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(4);
+
+    h.insert.mockResolvedValue({ error: null });
+    t += LIVE_PUBLISH_INTERVAL_MS * 4; vi.setSystemTime(t);
+    await publishLiveRun(args("paused")); // lands
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.update).toHaveBeenCalledTimes(1); // back on the 30s cadence
+  });
+
+  it("retries a pause that didn't land on the base cadence, however long the link has been failing", async () => {
+    h.insert.mockRejectedValue(new Error("offline"));
+    let t = START;
+    for (let i = 0; i < 3; i++) {
+      await publishLiveRun(args());
+      t += LIVE_PUBLISH_INTERVAL_MS * 4; vi.setSystemTime(t);
+    }
+    await publishLiveRun(args("paused")); // fails too
+    expect(h.insert).toHaveBeenCalledTimes(4);
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(5); // 30s, not 120s: the watcher still reads "live"
+    // That retry failed too: the backoff resumes rather than staying at 30s for the outage.
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(5);
+    t += LIVE_PUBLISH_INTERVAL_MS; vi.setSystemTime(t);
+    await publishLiveRun(args("paused"));
+    expect(h.insert).toHaveBeenCalledTimes(6);
+  });
+
   it("swallows a thrown transport error so recording is never affected", async () => {
     h.insert.mockRejectedValue(new Error("offline"));
     await expect(publishLiveRun(args())).resolves.toBeUndefined();

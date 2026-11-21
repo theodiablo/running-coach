@@ -18,6 +18,8 @@ export const RUN_ACTIVITIES: RunActivity[] = ["bike", "elliptical", "rower", "ot
 export const isCrossTraining = (run: { type?: string } | null | undefined) =>
   String(run?.type ?? "").toUpperCase() === "OTHER";
 
+export type ReviewPromptState = { asks?: string[]; done?: "review" | "never" };
+
 export type HealthAck = { v?: string | number; at?: string } | null;
 
 export type SettingsState = Record<string, unknown> & {
@@ -46,6 +48,8 @@ export type SettingsState = Record<string, unknown> & {
   coachIntroSeen?: boolean;
   coachOverdueIntroSeen?: boolean;
   feedbackIntroSeen?: boolean;
+  // Set the first time this account goes on air; its other sessions hold a Realtime channel only then.
+  liveShareUsed?: boolean;
   // Onboarded through "Let people follow my race": Home leads with the
   // race-day card instead of asking for a plan, until they build one.
   liveFirst?: boolean;
@@ -78,6 +82,9 @@ export type SettingsState = Record<string, unknown> & {
   stretchSuggest?: boolean;
   stretchVoice?: boolean;
   stretchDismissed?: string;
+  // The Home review card: days it was seen, and the answer that ended it. Synced,
+  // so a second device doesn't ask again; utils/storePrompts.ts.
+  reviewPrompt?: ReviewPromptState;
   // True once this account has sent beta feedback: the pill drops its
   // label and collapses to an icon, because the word was recruitment.
   feedbackSent?: boolean;
@@ -230,7 +237,7 @@ export function coachSessionKey(ctx?: CoachSessionContext | null): string | null
 // never changes what the coach is told. Pass one at every call site so the
 // entry points stay comparable; "other" is the defensive fallback for a bare
 // `onClick={openCoach}` wiring that hands us a click event instead.
-export type CoachSource = "header" | "dashboard" | "plan_session" | "settings" | "recovery" | "other";
+export type CoachSource = "header" | "dashboard" | "plan_session" | "change_plan" | "settings" | "recovery" | "other";
 
 export type PlanWeek = Record<string, unknown> & {
   weekNumber: number;
@@ -288,6 +295,7 @@ export type PlanPrefill = {
   raceElevation: number;
   editionId: string;
   label: string;
+  goalSec?: number | null;
 };
 
 // A suggested LOOP route from the "Find a route" finder. NOT a recorded trace: never
@@ -326,6 +334,8 @@ export type Participation = Record<string, unknown> & {
   runId?: string | null;
   source?: string;
   notes?: string;
+  // The runner's goal finish time for this race; the training target's own goal stays settings.goalSec.
+  goalSec?: number | null;
 };
 
 export type RacesState = Record<string, unknown> & {
@@ -357,6 +367,9 @@ export type CatalogueRace = Record<string, unknown> & {
   url?: string | null;
   createdBy?: string | null;
   verified?: boolean;
+  terrain?: "road" | "trail" | null;
+  // Set on a search result only, from the coarse Near me point.
+  distKm?: number | null;
   editions: CatalogueEdition[];
 };
 

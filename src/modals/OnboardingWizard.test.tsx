@@ -23,7 +23,7 @@ const setup = (settings: Partial<SettingsState> = {}) => {
   const onComplete = vi.fn();
   const onSaveProgress = vi.fn();
   render(<OnboardingWizard settings={{ onboardStep: 0, intent: null, ...settings } as SettingsState}
-    onSaveProgress={onSaveProgress} onComplete={onComplete} catalogue={[]}
+    onSaveProgress={onSaveProgress} onComplete={onComplete}
     addRace={vi.fn()} addEdition={vi.fn()} refreshCatalogue={vi.fn()} showToast={vi.fn()}/>);
   return { onComplete, onSaveProgress };
 };
@@ -102,7 +102,7 @@ describe("OnboardingWizard: race date", () => {
 
   it("won't continue on a race date that is today or behind us", () => {
     const { container } = render(<OnboardingWizard settings={{ onboardStep: 1, intent: null } as SettingsState}
-      onSaveProgress={vi.fn()} onComplete={vi.fn()} catalogue={[]}
+      onSaveProgress={vi.fn()} onComplete={vi.fn()}
       addRace={vi.fn()} addEdition={vi.fn()} refreshCatalogue={vi.fn()} showToast={vi.fn()}/>);
     fireEvent.click(screen.getByText("I'm training for a race"));
     fireEvent.click(screen.getByText("Just enter it for myself →"));

@@ -922,7 +922,7 @@ const KEEP_HISTORY_WEEKS = 8;
 
 // Retained history keeps its ids out of the rebuilt plan's way: buildPlan numbers weeks from 1, so an old "w1d2" and a fresh
 // one would collide (coach DUPLICATE_ID, shared React key). Applied once; a re-carry doesn't stack another prefix.
-const HISTORY_ID_PREFIX = "past-";
+export const HISTORY_ID_PREFIX = "past-";
 const historyId = (id: string) => id.startsWith(HISTORY_ID_PREFIX) ? id : HISTORY_ID_PREFIX + id;
 
 // A done flag may legitimately sit a little ahead of today — ticking Saturday's

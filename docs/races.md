@@ -17,19 +17,54 @@ world-readable like `app_config`, owner-scoped writes like `run_routes`, with a
 hard `verified = false` with-check so a contributor can never self-verify —
 only the service role does). Each account holds at most 25 unverified races and
 50 unverified editions, and fields are length-bounded (`*_field_bounds`), so one
-signup can't flood every client's catalogue download. `src/races.ts` is the access module (mirrors
-`src/routes.ts`: direct queries — `listRaces`/`addRace`/`addEdition`/
-`reportRace`). `notifyContribution` (the best-effort maintainer-email trigger)
-lives in `src/notify.ts` — generic, not race-specific, so other
+signup can't flood the catalogue. `src/races.ts` is the access module (mirrors
+`src/routes.ts`: direct queries, `searchRaces`/`listKnownRaces`/`addRace`/
+`addEdition`/`reportRace`). `notifyContribution` (the best-effort maintainer-email trigger)
+lives in `src/notify.ts`: generic, not race-specific, so other
 contribution-shaped writes (e.g. coach feedback) reuse it without importing a
 races module.
 
-Keep ALL catalogue lookups going through `src/utils/races.ts` (`findEdition`,
-`searchEditions`), which holds the fetched catalogue in a module cache
-(`hydrateCatalogue`) loaded once at boot by `loadCatalogue`.
-**Failure-tolerant:** a failed fetch leaves the cache `[]` and the app still
-renders (My Races falls back to participation snapshots); the boot load is
-fired **unawaited** so a slow/down Supabase never blocks the splash.
+**The catalogue is searched on the server, never downloaded whole.**
+`search_races` (security invoker, executable by anon) takes the text, a km
+range, a date window, any of several countries, terrain, verified-only and an optional point +
+radius, and returns one page of races (20 by default) with all their editions,
+a keyset cursor (`{key, slug}`: days to the next matching edition, or km away
+when sorted by distance) and, on the first page, the total. An edition matches
+when its distance is within ±5% of the range and its date in the window; a race
+needs an upcoming match, except that a text search also finds a race whose
+editions have all passed (so a runner can log a result for last year's race).
+Text search folds case and the common accents on both sides. `race_countries`
+lists the countries with an upcoming race for the country filter.
+`useRaceSearch` (`src/hooks/`) is the one client: debounced 300 ms, a late
+response for an older query dropped, Load more appending by cursor. Find,
+the onboarding race picker, the "Add a race" duplicate check and What's next?
+suggestions all go through it. `searchRaces` keeps the pages it fetched in memory
+for 5 minutes (`SEARCH_CACHE_MS`, 50 pages; `race_countries` the same), so going
+back to a filter or the tab answers at once with no debounce; a contribution
+clears it, a failure is never cached, and nothing is persisted (the catalogue
+changes weekly and the query is milliseconds). Near me sends the fix rounded to 0.01° (~1 km)
+and only as a call argument: it is never stored or sent to telemetry.
+
+Filters live in `src/utils/raceFilters.ts`: the distance slider's stops
+(`DISTANCE_STOPS`, the last open-ended), what each filter sends, and
+`matchingEditions`, the client mirror of the server's edition match that picks
+which date a row leads with. They persist per device (`RACE_FILTERS_KEY`, not
+synced); Near me never restores on, since it needs a fresh fix.
+
+**`terrain`** (`road` | `trail`, null = unknown, shown under both) is set by the
+contributor in Add a race and by the crawler (its source's sport, else trail
+words in the name). The first pass over the existing rows was a guess (trail
+words, or ≥ 30 m of climb per km), for review with `review-race-crawl`.
+
+`src/utils/races.ts` keeps a module cache that only holds the races the app
+must resolve synchronously (`findEdition`): at boot `loadCatalogue` fetches the
+editions the account refers to (participations, `targetEditionId`, the plan's
+RACE sessions) plus its own contributions, races and dates added to
+anyone's race alike (`listKnownRaces`), and every search
+result is merged in (`rememberRaces`) so an edition picked from a search
+resolves. **Failure-tolerant:** a failed fetch leaves the cache empty and the
+app still renders (My Races falls back to participation snapshots); the boot
+load is fired **unawaited** so a slow/down Supabase never blocks the splash.
 
 ## Curating the verified set
 
@@ -50,23 +85,58 @@ a user's contribution is a one-off SQL data fix, not a migration (see
   (or `rc_settings.targetEditionId`) references it; if so, keep the id and
   update `date` / `race_slug`. The user's snapshot and plan keep the old date,
   so tell them.
+- **Start coordinates within ~300 m of the named start.** When the organiser
+  names only the town or city, its centre point stands, whatever the place's
+  size.
+- **Scope:** any country a source covers (Mexico and Portugal included), and
+  obstacle-course races (OCR) count as races.
 - Edition inserts join `public.races`: most curated races were added outside
   migrations, so a fresh database simply skips them.
 - The 2026-09-28 pass used official organiser sites wherever they resolved.
   Aggregators were used only where noted in the PR. Coordinates of added races
   are hand-placed near the named start (±300 m). An `elevation` of 0 means unknown.
 
+New races and editions are found by the crawler (`docs/race-crawler.md`). It
+adds only **unverified** rows (`created_by` null), so the "unverified" tag shows
+until the `review-race-crawl` skill checks them against these same rules.
+
+## Race page and goals
+
+Tapping a race (Find, or a card in My Races) opens `RaceSheet`
+(`src/modals/RaceSheet.tsx`): its dates and distances, a still map of the start
+(`RaceMiniMap`, cached tiles), the official site (a button under the numbers, "Sign up" while the race has an upcoming date), and the runner's goal. The
+goal box shows on the upcoming training target, or on a race not yet run whose
+participation already carries a goal (clearing that goal removes the box); a race
+only browsed shows none (Plan setup asks for the goal
+when "Train for this race" builds the plan). A goal belongs to the participation
+(`goalSec`, synced). The training target's goal stays `settings.goalSec`, mirrored
+onto its participation (by `updateTargetGoal`, and for the outgoing target by
+`promoteEdition`) so it survives the race no longer being the target. There the
+field previews what the new goal does to the plan's paces (`paceChanges` over
+the hub's `previewTargetGoal`, which builds the rebuild without saving it) and
+"Update plan" applies it through `updateTargetGoal` (`rebuildPlanWith`, so
+`carryProgress` keeps done/skipped) with an Undo. "Set as target" carries the
+race's goal into Plan setup (`PlanPrefill.goalSec`). Suggestions come from
+`predictRaceSec` (`src/utils/raceGoal.ts`): the same best-effort Riegel method
+as Progress, over the last 84 days, grade-adjusted for the edition's climb. The
+preview waits for a plausible goal (`isPlausibleGoal`, no faster than 2:30/km),
+so a half-typed time builds nothing; `paceChanges` reads both plans from the
+first week the rebuild wrote, past the `past-` week `carryProgress` keeps.
+
 ## Contributions & Discover
 
 Contributions are instant + global + unverified. "Add a race"
 (`src/modals/RaceFormModal.tsx`, opened via `shared.openRaceForm`) does a live
 duplicate search and inserts `verified:false, created_by=uid`; the UI tags any
-unverified race/edition. After a contribution, `refreshCatalogue`
+unverified race/edition. A new race needs a name, a date, a distance, a terrain and a
+**country** (ISO 3166-1 alpha-2, normalised by `countryCode` in
+`src/utils/country.ts`; `UK` becomes `GB`), and the `races_country_code` check
+refuses a race without one. After a contribution, `refreshCatalogue`
 (RunningCoach) re-fetches so it shows immediately.
 
-**Discover** is a RacesView segment: one-off `geoSource.getCurrentPosition()`
-(web/native), sort by `haversineM`, distance-band + radius chips. **km-only**;
-coordinates are never persisted or sent to telemetry. A race's own `lat`/`lng`
+**Near me** is a Find filter: a one-off `geoSource.getCurrentPosition()`
+(web/native) sent coarse to `search_races`, which filters by radius and can sort
+by distance. **km-only**; coordinates are never persisted or sent to telemetry. A race's own `lat`/`lng`
 (so *other* users' Discover can find it) is set via `LocationPicker`
 (`src/components/LocationPicker.tsx`) — a tap/drag Leaflet pin, **not** the
 contributor's live GPS, since they're rarely standing where the race actually
@@ -74,7 +144,10 @@ happens. It opens centered on a one-off forward geocode (`src/utils/geocode.ts`,
 MapTiler's geocoding endpoint — same `VITE_MAPTILER_KEY` as the tiles, already
 covered by the CSP's `connect-src`) of the city/country already typed in the
 form; "jump to my current location" is offered too, but only as one more way to
-seed the pin, never the only option.
+seed the pin, never the only option. Leaflet reports a point picked past the
+antimeridian with a longitude outside ±180 (Napier as −183), so the picker
+folds it back with `wrapLng` (`src/utils/geo.ts`), and `races_coordinate_bounds`
+refuses an out-of-range pin.
 
 ## Moderation
 
@@ -84,7 +157,8 @@ lookup) and best-effort invokes the `notify-contribution` edge function
 (`supabase/functions/`), which emails the maintainer + thanks the contributor
 via AWS SES (SigV4-signed with `aws4fetch`; keys in
 `SES_AWS_ACCESS_KEY_ID`/`SES_AWS_SECRET_ACCESS_KEY`, optional
-`SES_REGION`/`FROM_EMAIL`/`MAINTAINER_EMAIL`; degrades to a no-op if unset).
+`SES_REGION`/`FROM_EMAIL`/`MAINTAINER_EMAIL`; degrades to a no-op if unset, and
+without `MAINTAINER_EMAIL` only the maintainer notice is skipped).
 `notify-contribution` must only send from validated DB rows owned by the caller
 and dedupes in `contribution_notifications`; callers pass stable row ids
 (`raceSlug`, `editionId`, `reportId`, `feedbackId`), not arbitrary email

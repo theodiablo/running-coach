@@ -8,7 +8,7 @@ export type RecoveryTokens = { accessToken: string; refreshToken: string };
 
 export type AuthCallback =
   | { kind: "cloudOauth"; provider: CloudOauthProviderId; code: string | null; state: string | null }
-  | { kind: "error"; message: string }
+  | { kind: "error"; message: string; code: string | null }
   // Our own template sends a token_hash to verify; GoTrue's stock one can
   // arrive as a code to exchange, or (implicit /verify, e.g. a dashboard-sent
   // reset) as a session in the fragment that our PKCE client refuses to adopt.
@@ -44,7 +44,7 @@ export function classifyAuthUrl(url: string): AuthCallback {
   const params = callbackParams(url);
   if (!params) return { kind: "none" };
   const provErr = params.get("error_description") || params.get("error");
-  if (provErr) return { kind: "error", message: provErr };
+  if (provErr) return { kind: "error", message: provErr, code: params.get("error_code") || params.get("error") };
   const tokenHash = params.get("token_hash");
   if (params.get("type") === "recovery") {
     const accessToken = params.get("access_token");
@@ -89,4 +89,11 @@ export function emailChangeOutcome(
   // Nothing pending before, nothing pending now: the link bought us nothing
   // (expired, or already used — opening the same one twice).
   return { key: "app.toasts.emailChangeFailed", type: "err" };
+}
+
+// Where a web auth flow returns: the deploy's own base. A PR preview's origin has no SPA fallback and nothing at `/`
+// (infra/README.md), so a nested base must name its index.html or the `?code=` lands on a 403.
+export function webAuthRedirect(origin: string, base: string): string {
+  const b = base.startsWith("/") ? base.replace(/\/?$/, "/") : "/";
+  return b === "/" ? `${origin}/` : `${origin}${b}index.html`;
 }

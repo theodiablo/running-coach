@@ -2,13 +2,13 @@
 // JWT for the digest): the weekly workflow POSTs `x-admin-digest-secret` and gets the digest emailed; a signed-in
 // ADMIN_USER_ID session at aal2 (MFA) gets the JSON. Everyone else gets 403. docs/product-metrics.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.2";
 import { AwsClient } from "npm:aws4fetch@1.0.20";
 import { estimateCost, formatDigest, isAdminCaller, safeEqual } from "../_shared/adminMetrics.mjs";
 
 const DIGEST_SECRET = Deno.env.get("ADMIN_DIGEST_SECRET") ?? "";
 const ADMIN_USER_ID = Deno.env.get("ADMIN_USER_ID") ?? "";
-const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "theo.camboulive.dev@gmail.com";
+const MAINTAINER_EMAIL = Deno.env.get("MAINTAINER_EMAIL") ?? "";
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "Running Coach <noreply@camboulive.solutions>";
 const SES_REGION = Deno.env.get("SES_REGION") ?? "eu-west-1";
 const CONFIG_SET = Deno.env.get("SES_CONFIG_SET") ?? "runapp-notify";
@@ -67,6 +67,7 @@ async function digest(req: Request) {
   }
   const { subject, text } = formatDigest(await loadMetrics());
   if (!aws) return json({ error: "no SES credentials configured" }, 503);
+  if (!MAINTAINER_EMAIL) return json({ error: "MAINTAINER_EMAIL is not set" }, 503);
   return (await sendEmail(subject, text)) ? json({ ok: true }) : json({ error: "send failed" }, 502);
 }
 

@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ChevronDown, Plus } from "lucide-react";
+import { ArrowLeft, ChevronDown, Plus, SlidersHorizontal, X } from "lucide-react";
 import { dayName } from "../i18n";
 import { fmt, ymd } from "../utils/format";
 import { runnerAge } from "../utils/hr";
-import { secondaryRaces } from "../utils/races";
+import { editionLabel, findEdition, secondaryRaces } from "../utils/races";
 import { routeSuggestEnabled } from "../constants";
 import { canShowPremiumTeaser } from "../premium";
 import { GoalConfigurator } from "../components/GoalConfigurator";
@@ -16,9 +16,14 @@ import { PlanSessionRow } from "../components/PlanSessionRow";
 import { SessionEditSheet, type SessionEditTarget } from "../modals/SessionEditSheet";
 import { addSlot, isEditableSession, type SessionEdit } from "../utils/planEdit";
 import { RebuildPreview } from "../components/RebuildPreview";
+import { ChangePlanSheet, type ChangePlanChoice } from "../modals/ChangePlanSheet";
+import { DidItSheet } from "../modals/DidItSheet";
+import { ReconcileSheet } from "../modals/ReconcileSheet";
+import { candidateRuns, canMoveSessionTo } from "../utils/sessionMatch";
+import { track } from "../telemetry";
 import { styleMeta, isStyleId, recommendStyle, stylePacing, type StyleId } from "../utils/planStyles";
 import { sessionsFromSimple, clampDays, isBand, type AvailabilityMode, type DurationBand } from "../utils/availability";
-import type { CoachSessionContext, CoachSource, OpenTarget, Plan, PlanPrefill, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
+import type { CoachSessionContext, CoachSource, OpenTarget, Plan, PlanPrefill, PlanSession, PlanWeek, RacesState, Run, RunActivity, SettingsPage, SettingsState, ToastAction } from "../types";
 import { canRecordSession, carryProgress, isElapsedWeek, planSessionPrefill, sessionRecorderActivity, startOfToday, weekStart, type BuildPlanOptions, type PlanSessionInput } from "../utils/plan";
 import { overdueByWeek } from "../utils/overdue";
 import { planPhase } from "../utils/planPhase";
@@ -70,6 +75,8 @@ type PlanViewProps = {
   toggleSess: (weekNumber: number, sessionId: string) => void;
   skipSess: (weekNumber: number, sessionId: string) => void;
   editSession: (edit: SessionEdit, warnings: number) => void;
+  // Names the saved run that settled a session ("I did it" → a run already saved).
+  linkSess?: (weekNumber: number, sessionId: string, runId: string, date?: string) => void;
   openSettings: (page?: SettingsPage) => void;
   openCoach: (session?: CoachSessionContext | null, source?: CoachSource) => void;
   openTracker: (link?: { wNum: number; sId: string; findRouteKm?: number }) => void;
@@ -81,6 +88,8 @@ type PlanViewProps = {
   // Bumped when the coach's "change your goal" link is followed: the view opens
   // in its editor, on the goal section, instead of the plan being questioned.
   openEditNonce?: number;
+  // Bumped by a "Change my plan" door elsewhere (Home): the view opens on its sheet.
+  openChangeNonce?: number;
   // "Find a route" is premium-only; free users reach the teaser inside the
   // tracker, except on iOS where the entry point is hidden entirely.
   isPremium?: boolean;
@@ -96,7 +105,7 @@ type PlanDraftValue = string | number;
 type EditSection = "goal" | "avail" | "style" | null;
 type PendingBuild = { plan: Plan; settings: SettingsState };
 
-export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, isPremium = false, openWhatsNext}: PlanViewProps) {
+export function PlanView({plan, settings, runs, races, savePlan, restorePlan, saveSettings, buildPlan, toggleSess, skipSess, editSession, linkSess, openSettings, openCoach, openTracker, openIndoor, goLog, showToast, planPrefill, clearPlanPrefill, openEditNonce, openChangeNonce, isPremium = false, openWhatsNext}: PlanViewProps) {
   const { t } = useTranslation();
 
   // Plan-card / edit-screen summary strings. Closures so they capture `t`
@@ -123,8 +132,14 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   const [openSess,     setOpenSess]    = useState<string | null>(null);
   // A promote ("Set as target") opens the edit screen pre-filled.
   const [editing,      setEditing]     = useState(!!planPrefill || !!openEditNonce);
+  // Set when an edit opens on a draft that can't build (a past race date): the goal shows too, for the whole edit.
+  const [goalForced,   setGoalForced]  = useState(false);
   // Which accordion section is expanded on the edit screen (one at a time).
   const [editSection,  setEditSection] = useState<EditSection>("goal");
+  // The "Change my plan" sheet, and the hint it leaves when "Just one session" was picked.
+  const [changing,     setChanging]    = useState(!!plan && !!openChangeNonce && !planPrefill);
+  const [sessionHint,  setSessionHint] = useState(0);
+  const weeksRef = useRef<HTMLDivElement>(null);
   // A build that would replace an existing plan waits here until the runner
   // has seen what it changes (RebuildPreview).
   const [pending,      setPending]     = useState<PendingBuild | null>(null);
@@ -132,7 +147,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   // ── Edit drafts ─────────────────────────────────────────────────────────
   const [draft,        setDraft]       = useState<PlanSessionInput[]>(settings.planSessions || [{dayOffset:2,minutes:30},{dayOffset:6,minutes:60}]);
   const [draftDate,    setDraftDate]   = useState<string>(planPrefill?.raceDate ?? futureDate(settings.raceDate));
-  const [draftGoal,    setDraftGoal]   = useState<PlanDraftValue>(planPrefill ? "" : settings.goalSec);
+  const [draftGoal,    setDraftGoal]   = useState<PlanDraftValue>(planPrefill ? planPrefill.goalSec || "" : settings.goalSec);
   const [draftDist,    setDraftDist]   = useState<PlanDraftValue>(planPrefill?.distanceKm ?? (settings.distanceKm || ""));
   const [draftElev,    setDraftElev]   = useState<PlanDraftValue>(planPrefill?.raceElevation ?? (settings.raceElevation || 0));
   const [draftStyle,   setDraftStyle]  = useState<StyleId | null>(isStyleId(settings.planStyle) ? settings.planStyle : null);
@@ -158,6 +173,9 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   // The concrete sessions the current draft resolves to (Simple mode synthesises them).
   const resolvedSessions = draftMode === "simple" ? sessionsFromSimple(draftDays, draftBand) : draft;
 
+  // "I did it" on a session, and its "a run I already saved" follow-up.
+  const [didIt, setDidIt] = useState<(PlanSession & { wNum: number }) | null>(null);
+  const [reconciling, setReconciling] = useState<(PlanSession & { wNum: number }) | null>(null);
   // The runner's own session editor (add or edit), when open.
   const [editTarget,   setEditTarget]  = useState<SessionEditTarget | null>(null);
 
@@ -178,7 +196,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
       setDraftDate(planPrefill.raceDate);
       setDraftDist(planPrefill.distanceKm);
       setDraftElev(planPrefill.raceElevation || 0);
-      setDraftGoal("");
+      setDraftGoal(planPrefill.goalSec || "");
       setEditSection("goal");
       setEditing(true);
     }
@@ -204,9 +222,33 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     setDraftKind(openNow ? "improve" : "race");
     setDraftTarget(plan?.goal?.target ?? settings.openTarget ?? "healthy");
     setDraftLight(!!(plan?.goal?.light ?? settings.lightPlan));
+    const seededDate = futureDate(settings.raceDate);
+    setGoalForced(!openNow && !(seededDate > ymd(new Date()) && !!settings.distanceKm));
     setEditSection(section);
     setEditing(true);
   };
+
+  // A door elsewhere asked for the goal editor or the sheet while this view was already mounted.
+  const [prevEditNonce, setPrevEditNonce] = useState(openEditNonce);
+  if (openEditNonce !== prevEditNonce) {
+    setPrevEditNonce(openEditNonce);
+    if (openEditNonce && plan && !promoting) { setChanging(false); openEdit("goal"); }
+  }
+  const [prevChangeNonce, setPrevChangeNonce] = useState(openChangeNonce);
+  if (openChangeNonce !== prevChangeNonce) {
+    setPrevChangeNonce(openChangeNonce);
+    if (openChangeNonce && plan && !promoting) { setEditing(false); setChanging(true); }
+  }
+
+  const pickChange = (choice: ChangePlanChoice) => {
+    track("plan_change_picked", { choice });
+    if (choice === "coach") openCoach(null, "change_plan");
+    else if (choice === "session") { setExp(focusWeek(plan)); setSessionHint(n => n + 1); }
+    else openEdit(choice);
+  };
+  useEffect(() => {
+    if (sessionHint) weeksRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [sessionHint]);
 
   // Build (or rebuild) the plan from the current drafts. Replacing a plan goes
   // through the preview first; nothing is persisted until it is applied.
@@ -276,6 +318,9 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
   // ── Edit / setup screen ───────────────────────────────────────────────────
   if (!plan || editing || promoting) {
     const isSetup = !plan && !promoting;
+    // Changing an existing plan shows only the part the runner chose; setup and a promote walk all three.
+    const solo = !!plan && !promoting && !!editSection;
+    const shown = (section: EditSection) => !solo || editSection === section || (section === "goal" && goalForced);
     const ctaLabel = isSetup ? t("plan.setup.generate") : promoting ? t("plan.setup.buildMyPlan") : t("plan.setup.previewChanges");
     const modeToggle = (
       <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
@@ -299,7 +344,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               <ArrowLeft size={18}/>
             </button>
           )}
-          <h2 className="text-lg font-bold">{isSetup ? t("plan.title") : t("plan.editPlan")}</h2>
+          <h2 className="text-lg font-bold">{isSetup ? t("plan.title") : solo ? t("plan.change.heading." + editSection) : t("plan.change.button")}</h2>
         </div>
 
         {promoting && planPrefill && <PromoteBanner prefill={planPrefill} onCancel={cancelPromote}/>}
@@ -307,7 +352,7 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
 
         <div className="space-y-3">
           {/* 1 · Goal */}
-          <AccordionSection num={1} title={t("plan.edit.goalTitle")}
+          {shown("goal") && <AccordionSection bare={solo} num={1} title={t("plan.edit.goalTitle")}
             summary={draftKind === "improve" ? improveSummary(draftTarget, draftDist, draftLight) : goalDraftSummary(draftDist, draftGoal, draftDate, draftElev)}
             expanded={editSection === "goal"} onToggle={() => setEditSection(editSection === "goal" ? null : "goal")}>
             <div className="flex bg-slate-800 rounded-lg p-0.5 gap-0.5 mb-4">
@@ -348,20 +393,18 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               </div>
             ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceDate")}</label>
-                  <input type="date" value={draftDate || ""} min={tomorrow()} onChange={e => setDraftDate(e.target.value)}
-                    aria-invalid={dateInPast || undefined}
-                    className={"w-full bg-slate-700 border rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 " + (dateInPast ? "border-amber-500/60" : "border-slate-600")}/>
-                  {dateInPast && <p role="alert" className="text-amber-300 text-xs mt-1">{t("plan.setup.dateInPast")}</p>}
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.distance")}</label>
-                  <input type="number" min="1" max="200" step="0.1" value={draftDist} placeholder={t("plan.setup.distancePlaceholder")}
-                    onChange={e => { const n = parseFloat(e.target.value); setDraftDist(isNaN(n) ? "" : n); }}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500"/>
-                </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceDate")}</label>
+                <input type="date" value={draftDate || ""} min={tomorrow()} onChange={e => setDraftDate(e.target.value)}
+                  aria-invalid={dateInPast || undefined}
+                  className={"w-full bg-slate-700 border rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 " + (dateInPast ? "border-amber-500/60" : "border-slate-600")}/>
+                {dateInPast && <p role="alert" className="text-amber-300 text-xs mt-1">{t("plan.setup.dateInPast")}</p>}
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.distance")}</label>
+                <input type="number" min="1" max="200" step="0.1" value={draftDist} placeholder={t("plan.setup.distancePlaceholder")}
+                  onChange={e => { const n = parseFloat(e.target.value); setDraftDist(isNaN(n) ? "" : n); }}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500"/>
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceElevation")}</label>
@@ -373,26 +416,26 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               <GoalConfigurator distanceKm={draftDist} goalSec={draftGoal} onChange={setDraftGoal}/>
             </div>
             )}
-          </AccordionSection>
+          </AccordionSection>}
 
           {/* 2 · Availability */}
-          <AccordionSection num={2} title={t("plan.edit.availTitle")}
+          {shown("avail") && <AccordionSection bare={solo} num={2} title={t("plan.edit.availTitle")}
             summary={availDraftSummary(draftMode, draftDays, draftBand, draft)}
             expanded={editSection === "avail"} onToggle={() => setEditSection(editSection === "avail" ? null : "avail")}
             headerControl={modeToggle}>
             <AvailabilityEditor mode={draftMode} days={draftDays} band={draftBand} sessions={draft}
               distanceKm={draftDist || settings.distanceKm || 20} trainingLevel={settings.trainingLevel}
               onDaysChange={setDraftDays} onBandChange={setDraftBand} onSessionsChange={setDraft}/>
-          </AccordionSection>
+          </AccordionSection>}
 
           {/* 3 · Training style */}
-          <AccordionSection num={3} title={t("plan.edit.styleTitle")}
+          {shown("style") && <AccordionSection bare={solo} num={3} title={t("plan.edit.styleTitle")}
             summary={styleMeta(effectiveStyle).label + (effectiveStyle === "runwalk"
               ? " · " + fmt.interval(draftRatio.runSec) + " / " + fmt.interval(draftRatio.walkSec) : "")}
             expanded={editSection === "style"} onToggle={() => setEditSection(editSection === "style" ? null : "style")}>
             <StylePicker value={effectiveStyle} onChange={setDraftStyle} recommended={recommendedStyle}
               runWalk={draftRatio} onRunWalkChange={setDraftRatio}/>
-          </AccordionSection>
+          </AccordionSection>}
         </div>
 
         {!settings.maxHR && (
@@ -452,9 +495,21 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
     ? improveSummary(openPhase.target, plan.goal?.distanceKm ?? settings.distanceKm, openPhase.light)
     : goalSummaryOf(plan.distanceKm || 20, settings.goalSec, plan.raceElevation || 0, String(plan.raceDate || ""));
   const afterRace = racePhase?.phase === "debrief" || racePhase?.phase === "choosing" || racePhase?.phase === "recovery";
-  const availSummary = settings.availabilityMode === "simple" && settings.availDays
-    ? t("plan.availRow.simpleSummary", { count: settings.availDays, duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
-    : sessInfo;
+  const raceName = (() => {
+    const id = settings.targetEditionId;
+    if (!id) return "";
+    const part = (races?.participations || []).find(p => p.editionId === id);
+    const joined = findEdition(id);
+    return String(part?.label || (joined ? editionLabel({ name: String(joined.name) }) : ""));
+  })();
+  const summaryTitle = openPhase ? goalSummary
+    : t("plan.summary.when", { race: raceName || t("plan.summary.race", { dist: fmt.km(Number(plan.distanceKm) || 0) }), date: fmt.sht(String(plan.raceDate || "")) })
+      + (Number(plan.raceElevation) > 0 ? " · +" + Math.round(Number(plan.raceElevation)) + " m" : "");
+  const daysLine = settings.availabilityMode === "simple" && settings.availDays
+    ? t("plan.summary.days", { count: Number(settings.availDays), duration: t("plan.avail.simple.band." + (isBand(settings.availTime) ? settings.availTime : "med") + ".word") })
+    : ps.length ? t("plan.summary.customDays", { count: ps.length, days: sessInfo }) : "";
+  const goalLine = openPhase ? "" : Number(settings.goalSec) ? t("plan.summary.goal", { goal: fmt.dur(Number(settings.goalSec)) }) : t("plan.summary.noGoal");
+  const summaryLine = [goalLine, daysLine, t("plan.summary.style", { style: styleMeta(planStyle).label })].filter(Boolean).join(" ");
 
   const phaseClass = (phase?: string) => {
     if (phase === "TAPER") return "bg-emerald-500/15 text-emerald-400";
@@ -507,11 +562,11 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
                 onRecord={canRecordSession(s) ? () => (s.type === "OTHER"
                   ? openIndoor({wNum: wk.weekNumber, sId: s.id, activity: sessionRecorderActivity(s)})
                   : openTracker({wNum: wk.weekNumber, sId: s.id})) : undefined}
-                onDone={() => goLog(planSessionPrefill(s, wk.weekNumber))}
+                onDone={() => setDidIt({ ...s, wNum: wk.weekNumber })}
                 onToggleDone={() => toggleSess(wk.weekNumber, s.id)}
                 onSkip={() => skipSess(wk.weekNumber, s.id)}
                 onAskCoach={() => openCoach({ session: s, weekNumber: wk.weekNumber }, "plan_session")}
-                onEdit={isEditableSession(plan, s.id, todayStr) ? () => setEditTarget({ kind: "edit", session: s, weekNumber: wk.weekNumber }) : undefined}
+                onEdit={isEditableSession(plan, s.id, todayStr) ? () => { setSessionHint(0); setEditTarget({ kind: "edit", session: s, weekNumber: wk.weekNumber }); } : undefined}
                 onFindRoute={routeSuggestEnabled && (isPremium || canShowPremiumTeaser) && Number(s.km) > 0
                   ? () => openTracker({ wNum: wk.weekNumber, sId: s.id, findRouteKm: Number(s.km) })
                   : undefined}
@@ -545,46 +600,63 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
           onClose={() => setEditTarget(null)}/>
       )}
 
-      {/* Plan card */}
-      <div className="rounded-2xl bg-slate-800/70 border border-slate-700/50 divide-y divide-slate-700/40 mb-2.5">
-        {/* Progress */}
-        <div className="px-4 py-3.5">
-          <div className="flex justify-between text-[13px] mb-2">
+      {didIt && (
+        <DidItSheet session={didIt} canTick={didIt.date <= todayStr}
+          hasSavedRuns={!!linkSess && candidateRuns(plan, didIt, runs).length > 0}
+          onPick={choice => {
+            if (choice === "details") goLog(planSessionPrefill(didIt, didIt.wNum));
+            else if (choice === "saved") setReconciling(didIt);
+            else toggleSess(didIt.wNum, didIt.id);
+          }}
+          onClose={() => setDidIt(null)}/>
+      )}
+      {reconciling && linkSess && (
+        <ReconcileSheet session={reconciling} runs={candidateRuns(plan, reconciling, runs)}
+          canMoveTo={date => canMoveSessionTo(plan, reconciling.wNum, date)}
+          onConfirm={(runId, moveTo) => { linkSess(reconciling.wNum, reconciling.id, runId, moveTo || undefined); setReconciling(null); }}
+          onClose={() => setReconciling(null)}/>
+      )}
+      {changing && (
+        <ChangePlanSheet openPlan={openNow} onPick={pickChange} onClose={() => setChanging(false)}/>
+      )}
+
+      {/* What the plan is for, in one sentence, and the one way to change it */}
+      <div className="rounded-2xl border border-orange-500/30 mb-3 p-4 space-y-3"
+        style={{background: "linear-gradient(135deg,rgba(249,115,22,.10),rgba(220,38,38,.08))"}}>
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-orange-300 text-xs font-semibold uppercase tracking-widest">{t("plan.summary.eyebrow")}</p>
+            <PlanInfo/>
+          </div>
+          <p className="text-base font-bold text-white mt-1">{summaryTitle}</p>
+          <p className="text-sm text-slate-300 mt-1 leading-snug">{summaryLine}</p>
+        </div>
+        <div>
+          <div className="flex justify-between text-[13px] mb-1.5">
             <span className="text-slate-200 font-semibold">{t("plan.progress.sessions", {done, total: all.length})}</span>
             <span className="text-orange-400 font-bold">{pct + "%"}</span>
           </div>
           <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
             <div className="h-full bg-orange-500 rounded-full transition-[width] duration-300" style={{width: pct + "%"}}/>
           </div>
-          <div className="flex justify-between text-[11px] text-slate-500 mt-2">
+          <div className="flex justify-between text-[11px] text-slate-400 mt-2">
             <span>{t("plan.progress.weekOf", {n: curWeekNum, total: weeksTotal})}</span>
             <span>{openPhase
               ? (openPhase.checkpoint ? t("plan.openHeader", {block: openPhase.block, date: dayName((new Date(openPhase.checkpoint + "T12:00:00").getDay() + 6) % 7) + " " + fmt.sht(openPhase.checkpoint)}) : t("plan.openHeaderNoCheckpoint", {block: openPhase.block}))
               : afterRace && racePhase ? t("plan.progress.finished", {date: fmt.sht(racePhase.race.date)}) : t("plan.progress.raceIn", {days: daysToRace})}</span>
           </div>
-          {afterRace && (
-            <button onClick={() => (openWhatsNext ? openWhatsNext() : openEdit("goal"))}
-              className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
-              {t("plan.next.cta")}
-            </button>
-          )}
         </div>
-        {/* Goal row */}
-        <PlanInputRow icon="🎯" tint="bg-orange-500/15" title={t("plan.edit.goalTitle")}
-          subtitle={t("plan.goalRow.subtitle")} summary={goalSummary} editLabel={t("plan.editShort")}
-          onEdit={() => openEdit("goal")}/>
-        {/* Availability row */}
-        <PlanInputRow icon="📅" tint="bg-sky-500/15" title={t("plan.edit.availTitle")}
-          subtitle={t("plan.availRow.subtitle")} summary={availSummary || t("plan.notConfigured")} editLabel={t("plan.editShort")}
-          onEdit={() => openEdit("avail")}/>
-      </div>
-
-      <div className="flex items-center justify-between gap-2 mb-3 px-1">
-        <p className="text-[11px] text-slate-500 leading-tight">{t("plan.reassurance")}</p>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-300">{styleMeta(planStyle).label}</span>
-          <PlanInfo/>
-        </div>
+        {afterRace ? (
+          <button onClick={() => (openWhatsNext ? openWhatsNext() : openEdit("goal"))}
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            {t("plan.next.cta")}
+          </button>
+        ) : (
+          <button onClick={() => { track("plan_change_opened", { source: "plan" }); setChanging(true); }}
+            className="w-full flex items-center justify-center gap-2 border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 text-orange-200 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+            <SlidersHorizontal size={15}/>{t("plan.change.button")}
+          </button>
+        )}
       </div>
 
       {longRunNudge && (
@@ -594,7 +666,16 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
         </div>
       )}
 
-      <div className="space-y-2">{upcoming.map(weekCard)}</div>
+      <div ref={weeksRef} className="space-y-2 scroll-mt-16">
+        {sessionHint > 0 && (
+          <div role="status" className="flex items-start gap-2 rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2.5 text-xs text-orange-100">
+            <span className="flex-1 leading-snug">{t("plan.change.sessionHint")}</span>
+            <button onClick={() => setSessionHint(0)} aria-label={t("common.close")}
+              className="text-orange-300 hover:text-orange-100 flex-shrink-0"><X size={14}/></button>
+          </div>
+        )}
+        {upcoming.map(weekCard)}
+      </div>
 
       {past.length > 0 && (
         <>
@@ -614,11 +695,18 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
 // the toggle button, never nested inside it — nested <button>s break click
 // handling. Goal/style have no control, so they show the chevron instead.
 type AccordionSectionProps = {
-  num: number; title: string; summary?: string;
+  bare?: boolean; num: number; title: string; summary?: string;
   expanded: boolean; onToggle: () => void; headerControl?: ReactNode; children: ReactNode;
 };
 
-function AccordionSection({ num, title, summary, expanded, onToggle, headerControl, children }: AccordionSectionProps) {
+function AccordionSection({ bare, num, title, summary, expanded, onToggle, headerControl, children }: AccordionSectionProps) {
+  // On its own the screen's heading already names the section: no number, no toggle.
+  if (bare) return (
+    <div className="rounded-2xl bg-slate-900/50 border border-slate-700/50 p-4">
+      {headerControl && <div className="flex justify-end mb-3">{headerControl}</div>}
+      {children}
+    </div>
+  );
   return (
     <div className="rounded-2xl bg-slate-900/50 border border-slate-700/50">
       <div className="flex items-center gap-3 px-4 py-3.5">
@@ -635,28 +723,6 @@ function AccordionSection({ num, title, summary, expanded, onToggle, headerContr
       </div>
       {expanded && <div className="px-4 pb-4 animate-expand">{children}</div>}
     </div>
-  );
-}
-
-// ── Plan-card input row (Goal / Availability) ───────────────────────────────
-type PlanInputRowProps = {
-  icon: string; tint: string; title: string; subtitle: string; summary: string;
-  editLabel: string; onEdit: () => void;
-};
-
-function PlanInputRow({ icon, tint, title, subtitle, summary, editLabel, onEdit }: PlanInputRowProps) {
-  return (
-    <button onClick={onEdit} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-700/30 transition-colors">
-      <span className={"w-9 h-9 rounded-[11px] flex items-center justify-center text-lg flex-shrink-0 " + tint}>{icon}</span>
-      <span className="flex-1 min-w-0">
-        <span className="flex items-baseline gap-1.5">
-          <span className="text-[13.5px] font-bold text-slate-100">{title}</span>
-          <span className="text-[11px] text-slate-500 truncate">{subtitle}</span>
-        </span>
-        <span className="block text-[12.5px] text-slate-400 truncate mt-0.5">{summary}</span>
-      </span>
-      <span className="text-[12px] font-semibold text-orange-400 border border-orange-500/45 bg-orange-500/10 rounded-lg px-3 py-1 flex-shrink-0">{editLabel}</span>
-    </button>
   );
 }
 

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn, browserOpen, env } = vi.hoisted(() => ({
-  env: { isNative: false },
+const { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail, nativeAppleSignIn, browserOpen, browserListeners, track, env } = vi.hoisted(() => ({
+  env: { isNative: false, isAndroid: false },
   browserOpen: vi.fn(),
+  browserListeners: new Map<string, () => void>(),
+  track: vi.fn(),
   nativeAppleSignIn: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
@@ -14,11 +16,21 @@ vi.mock("./supabase", () => ({
   supabase: { auth: { signUp, signInWithPassword, signInWithOAuth, resetPasswordForEmail } },
   authRedirectTo: () => "http://localhost/",
 }));
-vi.mock("./native", () => ({ get isNative() { return env.isNative; }, isAndroid: false }));
-vi.mock("@capacitor/browser", () => ({ Browser: { open: browserOpen } }));
+vi.mock("./native", () => ({ get isNative() { return env.isNative; }, get isAndroid() { return env.isAndroid; } }));
+vi.mock("@capacitor/browser", () => ({
+  Browser: {
+    open: browserOpen,
+    addListener: vi.fn(async (event: string, cb: () => void) => {
+      browserListeners.set(event, cb);
+      return { remove: vi.fn(async () => { browserListeners.delete(event); }) };
+    }),
+  },
+}));
+vi.mock("./telemetry", () => ({ track }));
 vi.mock("./auth/appleSignIn", () => ({ nativeAppleSignIn }));
 
 import LoginScreen from "./LoginScreen";
+import { settleOAuth } from "./auth/authTelemetry";
 
 const submitButton = () => document.querySelector("form button[type=submit]") as HTMLButtonElement;
 const STRONG = "Correct9Horse";
@@ -33,7 +45,9 @@ const invalidCredentials = () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  browserListeners.clear();
   env.isNative = false;
+  env.isAndroid = false;
   signUp.mockResolvedValue({ error: null });
   signInWithPassword.mockResolvedValue({ error: null });
   resetPasswordForEmail.mockResolvedValue({ error: null });
@@ -306,6 +320,85 @@ describe("LoginScreen — social sign-in", () => {
       provider,
       options: { redirectTo: "http://localhost/", skipBrowserRedirect: false },
     }));
+  });
+});
+
+describe("LoginScreen — sign-in telemetry", () => {
+  it("records a failed password sign-in by code only", async () => {
+    signInWithPassword.mockResolvedValue(invalidCredentials());
+    render(<LoginScreen />);
+    type();
+    fireEvent.click(submitButton());
+    await vi.waitFor(() => expect(track).toHaveBeenCalledWith("auth_failed", { method: "password", stage: "request", code: "invalid_credentials" }));
+    expect(track).toHaveBeenCalledWith("auth_started", { method: "password" });
+    expect(JSON.stringify(track.mock.calls)).not.toContain("runner@example.com");
+  });
+
+  it("on iOS, records a Google sheet the user closed without coming back", async () => {
+    env.isNative = true;
+    signInWithOAuth.mockResolvedValue({ data: { url: "https://example.supabase.co/auth/v1/authorize?provider=google" }, error: null });
+    browserOpen.mockResolvedValue(undefined);
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
+    browserListeners.get("browserFinished")?.();
+    expect(track).toHaveBeenCalledWith("auth_cancelled", expect.objectContaining({ method: "google", loaded: false }));
+    expect(browserListeners.size).toBe(0);
+  });
+
+  it("on iOS, a browser that won't open is a failure, not a pending sign-in", async () => {
+    env.isNative = true;
+    signInWithOAuth.mockResolvedValue({ data: { url: "https://example.supabase.co/auth/v1/authorize?provider=google" }, error: null });
+    browserOpen.mockRejectedValue(Object.assign(new Error("Unable to display URL"), { code: "UNAVAILABLE" }));
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await vi.waitFor(() => expect(track).toHaveBeenCalledWith("auth_failed", { method: "google", stage: "browser", code: "unknown" }));
+    expect(browserListeners.size).toBe(0);
+    expect(settleOAuth()).toBe("deeplink");
+  });
+
+  it("on Android, credits the callback to the provider tapped", async () => {
+    env.isNative = true;
+    env.isAndroid = true;
+    signInWithOAuth.mockResolvedValue({ data: { url: "https://example.supabase.co/auth/v1/authorize?provider=google" }, error: null });
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    try {
+      render(<LoginScreen />);
+      fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+      await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(settleOAuth()).toBe("google");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([
+    ["signed-in", "auth_completed"],
+    ["cancelled", "auth_cancelled"],
+  ])("counts the native Apple sheet once when it answers %s", async (outcome, event) => {
+    nativeAppleSignIn.mockResolvedValue(outcome);
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Apple" }));
+    await vi.waitFor(() => expect(track).toHaveBeenCalledWith(event, { method: "apple_native" }));
+    expect(track.mock.calls.filter(([e]) => e === "auth_started")).toEqual([["auth_started", { method: "apple_native" }]]);
+  });
+
+  it("counts a device that can't show the Apple sheet as the browser flow only", async () => {
+    nativeAppleSignIn.mockResolvedValue(null);
+    signInWithOAuth.mockResolvedValue({ data: { url: null }, error: null });
+    render(<LoginScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Apple" }));
+    await vi.waitFor(() => expect(signInWithOAuth).toHaveBeenCalled());
+    expect(track.mock.calls.filter(([e]) => e === "auth_started")).toEqual([["auth_started", { method: "apple" }]]);
+  });
+
+  it("records a sign-up whose address already has an account as email_exists", async () => {
+    signUp.mockResolvedValue({ data: { user: { identities: [] } }, error: null });
+    render(<LoginScreen intent="signup" />);
+    type();
+    fireEvent.click(submitButton());
+    await vi.waitFor(() => expect(track).toHaveBeenCalledWith("auth_failed", { method: "signup", stage: "request", code: "email_exists" }));
   });
 });
 

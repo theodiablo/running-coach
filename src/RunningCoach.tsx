@@ -8,7 +8,7 @@ import { dismissAll, dismissTop } from "./utils/backDismiss";
 import i18n, { isLangId, setLocale } from "./i18n";
 import { Loader, MessageCircle, Settings } from "lucide-react";
 import { BrandLogo } from "./components/BrandLogo";
-import { db, currentUserId, isCached, isStoreLoaded, isStoreReconciled } from "./db";
+import { db, currentUserId, isCached, isStoreLoaded, isStoreReconciled, subscribeStoreReconciled } from "./db";
 import { isPremiumActive } from "./premium";
 import { STORAGE_KEYS, USER_CONTEXT_MAX_CHARS, USER_CONTEXT_NOTICE_CHARS } from "./constants";
 import { AUTH_NOTICE_EVENT, takeAuthNotice } from "./utils/authNotice";
@@ -67,6 +67,11 @@ import type { RoutineId } from "./stretch/routines";
 import { LiveWatchModal } from "./modals/LiveWatchModal";
 import { RunDetailModal } from "./modals/RunDetailModal";
 import { RunAchievementSheet } from "./modals/RunAchievementSheet";
+import { StorePrompts } from "./components/StorePrompts";
+import type { ReviewChannel } from "./storeBridge";
+import { ranRecently } from "./utils/storePrompts";
+import { useReviewPrompt } from "./hooks/useReviewPrompt";
+import type { AppUpdate } from "./utils/version";
 import { WhatsNextSheet, type Promotable, type WhatsNextAnswer } from "./modals/WhatsNextSheet";
 import { RACE_DAY_SOURCE } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
@@ -75,7 +80,7 @@ import { LogView } from "./views/LogView";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
-import { coachSessionKey } from "./types";
+import { coachSessionKey, isCrossTraining } from "./types";
 import type {
   CatalogueRace,
   CoachSessionContext,
@@ -93,6 +98,7 @@ import type {
   RunPatch,
   SettingsPage,
   SettingsState,
+  ReviewPromptState,
   ToastAction,
   ToastState,
   UserContextState,
@@ -106,6 +112,20 @@ const CoachChat = lazy(() => import("./modals/CoachChat").then(m => ({ default: 
 import type { CoachChatSnapshot } from "./modals/CoachChat";
 // Lazy: the stretching sheet, player and figures load on first open.
 const StretchSheet = lazy(() => import("./modals/StretchSheet").then(m => ({ default: m.StretchSheet })));
+
+// The participations with `editionId`'s goal set, or the same array when there's nothing to change.
+function withGoal(parts: Participation[], editionId: string | null | undefined, goalSec: number) {
+  if (!editionId || !goalSec || !parts.some(p => p.editionId === editionId && p.goalSec !== goalSec)) return parts;
+  return parts.map(p => p.editionId === editionId ? { ...p, goalSec } : p);
+}
+
+// Every catalogue edition the account refers to: its races, its target, and the plan's RACE sessions.
+function referencedEditionIds(parts: Participation[] = [], settings: Partial<SettingsState> | null, plan: Plan | null) {
+  const ids = parts.map(p => p.editionId);
+  ids.push(settings?.targetEditionId);
+  for (const w of plan?.weeks || []) for (const x of w.sessions || []) ids.push(x.editionId);
+  return [...new Set(ids.filter((id): id is string => !!id))];
+}
 
 // Pure helper: thanks the user once when a maintainer verifies their OWN catalogue contribution.
 // `ackVerified` (personal blob) records acknowledged ids; returns updated races + fresh ids.
@@ -127,7 +147,7 @@ function computeVerifiedThanks(cat: CatalogueRace[], racesObj: RacesState, uid: 
 const memoryKey = (line: unknown) => String(line || "").toLowerCase().replace(/^\d{4}-\d{2}-\d{2}:\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
 const weekMs = 7 * 86400000;
 
-export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null, availableUpdate = null }: {
+export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil = null, onRefreshPremium = async () => null, availableUpdate = null, reviewChannel = null }: {
   onSignOut?: () => void;
   // The auth user, owned by App — refreshed via onAuthStateChange (USER_UPDATED
   // after an email/password change), so Settings -> Account stays current.
@@ -138,7 +158,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   premiumUntil?: string | null;
   onRefreshPremium?: () => Promise<string | null>;
   // Store version newer than the installed one (native only), for the Home card.
-  availableUpdate?: string | null;
+  availableUpdate?: AppUpdate | null;
+  reviewChannel?: ReviewChannel | null;
 }) {
   const { t } = useTranslation();
   const [loading,     setLoading]     = useState(true);
@@ -230,7 +251,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Live run sharing: subscribed ONCE here (not per consumer) so the dashboard
   // banner and the watch modal share a single Realtime channel. Free feature —
   // no premium gate (see docs/live-sharing.md).
-  const liveRun = useLiveRun(user?.id);
+  const liveRun = useLiveRun(user?.id, settings.liveShareUsed === true);
   // Plan session the tracker was opened from ("Record run" on a session card),
   // threaded into the save prefill so LogView's onSaved ticks it off.
   const [trackerLink, setTrackerLink] = useState<{ wNum: number; sId: string } | null>(null);
@@ -274,6 +295,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     db.set(STORAGE_KEYS.SETTINGS, next);
     return next;
   }), []);
+  const patchReviewPrompt = useCallback((f: (s: ReviewPromptState | undefined) => ReviewPromptState | undefined) => setSettings(prev => {
+    const reviewPrompt = f(prev.reviewPrompt);
+    if (reviewPrompt === prev.reviewPrompt) return prev;
+    const next = { ...prev, reviewPrompt };
+    db.set(STORAGE_KEYS.SETTINGS, next);
+    return next;
+  }), []);
+  const review = useReviewPrompt(reviewChannel, patchReviewPrompt);
   // Both one-time coach signposts mark themselves seen the moment they actually have been
   // (they ride the synced settings blob). The overdue explainer waits for `useSeenOnScreen`;
   // the coachmark overlay only needs Home.
@@ -285,7 +314,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // patchSettings queued in the same tick.
   const setTab = (next: string) => {
     // The editor request is one-shot: left set, every later Plan visit would reopen it.
-    if (next !== "plan") setPlanEditNonce(0);
+    if (next !== "plan") { setPlanEditNonce(0); setPlanChangeNonce(0); }
     if (next !== "dash") {
       const spend: Partial<SettingsState> = {};
       let spent = false;
@@ -341,6 +370,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Set only by the coach's "change your goal" link: PlanView opens straight
   // into its editor rather than the plan it is asking the runner to rebuild.
   const [planEditNonce, setPlanEditNonce] = useState(0);
+  // Same one-shot shape for "Change my plan" opened from Home: the Plan tab arrives on its sheet.
+  const [planChangeNonce, setPlanChangeNonce] = useState(0);
   // Which Progress sub-tab to open, and a nonce so navigating there again (even
   // to the same sub-tab) re-applies it.
   const [progressSub,  setProgressSub]  = useState<ProgressSub>("log");
@@ -439,7 +470,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       // Load the shared catalogue WITHOUT blocking the splash: a slow/down
       // Supabase must not delay the app. On resolve, publish it and thank the
       // user for any of their contributions that a maintainer has since verified.
-      loadCatalogue().then(cat => {
+      loadCatalogue({ editionIds: referencedEditionIds(loaded.participations, s, p), userId: currentUserId() }).then(cat => {
         setCatalogue(cat);
         // Merge onto the freshest races (racesRef), NOT the boot snapshot: the
         // user may have wishlisted/logged during the load, and that change must
@@ -642,6 +673,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     checkWatchRef.current().catch(() => {});
     planAutomationRef.current();
   }, [loading]);
+  // A slow or offline boot reconciles after loading; the automation's once-per-boot turn is then.
+  useEffect(() => subscribeStoreReconciled(() => planAutomationRef.current()), []);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
   const restorePlan  = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); };
@@ -762,7 +795,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // Toggle whether a wishlisted race is folded into the current plan: persists the flag and,
   // with an active plan, rebuilds it keeping done/skipped. False when there is no plan or race.
-  const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
+  // The plan a rebuild with these settings would produce (progress carried), or null when none applies.
+  const rebuiltPlan = (s: SettingsState, parts: Participation[]): Plan | null => {
     // A plan with no race folds the races in too: rebuilt from what it was built for.
     if (plan && goalKind(plan) !== "race") {
       const g = plan.goal;
@@ -770,17 +804,38 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         kind: goalKind(plan) as "block" | "open", target: g?.target ?? "healthy", light: !!g?.light,
         distanceKm: Number(g?.distanceKm) || Number(s.distanceKm) || 10, goalSec: g?.paceSource === "goal" ? s.goalSec : "",
       }, { runs, races: secondaryRaces(parts, null), afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
-      savePlan(carryProgress(plan, built, "rebuild"));
-      return true;
+      return carryProgress(plan, built, "rebuild");
     }
     // A race already run is not rebuilt: it would collapse the plan and drop its recovery.
-    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate <= ymd(new Date())) return false;
+    if (!plan || !s.raceDate || !s.distanceKm || s.raceDate <= ymd(new Date())) return null;
     const np = buildPlan(s.raceDate, s.goalSec, s.planSessions, s.distanceKm, s.raceElevation,
       { recentRuns: runs, races: secondaryRaces(parts, s.targetEditionId), mainEditionId: s.targetEditionId ?? null,
         style: s.planStyle, level: s.trainingLevel, runWalk: s, recovery: true,
         afterRace: recentRace({ plan, participations: parts, runs, settings: s }, ymd(new Date())) });
-    savePlan(carryProgress(plan, np, "rebuild"));
-    return true;
+    return carryProgress(plan, np, "rebuild");
+  };
+  const rebuildPlanWith = (s: SettingsState, parts: Participation[]) => {
+    const next = rebuiltPlan(s, parts);
+    if (next) savePlan(next);
+    return !!next;
+  };
+
+  // The training target's goal drives the plan's paces: preview the rebuild, then apply it with an Undo.
+  const previewTargetGoal = (goalSec: number) =>
+    plan && goalKind(plan) === "race" ? rebuiltPlan({ ...settings, goalSec }, races.participations || []) : null;
+  const updateTargetGoal = (goalSec: number) => {
+    const prevSettings = settings, prevPlan = plan, prevRaces = races;
+    const next = { ...settings, goalSec };
+    saveSettings(next);
+    // The goal also rides on the race itself, so it is still there once another race is the target.
+    const parts = withGoal(races.participations || [], settings.targetEditionId, goalSec);
+    if (parts !== races.participations) commitRaces({ ...races, participations: parts });
+    const rebuilt = !!plan && goalKind(plan) === "race" && rebuildPlanWith(next, parts);
+    showToast(t(rebuilt ? "races.goal.planUpdated" : "races.goal.saved"), "ok", { label: t("common.undo"), onClick: () => {
+      saveSettings(prevSettings);
+      commitRaces(prevRaces);
+      if (rebuilt && prevPlan) restorePlan(prevPlan);
+    } });
   };
 
   const setRaceInPlan = (editionId: string, inPlan: boolean) => {
@@ -826,14 +881,21 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
 
   // Re-fetch + re-hydrate the catalogue (after a user contributes), so the new
   // entry shows immediately — contributions are instant + global.
-  const refreshCatalogue = async () => { setCatalogue(await loadCatalogue()); };
+  const refreshCatalogue = async () => {
+    setCatalogue([...await loadCatalogue({ editionIds: referencedEditionIds(races.participations, settings, plan), userId: currentUserId() })]);
+  };
 
   // Promote a catalogue edition to the training target: stash the prefill and open PlanView's
   // setup. Nothing is committed until the user picks a goal and builds (PlanView sets
   // targetEditionId), so no unrealistic auto-goal is left behind.
   const promoteEdition = (joined: JoinedEdition | Promotable) => {
     const e = joined.edition;
-    setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e) });
+    const goalSec = (races.participations || []).find(p => p.editionId === e.id)?.goalSec || null;
+    // The outgoing target keeps the goal it was trained for on its own race.
+    const outgoing = settings.targetEditionId !== e.id ? settings.targetEditionId : null;
+    const kept = withGoal(races.participations || [], outgoing, Number(settings.goalSec) || 0);
+    if (kept !== races.participations) commitRaces({ ...races, participations: kept });
+    setPlanPrefill({ raceDate: e.date, distanceKm: e.distanceKm, raceElevation: e.elevation || 0, editionId: e.id, label: editionLabel({ name: String(joined.name) }, e), goalSec });
     setTab("plan");
     track("race_target_set", {});
   };
@@ -930,7 +992,8 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // `opts.skipDetect` is set when the run is created by the Races "log result"
   // flow, which already marks the race done — so we don't double-detect it.
   // `opts.celebrated`: the recorder's finish screen already showed the efforts.
-  const addRuns = (rs: Partial<Run>[], opts: { skipDetect?: boolean; celebrated?: boolean } = {}) => {
+  // `opts.fresh`: saved by the runner from a recorder or the form, not imported.
+  const addRuns = (rs: Partial<Run>[], opts: { skipDetect?: boolean; celebrated?: boolean; fresh?: boolean } = {}) => {
     const added: Run[] = rs.map((r, i) => ({...r, date: r.date || ymd(new Date()), km: Number(r.km) || 0, id: r.id || ("r" + Date.now() + i)} as Run));
     const nextRuns = added.concat(runs).sort((a, b) => b.date.localeCompare(a.date));
     setRuns(nextRuns); db.set(STORAGE_KEYS.RUNS, nextRuns);
@@ -959,6 +1022,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     // Post-run reward: how the run that just landed ranks against the log. Only
     // for a SINGLE run — a CSV/watch batch would otherwise stack sheets over an
     // import the user is only skimming. Pure and local, so this costs nothing.
+    if (opts.fresh && added.length === 1 && !isCrossTraining(added[0]) && ranRecently(added[0].date)) review.armMoment();
     if (added.length === 1 && !opts.celebrated) {
       const efforts = runAchievements(added[0], nextRuns);
       // One burst per save: race day already fires its own confetti.
@@ -1055,6 +1119,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Opens the Plan tab straight on its goal editor (the one-shot request is
   // cleared by setTab on the way out).
   const openPlanGoalEdit = () => { setPlanEditNonce(n => n + 1); setTab("plan"); };
+  const openChangePlan = (source: "overdue") => {
+    track("plan_change_opened", { source });
+    setPlanChangeNonce(n => n + 1); setTab("plan");
+  };
 
   // The runner's own plan edit (src/utils/planEdit.ts). Warnings were already
   // shown and accepted in the sheet; the toast's Undo restores the plan as it
@@ -1362,7 +1430,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const shared = {openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, catalogue, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, openChangePlan, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1407,7 +1475,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {toastP.rendered && <Toast key={toastP.rendered.id} {...toastP.rendered} closing={toastP.closing}/>}
       {celebrate   && <Confetti onDone={() => setCelebrate(false)}/>}
       {onboarding  && <OnboardingWizard settings={settings}
-        catalogue={catalogue} addRace={addRace} addEdition={addEdition}
+        addRace={addRace} addEdition={addEdition}
         refreshCatalogue={refreshCatalogue} showToast={showToast}
         onSaveProgress={(partial, step) => saveSettings({...settings, ...partial, onboardStep: step})}
         onComplete={result => {
@@ -1482,6 +1550,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
         scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
+        canRate={!!reviewChannel?.link} onRate={review.rateFromSettings}
         onBackup={()  => { leaveSettings(); exportData(); }}
         onRestore={() => { leaveSettings(); setShowRestore(true); }}
         onSignOut={signOutClearingReminders}
@@ -1508,11 +1577,13 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </ChunkLoadBoundary>
       )}
       {showRaceForm && <RaceFormModal
-        catalogue={catalogue} addRace={addRace} addEdition={addEdition}
+        addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
+      <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
+        reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={review.moment} onMomentSpent={review.spendMoment}/>
       {/* After the achievement sheet, never stacked on it. Spent on any answer. */}
       {nextSheet && !achievement && <WhatsNextSheet key={nextSheet.variant} variant={nextSheet.variant}
         label={"label" in nextSheet ? nextSheet.label : undefined} kmRef={nextSheetKm}
@@ -1581,7 +1652,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       <div key={`${tab}:${homeNonce}`} className="animate-view-fade" style={{paddingTop:"calc(44px + var(--safe-top))", paddingBottom:`calc(64px + var(--safe-bottom)${recorderMinimized ? " + 80px" : ""})`}}>
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}
-          openEditNonce={planEditNonce}/>}
+          openEditNonce={planEditNonce} openChangeNonce={planChangeNonce}/>}
         {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
           onSaved={(saved, link) => {
             // The link is whatever the form ended up with: the session the

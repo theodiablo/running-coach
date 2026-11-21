@@ -415,6 +415,13 @@ the permission strings, `UIBackgroundModes` (`location`, `bluetooth-central`,
 the deep-link scheme, and `ITSAppUsesNonExemptEncryption=false`;
 `App.entitlements` carries the HealthKit capability.
 
+The shell runs on the **UIScene lifecycle** (required from the iOS 27 SDK,
+`docs/release.md`). The scene, not the process, owns the window and so the
+WebView: iOS may disconnect a backgrounded scene to reclaim memory while the
+process (and its native GPS/BLE journals) lives on, and reconnecting cold-boots
+the JS. A "WebView restarted mid-run" on iOS is that, and the journals are the
+recovery path, as on Android.
+
 ## Android permission gotchas
 
 - **The permission prompt silently no-ops when Location Services are off:**
@@ -727,8 +734,9 @@ epoch-ms value arrives as a `Long` — which is how `chronometerStartMs` was
 silently dropped (no ticking clock) until this was found. The
 dependency is **pinned exact** (no `^`) so the patch always matches; on a
 version bump, check whether upstream fixed the lifecycle permission check (repo
-issue tracker was silent as of 1.2.26 and the plugin lags on Capacitor majors —
-see its issue #156), then regenerate
+issue tracker was silent as of 1.2.26; 1.3.1 still has it, and only moved the
+service's `startForeground` into a `promote()` it also calls on permission grant —
+see its issues #153 and #156), then regenerate
 (`npx patch-package @capacitor-community/background-geolocation`) or delete the
 patch.
 

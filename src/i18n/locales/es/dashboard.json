@@ -4,7 +4,7 @@
   "greetingAnon": "Qué bien verte 🏃‍♂️",
   "race": {
     "title": "Día de carrera",
-    "summary": "{{distance}} km · objetivo: menos de {{goal}} · {{pace}}/km",
+    "summary": "{{distance}} km · objetivo {{goal}} · {{pace}}/km",
     "summaryNoGoal": "{{distance}} km · sin objetivo de tiempo",
     "daysToGo": "días restantes",
     "nextUp": "Próxima: ",
@@ -61,16 +61,11 @@
       "nothing": "No queda nada que aligerar"
     }
   },
-  "stats": {
-    "thisWeek": "Esta semana",
-    "runsRecorded": "Entrenamientos registrados",
-    "total": "Total"
-  },
   "nextBadge": "Próxima insignia",
   "overdue": {
     "title_one": "1 sesión pendiente",
     "title_other": "{{count}} sesiones pendientes",
-    "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o pide a tu entrenador que reajuste el plan.",
+    "subtitle": "La vida pasa. Marca lo que hiciste, omite lo que no, o adapta tu plan.",
     "more_one": "1 más en tu plan",
     "more_other": "{{count}} más en tu plan",
     "adjust": "Ajustar mi plan",
@@ -82,12 +77,9 @@
     "today": "Sesión de hoy",
     "upNext": "Próxima sesión",
     "viewInPlan": "Ver en tu plan",
-    "howItUnfolds": "Cómo se desarrolla",
+    "howItUnfolds": "Cómo hacerlo",
     "skipTitle": "Omitir esta sesión",
     "startRun": "Empezar",
-    "logIt": "Registrar",
-    "markDone": "Marcar hecha",
-    "markDoneLocked": "Podrás marcarla el {{date}}. ¿La hiciste antes? Usa Registrar y así se guarda el entrenamiento.",
     "confirm": {
       "kicker": "Completada",
       "done": "Bien, {{title}} está hecha.",
@@ -96,20 +88,24 @@
       "metaRun": "{{date}} · {{detail}}",
       "runDetail": "{{km}} km en {{dur}}"
     },
-    "alreadyRan": "Ya la hice"
+    "alreadyRan": "Vincular un entrenamiento ya guardado",
+    "notToday": "¿Hoy no?"
+  },
+  "week": {
+    "title": "Esta semana",
+    "plan_one": "{{done}} de {{count}} sesión · {{km}} km",
+    "plan_other": "{{done}} de {{count}} sesiones · {{km}} km",
+    "runs_one": "{{count}} entrenamiento · {{km}} km",
+    "runs_other": "{{count}} entrenamientos · {{km}} km"
   },
   "noPlan": "Aún no tienes plan de entrenamiento. ¿Empezamos?",
   "setUpPlan": "Configurar mi plan",
   "allSessionsDone": "¡Todas las próximas sesiones completadas!",
-  "coach": {
-    "title": "Ajusta tu plan con tu entrenador",
-    "subtitle": "¿Una molestia, una semana sin entrenar o un conflicto de horarios? Pide un ajuste."
-  },
   "recentRuns": "Entrenamientos recientes",
   "viewAll": "Ver todas",
   "empty": {
     "noRuns": "Aún no hay entrenamientos registrados.",
-    "hint": "Toca Registrar abajo para añadir el primero.",
+    "hint": "Toca + abajo para añadir tu primer entrenamiento.",
     "restore": "¿Tenías datos de una versión anterior? Abre Ajustes (engranaje, arriba a la derecha) → Restaurar."
   },
   "recovery": {

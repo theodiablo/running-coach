@@ -11,11 +11,13 @@
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
+		A1E5F0180000000000000018 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0080000000000000008 /* SceneDelegate.swift */; };
 		A1E5F0120000000000000012 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0020000000000000002 /* MainViewController.swift */; };
 		A1E5F0130000000000000013 /* HealthKitBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0030000000000000003 /* HealthKitBridgePlugin.swift */; };
 		A1E5F0140000000000000014 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0040000000000000004 /* LiveActivityPlugin.swift */; };
 		A1E5F0150000000000000015 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0050000000000000005 /* RunActivityAttributes.swift */; };
 		A1E5F0160000000000000016 /* AudioCuePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0060000000000000006 /* AudioCuePlugin.swift */; };
+		A1E5F0170000000000000017 /* StoreBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0070000000000000007 /* StoreBridgePlugin.swift */; };
 		A1E5F2110000000000000211 /* LiveActivityWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F2010000000000000201 /* LiveActivityWidgetBundle.swift */; };
 		A1E5F2120000000000000212 /* RunLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F2020000000000000202 /* RunLiveActivityWidget.swift */; };
 		A1E5F2130000000000000213 /* RunActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5F0050000000000000005 /* RunActivityAttributes.swift */; };
@@ -31,6 +33,7 @@
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A1E5F0080000000000000008 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -41,6 +44,7 @@
 		A1E5F0040000000000000004 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
 		A1E5F0050000000000000005 /* RunActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunActivityAttributes.swift; sourceTree = "<group>"; };
 		A1E5F0060000000000000006 /* AudioCuePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCuePlugin.swift; sourceTree = "<group>"; };
+		A1E5F0070000000000000007 /* StoreBridgePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreBridgePlugin.swift; sourceTree = "<group>"; };
 		A1E5F2010000000000000201 /* LiveActivityWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityWidgetBundle.swift; sourceTree = "<group>"; };
 		A1E5F2020000000000000202 /* RunLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunLiveActivityWidget.swift; sourceTree = "<group>"; };
 		A1E5F2030000000000000203 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -117,11 +121,13 @@
 				A1E5F0010000000000000001 /* App.entitlements */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				A1E5F0080000000000000008 /* SceneDelegate.swift */,
 				A1E5F0020000000000000002 /* MainViewController.swift */,
 				A1E5F0030000000000000003 /* HealthKitBridgePlugin.swift */,
 				A1E5F0040000000000000004 /* LiveActivityPlugin.swift */,
 				A1E5F0050000000000000005 /* RunActivityAttributes.swift */,
 				A1E5F0060000000000000006 /* AudioCuePlugin.swift */,
+				A1E5F0070000000000000007 /* StoreBridgePlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -241,11 +247,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				A1E5F0180000000000000018 /* SceneDelegate.swift in Sources */,
 				A1E5F0120000000000000012 /* MainViewController.swift in Sources */,
 				A1E5F0130000000000000013 /* HealthKitBridgePlugin.swift in Sources */,
 				A1E5F0140000000000000014 /* LiveActivityPlugin.swift in Sources */,
 				A1E5F0150000000000000015 /* RunActivityAttributes.swift in Sources */,
 				A1E5F0160000000000000016 /* AudioCuePlugin.swift in Sources */,
+				A1E5F0170000000000000017 /* StoreBridgePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -101,7 +101,8 @@
   "deleteAccount": {
     "title": "Eliminar cuenta",
     "body": "Esta acción eliminará permanentemente tu cuenta y todos los datos asociados: entrenamientos, rutas GPS, plan de entrenamiento y ajustes. <bold>No se puede deshacer.</bold>",
-    "error": "Algo salió mal. Inténtalo de nuevo o escribe a theo.camboulive.dev@gmail.com."
+    "error": "Algo salió mal. Inténtalo de nuevo.",
+    "errorWithEmail": "Algo salió mal. Inténtalo de nuevo o escribe a {{email}}."
   },
   "hr": {
     "title": "Frecuencia cardíaca",
@@ -173,7 +174,7 @@
     "bullet1": "Bluetooth se usa <bold>solo para encontrar y leer tu sensor</bold>, nunca para la ubicación.",
     "bullet2": "Tu frecuencia cardíaca se guarda con el entrenamiento en tu cuenta.",
     "bullet3": "No se vende ni se comparte nada con terceros.",
-    "policy": "Consulta nuestra <link>Política de privacidad</link>. Cuando toques Permitir, Android solicitará acceso a los dispositivos Bluetooth cercanos.",
+    "policy": "Consulta nuestra <link>Política de privacidad</link>. Al continuar, tu teléfono te preguntará si Running Coach puede usar los dispositivos Bluetooth cercanos.",
     "accept": "Permitir y continuar"
   },
   "guides": {

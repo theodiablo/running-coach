@@ -8,8 +8,7 @@ import { GoalConfigurator } from "../components/GoalConfigurator";
 import { StylePicker } from "../components/StylePicker";
 import { runWalkConfig, type RunWalkConfig } from "../utils/runwalk";
 import { Chip } from "../components/RaceFilterChips";
-import { BANDS, RADII, useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
-import { haversineM } from "../utils/geo";
+import { useNearMeFilter, fmtKm } from "../hooks/useNearMeFilter";
 import {
   trainingLevels, isStyleId, isTrainingLevel, recommendStyle, suggestPlanSessions,
   type StyleId, type TrainingLevel,
@@ -27,10 +26,14 @@ import { ReadinessChecklist } from "../components/ReadinessChecklist";
 import { ShareLinkPanel } from "../components/ShareLinkPanel";
 import { ToggleSwitch } from "../components/ToggleSwitch";
 import { useShareLink } from "../hooks/useShareLink";
-import { isNative } from "../native";
+import { isAndroid, isNative } from "../native";
 import { useBlePairing, type BleDevice } from "../hooks/useBlePairing";
 import { BleScanList } from "../components/BleScanList";
-import { searchEditions, editionLabel, findEdition } from "../utils/races";
+import { editionLabel, findEdition } from "../utils/races";
+import { useRaceSearch } from "../hooks/useRaceSearch";
+import { ANY_DISTANCE, DEFAULT_FILTERS, RADII, matchingEditions, searchParams } from "../utils/raceFilters";
+import type { DistanceRange, RaceFilters } from "../utils/raceFilters";
+import { DistanceRangeSlider } from "../components/races/DistanceRangeSlider";
 import { deriveAge, runnerAge, tanakaMaxHR } from "../utils/hr";
 import { buildPlan } from "../utils/plan";
 import type { PlanSessionInput } from "../utils/plan";
@@ -73,7 +76,6 @@ type OnboardingWizardProps = {
   settings: SettingsState;
   onSaveProgress: (partial: OnboardingProgress, step: number) => void;
   onComplete: (payload: OnboardingCompletePayload) => void;
-  catalogue: CatalogueRace[];
   addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null }) => Promise<CatalogueRace>;
   addEdition: (edition: { raceSlug: string; date: string; distanceKm: number; elevation: number }) => Promise<CatalogueEdition>;
   refreshCatalogue: () => void | Promise<void>;
@@ -83,7 +85,7 @@ type OnboardingWizardProps = {
 // Guided first-run onboarding; the branch sequence is the pure `onboardingSteps(intent)`. The health & safety step is the
 // mandatory gate and the only way in (header "Skip" jumps TO it, never around it); `summary` is an in-memory celebration
 // after it. All input is local draft state, committed only via onComplete.
-export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogue, addRace, addEdition, refreshCatalogue, showToast}: OnboardingWizardProps) {
+export function OnboardingWizard({settings, onSaveProgress, onComplete, addRace, addEdition, refreshCatalogue, showToast}: OnboardingWizardProps) {
   const { t } = useTranslation();
   // Language: synced preference falling back to the live UI language; a tap
   // switches immediately and persists rc_lang (per-device) so a resumed
@@ -95,7 +97,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); })();
 
   const [intent, setIntent] = useState<Intent>(settings.intent || null); // null | "race" | "fitness"
-  const seq = onboardingSteps(intent, { native: isNative });
+  const seq = onboardingSteps(intent, { android: isAndroid });
 
   const [stepIdx, setStepIdx] = useState(() =>
     Math.min(Math.max(0, settings.onboardStep || 0), seq.length - 1));
@@ -143,8 +145,10 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   const [query,   setQuery]   = useState("");
   const [manual,  setManual]  = useState(false);
   const [showAddRace, setShowAddRace] = useState(false);
-  const [band, setBand] = useState<number | null>(null);
+  const [distance, setDistance] = useState<DistanceRange>(ANY_DISTANCE);
   const { nearMe, radius, setRadius, loc, status: locStatus, toggleNearMe } = useNearMeFilter("onboarding_find_near_me");
+  const pickerFilters: RaceFilters = { ...DEFAULT_FILTERS, distance, near: nearMe, radius, sort: nearMe ? "distance" : "date" };
+  const search = useRaceSearch({ ...searchParams(query, pickerFilters, loc), from: today }, cur === "race" || cur === "liveRace");
 
   // No-race ("get fit") branch picks. `selKey` tracks the chosen tile (so "5K"
   // and "Just run more" both map to 5 km but stay visually distinct).
@@ -220,7 +224,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
   // and the acknowledgment is always captured fresh. `intent` is persisted too
   // so a mid-flow refresh rebuilds the right branch.
   const go = (key: OnboardingStep, partial: OnboardingProgress = {}, nextIntent: Intent = intent) => {
-    const ns = onboardingSteps(nextIntent, { native: isNative });
+    const ns = onboardingSteps(nextIntent, { android: isAndroid });
     const idx = ns.indexOf(key);
     if (idx < 0) return;
     if (nextIntent !== intent) setIntent(nextIntent);
@@ -294,27 +298,10 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
     onComplete({name: trimmedName, plan, hr, hrMethod: sensor ? "bluetooth" : null, healthAck, live: null});
   };
 
-  // Text + band narrow the catalogue, same as the Races tab; a match passes the
-  // band if its distance falls within it. With Near me on, split into
-  // distance-sorted (within radius) + a location-unknown bucket — races beyond
-  // the radius drop out, mirroring FindPanel.
-  const matchesBand = (e: JoinedEdition) => band == null || Math.abs(e.edition.distanceKm - band) <= band * 0.12;
-  const editionBase = searchEditions(query, today).filter(matchesBand);
-  let editionResults: { e: JoinedEdition; distM: number | null }[];
-  const unlocatedEditions: JoinedEdition[] = [];
-  if (nearMe && loc) {
-    const withCoord: { e: JoinedEdition; distM: number }[] = [];
-    for (const e of editionBase) {
-      if (e.lat == null || e.lng == null) { unlocatedEditions.push(e); continue; }
-      const distM = haversineM(loc, { lat: e.lat as number, lng: e.lng as number });
-      if (distM > radius * 1000) continue;
-      withCoord.push({ e, distM });
-    }
-    withCoord.sort((a, b) => a.distM - b.distM);
-    editionResults = withCoord;
-  } else {
-    editionResults = editionBase.map(e => ({ e, distM: null }));
-  }
+  // One row per edition that answers the filters (soonest first), as the Races tab's Find does.
+  const editionResults = search.races.flatMap(race =>
+    matchingEditions(race, pickerFilters, today).filter(e => e.date >= today)
+      .map(edition => ({ e: { ...race, raceId: race.id, edition } as JoinedEdition, distKm: race.distKm ?? null })));
 
   // Plain-language, highest-risk PAR-Q items (placeholder wording — have a
   // qualified professional review before launch).
@@ -478,11 +465,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                       <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t("onboarding.race.searchPlaceholder")}
                         className={INPUT_CLS + " pl-9"}/>
                     </div>
-                    <div className="flex gap-1.5 flex-wrap items-center">
-                      <span className="text-[11px] text-slate-500 mr-1">{t("races.find.distance")}</span>
-                      <Chip active={band == null} onClick={() => setBand(null)}>{t("races.find.all")}</Chip>
-                      {BANDS.map(b => <Chip key={b} active={band === b} onClick={() => setBand(band === b ? null : b)}>{b} km</Chip>)}
-                    </div>
+                    <DistanceRangeSlider value={distance} onChange={setDistance}/>
                     <div className="flex gap-1.5 flex-wrap items-center">
                       <button onClick={toggleNearMe} disabled={locStatus === "locating"}
                         className={"inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors border disabled:opacity-60 " +
@@ -497,30 +480,31 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
                       <p className="text-xs text-red-400">{t("races.find.locationDenied")}</p>
                     )}
                   </div>
-                  {editionResults.length === 0 && unlocatedEditions.length === 0 && (
+                  {search.status === "loading" && (
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5"><Loader size={12} className="animate-spin"/>{t("races.find.searching")}</p>
+                  )}
+                  {search.status === "error" && (
+                    <p className="text-xs text-slate-400">{t("races.find.searchFailed")}{" "}
+                      <button onClick={search.retry} className="text-orange-400 font-semibold">{t("races.find.retry")}</button></p>
+                  )}
+                  {search.status === "ready" && editionResults.length === 0 && (
                     <p className="text-xs text-slate-500">{nearMe ? t("races.find.noneInRadius", { radius }) : t("races.find.noMatch")}</p>
                   )}
-                  {(editionResults.length > 0 || unlocatedEditions.length > 0) && (
+                  {search.status === "ready" && editionResults.length > 0 && (
                     <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {editionResults.slice(0, 25).map(({ e, distM }) => (
+                      {editionResults.map(({ e, distKm }) => (
                         <button key={e.edition.id} onClick={() => pick(e)}
                           className="w-full text-left bg-slate-800 rounded-xl border border-slate-700 px-4 py-3 hover:border-orange-400/50 transition-colors">
                           <p className="font-semibold truncate">{String(e.name)}</p>
                           <p className="text-xs text-slate-400">{[e.city, e.country].filter(Boolean).join(", ") + " · " + fmt.date(e.edition.date) + " · " + e.edition.distanceKm + " km"}
-                            {distM != null && " · " + t("races.card.away", { dist: fmtKm(distM) })}</p>
+                            {distKm != null && " · " + t("races.card.away", { dist: fmtKm(distKm * 1000) })}</p>
                         </button>
                       ))}
-                      {nearMe && unlocatedEditions.length > 0 && (
-                        <>
-                          <p className="text-[11px] text-slate-500 uppercase tracking-widest pt-1">{t("races.find.locationUnknown")}</p>
-                          {unlocatedEditions.slice(0, 25).map(e => (
-                            <button key={e.edition.id} onClick={() => pick(e)}
-                              className="w-full text-left bg-slate-800 rounded-xl border border-slate-700 px-4 py-3 hover:border-orange-400/50 transition-colors">
-                              <p className="font-semibold truncate">{String(e.name)}</p>
-                              <p className="text-xs text-slate-400">{[e.city, e.country].filter(Boolean).join(", ") + " · " + fmt.date(e.edition.date) + " · " + e.edition.distanceKm + " km"}</p>
-                            </button>
-                          ))}
-                        </>
+                      {search.hasMore && (
+                        <button onClick={search.loadMore} disabled={search.loadingMore}
+                          className="w-full py-2.5 rounded-xl border border-dashed border-slate-600 text-sm font-semibold text-slate-300 disabled:opacity-60">
+                          {search.loadingMore ? t("races.find.searching") : t("races.find.loadMore")}
+                        </button>
                       )}
                     </div>
                   )}
@@ -856,7 +840,7 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, catalogu
       </div>
 
       {showAddRace && <RaceFormModal
-        catalogue={catalogue} addRace={addRace} addEdition={addEdition}
+        addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast}
         prefill={{date: raceDate, distanceKm, elevation: Number(raceElevation) || 0}}
         onCreated={onRaceCreated}

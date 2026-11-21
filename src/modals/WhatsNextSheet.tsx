@@ -4,12 +4,13 @@ import { ChevronRight, Flag, Gauge, Leaf, MapPin, Mountain, Sparkles, Target } f
 import { useDismissable } from "../hooks/useDismissable";
 import { useNearMeFilter } from "../hooks/useNearMeFilter";
 import { track } from "../telemetry";
-import { findEdition, searchEditions } from "../utils/races";
+import { findEdition, flattenRaces } from "../utils/races";
+import { useRaceSearch } from "../hooks/useRaceSearch";
 import { fmt, ymd } from "../utils/format";
 import { BlockRecap } from "../components/BlockRecap";
 import type { BlockRecap as Recap } from "../utils/blockRecap";
 import {
-  FASTER_OPTIONS, FEELINGS, bestSecByKey, goalOrder, raceSuggestions, wishlistLead,
+  FASTER_OPTIONS, FEELINGS, bestSecByKey, goalOrder, raceSuggestions, suggestionSearch, wishlistLead,
   type Feeling, type GoalOption, type WhatsNextVariant,
 } from "../utils/whatsNext";
 import type { OpenTarget, Participation, Run } from "../types";
@@ -59,7 +60,9 @@ export function WhatsNextSheet({ variant, label, kmRef, recap, blockRunner, part
   const today = ymd(new Date());
   const near = useNearMeFilter("whatsnext_near_me");
   const lead = wishlistLead(participations, today);
-  const suggestions = lead ? [] : raceSuggestions(searchEditions("", today), {
+  const nearLoc = near.nearMe ? near.loc : null;
+  const found = useRaceSearch(suggestionSearch(today, kmRef, nearLoc), !lead);
+  const suggestions = lead ? [] : raceSuggestions(flattenRaces(found.races), {
     today, km: kmRef, listed: participations, loc: near.nearMe ? near.loc : null,
   });
   const best = bestSecByKey(runs);
@@ -108,7 +111,12 @@ export function WhatsNextSheet({ variant, label, kmRef, recap, blockRunner, part
               </button>
             </div>
             {near.status === "denied" && <p role="alert" className="text-xs text-amber-300">{t("whatsNext.race.denied")}</p>}
-            {suggestions.length
+            {found.status === "loading" ? <p className="text-xs text-slate-500">{t("races.find.searching")}</p>
+              : found.status === "error" ? (
+                <p className="text-xs text-slate-400">{t("races.find.searchFailed")}{" "}
+                  <button onClick={found.retry} className="font-semibold text-orange-400 hover:text-orange-300">{t("races.find.retry")}</button></p>
+              )
+              : suggestions.length
               ? suggestions.map(({ e, distM }) => raceRow(String(e.name), e.edition.date, Number(e.edition.distanceKm) || 0,
                   () => answer({ choice: "race", edition: e }), distM != null ? Math.round(distM / 1000) + " km" : undefined))
               : <p className="text-xs text-slate-400">{t("whatsNext.race.none")}</p>}

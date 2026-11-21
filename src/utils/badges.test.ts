@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { computeBadges, nextBadge, unlockedIds } from "./badges";
+import { badgeMoment, computeBadges, nextBadge, unlockedIds } from "./badges";
+import type { Run } from "../types";
 
 type TestRun = { date: string; km: number; type?: string };
 type TestParticipation = { status: string; distanceKm: number; timeSec?: number | null };
@@ -112,5 +113,27 @@ describe("stretching badges", () => {
   it("counts two sessions in one week as one week", () => {
     const badges = withStretch([], [], [s("2026-01-05"), s("2026-01-07"), s("2026-01-11")]);
     expect(get(badges, "stretch-weeks-4").progress).toBeCloseTo(0.25);
+  });
+});
+
+describe("badgeMoment", () => {
+  const r = (date: string, km: number, type = "EASY") => ({ date, km, type, durationSec: km * 360 }) as Run;
+
+  it("names the badge a run unlocked, and how many more came with it", () => {
+    const m = badgeMoment(r("2026-01-12", 11), [r("2026-01-05", 4)]);
+    expect(m).toMatchObject({ kind: "unlocked", badge: { id: "dist-first-5k" }, more: 1 });
+  });
+
+  it("otherwise names the locked badge the run moved closest to completion", () => {
+    const m = badgeMoment(r("2026-01-12", 4), [r("2026-01-05", 3)]);
+    expect(m?.kind).toBe("closer");
+    expect(m?.badge.id).toBe("dist-first-5k");
+    expect(m?.badge.hint).toMatch(/1 km/);
+  });
+
+  it("says nothing when the run moved no badge", () => {
+    const before = [r("2026-01-06", 2), r("2026-01-05", 6)];
+    // Same week, shorter than the longest, a cross-training session: nothing a run badge counts.
+    expect(badgeMoment(r("2026-01-07", 0, "OTHER"), before)).toBeNull();
   });
 });

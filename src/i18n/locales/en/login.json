@@ -42,6 +42,8 @@
     "back": "Use a different address"
   },
   "genericError": "Something went wrong.",
+  "callbackFailed": "Sign-in didn't finish. Please try again.",
+  "linkSignInFailed": "That link couldn't sign you in here. If you've confirmed your email, sign in with your email and password.",
   "dataSync": "Your data syncs securely to your account.",
   "privacy": "Privacy",
   "bgLocation": {
@@ -51,6 +53,7 @@
     "bulletRoute": "Used to draw your route and compute distance, pace, and elevation.",
     "bulletStored": "Stored in your own account; never sold or shared with third parties.",
     "privacyNote": "See our <privacy>Privacy Policy</privacy>. When you tap Allow, your phone will ask to use your location — choose <strong>“While using the app”</strong>; recording keeps going with the screen off.",
+    "privacyNoteIos": "See our <privacy>Privacy Policy</privacy>. When you continue, your phone asks whether to share your location with Running Coach.",
     "privacyNoteBg": "See our <privacy>Privacy Policy</privacy>. Location is only used while a run is recording.",
     "stepsIntro": "When you continue, Android shows 3 prompts in a row. Here's what to tap:",
     "step1": "<strong>Location:</strong> choose <strong>“While using the app”</strong> and keep <strong>Precise</strong> turned on.",

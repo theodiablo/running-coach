@@ -42,6 +42,8 @@
     "back": "Usar otra dirección"
   },
   "genericError": "Algo salió mal.",
+  "callbackFailed": "No se pudo completar el inicio de sesión. Inténtalo de nuevo.",
+  "linkSignInFailed": "Ese enlace no ha podido iniciar tu sesión aquí. Si ya confirmaste tu correo, inicia sesión con tu correo y contraseña.",
   "dataSync": "Tus datos se sincronizan de forma segura con tu cuenta.",
   "privacy": "Privacidad",
   "bgLocation": {
@@ -51,6 +53,7 @@
     "bulletRoute": "Se usa para dibujar tu ruta y calcular la distancia, el ritmo y el desnivel.",
     "bulletStored": "Se guarda en tu propia cuenta; nunca se vende ni se comparte con terceros.",
     "privacyNote": "Consulta nuestra <privacy>Política de privacidad</privacy>. Al tocar Permitir, tu teléfono te pedirá usar tu ubicación. Elige <strong>«Mientras usas la aplicación»</strong>; la grabación continúa con la pantalla apagada.",
+    "privacyNoteIos": "Consulta nuestra <privacy>Política de privacidad</privacy>. Al continuar, tu teléfono te preguntará si compartes tu ubicación con Running Coach.",
     "privacyNoteBg": "Consulta nuestra <privacy>Política de privacidad</privacy>. La ubicación solo se usa mientras grabas un entrenamiento.",
     "stepsIntro": "Al continuar, Android muestra 3 avisos seguidos. Esto es lo que debes tocar:",
     "step1": "<strong>Ubicación:</strong> elige <strong>«Mientras usas la aplicación»</strong> y mantén activada la opción <strong>Precisa</strong>.",

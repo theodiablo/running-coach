@@ -5,6 +5,7 @@
   "delete": "Delete",
   "back": "Back",
   "next": "Next",
+  "continue": "Continue",
   "done": "Done",
   "skip": "Skip",
   "undo": "Undo",
@@ -16,13 +17,13 @@
   "notNow": "Not now",
   "gotIt": "Got it",
   "types": {
-    "EASY": "EASY",
-    "TEMPO": "TEMPO",
-    "INTERVALS": "INTERVALS",
-    "LONG": "LONG",
-    "RACE": "RACE",
-    "WALK": "WALK",
-    "OTHER": "OTHER"
+    "EASY": "Easy",
+    "TEMPO": "Tempo",
+    "INTERVALS": "Intervals",
+    "LONG": "Long run",
+    "RACE": "Race",
+    "WALK": "Walk",
+    "OTHER": "Other"
   },
   "activities": {
     "bike": "Bike",
@@ -31,21 +32,30 @@
     "other": "Other"
   },
   "phases": {
-    "BASE": "BASE",
-    "BUILD": "BUILD",
-    "PEAK": "PEAK",
-    "TAPER": "TAPER",
-    "RACE": "RACE",
-    "RECOVERY": "RECOVERY"
+    "BASE": "Building a base",
+    "BUILD": "Getting stronger",
+    "PEAK": "Hardest weeks",
+    "TAPER": "Easing off",
+    "RACE": "Race week",
+    "RECOVERY": "Recovering"
   },
   "hrTargetNudge": "Add your HR profile in Settings to see a target zone",
   "hrRowZone": {
-    "EASY": "Z2 · Aerobic Base",
-    "LONG": "Z2 · Aerobic Base",
-    "TEMPO": "Z3-4 · Lactate Threshold",
-    "INTERVALS": "Z4-5 · Max effort (reps)",
-    "RACE": "Z3-4 · Race effort",
-    "WALK": "Z1 · Recovery",
-    "OTHER": "Z2 · Aerobic Base"
+    "EASY": "Zone 2 · easy, you can chat",
+    "LONG": "Zone 2 · easy, you can chat",
+    "TEMPO": "Zone 3–4 · hard but controlled",
+    "INTERVALS": "Zone 4–5 · very hard, in short reps",
+    "RACE": "Zone 3–4 · race effort",
+    "WALK": "Zone 1 · very easy",
+    "OTHER": "Zone 2 · easy"
+  },
+  "typeHints": {
+    "EASY": "Easy runs are slow enough to chat the whole way. Most of your running should feel like this.",
+    "TEMPO": "A tempo run is steady and hard but controlled: faster than easy, slower than a race. It teaches you to hold a strong pace for longer.",
+    "INTERVALS": "Intervals are short, fast efforts with easy jogging between them. They build speed without wearing you out.",
+    "LONG": "The long run is the longest of your week, at an easy pace. It builds the endurance to go the distance.",
+    "RACE": "Race day: everything in the plan builds to this.",
+    "WALK": "Walking or other low-impact work keeps you moving while your legs recover.",
+    "OTHER": "Cross-training (bike, swim, elliptical) builds fitness without the pounding of running."
   }
 }

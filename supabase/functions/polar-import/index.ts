@@ -3,7 +3,7 @@
 // sync, disconnect. Not CI-testable (live Polar); verify end-to-end after registering
 // an app. Architecture, deploy/secrets: docs/integrations-polar.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.2";
 
 const POLAR_CLIENT_ID = Deno.env.get("POLAR_CLIENT_ID");
 const POLAR_CLIENT_SECRET = Deno.env.get("POLAR_CLIENT_SECRET");

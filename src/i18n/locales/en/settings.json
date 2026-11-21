@@ -101,7 +101,8 @@
   "deleteAccount": {
     "title": "Delete account",
     "body": "This permanently deletes your account and all associated data — runs, GPS routes, training plan, and settings. <bold>This cannot be undone.</bold>",
-    "error": "Something went wrong. Please try again or email theo.camboulive.dev@gmail.com."
+    "error": "Something went wrong. Please try again.",
+    "errorWithEmail": "Something went wrong. Please try again or email {{email}}."
   },
   "hr": {
     "title": "Heart rate",
@@ -173,7 +174,7 @@
     "bullet1": "Bluetooth is used <bold>only to find and read your sensor</bold> — never for location.",
     "bullet2": "Your heart rate is saved on your run, in your own account.",
     "bullet3": "Nothing is sold or shared with third parties.",
-    "policy": "See our <link>Privacy Policy</link>. When you tap Allow, Android will ask to use nearby Bluetooth devices.",
+    "policy": "See our <link>Privacy Policy</link>. When you continue, your phone asks whether Running Coach may use nearby Bluetooth devices.",
     "accept": "Allow & continue"
   },
   "guides": {

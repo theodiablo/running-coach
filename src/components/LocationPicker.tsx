@@ -8,6 +8,7 @@ import { INPUT_CLS, MAP_ATTRIBUTION, MAP_KEY, MAP_TILE_URL } from "../constants"
 import { cachedTileLayer } from "./cachedTileLayer";
 import { geoSource } from "../geo/source";
 import { geocodePlace } from "../utils/geocode";
+import { wrapLng } from "../utils/geo";
 
 type LatLng = { lat: number; lng: number };
 
@@ -62,10 +63,10 @@ export function LocationPicker({ initial, geocodeQuery, onConfirm, onCancel }: L
       markerRef.current.on("dragend", () => {
         const ll = markerRef.current?.getLatLng();
         if (!ll) return;
-        setPicked({ lat: ll.lat, lng: ll.lng });
+        setPicked({ lat: ll.lat, lng: wrapLng(ll.lng) });
       });
     }
-    setPicked({ lat, lng });
+    setPicked({ lat, lng: wrapLng(lng) });
   };
 
   useEffect(() => {

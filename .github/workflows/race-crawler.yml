@@ -1,0 +1,95 @@
+# Race-catalogue crawler: reads Rock the Sport, Find a Race and ATS Sport, adds the clean
+# proposals to the catalogue as UNVERIFIED rows and logs every proposal in
+# race_crawl_items (the ledger the review skill works from). The report is the
+# job summary and an artifact. Detail: docs/race-crawler.md.
+
+name: Race crawler
+
+on:
+  schedule:
+    - cron: "37 4 * * 1" # Mondays 04:37 UTC (off the hour: shared runner capacity)
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Comma-separated sources"
+        # runninglife is local-only: Cloudflare refuses GitHub's runners.
+        default: "rockthesport,findarace,atssport"
+      since_days:
+        description: "Sitemap sources: pages changed in the last N days"
+        default: "15"
+      max_pages:
+        description: "Cap per sitemap / country calendar (0 = no cap)"
+        default: "0"
+      dry_run:
+        description: "Report only, write nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: race-crawler
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      # A step's own env is not visible to its `if`, so this lives at job level.
+      SES_CONFIGURED: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID != '' && secrets.MAINTAINER_EMAIL != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Crawl
+        env:
+          SUPABASE_URL: https://${{ vars.SUPABASE_PROJECT_REF }}.supabase.co
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SOURCES: ${{ inputs.sources || 'rockthesport,findarace,atssport' }}
+          SINCE_DAYS: ${{ inputs.since_days || '15' }}
+          MAX_PAGES: ${{ inputs.max_pages || '0' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          apply=--apply
+          if [ "$DRY_RUN" = "true" ]; then apply=; fi
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            apply=
+            echo "::warning::SUPABASE_ACCESS_TOKEN is not set: report only, nothing written."
+          fi
+          node scripts/race-crawler/crawl.mjs $apply \
+            --sources "$SOURCES" --since-days "$SINCE_DAYS" --max-pages "$MAX_PAGES" \
+            --out race-crawl-report/report
+      - name: Email the maintainer on failure
+        # Same SES sender and IAM user as ses-weekly-report.yml; a failure there stays a warning so the
+        # run still reads red for the crawl itself.
+        if: failure() && env.SES_CONFIGURED == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SES_REPORT_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SES_REPORT_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-west-1
+          FROM_EMAIL: Running Coach <noreply@camboulive.solutions>
+          REPORT_EMAIL: ${{ secrets.MAINTAINER_EMAIL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "The race crawler run failed: $RUN_URL"
+            echo
+            if [ -f race-crawl-report/report.md ]; then head -n 12 race-crawl-report/report.md; else echo "No report was written: the run failed before the end (see the log)."; fi
+          } > failure.txt
+          aws sesv2 send-email \
+            --from-email-address "$FROM_EMAIL" \
+            --destination "ToAddresses=$REPORT_EMAIL" \
+            --content "{\"Simple\":{\"Subject\":{\"Data\":\"Running Coach - race crawler failed\"},\"Body\":{\"Text\":{\"Data\":$(jq -Rs . failure.txt)}}}}" \
+            || echo "::warning::failure email could not be sent"
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: race-crawl-report
+          path: race-crawl-report/
+          retention-days: 30
+          if-no-files-found: ignore

@@ -86,6 +86,23 @@ Other iOS signing gotchas, all hit in practice:
   though the app never writes to Health — HealthKit framework presence alone
   triggers it, so keep that key when touching Info.plist.
 
+## iOS toolchain (Xcode 27+, scene lifecycle)
+
+Both iOS jobs (`ios-pr.yml`, `release.yml`) run on GitHub's `xcode-27` image and
+select the newest Xcode 27+ on it, failing if `xcrun` reports an iOS SDK below 27.
+That label is still a GitHub *preview*; move to the GA macOS image that ships
+Xcode 27 once one exists. The deployment target (15.4) is a floor, not a ceiling:
+bumping the SDK never drops older devices.
+
+Built with the iOS 27 SDK, an app without the **UIScene lifecycle** does not
+launch, so `Info.plist` declares a `UIApplicationSceneManifest` and
+`SceneDelegate.swift` forwards to Capacitor's `SceneDelegateProxy`. The window
+still comes from `Main.storyboard` (`UISceneStoryboardFile`), which is what keeps
+`MainViewController` registering the local plugins. Custom-scheme URL
+opens (auth callbacks, the Polar/Suunto/COROS returns) arrive through the scene
+delegate: UIKit no longer calls the app-delegate versions, so never add those
+back to `AppDelegate`.
+
 ## iPhone-only (no iPad build)
 
 Both iOS targets (`App` and the `LiveActivityWidget` extension, which must match
@@ -132,19 +149,59 @@ write in `release.yml`. `min_supported_version` / `min_supported_version_ios`
 
 `App.tsx` selects all four columns and compares the installed version
 (`App.getInfo()`) against its platform's pair via `versionStatus`
-(`src/utils/version.ts`); a failed check never blocks the user. iOS store links
-need `APP_STORE_URL` (`src/constants.ts`) filled in once the App Store record
-exists — the update prompt hides its button while it's empty.
+(`src/utils/version.ts`); a failed check never blocks the user. On a Play
+install the *soft* prompt then follows Play instead (next section), so
+`latest_version` matters there only for installs Play can't answer for.
+`APP_STORE_ID` (`src/constants.ts`) is the number in the app's App Store
+Connect URL. The shell doesn't need it (it looks its listing up by bundle id
+once public); the web's "get the app" links do, at launch.
 
-**Gotcha — never open the store link through `@capacitor/browser` on Android**
-(tapping "Update" crashed the app on-device): the plugin's Custom Tabs path
-only catches `ActivityNotFoundException` natively, so any other failure
-launching the tab kills the process. `openStore` (`UpdatePrompt.tsx`) instead
-does a plain top-frame navigation — Capacitor's WebViewClient intercepts
-external hosts (`Bridge.launchIntent`) and hands them to the OS as an
-`ACTION_VIEW` intent, which the Play Store app claims. Use the same pattern for
-any future Android outbound link that a native app should claim; `Browser.open`
-stays correct for iOS (SFSafariViewController, as in OAuth).
+## Store prompts (updates and reviews)
+
+One local plugin per shell, `StoreBridge` (`StoreBridgePlugin.kt`: Play In-App
+Updates and the installer check; `StoreBridgePlugin.swift`: StoreKit review,
+`SKStoreProductViewController`, the write-a-review link and the TestFlight
+check), wrapped by `src/storeBridge.ts`. Every call degrades to the app's own card.
+
+- **Android updates: Play is the truth when it answers.** It knows staged
+  rollouts and testing tracks, so a closed-testing tester is offered the beta
+  and nobody is sent to a listing that only says "Open". `resolveAppUpdate`
+  (`src/utils/version.ts`) picks Play over `app_config` whenever
+  `getUpdateInfo` resolves; a sideloaded/debug install rejects and falls back
+  to the store card. Play's *flexible* dialog opens by itself on a calm Home
+  (`StorePrompts`), once per version code plus one reminder a week later
+  (`playPromptDue`, per device); Home then shows the download and a Restart
+  row, **never while a recorder is open** (`completeUpdate` restarts the
+  process, which would end the run). `min_supported_version` opens Play's
+  *immediate* flow over `UpdateRequired`. A floor the store can't satisfy yet
+  (Play offers this install nothing, or the live App Store version is below
+  it: review or rollout still going) turns the button into "Check again"
+  (`requiredUpdatePending`) instead of a listing that only says "Open".
+- **iOS has no update API.** The store card stays (iOS and non-Play Android);
+  its button opens the App Store page in-app, or the TestFlight app on a beta
+  build (sandbox receipt).
+- **Review requests come at a moment the app picks, and only from someone
+  whose review would be public.** The moment is a run the runner just saved
+  from a recorder or the form (a running run dated today or yesterday; not
+  imports, cloud runs reviewed in the form, race results, cross-training or
+  back-fills), spent on the next calm Home whether or not anything shows, on
+  the reconciled store, never while an update is pending.
+  `reviewCardDue` (`src/utils/storePrompts.ts`) gates on a regular runner (6+
+  runs, first one 14+ days ago, 3+ in the last 21 days, none cross-training),
+  up to 4 asks 21+ days apart; "Leave a review" or "Don't ask again" ends it
+  (`settings.reviewPrompt`, synced; an ask counts once actually seen, and only
+  once however often Home remounts). `reviewChannelFor` decides who:
+  - **Android: the developer's own Home card** (`ReviewCard`), linking to the
+    Play listing. The native In-App Review sheet can carry no text of ours and
+    Play forbids opening it from a button or after a question, so it isn't used.
+    Only Play installs (installer check, not sideloaded/debug) and never a
+    tester on a build ahead of production `latest_version`, whose review would
+    be private feedback.
+  - **iOS: Apple's own sheet** at the same moments, no text of ours: 5.6.1
+    disallows custom review prompts. Never in TestFlight or Xcode builds.
+  - **Settings → "Rate Running Coach"** opens the write-a-review page (a link
+    the user taps is allowed on both stores): Android always, iOS once the app
+    is listed. A review opened from there ends the Home asks too.
 
 ## Promoting an Android build
 
@@ -162,6 +219,10 @@ validates the edit and discards it. The service account behind
 Console. Promotion is still not publication: production goes through Play
 review, so "Publish app version" stays the separate step that flips the
 update prompt.
+
+`/ship` uses both promotions for beta testers after every release: Android
+`internal → alpha` (closed testing), iOS `testflight` to the "Friends" and
+"Others" groups. Neither touches production.
 
 ## Promoting an iOS build
 
@@ -197,6 +258,31 @@ appears is the previous release. A build Apple marked FAILED/INVALID stops it.
 transient failures; writes never do. As on Android, promotion is not
 publication: run "Publish app version" once the release is live.
 
+## What App Review checks beyond the binary
+
+- **Permission primers (5.1.1(iv)).** A screen that explains a permission before
+  the OS prompt (`BgLocationDisclosure`, `HrSensorDisclosure`,
+  `SessionReminderDisclosure`) renders its buttons through
+  `PermissionPrimerButtons`. On iOS that is one **Continue**, which always leads
+  to the prompt: no "Allow" wording (the OS prompt is where permission is
+  given) and no "Not now" (a primer may not let the user put the prompt off).
+  Android keeps the accept/decline pair, because Google Play's prominent
+  disclosure requires the user to accept explicitly. On iOS, primer copy never
+  tells the user which option to pick on the OS prompt (`privacyNoteIos`), and
+  onboarding has no race-ready checklist (`onboardingSteps`, Android only): its
+  only iOS row was Location, beside a page "Continue" that skipped the prompt. Pinned by
+  `src/modals/permissionPrimers.test.tsx`.
+- **Background audio (2.5.4).** `UIBackgroundModes` declares `audio` for the
+  spoken run guidance: without it iOS won't re-activate playback for a
+  backgrounded app, so cues stop in a locked pocket (`docs/guided-workouts.md`).
+  A reviewer who never starts a guided run hears nothing, so the App Review notes
+  must explain it and link a screen recording, made on a physical iPhone, that
+  starts a run with audio guidance, goes to the Home Screen, and hears a cue.
+- **Paired hardware (2.1).** Because the app pairs a Bluetooth heart-rate
+  sensor, App Review asks for a video of a physical device pairing a real sensor
+  and recording a run with it. Keep its link in the App Review notes, together
+  with the background-audio recording and the demo account.
+
 ## Database migrations
 
 **On merge to `main` this is automatic.** The Supabase GitHub integration
@@ -226,7 +312,8 @@ minutes after the squash-merge, with no manual step.
   If it hasn't landed after ~15 minutes, look at the integration's run in the
   Supabase dashboard (Project Settings → Integrations → GitHub), and fall back
   to `supabase db push` from a linked checkout of `main`, which applies the
-  same file under the same version.
+  same file under the same version. CLI v3 asks before any hosted change and
+  fails unattended without `--yes`; `--remote=<ref>` names the project.
 
 ## Deploying Supabase edge functions
 

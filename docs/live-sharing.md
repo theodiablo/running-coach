@@ -85,6 +85,15 @@ recorded in (screen off, phone in a pocket). `canPublishNow()` is checked before
 `simplify()` so the ~1/s foreground clock ticks don't re-simplify a long trace
 only to discard it.
 
+**A failing link stretches the cadence**: every write re-sends the whole trace,
+so after two consecutive failures the interval doubles to 60s, then 120s
+(`publishIntervalMs`), and the first write that lands snaps it back to 30s.
+Status and visibility changes still jump the queue, and one that fails restarts
+the curve at 30s so a watcher isn't left on a stale status for two minutes. The native uploader mirrors
+the same curve (`MAX_BACKOFF_SHIFT`, parity-tested in `livePublishSeed.test.ts`)
+and skips its immediate retry after a timeout, which only doubles the time the
+radio and the wake lock are held on a link that isn't there.
+
 The consequence is that **a stationary runner publishes nothing**: with
 `distanceFilter` in play, standing still emits no fixes. That is not a bug to
 fix at the recorder; the watcher owns staleness and says so on its own. Status
@@ -294,9 +303,24 @@ the gap. It runs on a failed status too, so a blocked websocket still gets its
 initial read before falling through to polling.
 
 The hook is mounted **once**, in `RunningCoach`, and threaded through the
-`shared` bag — two consumers (banner + modal) must not open two channels. It
-subscribes for any signed-in `uid`, whether or not that account has ever used
-live sharing; most reads simply come back empty.
+`shared` bag — two consumers (banner + modal) must not open two channels.
+
+**A channel is a Realtime connection, and the plan caps them** (200 concurrent
+on Free, 500 on Pro), so the hook holds one only while the page is visible
+**and** the account has gone on air before (`settings.liveShareUsed`, set by
+the recorder whenever a broadcast starts), or this session has seen its run
+live (latched for the session, so the channel outlives that run's DELETE).
+Everyone else gets the same snapshot read on activation and on every return to
+the page, and no socket. Each subscription takes its own topic: `channel(topic)`
+hands back a same-topic channel still waiting on its leave reply, which would
+silently drop the new bindings after a quick hide-and-show. That torn-down
+channel's late `CLOSED` is ignored rather than read as Realtime failing (which
+would start the poll).
+
+**The gap**: a session loaded before the account's flag synced, and that has
+not seen a run live, learns of a broadcast on its next return to the page (or
+reload), not instantly. That covers an account's first broadcast, and every
+account that shared before the flag existed until its next broadcast syncs.
 
 ## Usage metrics
 
@@ -321,6 +345,41 @@ live sharing; most reads simply come back empty.
   page still reads.
 - Same-account watching (`useLiveRun`) never touches `live-watch` and isn't
   counted: a runner watching themselves isn't adoption.
+
+## Edge cache
+
+Supabase's own Cloudflare never caches a function response (`cf-cache-status:
+DYNAMIC` whatever the headers; its CDN caching is Storage-only), so the public
+page's polls are cached by **our** CloudFront instead (`infra/site.tf`,
+behavior `/live-watch/*` → the `supabase-functions` origin):
+
+- **The token rides the path** (`/live-watch/<token>`), because the managed
+  `CachingOptimized` policy keys on the path alone; a custom cache policy would
+  be a resource the Terraform apply role can't create. Nothing else (query,
+  headers, cookies) reaches supabase.co on that path.
+- **Only a uniform 200 is meant to be shared.** `live-watch` sends
+  `s-maxage=10` on a path read's `{ live }` answer and `no-store` on everything
+  else. CachingOptimized's 1s minimum TTL still lets a 5xx sit at a PoP for a
+  second or so; what keeps that harmless is the client, which re-reads direct
+  on anything but a live answer from the edge. A ?t= or batch read is never
+  cacheable.
+- **The view count still happens direct.** The cached read carries no viewer
+  id, so `fetchLiveWatch` polls direct with `v` until it has seen the broadcast
+  live once (`countedBroadcast`, per `started_at`), then switches to the cache;
+  a new `started_at` seen through the cache sends one more direct read.
+- **The cost is about 10s of staleness** (possibly up to ~20s when a regional
+  edge cache and a PoP each hold it), on top of the 30s cadence: a run that
+  ends, is hidden (`share_public` off) or has its link retired can still be
+  served for those seconds. That bound is the trade for N spectators of one
+  runner costing one function call and one database read per 10s per edge
+  location, not N.
+- **Web origin only.** The path exists on `WEB_APP_ORIGIN`; anywhere else
+  (PR previews on their own origin, dev) the page reads direct. **The edge is never the
+  last word**: a cached `{ live: false }`, a non-JSON answer (the SPA fallback,
+  while the behavior isn't deployed), any non-200 including a 429, or a network
+  failure is re-read direct in the same call. That also makes the merge order-free: the bundle, the
+  function and the CloudFront behavior can land in any order.
+- The batch read (following several runners) is a POST and stays uncached.
 
 ## Known limits
 

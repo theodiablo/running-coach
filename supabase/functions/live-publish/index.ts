@@ -3,7 +3,7 @@
 // CONTINUE a broadcast, never open one. Every failure answers a uniform `{ live: false }`
 // (also the uploader's stop signal). Contract: docs/live-sharing.md.
 
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "npm:@supabase/supabase-js@2.119.2";
 import { isValidPublishToken, isValidPointBatch, sanitizeStats } from "../_shared/livePublish.mjs";
 
 // Stricter than live-watch's read budget: one uploader per run writes every

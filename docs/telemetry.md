@@ -165,8 +165,9 @@ choice either way.
   on every tab switch and on the header brand-mark reset (`homeNonce`), and a
   ref would re-fire on each, inflating the metric. So it reads as
   "how many people are carrying open sessions and how many" — and
-  `overdue_resolved` `{action:"done"|"skip"|"coach"}` when one of the card's
-  actions is used (`src/views/Dashboard.tsx`). Counts and an enum only, never a
+  `overdue_resolved` `{action:"done"|"skip"|"change"}` when one of the card's
+  actions is used (`"change"` replaced `"coach"` when "Adjust my plan" began
+  opening the Change my plan sheet) (`src/views/Dashboard.tsx`). Counts and an enum only, never a
   session date or description. These two are the retention loop's own metric:
   the point of the feature is that a backlog gets resolved rather than silently
   abandoned.
@@ -178,14 +179,25 @@ choice either way.
   `runPlanAutomation` appends the next blocks; `open_plan_autostarted`
   `{hadRuns:boolean}` when it starts a plan for a runner who never answered
   (`src/RunningCoach.tsx`). Enums only, never a race or a time.
+- "Change my plan" (`docs/training-plan.md`): `plan_change_opened`
+  `{source:"plan"|"overdue"}` when the sheet is opened, and
+  `plan_change_picked` `{choice:"goal"|"avail"|"style"|"session"|"coach"}`
+  for the answer (`src/views/PlanView.tsx`, `src/RunningCoach.tsx`). Enums
+  only. It answers whether runners now find how to change their plan, and
+  which change they come for.
 - `debrief_answered` `{answer:"ran"|"didnt"|"moved"|"feel"}` — the post-race
   debrief card on Home (`src/views/Dashboard.tsx`, `docs/training-plan.md`).
   An enum only: never the time, the race or the effort chosen.
 - `plan_session_edited` `{action:"update"|"add"|"delete", warnings, moved?,
   swapped?, retyped?, resized?}` — a manual plan edit (`docs/training-plan.md`).
   `warnings` is how many validator heads-ups the runner saved through.
+- `did_it_picked` `{choice:"details"|"saved"|"tick"}` — the answer to "I did
+  it" on a plan session (`src/modals/DidItSheet.tsx`, Home and Plan): add the
+  run's details, pick a saved run, or just tick it off. An enum only. It
+  replaced three buttons on the card, so it says which of them was needed.
 - `session_reconciled` `{moved, gap}` — a run already in the log was named as
-  the one that settled a plan session ("I already ran this", `ReconcileSheet`).
+  the one that settled a plan session ("I did it" → "Pick a run I already
+  saved", or an overdue row's link; `ReconcileSheet`).
   `gap` is the whole-day distance between the run and the session (0-3, see
   `MATCH_WINDOW_DAYS`) and `moved` whether the session was re-dated onto the
   run's day. A boolean and a small integer only — never a date or a description.
@@ -220,10 +232,10 @@ choice either way.
   runner resolves the tracker's resume card (`src/modals/LiveRunTracker.tsx`).
   Measures how often recordings are interrupted and whether recovery works.
 - Coach agent events: `coach_opened`
-  `{source:"header"|"dashboard"|"plan_session"|"settings"|"other"}` when the
+  `{source:"header"|"dashboard"|"plan_session"|"change_plan"|"settings"|"recovery"|"other"}` when the
   chat is opened, fired in the hub's one `openCoach` seam
   (`src/RunningCoach.tsx`) so every entry point is counted the same way — it's
-  how the header button's pull is compared against the dashboard card and the
+  how the header button's pull is compared against the Change my plan sheet and the
   per-session "Ask coach". Pairs with `coach_message_sent` as an
   open→first-message funnel (an open with no message is an abandoned chat).
   `coach_message_sent` `{followUp}` when the user sends a
@@ -257,6 +269,39 @@ choice either way.
   sell — but it is **dormant today**: premium entry points are hidden from free
   users (`canShowPremiumTeaser === false`), so this fires ~never until the tier
   is unveiled. Don't read the silence as no demand. See `docs/monetization.md`.
+- Store prompts (`docs/release.md`, "Store prompts"): `app_update_prompted`
+  `{outcome:"accepted"|"declined"|"failed"|"unavailable"}` when Play's flexible
+  update dialog was opened (`src/components/StorePrompts.tsx`);
+  `review_card_shown` `{ask}` when the Android review card is first on screen
+  and `review_card_answered` `{answer:"review"|"later"|"never", ask}`;
+  `review_requested` `{ask}` when Apple's review sheet was asked for on iOS,
+  which never says whether it showed, so it counts asks, not reviews
+  (`src/RunningCoach.tsx`). `ask` is 1-4.
+- Sign-in (`src/auth/authTelemetry.ts`, fired from `src/LoginScreen.tsx` and
+  the native callback in `src/App.tsx`): `auth_started` `{method}`,
+  `auth_completed` `{method}`, `auth_failed` `{method, stage, code}` and
+  `auth_cancelled` `{method, loaded?, secs?}`. `method` is `password` |
+  `signup` | `google` | `apple` | `apple_native` | `deeplink` (a native callback
+  no in-app tap started: an email link, or one that outlived an app restart).
+  `stage` is where it broke: `request` (the call to Supabase, or the native
+  Apple sheet), `browser` (the in-app browser wouldn't open), `provider` (the
+  callback came back carrying an error), `exchange` (the PKCE code was refused).
+  `code` is GoTrue's own snake_case error code, else `network` / `timeout` (the
+  request never got an answer) / `http_<status>` / `unknown` — never the message,
+  which can echo an address. `auth_cancelled` on the browser flow is iOS-only:
+  the user closed SFSafariViewController themselves, with `loaded` (its first
+  page finished loading, successfully or not) and `secs` it was open (capped at
+  600), so "never got a page" reads apart from "saw Google and gave up". Android
+  hands OAuth to the system browser, which reports nothing back (its callback is
+  still credited to the provider tapped). `apple_native` starts only once the
+  sheet answers; a device that can't show it falls back to the browser flow and
+  counts as `apple`. A web OAuth
+  completion isn't counted (the page itself redirects); a `signup` completes
+  when the confirmation mail is sent. Events fired before sign-in are anonymous
+  and join the account's person when `identifyUser` runs, so one failed attempt
+  can be read in the context of the account that eventually got in. Like every
+  event they need analytics consent; on native the consent screen comes before
+  the login screen, so the choice has been made by the time any of these fire.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 

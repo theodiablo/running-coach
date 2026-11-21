@@ -53,7 +53,7 @@ describe("SessionEditSheet", () => {
     const easy = w.sessions.find(x => x.type === "EASY" && x.date !== before)!;
     const h = setup(plan, { kind: "edit", session: easy, weekNumber: w.weekNumber });
     fireEvent.click(dayChip(before));
-    fireEvent.click(screen.getByRole("button", { name: "INTERVALS" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intervals" }));
     expect(screen.getByText("Heads-up")).toBeInTheDocument();
     expect(screen.getByText(/back to back/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save anyway" }));
@@ -91,7 +91,7 @@ describe("SessionEditSheet", () => {
     const busy = new Set(w.sessions.map(s => s.date));
     const day = Array.from({ length: 7 }, (_, i) => dayAfter(w.startDate!, i)).find(d => !busy.has(d))!;
     const h = setup(plan, { kind: "add", weekNumber: w.weekNumber, date: day });
-    fireEvent.click(screen.getByRole("button", { name: "WALK" }));
+    fireEvent.click(screen.getByRole("button", { name: "Walk" }));
     fireEvent.click(screen.getByRole("button", { name: /^(Add|Save anyway)$/ }));
     expect(h.onSave.mock.calls[0][0]).toMatchObject({ kind: "add", date: day, type: "WALK" });
   });

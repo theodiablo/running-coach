@@ -5,6 +5,7 @@
   "delete": "Eliminar",
   "back": "Atrás",
   "next": "Siguiente",
+  "continue": "Continuar",
   "done": "Hecho",
   "skip": "Omitir",
   "undo": "Deshacer",
@@ -16,13 +17,13 @@
   "notNow": "Ahora no",
   "gotIt": "Entendido",
   "types": {
-    "EASY": "SUAVE",
-    "TEMPO": "TEMPO",
-    "INTERVALS": "SERIES",
-    "LONG": "TIRADA LARGA",
-    "RACE": "CARRERA",
-    "WALK": "CAMINATA",
-    "OTHER": "OTRA ACTIVIDAD"
+    "EASY": "Suave",
+    "TEMPO": "Tempo",
+    "INTERVALS": "Series",
+    "LONG": "Tirada larga",
+    "RACE": "Carrera",
+    "WALK": "Caminata",
+    "OTHER": "Otra actividad"
   },
   "activities": {
     "bike": "Bici estática",
@@ -31,21 +32,30 @@
     "other": "Otra"
   },
   "phases": {
-    "BASE": "BASE",
-    "BUILD": "DESARROLLO",
-    "PEAK": "PICO",
-    "TAPER": "DESCARGA",
-    "RACE": "CARRERA",
-    "RECOVERY": "RECUPERACIÓN"
+    "BASE": "Construir la base",
+    "BUILD": "Ganar fuerza",
+    "PEAK": "Semanas más duras",
+    "TAPER": "Bajar el ritmo",
+    "RACE": "Semana de carrera",
+    "RECOVERY": "Recuperación"
   },
   "hrTargetNudge": "Añade tu perfil de FC en Ajustes para ver una zona objetivo",
   "hrRowZone": {
-    "EASY": "Z2 · Base aeróbica",
-    "LONG": "Z2 · Base aeróbica",
-    "TEMPO": "Z3-4 · Umbral de lactato",
-    "INTERVALS": "Z4-5 · Esfuerzo máx (series)",
-    "RACE": "Z3-4 · Esfuerzo de carrera",
-    "WALK": "Z1 · Recuperación",
-    "OTHER": "Z2 · Base aeróbica"
+    "EASY": "Zona 2 · suave, puedes charlar",
+    "LONG": "Zona 2 · suave, puedes charlar",
+    "TEMPO": "Zona 3-4 · exigente pero controlado",
+    "INTERVALS": "Zona 4-5 · muy duro, en series cortas",
+    "RACE": "Zona 3-4 · esfuerzo de carrera",
+    "WALK": "Zona 1 · muy suave",
+    "OTHER": "Zona 2 · suave"
+  },
+  "typeHints": {
+    "EASY": "Un rodaje suave va lo bastante lento como para charlar todo el rato. La mayoría de tus entrenamientos deberían sentirse así.",
+    "TEMPO": "Un tempo es un esfuerzo sostenido, exigente pero controlado: más rápido que un rodaje suave y más lento que una carrera. Te enseña a mantener un ritmo fuerte durante más tiempo.",
+    "INTERVALS": "Las series alternan esfuerzos cortos y rápidos con trote suave para recuperar. Desarrollan la velocidad sin agotarte.",
+    "LONG": "La tirada larga es la más larga de tu semana, a ritmo suave. Construye la resistencia para completar la distancia.",
+    "RACE": "Día de carrera: todo el plan lleva a este momento.",
+    "WALK": "Caminar u otra actividad suave te mantiene en movimiento mientras tus piernas se recuperan.",
+    "OTHER": "El entrenamiento cruzado (bici, natación, elíptica) mejora tu forma sin el impacto de correr."
   }
 }

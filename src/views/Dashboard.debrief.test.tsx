@@ -54,10 +54,9 @@ describe("Dashboard · before the race", () => {
     expect(screen.queryByText(/0:00/)).toBeNull();
   });
 
-  it("keeps the countdown card and the coach card", () => {
+  it("keeps the countdown card", () => {
     renderDash({ plan: planOf([raceSess(FUTURE_RACE)]), settings: settingsOf(FUTURE_RACE) });
     expect(screen.getByText("days to go")).toBeInTheDocument();
-    expect(screen.getByText("Adjust your plan with your coach")).toBeInTheDocument();
   });
 });
 
@@ -72,7 +71,6 @@ describe("Dashboard · the debrief question", () => {
     expect(screen.getByText("How did City 10K 2026 go?")).toBeInTheDocument();
     expect(screen.queryByText("days to go")).toBeNull();
     expect(screen.queryByText("All upcoming sessions done!")).toBeNull();
-    expect(screen.queryByText("Adjust your plan with your coach")).toBeNull();
   });
 
   it("asks a plainer question for a race the catalogue doesn't know", () => {
@@ -165,7 +163,6 @@ describe("Dashboard · choosing what's next", () => {
   it("offers the next goal and the race list, with no urgency", () => {
     const props = choosing();
     expect(screen.queryByText("All upcoming sessions done!")).toBeNull();
-    expect(screen.queryByText("Adjust your plan with your coach")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Set your next goal/ }));
     expect(props.openPlanGoalEdit).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: /Browse races/ }));

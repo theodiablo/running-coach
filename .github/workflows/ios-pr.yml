@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   compile:
-    runs-on: macos-15
+    runs-on: xcode-27  # only GitHub image with Xcode 27; still a preview label
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,7 +35,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Capacitor 8 CLI requires Node >= 22.
           node-version: 22
@@ -45,18 +45,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Match release.yml's toolchain (App Store uploads require Xcode 26+, and
-      # the macos-15 image defaults to 16.x) so "compiles on the PR" and
-      # "compiles at release" are the same claim.
-      - name: Select Xcode 26
+      # Match release.yml's toolchain (iOS 27 SDK or later) so "compiles on the
+      # PR" and "compiles at release" are the same claim.
+      - name: Select Xcode 27+ (iOS 27+ SDK)
         run: |
-          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          XCODE_APP=$({ ls -d /Applications/Xcode_*.app 2>/dev/null || true; } | { grep -E '/Xcode_(2[7-9]|[3-9][0-9])(\.[0-9]+)*\.app$' || true; } | sort -V | tail -n 1)
           if [ -z "$XCODE_APP" ]; then
-            echo "::error::No Xcode 26.x on this runner image — keep this in sync with release.yml."
+            echo "::error::No Xcode 27+ on this runner image; App Store builds need the iOS 27 SDK."
             exit 1
           fi
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version); echo "iOS SDK $SDK"
+          [ "${SDK%%.*}" -ge 27 ] || { echo "::error::Expected the iOS 27+ SDK, got $SDK"; exit 1; }
 
       # Swift compilation never reads the web bundle; a stub dist satisfies
       # `cap sync`'s webDir copy without building (or leaking secrets to) the

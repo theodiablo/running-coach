@@ -3,7 +3,7 @@
 // live account and dormant until COROS_CLIENT_ID/SECRET are set; § refs are to the COROS API V2.0.6.
 // Protocol, auth style and how it differs from Suunto: docs/integrations-coros.md. sync never advances the cursor; the client acks after saving.
 
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.119.2";
 
 const COROS_CLIENT_ID = Deno.env.get("COROS_CLIENT_ID");
 const COROS_CLIENT_SECRET = Deno.env.get("COROS_CLIENT_SECRET");

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
-// Shared filter chip, used with BANDS/RADII (src/hooks/useNearMeFilter.ts) by
-// the Races tab's Find panel and the onboarding race picker.
+// Filter chip for the onboarding race picker's Near me radius (RADII, src/utils/raceFilters.ts).
 type ChipProps = { active: boolean; onClick: () => void; children: ReactNode };
 
 export function Chip({ active, onClick, children }: ChipProps) {

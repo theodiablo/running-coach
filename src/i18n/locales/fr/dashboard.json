@@ -4,7 +4,7 @@
   "greetingAnon": "Ça fait plaisir de te voir 🏃‍♂️",
   "race": {
     "title": "Jour de course",
-    "summary": "{{distance}} km · objectif : moins de {{goal}} · {{pace}}/km",
+    "summary": "{{distance}} km · objectif {{goal}} · {{pace}}/km",
     "summaryNoGoal": "{{distance}} km · pas d'objectif de temps",
     "daysToGo": "jours restants",
     "nextUp": "À suivre : ",
@@ -61,16 +61,11 @@
       "nothing": "Plus rien à alléger"
     }
   },
-  "stats": {
-    "thisWeek": "Cette semaine",
-    "runsRecorded": "Sorties enregistrées",
-    "total": "Total"
-  },
   "nextBadge": "Prochain badge",
   "overdue": {
     "title_one": "1 séance encore ouverte",
     "title_other": "{{count}} séances encore ouvertes",
-    "subtitle": "La vie fait des siennes. Coche ce que tu as fait, passe ce que tu n'as pas fait, ou demande à ton coach de remodeler le plan.",
+    "subtitle": "La vie fait des siennes. Coche ce que tu as fait, passe ce que tu n'as pas fait, ou adapte ton plan.",
     "more_one": "1 autre dans ton plan",
     "more_other": "{{count}} autres dans ton plan",
     "adjust": "Ajuster mon plan",
@@ -82,12 +77,9 @@
     "today": "Séance du jour",
     "upNext": "À venir",
     "viewInPlan": "Voir dans ton plan",
-    "howItUnfolds": "Comment ça se déroule",
+    "howItUnfolds": "Comment faire",
     "skipTitle": "Passer cette séance",
     "startRun": "Démarrer",
-    "logIt": "Saisir",
-    "markDone": "Marquer terminée",
-    "markDoneLocked": "Tu pourras la valider le {{date}}. Déjà faite ? Utilise Saisir, la sortie sera enregistrée aussi.",
     "confirm": {
       "kicker": "Validée",
       "done": "Bien joué, {{title}} est terminée.",
@@ -96,20 +88,24 @@
       "metaRun": "{{date}} · {{detail}}",
       "runDetail": "{{km}} km en {{dur}}"
     },
-    "alreadyRan": "Je l'ai déjà faite"
+    "alreadyRan": "Lier une sortie déjà enregistrée",
+    "notToday": "Pas aujourd'hui ?"
+  },
+  "week": {
+    "title": "Cette semaine",
+    "plan_one": "{{done}} sur {{count}} séance · {{km}} km",
+    "plan_other": "{{done}} sur {{count}} séances · {{km}} km",
+    "runs_one": "{{count}} sortie · {{km}} km",
+    "runs_other": "{{count}} sorties · {{km}} km"
   },
   "noPlan": "Pas encore de plan d'entraînement. On s'y met ?",
   "setUpPlan": "Configurer mon plan",
   "allSessionsDone": "Toutes les séances à venir sont terminées !",
-  "coach": {
-    "title": "Ajuste ton plan avec ton coach",
-    "subtitle": "Une gêne, une semaine manquée ou un imprévu ? Demande un ajustement."
-  },
   "recentRuns": "Sorties récentes",
   "viewAll": "Tout voir",
   "empty": {
     "noRuns": "Pas encore de sortie.",
-    "hint": "Touche Enregistrer en bas pour ajouter ta première sortie.",
+    "hint": "Touche + en bas pour ajouter ta première sortie.",
     "restore": "Des données d'une version précédente ? Ouvre Paramètres (engrenage, en haut à droite) → Restaurer."
   },
   "recovery": {

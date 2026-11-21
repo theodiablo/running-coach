@@ -5,11 +5,13 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { rememberAppleGrant } from "./auth/appleSignIn";
-import { isNative, isIos } from "./native";
+import { isNative, isIos, isAndroid } from "./native";
 import { stashCloudReturn } from "./cloudOauthPreinit";
 import { classifyAuthUrl, emailChangeOutcome, type RecoveryTokens } from "./utils/authCallback";
 import { emitAuthNotice } from "./utils/authNotice";
-import { versionStatus } from "./utils/version";
+import { versionStatus, resolveAppUpdate, reviewChannelFor, requiredUpdatePending, withInstallState, type AppUpdate } from "./utils/version";
+import { playUpdateInfo, onPlayInstallState, installInfo, type PlayInstallState, type ReviewChannel } from "./storeBridge";
+import { APP_STORE_ID } from "./constants";
 import { UpdateRequired } from "./components/UpdatePrompt";
 import { initStore, clearStore, flushNow, subscribeStoreRefresh, clearOfflineMirror } from "./db";
 import { clearShareLinkCache } from "./live/shareLinkStore";
@@ -19,6 +21,8 @@ import { readRecoveryBuffer } from "./utils/runRecovery";
 import { INDOOR_RUN_KEY } from "./constants";
 import { fetchPremiumUntil } from "./premium";
 import { identifyUser, resetUser } from "./telemetry";
+import { settleOAuth, trackAuthCompleted, trackAuthFailed } from "./auth/authTelemetry";
+import i18n from "./i18n";
 import { ConsentBanner } from "./components/ConsentBanner";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
 import { StoreLoadError } from "./components/StoreLoadError";
@@ -79,6 +83,11 @@ async function redeemRecovery(cb: { tokenHash: string | null; code: string | nul
 // never leave the user staring at the splash spinner forever.
 const AUTH_INIT_TIMEOUT_MS = 20000;
 
+// An expired token holds getSession() on its refresh, which auth-js retries for ~30s on a weak
+// network (a race start line). Past this, a recently-live stored session opens the app instead
+// (same rule as the offline fallback) and the refresh carries on behind it.
+const AUTH_FAST_BOOT_MS = 2500;
+
 // Resolve an email-change confirmation against SERVER truth (the redirect can
 // lie either way, see emailChangeOutcome). The re-read also refreshes the
 // "waiting for confirmation" banner. `pendingBefore` is user.new_email before the callback.
@@ -130,7 +139,10 @@ export default function App() {
   const [recovering, setRecovering] = useState<string | null>(null);
   const [resetLinkFailed, setResetLinkFailed] = useState(false); // expired/used reset link
   const [updateState, setUpdateState] = useState<"ok" | "update-available" | "must-update">("ok"); // version gate
-  const [latestVersion, setLatestVersion] = useState<string | null>(null); // shown on the Home update card
+  const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a soft update: Play's flow or the Home card
+  const [reviewChannel, setReviewChannel] = useState<ReviewChannel | null>(null); // where a store review can be asked for
+  // must-update, but the store doesn't have it yet; null while the stores are still being asked
+  const [requiredPending, setRequiredPending] = useState<boolean | null>(null);
   // Which user id the store is currently loaded for. Guards against reloading
   // (and clobbering the in-memory cache) on every auth event — Supabase fires
   // onAuthStateChange on token refresh, tab refocus, and repeat SIGNED_IN, each
@@ -144,6 +156,12 @@ export default function App() {
   // a fresh session or explicit SIGNED_OUT clears it, but the null every failed
   // offline refresh emits must NOT bounce the user to login.
   const offlineSessionRef = useRef<Session | null>(null);
+  // A native deep-link auth callback is being redeemed: the session it yields is the one to
+  // use, so the fast boot must not open the device's previous session in the meantime.
+  // Counts callbacks in flight; a fast boot that fell due meanwhile runs once they settle.
+  const nativeCallbackRef = useRef(0);
+  const fastBootDueRef = useRef(false);
+  const adoptStoredRef = useRef<((orLogin: boolean) => void) | null>(null);
 
   // Track the auth session.
   useEffect(() => {
@@ -192,25 +210,34 @@ export default function App() {
       settle(s);
     });
 
-    // Safety net: if auth is still unresolved after the cap, drop to login rather
-    // than spin forever. This can fire BEFORE a slow offline refresh settles, so it
-    // must make the same offline fallback as the resolved path, or a merely-offline
-    // user gets the login screen and a torn-down store.
-    const timer = setTimeout(() => {
-      setSession((curr) => {
-        if (curr !== undefined) return curr;
-        const cached = readOfflineSession();
-        if (cached) {
-          offlineSessionRef.current = cached;
-          return cached;
-        }
-        console.error("Auth init did not settle in time; showing login");
-        return null;
-      });
-    }, AUTH_INIT_TIMEOUT_MS);
+    // Still resolving: adopt the stored session if it qualifies, else keep waiting (or, from
+    // the safety net, drop to login). Must make the same offline fallback as the resolved
+    // path, or a merely-offline user gets the login screen and a torn-down store.
+    const adoptStored = (orLogin: boolean) => setSession((curr) => {
+      if (curr !== undefined) return curr;
+      const cached = readOfflineSession();
+      if (cached) {
+        offlineSessionRef.current = cached;
+        return cached;
+      }
+      if (!orLogin) return curr;
+      console.error("Auth init did not settle in time; showing login");
+      return null;
+    });
+    adoptStoredRef.current = adoptStored;
+    // Not while a web auth callback is being redeemed: the session it yields is the one to use.
+    const fastTimer = classifyAuthUrl(initialUrl).kind === "none"
+      ? setTimeout(() => {
+        if (nativeCallbackRef.current > 0) fastBootDueRef.current = true;
+        else adoptStored(false);
+      }, AUTH_FAST_BOOT_MS)
+      : undefined;
+    // Safety net: never spin forever.
+    const timer = setTimeout(() => adoptStored(true), AUTH_INIT_TIMEOUT_MS);
 
     return () => {
       active = false;
+      clearTimeout(fastTimer);
       clearTimeout(timer);
       sub.subscription.unsubscribe();
     };
@@ -242,13 +269,29 @@ export default function App() {
     // SFSafariViewController stays on screen over the app — close it once the
     // callback lands. Browser.close() is unimplemented on Android; ignore.
     const closeAuthBrowser = async () => {
+      settleOAuth();
       try {
         const { Browser } = await import("@capacitor/browser");
         await Browser.close();
       } catch { /* Android (unimplemented) or already closed — ignore */ }
     };
 
+    // Once the callback settles (either way), storage holds whichever session is now the one.
     const processUrl = async (url: string) => {
+      const kind = url && url !== lastUrlRef.current ? classifyAuthUrl(url).kind : "none";
+      const isAuth = kind !== "none" && kind !== "cloudOauth";
+      if (isAuth) nativeCallbackRef.current++;
+      try {
+        await handleUrl(url);
+      } finally {
+        if (isAuth && --nativeCallbackRef.current === 0 && fastBootDueRef.current) {
+          fastBootDueRef.current = false;
+          adoptStoredRef.current?.(false);
+        }
+      }
+    };
+
+    const handleUrl = async (url: string) => {
       if (!url || url === lastUrlRef.current) return; // de-dupe appUrlOpen vs getLaunchUrl
       lastUrlRef.current = url;
       const cb = classifyAuthUrl(url);
@@ -273,9 +316,12 @@ export default function App() {
         // the login screen; signed IN it can only be an email-change link, and an
         // expired/used link does NOT mean the change failed, so let the server have the last word.
         case "error":
+          if (!signedIn) trackAuthFailed(settleOAuth(), "provider", cb.code);
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore, { failure: cb.message });
-          else reportAuthError(cb.message);
+          else {
+            reportAuthError(cb.message);
+          }
           return;
         // Password-reset link. Ahead of "code" in classifyAuthUrl for a
         // reason: exchanged as an ordinary sign-in it would drop the user into
@@ -306,10 +352,14 @@ export default function App() {
           closeAuthBrowser();
           if (signedIn) await settleEmailChange(pendingBefore);
           return;
-        case "code":
+        case "code": {
+          const method = signedIn ? null : settleOAuth();
           closeAuthBrowser();
           try {
-            const { data } = await supabase.auth.exchangeCodeForSession(cb.code);
+            // A failed exchange is returned, not thrown.
+            const { data, error } = await supabase.auth.exchangeCodeForSession(cb.code);
+            if (error) throw error;
+            if (method) trackAuthCompleted(method);
             // Signed in already: an email-change confirmation, not a sign-in.
             // The exchange handed us a fresh user, so skip the extra round trip.
             if (signedIn) await settleEmailChange(pendingBefore, { user: data.session?.user ?? null });
@@ -319,9 +369,14 @@ export default function App() {
             // the flow, so a link opened elsewhere fails here even though the
             // change landed server-side. Never report that as a failure.
             if (signedIn) await settleEmailChange(pendingBefore, { failure: err instanceof Error ? err.message : "exchange failed" });
-            else reportAuthError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+            else {
+              if (method) trackAuthFailed(method, "exchange", err);
+              // An email link's code is single-use and needs this install's verifier; the account may be confirmed anyway.
+              reportAuthError(i18n.t(method === "deeplink" ? "login.linkSignInFailed" : "login.callbackFailed"));
+            }
           }
           return;
+        }
         case "none":
           return;
       }
@@ -399,32 +454,58 @@ export default function App() {
   // Native-only version gate: compare the installed app version against the
   // remote app_config row. A failed check (offline, etc.) is ignored so it can
   // never lock the user out. Web is always "latest" (continuously deployed).
-  useEffect(() => {
+  // The newest Play install event, for one that lands before checkVersion has an update to apply it to.
+  const lastInstall = useRef<PlayInstallState | null>(null);
+  const checkVersion = useCallback(async (cancelled: () => boolean = () => false) => {
     if (!isNative) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const info = await CapApp.getInfo();
-        const { data, error: configErr } = await supabase
-          .from("app_config")
-          .select("min_supported_version, latest_version, min_supported_version_ios, latest_version_ios")
-          .eq("id", 1)
-          .maybeSingle();
-        if (configErr) console.error("Could not read app_config", configErr);
-        // Each platform reads its own column pair: the stores roll out
-        // independently (and a partial release can leave one store behind), so a
-        // single shared version would lie to one of them.
-        const config = data && (isIos
-          ? { min_supported_version: data.min_supported_version_ios, latest_version: data.latest_version_ios }
-          : data);
-        if (!cancelled && config) {
-          setUpdateState(versionStatus(info.version, config));
-          setLatestVersion(config.latest_version ?? null);
-        }
-      } catch { /* never block the app on a failed version check */ }
-    })();
-    return () => { cancelled = true; };
+    try {
+      const info = await CapApp.getInfo();
+      const { data, error: configErr } = await supabase
+        .from("app_config")
+        .select("min_supported_version, latest_version, min_supported_version_ios, latest_version_ios")
+        .eq("id", 1)
+        .maybeSingle();
+      if (configErr) console.error("Could not read app_config", configErr);
+      // Each platform reads its own column pair: the stores roll out
+      // independently (and a partial release can leave one store behind), so a
+      // single shared version would lie to one of them.
+      const config = data && (isIos
+        ? { min_supported_version: data.min_supported_version_ios, latest_version: data.latest_version_ios }
+        : data);
+      const status = config ? versionStatus(info.version, config) : "ok";
+      const latest = config?.latest_version != null ? String(config.latest_version) : null;
+      const minSupported = config?.min_supported_version != null ? String(config.min_supported_version) : null;
+      if (cancelled()) return;
+      // The gate goes up at once; what the stores say (a network lookup on iOS) only refines it.
+      // An unread config leaves the gate as it was: a failed "Check again" must not lift it.
+      if (config) {
+        setUpdateState(status);
+        if (status === "must-update") setRequiredPending(null);
+      }
+      const [play, install] = await Promise.all([playUpdateInfo(), installInfo()]);
+      if (cancelled()) return;
+      if (config) setRequiredPending(status === "must-update" && requiredUpdatePending(play, install.storeVersion, minSupported));
+      setAppUpdate(withInstallState(resolveAppUpdate(status, latest, play), lastInstall.current, false));
+      if (isIos || isAndroid) {
+        setReviewChannel(reviewChannelFor(isIos ? "ios" : "android", !!install.fromStore, info.version, latest,
+          !!(APP_STORE_ID || install.appId)));
+      }
+    } catch {
+      setRequiredPending(p => p ?? false); // never leave the gate's button waiting on a failed check
+    }
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- checkVersion sets state only after its awaits
+    void checkVersion(() => cancelled);
+    return () => { cancelled = true; };
+  }, [checkVersion]);
+
+  // A flexible Play download reports its progress here; the Home card follows it.
+  useEffect(() => onPlayInstallState((s) => {
+    lastInstall.current = s;
+    setAppUpdate((prev) => withInstallState(prev, s));
+  }), []);
 
   // Load (or clear) the per-user store when the *user* changes. Keyed on the
   // user id, not the session object, so token refresh / refocus events don't
@@ -448,6 +529,7 @@ export default function App() {
         // Offline boot: the app runs on the locally-mirrored data. Say so —
         // silence would make any staleness look like data loss.
         if (result === "offline") emitAuthNotice("app.offline.usingLocal");
+        if (result === "slow") emitAuthNotice("app.offline.slowLink");
         loadedUidRef.current = session.user.id;
         setStoreFailedUid(null);
         setStoreReady(true);
@@ -507,7 +589,7 @@ export default function App() {
   }, []);
 
   // Hard version gate blocks everything, even the login screen.
-  if (updateState === "must-update") return <UpdateRequired />;
+  if (updateState === "must-update") return <UpdateRequired pending={requiredPending} onRecheck={() => checkVersion()} />;
   if (session === undefined) return <Splash />;
   // A password-reset link landed. The new-password screen comes before the
   // store (it doesn't need app_state, and must not wait on a load that may be
@@ -563,7 +645,7 @@ export default function App() {
     <>
       <RunningCoach key={storeNonce} onSignOut={signOutFlushed} user={session.user}
         premiumUntil={premiumUntil} onRefreshPremium={refreshPremium}
-        availableUpdate={updateState === "update-available" ? latestVersion : null} />
+        availableUpdate={appUpdate} reviewChannel={reviewChannel} />
       <ConsentBanner onConsentChange={(ok) => { if (ok) identifyUser(session.user.id); }} />
     </>
   );

@@ -38,6 +38,7 @@ vi.mock("./db", () => ({
   flushNow: h.flushNow,
   isStoreLoaded: () => false,
   subscribeStoreRefresh: () => () => {},
+  subscribeStoreReconciled: () => () => {},
   clearOfflineMirror: vi.fn(),
 }));
 

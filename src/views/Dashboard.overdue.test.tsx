@@ -81,6 +81,14 @@ describe("Dashboard overdue card", () => {
     expect(props.openCoach).toHaveBeenCalledWith(null, "dashboard");
   });
 
+  it("opens the same Change my plan sheet as the Plan tab when the hub offers it", () => {
+    const openChangePlan = vi.fn();
+    const props = renderDash(planOf([sess("missed", "2026-03-08")]), {openChangePlan});
+    fireEvent.click(screen.getByRole("button", {name: /Adjust my plan/}));
+    expect(openChangePlan).toHaveBeenCalledWith("overdue");
+    expect(props.openCoach).not.toHaveBeenCalled();
+  });
+
   it("keeps showing the next upcoming session alongside the backlog", () => {
     renderDash(planOf([sess("missed", "2026-03-08"), sess("soon", "2026-03-12")]));
     expect(screen.getByText("1 session still open")).toBeInTheDocument();

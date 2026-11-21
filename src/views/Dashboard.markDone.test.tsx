@@ -32,9 +32,14 @@ const renderDash = (plan: Plan | null, over: Record<string, unknown> = {}) => {
   return props;
 };
 
-const markDone = () => screen.queryByRole("button", {name: /Mark as done/});
+const didIt = () => screen.queryByRole("button", {name: /^I did it$/});
+// "I did it" → "Just tick it off" (DidItSheet); null when the sheet offers no tick.
+const markDone = () => {
+  if (!screen.queryByRole("dialog")) fireEvent.click(didIt()!);
+  return screen.queryByRole("button", {name: /^Just tick it off/});
+};
 
-// The bug this whole file exists for: "Mark as done" edited the plan in silence
+// The bug this whole file exists for: the tick ("Mark as done", now "I did it" → "Just tick it off") edited the plan in silence
 // and the card refilled with the NEXT session under the same button, so a
 // repeated tap ticked off sessions days or weeks away.
 describe("Dashboard next-session card · marking done", () => {
@@ -48,7 +53,7 @@ describe("Dashboard next-session card · marking done", () => {
   it("leaves nothing to tap while the confirmation shows, so a double-tap can't consume the next session", () => {
     const props = renderDash(planOf([sess("today", "2026-03-10"), sess("later", "2026-03-12")]));
     fireEvent.click(markDone()!);
-    expect(markDone()).toBeNull();
+    expect(didIt()).toBeNull();
     expect(screen.queryByRole("button", {name: /Skip/})).toBeNull();
     expect(props.toggleSess).toHaveBeenCalledTimes(1);
   });
@@ -61,7 +66,7 @@ describe("Dashboard next-session card · marking done", () => {
     expect(props.toggleSess).toHaveBeenCalledTimes(2);
     expect(props.toggleSess).toHaveBeenLastCalledWith(1, "today");
     expect(screen.queryByText(/is done/)).toBeNull();
-    expect(markDone()).not.toBeNull();
+    expect(didIt()).not.toBeNull();
   });
 
   it("advances to the next session once the confirmation has been seen", () => {
@@ -94,6 +99,21 @@ describe("Dashboard next-session card · marking done", () => {
   });
 });
 
+describe("Dashboard next-session card · I did it", () => {
+  it("offers the run's details first, opening the form prefilled from the session", () => {
+    const props = renderDash(planOf([sess("today", "2026-03-10")]));
+    fireEvent.click(didIt()!);
+    fireEvent.click(screen.getByRole("button", {name: /^Add the run's details/}));
+    expect(props.goLog).toHaveBeenCalledWith(expect.objectContaining({type: "EASY", km: 5}));
+    expect(props.toggleSess).not.toHaveBeenCalled();
+  });
+
+  it("carries two verbs, not five", () => {
+    renderDash(planOf([sess("today", "2026-03-10")]));
+    expect(screen.queryByRole("button", {name: /Log it|Mark as done|I already ran this|Link a run I already saved/})).toBeNull();
+  });
+});
+
 describe("Dashboard overdue rows · feedback", () => {
   it("toasts with an undo that puts the session back", () => {
     const props = renderDash(planOf([sess("missed", "2026-03-08")]));
@@ -103,5 +123,35 @@ describe("Dashboard overdue rows · feedback", () => {
     expect(msg).toBe("Session ticked off");
     action.onClick();
     expect(props.toggleSess).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Dashboard · a calmer Home", () => {
+  // A run today brings the cool-down suggestion; an open session waits behind it.
+  const ranToday = {id: "r1", date: "2026-03-10", type: "EASY", km: 5, durationSec: 1800};
+  const stretching = {stretchLog: [], openStretch: vi.fn(), saveSettings: vi.fn()};
+
+  it("shows one thing that needs attention at a time", () => {
+    renderDash(planOf([sess("missed", "2026-03-08")]), {runs: [ranToday], ...stretching});
+    expect(screen.getByText(/^Cool down/)).toBeInTheDocument();
+    expect(screen.queryByText("1 session still open")).toBeNull();
+  });
+
+  it("puts a race date change first, and keeps stretching reachable in the week card", () => {
+    renderDash(planOf([sess("missed", "2026-03-08")]), {runs: [ranToday], ...stretching,
+      dateChanges: [{editionId: "e1", label: "City 10K", oldDate: "2026-05-01", newDate: "2026-05-08", isTarget: false}],
+      applyRaceDateChange: vi.fn(), keepRaceDate: vi.fn()});
+    expect(screen.getAllByText(/City 10K/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/^Cool down/)).toBeNull();
+    expect(screen.queryByText("1 session still open")).toBeNull();
+    expect(screen.getByText("Stretching")).toBeInTheDocument();
+  });
+
+  it("sums the week up in one line instead of stat tiles", () => {
+    renderDash(planOf([sess("mon", "2026-03-09", {done: true}), sess("today", "2026-03-10")]),
+      {runs: [{id: "r1", date: "2026-03-09", type: "EASY", km: 5.4, durationSec: 1800}]});
+    expect(screen.getByText("This week")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 sessions · 5.4 km")).toBeInTheDocument();
+    expect(screen.queryByText("Runs recorded")).toBeNull();
   });
 });

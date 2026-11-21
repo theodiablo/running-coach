@@ -32,6 +32,12 @@ const renderPlan = (over: Record<string, unknown> = {}) => {
   return props;
 };
 
+// The one door: "Change my plan", then the goal row (worded for the plan it is on).
+const changeGoal = () => {
+  fireEvent.click(screen.getByRole("button", { name: "Change my plan" }));
+  fireEvent.click(screen.getByRole("button", { name: /^(My race or goal time|What I'm training for)/ }));
+};
+
 describe("PlanView · a plan with no race", () => {
   it("heads the plan with the block and its checkpoint instead of counting down to a race", () => {
     renderPlan();
@@ -47,7 +53,7 @@ describe("PlanView · a plan with no race", () => {
 
   it("the goal editor opens on Keep improving, with the plan's target selected", () => {
     renderPlan();
-    fireEvent.click(screen.getByRole("button", { name: /Your goal.*Edit$/ }));
+    changeGoal();
     expect(screen.getByRole("button", { name: "Keep improving" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Get faster/ })).toHaveAttribute("aria-pressed", "true");
     expect(document.querySelector('input[type="date"]')).toBeNull();
@@ -55,7 +61,7 @@ describe("PlanView · a plan with no race", () => {
 
   it("switching a race plan to Keep improving rebuilds it with no race, after a preview", () => {
     const props = renderPlan({ plan: racePlan(), settings: settingsOf({ raceDate: "2026-12-13", goalSec: 3000 }) });
-    fireEvent.click(screen.getByRole("button", { name: /Your goal.*Edit$/ }));
+    changeGoal();
     expect(screen.getByRole("button", { name: "Race" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Keep improving" }));
     fireEvent.click(screen.getByRole("button", { name: /Run further/ }));
@@ -78,7 +84,7 @@ describe("PlanView · a plan with no race", () => {
 
   it("switching an open plan back to a race needs a date again", () => {
     renderPlan();
-    fireEvent.click(screen.getByRole("button", { name: /Your goal.*Edit$/ }));
+    changeGoal();
     fireEvent.click(screen.getByRole("button", { name: "Race" }));
     expect(screen.getByRole("button", { name: "Preview changes" })).toBeDisabled();
   });

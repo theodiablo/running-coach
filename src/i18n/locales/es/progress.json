@@ -1,6 +1,6 @@
 {
   "tabs": {
-    "log": "Registro",
+    "log": "Historial",
     "stats": "Estadísticas",
     "badges": "Insignias"
   },
@@ -116,14 +116,14 @@
     "subtitle": "Calculadas a partir de tu mejor entrenamiento del periodo seleccionado",
     "needRun": "Registra un entrenamiento de 3 km o más para estimar tus tiempos de carrera.",
     "distanceKm": "{{d}} km",
-    "bestEffortEstimate": "Estimación según el mejor esfuerzo",
-    "hrEstimate": "Estimación según la FC",
+    "bestEffortEstimate": "Según tu mejor entrenamiento",
+    "hrEstimate": "Según tu frecuencia cardíaca",
     "pacePerKm": "{{pace}}/km",
     "runSummary": "({{km}} km en {{dur}})",
     "runSummaryClimb": "({{km}} km en {{dur}}, {{climb}} m de desnivel)",
-    "bestEffortExplainer": "<0>Mejor esfuerzo</0> proyecta tu entrenamiento más sólido {{run}} a cada distancia con la fórmula de Riegel.",
-    "hrExplainer": "<0>Modelo de FC</0> relaciona tu ritmo con la frecuencia cardíaca en {{n}} entrenamientos y extrapola al esfuerzo de umbral (~{{thr}} ppm). Así también cuentan los rodajes suaves bien gestionados, no solo tu día más rápido.",
-    "hrExplainerCapped": "<0>Modelo de FC</0> relaciona tu ritmo con la frecuencia cardíaca en {{n}} entrenamientos y lo lee a ~{{thr}} ppm, el máximo que permiten tus datos más allá de tu esfuerzo más intenso. Registra una sesión más exigente para proyectar hasta el umbral (~{{full}} ppm).",
+    "bestEffortExplainer": "<0>Según tu mejor entrenamiento</0>: tu entrenamiento más sólido {{run}}, proyectado a cada distancia con la fórmula de Riegel.",
+    "hrExplainer": "<0>Según tu frecuencia cardíaca</0>: comparamos tu ritmo con tu frecuencia cardíaca en {{n}} entrenamientos y extrapolamos al esfuerzo de umbral (~{{thr}} ppm). Así también cuentan los rodajes suaves bien gestionados, no solo tu día más rápido.",
+    "hrExplainerCapped": "<0>Según tu frecuencia cardíaca</0>: comparamos tu ritmo con tu frecuencia cardíaca en {{n}} entrenamientos y lo leemos a ~{{thr}} ppm, el máximo que permiten tus datos más allá de tu esfuerzo más intenso. Registra una sesión más exigente para proyectar hasta el umbral (~{{full}} ppm).",
     "hrLockedNoData": "La estimación basada en la FC necesita tu FC máxima en Ajustes y entrenamientos registrados con una FC media. Ninguno la tiene todavía.",
     "hrLockedFew": "La estimación basada en la FC necesita {{runs}} entrenamiento(s) más con FC media en este periodo. Amplía el periodo de arriba si tienes otros más antiguos.",
     "hrLockedSpread": "Tus entrenamientos con FC están todos al mismo esfuerzo. Unos {{bpm}} bpm más de diferencia entre el más suave y el más intenso desbloquean la estimación basada en la FC.",

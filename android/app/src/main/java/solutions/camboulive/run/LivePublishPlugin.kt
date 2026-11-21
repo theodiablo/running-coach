@@ -15,6 +15,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.ArrayDeque
 import java.util.concurrent.Executors
@@ -45,7 +46,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 //                       run start — one unlucky race must not kill the whole
 //                       screen-off broadcast, and JS can't re-seed while frozen);
 //   4xx               → the batch is poison: drop it, never retry it;
-//   5xx / IOException → transient: keep the batch, retry on a later fix.
+//   5xx / IOException → transient: keep the batch, retry on a later fix, the
+//                       interval doubling per consecutive failure up to 4x.
 @CapacitorPlugin(name = "LivePublish")
 class LivePublishPlugin : Plugin() {
 
@@ -54,6 +56,9 @@ class LivePublishPlugin : Plugin() {
         private const val LIVE_FIX_ACTION = "solutions.camboulive.run.LIVE_FIX"
         // Mirrors LIVE_PUBLISH_INTERVAL_MS (src/live/publisher.ts).
         private const val UPLOAD_INTERVAL_MS = 30_000L
+        // Mirrors publishIntervalMs: a failing link stretches 30s → 60s → 120s
+        // (each try holds a wake lock and the radio); one landed upload resets it.
+        private const val MAX_BACKOFF_SHIFT = 2
         // Mirrors PUBLISH_MAX_POINTS (_shared/livePublish.mjs).
         private const val MAX_BATCH_POINTS = 300
         // Buffer cap ≈ 20+ min of worst-case 2s-apart fixes; past it, thin every
@@ -83,6 +88,7 @@ class LivePublishPlugin : Plugin() {
     private var lastUploadAtMs = 0L
     private var latchedUntilMs = 0L
     private var consecutiveNotLive = 0
+    private var consecutiveFailures = 0
     // JSONArray-ready points: [lat,lng,tMs,alt|null], or JSONObject.NULL gaps.
     private val pending = ArrayDeque<Any>()
     private var lastStats: JSONObject? = null
@@ -143,6 +149,7 @@ class LivePublishPlugin : Plugin() {
                     seedAtMs = System.currentTimeMillis()
                     latchedUntilMs = 0
                     consecutiveNotLive = 0
+                    consecutiveFailures = 0
                 }
             } else {
                 // Disarm clears the buffer WITH the config: retained points
@@ -188,8 +195,9 @@ class LivePublishPlugin : Plugin() {
                 pending.addAll(thinned)
             }
             lastStats = buildStats(intent)
+            val interval = UPLOAD_INTERVAL_MS shl minOf(maxOf(consecutiveFailures - 1, 0), MAX_BACKOFF_SHIFT)
             shouldUpload = now >= latchedUntilMs &&
-                now - lastUploadAtMs >= UPLOAD_INTERVAL_MS &&
+                now - lastUploadAtMs >= interval &&
                 pending.isNotEmpty()
         }
         if (shouldUpload && inFlight.compareAndSet(false, true)) {
@@ -266,10 +274,12 @@ class LivePublishPlugin : Plugin() {
 
             // One immediate retry on IOException: a keep-alive connection idled
             // out by the edge proxy fails on the FIRST write and is not retried
-            // transparently for a POST.
+            // transparently for a POST. Not after a timeout: that is the link
+            // itself, and a second try only doubles the time on the radio.
             var response = try {
                 post(endpoint!!, key!!, bytes)
             } catch (first: IOException) {
+                if (first is SocketTimeoutException) throw first
                 post(endpoint!!, key!!, bytes)
             }
 
@@ -278,6 +288,7 @@ class LivePublishPlugin : Plugin() {
                 when {
                     response.status in 200..299 -> {
                         lastUploadAtMs = now
+                        consecutiveFailures = 0
                         val live = response.body?.optBoolean("live", false) == true
                         if (live) {
                             consecutiveNotLive = 0
@@ -299,18 +310,23 @@ class LivePublishPlugin : Plugin() {
                     response.status in 400..499 && response.status != 429 -> {
                         // Poison batch: never retry it. Points continue to accrue.
                         lastUploadAtMs = now
+                        consecutiveFailures = 0
                         repeat(minOf(sent, pending.size)) { pending.removeFirst() }
                     }
                     else -> {
-                        // 429/5xx: transient — keep the batch, back off a full
-                        // interval before the next attempt.
+                        // 429/5xx: transient — keep the batch, back off before
+                        // the next attempt.
                         lastUploadAtMs = now
+                        consecutiveFailures++
                     }
                 }
             }
         } catch (e: Exception) {
-            // Network failure: keep the batch; the next accepted fix retries.
-            synchronized(uploadLock) { lastUploadAtMs = System.currentTimeMillis() }
+            // Network failure: keep the batch; a later accepted fix retries.
+            synchronized(uploadLock) {
+                lastUploadAtMs = System.currentTimeMillis()
+                consecutiveFailures++
+            }
         } finally {
             try { wakeLock?.release() } catch (ignored: RuntimeException) {}
             inFlight.set(false)

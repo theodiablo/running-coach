@@ -3,6 +3,7 @@ import { PartyPopper, Sparkles, Trophy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Confetti } from "../components/Confetti";
 import { EffortRow } from "../components/EffortRow";
+import { BadgeGlyph } from "../components/Badge";
 import { useDismissable } from "../hooks/useDismissable";
 import { fmt } from "../utils/format";
 import { isPersonalBest } from "../utils/bestEfforts";
@@ -27,8 +28,9 @@ export function RunCelebration({ celebration, run, onClose }: Props) {
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
   const [armed, setArmed] = useState(false);
-  const { headline, fact, efforts, confetti, rare } = celebration;
-  const lingers = efforts.length > 0;
+  const { headline, fact, efforts, confetti, rare, badge } = celebration;
+  // A best effort or an unlocked badge waits for a tap; anything else closes itself.
+  const lingers = efforts.length > 0 || badge?.kind === "unlocked";
 
   useEffect(() => {
     const arm = setTimeout(() => setArmed(true), ARM_MS);
@@ -64,6 +66,21 @@ export function RunCelebration({ celebration, run, onClose }: Props) {
           </h2>
           {fact && <p className="text-base font-medium text-orange-200 animate-slide-up">{t(fact.key, fact.vars)}</p>}
           <p className="text-sm text-slate-400 tabular-nums">{summary}</p>
+          {badge && (badge.kind === "unlocked" ? (
+            <div className="flex items-center gap-3 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-left animate-slide-up">
+              <BadgeGlyph name={badge.badge.Icon} size={26} className="text-orange-300 flex-shrink-0"/>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-orange-300">{t("celebration.badge.unlocked")}</p>
+                <p className="text-sm font-semibold text-white">{badge.badge.label}</p>
+                {badge.more > 0 && <p className="text-xs text-slate-400">{t("celebration.badge.more", { count: badge.more })}</p>}
+              </div>
+            </div>
+          ) : (
+            <p className="flex items-center justify-center gap-1.5 text-sm text-slate-300">
+              <BadgeGlyph name={badge.badge.Icon} size={15} className="text-orange-300 flex-shrink-0"/>
+              {t("celebration.badge.closer", { label: badge.badge.label, hint: badge.badge.hint })}
+            </p>
+          ))}
           {lingers && (
             <div className="space-y-2 text-left">
               {efforts.map(e => <EffortRow key={e.key} effort={e} />)}

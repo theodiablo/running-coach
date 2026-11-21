@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 import { isNative } from "./native";
+import { webAuthRedirect } from "./utils/authCallback";
 
 // supabase-js requests have NO client-side timeout (auth-js `_handleRequest` just awaits fetch), and one
 // stalled request in the one-shot PKCE `initialize()` strands the app on the splash spinner. Wrapping fetch
@@ -93,9 +94,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // id the native Sign in with Apple sheet reports (src/auth/appleSignIn.ts).
 export const NATIVE_BUNDLE_ID = "solutions.camboulive.run";
 
-// Where Supabase sends the user back after OAuth / magic-link sign-in: the app origin on web, a registered
+// Where Supabase sends the user back after OAuth / magic-link sign-in: the deploy's base on web, a registered
 // deep link in the Capacitor shell (its origin, http://localhost, isn't externally reachable); App listens
 // via @capacitor/app and completes the PKCE exchange. The scheme must be on the Supabase redirect allow-list.
 export const AUTH_DEEP_LINK = `${NATIVE_BUNDLE_ID}://auth-callback`;
 export const authRedirectTo = () =>
-  isNative ? AUTH_DEEP_LINK : `${window.location.origin}/`;
+  isNative ? AUTH_DEEP_LINK : webAuthRedirect(window.location.origin, import.meta.env.BASE_URL);

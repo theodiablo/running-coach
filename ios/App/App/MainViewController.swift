@@ -10,5 +10,6 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(HealthKitBridgePlugin())
         bridge?.registerPluginInstance(LiveActivityPlugin())
         bridge?.registerPluginInstance(AudioCuePlugin())
+        bridge?.registerPluginInstance(StoreBridgePlugin())
     }
 }

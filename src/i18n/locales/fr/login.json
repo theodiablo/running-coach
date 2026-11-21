@@ -42,6 +42,8 @@
     "back": "Utiliser une autre adresse"
   },
   "genericError": "Une erreur est survenue.",
+  "callbackFailed": "La connexion n'a pas abouti. Réessaie.",
+  "linkSignInFailed": "Ce lien n'a pas pu te connecter ici. Si tu as confirmé ton e-mail, connecte-toi avec ton e-mail et ton mot de passe.",
   "dataSync": "Tes données sont synchronisées en toute sécurité avec ton compte.",
   "privacy": "Confidentialité",
   "bgLocation": {
@@ -51,6 +53,7 @@
     "bulletRoute": "Utilisée pour tracer ton parcours et calculer la distance, l’allure et le dénivelé.",
     "bulletStored": "Stockée sur ton propre compte ; jamais vendue ni partagée avec des tiers.",
     "privacyNote": "Consulte notre <privacy>Politique de confidentialité</privacy>. Quand tu appuies sur Autoriser, ton téléphone te demande d'utiliser ta position. Choisis <strong>« Pendant l'utilisation de l'appli »</strong> ; l'enregistrement continue même écran éteint.",
+    "privacyNoteIos": "Consulte notre <privacy>Politique de confidentialité</privacy>. Quand tu continues, ton téléphone te demande si tu partages ta position avec Running Coach.",
     "privacyNoteBg": "Consulte notre <privacy>Politique de confidentialité</privacy>. La position n'est utilisée que pendant l'enregistrement d'une sortie.",
     "stepsIntro": "En continuant, Android affiche 3 demandes à la suite. Voici quoi appuyer :",
     "step1": "<strong>Localisation :</strong> choisis <strong>« Pendant l'utilisation de l'appli »</strong> et garde l'option <strong>Précise</strong> activée.",

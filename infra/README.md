@@ -54,6 +54,14 @@ Note that "replace" counts as destructive. Renaming a resource, or changing an
 attribute that forces replacement, will trip this guard. That is intended: on a
 bucket, replacement means the data goes away.
 
+### A distribution edit also "changes" two IAM policies
+
+`role_boundary` and `tf_apply` interpolate `aws_cloudfront_distribution.site.arn`,
+so any in-place edit to the distribution defers those policy documents to apply
+and the plan lists both policies as updated (`known after apply`), plus the two
+deferred data reads in the PR comment's count. The ARN doesn't change in place,
+so they apply identical; only a *replaced* distribution would really change them.
+
 ### The CI roles, and what they can do
 
 | Role | Secret | Trust | Can |
@@ -374,7 +382,10 @@ over:
    assume, can still write to the production origin's `pr/`.
 
 The previews origin has no SPA fallback: a bare `/pr/<n>/` or a deep link is a
-403, so previews are entered at their `index.html`.
+403, so previews are entered at their `index.html`, and auth redirects return
+there too (`webAuthRedirect`, `src/utils/authCallback.ts`). That is why the
+allow-list entry needs the `/**` glob: an exact `previews.camboulive.solutions/`
+doesn't match `/pr/<n>/index.html`, and GoTrue falls back to the Site URL.
 
 ## Rotating the SMTP credentials
 

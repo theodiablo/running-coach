@@ -69,6 +69,7 @@
   },
   "offline": {
     "usingLocal": "You're offline. Showing your last synced data; new changes will sync once you're back online.",
+    "slowLink": "Weak connection. Showing your last synced data; it'll update on its own once the connection catches up.",
     "refreshed": "Back online. Your data was updated from the cloud."
   },
   "storeError": {
@@ -80,13 +81,31 @@
   "update": {
     "requiredTitle": "Update required",
     "requiredBody": "This version of Running Coach is no longer supported. Please update to the latest version to keep using the app.",
+    "pendingBodyAndroid": "This version of Running Coach is no longer supported, and the new one is still on its way to Google Play. It's usually there within a few hours.",
+    "pendingBodyIos": "This version of Running Coach is no longer supported, and the new one is still on its way to the App Store. It's usually there within a few hours.",
     "updateNow": "Update now",
-    "title": "Version {{version}} is ready",
-    "bodyAndroid": "Update from Google Play to get the latest fixes and features.",
-    "bodyIos": "Update from the App Store to get the latest fixes and features.",
+    "checkAgain": "Check again",
+    "openStoreAndroid": "Open Google Play",
+    "openStoreIos": "Open the App Store",
+    "title": "Update available",
+    "version": "Version {{version}}",
     "update": "Update",
     "dismiss": "Dismiss",
-    "later": "Later"
+    "downloading": "Downloading the update",
+    "downloadingBody": "In the background, carry on.",
+    "readyTitle": "Update downloaded",
+    "readyBody": "Restart the app to install it.",
+    "restart": "Restart"
+  },
+  "review": {
+    "title": "A small favour",
+    "bodyAndroid": "I build Running Coach myself. If the app is useful to you, a quick review on Google Play would help me get it in front of other runners.",
+    "bodyIos": "I build Running Coach myself. If the app is useful to you, a quick review on the App Store would help me get it in front of other runners.",
+    "cta": "Leave a review",
+    "later": "Not now",
+    "never": "Don't ask again",
+    "settingsRow": "Rate Running Coach",
+    "settingsHint": "I build this app by myself. Your review helps other runners find it."
   },
   "coachmark": {
     "title": "Your coach lives here",

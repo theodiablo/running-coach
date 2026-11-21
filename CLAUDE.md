@@ -104,26 +104,33 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
 - **Persistence:** `db.get/set(STORAGE_KEYS.*)` (`src/db.ts`,
   `src/constants.ts`). Every state change is mirrored to `db` in the same
   handler that calls `setState`. Writes debounce ~600ms into a single upsert
-  and flush on page hide/unload. Every flush attempt first snapshots the cache
+  and flush on page hide/unload, one at a time (overlapping upserts on a slow
+  link can land out of order). Every flush attempt first snapshots the cache
   to localStorage (`UNSYNCED_STATE_KEY`); a failed upsert retries (online
-  event + timer) and a snapshot newer than the server row is restored on the
-  next boot — an offline save must survive the process being killed. Each
+  event, foreground, and a timer backing off 30s → 5min) and a snapshot newer
+  than the server row is restored on the next boot — an offline save must survive the process being killed. Each
   successful load/flush also mirrors the confirmed blob to `OFFLINE_STATE_KEY`
   for the offline boot below (cleared on sign-out — it's account data).
 - **A failed load must never become a write.** The upsert replaces the whole
   `data` blob, so an unpopulated cache would erase the row. On a failed read `initStore`
   boots from the `OFFLINE_STATE_KEY` mirror when it has one for that user
   (≤7 days old) — a real copy of the row, so the invariant holds — returning
-  `"offline"`; the first server contact then *reconciles before any upsert*
+  `"offline"`; a read still pending after `BOOT_READ_BUDGET_MS` boots the same
+  way (`"slow"`) and reconciles when it lands, so a weak network never holds
+  the splash. The first server contact then *reconciles before any upsert*
   (foreign newer write wins over untouched/older local state, same
   last-write-wins rule as the snapshot restore; `subscribeStoreRefresh`
   remounts the app when the server row is adopted). With no usable mirror it
   returns `"failed"` and the store stays read-only (`isStoreLoaded()`);
   `App.tsx` renders `StoreLoadError` (retry) rather than falling through to
   the app, which would read as a new account and trigger onboarding. Never
-  "recover" from a read failure with an empty default. The auth twin: an
-  offline cold start with an expired token gets its session from
-  `readOfflineSession` (`src/utils/offlineSession.ts`), not the login screen.
+  "recover" from a read failure with an empty default. **An anonymous read is a
+  failed read:** with an expired token whose refresh failed, supabase-js quietly
+  sends the anon key and RLS answers "no row" with no error, so the `app_state`
+  read pins the session's own token (`readRow`). The auth twin: an offline (or,
+  after `AUTH_FAST_BOOT_MS`, a slow) cold start with an expired token gets its
+  session from `readOfflineSession` (`src/utils/offlineSession.ts`), not the
+  login screen or a ~30s refresh.
 - **The first requests after a sign-in can 401.** PostgREST refuses a token
   whose `iat` is ahead of its own clock (`PGRST303`, "JWT issued at future"),
   and Supabase's auth and PostgREST nodes drift by seconds — so only the burst
@@ -278,6 +285,11 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   phase the app shows. The goal is `settings.goalSec`, never
   `plan.goalSec` (buildPlan substitutes 7200 for an empty one). Detail:
   `docs/training-plan.md` ("Where the runner stands"), `docs/races.md`.
+- **Changing the plan has one door: `ChangePlanSheet`** asks what to change
+  (race/goal, days, style, one session, the coach) and each answer opens one
+  part. A new surface that changes the plan opens it (`openChangePlan`), never
+  its own route into the editor; detail: `docs/training-plan.md` ("Changing the
+  plan: one door").
 - **The runner's own plan edits warn, never block.** Move/swap, retype,
   resize, add and delete go through `src/utils/planEdit.ts` (free for
   everyone); `editIssues` runs the shared validator and the sheet shows what an
@@ -315,8 +327,8 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
 - **A run and the session it settled are linked by `runId`, never guessed
   silently.** `src/utils/sessionMatch.ts` is the one matcher (±3 days, the
   `isCrossTraining` line, one run settles one session) and it only *proposes* —
-  the save screen offers its match with a decline, the Dashboard's "I already
-  ran this" opens `ReconcileSheet`; both apply through `linkSess`, which writes
+  the save screen offers its match with a decline, "I did it" → "Pick a run I
+  already saved" (Home and Plan) and an overdue row's link open `ReconcileSheet`; both apply through `linkSess`, which writes
   `done` + `runId` (and may re-date the session to the day it happened, only
   inside its own week). **A `runId` never outlives its `done` or its run** —
   unticking/skipping clears it, `deleteRun` calls `releaseRun`, `carryProgress`
@@ -493,6 +505,10 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   default is `baseline-widely-available` (= ios16.4), so the target is pinned in
   `vite.config.ts` and `src/iosCompat.test.ts` fails CI if the two drift. It
   lowers *syntax* only — no regex feature is ever lowered, and no API polyfilled.
+- **A screen before an OS permission prompt uses `PermissionPrimerButtons`**:
+  one "Continue" on iOS (App Review 5.1.1(iv) rejects "Allow" and "Not now"
+  there), the accept/decline pair Google Play's prominent disclosure needs on
+  Android. `docs/release.md` ("What App Review checks beyond the binary").
 - **Never resolve a promise with a Capacitor plugin proxy** (`async` returning
   it, `.then(m => m.Plugin)`): the proxy answers `then`, so the promise calls
   `Plugin.then()`, which rejects as unimplemented and never settles. Box it
@@ -569,6 +585,12 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   for logged runs. No em dashes (`—`) in either locale (lint);
   `src/i18n/i18n.test.ts` enforces the `tu`/`vous` split; the register and
   vocabulary rules are on you to keep.
+- **Plain words, one name per thing.** Every screen is read by beginners: plain
+  word first, the runner's term second (a style is "Mostly easy" with "Polarized
+  80/20" in its description), sentence case (never ALL-CAPS types or phases),
+  and one name for one thing on every screen ("How to run it" on Home and Plan).
+  Runner words a runner needs (Tempo, Intervals) stay, explained by
+  `common.typeHints` inside "How to run it". `src/i18n/i18n.test.ts` pins it.
 - **Animations are CSS-only** (no library): keyframes + `--animate-*` tokens in
   the one `@theme` block in `src/index.css` (Tailwind v4 CSS-first, no
   `tailwind.config`). Transform/opacity-only and short. A global
@@ -576,6 +598,12 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `usePrefersReducedMotion`. Enter animations re-fire by remounting via a
   changing `key`; modals animate enter-only; only the Toast animates exit (via
   `usePresence`).
+- **Review asks are timed by `StorePrompts` (`reviewCardDue`) and routed by
+  `reviewChannelFor`**: Android gets the developer's own Home card linking to
+  the listing, iOS gets Apple's native sheet (5.6.1 refuses custom prompts),
+  and never the native review API behind a button or a "do you like it?"
+  question. Only installs whose review would be public. Play's update dialog
+  follows Play, not `app_config`. `docs/release.md` ("Store prompts").
 - **Never `window.confirm`/`alert`/`prompt`** (lint): they block the WebView's JS
   thread, and one raised as the app backgrounds never answers. Confirm in the DOM
   with `ModalOverlay` + `ConfirmButtons`.
@@ -603,6 +631,11 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `goToRuns(ids, label)` (`RunningCoach.tsx`) — transient highlight + navigate
   + scroll — not a bare text toast.
 - Show whole-minute durations with `fmt.mins`, never `minutes / 60`.
+- **No personal email address in the repo** (`src/noPersonalEmail.test.ts`).
+  Mail to the maintainer goes to the `MAINTAINER_EMAIL` secret (repo secret in
+  workflows, function secret in edge functions); a contact address shown to
+  users is `VITE_SUPPORT_EMAIL` (repo variable `SUPPORT_EMAIL`), filled into the
+  static legal pages at build time by `scripts/support-email.mjs`.
 - **Icon-only buttons need an `aria-label`** (plus `aria-pressed` for
   toggles); buttons with adjacent visible text don't get double-labeled.
 - **An on/off control shows its state in colour, not only in its icon or
@@ -660,8 +693,17 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   used to log a run straight from a plan session and auto-tick it; a prefilled
   arrival says which session it will tick off rather than doing it silently.
   A plan session offers the same two verbs everywhere (Dashboard card and
-  `PlanSessionRow`): **Start run** opens a recorder, **Log it** opens the form —
-  a new surface must not invent a third word for either.
+  `PlanSessionRow`): **Start run** opens a recorder, **I did it** opens
+  `DidItSheet` (add the run's details → the form, pick a saved run →
+  `ReconcileSheet`, just tick it off) — a new surface must not invent a third
+  word for either, nor put those choices back on the card.
+- **Home shows one thing that needs attention at a time.** The page is the
+  phase card, today's session, ONE attention `slot` (in `Dashboard.tsx`, most
+  pressing first: race date change, stretch suggestion, open sessions, update,
+  review ask), the week card (`WeekStripCard`, with the next badge and the
+  stretching row as its footer) and recent runs. A new Home card joins the
+  slot's order; it never stacks as another always-on card. Badges also show on
+  the finish screen (`docs/run-celebration.md`).
 - **Duration is one masked field, not h/m/s boxes.** `RunFormValues.dur` is the
   raw digit string, filling right to left (`4300` → 43:00, `15207` → 1:52:07) —
   the order a watch face is already written in, and one keyboard on a phone
@@ -669,8 +711,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `secToDur` (`src/utils/runForm.ts`); the field only ever appends or pops a
   digit, with the caret pinned to the end, so there is no caret arithmetic to
   get wrong. Every digit string is a valid duration, which is why there is no
-  "hours or minutes at least" rule any more. (`hmsToSec` survives for
-  `RacesView`'s separate race-time entry.)
+  "hours or minutes at least" rule any more. `DurationInput`
+  (`src/components/`) is the one field, shared with the race result and goal.
 - **The form (`RunFields`, shared by Log and Edit) is two tiers**: what a run
   needs (when/what/how far/how long) is always visible, the optional metrics sit
   behind one row that opens filled when the form arrives carrying any of them
@@ -706,7 +748,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   comments and any section that doesn't apply.
 - **Never merge a PR unless explicitly asked.** A typed `/ship`
   (`.claude/skills/ship/`) is that ask, review and release included; a green
-  PR alone never is.
+  PR alone never is. Production promotion and the update prompt are a
+  separate ask: `/promote` (`.claude/skills/promote/`).
 - **After opening a PR, track its CI and auto-fix failures:** call
   `subscribe_pr_activity`, then end the turn. On CI failure, investigate and
   push in-scope fixes until green; use `AskUserQuestion` for ambiguous or
@@ -737,7 +780,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
-- `docs/races.md` — race catalogue, contributions, badges.
+- `docs/races.md` — race catalogue (server-side search, filters, race page and goals), contributions, badges.
+- `docs/race-crawler.md` — the scheduled catalogue crawler: sources, curated policy, matching.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
 - `docs/run-celebration.md` — the finish-screen celebration: headline pools, own-log facts, the rare draw.
 - `docs/run-analysis.md` — the moving clock (paused time out of splits and pace) and the running-only (run/walk) breakdown.

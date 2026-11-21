@@ -36,7 +36,11 @@ const renderDash = (over: Record<string, unknown> = {}) => {
   return props;
 };
 
-const alreadyRan = () => screen.queryByRole("button", {name: "I already ran this"});
+// "I did it" → "Pick a run I already saved" (DidItSheet), opened on first use.
+const alreadyRan = () => {
+  if (!screen.queryByRole("dialog")) fireEvent.click(screen.getByRole("button", {name: /^I did it$/}));
+  return screen.queryByRole("button", {name: /^Pick a run I already saved/});
+};
 
 describe("Dashboard next-session card · reconciling an already-recorded run", () => {
   it("offers the reconcile route instead of telling you to come back tomorrow", () => {
@@ -85,7 +89,7 @@ describe("Dashboard next-session card · reconciling an already-recorded run", (
     renderDash();
     fireEvent.click(alreadyRan()!);
     fireEvent.click(screen.getByRole("button", {name: "Count it"}));
-    expect(screen.getByText(/Tempo/)).toBeInTheDocument();
+    expect(screen.getByText(/Tempo 8km is done/)).toBeInTheDocument();
     expect(screen.getByText(/8\.2 km in 40:12/)).toBeInTheDocument();
   });
 
@@ -112,14 +116,14 @@ describe("Dashboard next-session card · reconciling an already-recorded run", (
   // only action left on an overdue row used to be the evidence-free tick.
   it("offers the same route from an overdue row", () => {
     const props = renderDash({plan: planOf([{...thursday, date: "2026-03-09"}])});
-    fireEvent.click(screen.getByRole("button", {name: "I already ran this"}));
+    fireEvent.click(screen.getByRole("button", {name: "Link a run I already saved"}));
     fireEvent.click(screen.getByRole("button", {name: "Count it"}));
     expect(props.linkSess).toHaveBeenCalledWith(3, "w3d3", "r1", "2026-03-11");
   });
 
   it("leaves an overdue row's bare tick alone when no run could be it", () => {
     renderDash({runs: [], plan: planOf([{...thursday, date: "2026-03-09"}])});
-    expect(screen.queryByRole("button", {name: "I already ran this"})).toBeNull();
+    expect(screen.queryByRole("button", {name: "Link a run I already saved"})).toBeNull();
     expect(screen.getByRole("button", {name: "Done"})).toBeInTheDocument();
   });
 

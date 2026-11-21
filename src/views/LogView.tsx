@@ -36,7 +36,7 @@ type LogPrefill = Partial<Run> & {
 // Four arrivals: manual entry, logging a plan session, reviewing a recorder's
 // capture (`prefill.source`), and importing a file.
 type LogViewProps = {
-  addRuns: (runs: Partial<Run>[], opts?: { celebrated?: boolean }) => Run[];
+  addRuns: (runs: Partial<Run>[], opts?: { celebrated?: boolean; fresh?: boolean }) => Run[];
   onDone: () => void;
   // The saved runs (with their minted ids) and the plan session the save
   // settles, if any — the hub ticks it off and records which run did it.
@@ -112,7 +112,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       // runs" — carryPrefill ends that class of bug.
       ...carryPrefill(prefill),
       ...runFormToPatch(f),
-    }], { celebrated: !!prefill?.celebrated });
+    }], { celebrated: !!prefill?.celebrated, fresh: !prefill?.extId && !prefill?.hcId });
     setBusy(false); onSaved?.(saved || [], link); onDone();
   };
 

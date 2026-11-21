@@ -142,7 +142,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Capacitor 8 CLI requires Node >= 22.
           node-version: 22
@@ -162,6 +162,7 @@ jobs:
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
           # Public support address for crash trace mailto links. Set as a repo variable.
           VITE_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          REQUIRE_SUPPORT_EMAIL: "1"
           # Polar cloud import (public client id, repo VARIABLE — the secret half
           # lives in the polar-import edge function). Native connects open the
           # system browser and return via the polar-callback deep link; without
@@ -189,7 +190,7 @@ jobs:
       # v4 — without it, "re-run all jobs" 409s here before either store job can
       # even start.
       - name: Upload web bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-web-dist
           path: dist
@@ -209,14 +210,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           check-latest: true
           cache: npm
 
       - name: Setup Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 21
@@ -228,13 +229,13 @@ jobs:
       # commit's Android inputs match a recent main build (the usual case), the
       # AAB build restores from cache.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - name: Install dependencies
         run: npm ci
 
       - name: Download web bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: native-web-dist
           path: dist
@@ -283,7 +284,7 @@ jobs:
       # 409s on the immutable v4+ artifact store *before* the Play upload step —
       # exactly the retry path this job's run_attempt versioning exists for.
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: running-coach-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
@@ -296,7 +297,7 @@ jobs:
       # build, so a lost mapping means permanently unreadable traces for that
       # version. Keyed by versionCode so each release's mapping is retrievable.
       - name: Upload R8 mapping
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: running-coach-mapping-${{ steps.ver.outputs.code }}
           path: android/app/build/outputs/mapping/release/mapping.txt
@@ -354,7 +355,7 @@ jobs:
           echo "Staged pending_version=$VERSION_NAME — run the 'Publish app version' workflow once the Play rollout is live to show the update prompt."
 
   ios:
-    runs-on: macos-15
+    runs-on: xcode-27  # only GitHub image with Xcode 27; still a preview label
     needs: [prepare, web-build]
     env:
       ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
@@ -382,7 +383,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           check-latest: true
@@ -392,22 +393,24 @@ jobs:
         run: npm ci
 
       - name: Download web bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: native-web-dist
           path: dist
 
-      # App Store uploads require Xcode 26+ (Apple's April 2026 floor); the
-      # macos-15 image still DEFAULTS to Xcode 16.x, so select explicitly.
-      - name: Select Xcode 26
+      # Build with the iOS 27 SDK or later: the newest Xcode 27+ on the image,
+      # never its default, so a default change can't move the SDK backwards.
+      - name: Select Xcode 27+ (iOS 27+ SDK)
         run: |
-          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)
+          XCODE_APP=$({ ls -d /Applications/Xcode_*.app 2>/dev/null || true; } | { grep -E '/Xcode_(2[7-9]|[3-9][0-9])(\.[0-9]+)*\.app$' || true; } | sort -V | tail -n 1)
           if [ -z "$XCODE_APP" ]; then
-            echo "::error::No Xcode 26.x on this runner image — App Store uploads require Xcode 26+. Bump the runner image or the glob."
+            echo "::error::No Xcode 27+ on this runner image; App Store builds need the iOS 27 SDK."
             exit 1
           fi
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version); echo "iOS SDK $SDK"
+          [ "${SDK%%.*}" -ge 27 ] || { echo "::error::Expected the iOS 27+ SDK, got $SDK"; exit 1; }
 
       - name: Sync Capacitor
         run: npx cap sync ios

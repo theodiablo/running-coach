@@ -5,6 +5,7 @@
   "delete": "Supprimer",
   "back": "Retour",
   "next": "Suivant",
+  "continue": "Continuer",
   "done": "Terminé",
   "skip": "Passer",
   "undo": "Annuler",
@@ -16,13 +17,13 @@
   "notNow": "Pas maintenant",
   "gotIt": "Compris",
   "types": {
-    "EASY": "FACILE",
-    "TEMPO": "TEMPO",
-    "INTERVALS": "FRACTIONNÉ",
-    "LONG": "SORTIE LONGUE",
-    "RACE": "COURSE",
-    "WALK": "MARCHE",
-    "OTHER": "AUTRE"
+    "EASY": "Facile",
+    "TEMPO": "Tempo",
+    "INTERVALS": "Fractionné",
+    "LONG": "Sortie longue",
+    "RACE": "Course",
+    "WALK": "Marche",
+    "OTHER": "Autre"
   },
   "activities": {
     "bike": "Vélo",
@@ -31,21 +32,30 @@
     "other": "Autre"
   },
   "phases": {
-    "BASE": "BASE",
-    "BUILD": "DÉVELOPPEMENT",
-    "PEAK": "PIC DE FORME",
-    "TAPER": "AFFÛTAGE",
-    "RACE": "COURSE",
-    "RECOVERY": "RÉCUPÉRATION"
+    "BASE": "Poser les bases",
+    "BUILD": "Monter en puissance",
+    "PEAK": "Semaines les plus dures",
+    "TAPER": "On lève le pied",
+    "RACE": "Semaine de course",
+    "RECOVERY": "Récupération"
   },
   "hrTargetNudge": "Ajoute ton profil de FC dans les Paramètres pour voir une zone cible",
   "hrRowZone": {
-    "EASY": "Z2 · Base aérobie",
-    "LONG": "Z2 · Base aérobie",
-    "TEMPO": "Z3-4 · Seuil lactique",
-    "INTERVALS": "Z4-5 · Effort max (répétitions)",
-    "RACE": "Z3-4 · Effort de course",
-    "WALK": "Z1 · Récupération",
-    "OTHER": "Z2 · Base aérobie"
+    "EASY": "Zone 2 · facile, tu peux discuter",
+    "LONG": "Zone 2 · facile, tu peux discuter",
+    "TEMPO": "Zone 3-4 · soutenu mais contrôlé",
+    "INTERVALS": "Zone 4-5 · très dur, en courtes répétitions",
+    "RACE": "Zone 3-4 · effort de course",
+    "WALK": "Zone 1 · très facile",
+    "OTHER": "Zone 2 · facile"
+  },
+  "typeHints": {
+    "EASY": "Un footing facile se court assez lentement pour pouvoir discuter tout du long. La plupart de tes sorties devraient ressembler à ça.",
+    "TEMPO": "Une séance tempo est soutenue mais contrôlée : plus rapide qu'un footing facile, plus lente qu'une course. Elle t'apprend à tenir une allure forte plus longtemps.",
+    "INTERVALS": "Le fractionné alterne de courts efforts rapides et du footing léger pour récupérer. Il développe ta vitesse sans t'épuiser.",
+    "LONG": "La sortie longue est la plus longue de ta semaine, à allure facile. Elle construit l'endurance pour tenir la distance.",
+    "RACE": "Jour de course : tout le plan mène à ce moment.",
+    "WALK": "La marche ou une activité douce te garde en mouvement pendant que tes jambes récupèrent.",
+    "OTHER": "L'entraînement croisé (vélo, natation, elliptique) développe ta forme sans les impacts de la course à pied."
   }
 }

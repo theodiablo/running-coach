@@ -33,3 +33,22 @@ describe("iOS build-target floor", () => {
     expect(version!).toBeLessThanOrEqual(deploymentTarget);
   });
 });
+
+// Dependabot scans the committed SPM lockfile, not what `cap sync` resolves in CI, so keep it current.
+describe("Capacitor Swift package pin", () => {
+  const iosVersion = JSON.parse(readFileSync("node_modules/@capacitor/ios/package.json", "utf8")).version;
+  const manifest = readFileSync("ios/App/CapApp-SPM/Package.swift", "utf8");
+  const resolved = JSON.parse(
+    readFileSync("ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved", "utf8"),
+  );
+
+  it("CapApp-SPM pins the installed @capacitor/ios (run `npx cap sync ios`)", () => {
+    expect(manifest).toMatch(/capacitor-swift-pm\.git", exact: "([^"]+)"/);
+    expect(manifest.match(/capacitor-swift-pm\.git", exact: "([^"]+)"/)![1]).toBe(iosVersion);
+  });
+
+  it("Package.resolved locks the same capacitor-swift-pm version", () => {
+    const pin = resolved.pins.find((p: { identity: string }) => p.identity === "capacitor-swift-pm");
+    expect(pin?.state.version).toBe(iosVersion);
+  });
+});

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, MessageCircle, MoreHorizontal, PenLine, Pencil, Play, RotateCcw, Route, SkipForward } from "lucide-react";
+import { Check, ChevronDown, ListChecks, MessageCircle, MoreHorizontal, Pencil, Play, RotateCcw, Route, SkipForward } from "lucide-react";
 import { TCLR } from "../constants";
 import { fmt } from "../utils/format";
 import { sessionMeta } from "../utils/plan";
@@ -18,7 +18,7 @@ type PlanSessionRowProps = {
   notesOpen: boolean;
   onToggleNotes: () => void;
   onRecord?: () => void;     // absent where nothing can record it (a swim)
-  onDone: () => void;
+  onDone: () => void;         // "I did it": the hub asks how the session gets recorded (DidItSheet)
   onToggleDone: () => void;
   onSkip: () => void;
   onAskCoach: () => void;
@@ -27,8 +27,8 @@ type PlanSessionRowProps = {
   openSettings: (page?: SettingsPage) => void;
 };
 
-// One plan session with labeled actions: "Start run" (open the recorder) and "Log it" (a
-// run already done); Skip sits in an overflow (⋯) menu so it doesn't read as delete.
+// One plan session with labeled actions: "Start run" (open the recorder), "I did it" (a
+// session already done), and a visible "Change" beside its distance; Skip sits in an overflow (⋯) menu so it doesn't read as delete.
 // The Dashboard's next-session card offers the same two verbs through the same handlers.
 export function PlanSessionRow({
   session: s, settings, notesOpen, onToggleNotes,
@@ -52,7 +52,7 @@ export function PlanSessionRow({
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={"text-xs font-bold uppercase " + typeClass(s.type)}>{type}</span>
+            <span className={"text-xs font-bold " + typeClass(s.type)}>{type}</span>
             <span className="text-xs text-slate-500">{fmt.sht(s.date)}</span>
           </div>
           <p className="text-sm font-semibold text-slate-400 line-through leading-snug mt-0.5">{title}</p>
@@ -93,19 +93,28 @@ export function PlanSessionRow({
       {/* Body — tap toggles the coach-notes breakdown */}
       <div className="px-4 py-3 cursor-pointer select-none" onClick={onToggleNotes}>
         <div className="flex items-center gap-2">
-          <span className={"text-xs font-bold uppercase " + typeClass(s.type)}>{type}</span>
+          <span className={"text-xs font-bold " + typeClass(s.type)}>{type}</span>
           <span className="text-xs text-slate-400 whitespace-nowrap">{fmt.sht(s.date)}</span>
           <span className="flex-1"/>
           <span className={"text-xs flex items-center gap-1 " + (notesOpen ? "text-orange-400" : "text-slate-500")}>
-            <MessageCircle size={12}/>{t("plan.session.coachNotes")}
+            <ListChecks size={12}/>{t("plan.session.coachNotes")}
             <ChevronDown size={12} className={"transition-transform " + (notesOpen ? "rotate-180" : "")}/>
           </span>
         </div>
         <p className="text-sm font-semibold text-slate-100 leading-snug mt-1">{title}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{meta}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-xs text-slate-400 flex-1 min-w-0">{meta}</p>
+          {onEdit && (
+            <button onClick={e => { e.stopPropagation(); onEdit(); }}
+              className="flex items-center gap-1 text-xs font-semibold px-2 py-1 -my-1 rounded-lg text-orange-300 hover:bg-orange-500/10 transition-colors flex-shrink-0">
+              <Pencil size={12}/>{t("plan.session.change")}
+            </button>
+          )}
+        </div>
         <HRTarget type={s.type} settings={settings} openSettings={openSettings}/>
         {notesOpen && (
           <div className="mt-2 rounded-lg bg-slate-900/70 px-3 py-2.5 space-y-1.5 animate-expand" onClick={e => e.stopPropagation()}>
+            <p className="text-xs text-slate-300 leading-relaxed">{t("common.typeHints." + s.type, { defaultValue: "" })}</p>
             {sessionSteps(s).map(st => (
               <p key={st.label} className="text-xs text-slate-400 leading-relaxed">
                 <span className="text-slate-300 font-semibold">{st.label}: </span>{st.detail}
@@ -118,12 +127,12 @@ export function PlanSessionRow({
       {/* Action footer */}
       <div className="relative flex items-center gap-2 px-4 py-2.5 border-t border-slate-700/50">
         {onRecord && <button onClick={onRecord}
-          className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-500 text-slate-900 hover:bg-orange-400 transition-[background-color,transform] active:scale-95">
+          className="flex items-center gap-1.5 whitespace-nowrap text-xs font-bold px-3 py-1.5 rounded-lg bg-orange-500 text-slate-900 hover:bg-orange-400 transition-[background-color,transform] active:scale-95">
           <Play size={13}/>{t("plan.session.startRun")}
         </button>}
         <button onClick={onDone}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700 transition-colors">
-          <PenLine size={13}/>{t("plan.session.logIt")}
+          className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700 transition-colors">
+          <Check size={13}/>{t("log.didIt.button")}
         </button>
         <span className="flex-1"/>
         <button onClick={() => setMenuOpen(v => !v)}
@@ -139,12 +148,6 @@ export function PlanSessionRow({
         {menuOpen && (
           <div
             className="absolute right-4 bottom-[calc(100%+6px)] z-20 w-56 rounded-xl bg-slate-800 border border-slate-600 shadow-2xl overflow-hidden animate-expand">
-            {onEdit && (
-              <button onClick={() => { setMenuOpen(false); onEdit(); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
-                <Pencil size={14} className="text-slate-300"/>{t("plan.session.edit")}
-              </button>
-            )}
             <button onClick={() => { setMenuOpen(false); onAskCoach(); }}
               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors border-b border-slate-700/60">
               <MessageCircle size={14} className="text-orange-400"/>{t("plan.session.askCoach")}

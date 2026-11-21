@@ -27,3 +27,57 @@ export function versionStatus(current: string | number | null | undefined, confi
   if (config.latest_version && compareVersions(current, config.latest_version) < 0) return "update-available";
   return "ok";
 }
+
+// How a soft update reaches the runner. Play, when it answers, is the truth on
+// Android (it knows rollouts and testing tracks); app_config is the fallback
+// for a store that can't answer (iOS, sideloaded installs).
+export type PlayUpdateState = { versionCode: number; status: string; progress: number | null };
+export type AppUpdate =
+  | ({ via: "play" } & PlayUpdateState)
+  | { via: "store"; version: string };
+
+type PlayAnswer = { available: boolean; inProgress: boolean; flexibleAllowed: boolean; versionCode: number; status: string } | null;
+
+// Folds a Play install-state event into the update. Only a live or finished
+// download overrides: a stale "canceled" from an earlier attempt must not hide a
+// fresh offer when merged in after launch.
+type InstallEvent = { status: string; bytesDownloaded: number; totalBytes: number };
+export function withInstallState(update: AppUpdate | null, s: InstallEvent | null, live = true): AppUpdate | null {
+  if (!s || update?.via !== "play") return update;
+  if (!live && !["pending", "downloading", "downloaded"].includes(s.status)) return update;
+  if (s.status === "installed" || s.status === "canceled") return null;
+  const progress = s.totalBytes > 0 ? Math.min(1, s.bytesDownloaded / s.totalBytes) : null;
+  return { ...update, status: s.status, progress };
+}
+
+// The hard gate can only be passed once the store has a version that clears it:
+// Play still offering nothing, or a live App Store version below the floor,
+// means it is on its way (review or rollout), so "Update" would lead nowhere.
+export function requiredUpdatePending(
+  play: { available: boolean; inProgress: boolean; status: string } | null,
+  storeVersion: string | null | undefined,
+  minSupported: string | null,
+) {
+  if (play) return !play.available && !play.inProgress && play.status !== "downloaded";
+  return !!storeVersion && !!minSupported && compareVersions(storeVersion, minSupported) < 0;
+}
+
+// A Play tester runs a build newer than production: their review would be private feedback, not a public one.
+export function reviewChannelFor(platform: "android" | "ios", fromStore: boolean, installed: string | null, latest: string | null, hasAppStoreId: boolean) {
+  if (!fromStore) return null;
+  if (platform === "ios") return { prompt: "native" as const, link: hasAppStoreId };
+  if (installed && latest && compareVersions(installed, latest) > 0) return null;
+  return { prompt: "card" as const, link: true };
+}
+
+export function resolveAppUpdate(status: string, latestVersion: string | null, play: PlayAnswer): AppUpdate | null {
+  if (status === "must-update") return null;
+  if (play) {
+    if (play.status === "downloaded" || play.inProgress || (play.available && play.flexibleAllowed)) {
+      return { via: "play", versionCode: play.versionCode, status: play.status, progress: null };
+    }
+    if (play.available && status === "update-available" && latestVersion) return { via: "store", version: latestVersion };
+    return null;
+  }
+  return status === "update-available" && latestVersion ? { via: "store", version: latestVersion } : null;
+}

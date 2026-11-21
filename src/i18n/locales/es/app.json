@@ -69,6 +69,7 @@
   },
   "offline": {
     "usingLocal": "Estás sin conexión. Se muestran tus últimos datos sincronizados; los cambios nuevos se sincronizarán cuando vuelvas a tener conexión.",
+    "slowLink": "Conexión débil. Se muestran tus últimos datos sincronizados; se actualizarán solos en cuanto la conexión lo permita.",
     "refreshed": "De nuevo en línea. Tus datos se han actualizado desde la nube."
   },
   "storeError": {
@@ -80,13 +81,31 @@
   "update": {
     "requiredTitle": "Actualización necesaria",
     "requiredBody": "Esta versión de Running Coach ya no es compatible. Actualiza a la última versión para seguir usando la app.",
+    "pendingBodyAndroid": "Esta versión de Running Coach ya no es compatible y la nueva todavía está llegando a Google Play. Suele estar disponible en unas horas.",
+    "pendingBodyIos": "Esta versión de Running Coach ya no es compatible y la nueva todavía está llegando a la App Store. Suele estar disponible en unas horas.",
     "updateNow": "Actualizar ahora",
-    "title": "La versión {{version}} ya está lista",
-    "bodyAndroid": "Actualiza desde Google Play para tener las últimas mejoras.",
-    "bodyIos": "Actualiza desde la App Store para tener las últimas mejoras.",
+    "checkAgain": "Volver a comprobar",
+    "openStoreAndroid": "Abrir Google Play",
+    "openStoreIos": "Abrir la App Store",
+    "title": "Actualización disponible",
+    "version": "Versión {{version}}",
     "update": "Actualizar",
     "dismiss": "Descartar",
-    "later": "Más tarde"
+    "downloading": "Descargando la actualización",
+    "downloadingBody": "En segundo plano, puedes seguir.",
+    "readyTitle": "Actualización descargada",
+    "readyBody": "Reinicia la app para instalarla.",
+    "restart": "Reiniciar"
+  },
+  "review": {
+    "title": "Un pequeño favor",
+    "bodyAndroid": "Desarrollo Running Coach yo solo. Si la app te sirve, una reseña rápida en Google Play me ayudaría a que otros corredores la descubran.",
+    "bodyIos": "Desarrollo Running Coach yo solo. Si la app te sirve, una reseña rápida en la App Store me ayudaría a que otros corredores la descubran.",
+    "cta": "Dejar una reseña",
+    "later": "Ahora no",
+    "never": "No volver a preguntar",
+    "settingsRow": "Valorar Running Coach",
+    "settingsHint": "Desarrollo esta app yo solo. Tu reseña ayuda a que otros corredores la descubran."
   },
   "coachmark": {
     "title": "Tu entrenador está aquí",

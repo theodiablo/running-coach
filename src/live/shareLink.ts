@@ -102,27 +102,48 @@ export const watchViewerId = (): string => {
   return viewerId;
 };
 
+// The edge-cached read: our CloudFront serves /live-watch/<token> from a seconds-long cache shared by every spectator of
+// the run, so it only exists on the web origin it fronts (docs/live-sharing.md, "Edge cache").
+const edgeWatchUrl = (token: string): string | null =>
+  typeof window !== "undefined" && window.location.origin === WEB_APP_ORIGIN
+    ? `/live-watch/${encodeURIComponent(token)}` : null;
+
+// The broadcast (started_at) each token's view was counted for. Until a direct read has seen it live, the page polls
+// direct with its viewer id; afterwards through the edge cache, which carries none.
+const countedBroadcast = new Map<string, string>();
+
 export async function fetchLiveWatch(token: string, signal?: AbortSignal): Promise<WatchResult> {
   const v = watchViewerId();
+  const edge = countedBroadcast.has(token) ? edgeWatchUrl(token) : null;
+  // The edge is never the last word: anything but a live answer through it is re-read direct, once.
+  const direct = (): Promise<WatchResult> => {
+    countedBroadcast.delete(token);
+    return fetchLiveWatch(token, signal);
+  };
+  let res: Response;
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}${v ? `&v=${v}` : ""}`,
-      {
-        signal,
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      },
-    );
-    if (res.status === 429) {
-      const secs = Number(res.headers.get("Retry-After"));
-      return { kind: "error", retryAfterMs: Number.isFinite(secs) && secs > 0 ? secs * 1000 : undefined };
-    }
-    if (!res.ok) return { kind: "error" };
-    const body = await res.json().catch(() => null) as { live?: boolean; run?: PublicLiveRun } | null;
-    if (!body?.live || !body.run) return { kind: "none" };
-    return { kind: "live", run: body.run };
+    res = edge
+      ? await fetch(edge, { signal })
+      : await fetch(
+        `${SUPABASE_URL}/functions/v1/live-watch?t=${encodeURIComponent(token)}${v ? `&v=${v}` : ""}`,
+        { signal, headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
+      );
   } catch {
-    return { kind: "error" };
+    return edge ? direct() : { kind: "error" };
   }
+  if (edge && (!res.ok || !res.headers.get("Content-Type")?.includes("json"))) return direct();
+  if (res.status === 429) {
+    const secs = Number(res.headers.get("Retry-After"));
+    return { kind: "error", retryAfterMs: Number.isFinite(secs) && secs > 0 ? secs * 1000 : undefined };
+  }
+  // Not JSON is the SPA fallback answering for a missing origin: an outage, never "the run ended".
+  if (!res.ok || !res.headers.get("Content-Type")?.includes("json")) return { kind: "error" };
+  const body = await res.json().catch(() => null) as { live?: boolean; run?: PublicLiveRun } | null;
+  if (!body?.live || !body.run) return edge ? direct() : { kind: "none" };
+  const started = String(body.run.started_at);
+  if (!edge) countedBroadcast.set(token, started);
+  else if (countedBroadcast.get(token) !== started) countedBroadcast.delete(token);
+  return { kind: "live", run: body.run };
 }
 
 // ── The batch read (following several runners) ──────────────────────────────

@@ -15,11 +15,15 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => true,
   isStoreReconciled: () => true,
+  subscribeStoreReconciled: () => () => {},
   isCached: () => true,
 }));
 
 vi.mock("./races", () => ({
-  listRaces: async () => [],
+  peekRaceSearch: () => null,
+  raceSearchVersion: () => 0,
+  searchRaces: async () => ({ races: [], next: null, total: 0 }),
+  listKnownRaces: async () => [],
   addRace: vi.fn(),
   addEdition: vi.fn(),
   reportRace: vi.fn(),

@@ -78,7 +78,8 @@ describe("PlanView · after the race", () => {
 
   it("keeps a still-future race date when the editor opens", () => {
     const { view } = renderPlan({ plan: planWith("2026-10-20"), settings: settingsOf("2026-10-20") });
-    fireEvent.click(screen.getAllByRole("button", { name: /Edit/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Change my plan" }));
+    fireEvent.click(screen.getByRole("button", { name: /^My race or goal time/ }));
     expect(dateInput(view.container).value).toBe("2026-10-20");
   });
 });
@@ -104,6 +105,6 @@ describe("PlanView · the recovery after the race", () => {
 
   it("labels the recovery week", () => {
     renderPlan({ plan: recoveryPlan(), runs: [{ id: "r1", date: "2026-09-26", type: "RACE", km: 10, durationSec: 3000, effort: 6 }] });
-    expect(screen.getByText("RECOVERY")).toBeInTheDocument();
+    expect(screen.getByText("Recovering")).toBeInTheDocument();
   });
 });

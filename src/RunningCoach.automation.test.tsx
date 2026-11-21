@@ -16,6 +16,7 @@ let store: Record<string, unknown> = {};
 let reconciled = true;
 let loaded = true;
 let cached = true;
+const reconciledListeners = new Set<() => void>();
 
 vi.mock("./db", () => ({
   db: {
@@ -26,9 +27,10 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => loaded,
   isStoreReconciled: () => reconciled,
+  subscribeStoreReconciled: (cb: () => void) => { reconciledListeners.add(cb); return () => { reconciledListeners.delete(cb); }; },
   isCached: () => cached,
 }));
-vi.mock("./races", () => ({ listRaces: async () => [], addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
+vi.mock("./races", () => ({ listKnownRaces: async () => [], peekRaceSearch: () => null, raceSearchVersion: () => 0, searchRaces: async () => ({ races: [], next: null, total: 0 }), addRace: vi.fn(), addEdition: vi.fn(), reportRace: vi.fn() }));
 vi.mock("./telemetry", () => ({ track: vi.fn() }));
 vi.mock("./modals/CoachChat", () => ({
   CoachChat: ({ onNavigate }: { onNavigate: (t: string) => void }) => <button onClick={() => onNavigate("next")}>Open what's next</button>,
@@ -110,6 +112,18 @@ describe("RunningCoach · plan automation", () => {
       cleanup();
       reconciled = true;
       await boot();
+      expect(plan().weeks.length).toBeGreaterThan(p.weeks.length);
+    });
+
+    it("gets its turn when a slow or offline boot reconciles later in the session", async () => {
+      const p = open();
+      seed(p, [], settings({ raceDate: "", goalKind: "open" }));
+      at(startOfLastBlock(p));
+      reconciled = false;
+      await boot();
+      expect(plan()).toBe(p);
+      reconciled = true;
+      await act(async () => { reconciledListeners.forEach(cb => cb()); });
       expect(plan().weeks.length).toBeGreaterThan(p.weeks.length);
     });
 
@@ -315,7 +329,7 @@ describe("RunningCoach · plan automation", () => {
     };
     const logTheRace = async () => {
       await boot();
-      fireEvent.click(screen.getByRole("button", { name: "Record a run" }));
+      fireEvent.click(screen.getByRole("button", { name: "Add a run" }));
       fireEvent.click(screen.getByRole("button", { name: /Enter it manually/ }));
       fireEvent.change(screen.getByLabelText("Distance (km)"), { target: { value: "10" } });
       fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "4800" } });

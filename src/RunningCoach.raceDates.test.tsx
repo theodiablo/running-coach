@@ -16,12 +16,13 @@ vi.mock("./db", () => ({
   flushNow: async () => {},
   isStoreLoaded: () => true,
   isStoreReconciled: () => true,
+  subscribeStoreReconciled: () => () => {},
   isCached: () => true,
 }));
 
 // The catalogue now lists the Barcelona half a week earlier than the user planned.
 vi.mock("./races", () => ({
-  listRaces: async () => [{
+  listKnownRaces: async () => [{
     id: "barcelona-half-marathon", name: "Mitja Barcelona", verified: true,
     editions: [{ id: "barcelona-half-marathon-2027-02-21", date: catalogueDate, distanceKm: 21.1 }],
   }],

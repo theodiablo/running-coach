@@ -1,13 +1,12 @@
 {
-  "title": "Tu plan de entrenamiento",
-  "editPlan": "Editar plan",
+  "title": "Tu plan",
   "editShort": "Editar",
   "reassurance": "Cambiar cualquiera de los dos reconstruye tus sesiones restantes; los entrenamientos completados se conservan.",
   "pastWeeks": "Semanas anteriores",
   "notConfigured": "sin configurar",
-  "longRunNudge": "Para alcanzar tu objetivo, las tiradas largas llegan a ~{{peak}}, por encima de tu día de entrenamiento más largo ({{longest}}). Es normal para esta distancia; valora alargar ese día en Editar plan.",
+  "longRunNudge": "Para alcanzar tu objetivo, las tiradas largas llegan a ~{{peak}}, por encima de tu día de entrenamiento más largo ({{longest}}). Es normal para esta distancia. Para hacerle sitio, alarga ese día en Cambiar mi plan → Los días que puedo correr.",
   "week": {
-    "label": "Sem. {{number}}",
+    "label": "Semana {{number}}",
     "now": "esta semana",
     "stillOpen_one": "1 pendiente",
     "stillOpen_other": "{{count}} pendientes"
@@ -17,9 +16,44 @@
     "availTitle": "Tu disponibilidad",
     "styleTitle": "Estilo de entrenamiento"
   },
+  "summary": {
+    "eyebrow": "Te preparas para",
+    "race": "Carrera de {{dist}} km",
+    "when": "{{race}} · {{date}}",
+    "goal": "Objetivo: {{goal}}.",
+    "noGoal": "Sin objetivo de tiempo, solo llegar a la meta.",
+    "days_one": "{{count}} entrenamiento por semana, {{duration}}.",
+    "days_other": "{{count}} entrenamientos por semana, {{duration}} cada uno.",
+    "customDays_one": "{{count}} entrenamiento por semana: {{days}}.",
+    "customDays_other": "{{count}} entrenamientos por semana: {{days}}.",
+    "style": "Estilo: {{style}}."
+  },
+  "change": {
+    "button": "Cambiar mi plan",
+    "title": "¿Qué quieres cambiar?",
+    "note": "Verás cada cambio antes de guardarlo.",
+    "goal": "Mi carrera o mi tiempo objetivo",
+    "goalSub": "Otra carrera, otra fecha, otro tiempo",
+    "goalOpen": "Para qué me preparo",
+    "goalOpenSub": "Preparar una carrera, o cambiar de enfoque",
+    "avail": "Los días que puedo correr",
+    "availSub": "Más o menos días, o menos tiempo por sesión",
+    "style": "Lo exigente que es",
+    "styleSub": "Más suave, sobre todo fácil, o más velocidad",
+    "session": "Solo una sesión",
+    "sessionSub": "Mover, acortar o intercambiar una sesión",
+    "coach": "Otra cosa",
+    "coachSub": "Lesión, vacaciones, una semana perdida: cuéntaselo a tu entrenador",
+    "sessionHint": "Toca Cambiar en la sesión que quieras mover, acortar o intercambiar.",
+    "heading": {
+      "goal": "Tu carrera u objetivo",
+      "avail": "Tus días para correr",
+      "style": "Lo exigente que es"
+    }
+  },
   "goalRow": {
     "subtitle": "para qué te preparas",
-    "summary": "{{dist}} km · menos de {{goal}} · {{date}}{{elev}}",
+    "summary": "{{dist}} km · objetivo {{goal}} · {{date}}{{elev}}",
     "summaryNoGoal": "{{dist}} km · {{date}}{{elev}}"
   },
   "availRow": {
@@ -85,17 +119,16 @@
   },
   "session": {
     "skipped": "omitida",
-    "coachNotes": "Notas del entrenador",
+    "coachNotes": "Cómo hacerlo",
     "askCoach": "Preguntar al entrenador",
     "moreActions": "Más acciones",
     "skippedReassure": "Sin estrés, el plan se adapta.",
     "skip": "Omitir esta sesión",
     "startRun": "Empezar",
-    "logIt": "Registrar",
-    "edit": "Editar sesión"
+    "change": "Cambiar"
   },
   "promote": {
-    "newTarget": "Nuevo objetivo de entrenamiento",
+    "newTarget": "Tu próxima carrera",
     "yourRace": "Tu carrera"
   },
   "progress": {
@@ -123,7 +156,7 @@
     "distance": "Distancia de la carrera (km)",
     "distancePlaceholder": "p. ej., 21,1",
     "raceElevation": "Desnivel positivo de la carrera (m)",
-    "elevationHelp": "Desnivel total del recorrido; se usa para ajustar los ritmos de entrenamiento al esfuerzo equivalente en llano.",
+    "elevationHelp": "Desnivel total del recorrido. En carreras con cuestas, los ritmos son más suaves para que el esfuerzo sea el mismo.",
     "trainingDays": "Días y duraciones de entrenamiento",
     "trainingStyle": "Estilo de entrenamiento",
     "hrNudge": "Añade tu perfil de FC en Ajustes para desbloquear objetivos de frecuencia cardíaca en cada sesión.",

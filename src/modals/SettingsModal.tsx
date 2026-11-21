@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LogOut, MessageSquare } from "lucide-react";
+import { ChevronRight, LogOut, MessageSquare, Star } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { SettingsHub } from "./settings/SettingsHub";
 import { SubPage } from "./settings/SubPage";
@@ -12,6 +12,8 @@ import type { User } from "@supabase/supabase-js";
 import type { Plan, SettingsPage, SettingsState, UserContextState } from "../types";
 
 type SettingsModalProps = {
+  canRate?: boolean;
+  onRate?: () => void;
   settings: SettingsState;
   saveSettings: (settings: SettingsState) => void;
   userContext: UserContextState;
@@ -42,7 +44,7 @@ type SettingsModalProps = {
 // mounts on top and registers its OWN dismiss handler, so back/Escape pops one level.
 // Flows that replace the whole screen (backup, restore, delete account, coach) close
 // settings first; RunningCoach wires their handlers that way.
-export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, canRate = false, onRate}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
@@ -76,6 +78,17 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
             </button>
             <p className="text-[11px] text-slate-500 px-1">{t("feedback.settingsHint")}</p>
           </div>
+          {canRate && onRate && (
+            <button onClick={onRate}
+              className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-left transition-colors">
+              <Star size={15} className="text-orange-400 flex-shrink-0"/>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium text-slate-200">{t("app.review.settingsRow")}</span>
+                <span className="block text-[11px] text-slate-500">{t("app.review.settingsHint")}</span>
+              </span>
+              <ChevronRight size={15} className="text-slate-500 flex-shrink-0"/>
+            </button>
+          )}
           {onSignOut && (
             <button onClick={onSignOut}
               className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-2 transition-colors">

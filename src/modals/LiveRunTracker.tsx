@@ -233,13 +233,17 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   // Back on: a new broadcast, so a fresh write capability (the old one was
   // spent by the teardown) and a publisher that re-opens the row on the next
   // fix rather than updating one that no longer exists.
+  const markShareUsed = useCallback(() => {
+    if (settings.liveShareUsed !== true) onSettingsPatch?.({ liveShareUsed: true });
+  }, [settings.liveShareUsed, onSettingsPatch]);
   const putOnAir = useCallback(() => {
+    markShareUsed();
     shareEndedRef.current = false;
     resetLivePublisher();
     const token = mintPublishToken();
     storePublishToken(token);
     publishTokenRef.current = token;
-  }, []);
+  }, [markShareUsed]);
   const armShare = (on: boolean) => {
     setShareLive(on);
     try { localStorage.setItem(LIVE_SHARE_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
@@ -336,6 +340,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     const publishToken = mintPublishToken();
     storePublishToken(publishToken);
     publishTokenRef.current = publishToken;
+    if (shareLive) markShareUsed();
     rt.start();
   };
   const countdown = useCountdown(startTracking);
@@ -765,7 +770,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
                 <span className={"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs "
                   + (hrFresh ? "border-emerald-500/40 text-emerald-300" : "border-slate-700 text-slate-400")}>
                   <HeartPulse size={12} />
-                  {hrFresh ? t("tracker.ready.hrLive", { bpm: stats.hr }) : t(hrLine.key, hrLine.params)}
+                  {hrFresh ? t("tracker.ready.hrLive", { bpm: stats.hr }) : t(hrLine.key, hrLine.params ?? {})}
                 </span>
               )}
               {hrSrc && !hrSrc.live && (
@@ -840,7 +845,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
             </div>
             {liveHr && (
               <p className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-                <BetaBadge />{t(hrLine.key, hrLine.params)}
+                <BetaBadge />{t(hrLine.key, hrLine.params ?? {})}
               </p>
             )}
             {trim && trim.trimmedSec >= 60 && (
