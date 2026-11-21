@@ -34,6 +34,10 @@ type Props = {
   onClose: () => void;
 };
 
+const hostOf = (url: string) => {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
+};
+
 const daysTo = (date: string, today: string) =>
   Math.round((new Date(date + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000);
 
@@ -89,6 +93,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
   const lng = typeof race.lng === "number" ? race.lng : null;
   const place = [race.city, race.country ? countryName(String(race.country), i18n.language) || race.country : null].filter(Boolean).join(", ");
   const url = typeof race.url === "string" ? race.url : null;
+  const host = url ? hostOf(url) : "";
   const distKm = typeof race.distKm === "number" ? race.distKm : null;
 
   // A non-target goal saves as soon as it settles; on a race not yet listed it lists it too.
@@ -128,6 +133,15 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
               ? <Stat value={part?.timeSec ? fmt.dur(part.timeSec) : "–"} label={t("races.sheet.yourTime")}/>
               : <Stat value={upcoming ? String(days) : "–"} label={upcoming ? t("races.upcoming.daysToGo") : t("races.sheet.passed")}/>}
           </div>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer"
+              className="mt-3 w-full flex flex-col items-center justify-center bg-slate-800/80 border border-slate-600 hover:border-slate-400 text-slate-100 py-2 rounded-xl transition-colors">
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold">
+                {t(upcoming ? "races.sheet.signUpOfficial" : "races.card.officialSite")}<ExternalLink size={14}/>
+              </span>
+              {host && <span className="text-[11px] text-slate-400">{host}</span>}
+            </a>
+          )}
         </div>
 
         {(choices.chips.length > 0 || choices.canTogglePast) && (
@@ -241,18 +255,11 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
           </div>
         </Section>
 
-        {(lat != null && lng != null) || url || distKm != null ? (
+        {(lat != null && lng != null) || distKm != null ? (
           <Section label={t("races.sheet.where")}>
             <div className="space-y-2">
               {lat != null && lng != null && <RaceMiniMap lat={lat} lng={lng} label={t("races.sheet.mapLabel", { name: race.name })}/>}
-              <div className="flex items-center justify-between gap-3 text-sm">
-                {url ? (
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-orange-400 hover:text-orange-300">
-                    {t("races.card.officialSite")}<ExternalLink size={12}/>
-                  </a>
-                ) : <span/>}
-                {distKm != null && <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Navigation size={11}/>{t("races.card.away", { dist: fmtKm(distKm * 1000) })}</span>}
-              </div>
+              {distKm != null && <p className="flex justify-end"><span className="inline-flex items-center gap-1 text-xs text-slate-400"><Navigation size={11}/>{t("races.card.away", { dist: fmtKm(distKm * 1000) })}</span></p>}
             </div>
           </Section>
         ) : null}

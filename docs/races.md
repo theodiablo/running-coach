@@ -104,7 +104,7 @@ until the `review-race-crawl` skill checks them against these same rules.
 
 Tapping a race (Find, or a card in My Races) opens `RaceSheet`
 (`src/modals/RaceSheet.tsx`): its dates and distances, a still map of the start
-(`RaceMiniMap`, cached tiles), the official site, and the runner's goal. The
+(`RaceMiniMap`, cached tiles), the official site (a button under the numbers, "Sign up" while a date is upcoming), and the runner's goal. The
 goal box shows on the training target, or on a race whose participation already
 carries a goal; a race only browsed shows none (Plan setup asks for the goal
 when "Train for this race" builds the plan). A goal belongs to the participation
