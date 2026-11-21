@@ -11,11 +11,13 @@ type Props = {
   "aria-label"?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
+  // For an always-prefilled field: the first digit replaces the value instead of appending to it.
+  selectOnFocus?: boolean;
 };
 
 // One masked duration field: digits fill from the right (4300 → 43:00), as a watch face reads.
 // Append/backspace only, caret pinned to the end, so there is no caret arithmetic to get wrong.
-export function DurationInput({ id, value, onChange, onCommit, className, placeholder, ...aria }: Props) {
+export function DurationInput({ id, value, onChange, onCommit, className, placeholder, selectOnFocus, ...aria }: Props) {
   const ref = useRef<HTMLInputElement | null>(null);
   const pinEnd = () => requestAnimationFrame(() => {
     const el = ref.current;
@@ -36,7 +38,7 @@ export function DurationInput({ id, value, onChange, onCommit, className, placeh
         e.preventDefault();
         onChange(value.slice(0, -1));
       }}
-      onFocus={pinEnd} onClick={pinEnd}
+      onFocus={e => { if (selectOnFocus) e.currentTarget.select(); pinEnd(); }} onClick={pinEnd}
       className={className}/>
   );
 }

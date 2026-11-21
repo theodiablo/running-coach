@@ -59,12 +59,15 @@ export function GoalConfigurator({distanceKm, goalSec, onChange}: GoalConfigurat
   const tMax  = Math.round(band.slow * dist);
 
   // A typed time or pace clamps into the distance's band, like the slider; an empty field reverts.
+  // An untouched field commits nothing: pace is rounded, so re-deriving the goal from it would drift.
   const commitTime = (digits: string) => {
+    if (timeDigits == null) return;
     const sec = durToSec(digits);
     if (sec > 0) onChange(clampGoalSec(sec, dist));
     setTimeDigits(null);
   };
   const commitPace = (digits: string) => {
+    if (paceDigits == null) return;
     const p = durToSec(digits);
     if (p > 0) onChange(clampGoalSec(Math.round(p * dist), dist));
     setPaceDigits(null);
@@ -85,12 +88,12 @@ export function GoalConfigurator({distanceKm, goalSec, onChange}: GoalConfigurat
         <label className="flex-1 min-w-0">
           <span className="text-[11px] text-slate-400 block mb-1">{t("onboarding.goal.time")}</span>
           <DurationInput className={fieldCls} value={timeDigits ?? secToDur(eff)}
-            onChange={setTimeDigits} onCommit={commitTime}/>
+            onChange={setTimeDigits} onCommit={commitTime} selectOnFocus/>
         </label>
         <label className="flex-1 min-w-0">
           <span className="text-[11px] text-slate-400 block mb-1">{t("onboarding.goal.pace")}</span>
           <DurationInput className={fieldCls} value={paceDigits ?? secToDur(pace)}
-            onChange={setPaceDigits} onCommit={commitPace}/>
+            onChange={setPaceDigits} onCommit={commitPace} selectOnFocus/>
         </label>
       </div>
     </div>

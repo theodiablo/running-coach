@@ -40,4 +40,20 @@ describe("GoalConfigurator typed goal", () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(time.value).not.toBe("");
   });
+
+  it("leaves the goal alone when a field is focused and left untouched", () => {
+    const { onChange, time, pace } = setup(6300);
+    onChange.mockClear();
+    for (const el of [pace, time]) { fireEvent.focus(el); fireEvent.blur(el); }
+    fireEvent.focus(pace);
+    fireEvent.keyDown(pace, { key: "Enter" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("selects the prefilled value on focus so typing replaces it", () => {
+    const { time } = setup(goal);
+    fireEvent.focus(time);
+    expect(time.selectionStart).toBe(0);
+    expect(time.selectionEnd).toBe(time.value.length);
+  });
 });
