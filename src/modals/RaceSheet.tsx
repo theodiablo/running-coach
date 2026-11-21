@@ -150,7 +150,8 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
           </Section>
         )}
 
-        {!done && (upcoming || (!isTarget && savedGoal > 0)) && (
+        {/* A goal is asked for once the runner trains for the race; a goal already saved stays visible. */}
+        {!done && ((isTarget && upcoming) || (!isTarget && savedGoal > 0)) && (
           <Section label={t(isTarget ? "races.goal.targetLabel" : "races.goal.label")}>
             <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 space-y-3">
               <div className="flex items-center gap-3">

@@ -104,9 +104,11 @@ until the `review-race-crawl` skill checks them against these same rules.
 
 Tapping a race (Find, or a card in My Races) opens `RaceSheet`
 (`src/modals/RaceSheet.tsx`): its dates and distances, a still map of the start
-(`RaceMiniMap`, cached tiles), the official site, and the runner's goal. A goal
-belongs to the participation (`goalSec`, synced); typing one on a race not yet
-listed lists it. The training target's goal stays `settings.goalSec`, mirrored
+(`RaceMiniMap`, cached tiles), the official site, and the runner's goal. The
+goal box shows on the training target, or on a race whose participation already
+carries a goal; a race only browsed shows none (Plan setup asks for the goal
+when "Train for this race" builds the plan). A goal belongs to the participation
+(`goalSec`, synced). The training target's goal stays `settings.goalSec`, mirrored
 onto its participation (by `updateTargetGoal`, and for the outgoing target by
 `promoteEdition`) so it survives the race no longer being the target. There the
 field previews what the new goal does to the plan's paces (`paceChanges` over
