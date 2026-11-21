@@ -37,7 +37,10 @@ if [ "$(jq -r '.error // empty | tostring' <<<"$logs")" != "" ]; then
   echo "::error::Log query error: $(jq -c '.error' <<<"$logs")"
   exit 1
 fi
-anomalies="$(jq -c '.result // [] | sort_by(-(.n | tonumber))' <<<"$logs")"
+# Every cell reaches public Markdown: keep a safe charset only, and cap its length.
+anomalies="$(jq -c '.result // []
+  | map(with_entries(.value |= (tostring | gsub("[^A-Za-z0-9 _./:+=>-]"; "?") | .[0:80])))
+  | sort_by(-(.n | tonumber))' <<<"$logs")"
 n_anomalies="$(jq 'length' <<<"$anomalies")"
 
 # Experimental endpoint: a failure here warns rather than alerts.

@@ -64,7 +64,9 @@ returns 401. Correct refusals, but the app shouldn't be syncing without a sessio
 Tune by editing the SQL (a threshold, or a SQLSTATE moved into the known list),
 or `ACCEPTED_LINTS` once a finding is reviewed. Output is counts and codes only:
 this repo's Actions summaries are public, so never add a column with a message,
-an IP, a user id or a name (audit lines carry display names). The query travels
+an IP, a user id or a name (audit lines carry display names). A path is cut to
+its route (first three segments, ids masked), and `log-scan.sh` keeps only a safe
+charset in every cell, since a request path is attacker-chosen text. The query travels
 in a GET URL: the script strips comments and whitespace (about 8 KB encoded), so
 keep new branches lean.
 
