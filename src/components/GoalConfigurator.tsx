@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fmt, parseDur } from "../utils/format";
+import { fmt } from "../utils/format";
+import { durToSec, secToDur } from "../utils/runForm";
+import { DurationInput } from "./DurationInput";
 import { paceBand, suggestedGoalSec, clampGoalSec } from "../utils/goal";
 
 // Goal-setting control shared by onboarding and the plan view: a slider plus editable Time / Pace fields.
@@ -36,12 +38,9 @@ export function GoalConfigurator({distanceKm, goalSec, onChange}: GoalConfigurat
     else if (normalised != null && normalised !== goalSec) onChange(normalised);
   }, [band, distanceKm, suggested, normalised, goalSec, onChange]);
 
-  // Local text for the editable Time / Pace fields. `null` means "not editing,
-  // show the derived value"; while a field is focused we let it hold whatever
-  // the user is typing (including an empty string) and only commit on blur/Enter
-  // — committing an unparseable value is a no-op so the field reverts.
-  const [timeText, setTimeText] = useState<string | null>(null);
-  const [paceText, setPaceText] = useState<string | null>(null);
+  // Digits being typed in Time / Pace; `null` shows the derived value. Committed on blur/Enter.
+  const [timeDigits, setTimeDigits] = useState<string | null>(null);
+  const [paceDigits, setPaceDigits] = useState<string | null>(null);
 
   if (!band) {
     return (
@@ -59,17 +58,16 @@ export function GoalConfigurator({distanceKm, goalSec, onChange}: GoalConfigurat
   const tMin  = Math.round(band.fast * dist);
   const tMax  = Math.round(band.slow * dist);
 
-  // Commit a typed time (total finish time) or pace (per km), clamping into the
-  // distance-appropriate band so manual entry stays as realistic as the slider.
-  const commitTime = () => {
-    const sec = parseDur(timeText);
-    if (sec != null) onChange(clampGoalSec(sec, dist));
-    setTimeText(null);
+  // A typed time or pace clamps into the distance's band, like the slider; an empty field reverts.
+  const commitTime = (digits: string) => {
+    const sec = durToSec(digits);
+    if (sec > 0) onChange(clampGoalSec(sec, dist));
+    setTimeDigits(null);
   };
-  const commitPace = () => {
-    const p = parseDur(paceText);
-    if (p != null) onChange(clampGoalSec(Math.round(p * dist), dist));
-    setPaceText(null);
+  const commitPace = (digits: string) => {
+    const p = durToSec(digits);
+    if (p > 0) onChange(clampGoalSec(Math.round(p * dist), dist));
+    setPaceDigits(null);
   };
 
   const fieldCls = "w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm text-center tabular-nums focus:outline-none focus:border-orange-400";
@@ -84,23 +82,15 @@ export function GoalConfigurator({distanceKm, goalSec, onChange}: GoalConfigurat
         <span>{fmt.dur(tMin)}</span><span>{fmt.dur(tMax)}</span>
       </div>
       <div className="flex gap-2 mt-3">
-        <label className="flex-1">
+        <label className="flex-1 min-w-0">
           <span className="text-[11px] text-slate-400 block mb-1">{t("onboarding.goal.time")}</span>
-          <input type="text" inputMode="numeric" className={fieldCls}
-            value={timeText ?? fmt.dur(eff)}
-            onChange={e => setTimeText(e.target.value)}
-            onFocus={e => e.target.select()}
-            onBlur={commitTime}
-            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/>
+          <DurationInput className={fieldCls} value={timeDigits ?? secToDur(eff)}
+            onChange={setTimeDigits} onCommit={commitTime}/>
         </label>
-        <label className="flex-1">
+        <label className="flex-1 min-w-0">
           <span className="text-[11px] text-slate-400 block mb-1">{t("onboarding.goal.pace")}</span>
-          <input type="text" inputMode="numeric" className={fieldCls}
-            value={paceText ?? fmt.pace(pace)}
-            onChange={e => setPaceText(e.target.value)}
-            onFocus={e => e.target.select()}
-            onBlur={commitPace}
-            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}/>
+          <DurationInput className={fieldCls} value={paceDigits ?? secToDur(pace)}
+            onChange={setPaceDigits} onCommit={commitPace}/>
         </label>
       </div>
     </div>

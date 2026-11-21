@@ -393,20 +393,18 @@ export function PlanView({plan, settings, runs, races, savePlan, restorePlan, sa
               </div>
             ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceDate")}</label>
-                  <input type="date" value={draftDate || ""} min={tomorrow()} onChange={e => setDraftDate(e.target.value)}
-                    aria-invalid={dateInPast || undefined}
-                    className={"w-full bg-slate-700 border rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 " + (dateInPast ? "border-amber-500/60" : "border-slate-600")}/>
-                  {dateInPast && <p role="alert" className="text-amber-300 text-xs mt-1">{t("plan.setup.dateInPast")}</p>}
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.distance")}</label>
-                  <input type="number" min="1" max="200" step="0.1" value={draftDist} placeholder={t("plan.setup.distancePlaceholder")}
-                    onChange={e => { const n = parseFloat(e.target.value); setDraftDist(isNaN(n) ? "" : n); }}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500"/>
-                </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceDate")}</label>
+                <input type="date" value={draftDate || ""} min={tomorrow()} onChange={e => setDraftDate(e.target.value)}
+                  aria-invalid={dateInPast || undefined}
+                  className={"w-full bg-slate-700 border rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 " + (dateInPast ? "border-amber-500/60" : "border-slate-600")}/>
+                {dateInPast && <p role="alert" className="text-amber-300 text-xs mt-1">{t("plan.setup.dateInPast")}</p>}
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.distance")}</label>
+                <input type="number" min="1" max="200" step="0.1" value={draftDist} placeholder={t("plan.setup.distancePlaceholder")}
+                  onChange={e => { const n = parseFloat(e.target.value); setDraftDist(isNaN(n) ? "" : n); }}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl p-2.5 text-white text-sm focus:outline-none focus:border-orange-400 placeholder-slate-500"/>
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1.5">{t("plan.setup.raceElevation")}</label>

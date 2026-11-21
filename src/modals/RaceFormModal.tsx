@@ -178,9 +178,9 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
             </>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-1"><label className={LABEL_CLS}>{t("races.form.date")}</label>
-              <input type="date" value={f.date} onChange={e => set("date", e.target.value)} className={INPUT_CLS}/></div>
+          <div><label className={LABEL_CLS}>{t("races.form.date")}</label>
+            <input type="date" value={f.date} onChange={e => set("date", e.target.value)} className={INPUT_CLS}/></div>
+          <div className="grid grid-cols-2 gap-3">
             <div><label className={LABEL_CLS}>{t("races.form.distanceKm")}</label>
               <input type="number" step="0.1" min="0" value={f.distanceKm} onChange={e => set("distanceKm", e.target.value)} placeholder={t("races.form.distanceKmPlaceholder")} className={INPUT_CLS}/></div>
             <div><label className={LABEL_CLS}>{t("races.form.elevation")}</label>
