@@ -48,6 +48,8 @@ export type SettingsState = Record<string, unknown> & {
   coachIntroSeen?: boolean;
   coachOverdueIntroSeen?: boolean;
   feedbackIntroSeen?: boolean;
+  // Set the first time this account goes on air; its other sessions hold a Realtime channel only then.
+  liveShareUsed?: boolean;
   // Onboarded through "Let people follow my race": Home leads with the
   // race-day card instead of asking for a plan, until they build one.
   liveFirst?: boolean;

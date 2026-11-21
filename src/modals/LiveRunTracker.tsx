@@ -233,13 +233,17 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   // Back on: a new broadcast, so a fresh write capability (the old one was
   // spent by the teardown) and a publisher that re-opens the row on the next
   // fix rather than updating one that no longer exists.
+  const markShareUsed = useCallback(() => {
+    if (settings.liveShareUsed !== true) onSettingsPatch?.({ liveShareUsed: true });
+  }, [settings.liveShareUsed, onSettingsPatch]);
   const putOnAir = useCallback(() => {
+    markShareUsed();
     shareEndedRef.current = false;
     resetLivePublisher();
     const token = mintPublishToken();
     storePublishToken(token);
     publishTokenRef.current = token;
-  }, []);
+  }, [markShareUsed]);
   const armShare = (on: boolean) => {
     setShareLive(on);
     try { localStorage.setItem(LIVE_SHARE_KEY, on ? "1" : "0"); } catch { /* quota — non-fatal */ }
@@ -336,6 +340,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     const publishToken = mintPublishToken();
     storePublishToken(publishToken);
     publishTokenRef.current = publishToken;
+    if (shareLive) markShareUsed();
     rt.start();
   };
   const countdown = useCountdown(startTracking);
