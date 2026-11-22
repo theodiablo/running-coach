@@ -118,7 +118,7 @@ create policy "race_field_members own" on public.race_field_members
   other runners' field. The `before insert` trigger refuses a membership on an
   unverified edition and `race_field` treats one as closed. Verification is
   already the maintainer's job (`validate-contribution`), so a contributed race
-  gets its field once verified. *(Open question 4.)*
+  gets its field once verified (maintainer decision, 2026-11).
 - **Cap:** the same trigger refuses a 31st *upcoming* membership per user (same
   shape as `live_share_tokens_cap`), so a script can't sprinkle one account
   across the catalogue. Concurrent inserts can overshoot by a row, as there.
@@ -246,8 +246,8 @@ grant execute on function public.race_field(text) to authenticated;
   ordered by goal then name, never by join time (which would date each join).
   The `me` flag marks the caller's own row only.
 - **The list is shown only to a runner who has joined the field** (either
-  visibility). Seeing who's running is reciprocal; someone who said "not this
-  time" sees the count, not the names. *(Open question 1.)*
+  visibility); anyone signed in sees the count. Seeing who's running is
+  reciprocal (maintainer decision, 2026-11).
 - Same name in several fields shows that person runs several races: inherent
   to a public name, said plainly on the Public name page.
 
@@ -441,11 +441,9 @@ the named→count switch), and purging reported names. It found no path around
 the function through RLS, PostgREST embedding, `count=exact`, FK/PK errors or
 the cap trigger. The final migration gets its own review in PR 1.
 
-## Open questions for the maintainer
+## Decisions (2026-11)
 
-1. Named list visible to joined runners only (proposed), or to anyone signed in?
-2. Threshold counts others (proposed, k = 3 others) vs total including the caller.
-3. Cap of 30 upcoming fields per runner: fine?
-4. Fields on verified editions only (proposed, so a contributor can't move or
-   close a field under its members), accepting that a freshly contributed race
-   gets its field once the maintainer verifies it?
+1. Count visible to anyone signed in; named list only to runners who joined.
+2. Threshold counts *others*: k = 3 runners besides the caller.
+3. Fields on verified editions only.
+4. Per-runner cap: open (see PR discussion).
