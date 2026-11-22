@@ -90,6 +90,30 @@ describe("cardStyles: the pre-selection rule", () => {
   });
 });
 
+describe("measured-only ranking", () => {
+  it("an estimated rival neither counts as a beaten best nor as the previous best", () => {
+    const run: Run = { id: "r", date: "2026-11-20", type: "EASY", km: 5.1, durationSec: 1530, bestEfforts: { "5k": 1500 } };
+    // A manual 5K with no trace: its 5K is an estimate.
+    const manual: Run = { id: "m", date: "2026-10-01", type: "EASY", km: 5, durationSec: 1600 };
+    // Measured-only it is a "best" over nothing; the log still holds the manual 5K.
+    expect(headlineEffort(run, [manual])).toBeNull();
+  });
+
+  it("a faster hand-logged effort rules out a best", () => {
+    const run: Run = { id: "r", date: "2026-11-20", type: "EASY", km: 5.1, durationSec: 1530, bestEfforts: { "5k": 1500 } };
+    const manualFaster: Run = { id: "m", date: "2026-10-01", type: "EASY", km: 5, durationSec: 1400 };
+    const measuredSlower: Run = { id: "s", date: "2026-09-01", type: "EASY", km: 5, durationSec: 1700, bestEfforts: { "5k": 1650 } };
+    expect(headlineEffort(run, [manualFaster, measuredSlower])).toBeNull();
+  });
+
+  it("the gain is measured against the last measured best", () => {
+    const run: Run = { id: "r", date: "2026-11-20", type: "EASY", km: 5.1, durationSec: 1530, bestEfforts: { "5k": 1500 } };
+    const manualSlower: Run = { id: "m", date: "2026-10-01", type: "EASY", km: 5, durationSec: 1560 };
+    const measured: Run = { id: "s", date: "2026-09-01", type: "EASY", km: 5, durationSec: 1700, bestEfforts: { "5k": 1650 } };
+    expect(numberModel(input({ run, runs: [manualSlower, measured] }), true).context).toEqual({ key: "shareCard.number.faster", vars: { delta: "2:30" } });
+  });
+});
+
 describe("statsFor", () => {
   it("never shows distance or pace for a km:0 session", () => {
     const run: Run = { id: "i", date: "2026-11-20", type: "OTHER", km: 0, durationSec: 2700, hr: 132 };

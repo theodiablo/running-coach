@@ -46,11 +46,15 @@ export function settledSession(plan: Plan | null | undefined, run: Run): PlanSes
 const byLongest = (a: EffortRank, b: EffortRank) => b.km - a.km;
 
 export function headlineEffort(run: Run, runs: Run[]): { effort: EffortRank; kind: "pb" | "first" } | null {
-  // An estimate from average pace is no claim to put on a public card.
-  const efforts = isIndoor(run) ? [] : rankRunEfforts(run, runs).filter(e => !e.estimated);
-  const pb = efforts.filter(isPersonalBest).sort(byLongest)[0];
+  if (isIndoor(run)) return null;
+  // A public claim: a measured effort, ranked against measured times, and still
+  // true against the whole log (a faster hand-logged 5K still rules out "best").
+  const efforts = rankRunEfforts(run, runs, { measuredOnly: true });
+  const whole = new Map(rankRunEfforts(run, runs).map(e => [e.key, e]));
+  const holds = (e: EffortRank, test: (x: EffortRank) => boolean) => test(e) && !!whole.get(e.key) && test(whole.get(e.key)!);
+  const pb = efforts.filter(e => holds(e, isPersonalBest)).sort(byLongest)[0];
   if (pb) return { effort: pb, kind: "pb" };
-  const first = efforts.filter(isFirstEffort).sort(byLongest)[0];
+  const first = efforts.filter(e => holds(e, isFirstEffort)).sort(byLongest)[0];
   return first ? { effort: first, kind: "first" } : null;
 }
 
