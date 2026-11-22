@@ -1,6 +1,7 @@
 # Race field: technical design
 
-Status: **design, awaiting approval** (no code or migration yet).
+Status: **approved 2026-11; PR 1 (public name, membership, join sheet, count)
+implemented**, PR 2 (the named list) next.
 Product decisions: `docs/social.md` §3. Canvas:
 https://claude.ai/artifact/6c47MzKHHGboxxcoWJLUsp (`Main`, `Field-Join`,
 `Field-Count`, `Field-List`; `Field-Results` and `Field-Live` are rejected).
@@ -102,8 +103,9 @@ create policy "race_field_members own" on public.race_field_members
 
 - **One row = one runner who chose to appear.** "Not this time" writes *no
   row* (and removes one if present): we keep nothing about a runner who said
-  no. Whether we've already asked is a per-participation flag in the blob
-  (`fieldAsked: true` on the `rc_races` entry), so the question isn't repeated.
+  no. The question is asked once, as the race is added from its race page;
+  after that the race page's field card is the way in, so nothing about the
+  answer needs storing in the blob.
 - `goal_sec` is stored only when "Show my goal time" is on (null otherwise),
   not copied as a hidden value the function then filters. What isn't stored
   can't leak through a later bug.
@@ -264,32 +266,40 @@ the same count):
 - **In-app backup / restore** (`onBackup`/`onRestore`, the blob export): the
   public name and memberships are **not** exported. They're server-side
   consent, not training data, and a restored file must not re-publish a name or
-  re-join fields someone left after taking the backup. After a restore the
-  client reconciles: memberships whose `edition_id` has no participation in the
-  restored `rc_races` are deleted (the runner no longer has that race), and
-  `fieldAsked` from the file is kept, so nobody is re-asked.
-- **Removing a race** (`removePart`) deletes its membership in the same
-  handler. If that delete fails, `reconcileFields` retries it: it runs once
-  `isStoreReconciled()` on every boot, on the `online` event, on a return to
-  the foreground, and on its own backoff timer (30s doubling to 5min, the
-  store's schedule) while a run keeps failing, whether its read or its delete
-  failed. Each run derives its
-  work from `rc_races` and the runner's own memberships (any membership whose
-  edition has no participation is deleted, the same rule as the restore case),
-  so no pending-removal marker is stored. The row is gone at the first run
-  that succeeds; a backoff step is the gap between tries, not a bound. While
-  the network keeps failing (or the app is closed before a try succeeds) the
-  row stays, across launches. In it the row still counts (PR 1); in PR 2 it
-  also still shows the runner's name to joined runners.
+  re-join fields someone left after taking the backup. A restore replaces the
+  list, so any race it drops is a removal like the next bullet.
+- **Removing a race, on any path** (`removePart`, a restore, anything that
+  rewrites `rc_races`): `RunningCoach` diffs the listed editions on every
+  change, and a race that left the list *on this device* is recorded as owed a
+  delete (`rc_field_leaves:<uid>` in localStorage, per device; a race back on
+  the list is dropped from it). Only those are ever deleted, never "every
+  membership with no participation": this device's copy of the list can be
+  stale (another device added a race and joined it), and a stale list must
+  never undo a membership. The delete re-reads the list right before it runs,
+  so a race re-added meanwhile is kept. It runs as soon as the list changes,
+  and is retried once `isStoreReconciled()` on every boot, on `online`, on a
+  return to the foreground, and on a 30s to 5 min backoff while it keeps
+  failing. The owed list survives a killed app, so the next launch retries.
+  The row is gone at the first try that succeeds; a backoff step is the gap
+  between tries, not a bound. Until then the row still counts (PR 1), and in
+  PR 2 still shows the runner's name to joined runners. A removal made while
+  the app was uninstalled, or on a device that never ran again, is not caught;
+  the past-race purge below bounds it.
+- **Past races are purged.** A field closes the day after its race, and a
+  membership on a past edition is a record of who ran it. Follow-up to PR 1:
+  the daily monitoring job deletes memberships on editions older than 7 days
+  (`docs/monitoring.md` gains the line).
 - **Daily DB backup** (`docs/backups.md`): `db_backup` has
   `pg_read_all_data`, so the new table and column are dumped with no grant
   change. A single-user restore from it touches `app_state` only; membership
   rows are never restored by hand (they would re-expose a choice the runner may
   have reversed). A whole-database or point-in-time restore brings back public
   names and memberships as of the snapshot, so a runner who withdrew after it
-  would appear again: after such a restore, clear both (`update profiles set
-  public_name = null; delete from race_field_members;`) and let runners
-  re-join, rather than resurrect a withdrawn consent.
+  would appear again. **Before the restored project serves any app traffic**,
+  clear both (`update profiles set public_name = null; delete from
+  race_field_members;`), then let runners re-join, rather than resurrect a
+  withdrawn consent. This step belongs to the restore itself, not to a later
+  cleanup.
 
 ## Name abuse and moderation (basics)
 
@@ -321,85 +331,86 @@ the same count):
 
 ### Modules
 
-- `src/raceField.ts` — the only module talking to the table/function, like
-  `src/races.ts`: `fetchRaceField(editionId)`, `joinField(editionId,
-  {visibility, goalSec})` (an insert, never an upsert: its `on conflict
-  update` names `user_id`/`edition_id`, which have no update grant, and the
-  insert trigger would refuse a capped runner who's only changing
-  visibility), `changeField(editionId, {visibility, goalSec})` (a plain
-  `.update()`), `leaveField(editionId)`,
-  `listMyFields()`, `reconcileFields(participations)`. Every read
-  destructures `error` (lint `local/supabase-check-error`); a failed read
-  renders as "closed", never as "you're not in it" (which would invite a
-  second join).
-- `src/publicName.ts` — `fetchPublicName()` / `savePublicName(name | null)`
-  and the pure `publicNameIssue(name)` mirroring the constraint for inline
-  field errors. `App.tsx` reads it alongside `premium_until` (one `profiles`
-  select) and threads `publicName` + `setPublicName` through `shared`. A
-  failed read is "no name" for display, but the Public name page shows a retry
-  instead of an empty field it would then overwrite.
+- `src/raceField.ts` is the only module touching the table or the function:
+  `fetchRaceField(editionId)`, `fetchMyMembership(uid, editionId)`,
+  `setFieldChoice(uid, editionId, choice, goalSec, current)` (an insert for a
+  new membership, a plain `.update()` for a change, a delete for "Not this
+  time"; never an upsert, whose `on conflict update` names
+  `user_id`/`edition_id`, which have no update grant, and whose insert trigger
+  would refuse a capped runner only changing visibility), `syncFieldGoal`,
+  the owed-delete list (`noteListedEditions`, `pendingLeaves`,
+  `leavePendingFields`) and `createFieldReconciler` (the retry schedule, which
+  stops for good on `stop()`, even with a run in flight). `syncFieldGoal`
+  updates only a goal already shown (`goal_sec` not null), so a hidden goal
+  is never published by a later goal edit. Every read destructures `error`; a failed read renders as
+  closed, never as "you're not in it" (which would invite a second join).
+- `src/publicName.ts`: `fetchPublicName` / `savePublicName` (an update, never
+  an upsert) and the pure `publicNameIssue` mirroring the constraint for
+  inline errors. `RunningCoach` reads it once per signed-in user and passes
+  it down (`shared.publicName`, `SettingsModal`); `undefined` means not read,
+  and the Public name page then shows a retry instead of an empty field it
+  would overwrite.
+- `RunningCoach` owns the diff and the retry (above), and is a no-op until
+  the store is loaded and reconciled.
 
 ### Surfaces
 
 - **Settings › Account › Public name** (`src/modals/settings/PublicNamePage.tsx`,
-  canvas `Main`): its own sub-page with `useDismissable`, reached from a row on
-  `AccountPage` that shows the current name or "Off". Field + live preview +
-  "where it can appear" + Save + "Remove my public name". Deep-linkable as
-  `openSettings("publicName")` so the join sheet can send a runner straight
-  there, and settings closing reopens the join sheet (same pattern as the HR
-  pairing return).
-- **Join sheet** (`src/modals/FieldJoinSheet.tsx`, canvas `Field-Join`): asked
-  once per participation, right after `addWishlist` / setting a target from
-  `RacesView`/`RaceSheet`, only for an upcoming, verified catalogue edition. Three
-  choices: show me by name (disabled with "Set a public name first →" when
-  there's none), just count me, not this time; plus "Show my goal time" under
-  the named choice, prefilled on if the participation has a `goalSec`. "Done"
-  writes the row (or nothing), then sets `fieldAsked`. The header line shows
-  the others count only when the function says `open`; otherwise "Be one of
-  the first app runners in this field". `useDismissable`; dismissing counts as
-  "not this time" and still sets `fieldAsked`.
-- **Race page** (`RaceSheet`, canvas `Field-Count`): a field card under the
-  stats for upcoming editions. Open: "9 app runners in this field", "You're
-  one of them" when joined, and the change/leave control. Not open and joined:
-  "You're in. We'll show the field once a few more app runners join." Not open
-  and not joined: nothing (no empty card). "Change how I appear" reopens the
-  join sheet. PR 2 makes the card tappable into the list.
+  canvas `Main`): reached from a row on `AccountPage` showing the name or
+  "Off", never listed on the hub. Field, live preview, where it can appear,
+  Save and Remove. `openSettings("publicName")` deep-links to it; back from a
+  deep link closes settings, back from Account's row returns to Account.
+- **Join sheet** (`src/modals/FieldJoinSheet.tsx`, canvas `Field-Join`):
+  opened by the race page's "Add to my list" (the one automatic ask) and by
+  the card's Join / Change button. Three choices: by name (disabled, with
+  "Set a public name" beside it, when there's none), just count me, not this
+  time; "Show my goal time" only under by name, and only when the race has a
+  goal; it starts off, like every sharing switch in the app. Switching from
+  by name to count says that the runner still counts.
+  Dismissing changes nothing.
+- **Race page card** (`src/components/races/RaceFieldCard.tsx` in `RaceSheet`,
+  canvas `Field-Count`): only for an upcoming, verified catalogue edition.
+  Open: "9 app runners in this field", "You're one of them" when joined.
+  Joined but closed: "You're in. We'll show the field once a few more app
+  runners join." Listed, not joined, closed: a short invite with Join.
+  Not listed and closed: nothing. Join / Change only for a listed race, and
+  hidden when the membership read failed. PR 2 makes the card open the list.
 - **Who's running** (PR 2, `src/modals/FieldListSheet.tsx`, canvas
   `Field-List`): the named rows, "And n more who joined without a name.", the
   "n others aim for about your time" line (named + shown goal within ±5% of
   the caller's own goal, only when the caller has one), and "You appear as …".
-- **Goal sync**: when the runner changes a race's goal (`setGoal`) and their
-  membership shows it, the same handler updates `goal_sec`.
+- **Goal sync**: `setGoal` (RacesView) and `updateTargetGoal` (and its undo)
+  update `goal_sec` on a by-name membership; a no-op otherwise.
 
 ### Fetching
 
-`RaceSheet` calls `fetchRaceField` on every open for an upcoming edition (no
-polling, no prefetch for every race in `RacesView`). The answer lives only in
-the sheet's component state: there is no cross-open cache, so another
-runner's withdrawal shows on the next open, and nothing outlives sign-out. The
-viewer's own join, change or leave refetches the open sheet. A failed read is
-shown as closed and not kept. No `localStorage` (it's other people's data).
+The card calls `fetchRaceField` (and `fetchMyMembership` for a listed race)
+on every open of an eligible edition: no polling, no prefetch in
+`RacesView`. The answer lives only in the card's state: no cross-open cache,
+so another runner's withdrawal shows on the next open, and nothing outlives
+sign-out. The viewer's own change refetches. No `localStorage` (it's other
+people's data).
 
 ## Copy (en / fr / es)
 
-New keys under `raceField.*` and `settings.publicName.*`. Plain words, sentence
+New keys under `races.field.*` and `settings.publicName.*`. Plain words, sentence
 case, no em dashes. French `tu`; Spanish informal, region-neutral. Races are
 `course` / `carrera`.
 
 | Key | en | fr | es |
 |---|---|---|---|
-| `raceField.count` | {{count}} app runners in this field | {{count}} coureurs de l'app dans cette course | {{count}} corredores de la app en esta carrera |
-| `raceField.youreIn` | You're one of them | Tu en fais partie | Eres uno de ellos |
-| `raceField.waiting` | You're in. We'll show the field once a few more app runners join. | C'est noté. On affichera les participants quand quelques coureurs de l'app de plus seront inscrits. | Listo. Mostraremos a los participantes cuando se unan algunos corredores más de la app. |
-| `raceField.join.title` | Running with others from the app | Courir avec d'autres coureurs de l'app | Correr con otros de la app |
-| `raceField.join.named` | Show me as {{name}} | M'afficher comme {{name}} | Mostrarme como {{name}} |
-| `raceField.join.count` | Just count me | Me compter, sans mon nom | Solo cuéntame |
-| `raceField.join.none` | Not this time | Pas cette fois | Esta vez no |
-| `raceField.join.goal` | Show my goal time | Afficher mon objectif de temps | Mostrar mi tiempo objetivo |
+| `races.field.card.count` | {{count}} app runners in this field | {{count}} coureurs de l'app dans cette course | {{count}} corredores de la app en esta carrera |
+| `races.field.card.youreIn` | You're one of them | Tu en fais partie | Eres uno de ellos |
+| `races.field.card.waiting` | You're in. We'll show the field once a few more app runners join. | C'est noté. On affichera les participants quand quelques coureurs de l'app de plus seront inscrits. | Listo. Mostraremos a los participantes cuando se unan algunos corredores más de la app. |
+| `races.field.join.title` | Running with others from the app | Courir avec d'autres coureurs de l'app | Correr con otros de la app |
+| `races.field.join.named` | Show me as {{name}} | M'afficher comme {{name}} | Mostrarme como {{name}} |
+| `races.field.join.count` | Just count me | Me compter, sans mon nom | Solo cuéntame |
+| `races.field.join.none` | Not this time | Pas cette fois | Esta vez no |
+| `races.field.join.goal` | Show my goal time | Afficher mon objectif de temps | Mostrar mi tiempo objetivo |
 | `settings.publicName.title` | Public name | Nom public | Nombre público |
-| `settings.publicName.never` | Never next to your runs, routes, plan or email. | Jamais à côté de tes sorties, parcours, plan ou e-mail. | Nunca junto a tus entrenamientos, rutas, plan o correo. |
+| `settings.publicName.whereNo` | Never next to your runs, routes, plan or email. | Jamais à côté de tes sorties, parcours, plan ou e-mail. | Nunca junto a tus entrenamientos, rutas, plan o correo. |
 
-The full set is written with the code; `i18n.test.ts` already pins register
+The table is a sample from the design; the locale files are the source. `i18n.test.ts` pins register
 and dashes. The count uses i18next plurals (`_one`/`_other`), though it is
 never below 3.
 
@@ -413,7 +424,7 @@ choice (`named`/`count`/`none`), under analytics consent only, never the name.
 - **Migration conventions** (`src/migrationConventions.test.ts`):
   `race_field` added to `CLIENT_CALLABLE_DEFINERS`; trigger function pinned
   and invoker; policy uses `(select auth.uid())`.
-- **`src/raceField.sql.test.ts`** (new, text-level over the migrations, like
+- **`src/raceFieldMigration.test.ts`** (new, text-level over the migrations, like
   the existing convention tests): no policy on `race_field_members` other than
   the owner one; the table's grants are `revoke all` then exactly the column
   lists above; no `profiles` grant names `premium_until`/`premium_since`; both
@@ -432,12 +443,17 @@ choice (`named`/`count`/`none`), under analytics consent only, never the name.
   `delete_my_account` leaves no rows; in PR 2 a non-member caller of an open
   field gets `named: []` with the same count, a member gets the list.
 - **Unit**: `publicNameIssue` mirrors every constraint rule (shared fixture
-  list with the SQL check above); `reconcileFields`; the "about your time"
+  list with the SQL check above); the owed-delete list (only this device's
+  removals, re-added races kept, failures kept for retry, per user); the
+  goal sync leaving a hidden goal hidden; the "about your time"
   count (±5%, excludes self, excludes hidden goals).
-- **Components**: `FieldJoinSheet` (named disabled without a name, goal toggle
-  only under named, dismiss = none + `fieldAsked`), `RaceSheet` card states
-  (open / waiting / hidden / failed read = hidden), `PublicNamePage` (save,
-  remove, inline error, failed read shows retry).
+- **Components**: `RaceFieldCard` + `FieldJoinSheet` (card states, by name
+  disabled without a name, goal toggle only under by name, refusals toasted),
+  `PublicNamePage` (save, remove, inline error, failed read shows retry),
+  `SettingsModal` (back from Public name).
+- **SQL behaviour, as run for PR 1**: the migration was applied to PGlite with
+  stubbed `auth` and every check in the SQL bullet above passed (38 cases);
+  the Supabase Preview branch then applies it for real on the PR.
 - **Opus security review of the final migration** before merge (CLAUDE.md:
   RLS and cross-user exposure).
 
@@ -453,9 +469,8 @@ choice (`named`/`count`/`none`), under analytics consent only, never the name.
    (`race_reports` reason + `notify-contribution` case), moderation SQL in this
    doc.
 
-Each PR updates `docs/races.md` (personal layer: `fieldAsked`) and adds a
-CLAUDE.md line: *the race field is the only cross-user read of runner data;
-`race_field` is its one door*.
+PR 1 adds the CLAUDE.md line (*the race field is the only cross-user read of
+runner data; `race_field` is its one door*) and the `docs/races.md` pointer.
 
 ## Design review
 
