@@ -1,89 +1,102 @@
-# Social features: the assessment, and why they're deferred
+# Social features: what we're building, and what we're not
 
-Banked during the 2026-08 retention cycle, when social came up as a candidate
-and lost to `docs/reminders.md`. Nothing here is built. Read this before
-starting on sharing, leaderboards, friends, or clubs so the same ground isn't
-re-surveyed.
+The 2026-08 retention cycle banked social as "later". In 2026-11 the
+maintainer picked three features to prepare for organic growth while the user
+base is still small, choosing from design proposals (canvases linked below).
+This file holds the decisions and their reasons; each feature's technical
+design lives in its own doc once written. Read this before starting on
+sharing, cheering, race fields, leaderboards, friends or clubs.
 
-The two ideas on the table were **post-run sharing** and **leaderboards**. They
-look like one theme and are not: one is an acquisition play that fits the
-existing architecture, the other needs a different privacy model than the app
-has.
+## Decided (2026-11)
 
-## Post-run share card — the strong one, when its turn comes
+One feature per session and per design doc, each shipped as small PRs:
+design doc first (draft PR, approved before any code), then implementation.
 
-A shareable image or link for a finished run: route, distance, pace, and any
-personal best it set.
+### 1. Post-run share card (`docs/share-card.md`)
 
-**Why it's plausible.** Nearly all the substrate exists:
+Canvas: https://claude.ai/artifact/TJeaNbU8BedgAJN5o6hTG4
 
-- `bestEfforts` is already extracted at save time and ranked in memory
-  (`docs/best-efforts.md`), and `RunAchievementSheet` already stages the "you
-  just PB'd" moment. The emotional payload is built; only the export is missing.
-- The public `/watch/:token` live-run page (`docs/live-sharing.md`) already
-  proves out anonymous, token-addressed, server-mediated read access to one
-  run — the same shape a finished-run share needs.
-- Route rendering, splits and the elevation/pace chart all exist client-side.
+- **Three styles, the runner picks**: A "Route line" (route drawn as our own
+  vector line, no map tiles, so no tile licence or attribution in an exported
+  image), B "Big number" (one headline figure, e.g. a new best), D "Training
+  week" (race, days to go, week n of m, this week's sessions). The share
+  builder shows all three and **pre-selects by context**: a personal best →
+  B, a run that settled a plan session → D, otherwise A.
+- **Analytics**: which style was pre-selected, which was chosen, whether the
+  runner changed it, reported in the weekly maintainer digest
+  (`docs/product-metrics.md`). Where the counts come from (product analytics,
+  which only sees consenting users, vs a server-side counter) is a design-doc
+  decision; consent rules in `docs/telemetry.md` still apply.
+- Start and finish are trimmed by default so a card never points at a door.
+- Image first. A revocable share link (token-addressed like `/watch/`) is a
+  possible later step, not in scope.
+- Rejected: C "Photo sticker" (transparent overlay), not chosen.
 
-**What it actually is: acquisition, not retention.** It puts the app in front of
-people who don't have it. That makes it a *different bet* from the retention
-loop, to be judged on installs rather than on week-one activity — and it only
-pays once there is something to retain the people it brings in. That sequencing
-is why it lost this round, not any doubt about the idea.
+### 2. Live watch page CTA (`docs/live-sharing.md`)
 
-**Open questions before building.** Map tile licensing and attribution if a
-route is baked into an exported image (Leaflet + the tile provider's terms, not
-just ours to decide); whether the artefact is an image or a link (a link reuses
-the token infrastructure and stays revocable, an image travels further but can
-never be unshared); and whether a run's share defaults to public — it must not.
+Canvas: https://claude.ai/artifact/N5kqtYR7vPTsPgDcK8oH61
 
-## Leaderboards — premature, and against the grain
+The page already sells the app (pinned row, About sheet, ended card); these
+make the pitch fit the moment.
 
-**Verified against production on 2026-08-07, not assumed:**
+- **D: finish recap** — a stronger ended state: the run's recap, then "Start
+  my plan, free" on the web (free account) before the store buttons. Web
+  page only; ship first.
+- **B: race context** — when the runner is racing, the page names the race,
+  shows progress along its distance, and offers a plan for that race's next
+  edition. Needs the live row to carry the race (edition id), which only
+  exists in race-day mode.
+- **Deferred: A "Send a cheer"** — anonymous one-tap cheers the runner hears.
+  Kept as a follow-up once the rest ships: unlikely to move conversion much,
+  and the screen-off Android path (no JS runs) makes it the heaviest piece.
+- Rejected for now: C "Do you run too?" (a question splitting runners from
+  supporters).
 
-- **There is no public identity to show.** `public.profiles` has exactly six
-  columns: `id`, `created_at`, `last_seen_at`, `coach_daily_limit`,
-  `premium_until`, `premium_since`. No display name, no handle, no avatar. The
-  account email lives only in `auth.users` and was deliberately dropped from
-  `profiles` (migration `20260804130743`). A leaderboard would first have to
-  invent a public identity and ask every existing user to choose one.
-- **Nothing is cross-user readable.** Every per-user table — `app_state`,
-  `run_routes`, `saved_routes`, `live_runs`, `profiles`, `agent_trajectories`,
-  `agent_rounds` — has exactly one SELECT policy, `auth.uid() = user_id`. The
-  only `SELECT USING (true)` policies are `app_config`, `races` and
-  `race_editions`: the shared race *catalogue*, which holds no personal training
-  data. Even the public live-run page can't read `live_runs` directly; it goes
-  through the `live-watch` edge function under service role.
+### 3. Race field view (`docs/race-field.md`)
 
-  So a leaderboard is not a feature that reads existing data differently. It
-  requires **new** cross-user exposure of training data, and that is the one
-  thing the schema has been consistently built to prevent.
-- **It would look abandoned.** 26 accounts, 9 of whom have ever logged a run, 4
-  with three or more. A leaderboard needs density before it means anything, and
-  an empty one actively signals a dead app.
-- **It contradicts a decision already taken.** `src/utils/badges.ts` avoids
-  streaks on purpose ("never a fragile 'don't break the chain' streak") and
-  scores consistency forgivingly. Ranking runners against each other is the same
-  pressure mechanic wearing a different hat. If that stance ever changes it
-  should change deliberately and in writing, not as a side effect of shipping a
-  leaderboard.
+Canvas: https://claude.ai/artifact/6c47MzKHHGboxxcoWJLUsp
 
-**If it is ever revisited**, the honest minimum is: an opt-in public identity, a
-segment small enough to be meaningful (a club or a race field, not "all users"),
-per-user opt-in to appear at all, and an RLS story that doesn't widen the
-default. That is a substantial privacy design, not a feature ticket.
+- **Opt-in public name**: a new `profiles` column set on its own Settings ›
+  Account page, off until set, never in the `app_state` blob, never shown
+  next to runs, routes, plan or email.
+- **Joining a field is per race**, asked once: show me by name, just count
+  me, or not this time. Participations live in the blob today, so the field
+  needs its own table, written only by its owner and read only through a
+  function that applies each runner's choice and shows nothing until at
+  least 3 have joined. First cross-user exposure in the app: security review
+  before merge.
+- **A: the count** ("9 app runners in this field") and **B: who's running**
+  (opted-in names, optional goal time, "n others aim for about your time").
+- **Rejected: C, results ranked among app runners.** Ranking runners against
+  each other demotivates beginners; same stance as `badges.ts` (no streaks,
+  forgiving consistency). Don't add finish positions or a leaderboard
+  without revisiting this deliberately.
+- **Rejected for now: D, a live map of the field on race day.**
 
-## The order these would go in
+## Leaderboards: still premature, and against the grain
 
-1. **Post-run share card**, once retention is worth feeding — it compounds with
-   the race catalogue and needs no new privacy model.
-2. **Race-field comparison** (how you placed among app users in a race you both
-   ran) — a bounded, naturally-consented version of the leaderboard idea that
-   rides the existing shared race catalogue rather than exposing training logs.
-3. **General leaderboards / friends / clubs** — only with the identity and
-   consent design above, and only at a user count where they read as alive.
+Verified against production on 2026-08-07:
 
-Related: `docs/live-sharing.md` (the existing token-based sharing seam),
-`docs/best-efforts.md` (the PB moment a share card would carry),
-`docs/monetization.md` (where a share card sits relative to the premium lineup),
-`docs/races.md` (the shared catalogue).
+- **No public identity existed.** `public.profiles` had no display name,
+  handle or avatar; the account email lives only in `auth.users`. The race
+  field's opt-in public name is the first one, and it is scoped to race
+  fields only.
+- **Nothing is cross-user readable** except the race catalogue (`races`,
+  `race_editions`) and `app_config`. Every per-user table has one SELECT
+  policy, `auth.uid() = user_id`; the public live page reads through the
+  `live-watch` edge function. A leaderboard needs new cross-user exposure of
+  training data, which the schema was built to prevent.
+- **It would look abandoned** at today's user count, and an empty one
+  signals a dead app.
+- **It contradicts `badges.ts`**: ranking runners is the streak pressure
+  mechanic in another form. Change that stance in writing, not as a side
+  effect.
+
+If revisited, the honest minimum is: an opt-in identity, a small meaningful
+segment (a club, a race field), per-user opt-in to appear, and an RLS story
+that doesn't widen the default.
+
+Related: `docs/live-sharing.md` (token-based public sharing),
+`docs/best-efforts.md` (the PB moment), `docs/run-celebration.md` (the finish
+screen), `docs/races.md` (the catalogue), `docs/telemetry.md` (consent),
+`docs/product-metrics.md` (the weekly digest).
