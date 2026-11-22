@@ -1,0 +1,134 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// A chainable supabase stub that records every call and resolves with `h.next`.
+const h = vi.hoisted(() => ({ calls: [] as unknown[][], results: [] as { data?: unknown; error?: unknown }[] }));
+
+vi.mock("./supabase", () => {
+  const chain = (): Record<string, unknown> => {
+    const self: Record<string, unknown> = {};
+    for (const m of ["select", "insert", "update", "delete", "eq", "in", "maybeSingle"]) {
+      self[m] = (...args: unknown[]) => { h.calls.push([m, ...args]); return self; };
+    }
+    self.then = (resolve: (v: unknown) => void) => resolve(h.results.shift() ?? { data: null, error: null });
+    return self;
+  };
+  return {
+    supabase: {
+      from: (table: string) => { h.calls.push(["from", table]); return chain(); },
+      rpc: (fn: string, args: unknown) => { h.calls.push(["rpc", fn, args]); return chain(); },
+    },
+  };
+});
+
+const { fetchRaceField, setFieldChoice, reconcileFields, createFieldReconciler } = await import("./raceField");
+const ops = () => h.calls.map(c => c[0]);
+
+beforeEach(() => { h.calls = []; h.results = []; });
+
+describe("fetchRaceField", () => {
+  it("reads an open field", async () => {
+    h.results.push({ data: { open: true, joined: true, count: 9 }, error: null });
+    expect(await fetchRaceField("e1")).toEqual({ open: true, joined: true, count: 9 });
+    expect(h.calls[0]).toEqual(["rpc", "race_field", { p_edition_id: "e1" }]);
+  });
+
+  it("reads the closed shape as closed with no count", async () => {
+    h.results.push({ data: { open: false, joined: false }, error: null });
+    expect(await fetchRaceField("e1")).toEqual({ open: false, joined: false, count: null });
+  });
+
+  it("returns null on a failed read, never a closed-and-not-joined answer", async () => {
+    h.results.push({ data: null, error: { message: "boom" } });
+    expect(await fetchRaceField("e1")).toBeNull();
+  });
+});
+
+describe("setFieldChoice", () => {
+  it("inserts a new membership, never upserts", async () => {
+    expect(await setFieldChoice("u", "e1", "named", 6300, null)).toBe("ok");
+    expect(ops()).toEqual(["from", "insert"]);
+    expect(h.calls[1][1]).toEqual({ user_id: "u", edition_id: "e1", visibility: "named", goal_sec: 6300 });
+  });
+
+  it("updates an existing one, with only the mutable columns", async () => {
+    expect(await setFieldChoice("u", "e1", "count", 6300, { visibility: "named", goalSec: 6300 })).toBe("ok");
+    expect(ops()).toEqual(["from", "update", "eq", "eq"]);
+    expect(h.calls[1][1]).toEqual({ visibility: "count", goal_sec: null });
+  });
+
+  it("deletes on Not this time, and writes nothing when there was no row", async () => {
+    expect(await setFieldChoice("u", "e1", "none", null, { visibility: "count", goalSec: null })).toBe("ok");
+    expect(ops()).toEqual(["from", "delete", "eq", "eq"]);
+    h.calls = [];
+    expect(await setFieldChoice("u", "e1", "none", null, null)).toBe("ok");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("maps the guard trigger's refusals", async () => {
+    h.results.push({ error: { message: "race field limit reached" } });
+    expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("limit");
+    h.results.push({ error: { message: "race field closed" } });
+    expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("closed");
+    h.results.push({ error: { message: "network" } });
+    expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("error");
+  });
+});
+
+describe("reconcileFields", () => {
+  it("deletes only memberships whose race left the list", async () => {
+    h.results.push({ data: [{ edition_id: "a" }, { edition_id: "b" }, { edition_id: "c" }], error: null });
+    expect(await reconcileFields("u", ["a", "c"])).toBe(true);
+    const del = h.calls.findIndex(c => c[0] === "delete");
+    expect(del).toBeGreaterThan(-1);
+    expect(h.calls.find(c => c[0] === "in")).toEqual(["in", "edition_id", ["b"]]);
+  });
+
+  it("writes nothing when nothing is stale", async () => {
+    h.results.push({ data: [{ edition_id: "a" }], error: null });
+    expect(await reconcileFields("u", ["a"])).toBe(true);
+    expect(ops()).not.toContain("delete");
+  });
+
+  it("reports a failed read for retry, without deleting", async () => {
+    h.results.push({ data: null, error: { message: "boom" } });
+    expect(await reconcileFields("u", [])).toBe(false);
+    expect(ops()).not.toContain("delete");
+  });
+});
+
+describe("createFieldReconciler", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("retries a failing run on a backoff, and stops once it succeeds", async () => {
+    const results = [false, false, true];
+    const run = vi.fn(async () => results.shift() ?? true);
+    const rec = createFieldReconciler(run);
+    rec.run();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(run).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(run).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(run).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(run).toHaveBeenCalledTimes(3);
+    rec.stop();
+  });
+
+  it("runs again after an in-flight run when asked meanwhile", async () => {
+    let release: (v: boolean) => void = () => {};
+    const run = vi.fn(() => new Promise<boolean>(r => { release = r; }));
+    const rec = createFieldReconciler(run);
+    rec.run(); rec.run();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(1);
+    release(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(2);
+    release(true);
+    rec.stop();
+  });
+});

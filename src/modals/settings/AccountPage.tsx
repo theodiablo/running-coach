@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Upload, Trash2, Shield, Link2, RefreshCw, Loader, Copy, Check } from "lucide-react";
+import { Download, Upload, Trash2, Shield, Link2, RefreshCw, Loader, Copy, Check, ChevronRight, Users } from "lucide-react";
 import { LANGS, setLocale, currentLang, isLangId, type LangId } from "../../i18n";
 import { INPUT_CLS, PRIVACY_URL, DISCLAIMER_URL } from "../../constants";
 import { getConsent, setConsent, getCrashConsent, setCrashConsent } from "../../telemetry";
@@ -24,9 +24,12 @@ type AccountPageProps = {
   onRestore: () => void;
   onDeleteAccount?: () => void;
   showToast?: (msg: string, type?: string) => void;
+  // The race field's public name (docs/race-field.md): its own sub-page.
+  publicName?: string | null;
+  onOpenPublicName?: () => void;
 };
 
-export function AccountPage({ settings, saveSettings, user, onBackup, onRestore, onDeleteAccount, showToast }: AccountPageProps) {
+export function AccountPage({ settings, saveSettings, user, onBackup, onRestore, onDeleteAccount, showToast, publicName, onOpenPublicName }: AccountPageProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(settings.name || "");
   // Language: synced preference, falling back to whatever the UI is showing
@@ -109,6 +112,17 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
             onChange={e => setName(e.target.value)} onBlur={commitName}
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }} className={INPUT_CLS}/>
         </div>
+        {onOpenPublicName && (
+          <button type="button" onClick={onOpenPublicName}
+            className="w-full flex items-center gap-3 rounded-xl bg-slate-900/50 hover:bg-slate-900 px-3 py-2.5 text-left transition-colors">
+            <Users size={16} className="text-orange-400 shrink-0"/>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-200">{t("settings.publicName.title")}</span>
+              <span className="block text-xs text-slate-400 truncate">{publicName || t("settings.publicName.off")}</span>
+            </span>
+            <ChevronRight size={16} className="text-slate-500 shrink-0"/>
+          </button>
+        )}
         <div>
           <label className="text-xs text-slate-400 block mb-1.5">{t("settings.language.label")}</label>
           <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t("settings.language.label")}>

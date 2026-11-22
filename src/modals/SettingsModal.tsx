@@ -8,6 +8,7 @@ import { AccountPage } from "./settings/AccountPage";
 import { IntegrationsPage } from "./settings/IntegrationsPage";
 import { TrainingProfilePage } from "./settings/TrainingProfilePage";
 import { HelpPage } from "./settings/HelpPage";
+import { PublicNamePage } from "./settings/PublicNamePage";
 import type { User } from "@supabase/supabase-js";
 import type { Plan, SettingsPage, SettingsState, UserContextState } from "../types";
 
@@ -38,20 +39,27 @@ type SettingsModalProps = {
   // the plan builder's means Training profile), and the hub menu is a dead end
   // for someone who was told to "set up" something in particular.
   initialPage?: SettingsPage;
+  publicName?: string | null;
+  onPublicNameSaved?: (name: string | null) => void;
 };
 
 // Settings is a hub: the root is a menu and every control lives on a sub-page. A sub-page
 // mounts on top and registers its OWN dismiss handler, so back/Escape pops one level.
 // Flows that replace the whole screen (backup, restore, delete account, coach) close
 // settings first; RunningCoach wires their handlers that way.
-export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, canRate = false, onRate}: SettingsModalProps) {
+export function SettingsModal({initialPage, settings, saveSettings, userContext, saveUserContext, user, onBackup, onRestore, onSignOut, onDeleteAccount, onOpenCoach, onImportFile, onClose, onFeedback, showToast, scanImportsNow, plan, canRate = false, onRate, publicName, onPublicNameSaved}: SettingsModalProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [page, setPage] = useState<SettingsPage | null>(initialPage ?? null);
   // Back out of a deep-linked page and settings closes: the page was reached
   // from somewhere else (a recorder's "connect a sensor"), so back belongs to
   // that caller, not to a hub menu the user never passed through.
-  const leavePage = () => { if (initialPage) onClose(); else setPage(null); };
+  // Public name sits under Account, so its back returns there unless it was the deep link.
+  const leavePage = () => {
+    if (page === "publicName" && initialPage !== "publicName") setPage("account");
+    else if (initialPage) onClose();
+    else setPage(null);
+  };
 
   return (
     <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col animate-slide-up">
@@ -100,11 +108,15 @@ export function SettingsModal({initialPage, settings, saveSettings, userContext,
 
       {/* key: a fresh mount per page so the slide-up enter animation re-fires. */}
       {page && (
-        <SubPage key={page} title={t(`settings.hub.${page}.title`)} onBack={leavePage}>
+        <SubPage key={page} title={t(page === "publicName" ? "settings.publicName.title" : `settings.hub.${page}.title`)} onBack={leavePage}>
           {page === "account" && (
             <AccountPage settings={settings} saveSettings={saveSettings} user={user}
               onBackup={onBackup} onRestore={onRestore}
-              onDeleteAccount={onDeleteAccount} showToast={showToast}/>
+              onDeleteAccount={onDeleteAccount} showToast={showToast}
+              publicName={publicName} onOpenPublicName={onPublicNameSaved ? () => setPage("publicName") : undefined}/>
+          )}
+          {page === "publicName" && onPublicNameSaved && (
+            <PublicNamePage publicName={publicName} onSaved={onPublicNameSaved} showToast={showToast}/>
           )}
           {page === "integrations" && (
             <IntegrationsPage settings={settings} saveSettings={saveSettings}

@@ -7,6 +7,8 @@ import { track } from "../telemetry";
 import { fmt, ymd } from "../utils/format";
 import { findEdition, editionLabel, isPersonalBest, knownRaces } from "../utils/races";
 import { reportRace } from "../races";
+import { syncFieldGoal } from "../raceField";
+import { currentUserId } from "../db";
 import { RaceDateChanges } from "../components/RaceDateChangeCard";
 import type { RaceDateChange } from "../utils/races";
 import { mainRace } from "../utils/planPhase";
@@ -39,6 +41,8 @@ type RacesViewProps = {
   settleRace?: (runId: string | null, timeSec: number | null, opts?: { notes?: string; quiet?: boolean }) => boolean;
   previewTargetGoal?: (goalSec: number) => Plan | null;
   updateTargetGoal?: (goalSec: number) => void;
+  publicName?: string | null;
+  openSettings?: (page?: unknown) => void;
 };
 type OpenRace = { race: CatalogueRace | JoinedRace; editionId: string | null };
 
@@ -53,7 +57,7 @@ function resolveJoined(part: Participation): JoinedRace | JoinedEdition {
   };
 }
 
-export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, openRaceForm, runs, plan, settleRace, previewTargetGoal, updateTargetGoal }: RacesViewProps) {
+export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, openRaceForm, runs, plan, settleRace, previewTargetGoal, updateTargetGoal, publicName = null, openSettings }: RacesViewProps) {
   const { t } = useTranslation();
   const [seg, setSeg] = useState<Segment>("mine");
   const [logFor, setLogFor] = useState<string | null>(null); // editionId being logged
@@ -96,6 +100,8 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
   const setGoal = (joined: JoinedRace, goalSec: number | null) => {
     const listed = parts.some(p => p.editionId === joined.edition.id);
     upsertPart(joined, { goalSec });
+    const uid = currentUserId();
+    if (uid) void syncFieldGoal(uid, joined.edition.id, goalSec);
     showToast(t(!goalSec ? "races.goal.cleared" : listed ? "races.goal.savedToast" : "races.goal.savedListedToast"));
   };
 
@@ -292,6 +298,7 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
         <RaceSheet race={open.race} editionId={open.editionId} byId={byId} settings={settings} plan={plan} runs={runs || []}
           addWishlist={addWishlist} setGoal={setGoal} removePart={id => removePart(id)} promote={setTarget}
           saveResult={saveResult} report={report} previewTargetGoal={previewTargetGoal} updateTargetGoal={updateTargetGoal}
+          publicName={publicName} onSetPublicName={() => openSettings?.("publicName")} showToast={showToast}
           onClose={() => setOpen(null)}/>
       )}
     </div>

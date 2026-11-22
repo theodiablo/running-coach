@@ -179,6 +179,11 @@ disappears (orphan tolerance). It's in the synced blob, so it's covered by
 backup/restore (add to both when extending) — the shared catalogue is NOT
 exported.
 
+Not in the blob, on purpose: whether the runner joined a race's field of app
+runners, and their public name. Those are server-side consent
+(`race_field_members`, `profiles.public_name`), never exported or restored
+(`docs/race-field.md`).
+
 ## Training target & multi-race plans
 
 `settings.targetEditionId` marks which edition the plan was built from

@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 // CLAUDE.md: public functions pin `search_path = ''`; a security definer one is
 // service-role-only unless the client is its intended caller.
 const DIR = join(process.cwd(), "supabase", "migrations");
-const CLIENT_CALLABLE_DEFINERS = new Set(["delete_my_account"]);
+// race_field: the race field's one cross-user read (docs/race-field.md).
+const CLIENT_CALLABLE_DEFINERS = new Set(["delete_my_account", "race_field"]);
 
 const strip = (sql: string) => sql.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 const files = readdirSync(DIR).filter((n) => n.endsWith(".sql")).sort();

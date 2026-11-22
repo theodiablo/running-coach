@@ -226,5 +226,43 @@
     "savedListedToast": "Objetivo guardado y carrera añadida a tu lista.",
     "short": "objetivo {{time}}",
     "cleared": "Objetivo quitado."
+  },
+  "field": {
+    "card": {
+      "title": "Corredores de la app en esta carrera",
+      "count_one": "{{count}} corredor de la app en esta carrera",
+      "count_other": "{{count}} corredores de la app en esta carrera",
+      "youreIn": "Eres uno de ellos",
+      "body": "Entrenando para la misma salida. No se muestra ningún nombre ni entrenamiento, solo el número.",
+      "waiting": "Listo. Mostraremos el número cuando se unan algunos corredores más de la app.",
+      "invite": "Mira cuántos corredores de la app hacen esta carrera. Tú decides cómo apareces.",
+      "join": "Unirme a los participantes",
+      "change": "Cambiar cómo aparezco"
+    },
+    "join": {
+      "title": "Correr con otros de la app",
+      "bodyOpen_one": "{{count}} corredor más de la app se ha unido a esta carrera. ¿Te unes?",
+      "bodyOpen_other": "{{count}} corredores más de la app se han unido a esta carrera. ¿Te unes?",
+      "bodyFirst": "Sé de los primeros corredores de la app en esta carrera. Mostramos el número cuando se unan algunos más.",
+      "how": "Cómo aparecer",
+      "named": "Mostrarme como {{name}}",
+      "namedHint": "Tu nombre público, en la lista de corredores de la app",
+      "namedNoName": "Mostrarme con mi nombre",
+      "namedNoNameHint": "Primero necesitas un nombre público",
+      "setName": "Elegir un nombre público",
+      "count": "Solo cuéntame",
+      "countHint": "Suma uno al número, sin nombre",
+      "none": "Esta vez no",
+      "noneHint": "No se muestra nada sobre ti",
+      "goal": "Mostrar mi tiempo objetivo",
+      "nameLeaves": "Tu nombre sale de la lista, pero sigues contando. Para salir también de los participantes, elige Esta vez no.",
+      "done": "Listo",
+      "footer": "Puedes cambiarlo cuando quieras en la página de la carrera."
+    },
+    "toast": {
+      "error": "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
+      "limit": "Ya estás en 30 carreras próximas. Sal de una para unirte a esta.",
+      "closed": "Esta carrera no admite nuevos participantes."
+    }
   }
 }
