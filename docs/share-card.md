@@ -129,10 +129,14 @@ whether a plan session goes with it, and the plan phase.
 Rules, in order (the decided rule, plus the fallbacks the decision didn't
 cover):
 
-1. **A personal best → B.** `rankRunEfforts(run, runs).some(isPersonalBest)`,
-   the same test the finish screen uses for its trophy. A first effort
+1. **A personal best → B.** `rankRunEfforts(run, runs)` filtered to
+   **measured** efforts, then `.some(isPersonalBest)`. A first effort
    (`isFirstEffort`) is not a best and doesn't count. B can then say "First
    10K", never "best".
+   - Unlike the finish screen's trophy, an estimated effort (a manual run's
+     time scaled from its average pace) never counts. The finish screen is
+     private. A card is a public claim, and an estimate is not a time the
+     runner ran, so it headlines nothing.
 2. **A run that settled a plan session → D**, when D is offered. In the run
    detail, "settled" is a plan session with `runId === run.id` (the link
    `linkSess` writes). On the finish screen the run isn't saved or linked yet,
@@ -144,8 +148,9 @@ cover):
 
 **Which styles are offered:**
 
-- **A** only with a trace that survives the start/finish mask (at least ~200 m and 10 points
-  left). A run with no trace (manual, indoor, HR-only import, a trace that
+- **A** only with a trace that survives the start/finish mask (at least ~200 m
+  of line left; no point count, since a simplified straight street is two
+  points). A run with no trace (manual, indoor, HR-only import, a trace that
   failed to load) offers no Route chip. We don't draw a card with a hole.
 - **B** always.
 - **D** only when there is a plan, `planPhase` is `active`, `raceWeek` or
@@ -189,13 +194,15 @@ Every figure goes through the existing helpers: `fmt.dur`, `fmt.pace`,
   detail, the route `useRouteTrace` already fetched, passed to the builder as a
   prop, so it isn't fetched twice. A `routeTmp` run (trace not uploaded yet) uses
   the pending copy the same way the detail map does.
-- Headline: on the finish screen, the celebration headline the runner just
-  saw. In the detail, a line drawn from the celebration's `run` pool (or `pb`
-  pool for a best), chosen by run id so reopening the builder doesn't reshuffle
-  it. No new pool to translate.
-- Best-effort pill: the top `rankRunEfforts` entry when it is
-  `isPersonalBest`; nothing otherwise. A whole-run estimate
-  (`EffortRank.estimated`) never earns the pill: no claim beyond the log.
+- Headline: a short pool of the card's own (`shareCard.head.run`, and
+  `shareCard.head.pb` for a measured best), picked by run id so reopening the
+  builder doesn't reshuffle it. Both entry points use the same pool.
+  - The celebration's pools speak to the runner ("You earned this one"). On
+    the runner's own story those lines read as if someone else wrote them, so
+    the card's lines are neutral or in the runner's voice.
+- Best-effort pill: the longest measured `isPersonalBest` effort; nothing
+  otherwise. A whole-run estimate (`EffortRank.estimated`) never earns the
+  pill: no claim beyond the log.
 
 **B: Big number** (the headline figure, in order)
 
@@ -203,6 +210,9 @@ Every figure goes through the existing helpers: `fmt.dur`, `fmt.pace`,
    and one line of context. The context line only compares with the previous
    best when the log has one ("38 seconds quicker than your last best");
 2. a first effort: "First 10K" + time;
+
+   Both only for **measured** efforts (see the pre-selection rule).
+
 3. a run with distance: the distance ("10.4 km");
 4. an indoor session: the time.
 
@@ -304,7 +314,7 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
    - The mask makes each pass near the start or finish disappear. Each visible
      piece of line ends on a circle's edge, in whatever direction the route
      left.
-   - When the mask leaves too little (under ~200 m or 10 points in total, e.g.
+   - When the mask leaves too little (under ~200 m of line in total, e.g.
      a short loop around the block), A isn't offered. The 200 m is summed
      from the kept legs in projected metres. It is only a gate for drawing,
      never a distance shown to anyone, so it doesn't compete with the one
