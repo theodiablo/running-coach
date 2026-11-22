@@ -142,7 +142,7 @@ cover):
 
 **Which styles are offered:**
 
-- **A** only with a trace that survives trimming (at least ~200 m and 10 points
+- **A** only with a trace that survives the start/finish mask (at least ~200 m and 10 points
   left). A run with no trace (manual, indoor, HR-only import, a trace that
   failed to load) offers no Route chip. We don't draw a card with a hole.
 - **B** always.
@@ -224,18 +224,37 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
 - Plans and dates in tests: pinned clock and derived dates, `describe.each`
   over both anchors (CLAUDE.md, "A test that builds a plan…").
 
-## Route: trimming and simplification (`routeShape.ts`)
+## Route: hiding start and finish, and simplification (`routeShape.ts`)
 
-1. **Flatten** with `flattenTrack`. Its `cumKm` is the one distance definition
-   (CLAUDE.md), so the trim distances agree with the run's km. Gap markers
+1. **Flatten** with `flattenTrack`, the one track walk (CLAUDE.md). Gap markers
    (`null`) stay as breaks: each segment is drawn as its own path, never bridged
    with a straight line across a gap on the card.
-2. **Trim** (switch on by default): drop points with `cumKm` < t and
-   > total − t, where t = min(300 m, 15 % of the distance). Short runs keep a
-   line, and the copy promises exactly what we do ("Leaves out the first and
-   last 300 m"; under 2 km it says "the start and the end"). The copy doesn't
-   claim more privacy than that: a loop still passes near home, and the switch
-   description doesn't pretend otherwise.
+2. **Hide around start and finish** (switch on by default): a **radius mask**,
+   not an end trim. Every point within 300 m (straight line, `haversineM`) of
+   the start point *or* the finish point is dropped, **wherever it falls in the
+   run**. The line breaks there like at a gap, and is never bridged.
+   - Trimming only the first and last 300 m along the route (`cumKm`) was the
+     first idea. It fails exactly where it matters: laps from the front door
+     and out-and-backs pass home mid-run, and an end trim leaves those passes
+     drawn, pointing at the door.
+   - The mask makes each pass near the start or finish disappear. Each visible
+     piece of line ends 300 m from it, in whatever direction the route left.
+   - When the mask leaves too little (under ~200 m or 10 points in total, e.g.
+     a short loop around the block), A isn't offered. It is never drawn with
+     the mask silently switched off.
+   - The start and finish dots are not drawn while the mask is on: they would
+     sit on the edge of the hidden circle and point at its centre. They come
+     back with the switch off.
+   - **What the copy may claim**: "Hides the line within 300 m of where you
+     started and finished." That is exactly what it does.
+   - **What it doesn't hide**, and the copy doesn't imply it does:
+     - a place the route passes that is neither start nor finish (a run that
+       started from work passes home mid-run);
+     - a recognisable route shape;
+     - a place within ~300 m of home deduced from the hidden circle's
+       position.
+
+     The switch's description says "start and finish", never "your home".
 3. **Project** to local metres (equirectangular around the trace's mean
    latitude). That is exact enough at run scale, keeps the shape's aspect
    ratio, and doesn't need a map library.
@@ -243,8 +262,8 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
    to bbox diagonal / 500, so a marathon and a 3 km loop both land around a few
    hundred points: smooth at 1080 px, cheap to draw.
 5. **Fit** to the route box (308×300 design px), centred, uniform scale, with
-   padding for the 14 px under-stroke. Start = hollow dot, finish = filled
-   accent dot. Both are drawn at the trimmed ends.
+   padding for the 14 px under-stroke. With the mask off: start = hollow dot,
+   finish = filled accent dot. With it on: no dots (step 2).
 
 No coordinates leave the device: the card is pixels, and nothing about the
 route is sent anywhere.
@@ -299,7 +318,8 @@ is one seam, and the builder never branches on the platform.
   back returns to the finish screen or the run detail.
 - Switches, per the canvas:
   - **Show the route** (A only): off draws the stats-only layout.
-  - **Hide start and finish**, on by default (A only).
+  - **Hide start and finish**, on by default (A only): "Hides the line
+    within 300 m of where you started and finished".
   - **Show pace**, hidden for `km: 0` runs.
 
   On/off state is shown in colour (CLAUDE.md: orange on a tinted fill when on,
@@ -460,12 +480,16 @@ Unit tests (`.ts` suites in the node environment, no jsdom):
     as neutral.
   - Plan fixtures pin the clock and run over both `ANCHORS`.
 - `routeShape.test.ts`:
-  - the trim uses `cumKm` (parity with `distanceKm`), with the short-run cap;
+  - the mask drops every pass near the start or finish, not just the ends: a
+    lap course and an out-and-back from the start draw nothing within 300 m of
+    it, and a mid-run pass near a point that is neither stays drawn;
+  - the masked line breaks rather than bridges, and has no start/finish dots;
+  - a short loop fully inside the mask → A not offered;
   - gaps stay breaks;
   - projection keeps the aspect ratio;
   - the fit stays inside the box;
   - point count stays bounded for a marathon-length trace;
-  - a degenerate trace (one point, all trimmed) → A not offered.
+  - a degenerate trace (one point) → A not offered.
 - `drawCard.test.ts`, with a recording fake context (the calls are the
   assertions, since node has no canvas):
   - no route path when the switch is off;
