@@ -85,16 +85,16 @@ em dashes; "course" is for races and "sortie" for logged runs
 |---|---|---|---|
 | `recap.headline` | `{{distance}} in {{time}}` | `{{distance}} en {{time}}` | `{{distance}} en {{time}}` |
 | `recap.pace` | `{{pace}} average` | `{{pace}} de moyenne` | `{{pace}} de media` |
-| `cta.title` | Your turn? | À vous de jouer ? | ¿Te toca a ti? |
-| `cta.body` | Pick a race and get a free plan in a couple of minutes. | Choisissez une course et recevez un plan gratuit en quelques minutes. | Elige una carrera y consigue un plan gratis en un par de minutos. |
+| `cta.title` | Ready for your own finish line? | Et si c'était vous, la prochaine fois ? | ¿Te animas con tu propia meta? |
+| `cta.body` | Pick a race and a free plan takes you all the way there. | Choisissez une course : un plan gratuit vous conduit jusqu'à la ligne d'arrivée. | Elige una carrera y un plan gratis te lleva hasta la meta. |
 | `cta.button` | Start my plan, free | Créer mon plan, gratuit | Empezar mi plan, gratis |
 | `cta.note` | Right here in the browser with a free account. Get the app later to record runs. | Directement dans le navigateur, avec un compte gratuit. L'appli viendra ensuite pour enregistrer vos sorties. | Aquí mismo en el navegador, con una cuenta gratis. La app llega después para grabar tus salidas. |
 | `follow.endedCta` | Follow, to see their next run here | Suivre, pour voir leur prochaine sortie ici | Seguir, para ver aquí su próxima salida |
 
-The canvas says "in two minutes". That is a claim about onboarding length that
-nothing measures (`docs/marketing.md` holds the copy commitments): the table
-says "a couple of minutes" and the number should be checked or dropped before
-merge.
+**No time or effort claims.** The canvas's "in two minutes" is dropped: nothing
+measures onboarding length (`docs/marketing.md` holds the copy commitments), so
+the copy sells the destination (the finish line) instead of the effort. Any
+future number must be measured first.
 
 ### Where the web CTA lands
 
@@ -280,9 +280,15 @@ leak `race` by accident; a test pins it.
   - never claims a goal or a target time: those are private.
 - **Map and stats**: unchanged. No course line.
 - **CTA section** (live and ended, state matrix below), copy keys `race.*`:
-  - title `Running the {{race}} in {{year}}?` (year of `next.date`), body `Get a
-    free training plan built around the {{year}} race date.`, button `Get a plan
+  - en: title `Be on the {{race}} start line in {{year}}`, body `A free plan,
+    built around the {{year}} race date, gets you there.`, button `Get a plan
     for this race`, note `Opens the race in your browser with a free account.`
+  - fr (vous): `Au départ de {{race}} en {{year}}`, `Un plan gratuit, construit
+    autour de la date {{year}}, vous y conduit.`, `Obtenir un plan pour cette
+    course`, `S'ouvre dans votre navigateur, avec un compte gratuit.`
+  - es: `En la salida de {{race}} en {{year}}`, `Un plan gratis, construido
+    alrededor de la fecha de {{year}}, te lleva hasta allí.`, `Conseguir un plan
+    para esta carrera`, `Se abre en tu navegador, con una cuenta gratis.`
   - The canvas body ends "like the one this runner followed". **Drop that
     phrase:** a race-day runner has no plan by construction (`inRaceDayMode`),
     so it would be false for everyone this feature serves.
@@ -290,9 +296,7 @@ leak `race` by accident; a test pins it.
     yet" **cannot be built honestly**: there is no https deep link into the app
     (see above). The button goes to the web app with the race
     (`planLink("race_web", next.editionId)`), the store buttons sit under it
-    with `race_store`, and a native deep link is a separate follow-up (App
-    Links `assetlinks.json` + AASA served by CloudFront, new intent filters and
-    URL handling next to `classifyAuthUrl`).
+    with `race_store`. A native deep link is deferred, see "Later" below.
 
 | State | CTA |
 |---|---|
@@ -380,14 +384,24 @@ page promotes the app", "What the watcher may learn"), `docs/races.md` (the
 page reads verified editions), `docs/social.md` (status; it lives on PR #376's
 branch), this file reduced to what is built.
 
-## Decisions for the maintainer
+## Later: native deep link (deferred, not planned)
 
-1. **Native deep link for B's CTA**: not in PR 2 (web plus store only; needs
-   claiming the domain). Recommended, since it is cross-cutting infra.
+Decided to skip for now; kept here so it is not re-derived. Opening the app
+from an https link would need: `assetlinks.json` and `apple-app-site-association`
+served from `run.camboulive.solutions` (CloudFront, Terraform), Android intent
+filters with `autoVerify` and the iOS associated-domains entitlement (a store
+release for both), and URL handling next to `classifyAuthUrl` that opens the
+race's `RaceSheet`. It only helps a visitor who already has the app installed,
+which is the minority of people opening a stranger's link, so the web path
+stays the default. If it is built, the web CTA remains the fallback.
+
+## Decisions (settled)
+
+1. **Native deep link**: skipped, see "Later". PR 2 is web plus store only.
 2. **Naming the race**: on by default when race-day mode matches, disclosed on
-   the share panel, covered by the existing share switch (no second toggle).
+   the share panel and by a one-time notice, no second toggle.
 3. **Unverified races** get no race context until verified.
-4. **Copy claims**: "in two minutes" softened; "like the one this runner
-   followed" dropped.
+4. **Copy**: no time claims; "like the one this runner followed" dropped; CTAs
+   sell the finish line and the start line instead.
 5. **Race-day mode only** in PR 2; runners with a plan and a RACE session are a
    follow-up on the same column.
