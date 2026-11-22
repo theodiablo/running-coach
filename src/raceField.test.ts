@@ -115,6 +115,16 @@ describe("pending leaves", () => {
     expect(pendingLeaves("u")).toEqual(["b"]);
   });
 
+  it("keeps a removal when storage writes fail but reads still work", async () => {
+    localStorage.setItem("rc_field_leaves:w", "[]");
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("quota"); });
+    noteListedEditions("w", ["b"], []);
+    expect(pendingLeaves("w")).toEqual(["b"]);
+    expect(await leavePendingFields("w", () => [])).toBe(true);
+    expect(h.calls.find(c => c[0] === "in")).toEqual(["in", "edition_id", ["b"]]);
+    set.mockRestore();
+  });
+
   it("is per user", () => {
     noteListedEditions("u", ["b"], []);
     expect(pendingLeaves("other")).toEqual([]);

@@ -90,14 +90,19 @@ export async function syncFieldGoal(uid: string, editionId: string, goalSec: num
 const leavesKey = (uid: string) => `rc_field_leaves:${uid}`;
 const memoryLeaves = new Map<string, string[]>();
 
+// The memory copy is the session's truth (a failed storage write must not hide a removal);
+// storage only seeds it and carries it across a killed app.
 export function pendingLeaves(uid: string): string[] {
+  const held = memoryLeaves.get(uid);
+  if (held) return held;
+  let seeded: string[] = [];
   try {
     const raw = localStorage.getItem(leavesKey(uid));
     const v: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return memoryLeaves.get(uid) ?? [];
-  }
+    if (Array.isArray(v)) seeded = v.filter((x): x is string => typeof x === "string");
+  } catch { /* unreadable storage: start empty */ }
+  memoryLeaves.set(uid, seeded);
+  return seeded;
 }
 
 function writeLeaves(uid: string, ids: string[]) {
