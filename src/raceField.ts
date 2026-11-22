@@ -50,6 +50,8 @@ export type FieldWriteResult = "ok" | "limit" | "closed" | "error";
 export async function setFieldChoice(uid: string, editionId: string, choice: FieldChoice,
   goalSec: number | null, current: MyMembership | null): Promise<FieldWriteResult> {
   try {
+    // A late owed delete must never land after this write and undo it.
+    await leavesInFlight;
     if (choice === "none") {
       if (!current) return "ok";
       const { error } = await supabase.from("race_field_members").delete().eq("user_id", uid).eq("edition_id", editionId);
@@ -59,7 +61,9 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
     if (current) {
       const { data, error } = await supabase.from("race_field_members")
         .update({ visibility: choice, goal_sec: goal }).eq("user_id", uid).eq("edition_id", editionId).select("edition_id");
-      return error || !data?.length ? "error" : "ok";
+      if (error) return "error";
+      if (data?.length) return "ok";
+      // The row went (a removal's delete landed meanwhile): this choice is a fresh join.
     }
     const { error } = await supabase.from("race_field_members")
       .insert({ user_id: uid, edition_id: editionId, visibility: choice, goal_sec: goal });
@@ -122,7 +126,15 @@ export function noteListedEditions(uid: string, removed: readonly string[], list
 
 // Deletes the owed memberships, re-checking the list right before the delete so a race
 // re-added meanwhile is kept. False when it failed and should be retried.
-export async function leavePendingFields(uid: string, listed: () => readonly string[]): Promise<boolean> {
+let leavesInFlight: Promise<unknown> = Promise.resolve();
+
+export function leavePendingFields(uid: string, listed: () => readonly string[]): Promise<boolean> {
+  const run = sendLeaves(uid, listed);
+  leavesInFlight = run.catch(() => false);
+  return run;
+}
+
+async function sendLeaves(uid: string, listed: () => readonly string[]): Promise<boolean> {
   const keep = new Set(listed());
   const owed = pendingLeaves(uid).filter(id => !keep.has(id));
   if (!owed.length) { writeLeaves(uid, []); return true; }

@@ -125,6 +125,26 @@ describe("pending leaves", () => {
     set.mockRestore();
   });
 
+  it("holds a join until an owed delete in flight has landed", async () => {
+    noteListedEditions("v", ["b"], []);
+    const order: string[] = [];
+    let land: (v: { error: null }) => void = () => {};
+    h.results.push(new Promise(r => { land = r; }) as never);
+    const leave = leavePendingFields("v", () => []).then(() => order.push("delete"));
+    const join = setFieldChoice("v", "b", "count", null, null).then(() => order.push("insert"));
+    await Promise.resolve();
+    expect(order).toEqual([]);
+    land({ error: null });
+    await Promise.all([leave, join]);
+    expect(order).toEqual(["delete", "insert"]);
+  });
+
+  it("turns a change into a join when its row was deleted meanwhile", async () => {
+    h.results.push({ data: [], error: null }, { error: null });
+    expect(await setFieldChoice("u", "b", "count", null, { visibility: "named", goalSec: null })).toBe("ok");
+    expect(ops()).toContain("insert");
+  });
+
   it("is per user", () => {
     noteListedEditions("u", ["b"], []);
     expect(pendingLeaves("other")).toEqual([]);
