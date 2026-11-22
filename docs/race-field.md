@@ -227,17 +227,19 @@ grant execute on function public.race_field(text) to authenticated;
 
 ### PR 2: the named list
 
-`race_field` gains `named` in the open branch, built from the *same* row set:
+`race_field` gains `named` in the open branch, built from the *same* row set
+and gated on the caller's own membership (a non-member gets `'named': []` and
+the same count):
 
 ```sql
-'named', coalesce((
+'named', case when v_mine.user_id is null then '[]'::jsonb else coalesce((
   select jsonb_agg(jsonb_build_object('name', p.public_name, 'goalSec', m.goal_sec, 'me', m.user_id = v_uid)
                    order by m.goal_sec nulls last, p.public_name)
   from public.race_field_members m
   join public.profiles p on p.id = m.user_id
   where m.edition_id = p_edition_id
     and m.visibility = 'named'
-    and p.public_name is not null), '[]'::jsonb)
+    and p.public_name is not null), '[]'::jsonb) end
 ```
 
 - A `named` member with no public name (they removed it later) shows as
@@ -265,7 +267,12 @@ grant execute on function public.race_field(text) to authenticated;
   restored `rc_races` are deleted (the runner no longer has that race), and
   `fieldAsked` from the file is kept, so nobody is re-asked.
 - **Removing a race** (`removePart`) deletes its membership in the same
-  handler. If that delete fails (offline), the boot reconcile above catches it.
+  handler. If that delete fails (offline), `reconcileFields` retries it: it
+  runs once `isStoreReconciled()` on every boot and again on the `online`
+  event, deleting any own membership whose edition has no participation in
+  `rc_races` (the same rule as the restore case). The accepted stale window is
+  therefore "until the app is next online", during which the row still counts
+  (and, in PR 2, still shows to joined runners).
 - **Daily DB backup** (`docs/backups.md`): `db_backup` has
   `pg_read_all_data`, so the new table and column are dumped with no grant
   change. A single-user restore from it touches `app_state` only; membership
@@ -284,9 +291,15 @@ grant execute on function public.race_field(text) to authenticated;
   cascade on, so it would outlive the reported account: `field_name` reports
   are deleted once handled, and any older than 30 days by the daily
   monitoring job (`docs/monitoring.md` gains the line).
-- **Maintainer action**: plain SQL, documented in this file once PR 2 lands —
-  find the account by `public_name` + membership on the edition, then `update
-  profiles set public_name = null` (the runner drops to count-only everywhere).
+- **Maintainer action**: plain SQL, documented in this file once PR 2 lands.
+  What's moderated is the *name text*, not a person: find the accounts with
+  that exact `public_name` and a `named` membership on the reported edition,
+  and `update profiles set public_name = null` for them (they drop to
+  count-only everywhere). Two runners sharing an abusive text both carry it,
+  so clearing both is right. A report that isn't about the text itself (e.g.
+  "this is impersonating me") is never acted on by text match: the maintainer
+  replies to the reporter first, since the name alone can't say which account
+  is meant, and no per-row id is exposed to disambiguate it.
   A repeat offender gets the same via a `public_name_blocked boolean` column
   only if it's ever needed; not built now.
 - No profanity list: lists are locale-bound, easy to dodge and catch real
@@ -348,10 +361,12 @@ grant execute on function public.race_field(text) to authenticated;
 
 ### Fetching
 
-`RaceSheet` calls `fetchRaceField` on open for an upcoming edition (no
-polling, no prefetch for every race in `RacesView`). The answer is cached in
-memory per edition for the session; no `localStorage` (it's other people's
-data).
+`RaceSheet` calls `fetchRaceField` on every open for an upcoming edition (no
+polling, no prefetch for every race in `RacesView`). The answer lives only in
+the sheet's component state: there is no cross-open cache, so another
+runner's withdrawal shows on the next open, and nothing outlives sign-out. The
+viewer's own join, change or leave refetches the open sheet. A failed read is
+shown as closed and not kept. No `localStorage` (it's other people's data).
 
 ## Copy (en / fr / es)
 
@@ -402,7 +417,8 @@ choice (`named`/`count`/`none`), under analytics consent only, never the name.
   `"  "`, `"a"`, 25 chars, a bidi override, an NBSP edge, a U+3164 run,
   `alex.com`, `www.x.com`, and accepts `Zoé L.` and `Ωμέγα`; the 31st
   upcoming join fails;
-  `delete_my_account` leaves no rows.
+  `delete_my_account` leaves no rows; in PR 2 a non-member caller of an open
+  field gets `named: []` with the same count, a member gets the list.
 - **Unit**: `publicNameIssue` mirrors every constraint rule (shared fixture
   list with the SQL check above); `reconcileFields`; the "about your time"
   count (±5%, excludes self, excludes hidden goals).
@@ -443,7 +459,8 @@ the cap trigger. The final migration gets its own review in PR 1.
 
 ## Decisions (2026-11)
 
-1. Count visible to anyone signed in; named list only to runners who joined.
+1. Count visible to anyone signed in; named list only to runners who joined
+   (enforced in `race_field`, not just the UI).
 2. Threshold counts *others*: k = 3 runners besides the caller.
 3. Fields on verified editions only.
 4. Per-runner cap: open (see PR discussion).
