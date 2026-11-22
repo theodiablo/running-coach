@@ -279,10 +279,22 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      the final fit scale. The fit scale depends on what is kept, so this
      iterates: fit, enlarge, clip, refit. It converges in two or three passes,
      because enlarging only shrinks the kept bounding box.
-   - As a second guard, `drawCard` sets a canvas clip before stroking the
-     route: the route box minus both circles at exactly 300 m in card pixels,
-     using the `evenodd` fill rule (Safari 15 supports it). No pixel of any
-     stroke can land inside a circle, whatever the geometry step did.
+   - As a second, independent guard, `drawCard` clips the canvas before
+     stroking the route. Successive `clip()` calls intersect, so it is:
+     1. clip to the route box;
+     2. for **each** circle separately, clip to (route box + that circle) with
+        the `evenodd` rule, i.e. the box minus that one circle. Each circle is
+        at exactly 300 m in card pixels.
+
+     The result is the box minus both circles, however they sit.
+     - A single `evenodd` path holding the box and both circles would be
+       wrong: where the circles overlap, the winding count is odd again and
+       the overlap is painted. When start and finish coincide (any loop from
+       the door), the two holes cancel out entirely.
+     - `evenodd` and nested `clip()` both work in Safari 15.
+
+     No pixel of any stroke can land inside a circle, whatever the geometry
+     step did.
    - Trimming only the first and last 300 m along the route (`cumKm`) was the
      first idea. It fails exactly where it matters: laps from the front door
      and out-and-backs pass home mid-run, and an end trim leaves those passes
@@ -581,8 +593,19 @@ Unit tests (`.ts` suites in the node environment, no jsdom):
     the start or finish;
   - a short loop fully inside the mask → A not offered;
   - a leg running parallel to a circle, just outside its 300 m edge, is
-    clipped by the enlarged radius. The recorded `drawCard` calls set the
-    `evenodd` clip (route box minus both circles) before any route stroke;
+    clipped by the enlarged radius. The recorded `drawCard` calls set the box
+    clip and then one exclusion clip per circle before any route stroke;
+  - **pixel tests** (`routeMask.pixel.test.ts`). These render the route
+    layer onto a real canvas and sample pixels inside each circle, which must
+    all be transparent. Three cases: separate circles, overlapping circles, and
+    coincident start/finish (the loop case that breaks a single `evenodd`
+    path).
+    - jsdom has no canvas and CI has no browser, so the suite uses
+      `@napi-rs/canvas`. It has prebuilt binaries and needs no browser or
+      system libraries. **This is a new dev-only dependency, added in PR 1**,
+      and never shipped in the bundle.
+    - Its clip semantics follow the same Skia engine as Chrome and Android
+      WebView. WebKit is covered by the by-hand check on iOS.
   - `simplify` receives lat/lng tuples, never projected metres (a fixture
     whose result is checked in point count and against `perpM` tolerance);
   - gaps stay breaks;
