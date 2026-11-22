@@ -493,7 +493,7 @@ the row shape is fixed:
 create table public.share_card_events (
   id          bigint generated always as identity primary key,
   created_at  timestamptz not null default now(),
-  event       text not null check (event in ('opened', 'shared', 'saved')),
+  event       text not null check (event in ('opened', 'shared', 'saved', 'closed')),
   entry       text not null check (entry in ('finish', 'detail')),
   preselected text not null check (preselected in ('route', 'number', 'week')),
   chosen      text check (chosen in ('route', 'number', 'week')),
@@ -513,12 +513,19 @@ grant insert on public.share_card_events to authenticated;
   - `shared` or `saved` on each successful hand-off, with the style handed
     off as `chosen` and `first_share` set. Sharing two styles from one builder visit writes two
     rows, so every shared style reaches the digest.
-  - A dismissed share sheet or a failure writes nothing.
+  - `closed` when the builder closes **without** any hand-off, with the style
+    on screen at that moment as `chosen` and `first_share` false. So a visit
+    that didn't share still says whether the runner had changed the style.
+  - A dismissed share sheet or a failure writes nothing of its own.
   - `first_share` is true on the first hand-off of a builder visit, and false
     on any later one. It is a flag kept in the builder's memory, so no session
     key is stored, which would be a per-device identifier in all but name.
-  - Visits that shared = `shared`/`saved` rows with `first_share`. "Opened
-    without sharing" = opens minus those.
+  - Visits that shared = `shared`/`saved` rows with `first_share`. Visits that
+    didn't = `closed` rows.
+  - Share rate when the pre-selection was kept vs changed: for each group
+    (`chosen = preselected` or not), first-share rows divided by first-share
+    rows plus `closed` rows. Opens minus both counts gives the visits whose
+    closing row was lost (app killed, failed insert).
   - Approximate: a failed insert, or a visit that crosses midnight at a week
     boundary, can skew one count. The digest already labels these counts
     approximate.
@@ -679,8 +686,8 @@ store-release effect sits alone in a small one:
    - `admin_metrics()` and `formatDigest`;
    - a "Share card" section in `docs/product-metrics.md`.
 
-   Ideally merged right after PR 1 so the counts start with the feature. It can
-   also land first: with the builder not shipped yet, nothing writes.
+   It lands after PR 1, which creates the builder its client write goes into.
+   Ideally merged right after it, so the counts start close to the feature.
 
 Each PR: lint, `typecheck:all`, tests and build green. This doc is updated from
 "design" to reference as the parts land, and CLAUDE.md gets a one-line rule only
