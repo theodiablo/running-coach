@@ -780,6 +780,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — social features: what is decided (share card, watch-page CTA, race field), what is rejected and why (rankings, leaderboards).
+- `docs/share-card.md` — post-run share card: Canvas 2D rendering, pre-selection, route masking, web/native sharing, analytics.
 - `docs/races.md` — race catalogue (server-side search, filters, race page and goals), contributions, badges.
 - `docs/race-crawler.md` — the scheduled catalogue crawler: sources, curated policy, matching.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.
