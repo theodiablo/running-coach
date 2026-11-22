@@ -49,8 +49,8 @@ export async function fetchPublicName(uid: string): Promise<string | null | unde
 // An update, never an upsert: there is no insert grant on public_name.
 export async function savePublicName(uid: string, name: string | null): Promise<boolean> {
   try {
-    const { error } = await supabase.from("profiles").update({ public_name: name }).eq("id", uid);
-    return !error;
+    const { data, error } = await supabase.from("profiles").update({ public_name: name }).eq("id", uid).select("id");
+    return !error && !!data?.length;
   } catch {
     return false;
   }

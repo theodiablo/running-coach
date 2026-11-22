@@ -233,7 +233,7 @@
       "count_one": "{{count}} coureur de l'app sur cette course",
       "count_other": "{{count}} coureurs de l'app sur cette course",
       "youreIn": "Tu en fais partie",
-      "body": "Même ligne de départ, même préparation. Aucun nom ni entraînement n'est affiché, seulement le nombre.",
+      "body": "Même ligne de départ, même préparation. Ici, seul le nombre s'affiche, et un nom n'apparaît que pour un coureur qui a choisi de le montrer.",
       "waiting": "C'est noté. On affichera le nombre quand quelques coureurs de l'app de plus se seront inscrits.",
       "invite": "Découvre combien de coureurs de l'app font cette course. Tu choisis comment tu apparais.",
       "join": "Rejoindre les participants",

@@ -22,7 +22,7 @@ export function FieldJoinSheet({ publicName, current, others, hasGoal, onSetName
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [choice, setChoice] = useState<FieldChoice>(current?.visibility ?? (publicName ? "named" : "count"));
-  const [showGoal, setShowGoal] = useState(current ? current.goalSec != null : hasGoal);
+  const [showGoal, setShowGoal] = useState(current ? current.goalSec != null : false);
   const [saving, setSaving] = useState(false);
 
   const done = async () => {

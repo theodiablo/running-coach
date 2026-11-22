@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Loader, X } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../../constants";
 import { currentUserId } from "../../db";
-import { PUBLIC_NAME_MAX, fetchPublicName, normalizePublicName, publicNameIssue, savePublicName } from "../../publicName";
+import { fetchPublicName, normalizePublicName, publicNameIssue, savePublicName } from "../../publicName";
 
 // Settings › Account › Public name: the one name other runners can see, and only in a
 // race field the runner chose to appear in by name (docs/race-field.md).
@@ -67,7 +67,7 @@ export function PublicNamePage({ publicName, onSaved, showToast }: PublicNamePag
 
       <div>
         <label htmlFor="public-name" className={LABEL_CLS}>{t("settings.publicName.label")}</label>
-        <input id="public-name" value={draft} maxLength={PUBLIC_NAME_MAX + 8} autoComplete="nickname"
+        <input id="public-name" value={draft} autoComplete="nickname"
           onChange={e => setDraft(e.target.value)} className={INPUT_CLS}
           aria-invalid={!!issue} aria-describedby="public-name-hint"/>
         <p id="public-name-hint" className={"text-xs mt-1.5 " + (issue ? "text-amber-300" : "text-slate-400")}>

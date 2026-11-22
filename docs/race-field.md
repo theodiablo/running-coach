@@ -266,31 +266,40 @@ the same count):
 - **In-app backup / restore** (`onBackup`/`onRestore`, the blob export): the
   public name and memberships are **not** exported. They're server-side
   consent, not training data, and a restored file must not re-publish a name or
-  re-join fields someone left after taking the backup. After a restore the
-  client reconciles: memberships whose `edition_id` has no participation in the
-  restored `rc_races` are deleted (the runner no longer has that race).
-- **Removing a race** (`removePart`) deletes its membership in the same
-  handler. If that delete fails, `reconcileFields` retries it: it runs once
-  `isStoreReconciled()` on every boot, on the `online` event, on a return to
-  the foreground, and on its own backoff timer (30s doubling to 5min, the
-  store's schedule) while a run keeps failing, whether its read or its delete
-  failed. Each run derives its
-  work from `rc_races` and the runner's own memberships (any membership whose
-  edition has no participation is deleted, the same rule as the restore case),
-  so no pending-removal marker is stored. The row is gone at the first run
-  that succeeds; a backoff step is the gap between tries, not a bound. While
-  the network keeps failing (or the app is closed before a try succeeds) the
-  row stays, across launches. In it the row still counts (PR 1); in PR 2 it
-  also still shows the runner's name to joined runners.
+  re-join fields someone left after taking the backup. A restore replaces the
+  list, so any race it drops is a removal like the next bullet.
+- **Removing a race, on any path** (`removePart`, a restore, anything that
+  rewrites `rc_races`): `RunningCoach` diffs the listed editions on every
+  change, and a race that left the list *on this device* is recorded as owed a
+  delete (`rc_field_leaves:<uid>` in localStorage, per device; a race back on
+  the list is dropped from it). Only those are ever deleted, never "every
+  membership with no participation": this device's copy of the list can be
+  stale (another device added a race and joined it), and a stale list must
+  never undo a membership. The delete re-reads the list right before it runs,
+  so a race re-added meanwhile is kept. It runs as soon as the list changes,
+  and is retried once `isStoreReconciled()` on every boot, on `online`, on a
+  return to the foreground, and on a 30s to 5 min backoff while it keeps
+  failing. The owed list survives a killed app, so the next launch retries.
+  The row is gone at the first try that succeeds; a backoff step is the gap
+  between tries, not a bound. Until then the row still counts (PR 1), and in
+  PR 2 still shows the runner's name to joined runners. A removal made while
+  the app was uninstalled, or on a device that never ran again, is not caught;
+  the past-race purge below bounds it.
+- **Past races are purged.** A field closes the day after its race, and a
+  membership on a past edition is a record of who ran it. Follow-up to PR 1:
+  the daily monitoring job deletes memberships on editions older than 7 days
+  (`docs/monitoring.md` gains the line).
 - **Daily DB backup** (`docs/backups.md`): `db_backup` has
   `pg_read_all_data`, so the new table and column are dumped with no grant
   change. A single-user restore from it touches `app_state` only; membership
   rows are never restored by hand (they would re-expose a choice the runner may
   have reversed). A whole-database or point-in-time restore brings back public
   names and memberships as of the snapshot, so a runner who withdrew after it
-  would appear again: after such a restore, clear both (`update profiles set
-  public_name = null; delete from race_field_members;`) and let runners
-  re-join, rather than resurrect a withdrawn consent.
+  would appear again. **Before the restored project serves any app traffic**,
+  clear both (`update profiles set public_name = null; delete from
+  race_field_members;`), then let runners re-join, rather than resurrect a
+  withdrawn consent. This step belongs to the restore itself, not to a later
+  cleanup.
 
 ## Name abuse and moderation (basics)
 
@@ -329,8 +338,11 @@ the same count):
   time"; never an upsert, whose `on conflict update` names
   `user_id`/`edition_id`, which have no update grant, and whose insert trigger
   would refuse a capped runner only changing visibility), `syncFieldGoal`,
-  `reconcileFields(uid, listedEditionIds)` and `createFieldReconciler` (the
-  retry schedule). Every read destructures `error`; a failed read renders as
+  the owed-delete list (`noteListedEditions`, `pendingLeaves`,
+  `leavePendingFields`) and `createFieldReconciler` (the retry schedule, which
+  stops for good on `stop()`, even with a run in flight). `syncFieldGoal`
+  updates only a goal already shown (`goal_sec` not null), so a hidden goal
+  is never published by a later goal edit. Every read destructures `error`; a failed read renders as
   closed, never as "you're not in it" (which would invite a second join).
 - `src/publicName.ts`: `fetchPublicName` / `savePublicName` (an update, never
   an upsert) and the pure `publicNameIssue` mirroring the constraint for
@@ -338,10 +350,8 @@ the same count):
   it down (`shared.publicName`, `SettingsModal`); `undefined` means not read,
   and the Public name page then shows a retry instead of an empty field it
   would overwrite.
-- `RunningCoach` owns the reconcile: it runs when the list of listed editions
-  changes, on `subscribeStoreReconciled`, `online`, a return to the
-  foreground, and on the reconciler's own backoff, and is a no-op until the
-  store is loaded and reconciled (an unloaded list would read as "no races").
+- `RunningCoach` owns the diff and the retry (above), and is a no-op until
+  the store is loaded and reconciled.
 
 ### Surfaces
 
@@ -355,7 +365,8 @@ the same count):
   the card's Join / Change button. Three choices: by name (disabled, with
   "Set a public name" beside it, when there's none), just count me, not this
   time; "Show my goal time" only under by name, and only when the race has a
-  goal. Switching from by name to count says that the runner still counts.
+  goal; it starts off, like every sharing switch in the app. Switching from
+  by name to count says that the runner still counts.
   Dismissing changes nothing.
 - **Race page card** (`src/components/races/RaceFieldCard.tsx` in `RaceSheet`,
   canvas `Field-Count`): only for an upcoming, verified catalogue edition.
@@ -432,7 +443,9 @@ choice (`named`/`count`/`none`), under analytics consent only, never the name.
   `delete_my_account` leaves no rows; in PR 2 a non-member caller of an open
   field gets `named: []` with the same count, a member gets the list.
 - **Unit**: `publicNameIssue` mirrors every constraint rule (shared fixture
-  list with the SQL check above); `reconcileFields`; the "about your time"
+  list with the SQL check above); the owed-delete list (only this device's
+  removals, re-added races kept, failures kept for retry, per user); the
+  goal sync leaving a hidden goal hidden; the "about your time"
   count (±5%, excludes self, excludes hidden goals).
 - **Components**: `RaceFieldCard` + `FieldJoinSheet` (card states, by name
   disabled without a name, goal toggle only under by name, refusals toasted),

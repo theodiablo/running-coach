@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // A chainable supabase stub that records every call and resolves with `h.next`.
@@ -6,7 +7,7 @@ const h = vi.hoisted(() => ({ calls: [] as unknown[][], results: [] as { data?: 
 vi.mock("./supabase", () => {
   const chain = (): Record<string, unknown> => {
     const self: Record<string, unknown> = {};
-    for (const m of ["select", "insert", "update", "delete", "eq", "in", "maybeSingle"]) {
+    for (const m of ["select", "insert", "update", "delete", "eq", "in", "not", "maybeSingle"]) {
       self[m] = (...args: unknown[]) => { h.calls.push([m, ...args]); return self; };
     }
     self.then = (resolve: (v: unknown) => void) => resolve(h.results.shift() ?? { data: null, error: null });
@@ -20,7 +21,7 @@ vi.mock("./supabase", () => {
   };
 });
 
-const { fetchRaceField, setFieldChoice, reconcileFields, createFieldReconciler } = await import("./raceField");
+const { fetchRaceField, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
 const ops = () => h.calls.map(c => c[0]);
 
 beforeEach(() => { h.calls = []; h.results = []; });
@@ -51,8 +52,9 @@ describe("setFieldChoice", () => {
   });
 
   it("updates an existing one, with only the mutable columns", async () => {
+    h.results.push({ data: [{ edition_id: "e1" }], error: null });
     expect(await setFieldChoice("u", "e1", "count", 6300, { visibility: "named", goalSec: 6300 })).toBe("ok");
-    expect(ops()).toEqual(["from", "update", "eq", "eq"]);
+    expect(ops()).toEqual(["from", "update", "eq", "eq", "select"]);
     expect(h.calls[1][1]).toEqual({ visibility: "count", goal_sec: null });
   });
 
@@ -74,25 +76,48 @@ describe("setFieldChoice", () => {
   });
 });
 
-describe("reconcileFields", () => {
-  it("deletes only memberships whose race left the list", async () => {
-    h.results.push({ data: [{ edition_id: "a" }, { edition_id: "b" }, { edition_id: "c" }], error: null });
-    expect(await reconcileFields("u", ["a", "c"])).toBe(true);
-    const del = h.calls.findIndex(c => c[0] === "delete");
-    expect(del).toBeGreaterThan(-1);
+describe("syncFieldGoal", () => {
+  it("only touches a goal already shown, so a hidden one stays hidden", async () => {
+    await syncFieldGoal("u", "e1", 6000);
+    expect(h.calls).toContainEqual(["eq", "visibility", "named"]);
+    expect(h.calls).toContainEqual(["not", "goal_sec", "is", null]);
+  });
+});
+
+describe("pending leaves", () => {
+  beforeEach(() => { localStorage.clear(); });
+
+  it("deletes only races this device saw leave the list", async () => {
+    noteListedEditions("u", [], ["a", "b"]);
+    noteListedEditions("u", ["b"], ["a"]);
+    expect(pendingLeaves("u")).toEqual(["b"]);
+    expect(await leavePendingFields("u", () => ["a"])).toBe(true);
     expect(h.calls.find(c => c[0] === "in")).toEqual(["in", "edition_id", ["b"]]);
+    expect(pendingLeaves("u")).toEqual([]);
   });
 
-  it("writes nothing when nothing is stale", async () => {
-    h.results.push({ data: [{ edition_id: "a" }], error: null });
-    expect(await reconcileFields("u", ["a"])).toBe(true);
+  it("never deletes a membership it has no record of removing", async () => {
+    expect(await leavePendingFields("u", () => [])).toBe(true);
     expect(ops()).not.toContain("delete");
   });
 
-  it("reports a failed read for retry, without deleting", async () => {
-    h.results.push({ data: null, error: { message: "boom" } });
-    expect(await reconcileFields("u", [])).toBe(false);
+  it("keeps a race re-added before the delete runs", async () => {
+    noteListedEditions("u", ["b"], []);
+    expect(await leavePendingFields("u", () => ["b"])).toBe(true);
     expect(ops()).not.toContain("delete");
+    expect(pendingLeaves("u")).toEqual([]);
+  });
+
+  it("keeps what it owes when the delete fails, for the retry", async () => {
+    noteListedEditions("u", ["b"], []);
+    h.results.push({ error: { message: "offline" } });
+    expect(await leavePendingFields("u", () => [])).toBe(false);
+    expect(pendingLeaves("u")).toEqual(["b"]);
+  });
+
+  it("is per user", () => {
+    noteListedEditions("u", ["b"], []);
+    expect(pendingLeaves("other")).toEqual([]);
   });
 });
 
@@ -130,5 +155,17 @@ describe("createFieldReconciler", () => {
     expect(run).toHaveBeenCalledTimes(2);
     release(true);
     rec.stop();
+  });
+
+  it("schedules nothing once stopped, even when a run in flight fails", async () => {
+    let release: (v: boolean) => void = () => {};
+    const run = vi.fn(() => new Promise<boolean>(r => { release = r; }));
+    const rec = createFieldReconciler(run);
+    rec.run();
+    await vi.advanceTimersByTimeAsync(0);
+    rec.stop();
+    release(false);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 });

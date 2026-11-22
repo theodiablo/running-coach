@@ -57,9 +57,9 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
     }
     const goal = choice === "named" && goalSec ? Math.round(goalSec) : null;
     if (current) {
-      const { error } = await supabase.from("race_field_members")
-        .update({ visibility: choice, goal_sec: goal }).eq("user_id", uid).eq("edition_id", editionId);
-      return error ? "error" : "ok";
+      const { data, error } = await supabase.from("race_field_members")
+        .update({ visibility: choice, goal_sec: goal }).eq("user_id", uid).eq("edition_id", editionId).select("edition_id");
+      return error || !data?.length ? "error" : "ok";
     }
     const { error } = await supabase.from("race_field_members")
       .insert({ user_id: uid, edition_id: editionId, visibility: choice, goal_sec: goal });
@@ -71,36 +71,69 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
   }
 }
 
-// Keeps a shown goal in step with the race's goal; a no-op unless the runner shows it.
+// Keeps a shown goal in step with the race's goal. Only a goal already shown is
+// touched: a hidden one (null) stays hidden until the runner turns it on again.
 export async function syncFieldGoal(uid: string, editionId: string, goalSec: number | null): Promise<void> {
   try {
     const { error } = await supabase.from("race_field_members")
       .update({ goal_sec: goalSec ? Math.round(goalSec) : null })
-      .eq("user_id", uid).eq("edition_id", editionId).eq("visibility", "named");
+      .eq("user_id", uid).eq("edition_id", editionId).eq("visibility", "named").not("goal_sec", "is", null);
     if (error) console.error("field goal sync failed", error);
   } catch (e) {
     console.error("field goal sync failed", e);
   }
 }
 
-// Deletes every own membership whose race is no longer on the runner's list.
-// False when it failed and should be retried.
-export async function reconcileFields(uid: string, listedEditionIds: readonly string[]): Promise<boolean> {
+// Races this device saw leave the runner's list, whose membership it still owes a delete.
+// Only this device's own removals are deleted: a list that's merely stale (another device
+// added a race and joined) can never undo a membership. Per device, per user.
+const leavesKey = (uid: string) => `rc_field_leaves:${uid}`;
+const memoryLeaves = new Map<string, string[]>();
+
+export function pendingLeaves(uid: string): string[] {
   try {
-    const { data, error } = await supabase.from("race_field_members").select("edition_id").eq("user_id", uid);
+    const raw = localStorage.getItem(leavesKey(uid));
+    const v: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return memoryLeaves.get(uid) ?? [];
+  }
+}
+
+function writeLeaves(uid: string, ids: string[]) {
+  memoryLeaves.set(uid, ids);
+  try {
+    if (ids.length) localStorage.setItem(leavesKey(uid), JSON.stringify(ids));
+    else localStorage.removeItem(leavesKey(uid));
+  } catch { /* memory copy still covers this session */ }
+}
+
+// Records removals and forgets any race that is back on the list.
+export function noteListedEditions(uid: string, removed: readonly string[], listed: readonly string[]) {
+  const keep = new Set(listed);
+  const next = [...new Set([...pendingLeaves(uid), ...removed])].filter(id => !keep.has(id));
+  writeLeaves(uid, next);
+}
+
+// Deletes the owed memberships, re-checking the list right before the delete so a race
+// re-added meanwhile is kept. False when it failed and should be retried.
+export async function leavePendingFields(uid: string, listed: () => readonly string[]): Promise<boolean> {
+  const keep = new Set(listed());
+  const owed = pendingLeaves(uid).filter(id => !keep.has(id));
+  if (!owed.length) { writeLeaves(uid, []); return true; }
+  try {
+    const { error } = await supabase.from("race_field_members").delete().eq("user_id", uid).in("edition_id", owed);
     if (error) return false;
-    const keep = new Set(listedEditionIds);
-    const stale = (data || []).map(r => String(r.edition_id)).filter(id => !keep.has(id));
-    if (!stale.length) return true;
-    const { error: delError } = await supabase.from("race_field_members").delete().eq("user_id", uid).in("edition_id", stale);
-    return !delError;
+    const done = new Set(owed);
+    writeLeaves(uid, pendingLeaves(uid).filter(id => !done.has(id)));
+    return true;
   } catch {
     return false;
   }
 }
 
-// Retry schedule for reconcileFields: on demand, online, foreground, and a 30s→5min backoff
-// while a run keeps failing. Each run re-derives its work, so no pending state is stored.
+// Retry schedule for leavePendingFields: on demand, online, foreground, and a 30s→5min
+// backoff while a run keeps failing.
 const RETRY_MS = 30_000;
 const RETRY_MAX_MS = 5 * 60_000;
 
@@ -109,16 +142,19 @@ export function createFieldReconciler(run: () => Promise<boolean>) {
   let delay = RETRY_MS;
   let running = false;
   let again = false;
+  let stopped = false;
   const clear = () => { if (timer) clearTimeout(timer); timer = null; };
   const go = async () => {
+    if (stopped) return;
     if (running) { again = true; return; }
     running = true; clear();
     let ok = false;
     try { ok = await run(); } finally { running = false; }
+    if (stopped) return;
     if (again) { again = false; void go(); return; }
     if (ok) { delay = RETRY_MS; return; }
     timer = setTimeout(() => { timer = null; void go(); }, delay);
     delay = Math.min(delay * 2, RETRY_MAX_MS);
   };
-  return { run: () => void go(), stop: clear };
+  return { run: () => void go(), stop: () => { stopped = true; clear(); } };
 }

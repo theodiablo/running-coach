@@ -233,7 +233,7 @@
       "count_one": "{{count}} app runner in this field",
       "count_other": "{{count}} app runners in this field",
       "youreIn": "You're one of them",
-      "body": "Training for the same start line. Nobody's name or training is shown, just the number.",
+      "body": "Training for the same start line. Only the number shows here, and a name only ever appears for a runner who chose to show theirs.",
       "waiting": "You're in. We'll show the field once a few more app runners join.",
       "invite": "See how many runners from the app are doing this race. You decide how you appear.",
       "join": "Join the field",

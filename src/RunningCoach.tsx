@@ -80,7 +80,7 @@ import { LogView } from "./views/LogView";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
-import { createFieldReconciler, reconcileFields, syncFieldGoal } from "./raceField";
+import { createFieldReconciler, leavePendingFields, noteListedEditions, syncFieldGoal } from "./raceField";
 import { fetchPublicName } from "./publicName";
 import { coachSessionKey, isCrossTraining } from "./types";
 import type {
@@ -688,15 +688,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     void fetchPublicName(uid).then(v => { if (alive) setPublicName(v); });
     return () => { alive = false; };
   }, [uid]);
-  // A membership whose race left the list is deleted here, retried until it lands. Never
-  // before the store is loaded and reconciled: an unloaded list would read as "no races".
+  // A race that leaves the list on this device owes its membership a delete, retried until
+  // it lands (docs/race-field.md). Never before the store is loaded and reconciled.
+  const listedIds = () => (racesRef.current.participations || []).map(p => p.editionId).filter((id): id is string => !!id);
   const fieldReconciler = useRef<ReturnType<typeof createFieldReconciler> | null>(null);
   useEffect(() => {
     if (!uid) return;
     const rec = createFieldReconciler(async () => {
       if (!isStoreLoaded() || !isStoreReconciled()) return true;
-      const ids = (racesRef.current.participations || []).map(p => p.editionId).filter((id): id is string => !!id);
-      return reconcileFields(uid, ids);
+      return leavePendingFields(uid, listedIds);
     });
     fieldReconciler.current = rec;
     const onVisible = () => { if (document.visibilityState === "visible") rec.run(); };
@@ -711,7 +711,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     };
   }, [uid]);
   const listedEditions = (races.participations || []).map(p => p.editionId).filter(Boolean).sort().join(",");
-  useEffect(() => { if (!loading) fieldReconciler.current?.run(); }, [listedEditions, loading]);
+  const prevListed = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (loading || !uid) return;
+    const now = listedEditions ? listedEditions.split(",") : [];
+    const prev = prevListed.current;
+    prevListed.current = now;
+    noteListedEditions(uid, prev ? prev.filter(id => !now.includes(id)) : [], now);
+    fieldReconciler.current?.run();
+  }, [listedEditions, loading, uid]);
 
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
   const restorePlan  = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); };

@@ -67,12 +67,15 @@ describe("RaceFieldCard", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("asks once when the race was just added, and joins by name with the goal", async () => {
+  it("asks once when the race was just added, goal off until turned on", async () => {
     h.field = { open: true, joined: false, count: 8 };
     const props = card({ ask: true });
     expect(await screen.findByRole("dialog", { name: "Running with others from the app" })).toBeInTheDocument();
     expect(screen.getByText(/8 other app runners have joined/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Show me as Alex M\./ })).toHaveAttribute("aria-checked", "true");
+    const goal = screen.getByRole("switch", { name: "Show my goal time" });
+    expect(goal).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(goal);
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() => expect(h.setFieldChoice).toHaveBeenCalledWith("u1", "e1", "named", 6300, null));
     await waitFor(() => expect(props.onAsked).toHaveBeenCalled());
