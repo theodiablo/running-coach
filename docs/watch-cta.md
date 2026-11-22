@@ -109,8 +109,10 @@ merge.
   the account form, not the marketing landing. Closing the modal leaves the
   landing. After sign-up the existing onboarding runs unchanged (intent step,
   race branch, health gate).
-- **Signed in**: the app loads as normal; `start` is read and dropped, nothing
-  else happens. A runner who already has a plan is never ambushed.
+- **Signed in**: with a plan, `start` is read and dropped (a runner who already
+  has one is never ambushed). Without one (a race-day runner, `inRaceDayMode`),
+  the intent opens the same "get a plan" prompt that `RaceDayPlanRow` offers,
+  once the store is reconciled, so the button never lands on nothing.
 - **How the flag survives the sign-up round trip.** Google/Apple OAuth leaves
   the page and returns to the origin, so a query-string read at the gate would
   be gone. A pure `src/utils/landingIntent.ts` (`parseLandingIntent`,
@@ -222,9 +224,12 @@ a link names.
      within the catalogue's own +/-5% match (the rule `matchingEditions` mirrors).
      Absent when the organiser has not announced one: nothing is ever derived by
      adding a year.
-   - Answers are cached **in the isolate** per edition id (10 minutes, 500
-     entries, negatives included), because the page polls every 30s per viewer
-     and the catalogue changes weekly.
+   - The **catalogue lookup** (race, edition, next edition) is cached in the
+     isolate per edition id (10 minutes, 500 entries, negatives included),
+     because the page polls every 30s per viewer and the catalogue changes
+     weekly. The date guard is **not** cached: it runs per request against that
+     run's `started_at`, so a mismatched run can neither borrow context cached
+     for a valid one nor poison it.
    - Response: `run.race = { name, distanceKm, next: { editionId, date } | null }`,
      present only on a visible run, so it adds no oracle (an invisible run is the
      same `{ live: false }`). It is on `ended` rows too, so the finish recap can
@@ -349,11 +354,14 @@ PR 1 has no backend dependency and can ship, and be promoted, at any time.
    migration, no function change.
 2. **PR 2: B.** Migration, publisher, `raceDayEdition` and its wiring,
    `live-watch` + `_shared/liveRace.mjs`, page UI and `raceProgress`, `race`
-   in `landingIntent`, onboarding/`RunningCoach` landing, `public/privacy.html`
-   ("Sharing a run live" now says the link can name the race), docs. If review
-   size asks for it, split along the deploy line: **2a** data path (migration,
-   publisher, function, pure tests; invisible to users), **2b** page and
-   landing.
+   in `landingIntent`, onboarding/`RunningCoach` landing, share-panel
+   disclosure, `public/privacy.html` ("Sharing a run live" now says the link can
+   name the race), docs. If review size asks for it, split along the deploy
+   line: **2a** migration, `live-watch`, `liveRace.mjs` and their tests (nothing
+   writes the column yet, so nothing is exposed); **2b** the publisher wiring,
+   **together with** the share-panel disclosure and the privacy page, then the
+   page and landing. **The publisher never ships ahead of the notices that tell
+   a runner their link can name the race.**
 
 Docs updated with the code: `docs/live-sharing.md` (Shape table, "The public
 page promotes the app", "What the watcher may learn"), `docs/races.md` (the
