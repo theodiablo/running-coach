@@ -146,10 +146,18 @@ cover):
   left). A run with no trace (manual, indoor, HR-only import, a trace that
   failed to load) offers no Route chip. We don't draw a card with a hole.
 - **B** always.
-- **D** only when there is a plan and `planPhase` is `active`, `raceWeek` or
-  `open`. In `debrief`, `choosing` or `recovery` there is no "week n of m" to
-  stand on, and a card saying "−3 days to go" would be wrong. A run that settled
-  a session in a post-race recovery week therefore pre-selects A or B.
+- **D** only when there is a plan, `planPhase` is `active`, `raceWeek` or
+  `open`, **and the run's date falls in the plan's current week** (today's
+  Monday–Sunday).
+  - In `debrief`, `choosing` or `recovery` there is no "week n of m" to stand
+    on, and a card saying "−3 days to go" would be wrong.
+  - A run from an earlier week is not offered D: the card would combine this
+    week's sessions and countdown with an old run.
+  - So a run that settled a session in a post-race recovery week, or one
+    opened from History weeks later, pre-selects A or B.
+  - Drawing D for the run's own past week (its countdown as it was then) was
+    the alternative. It was left out: the card would read as current on a
+    story posted today.
 
 The runner can always switch between the offered chips. Tests cover each rule
 and each fallback.
@@ -216,8 +224,13 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
   (`badges.ts`, `overdueSessions` copy) applies to an image as much as to a
   screen. "3 of 4 runs done · 26.1 km so far" counts sessions with `done`, and
   km from this week's runs excluding cross-training.
-- Today: the settled session's type name (`common.types`, plain word first)
-  and this run's distance · time · pace.
+- The run's row: the settled session's type name (`common.types`, plain
+  word first) and this run's distance · time · pace.
+  - Labelled "Today" only when the run's date is today.
+  - Otherwise labelled with its weekday ("Saturday: long run"). The run is in
+    the current week (see "Which styles are offered") but may be from an
+    earlier day of it.
+  - Its day in the Mon–Sun row is the one highlighted, not today's.
 - **Open/block plans** (`phase: "open"`): no race and no countdown. The header
   becomes "Training block 2 · week 3 of 4" (`block`, the block's weeks) and the
   bar spans the block.
@@ -229,16 +242,33 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
 1. **Flatten** with `flattenTrack`, the one track walk (CLAUDE.md). Gap markers
    (`null`) stay as breaks: each segment is drawn as its own path, never bridged
    with a straight line across a gap on the card.
-2. **Hide around start and finish** (switch on by default): a **radius mask**,
-   not an end trim. Every point within 300 m (straight line, `haversineM`) of
-   the start point *or* the finish point is dropped, **wherever it falls in the
-   run**. The line breaks there like at a gap, and is never bridged.
+2. **Project** to local metres (equirectangular around the trace's mean
+   latitude). That is exact enough at run scale (distances agree with
+   `haversineM` to well under 1 % over 300 m), keeps the shape's aspect ratio,
+   and doesn't need a map library.
+3. **Simplify** with the existing `simplify` (Douglas–Peucker), with epsilon set
+   to bbox diagonal / 500, so a marathon and a 3 km loop both land around a few
+   hundred points: smooth at 1080 px, cheap to draw. This happens **before**
+   the mask, so simplification can never draw a new shortcut through a hidden
+   area.
+4. **Hide around start and finish** (switch on by default): a **radius mask**,
+   not an end trim. Nothing is drawn within 300 m of the start point *or* the
+   finish point, **wherever it falls in the run**.
+   - It works on **legs, not points**. Each leg (two consecutive points) is
+     clipped against both circles. Line-circle intersection in the projected
+     metres gives 0, 1 or 2 crossing points, and only the parts outside both
+     circles are kept. A leg that cuts through a circle with both ends outside
+     it (sparse GPS, or a long simplified leg) is split, and its middle is
+     dropped. Dropping only the points inside the circle would leave that leg
+     drawn straight through the hidden area.
+   - Where a leg is cut, the line breaks, as at a gap, and is never bridged.
    - Trimming only the first and last 300 m along the route (`cumKm`) was the
      first idea. It fails exactly where it matters: laps from the front door
      and out-and-backs pass home mid-run, and an end trim leaves those passes
      drawn, pointing at the door.
    - The mask makes each pass near the start or finish disappear. Each visible
-     piece of line ends 300 m from it, in whatever direction the route left.
+     piece of line ends on a circle's edge, in whatever direction the route
+     left.
    - When the mask leaves too little (under ~200 m or 10 points in total, e.g.
      a short loop around the block), A isn't offered. It is never drawn with
      the mask silently switched off.
@@ -255,15 +285,10 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
        position.
 
      The switch's description says "start and finish", never "your home".
-3. **Project** to local metres (equirectangular around the trace's mean
-   latitude). That is exact enough at run scale, keeps the shape's aspect
-   ratio, and doesn't need a map library.
-4. **Simplify** with the existing `simplify` (Douglas–Peucker), with epsilon set
-   to bbox diagonal / 500, so a marathon and a 3 km loop both land around a few
-   hundred points: smooth at 1080 px, cheap to draw.
 5. **Fit** to the route box (308×300 design px), centred, uniform scale, with
    padding for the 14 px under-stroke. With the mask off: start = hollow dot,
-   finish = filled accent dot. With it on: no dots (step 2).
+   finish = filled accent dot. With it on: no dots (step 4). Fitting is a
+   uniform scale of what the mask kept, so it can't bring a hidden part back.
 
 No coordinates leave the device: the card is pixels, and nothing about the
 route is sent anywhere.
@@ -293,9 +318,11 @@ is one seam, and the builder never branches on the platform.
   matching our Capacitor 8) mean `npx cap sync` and **a store release of both
   shells**. The web bundle ships inside the shells, so a bundle never meets an
   older shell without the plugin. Every call is still gated on
-  `Capacitor.isPluginAvailable("Share")` (CLAUDE.md: gate every native call on
-  its own availability check). When the check fails, the share action is hidden
-  rather than broken.
+  `Capacitor.isPluginAvailable("Share")` **and**
+  `Capacitor.isPluginAvailable("Filesystem")` (CLAUDE.md: gate every native call
+  on its own availability check). `canShareImage()` needs both, and each call
+  site still checks its own plugin. When either check fails, the share action
+  is hidden rather than broken.
 - Android: `Share` resolves the file through the app's existing FileProvider
   (`${applicationId}.fileprovider`, already in `AndroidManifest.xml`). Its
   `file_paths.xml` must cover the cache dir. To check in the PR, along with
@@ -410,7 +437,7 @@ What the digest needs, per week:
 | Readable by `admin_metrics()` | No (the digest reads the database, `docs/product-metrics.md`) | Yes, like `qr_scans` and `live_broadcasts` |
 | Consent | Already covered by the analytics opt-in | None needed **only if** the row can't be tied to a person: no user id, no device id, nothing free-text |
 | Per-user questions (do sharers retain?) | Yes, for the consenting slice | No, by design |
-| Cost | Zero new infra | One small table, one insert policy, a digest section |
+| Cost | Zero new infra | One small table, one grant and insert policy, a digest section |
 
 PostHog alone can't answer "what share of runners changed the style", because
 the denominator is unknown. And the digest is defined as database truth
@@ -427,23 +454,36 @@ the row shape is fixed:
 create table public.share_card_events (
   id          bigint generated always as identity primary key,
   created_at  timestamptz not null default now(),
+  event       text not null check (event in ('opened', 'shared', 'saved')),
   entry       text not null check (entry in ('finish', 'detail')),
   preselected text not null check (preselected in ('route', 'number', 'week')),
   chosen      text check (chosen in ('route', 'number', 'week')),
-  outcome     text not null check (outcome in ('shared', 'saved', 'closed')),
-  platform    text not null check (platform in ('web', 'ios', 'android'))
+  platform    text not null check (platform in ('web', 'ios', 'android')),
+  check ((event = 'opened') = (chosen is null))
 );
+
+grant insert on public.share_card_events to authenticated;
 ```
 
 - **No `user_id`**, no device id, no run id, no free text. `changed` is
   derived (`chosen <> preselected`).
-- One row per builder session, written when it ends. `outcome` is the share
-  result, or `closed` when the runner left without sharing. `chosen` is the
-  style shared, or the last selected when closed.
+- **One row per event**, never one per builder session:
+  - `opened` when the builder mounts, with no `chosen`;
+  - `shared` or `saved` on each successful hand-off, with the style handed
+    off as `chosen`. Sharing two styles from one builder visit writes two
+    rows, so every shared style reaches the digest.
+  - A dismissed share sheet or a failure writes nothing.
+  - "Opened without sharing" is the difference between opens and builder
+    visits that shared. That needs no session key, which would be a
+    per-device identifier in all but name.
 - Write path:
   - `enable row level security`;
   - one `insert` policy `to authenticated with check ((select auth.uid()) is not null)`
     (refuses the anon key, and isn't an "always true" policy for the linter);
+  - `grant insert ... to authenticated`. `auto_expose_new_tables` is unset,
+    so a new table gets **no** grants on the hosted project
+    (`docs/live-sharing.md`), and without the grant every insert fails even
+    though the policy allows it;
   - `revoke select, update, delete ... from anon, authenticated`.
 
   The client inserts with supabase-js and destructures `error`
@@ -456,16 +496,34 @@ create table public.share_card_events (
   section, omitted when the field is absent (same pattern as `qr`).
 - PostHog (consenting only, through `src/telemetry`): `share_card_opened`
   `{entry, preselected}` and `share_card_shared` `{entry, preselected, chosen,
-  outcome}`. No run data, no text.
+  event}`. No run data, no text.
 
 **Decision for the maintainer** (also open question 1): this adds an
-automatic, consent-free server write to the client. It sits next to the
-CLAUDE.md telemetry rule "anything that collects automatically belongs to one
-of [the consent channels]". I read that rule as covering the analytics/crash
-SDK channels, with the non-personal ledgers above as the established exception.
-If you'd rather not widen that exception, the fallback is PostHog-only, with
-the digest stating the consenting-slice caveat (fetched through PostHog's
-query API, which `admin-metrics` doesn't use today).
+automatic, consent-free server write to the client. CLAUDE.md and
+`docs/telemetry.md` say anything that collects automatically belongs to one of
+the two consent channels, "never a borrowed consent". Neither document carves
+out non-personal ledgers today. `qr_scans` and `live_broadcasts` count without
+consent, but that is a practice, not a documented rule. So the counter
+**doesn't ship on the strength of the precedent alone**. PR 3 takes one of
+these, and you choose which:
+
+- **(a) Document the exception first.** PR 3 adds a "Non-personal server
+  counters" section to `docs/telemetry.md`, before the insert exists, defining
+  what qualifies:
+  - no user, device, run or session id;
+  - no free text and no location;
+  - only enumerated values;
+  - aggregate reads only (`admin_metrics()`).
+
+  It lists `qr_scans`, `live_broadcasts` and `share_card_events` under it, and
+  CLAUDE.md's telemetry line points to it. This is my recommendation: the
+  digest gets whole counts, and the rule becomes written instead of implied.
+- **(b) Gate the insert on analytics consent** (`getConsent()`). No new
+  rule is needed, but the table then undercounts exactly like PostHog,
+  which takes away the reason to build it.
+- **(c) PostHog only.** No table. The digest states the consenting-slice
+  caveat, fetched through PostHog's query API, which `admin-metrics` doesn't
+  use today.
 
 ## Test plan
 
@@ -473,7 +531,9 @@ Unit tests (`.ts` suites in the node environment, no jsdom):
 
 - `cardModel.test.ts`:
   - `cardStyles` for every rule and fallback: PB → B; first effort isn't a PB;
-    settled session → D; settled but post-race phase → not D; trace → A; no
+    settled session → D; settled but post-race phase → not D; settled but
+    run from an earlier week → not D; run earlier this week → weekday label,
+    not "Today"; trace → A; no
     trace → B; indoor → B; estimated effort never gets the pill.
   - Each style's model with: GPS run, manual run, indoor `km: 0` (no pace, no
     distance anywhere), open/block plan, no plan, race day, still-open sessions
@@ -484,6 +544,10 @@ Unit tests (`.ts` suites in the node environment, no jsdom):
     lap course and an out-and-back from the start draw nothing within 300 m of
     it, and a mid-run pass near a point that is neither stays drawn;
   - the masked line breaks rather than bridges, and has no start/finish dots;
+  - a single leg whose two ends are both outside a circle but which cuts
+    through it is split, with no drawn point inside 300 m;
+  - masking runs after simplification: no kept segment comes within 300 m of
+    the start or finish;
   - a short loop fully inside the mask → A not offered;
   - gaps stay breaks;
   - projection keeps the aspect ratio;
@@ -543,7 +607,10 @@ the store-release effect sits alone in a small PR:
 
    Merge-time effect: needs a store release of both shells.
 3. **Analytics + digest.**
-   - the `share_card_events` migration;
+   - for option (a), the "Non-personal server counters" section in
+     `docs/telemetry.md`, in the same PR and ahead of the insert;
+   - the `share_card_events` migration (with its `authenticated` insert
+     grant);
    - the client write in `ShareCardSheet`, plus the two PostHog events;
    - `admin_metrics()` and `formatDigest`;
    - a "Share card" section in `docs/product-metrics.md`.
@@ -557,8 +624,9 @@ if one turns out to be cross-cutting.
 
 ## Open questions for the maintainer
 
-1. **Analytics source**: the server-side anonymous counter (recommended), or
-   PostHog only?
+1. **Analytics source**: (a) the anonymous counter, with the non-personal
+   exception written into `docs/telemetry.md` first (recommended); (b) the
+   counter gated on analytics consent; or (c) PostHog only?
 2. **PR split**: three PRs (native separate, recommended), or native folded into
    PR 1 as the brief expected?
 3. **Start time on the card**: drop it (recommended, routine privacy), or keep
