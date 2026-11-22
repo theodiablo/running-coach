@@ -27,7 +27,8 @@ describe("ShareCardSheet", () => {
     const run: Run = { id: "r", date: ymd, type: "EASY", km: 10.4, durationSec: 3100, bestEfforts: { "10k": 2991 } };
     setup(run, [{ id: "p", date: "2026-01-01", type: "EASY", km: 10, durationSec: 3029, bestEfforts: { "10k": 3029 } }]);
     expect(screen.getByRole("button", { name: "Number" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("img").getAttribute("aria-label")).toMatch(/^Card preview: Number, Distance 10\.4 km/);
+    expect(screen.getByRole("img").getAttribute("aria-label"))
+      .toMatch(/^Card preview: Number, New personal best, 10K 49:51, 38 s quicker than my last best, Distance 10\.4 km/);
   });
 
   it("offers no Route chip and no route switches for a run without a trace", () => {

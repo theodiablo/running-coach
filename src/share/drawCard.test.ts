@@ -123,6 +123,31 @@ describe("render for eyes", () => {
   });
 });
 
+describe("drawCard details", () => {
+  const t = tFor("en");
+
+  it("wraps a word wider than the line without overflowing any line", () => {
+    const view = views(t)[3] as Extract<CardView, { style: "week" }>;
+    const wide: CardView = { ...view, model: { ...view.model, header: { kind: "race", title: "Supercalifragilisticexpialidociousmarathon and friends", daysToGo: 3 } } };
+    const { ctx, texts } = instrumented();
+    drawCard(ctx, wide);
+    expect(texts.some(d => d.s.startsWith("Supercali") && d.s.endsWith("…"))).toBe(true);
+    for (const d of texts) {
+      const left = d.align === "right" ? d.x - d.w : d.align === "center" ? d.x - d.w / 2 : d.x;
+      expect({ s: d.s, right: left + d.w }).toEqual({ s: d.s, right: Math.min(left + d.w, CARD_W - 26 + 0.5) });
+    }
+  });
+
+  it("draws no tick on a run day whose planned session is still open", () => {
+    const view = views(t)[3] as Extract<CardView, { style: "week" }>;
+    const days = view.model.days.map((d, i) => i === 6 ? { ...d, state: "open" as const, isRunDay: true } : { ...d, state: "rest" as const, isRunDay: false });
+    const { ctx, strokes } = instrumented();
+    drawCard(ctx, { ...view, model: { ...view.model, days } });
+    // Ticks are stroked at 2.4; rings at 2.
+    expect(strokes.filter(w => w === 2.4)).toEqual([]);
+  });
+});
+
 describe("drawCard switches", () => {
   const t = tFor("en");
 

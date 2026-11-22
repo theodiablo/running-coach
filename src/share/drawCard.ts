@@ -75,6 +75,7 @@ export function wrapText(ctx: Ctx, text: string, maxW: number, maxLines: number)
   if (cur && lines.length < maxLines) lines.push(cur);
   const used = lines.slice(0, maxLines);
   const rest = words.join(" ") !== used.join(" ");
+  for (let i = 0; i < used.length - 1; i++) used[i] = ellipsize(ctx, used[i], maxW);
   if (used.length) {
     const last = used.length - 1;
     used[last] = rest ? ellipsize(ctx, used[last] + "…", maxW).replace(/……$/, "…") : ellipsize(ctx, used[last], maxW);
@@ -330,7 +331,7 @@ function drawWeekCard(ctx: Ctx, v: Extract<CardView, { style: "week" }>) {
     if (d.isRunDay) {
       ctx.fillStyle = ACCENT;
       ctx.fill();
-      checkMark(ctx, cx, cy, 10, INK);
+      if (d.state === "done") checkMark(ctx, cx, cy, 10, INK);
     } else if (d.state === "done") {
       ctx.fillStyle = "rgba(249,115,22,0.18)";
       ctx.fill();

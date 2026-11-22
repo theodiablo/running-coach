@@ -114,7 +114,22 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   });
 
   const summary = (() => {
-    const parts = [t(`shareCard.styles.${style}`), ...view.model.stats.map(s => statText(tf, s))];
+    const lead: string[] = [];
+    if (view.style === "number") {
+      const m = view.model;
+      if (m.tag) lead.push(t(m.tag.key, m.tag.vars ?? {}));
+      lead.push([m.label ? t(m.label.key) : "", m.figure + (m.unit ? " " + m.unit : "")].filter(Boolean).join(" "));
+      if (m.context) lead.push(t(m.context.key, m.context.vars ?? {}));
+    } else if (view.style === "week") {
+      const m = view.model;
+      lead.push(m.header.kind === "race" ? m.header.title || t("shareCard.week.myRace") : t("shareCard.week.block", { block: m.header.block }));
+      if (m.header.kind === "race") lead.push(m.header.daysToGo === 0 ? t("shareCard.week.raceDay") : t("shareCard.week.daysToGo", { count: m.header.daysToGo }));
+      lead.push(t("shareCard.week.weekOf", { n: m.weekN, m: m.weekM }), t("shareCard.week.summary", { done: m.done, planned: m.planned, km: m.weekKm }));
+    } else {
+      lead.push(t(view.model.headline.key));
+      if (view.model.pill) lead.push(t("shareCard.route.pill", { dist: t(view.model.pill.dist), time: view.model.pill.time }));
+    }
+    const parts = [t(`shareCard.styles.${style}`), ...lead, ...view.model.stats.map(s => statText(tf, s))];
     if (view.style === "route" && view.showRoute && view.shape) parts.push(t("shareCard.toggles.route"));
     return parts.join(", ");
   })();
