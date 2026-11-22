@@ -198,9 +198,21 @@ a link names.
    re-inserts and re-resolves from its own start time, so a restart after
    midnight still names the race.
 3. **Recorder wiring**: `RunningCoach` computes `raceDayEdition(...)` and passes
-   it into `LiveRunTracker`, which hands it to `publishLiveRun`. The share panel
-   gets one line when a race will be named ("Your link will show that you are
-   running the {race}"), so the disclosure sits where the switch is.
+   it into `LiveRunTracker`, which hands it to `publishLiveRun`. Two notices:
+   - The share panel gets one line when a race will be named ("Your link will
+     show that you are running the {race}"), where the switch is.
+   - **A one-time acknowledgement for runners whose sharing is already on.** The
+     switch persists (`LIVE_SHARE_KEY`) and is restored on mount, so such a
+     runner can start a broadcast without ever opening the panel. A synced flag,
+     `raceNameNoticeSeen` (seeded per the one-time signpost rule: absent means
+     never show, `=== false` means show), gates the feature: until it is `true`
+     `raceDayEdition` is passed as `null`, so **no broadcast names a race before
+     the runner has seen the notice**. The notice is a short confirm on the
+     race-day Start path (`ModalOverlay` + `ConfirmButtons`, registered with
+     `useDismissable`) that says what the link will show; any answer spends it
+     (acknowledgement only, no opt-out, per the "no toggle" decision), and
+     closing it without answering leaves the flag unset, so the race is simply
+     not named that run.
 4. **`live-watch` read** (single `GET`/path read only; the batch is untouched):
    - The ledger-path select adds `race_edition_id`. The existing 42703 branch
      answers `notLive()` for any missing column, which would blank **every**
