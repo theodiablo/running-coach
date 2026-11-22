@@ -129,14 +129,21 @@ whether a plan session goes with it, and the plan phase.
 Rules, in order (the decided rule, plus the fallbacks the decision didn't
 cover):
 
-1. **A personal best → B.** `rankRunEfforts(run, runs)` filtered to
-   **measured** efforts, then `.some(isPersonalBest)`. A first effort
-   (`isFirstEffort`) is not a best and doesn't count. B can then say "First
-   10K", never "best".
+1. **A personal best → B.** A measured effort that is a personal best
+   (`isPersonalBest`) twice over:
+   - in `rankRunEfforts(run, runs, { measuredOnly: true })`, where estimates
+     are dropped on both sides, so this run's measured time is ranked against
+     other runs' measured times only;
+   - and in the plain ranking, so a faster hand-logged effort in the log still
+     rules out "best".
+
+   The gain shown is against the last measured best. A first effort
+   (`isFirstEffort`, under the same two conditions) is not a best and doesn't
+   count. B can then say "First 10K", never "best".
    - Unlike the finish screen's trophy, an estimated effort (a manual run's
-     time scaled from its average pace) never counts. The finish screen is
-     private. A card is a public claim, and an estimate is not a time the
-     runner ran, so it headlines nothing.
+     time scaled from its average pace) is never claimed, nor beaten. The
+     finish screen is private. A card is a public claim, and an estimate is
+     not a time the runner ran.
 2. **A run that settled a plan session → D**, when D is offered. In the run
    detail, "settled" is a plan session with `runId === run.id` (the link
    `linkSess` writes). On the finish screen the run isn't saved or linked yet,
