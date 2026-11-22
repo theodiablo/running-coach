@@ -14,7 +14,7 @@ what each runner chose to show, and it returns nothing at all for a small field.
 
 | Shown to other runners | Only if | Never shown |
 |---|---|---|
-| That *someone* joined (the count) | they picked "show me by name" or "just count me" for that edition, and ≥ 3 others joined | user id, email, join date, any run/route/plan data |
+| That *someone* joined (the count) | they picked "show me by name" or "just count me" for that edition, and ≥ 3 others joined | user id, email, any run/route/plan data (but the count's movement is observable: see "what it can't stop") |
 | Their public name | they set one **and** picked "show me by name" for that edition | the private `settings.name` from the blob |
 | Their goal time for that race | they turned on "Show my goal time" for that edition | finish times, results, positions (rejected: `Field-Results`) |
 
@@ -30,20 +30,31 @@ alter table public.profiles add column public_name text
   constraint profiles_public_name_shape check (
     public_name is null or (
       char_length(public_name) between 2 and 24
-      and public_name = btrim(public_name)
-      and public_name !~ '\s{2,}'
+      and public_name !~ '^[[:space:]]|[[:space:]]$'
+      and public_name !~ '[[:space:]]{2,}'
       and public_name !~ '[[:cntrl:]]'
-      and public_name !~ '[​-‏‪-‮⁠-⁩﻿]'
-      and public_name !~* '(https?:|www\.|://|@|\.(com|net|org|io|fr|es)\b)'
+      and public_name !~ '[\u00AD\u034F\u061C\u115F\u1160\u180E\u200B-\u200F\u2028-\u202E\u2060-\u2069\u3164\uFE00-\uFE0F\uFEFF\uFFA0\U000E0000-\U000E007F]'
+      and public_name !~* '(https?:|www\.|://|@|\.(com|net|org|io|fr|es)\y)'
       and public_name ~ '[[:alpha:]]'
     ));
 
 grant update (public_name) on public.profiles to authenticated;
 ```
 
+Postgres regex notes: `\y` is the word boundary (`\b` is a backspace there);
+`btrim()` trims only U+0020, hence the `[[:space:]]` anchors (NBSP, U+3000);
+invisible characters are written as `\u`/`\U` escapes (valid under
+`standard_conforming_strings`), never as raw characters an editor can strip.
+U+3164 and friends are "letters" that render blank, so they're excluded
+explicitly. `[[:alpha:]]` follows the database ctype: verified on the preview
+branch with an all-non-ASCII name (`Ωμέγα`), not just `Zoé L.`.
+
+- The client writes it with `.update()`, never an upsert: there is no insert
+  grant on `public_name`, and an upsert's `on conflict` would need one.
 - **Write path: a column grant, not an RPC.** `authenticated` already holds
-  `update (last_seen_at)` and the `profiles update own` policy (`id = (select
-  auth.uid())`, both `using` and `with check`). Adding `public_name` to the
+  `update (last_seen_at)` and the `profiles update own` policy (`using (id =
+  (select auth.uid()))`; no explicit `with check`, so Postgres reuses `using`,
+  and `id` has no update grant anyway). Adding `public_name` to the
   column grant lets a user write exactly that column of exactly their own row;
   `premium_until`/`premium_since` stay ungranted, so entitlement is still
   service-role-writable only. An RPC would add a `security definer` surface for
@@ -70,14 +81,18 @@ create table public.race_field_members (
   goal_sec    integer check (goal_sec is null or goal_sec between 600 and 86400),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
-  primary key (user_id, edition_id)
+  primary key (user_id, edition_id),
+  check (goal_sec is null or visibility = 'named')
 );
 create index race_field_members_edition_idx on public.race_field_members (edition_id);
 
 alter table public.race_field_members enable row level security;
-revoke all on public.race_field_members from anon;
-grant select, insert, delete on public.race_field_members to authenticated;
-grant update (visibility, goal_sec, updated_at) on public.race_field_members to authenticated;
+-- Explicit in both directions: hosted gives a new table no grants, the local
+-- stack GRANT ALL (same as live_share_tokens), so state the posture.
+revoke all on public.race_field_members from anon, authenticated;
+grant select, delete on public.race_field_members to authenticated;
+grant insert (user_id, edition_id, visibility, goal_sec) on public.race_field_members to authenticated;
+grant update (visibility, goal_sec) on public.race_field_members to authenticated;
 
 create policy "race_field_members own" on public.race_field_members
   for all to authenticated
@@ -95,17 +110,31 @@ create policy "race_field_members own" on public.race_field_members
 - The owner's own row is readable (to render "You appear as …"); nobody
   else's is, by RLS. No policy grants a cross-user read: **the read function
   below is the only cross-user path**.
-- **Cap:** a `before insert` trigger refuses a 31st *upcoming* membership per
-  user (same shape as `live_share_tokens_cap`), so a script can't sprinkle one
-  account across the catalogue. Trigger functions are `security invoker`, `set
-  search_path = ''`, `revoke execute ... from public`.
+- `created_at`/`updated_at` are server-set: no client grant, `updated_at`
+  stamped by a `before update` trigger. `user_id`/`edition_id` are insert-only,
+  so a row can't be moved to another race or another runner.
+- **Verified editions only.** An unverified edition's creator can still edit
+  its date, distance and `race_slug` (and delete it), which would move or close
+  other runners' field. The `before insert` trigger refuses a membership on an
+  unverified edition and `race_field` treats one as closed. Verification is
+  already the maintainer's job (`validate-contribution`), so a contributed race
+  gets its field once verified. *(Open question 4.)*
+- **Cap:** the same trigger refuses a 31st *upcoming* membership per user (same
+  shape as `live_share_tokens_cap`), so a script can't sprinkle one account
+  across the catalogue. Concurrent inserts can overshoot by a row, as there.
+- Trigger functions are `security invoker`, `set search_path = ''`, `revoke
+  execute ... from public`. **Invoker is load-bearing for the cap** (said in
+  its function comment): BEFORE triggers run before the RLS `with check`, so as
+  invoker its count sees only the caller's own rows and a forged `user_id`
+  counts 0 before RLS rejects the insert; as definer its error would reveal
+  "this account has 30 fields".
 - **No service-role grant**: no edge function touches the table in either PR.
   `src/serviceRoleGrants.test.ts` only flags tables a function uses, so it stays
   green; the first function that reads it must add `grant ... to service_role`
   in its own migration.
 - `on delete cascade` on `edition_id`: a contributor deleting their own
-  unverified edition removes its field. Acceptable (the race is gone); verified
-  editions can't be deleted by clients.
+  unverified edition would remove its field, but fields only exist on verified
+  editions, which clients can't edit or delete.
 
 ## The read function: `public.race_field(p_edition_id text) returns jsonb`
 
@@ -134,7 +163,8 @@ begin
     raise exception 'race_field: no authenticated user' using errcode = '28000';
   end if;
 
-  select e.date into v_date from public.race_editions e where e.id = p_edition_id;
+  select e.date into v_date from public.race_editions e
+    where e.id = p_edition_id and e.verified and length(p_edition_id) <= 200;
   select * into v_mine from public.race_field_members m
     where m.user_id = v_uid and m.edition_id = p_edition_id;
   select count(*) into v_others from public.race_field_members m
@@ -181,12 +211,16 @@ grant execute on function public.race_field(text) to authenticated;
   the open path and only skips building the list; the difference is
   sub-millisecond against a network round trip, and it would reveal "open vs
   not", which the response already says. No early return before the count.
-- **What it can't stop: sybils.** Signups are open, so someone with three
-  throwaway accounts in a field can watch the count move by one when a real
-  runner joins or leaves. The threshold doesn't (and can't) defeat that; what
-  bounds the damage is that a count-only member reveals *only that someone
-  joined*, never who, and a named member chose to be seen. The doc and the
-  join copy don't promise anonymity of a count beyond that.
+- **What it can't stop: watching the count move.** Anyone who can see an
+  open field can poll it and date each join or leave; and with signups open,
+  two throwaway accounts plus the caller's own lift a two-runner field over the
+  threshold. No SQL closes this. What bounds it: a count-only member reveals
+  *only that someone joined*, never who, and a named member chose to be seen.
+- **The one identity-bearing difference (PR 2):** switching from "by name" to
+  "just count me" (or removing the public name) takes the name off the list
+  while the count holds, so a watcher learns that runner is still in. The copy
+  says so where it happens instead of promising otherwise: "Your name leaves
+  the list. To leave the field too, choose Not this time."
 - **Past races close the field** (`date < current_date - 1`, one day of grace
   for time zones): there are no results to show, and a field that lingers
   after the race is a list of who ran it.
@@ -246,7 +280,10 @@ grant execute on function public.race_field(text) to authenticated;
   `race_reports` row with `reason = 'field_name'`, `edition_id`, and the
   reported name *text* in `note`. No user id leaves the server, so a report
   can't be used to learn one. `notify-contribution` emails the maintainer as
-  for race reports (dedupe by report id).
+  for race reports (dedupe by report id). The name text has no user id to
+  cascade on, so it would outlive the reported account: `field_name` reports
+  are deleted once handled, and any older than 30 days by the daily
+  monitoring job (`docs/monitoring.md` gains the line).
 - **Maintainer action**: plain SQL, documented in this file once PR 2 lands —
   find the account by `public_name` + membership on the edition, then `update
   profiles set public_name = null` (the runner drops to count-only everywhere).
@@ -261,7 +298,11 @@ grant execute on function public.race_field(text) to authenticated;
 
 - `src/raceField.ts` — the only module talking to the table/function, like
   `src/races.ts`: `fetchRaceField(editionId)`, `joinField(editionId,
-  {visibility, goalSec})` (upsert), `leaveField(editionId)`,
+  {visibility, goalSec})` (an insert, never an upsert: its `on conflict
+  update` names `user_id`/`edition_id`, which have no update grant, and the
+  insert trigger would refuse a capped runner who's only changing
+  visibility), `changeField(editionId, {visibility, goalSec})` (a plain
+  `.update()`), `leaveField(editionId)`,
   `listMyFields()`, `reconcileFields(participations)`. Every read
   destructures `error` (lint `local/supabase-check-error`); a failed read
   renders as "closed", never as "you're not in it" (which would invite a
@@ -284,7 +325,7 @@ grant execute on function public.race_field(text) to authenticated;
   pairing return).
 - **Join sheet** (`src/modals/FieldJoinSheet.tsx`, canvas `Field-Join`): asked
   once per participation, right after `addWishlist` / setting a target from
-  `RacesView`/`RaceSheet`, only for an upcoming catalogue edition. Three
+  `RacesView`/`RaceSheet`, only for an upcoming, verified catalogue edition. Three
   choices: show me by name (disabled with "Set a public name first →" when
   there's none), just count me, not this time; plus "Show my goal time" under
   the named choice, prefilled on if the participation has a `goalSec`. "Done"
@@ -347,14 +388,20 @@ choice (`named`/`count`/`none`), under analytics consent only, never the name.
   and invoker; policy uses `(select auth.uid())`.
 - **`src/raceField.sql.test.ts`** (new, text-level over the migrations, like
   the existing convention tests): no policy on `race_field_members` other than
-  the owner one; no grant to `anon`; `profiles` update grant lists exactly
-  `last_seen_at, public_name`; both FKs `on delete cascade`.
+  the owner one; the table's grants are `revoke all` then exactly the column
+  lists above; no `profiles` grant names `premium_until`/`premium_since`; both
+  FKs `on delete cascade`. (The exact `profiles` column privileges are checked
+  on the preview branch via `information_schema.column_privileges`, since old
+  migration text still names the dropped `email`.)
 - **SQL behaviour** checked once before merge on a Supabase preview branch
   (never `apply_migration` on production): as user A with 0/1/2/3 others the
   response shape is identical below 3; a past edition and an unknown id match
   it; A can't select B's row; A can't update B's `public_name` or own
-  `premium_until`; the constraint rejects `"  "`, `"a"`, 25 chars, a bidi
-  override, `www.x.com`, and accepts `Zoé L.`; the 31st upcoming join fails;
+  `premium_until`; A can't move a row to another edition or user; a join on an
+  unverified edition fails and the field reads closed; the constraint rejects
+  `"  "`, `"a"`, 25 chars, a bidi override, an NBSP edge, a U+3164 run,
+  `alex.com`, `www.x.com`, and accepts `Zoé L.` and `Ωμέγα`; the 31st
+  upcoming join fails;
   `delete_my_account` leaves no rows.
 - **Unit**: `publicNameIssue` mirrors every constraint rule (shared fixture
   list with the SQL check above); `reconcileFields`; the "about your time"
@@ -382,8 +429,23 @@ Each PR updates `docs/races.md` (personal layer: `fieldAsked`) and adds a
 CLAUDE.md line: *the race field is the only cross-user read of runner data;
 `race_field` is its one door*.
 
+## Design review
+
+The RLS/grant/function design above was reviewed by an `opus` sub-agent against
+the live migrations before this doc was proposed. Its findings are folded in:
+explicit two-way table grants (hosted vs local stack asymmetry), insert-only
+`user_id`/`edition_id` with no upsert path, `\y` not `\b`, Unicode-aware trim
+and invisible-character escapes, verified editions only, `goal_sec` tied to
+`named` in the schema, the honest limits of the threshold (count movement,
+the named→count switch), and purging reported names. It found no path around
+the function through RLS, PostgREST embedding, `count=exact`, FK/PK errors or
+the cap trigger. The final migration gets its own review in PR 1.
+
 ## Open questions for the maintainer
 
 1. Named list visible to joined runners only (proposed), or to anyone signed in?
 2. Threshold counts others (proposed, k = 3 others) vs total including the caller.
 3. Cap of 30 upcoming fields per runner: fine?
+4. Fields on verified editions only (proposed, so a contributor can't move or
+   close a field under its members), accepting that a freshly contributed race
+   gets its field once the maintainer verifies it?
