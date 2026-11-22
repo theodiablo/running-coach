@@ -285,11 +285,11 @@ leak `race` by accident; a test pins it.
   - en: title `Be on the {{race}} start line in {{year}}`, body `A free plan,
     built around the {{year}} race date, gets you there.`, button `Get a plan
     for this race`, note `Opens the race in your browser with a free account.`
-  - fr (vous): `Soyez au départ de {{race}} en {{year}}`, `Un plan gratuit, construit
-    autour de la date {{year}}, vous y conduit.`, `Obtenir un plan pour cette
+  - fr (vous): `Soyez au départ de {{race}} en {{year}}`, `Un plan gratuit, calé sur
+    la date de l'édition {{year}}, pour vous mener jusqu'au départ.`, `Obtenir un plan pour cette
     course`, `S'ouvre dans votre navigateur, avec un compte gratuit.`
-  - es: `Estarás en la salida de {{race}} en {{year}}`, `Un plan gratis, construido
-    alrededor de la fecha de {{year}}, te lleva hasta allí.`, `Conseguir un plan
+  - es: `Estarás en la salida de {{race}} en {{year}}`, `Un plan gratis, ajustado
+    a la fecha de la edición de {{year}}, que te lleva hasta la salida.`, `Conseguir un plan
     para esta carrera`, `Se abre en tu navegador, con una cuenta gratis.`
   - The canvas body ends "like the one this runner followed". **Drop that
     phrase:** a race-day runner has no plan by construction (`inRaceDayMode`),
