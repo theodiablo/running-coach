@@ -88,19 +88,21 @@ features we use must exist in a Safari 15 engine:
 
 **Fonts.** The app UI uses the system font, which is no good for an exported
 image: it differs per platform, and canvas can't reliably name it. The cards use
-**Archivo**, already a dependency (`@fontsource/archivo`, today only in the web
-marketing chunk):
+the canvas's two families:
 
-- Weights 600, 800 and 900, `latin` + `latin-ext` subsets (accents and race
-  names like "Łódź"), imported as `?url` woff2 assets in the share chunk only.
-  That is about 6 files, ~25 KB each, loaded on first open. They ship inside the
-  APK/IPA because they're local assets: no Google Fonts and no CSP change.
+- **Archivo** (`@fontsource/archivo`, already a dependency, today only in the
+  web marketing chunk) for the figures and headlines: weights 800 and 900.
+- **Inter** (`@fontsource/inter`, **a new dependency** in PR 1) for labels and
+  body text: weights 400, 500, 600 and 700.
+- Both use the `latin` + `latin-ext` subsets (accents and race names like
+  "Łódź"), imported as `?url` woff2 assets in the share chunk only. That is
+  about 12 files, ~25 KB each, loaded on first open.
+- They ship inside the APK/IPA because they're local assets: no Google Fonts
+  and no CSP change.
 - The builder loads them with `new FontFace(...)` + `document.fonts.add` and
-  awaits `document.fonts.load` for each weight **before the first draw**. A
-  canvas drawn before the font is ready falls back silently and never redraws.
-- The canvas's Inter body text becomes Archivo 600. One family keeps the chunk
-  small and still reads well. If the maintainer wants Inter, it's another
-  `@fontsource` dependency and the same loading code.
+  awaits `document.fonts.load` for each family and weight **before the first
+  draw**. A canvas drawn before the font is ready falls back silently and never
+  redraws.
 
 **Colours** come from the canvas design (slate `#0b1220` ground, orange
 `#f97316` accent, B on an orange ground). They live as constants in
@@ -110,9 +112,9 @@ change it.
 **Brand mark**: the same polyline-and-dot mark as the header, drawn as a path.
 
 **Privacy of the file**: a canvas PNG has no EXIF and no location. The card
-shows the **date only**. The canvas also shows the start time ("8:14"), and a
-time of day on a public story tells strangers the runner's routine. Recommend
-leaving it out (open question 3).
+shows the **date only** (decided): the canvas's start time ("8:14") is left
+out, because a time of day on a public story tells strangers the runner's
+routine.
 
 ## Pre-selection: one pure helper
 
@@ -436,7 +438,8 @@ premium: sharing is growth, and it is free like live sharing.
     ellipsing.
   - A test draws every style in all three locales with a fake `measureText`
     and asserts nothing overflows its box.
-- Archivo's `latin-ext` covers fr/es and most European race names. A name with
+- The `latin-ext` subsets of Archivo and Inter cover fr/es and most European
+  race names. A name with
   glyphs outside it (Cyrillic, CJK) falls back to the platform font for those
   glyphs. That's acceptable and noted in the code.
 
@@ -541,7 +544,8 @@ grant insert on public.share_card_events to authenticated;
   `{entry, preselected}` and `share_card_shared` `{entry, preselected, chosen,
   event}`. No run data, no text.
 
-**Decision for the maintainer** (also open question 1): this adds an
+**Decided: option (a).** The maintainer's rule is "count everything, as long as
+it is anonymous". The options as they were weighed follow. The counter adds an
 automatic, consent-free server write to the client. CLAUDE.md and
 `docs/telemetry.md` say anything that collects automatically belongs to one of
 the two consent channels, "never a borrowed consent". Neither document carves
@@ -559,8 +563,8 @@ these, and you choose which:
   - aggregate reads only (`admin_metrics()`).
 
   It lists `qr_scans`, `live_broadcasts` and `share_card_events` under it, and
-  CLAUDE.md's telemetry line points to it. This is my recommendation: the
-  digest gets whole counts, and the rule becomes written instead of implied.
+  CLAUDE.md's telemetry line points to it. The digest gets whole counts, and
+  the rule becomes written instead of implied. **Chosen.**
 - **(b) Gate the insert on analytics consent** (`getConsent()`). No new
   rule is needed, but the table then undercounts exactly like PostHog,
   which takes away the reason to build it.
@@ -647,15 +651,16 @@ WhatsApp, save to photos), each style, all three locales.
 
 ## PR split
 
-The brief expected two PRs. I'd split the native plugins out, making three, so
-the store-release effect sits alone in a small PR:
+Three PRs (decided). The native plugins get their own PR, so the
+store-release effect sits alone in a small one:
 
 1. **Card + builder + web sharing.**
    - `src/share/*` (model, route shape, drawing, web half of `shareImage`);
    - `ShareCardSheet`;
    - both entry points;
    - the race-label helper moved out of `Dashboard.tsx`;
-   - i18n in all three locales.
+   - i18n in all three locales;
+   - `@fontsource/inter` and `@napi-rs/canvas` (dev only) as new dependencies.
 
    `canShareImage()` is false on native, so the shells show no Share button
    yet and need no release. Web users get the whole feature.
@@ -666,7 +671,7 @@ the store-release effect sits alone in a small PR:
 
    Merge-time effect: needs a store release of both shells.
 3. **Analytics + digest.**
-   - for option (a), the "Non-personal server counters" section in
+   - the "Non-personal server counters" section in
      `docs/telemetry.md`, in the same PR and ahead of the insert;
    - the `share_card_events` migration (with its `authenticated` insert
      grant);
@@ -681,14 +686,11 @@ Each PR: lint, `typecheck:all`, tests and build green. This doc is updated from
 "design" to reference as the parts land, and CLAUDE.md gets a one-line rule only
 if one turns out to be cross-cutting.
 
-## Open questions for the maintainer
+## Decisions (maintainer, 2026-11-22)
 
-1. **Analytics source**: (a) the anonymous counter, with the non-personal
-   exception written into `docs/telemetry.md` first (recommended); (b) the
-   counter gated on analytics consent; or (c) PostHog only?
-2. **PR split**: three PRs (native separate, recommended), or native folded into
-   PR 1 as the brief expected?
-3. **Start time on the card**: drop it (recommended, routine privacy), or keep
-   the canvas's "Sun 22 Nov · 8:14"?
-4. **Fonts**: Archivo only (recommended, already a dependency), or add Inter for
-   body text as in the canvas?
+1. **Analytics source: the anonymous counter**, option (a). The rule is
+   "count everything, as long as it is anonymous". PR 3 writes that rule into
+   `docs/telemetry.md` before the insert exists.
+2. **PR split: three PRs**, native sharing on its own.
+3. **Start time: date only** on the card.
+4. **Fonts: Archivo + Inter**, as in the canvas.
