@@ -121,7 +121,9 @@ create policy "race_field_members own" on public.race_field_members
   gets its field once verified (maintainer decision, 2026-11).
 - **Cap:** the same trigger refuses a 31st *upcoming* membership per user (same
   shape as `live_share_tokens_cap`), so a script can't sprinkle one account
-  across the catalogue. Concurrent inserts can overshoot by a row, as there.
+  across the catalogue. The count-then-insert isn't serialized per user, so
+  concurrent inserts can overshoot by as many as land at once (as for
+  `live_share_tokens`); the cap bounds a script, not a race of requests.
 - Trigger functions are `security invoker`, `set search_path = ''`, `revoke
   execute ... from public`. **Invoker is load-bearing for the cap** (said in
   its function comment): BEFORE triggers run before the RLS `with check`, so as
@@ -270,18 +272,24 @@ the same count):
   handler. If that delete fails, `reconcileFields` retries it: it runs once
   `isStoreReconciled()` on every boot, on the `online` event, on a return to
   the foreground, and on its own backoff timer (30s doubling to 5min, the
-  store's schedule) while a delete it owes keeps failing. Each run derives its
+  store's schedule) while a run keeps failing, whether its read or its delete
+  failed. Each run derives its
   work from `rc_races` and the runner's own memberships (any membership whose
   edition has no participation is deleted, the same rule as the restore case),
-  so no pending-removal marker is stored. The stale window is at most one
-  backoff step while the app runs, or until the next launch if it's closed
-  first. In it the row still counts (PR 1); in PR 2 it also still shows the
-  runner's name to joined runners.
+  so no pending-removal marker is stored. The row is gone at the first run
+  that succeeds; a backoff step is the gap between tries, not a bound. While
+  the network keeps failing (or the app is closed before a try succeeds) the
+  row stays, across launches. In it the row still counts (PR 1); in PR 2 it
+  also still shows the runner's name to joined runners.
 - **Daily DB backup** (`docs/backups.md`): `db_backup` has
   `pg_read_all_data`, so the new table and column are dumped with no grant
   change. A single-user restore from it touches `app_state` only; membership
   rows are never restored by hand (they would re-expose a choice the runner may
-  have reversed).
+  have reversed). A whole-database or point-in-time restore brings back public
+  names and memberships as of the snapshot, so a runner who withdrew after it
+  would appear again: after such a restore, clear both (`update profiles set
+  public_name = null; delete from race_field_members;`) and let runners
+  re-join, rather than resurrect a withdrawn consent.
 
 ## Name abuse and moderation (basics)
 
