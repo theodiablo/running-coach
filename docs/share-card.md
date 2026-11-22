@@ -226,6 +226,14 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
   km from this week's runs excluding cross-training.
 - The run's row: the settled session's type name (`common.types`, plain
   word first) and this run's distance · time · pace.
+  - **A run with no linked session** (a manual entry or recording not tied to
+    the plan, still in the current week) uses the run's own type
+    (`run.type`, through the same `common.types` keys). On the finish screen
+    the run isn't typed yet, so the row just reads "Today's run". The day's
+    planned session, if any, is not claimed as done: its dot in the Mon–Sun
+    row keeps its own state. D is still offered (the plan context is real),
+    but never pre-selected for such a run (pre-selection rule 2 needs a
+    settled session).
   - Labelled "Today" only when the run's date is today.
   - Otherwise labelled with its weekday ("Saturday: long run"). The run is in
     the current week (see "Which styles are offered") but may be from an
@@ -237,31 +245,44 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
 - Plans and dates in tests: pinned clock and derived dates, `describe.each`
   over both anchors (CLAUDE.md, "A test that builds a plan…").
 
-## Route: hiding start and finish, and simplification (`routeShape.ts`)
+## Route: simplification and hiding start and finish (`routeShape.ts`)
 
-1. **Flatten** with `flattenTrack`, the one track walk (CLAUDE.md). Gap markers
-   (`null`) stay as breaks: each segment is drawn as its own path, never bridged
-   with a straight line across a gap on the card.
-2. **Project** to local metres (equirectangular around the trace's mean
-   latitude). That is exact enough at run scale (distances agree with
-   `haversineM` to well under 1 % over 300 m), keeps the shape's aspect ratio,
-   and doesn't need a map library.
-3. **Simplify** with the existing `simplify` (Douglas–Peucker), with epsilon set
-   to bbox diagonal / 500, so a marathon and a 3 km loop both land around a few
-   hundred points: smooth at 1080 px, cheap to draw. This happens **before**
-   the mask, so simplification can never draw a new shortcut through a hidden
-   area.
+1. **Start from the stored points** (`[lat, lng, t, alt]` tuples, `null` =
+   gap). Gap markers stay as breaks: each segment is drawn as its own path,
+   never bridged with a straight line across a gap on the card. The start and
+   finish are the first and last non-null points.
+2. **Simplify in lat/lng** with the existing `simplify` (Douglas–Peucker). It
+   takes those tuples, gaps included, and measures its epsilon in metres
+   internally (`perpM`). The epsilon is the trace's bounding-box diagonal in
+   metres / 500, so a marathon and a 3 km loop both land around a few hundred
+   points: smooth at 1080 px, cheap to draw. It happens **before** the mask, so
+   simplification can never draw a new shortcut through a hidden area.
+3. **Project** the simplified points to local metres (equirectangular around
+   the trace's mean latitude, the same projection `perpM` uses). That is
+   exact enough at run scale, keeps the shape's aspect ratio, and doesn't need
+   a map library. Everything after this step is in metres, then card pixels.
 4. **Hide around start and finish** (switch on by default): a **radius mask**,
    not an end trim. Nothing is drawn within 300 m of the start point *or* the
    finish point, **wherever it falls in the run**.
    - It works on **legs, not points**. Each leg (two consecutive points) is
      clipped against both circles. Line-circle intersection in the projected
-     metres gives 0, 1 or 2 crossing points, and only the parts outside both
+     metres gives 0, 1 or 2 crossing points, and only the parts outside the
      circles are kept. A leg that cuts through a circle with both ends outside
      it (sparse GPS, or a long simplified leg) is split, and its middle is
      dropped. Dropping only the points inside the circle would leave that leg
      drawn straight through the hidden area.
    - Where a leg is cut, the line breaks, as at a gap, and is never bridged.
+   - **The clip covers the painted stroke, not just the centre line.** A kept
+     leg running just outside a circle still paints half its stroke width
+     inside it. So the geometric clip uses the circle radius **plus half the
+     widest stroke** (the 14 px under-stroke, 7 px), converted to metres at
+     the final fit scale. The fit scale depends on what is kept, so this
+     iterates: fit, enlarge, clip, refit. It converges in two or three passes,
+     because enlarging only shrinks the kept bounding box.
+   - As a second guard, `drawCard` sets a canvas clip before stroking the
+     route: the route box minus both circles at exactly 300 m in card pixels,
+     using the `evenodd` fill rule (Safari 15 supports it). No pixel of any
+     stroke can land inside a circle, whatever the geometry step did.
    - Trimming only the first and last 300 m along the route (`cumKm`) was the
      first idea. It fails exactly where it matters: laps from the front door
      and out-and-backs pass home mid-run, and an end trim leaves those passes
@@ -270,8 +291,11 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      piece of line ends on a circle's edge, in whatever direction the route
      left.
    - When the mask leaves too little (under ~200 m or 10 points in total, e.g.
-     a short loop around the block), A isn't offered. It is never drawn with
-     the mask silently switched off.
+     a short loop around the block), A isn't offered. The 200 m is summed
+     from the kept legs in projected metres. It is only a gate for drawing,
+     never a distance shown to anyone, so it doesn't compete with the one
+     distance definition. A is never drawn with the mask silently switched
+     off.
    - The start and finish dots are not drawn while the mask is on: they would
      sit on the edge of the hidden circle and point at its centre. They come
      back with the switch off.
@@ -556,6 +580,11 @@ Unit tests (`.ts` suites in the node environment, no jsdom):
   - masking runs after simplification: no kept segment comes within 300 m of
     the start or finish;
   - a short loop fully inside the mask → A not offered;
+  - a leg running parallel to a circle, just outside its 300 m edge, is
+    clipped by the enlarged radius. The recorded `drawCard` calls set the
+    `evenodd` clip (route box minus both circles) before any route stroke;
+  - `simplify` receives lat/lng tuples, never projected metres (a fixture
+    whose result is checked in point count and against `perpM` tolerance);
   - gaps stay breaks;
   - projection keeps the aspect ratio;
   - the fit stays inside the box;
