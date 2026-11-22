@@ -350,8 +350,16 @@ the same count):
   it down (`shared.publicName`, `SettingsModal`); `undefined` means not read,
   and the Public name page then shows a retry instead of an empty field it
   would overwrite.
-- `RunningCoach` owns the diff and the retry (above), and is a no-op until
-  the store is loaded and reconciled.
+- `RunningCoach` owns the diff and the retry (above). Recording a removal is
+  not gated on reconciliation: the diff runs on every change to the listed
+  editions once the store has loaded (offline boots included), and writes the
+  removal to the owed list in the same commit as the edit that made it, before
+  any network. Its baseline is the list at the first loaded render, kept in
+  memory and replaced on every diff; it needs no persistence because each
+  removal is persisted the moment the diff sees it. Only the delete waits for
+  `isStoreLoaded() && isStoreReconciled()`. The owed list's in-memory copy is
+  the session's truth (a failed storage write must not hide a removal);
+  localStorage seeds it and carries it across a killed app.
 
 ### Surfaces
 
