@@ -21,7 +21,7 @@ import type { Celebration } from "../utils/runCelebration";
 import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
 import { track } from "../telemetry";
-import { RUN_ACTIVITIES, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
+import { RUN_ACTIVITIES, type Participation, type Plan, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
 
 type IndoorTrackerProps = {
   onFinish: (prefill: Partial<Run>) => void;
@@ -38,13 +38,16 @@ type IndoorTrackerProps = {
   runs?: Run[];
   // The plan session's own activity (a coach-scheduled bike day), over the remembered pick.
   initialActivity?: RunActivity;
+  // For the finish screen's share card only.
+  plan?: Plan | null;
+  participations?: Participation[];
 };
 
 // Indoor / static cardio recorder (bike, elliptical): heart rate is the whole signal.
 // Deliberately separate from LiveRunTracker: its map, live sharing, route finder, guided
 // workouts and background-location consent don't apply without GPS, and an `indoor`
 // branch through all of it would leave two half-features. See docs/indoor-sessions.md.
-export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [], initialActivity }: IndoorTrackerProps) {
+export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [], initialActivity, plan = null, participations = [] }: IndoorTrackerProps) {
   const { t } = useTranslation();
   // Same pre-start read as LiveRunTracker, from the same helper.
   const hr = recorderHrSetup(settings.hrMethod, settings.hrOptOut);
@@ -327,7 +330,8 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
       </div>
 
       {celebration && (
-        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)} />
+        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)}
+          share={{ runs, plan, settings, participations, points: null, session: null, showToast }} />
       )}
 
       {confirmDiscard && (

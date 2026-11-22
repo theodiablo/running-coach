@@ -1537,14 +1537,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </ChunkLoadBoundary>
       )}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} plan={plan} participations={races.participations} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         settings={settings} onSettingsPatch={patchSettings}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setRecorderMinimized(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
-      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} initialActivity={indoorLink?.activity}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} plan={plan} participations={races.participations} initialActivity={indoorLink?.activity}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
@@ -1591,7 +1591,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
-      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
+      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} plan={plan} participations={races.participations} showToast={showToast} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
       <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
         reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={review.moment} onMomentSpent={review.spendMoment}/>

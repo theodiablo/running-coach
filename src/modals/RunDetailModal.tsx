@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { Share2, X } from "lucide-react";
 import { RouteMap } from "../components/RouteMap";
 import { RunChart, Readout, Chip, ELEV_CLR, PACE_CLR, HR_CLR } from "../components/RunChart";
 import { EffortRow } from "../components/EffortRow";
@@ -16,12 +16,18 @@ import { flattenTrack, haversineM } from "../utils/geo";
 import { fmt } from "../utils/format";
 import type { HrSample } from "../utils/runSeries";
 import type { TrackPointOrGap } from "../utils/geo";
-import type { Run, SettingsState } from "../types";
+import type { Participation, Plan, Run, SettingsState } from "../types";
+import { ShareCardGate } from "./ShareCardGate";
+import { canShareImage } from "../share/shareImage";
 
 // `runs` is the whole log, used only to rank this run's best efforts against it
 // (an in-memory scan — see src/utils/bestEfforts.ts). Optional so a render test
 // can mount the modal without one.
-type Props = { run: Run; settings: SettingsState; runs?: Run[]; onClose: () => void };
+type Props = {
+  run: Run; settings: SettingsState; runs?: Run[]; onClose: () => void;
+  // For the share card only.
+  plan?: Plan | null; participations?: Participation[]; showToast?: (msg: string, type?: string) => void;
+};
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
@@ -36,10 +42,11 @@ function Tile({ label, value }: { label: string; value: string }) {
 // with toggleable series, a per-km split table, an HR time-in-zone card (BLE runs
 // only), best efforts, and summary tiles. Self-fetches the trace (kept out of
 // the synced blob).
-export function RunDetailModal({ run, settings, runs, onClose }: Props) {
+export function RunDetailModal({ run, settings, runs, onClose, plan = null, participations = [], showToast }: Props) {
   const { t } = useTranslation();
   const { route } = useRouteTrace(run, { withStats: true });
   const [show, setShow] = useState({ elev: true, pace: true, hr: true });
+  const [sharing, setSharing] = useState(false);
   useDismissable(true, onClose);
 
   // A GPS trace (map expected) vs. an HR-only import (hrRouteId, no GPS) which
@@ -61,6 +68,7 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
     const hrSamples = expanded.length ? expanded : null;
     const series = points.length ? buildRunSeries(points, hrSamples) : [];
     return {
+      points,
       hasPoints: points.length > 0,
       series,
       // flat[i] is the SAME point as series[i] (buildRunSeries walks flattenTrack
@@ -117,10 +125,18 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
         <p className="text-white text-sm font-semibold truncate">{fmt.date(run.date)}</p>
         <p className="text-slate-400 text-xs">{run.km ? run.km + " km · " + fmt.dur(run.durationSec) : fmt.dur(run.durationSec)}</p>
       </div>
-      <button onClick={onClose} aria-label={t("common.close")}
-        className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
-        <X size={18} />
-      </button>
+      <div className="flex items-center gap-2">
+        {canShareImage() && !(route === undefined && hasGpsTrace) && (
+          <button onClick={() => setSharing(true)} aria-label={t("shareCard.open")}
+            className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
+            <Share2 size={18} />
+          </button>
+        )}
+        <button onClick={onClose} aria-label={t("common.close")}
+          className="flex items-center justify-center text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors">
+          <X size={18} />
+        </button>
+      </div>
     </header>
   );
 
@@ -288,6 +304,10 @@ export function RunDetailModal({ run, settings, runs, onClose }: Props) {
 
         {run.notes && <p className="text-slate-400 text-sm">{run.notes}</p>}
       </div>
+      {sharing && (
+        <ShareCardGate run={run} runs={runs || []} plan={plan} settings={settings} participations={participations}
+          points={hasPoints ? derived.points : null} showToast={showToast} onClose={() => setSharing(false)} />
+      )}
     </div>
   );
 }
