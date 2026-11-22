@@ -267,12 +267,16 @@ the same count):
   restored `rc_races` are deleted (the runner no longer has that race), and
   `fieldAsked` from the file is kept, so nobody is re-asked.
 - **Removing a race** (`removePart`) deletes its membership in the same
-  handler. If that delete fails (offline), `reconcileFields` retries it: it
-  runs once `isStoreReconciled()` on every boot and again on the `online`
-  event, deleting any own membership whose edition has no participation in
-  `rc_races` (the same rule as the restore case). The accepted stale window is
-  therefore "until the app is next online", during which the row still counts
-  (and, in PR 2, still shows to joined runners).
+  handler. If that delete fails, `reconcileFields` retries it: it runs once
+  `isStoreReconciled()` on every boot, on the `online` event, on a return to
+  the foreground, and on its own backoff timer (30s doubling to 5min, the
+  store's schedule) while a delete it owes keeps failing. Each run derives its
+  work from `rc_races` and the runner's own memberships (any membership whose
+  edition has no participation is deleted, the same rule as the restore case),
+  so no pending-removal marker is stored. The stale window is at most one
+  backoff step while the app runs, or until the next launch if it's closed
+  first. In it the row still counts (PR 1); in PR 2 it also still shows the
+  runner's name to joined runners.
 - **Daily DB backup** (`docs/backups.md`): `db_backup` has
   `pg_read_all_data`, so the new table and column are dumped with no grant
   change. A single-user restore from it touches `app_state` only; membership
@@ -463,4 +467,4 @@ the cap trigger. The final migration gets its own review in PR 1.
    (enforced in `race_field`, not just the UI).
 2. Threshold counts *others*: k = 3 runners besides the caller.
 3. Fields on verified editions only.
-4. Per-runner cap: open (see PR discussion).
+4. Per-runner cap: 30 upcoming fields, kept.
