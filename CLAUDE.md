@@ -777,6 +777,7 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   cross-training run shape, the GPS-free recorder, live HR zones.
 - `docs/background-location.md` — Android background-location policy.
 - `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger, following several runners at `/watch/`.
+- `docs/watch-cta.md` — design for the public watch page's finish recap, web CTA and race context (not built until approved).
 - `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
 - `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
