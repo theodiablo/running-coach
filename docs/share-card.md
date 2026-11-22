@@ -459,7 +459,9 @@ create table public.share_card_events (
   preselected text not null check (preselected in ('route', 'number', 'week')),
   chosen      text check (chosen in ('route', 'number', 'week')),
   platform    text not null check (platform in ('web', 'ios', 'android')),
-  check ((event = 'opened') = (chosen is null))
+  first_share boolean,
+  check ((event = 'opened') = (chosen is null)),
+  check ((event = 'opened') = (first_share is null))
 );
 
 grant insert on public.share_card_events to authenticated;
@@ -470,12 +472,17 @@ grant insert on public.share_card_events to authenticated;
 - **One row per event**, never one per builder session:
   - `opened` when the builder mounts, with no `chosen`;
   - `shared` or `saved` on each successful hand-off, with the style handed
-    off as `chosen`. Sharing two styles from one builder visit writes two
+    off as `chosen` and `first_share` set. Sharing two styles from one builder visit writes two
     rows, so every shared style reaches the digest.
   - A dismissed share sheet or a failure writes nothing.
-  - "Opened without sharing" is the difference between opens and builder
-    visits that shared. That needs no session key, which would be a
-    per-device identifier in all but name.
+  - `first_share` is true on the first hand-off of a builder visit, and false
+    on any later one. It is a flag kept in the builder's memory, so no session
+    key is stored, which would be a per-device identifier in all but name.
+  - Visits that shared = `shared`/`saved` rows with `first_share`. "Opened
+    without sharing" = opens minus those.
+  - Approximate: a failed insert, or a visit that crosses midnight at a week
+    boundary, can skew one count. The digest already labels these counts
+    approximate.
 - Write path:
   - `enable row level security`;
   - one `insert` policy `to authenticated with check ((select auth.uid()) is not null)`
