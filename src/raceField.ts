@@ -130,7 +130,8 @@ let leavesInFlight: Promise<unknown> = Promise.resolve();
 
 export function leavePendingFields(uid: string, listed: () => readonly string[]): Promise<boolean> {
   const run = sendLeaves(uid, listed);
-  leavesInFlight = run.catch(() => false);
+  // Chained, not replaced: a join waits for every delete still outstanding.
+  leavesInFlight = Promise.all([leavesInFlight, run.catch(() => false)]);
   return run;
 }
 

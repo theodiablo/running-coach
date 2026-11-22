@@ -139,6 +139,22 @@ describe("pending leaves", () => {
     expect(order).toEqual(["delete", "insert"]);
   });
 
+  it("holds a join until every overlapping delete has landed", async () => {
+    noteListedEditions("x", ["b"], []);
+    const order: string[] = [];
+    let landOld: (v: { error: null }) => void = () => {};
+    h.results.push(new Promise(r => { landOld = r; }) as never, { error: null });
+    const older = leavePendingFields("x", () => []).then(() => order.push("old delete"));
+    noteListedEditions("x", ["c"], []);
+    await leavePendingFields("x", () => []);
+    const join = setFieldChoice("x", "b", "count", null, null).then(() => order.push("insert"));
+    await Promise.resolve();
+    expect(order).toEqual([]);
+    landOld({ error: null });
+    await Promise.all([older, join]);
+    expect(order).toEqual(["old delete", "insert"]);
+  });
+
   it("turns a change into a join when its row was deleted meanwhile", async () => {
     h.results.push({ data: [], error: null }, { error: null });
     expect(await setFieldChoice("u", "b", "count", null, { visibility: "named", goalSec: null })).toBe("ok");
