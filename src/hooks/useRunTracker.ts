@@ -139,6 +139,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   const startRef = useRef<number | null>(null);   // epoch ms the current active segment began
   const watchRef = useRef<GeoWatchHandle | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
+  const watchFailedRef = useRef(false); // the open watch reported an error (a prepared one may have)
   const lastFixRef = useRef(0);    // epoch ms of the last usable fix (incl. ones
                                    // dropped as jitter) — for true gap detection
 
@@ -274,6 +275,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
 
   const onErr = useCallback((err: GeoError) => {
     logTrack("error", { msg: `code=${err.code} ${err.message || ""}`.trim() });
+    watchFailedRef.current = true;
     if (err.code === err.PERMISSION_DENIED)
       setError(permissionDeniedMsg());
     else if (err.code === err.POSITION_UNAVAILABLE)
@@ -289,6 +291,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
       setError(t("tracker.errors.unsupported"));
       return false;
     }
+    watchFailedRef.current = false;
     // background:true → the native source runs a foreground service so recording
     // continues with the screen off; on web the flag is ignored (no-op).
     watchRef.current = trackerGeoSource.watchPosition(onPos, onErr, { background: true });
@@ -337,6 +340,9 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     runStartRef.current = Date.now();
     runEndRef.current = null;
     lastFixRef.current = 0;
+    // A prepared watch that failed is reopened, so its error surfaces again rather than the run
+    // starting silently without GPS (start clears the error above).
+    if (watchFailedRef.current) stopWatch();
     if (watchRef.current == null && !startWatch()) return;
     stateRef.current = "tracking";
     setState("tracking");
@@ -354,7 +360,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     if (indoor && hrWatchRef.current) startIndoorSessionService(Date.now() - accRef.current * 1000);
     acquireWake();
     persist();
-  }, [startWatch, startHrWatch, acquireWake, persist, indoor, logPower]);
+  }, [startWatch, stopWatch, startHrWatch, acquireWake, persist, indoor, logPower]);
 
   // Start's tap, before the countdown: Android refuses a foreground service to a backgrounded app,
   // so one started when the countdown ends behind a locked screen never holds the run

@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..a43bfd1 100644
+index a92fcf9..eae03e1 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 @@ -18,7 +18,13 @@ import android.location.LocationManager;
@@ -50,7 +50,7 @@ index a92fcf9..a43bfd1 100644
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +114,703 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +114,705 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -216,7 +216,7 @@ index a92fcf9..a43bfd1 100644
 +            int start = i;
 +            while (i < segment.length() && !isStatDigit(segment.charAt(i))) {
 +                i++;
-             }
++            }
 +            text.setSpan(new RelativeSizeSpan(0.5f), start, i, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 +        }
 +        return text;
@@ -285,7 +285,7 @@ index a92fcf9..a43bfd1 100644
 +            call.resolve(ret);
 +            return;
 +        }
-+        boolean foreground = service.ensureForeground();
++        Boolean foreground = service.ensureForeground();
 +        Number chronometerStartMs = optNumber(call, "chronometerStartMs");
 +        Notification notification = buildNotification(
 +                call.getString("title", "Using your location"),
@@ -296,7 +296,9 @@ index a92fcf9..a43bfd1 100644
 +        boolean updated = service.updateNotification(notification);
 +        seedLiveStats(call, message, updated);
 +        ret.put("updated", updated);
-+        ret.put("foreground", foreground);
++        if (foreground != null) {
++            ret.put("foreground", foreground.booleanValue()); // absent: no watcher yet, nothing refused
++        }
 +        call.resolve(ret);
 +    }
 +
@@ -427,7 +429,7 @@ index a92fcf9..a43bfd1 100644
 +    private File journalFile() {
 +        return new File(getContext().getFilesDir(), FIX_JOURNAL_FILE);
 +    }
- 
++
 +    private void journalFix(double lat, double lng, long t, Location location) {
 +        // Formatted on the calling thread (Location is not safe to hold across
 +        // threads), written on the journal thread.
@@ -444,19 +446,11 @@ index a92fcf9..a43bfd1 100644
 +
 +    private void appendJournalLine(String line) {
 +        synchronized (journalLock) {
-             try {
--                String color = getAppString(
--                        "capacitor_background_geolocation_notification_color",
--                        null
--                );
--                if (color != null) {
--                    builder.setColor(Color.parseColor(color));
++            try {
 +                File file = journalFile();
 +                if (file.length() > FIX_JOURNAL_MAX_BYTES) {
 +                    return;
-                 }
--            } catch (Exception e) {
--                Logger.error("Could not set notification color", e);
++                }
 +                FileWriter writer = new FileWriter(file, true);
 +                try {
 +                    writer.write(line);
@@ -469,19 +463,6 @@ index a92fcf9..a43bfd1 100644
 +        }
 +    }
  
--            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
--                    getContext().getPackageName()
--            );
--            if (launchIntent != null) {
--                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
--                builder.setContentIntent(
--                        PendingIntent.getActivity(
--                                getContext(),
--                                0,
--                                launchIntent,
--                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
--                        )
--                );
 +    // Resolves { points: [[lat,lng,tMs,alt|null], ...] }. Each line parses on
 +    // its own so a torn last line (process killed mid-write) costs one point,
 +    // not the whole journal.
@@ -489,7 +470,13 @@ index a92fcf9..a43bfd1 100644
 +    public void getFixJournal(PluginCall call) {
 +        JSArray points = new JSArray();
 +        synchronized (journalLock) {
-+            try {
+             try {
+-                String color = getAppString(
+-                        "capacitor_background_geolocation_notification_color",
+-                        null
+-                );
+-                if (color != null) {
+-                    builder.setColor(Color.parseColor(color));
 +                File file = journalFile();
 +                if (file.exists()) {
 +                    BufferedReader reader = new BufferedReader(new FileReader(file));
@@ -509,7 +496,9 @@ index a92fcf9..a43bfd1 100644
 +                    } finally {
 +                        reader.close();
 +                    }
-+                }
+                 }
+-            } catch (Exception e) {
+-                Logger.error("Could not set notification color", e);
 +            } catch (Exception exception) {
 +                Logger.error("Failed to read fix journal", exception);
              }
@@ -519,9 +508,19 @@ index a92fcf9..a43bfd1 100644
 +        call.resolve(ret);
 +    }
  
--            // Set the Channel ID for Android O.
--            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
--                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
+-            Intent launchIntent = getContext().getPackageManager().getLaunchIntentForPackage(
+-                    getContext().getPackageName()
+-            );
+-            if (launchIntent != null) {
+-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+-                builder.setContentIntent(
+-                        PendingIntent.getActivity(
+-                                getContext(),
+-                                0,
+-                                launchIntent,
+-                                PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
+-                        )
+-                );
 +    @PluginMethod()
 +    public void clearFixJournal(PluginCall call) {
 +        synchronized (journalLock) {
@@ -529,12 +528,11 @@ index a92fcf9..a43bfd1 100644
 +                journalFile().delete();
 +            } catch (Exception ignored) {
 +                // nothing to clear / not deletable — either way, best-effort
-             }
++            }
 +        }
 +        call.resolve();
 +    }
- 
--            backgroundNotification = builder.build();
++
 +    private void seedLiveStats(PluginCall call, String message, boolean updated) {
 +        synchronized (liveLock) {
 +            Number km = optNumber(call, "km");
@@ -579,17 +577,16 @@ index a92fcf9..a43bfd1 100644
 +                liveStats.hrAtMs = seedAtMs;
 +            } else if (seedBpm <= 0 && liveStats.hrAtMs <= 0) {
 +                liveStats.hrBpm = 0;
-+            }
+             }
 +            // Only what actually reached the shade counts as displayed, so a refused
 +            // push is re-rendered by the next fix instead of being deduped away.
 +            liveStats.shown = updated ? message : null;
-         }
--        service.addWatcher(
--                call.getCallbackId(),
--                backgroundNotification,
--                call.getFloat("distanceFilter", 0f)
++        }
 +    }
-+
+ 
+-            // Set the Channel ID for Android O.
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                builder.setChannelId(BackgroundGeolocationService.class.getPackage().getName());
 +    // Folds one broadcast fix into the live stats and refreshes the notification.
 +    // Called for every location the service reports, foreground or not.
 +    private void onLiveLocation(Location location) {
@@ -597,11 +594,12 @@ index a92fcf9..a43bfd1 100644
 +            LiveStats live = liveStats;
 +            if (live != null && live.tracking) {
 +                foldLiveLocation(live, location);
-+            }
+             }
 +            // no live stats, or paused — onPos ignores fixes then too
 +        }
 +    }
-+
+ 
+-            backgroundNotification = builder.build();
 +    // Folds one relayed beat into the live stats. Never trusts a beat older than
 +    // the one it holds (the relay and a JS push are two clocks on one stream).
 +    // Unlike a fix it IS folded while paused — a beat accrues nothing, and
@@ -611,7 +609,11 @@ index a92fcf9..a43bfd1 100644
 +    private void onHrSample(int bpm, long t) {
 +        if (bpm <= 0 || t <= 0) {
 +            return;
-+        }
+         }
+-        service.addWatcher(
+-                call.getCallbackId(),
+-                backgroundNotification,
+-                call.getFloat("distanceFilter", 0f)
 +        synchronized (liveLock) {
 +            LiveStats live = liveStats;
 +            if (live == null || t < live.hrAtMs) {
@@ -806,7 +808,7 @@ index a92fcf9..a43bfd1 100644
      }
  
      @PermissionCallback
-@@ -188,6 +838,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +840,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -814,7 +816,7 @@ index a92fcf9..a43bfd1 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -245,20 +896,44 @@ public class BackgroundGeolocation extends Plugin {
+@@ -245,20 +898,44 @@ public class BackgroundGeolocation extends Plugin {
      }
  
      // Receives messages from the service.
@@ -865,7 +867,7 @@ index a92fcf9..a43bfd1 100644
          }
      }
  
-@@ -315,30 +990,88 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,30 +992,88 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -958,7 +960,7 @@ index a92fcf9..a43bfd1 100644
              service.stopService();
          }
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
-index 2c5de94..4731226 100644
+index 2c5de94..bf81efe 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
 @@ -1,6 +1,7 @@
@@ -980,7 +982,25 @@ index 2c5de94..4731226 100644
  
      @Override
      public IBinder onBind(Intent intent) {
-@@ -70,15 +75,17 @@ public class BackgroundGeolocationService extends Service {
+@@ -53,11 +58,13 @@ public class BackgroundGeolocationService extends Service {
+     // service is terminated immediately.
+     @Override
+     public boolean onUnbind(Intent intent) {
+-        for (Watcher watcher : watchers) {
+-            watcher.client.removeLocationUpdates(watcher.locationCallback);
++        synchronized (binder) {
++            for (Watcher watcher : watchers) {
++                watcher.client.removeLocationUpdates(watcher.locationCallback);
++            }
++            watchers = new HashSet<Watcher>();
++            stopSelf();
+         }
+-        watchers = new HashSet<Watcher>();
+-        stopSelf();
+         return false;
+     }
+ 
+@@ -70,20 +77,24 @@ public class BackgroundGeolocationService extends Service {
          return null;
      }
  
@@ -999,7 +1019,23 @@ index 2c5de94..4731226 100644
      }
  
      // Handles requests from the activity.
-@@ -153,12 +160,69 @@ public class BackgroundGeolocationService extends Service {
+     public class LocalBinder extends Binder {
+-        void addWatcher(
++        // Binder methods are synchronized (on the one binder): the plugin thread and
++        // the main thread (resume, native renders) both reach `watchers`.
++        synchronized void addWatcher(
+                 final String id,
+                 Notification backgroundNotification,
+                 float distanceFilter
+@@ -146,20 +157,81 @@ public class BackgroundGeolocationService extends Service {
+             }
+         }
+ 
+-        void removeWatcher(String id) {
++        synchronized void removeWatcher(String id) {
+             for (Watcher watcher : watchers) {
+                 if (watcher.id.equals(id)) {
+                     watcher.client.removeLocationUpdates(watcher.locationCallback);
                      watchers.remove(watcher);
                      if (getNotification() == null) {
                          stopForeground(true);
@@ -1010,13 +1046,14 @@ index 2c5de94..4731226 100644
              }
          }
  
+-        void onPermissionsGranted() {
 +        // Updates the foreground notification's content in place. Only
 +        // meaningful while a background watcher holds the foreground
 +        // notification (startForeground has been called with NOTIFICATION_ID);
 +        // posting with the same id just replaces the content without touching
 +        // the service's foreground state. Returns whether an update was posted
 +        // so the caller can retry a push that raced ahead of addWatcher.
-+        boolean updateNotification(Notification notification) {
++        synchronized boolean updateNotification(Notification notification) {
 +            boolean hasForegroundNotification = false;
 +            for (Watcher watcher : watchers) {
 +                if (watcher.backgroundNotification != null) {
@@ -1045,12 +1082,16 @@ index 2c5de94..4731226 100644
 +        // Retries a refused promotion; called whenever the app is in front
 +        // (resume, a JS push). Location is re-requested so the watchers get it
 +        // under the foreground service's while-in-use access.
-+        boolean ensureForeground() {
++        // Null while no background watcher exists yet: nothing was attempted.
++        synchronized Boolean ensureForeground() {
++            Notification notification = getNotification();
++            if (notification == null) {
++                return null;
++            }
 +            if (foreground) {
 +                return true;
 +            }
-+            Notification notification = getNotification();
-+            if (notification == null || !promote(notification)) {
++            if (!promote(notification)) {
 +                return false;
 +            }
 +            for (Watcher watcher : watchers) {
@@ -1066,9 +1107,10 @@ index 2c5de94..4731226 100644
 +            return true;
 +        }
 +
-         void onPermissionsGranted() {
++        synchronized void onPermissionsGranted() {
              // If permissions were granted while the app was in the background, for example in
              // the Settings app, the watchers need restarting.
+             for (Watcher watcher : watchers) {
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_collapsed.xml b/node_modules/@capacitor-community/background-geolocation/android/src/main/res/layout/run_notification_collapsed.xml
 new file mode 100644
 index 0000000..41582f5

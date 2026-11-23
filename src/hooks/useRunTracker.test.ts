@@ -173,6 +173,21 @@ describe("useRunTracker — prepare (before the countdown)", () => {
     expect(result.current.stats.n).toBe(1);
   });
 
+  it("reopens a prepared watch that failed, so its error isn't swallowed by the start", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.prepare());
+    const failed = recording();
+    act(() => failed!.onErr?.({ code: 2, message: "", PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }));
+    expect(result.current.error).toBeTruthy();
+
+    act(() => result.current.start());
+    expect(failed!.handle.removed).toBe(true);
+    const fresh = recording();
+    expect(fresh).not.toBe(failed);
+    act(() => fresh!.onErr?.({ code: 2, message: "", PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }));
+    expect(result.current.error).toBeTruthy();
+  });
+
   it("releases the watch when the countdown is cancelled", () => {
     const { result } = renderHook(() => useRunTracker());
     act(() => result.current.prepare());

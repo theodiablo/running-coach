@@ -295,7 +295,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     // Measured exactly as handleSave will, so its best efforts are the ones saved.
     const cut = trimIdleEnds(stats.movingSec, points, startedAt, stoppedAt);
     const simplified = simplify(cut.points, ROUTE_SIMPLIFY_M);
-    const firstAt = points.find(Boolean)?.[2] || stoppedAt;
+    const firstAt = points.find(Boolean)?.[2] || startedAt || stoppedAt;
     const run: Run = {
       date: ymd(new Date(firstAt)), type: "EASY", km: +distanceKm(cut.points).toFixed(2),
       durationSec: cut.durationSec,
@@ -600,7 +600,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     const pauses = rt.pauses();
     const statObj = { km, durationSec: runSec, elevation: stats.elevation, avgPace: Math.round(avgPace),
       ...(hrSamples.length ? { hrSamples } : {}), ...(pauses.length ? { pauses } : {}) };
-    const date = ymd(new Date(points.find(Boolean)?.[2] || Date.now()));
+    const date = ymd(new Date(points.find(Boolean)?.[2] || startedAt || Date.now()));
     let routeId = null, routeTmp = null;
     try {
       routeId = await saveRoute({ points: simplified, stats: statObj });
