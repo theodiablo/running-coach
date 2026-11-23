@@ -344,7 +344,13 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     rt.start();
   };
   const countdown = useCountdown(startTracking);
-  const startWithCountdown = () => (reducedMotion ? startTracking() : countdown.start(3));
+  // rt.prepare: the countdown can end behind a locked screen, where Android refuses the service.
+  const startWithCountdown = () => {
+    if (reducedMotion) { startTracking(); return; }
+    rt.prepare();
+    countdown.start(3);
+  };
+  const cancelCountdown = () => { countdown.cancel(); rt.cancelPrepare(); };
   // Null off web/"off"/unknown; a post-run source (Health Connect) is fetched in
   // handleSave instead of streaming, so it gets no live tile.
   const hrSrc = getHrSource(hr.method);
@@ -372,6 +378,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   const live = state === "tracking" || state === "paused";
+  const pendingPoints = (pending?.points || []).filter(Boolean).length;
 
   // Once stopped, the run that saves: standing at the start/finish trimmed off.
   const trim = useMemo(() => {
@@ -642,7 +649,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   const canMinimize = !!onMinimize && (live || state === "stopped");
   useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
-  useDismissable(countdown.count !== null, countdown.cancel);
+  useDismissable(countdown.count !== null, cancelCountdown);
 
   // Rendered both before and during a run: a runner who forgot to send the
   // link shouldn't have to stop to fix that.
@@ -723,7 +730,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
         {state === "idle" && pending && (
           <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-slate-700">
             <p className="text-sm text-slate-200">{t("tracker.resume.title")}
-              <span className="text-slate-400"> {t("tracker.resume.pointsSaved", { count: (pending.points || []).filter(Boolean).length })}</span></p>
+              <span className="text-slate-400"> {pendingPoints
+                ? t("tracker.resume.pointsSaved", { count: pendingPoints })
+                : t("tracker.resume.noGps")}</span></p>
             {(pending.startedAt || pending.savedAt) ? (
               <p className="text-xs text-slate-400">
                 {t("tracker.resume.from", { date: fmt.sht(ymd(new Date(pending.startedAt || pending.savedAt))) })}
@@ -961,7 +970,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       )}
 
       {countdown.count !== null && (
-        <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
+        <CountdownOverlay count={countdown.count} onCancel={cancelCountdown} />
       )}
 
       {showFinder && (

@@ -152,6 +152,57 @@ describe("useRunTracker — state machine", () => {
   });
 });
 
+// Android refuses a foreground service to a backgrounded app, so the watch that
+// holds the run starts at Start's tap, before a countdown that may end behind a
+// locked screen.
+describe("useRunTracker — prepare (before the countdown)", () => {
+  it("opens the recording watch at once and reuses it when the run starts", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.prepare());
+    const w = recording();
+    expect(w).toBeTruthy();
+    expect(result.current.state).toBe("idle");
+
+    // A fix during the countdown is not part of the run.
+    feed(w, { latitude: 48.85, longitude: 2.29, accuracy: 5 }, START + 1000);
+    expect(result.current.stats.n).toBe(0);
+
+    act(() => result.current.start());
+    expect(h.watchers.filter(x => x.background)).toHaveLength(1);
+    feed(w, { latitude: 48.85, longitude: 2.29, accuracy: 5 }, START + 4000);
+    expect(result.current.stats.n).toBe(1);
+  });
+
+  it("releases the watch when the countdown is cancelled", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.prepare());
+    const w = recording();
+    act(() => result.current.cancelPrepare());
+    expect(w!.handle.removed).toBe(true);
+    expect(result.current.state).toBe("idle");
+  });
+
+  it("never touches a run that is already recording", () => {
+    const { result } = renderHook(() => useRunTracker());
+    act(() => result.current.start());
+    const w = recording();
+    act(() => { result.current.prepare(); result.current.cancelPrepare(); });
+    expect(w!.handle.removed).toBe(false);
+    expect(h.watchers.filter(x => x.background)).toHaveLength(1);
+  });
+
+  it("starts an indoor session's service with a strap, and stops it on cancel", () => {
+    hr.enabled = true;
+    hr.device = { id: "strap-1" };
+    const { result } = renderHook(() => useRunTracker({ hrMethod: "bluetooth", indoor: true }));
+    act(() => result.current.prepare());
+    expect(hr.service.startIndoorSessionService).toHaveBeenCalled();
+    expect(recording()).toBeUndefined();
+    act(() => result.current.cancelPrepare());
+    expect(hr.service.stopIndoorSessionService).toHaveBeenCalled();
+  });
+});
+
 describe("useRunTracker — onPos filter", () => {
   it("rejects a coarse first fix (warm-up) but anchors on an accurate one", () => {
     const { result } = renderHook(() => useRunTracker());
@@ -289,6 +340,16 @@ describe("useRunTracker — recovery buffer", () => {
     const { result } = renderHook(() => useRunTracker());
     expect(result.current.pending).toBeTruthy();
     expect(result.current.pending!.points!.length).toBe(2);
+  });
+
+  it("offers a run whose GPS never delivered, with its clock and heart rate", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify({
+      points: [], accSec: 0, hrSamples: [{ bpm: 140, t: START + 5000 }], startAt: START,
+      startedAt: START, stoppedAt: null, state: "tracking", savedAt: START + 600_000,
+    }));
+    const { result } = renderHook(() => useRunTracker());
+    expect(result.current.pending?.hrSamples).toHaveLength(1);
+    expect(result.current.pending?.accSec).toBe(600);
   });
 
   it("still offers an old buffer (an interrupted run is never expired away)", () => {

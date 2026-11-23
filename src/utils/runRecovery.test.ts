@@ -50,18 +50,26 @@ describe("readRecoveryBuffer", () => {
     expect(localStorage.getItem(LIVE_RUN_KEY)).toBeNull();
   });
 
-  it("removes a point-less leftover (nothing worth offering)", () => {
-    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(buffer({ points: [null] })));
+  it("removes a leftover with nothing recorded at all", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(
+      buffer({ points: [null], hrSamples: [], accSec: 0, startAt: null })));
     expect(readRecoveryBuffer()).toBeNull();
     expect(localStorage.getItem(LIVE_RUN_KEY)).toBeNull();
   });
 
-  // An indoor session never has points, so it lives under its own key with the
-  // points requirement lifted — and must stay invisible to the GPS callers.
-  it("offers a point-less indoor buffer when requirePoints is off", () => {
+  // GPS can fail (a location service Android refused) while the strap and the
+  // clock kept recording: that run is still the runner's, never deleted at boot.
+  it("keeps and offers a GPS run that recorded time and heart rate but no points", () => {
+    localStorage.setItem(LIVE_RUN_KEY, JSON.stringify(
+      buffer({ points: [], hrSamples: [{ bpm: 150, t: START }], accSec: 0, startAt: START })));
+    expect(readRecoveryBuffer()?.hrSamples?.length).toBe(1);
+    expect(localStorage.getItem(LIVE_RUN_KEY)).toBeTruthy();
+  });
+
+  it("reads an indoor buffer under its own key, invisible to the GPS callers", () => {
     const indoor = buffer({ points: [], hrSamples: [{ bpm: 132, t: START }], accSec: 0, startAt: START });
     localStorage.setItem(INDOOR_RUN_KEY, JSON.stringify(indoor));
-    expect(readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })?.hrSamples?.length).toBe(1);
+    expect(readRecoveryBuffer(INDOOR_RUN_KEY)?.hrSamples?.length).toBe(1);
     expect(readRecoveryBuffer()).toBeNull();            // the GPS buffer is untouched
     expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeTruthy();
   });
@@ -69,7 +77,7 @@ describe("readRecoveryBuffer", () => {
   it("still drops an indoor buffer with nothing recorded at all", () => {
     localStorage.setItem(INDOOR_RUN_KEY, JSON.stringify(
       buffer({ points: [], hrSamples: [], accSec: 0, startAt: null })));
-    expect(readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })).toBeNull();
+    expect(readRecoveryBuffer(INDOOR_RUN_KEY)).toBeNull();
     expect(localStorage.getItem(INDOOR_RUN_KEY)).toBeNull();
   });
 });

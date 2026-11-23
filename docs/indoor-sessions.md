@@ -127,8 +127,8 @@ not running). The clock, wake lock, HR watch, pause/resume accounting and
 both are tested: an indoor session must never surface in the GPS resume offer or
 the Dashboard's interrupted-run banner (it has no points to resume), and an
 indoor `reset()`/`finalize()` must never wipe a real run's unrecovered buffer or
-fix journal. `readRecoveryBuffer(key, {requirePoints})` carries defaults that
-keep every pre-existing caller reading exactly the GPS buffer it always did.
+fix journal. `readRecoveryBuffer(key)` defaults to the GPS key, so every
+pre-existing caller reads exactly the GPS buffer it always did.
 
 ## Live heart rate: what actually works where
 

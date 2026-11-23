@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
-index a92fcf9..19b5a8d 100644
+index a92fcf9..a43bfd1 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocation.java
 @@ -18,7 +18,13 @@ import android.location.LocationManager;
@@ -50,7 +50,7 @@ index a92fcf9..19b5a8d 100644
      private Boolean stoppedWithoutPermissions = false;
  
      private void fetchLastLocation(PluginCall call) {
-@@ -90,77 +114,701 @@ public class BackgroundGeolocation extends Plugin {
+@@ -90,77 +114,703 @@ public class BackgroundGeolocation extends Plugin {
          if (call.getBoolean("stale", false)) {
              fetchLastLocation(call);
          }
@@ -285,6 +285,7 @@ index a92fcf9..19b5a8d 100644
 +            call.resolve(ret);
 +            return;
 +        }
++        boolean foreground = service.ensureForeground();
 +        Number chronometerStartMs = optNumber(call, "chronometerStartMs");
 +        Notification notification = buildNotification(
 +                call.getString("title", "Using your location"),
@@ -295,6 +296,7 @@ index a92fcf9..19b5a8d 100644
 +        boolean updated = service.updateNotification(notification);
 +        seedLiveStats(call, message, updated);
 +        ret.put("updated", updated);
++        ret.put("foreground", foreground);
 +        call.resolve(ret);
 +    }
 +
@@ -804,7 +806,7 @@ index a92fcf9..19b5a8d 100644
      }
  
      @PermissionCallback
-@@ -188,6 +836,7 @@ public class BackgroundGeolocation extends Plugin {
+@@ -188,6 +838,7 @@ public class BackgroundGeolocation extends Plugin {
              call.reject("Missing id.");
              return;
          }
@@ -812,7 +814,7 @@ index a92fcf9..19b5a8d 100644
          service.removeWatcher(callbackId);
          PluginCall savedCall = getBridge().getSavedCall(callbackId);
          if (savedCall != null) {
-@@ -245,20 +894,44 @@ public class BackgroundGeolocation extends Plugin {
+@@ -245,20 +896,44 @@ public class BackgroundGeolocation extends Plugin {
      }
  
      // Receives messages from the service.
@@ -863,7 +865,7 @@ index a92fcf9..19b5a8d 100644
          }
      }
  
-@@ -315,16 +988,29 @@ public class BackgroundGeolocation extends Plugin {
+@@ -315,30 +990,88 @@ public class BackgroundGeolocation extends Plugin {
                  Context.BIND_AUTO_CREATE
          );
  
@@ -894,8 +896,12 @@ index a92fcf9..19b5a8d 100644
 +            if (stoppedWithoutPermissions && hasLocationPermissions()) {
                  service.onPermissionsGranted();
              }
++            // A watcher added while backgrounded was refused the foreground
++            // service; the app is in front now, so this promotion is allowed.
++            service.ensureForeground();
          }
-@@ -333,12 +1019,54 @@ public class BackgroundGeolocation extends Plugin {
+         super.handleOnResume();
+     }
  
      @Override
      protected void handleOnPause() {
@@ -952,7 +958,7 @@ index a92fcf9..19b5a8d 100644
              service.stopService();
          }
 diff --git a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
-index 2c5de94..2c6b9c0 100644
+index 2c5de94..4731226 100644
 --- a/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
 +++ b/node_modules/@capacitor-community/background-geolocation/android/src/main/java/com/equimaps/capacitor_background_geolocation/BackgroundGeolocationService.java
 @@ -1,6 +1,7 @@
@@ -963,7 +969,44 @@ index 2c5de94..2c6b9c0 100644
  import android.app.Service;
  import android.content.Intent;
  import android.content.pm.ServiceInfo;
-@@ -159,6 +160,38 @@ public class BackgroundGeolocationService extends Service {
+@@ -41,6 +42,10 @@ public class BackgroundGeolocationService extends Service {
+         public Notification backgroundNotification;
+     }
+     private HashSet<Watcher> watchers = new HashSet<Watcher>();
++    // Whether startForeground actually succeeded. Android refuses it to a
++    // backgrounded app, and the notification must never claim a recording the
++    // service isn't holding (docs/live-tracking.md, "Started behind a locked screen").
++    private volatile boolean foreground = false;
+ 
+     @Override
+     public IBinder onBind(Intent intent) {
+@@ -70,15 +75,17 @@ public class BackgroundGeolocationService extends Service {
+         return null;
+     }
+ 
+-    private void promote(Notification notification) {
++    private boolean promote(Notification notification) {
+         try {
+             // The 'startForeground' method has been known to fail due to weird
+             // permission bugs, so we prevent any exceptions from
+             // crashing the app. See issue #86.
+             startForeground(NOTIFICATION_ID, notification);
++            foreground = true;
+         } catch (Exception exception) {
+             Logger.error("Failed to foreground service", exception);
+         }
++        return foreground;
+     }
+ 
+     // Handles requests from the activity.
+@@ -153,12 +160,69 @@ public class BackgroundGeolocationService extends Service {
+                     watchers.remove(watcher);
+                     if (getNotification() == null) {
+                         stopForeground(true);
++                        foreground = false;
+                     }
+                     return;
+                 }
              }
          }
  
@@ -982,7 +1025,7 @@ index 2c5de94..2c6b9c0 100644
 +                    hasForegroundNotification = true;
 +                }
 +            }
-+            if (!hasForegroundNotification) {
++            if (!hasForegroundNotification || !foreground) {
 +                return false;
 +            }
 +            try {
@@ -997,6 +1040,30 @@ index 2c5de94..2c6b9c0 100644
 +                Logger.error("Failed to update notification", exception);
 +                return false;
 +            }
++        }
++
++        // Retries a refused promotion; called whenever the app is in front
++        // (resume, a JS push). Location is re-requested so the watchers get it
++        // under the foreground service's while-in-use access.
++        boolean ensureForeground() {
++            if (foreground) {
++                return true;
++            }
++            Notification notification = getNotification();
++            if (notification == null || !promote(notification)) {
++                return false;
++            }
++            for (Watcher watcher : watchers) {
++                try {
++                    watcher.client.removeLocationUpdates(watcher.locationCallback);
++                    watcher.client.requestLocationUpdates(
++                            watcher.locationRequest,
++                            watcher.locationCallback,
++                            null
++                    );
++                } catch (SecurityException ignore) {}
++            }
++            return true;
 +        }
 +
          void onPermissionsGranted() {

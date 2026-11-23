@@ -119,7 +119,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
   // is resolved by an explicit resume/discard, never expired away silently.
   // (RESUME_MAX_AGE_MS only bounds the live-sharing sweep, not this offer.)
   const [pending, setPending] = useState<RecoveredRun | null>(() => {
-    const buf = readRecoveryBuffer(bufferKey, { requirePoints: !indoor });
+    const buf = readRecoveryBuffer(bufferKey);
     return buf ? normalizeRecovery(buf) : null;
   });
 
@@ -337,7 +337,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     runStartRef.current = Date.now();
     runEndRef.current = null;
     lastFixRef.current = 0;
-    if (!startWatch()) return;
+    if (watchRef.current == null && !startWatch()) return;
     stateRef.current = "tracking";
     setState("tracking");
     logTrack("start", { msg: isNative ? "native" : "web" });
@@ -355,6 +355,22 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     acquireWake();
     persist();
   }, [startWatch, startHrWatch, acquireWake, persist, indoor, logPower]);
+
+  // Start's tap, before the countdown: Android refuses a foreground service to a backgrounded app,
+  // so one started when the countdown ends behind a locked screen never holds the run
+  // (docs/live-tracking.md, "Started behind a locked screen"). Fixes before `start` are dropped.
+  const prepare = useCallback(() => {
+    if (stateRef.current !== "idle") return;
+    if (!indoor) { if (watchRef.current == null) startWatch(); }
+    else if (hrWatchRef.current) startIndoorSessionService(Date.now());
+  }, [startWatch, indoor]);
+
+  // A cancelled countdown: release what `prepare` started, and nothing a run owns.
+  const cancelPrepare = useCallback(() => {
+    if (stateRef.current !== "idle") return;
+    stopWatch();
+    if (indoor) stopIndoorSessionService();
+  }, [stopWatch, indoor]);
 
   const pause = useCallback(() => {
     if (stateRef.current !== "tracking") return;
@@ -660,7 +676,7 @@ export function useRunTracker({ hrMethod, stepText, indoor = false }: UseRunTrac
     // render) — used by handleSave to scope the Health Connect HR fetch.
     runWindow: () => ({ startedAt: runStartRef.current, stoppedAt: runEndRef.current }),
     pauses: (): PauseWindow[] => closePauses(pausesRef.current, Date.now()) as PauseWindow[],
-    start, pause, resume, stop, reset, requestPermissions,
+    prepare, cancelPrepare, start, pause, resume, stop, reset, requestPermissions,
     resumePrevious, discardPrevious, finalize,
   };
 }
