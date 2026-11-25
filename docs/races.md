@@ -130,7 +130,8 @@ Contributions are instant + global + unverified. "Add a race"
 duplicate search and inserts `verified:false, created_by=uid`; the UI tags any
 unverified race/edition. A new race needs a name, a date, a distance, a terrain and a
 **country** (ISO 3166-1 alpha-2, normalised by `countryCode` in
-`src/utils/country.ts`; `UK` becomes `GB`), and the `races_country_code` check
+`src/utils/country.ts`; `UK` becomes `GB`; reserved codes such as `TA`, which `Intl` names as Tristan da Cunha, are refused by
+`NOT_A_COUNTRY` and the `races_country_not_reserved` check), and the `races_country_code` check
 refuses a race without one. After a contribution, `refreshCatalogue`
 (RunningCoach) re-fetches so it shows immediately.
 
