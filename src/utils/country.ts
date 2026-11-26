@@ -1,9 +1,5 @@
-// Codes Intl names that aren't a country a race can be in; the first row mirrors
-// races_country_not_reserved (TA is Tristan da Cunha, which a typed "Tanzania" is not).
-const NOT_A_COUNTRY = new Set([
-  "AC", "AN", "CP", "CQ", "DG", "EA", "EU", "EZ", "FX", "IC", "SU", "TA", "UN", "YU", "ZZ",
-  "QO", "XA", "XB",
-]);
+// Codes Intl names that aren't a country a race can be in.
+const NOT_A_COUNTRY = new Set(["EU", "EZ", "UN", "ZZ", "QO", "XA", "XB"]);
 const ALIASES: Record<string, string> = { UK: "GB" };
 
 const namers = new Map<string, Intl.DisplayNames>();

@@ -17,7 +17,7 @@ describe("countryCode", () => {
   });
 
   it("rejects codes that aren't a country", () => {
-    for (const v of ["EU", "UN", "ZZ", "TA", "IC", "AC"]) expect(countryCode(v)).toBeNull();
+    for (const v of ["EU", "UN", "ZZ"]) expect(countryCode(v)).toBeNull();
   });
 });
 
