@@ -302,8 +302,11 @@ switched on).
      from the door) give its centre. So each circle's centre moves 100 to
      150 m off the true point in a random direction, and its radius becomes
      300 m plus that offset: every point within 300 m of the true start is
-     still inside. The offset is seeded by the run id, so re-sharing the
-     same run gives the same card and can't be averaged out.
+     still inside. The offset is seeded by the trace's exact start and finish
+     coordinates: the finish screen and the run detail draw the same card,
+     re-sharing can't average it out, and nobody without those points can
+     recompute it. (The run id can't be the seed: the finish screen's run has
+     none yet, and the date it would fall back to is printed on the card.)
    - It works on **legs, not points**. Each leg (two consecutive points) is
      clipped against both circles. Line-circle intersection in the projected
      metres gives 0, 1 or 2 crossing points, and only the parts outside the
