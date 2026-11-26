@@ -195,6 +195,37 @@ describe("RaceFormModal location first", () => {
     expect(cityField().value).toBe("Moshi town");
   });
 
+  it("keeps a city the runner retyped to match the one the map filled", async () => {
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Moshi" });
+    setup();
+    pinOnMap();
+    await waitFor(() => expect(cityField().value).toBe("Moshi"));
+    fireEvent.change(cityField(), { target: { value: "" } });
+    fireEvent.change(cityField(), { target: { value: "Moshi" } });
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Arusha" });
+    fireEvent.click(screen.getByRole("button", { name: /Change/ }));
+    fireEvent.click(screen.getByRole("button", { name: "confirm pin" }));
+    await waitFor(() => expect(vi.mocked(reverseGeocode)).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add race" })).toBeEnabled());
+    expect(cityField().value).toBe("Moshi");
+  });
+
+  it("holds the submit until the pin's place is known, so a guessed country can't be saved", async () => {
+    vi.mocked(guessCountry).mockReturnValue("FR");
+    let resolve!: (v: { country: string; city: string }) => void;
+    vi.mocked(reverseGeocode).mockReturnValueOnce(new Promise(r => { resolve = r; }));
+    const { addRace } = setup();
+    typeName("Kilimanjaro Marathon");
+    pinOnMap();
+    expect(screen.getByRole("button", { name: "Add race" })).toBeDisabled();
+    submit();
+    expect(addRace).not.toHaveBeenCalled();
+    resolve({ country: "TZ", city: "Moshi" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add race" })).toBeEnabled());
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ country: "TZ" })));
+  });
+
   it("leaves the fields alone when the place can't be found", async () => {
     vi.mocked(guessCountry).mockReturnValue("FR");
     setup();

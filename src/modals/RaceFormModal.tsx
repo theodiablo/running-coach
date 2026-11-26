@@ -19,6 +19,7 @@ type LatLng = { lat: number; lng: number };
 type RaceForm = {
   name: string;
   city: string;
+  cityFromMap: boolean;   // filled by the last pin, so the next pin may replace it
   country: string;
   url: string;
   date: string;
@@ -44,17 +45,16 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const [selected, setSelected] = useState<CatalogueRace | null>(null); // an existing race to add a date to
-  const [f, setF] = useState<RaceForm>(() => ({ name: "", city: "", country: guessCountry() ?? "", url: "",
+  const [f, setF] = useState<RaceForm>(() => ({ name: "", city: "", cityFromMap: false, country: guessCountry() ?? "", url: "",
     date: prefill?.date || "", distanceKm: prefill?.distanceKm ?? "", elevation: prefill?.elevation ?? "" }));
   const [loc, setLoc] = useState<LatLng | null>(null);   // { lat, lng } picked on the map
   const [terrain, setTerrain] = useState<RaceTerrain>("road");
   const [showPicker, setShowPicker] = useState(false);
   const [locating, setLocating] = useState(false);
-  const autoCity = useRef("");   // the city last filled from the map, safe to replace
   const reverseSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const set = (k: keyof RaceForm, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
+  const set = (k: Exclude<keyof RaceForm, "cityFromMap">, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
 
   // Live duplicate search on the name field (skipped once a race is selected).
   const q = f.name.trim();
@@ -72,15 +72,14 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       setLocating(false);
       if (!place) return;
       setF(prev => {
-        const keepCity = prev.city.trim() && prev.city !== autoCity.current;
-        const city = place.city && !keepCity ? place.city : prev.city;
-        if (place.city && !keepCity) autoCity.current = place.city;
-        return { ...prev, country: place.country ?? prev.country, city };
+        const fillCity = !!place.city && (!prev.city.trim() || prev.cityFromMap);
+        return { ...prev, country: place.country ?? prev.country, ...(fillCity ? { city: place.city ?? "", cityFromMap: true } : {}) };
       });
     });
   };
 
   const submit = async () => {
+    if (locating) return;   // the pin's country is still on its way
     setErr("");
     const dist = parseFloat(String(f.distanceKm));
     if (!f.date || !dist) { setErr(t("races.form.errors.dateDistance")); return; }
@@ -184,7 +183,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
                 <CountryPicker id="race-country" value={f.country} onChange={code => set("country", code)} locale={i18n.language}
                   placeholder={t("races.form.countryPlaceholder")} noMatch={t("races.form.countryNoMatch")}/></div>
               <div><label htmlFor="race-city" className={LABEL_CLS}>{t("races.form.city")}</label>
-                <input id="race-city" value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
+                <input id="race-city" value={f.city} onChange={e => { const city = e.target.value; setF(prev => ({ ...prev, city, cityFromMap: false })); }} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
               <div role="group" aria-label={t("races.filters.terrain")}>
                 <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
                 <div className="flex bg-slate-900 rounded-xl p-1 gap-1">
@@ -218,7 +217,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
           {err && <p className="text-sm text-red-400">{err}</p>}
 
           <div className="flex gap-2">
-            <button onClick={submit} disabled={busy}
+            <button onClick={submit} disabled={busy || locating}
               className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors disabled:opacity-60">
               {busy ? <Loader size={16} className="animate-spin"/> : <Plus size={16}/>}{t("races.form.submit")}
             </button>

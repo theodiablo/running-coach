@@ -61,10 +61,13 @@ export function parseReverseResult(json: unknown): { country: string | null; cit
 
 // One-off reverse geocode of a picked race start, to fill its country and city. Resolves null
 // (never throws) if unconfigured, offline or unmatched: the fields stay editable either way.
+export const REVERSE_GEOCODE_TIMEOUT_MS = 6000;
+
 export async function reverseGeocode(point: { lat: number; lng: number }) {
   if (!MAP_KEY) return null;
   try {
-    const res = await fetch(`https://api.maptiler.com/geocoding/${point.lng},${point.lat}.json?key=${MAP_KEY}`);
+    const res = await fetch(`https://api.maptiler.com/geocoding/${point.lng},${point.lat}.json?key=${MAP_KEY}`,
+      { signal: AbortSignal.timeout(REVERSE_GEOCODE_TIMEOUT_MS) });
     if (!res.ok) return null;
     return parseReverseResult(await res.json());
   } catch {
