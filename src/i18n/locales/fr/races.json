@@ -102,6 +102,8 @@
     "officialSitePlaceholder": "https://…",
     "location": "Lieu (pour « courses près de moi »)",
     "locationSet": "Lieu défini ✓",
+    "locationHint": "Place le départ sur la carte pour remplir le pays et la ville.",
+    "locating": "Recherche du lieu",
     "setLocation": "Définir le lieu sur la carte",
     "date": "Date",
     "distanceKm": "Distance (km)",

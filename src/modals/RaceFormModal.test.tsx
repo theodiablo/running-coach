@@ -9,16 +9,22 @@ vi.mock("../races", () => ({
   raceSearchVersion: () => 0,
   searchRaces: vi.fn().mockResolvedValue({ races: [], next: null, total: 0 }),
 }));
-vi.mock("../components/LocationPicker", () => ({ LocationPicker: () => null }));
+vi.mock("../components/LocationPicker", () => ({
+  LocationPicker: ({ onConfirm }: { onConfirm: (p: { lat: number; lng: number }) => void }) =>
+    <button onClick={() => onConfirm({ lat: -3.35, lng: 37.34 })}>confirm pin</button>,
+}));
+vi.mock("../utils/geocode", () => ({ reverseGeocode: vi.fn(async () => null) }));
 vi.mock("../utils/guessCountry", () => ({ guessCountry: vi.fn(() => null) }));
 
 import { setLocale } from "../i18n";
 import { guessCountry } from "../utils/guessCountry";
+import { reverseGeocode } from "../utils/geocode";
 import { RaceFormModal } from "./RaceFormModal";
 
 afterEach(async () => {
   cleanup();
   vi.mocked(guessCountry).mockReturnValue(null);
+  vi.mocked(reverseGeocode).mockResolvedValue(null);
   await setLocale("en", { persist: false });
 });
 
@@ -142,6 +148,61 @@ describe("RaceFormModal country", () => {
     await waitFor(() => expect(addEdition).toHaveBeenCalledTimes(1));
     expect(addEdition.mock.calls[0][0]).toMatchObject({ raceSlug: "spartan-race", date: "2027-05-08", distanceKm: 21 });
     expect(addRace).not.toHaveBeenCalled();
+  });
+});
+
+const cityField = () => screen.getByRole("textbox", { name: "City" }) as HTMLInputElement;
+const pinOnMap = () => {
+  fireEvent.click(screen.getByRole("button", { name: /Set location on map/ }));
+  fireEvent.click(screen.getByRole("button", { name: "confirm pin" }));
+};
+
+describe("RaceFormModal location first", () => {
+  it("asks for the location before the country and city", () => {
+    setup();
+    const order = ["Set location on map", "Country", "City"].map(name =>
+      name === "Set location on map" ? screen.getByRole("button", { name: /Set location on map/ }) : screen.getByLabelText(name));
+    for (let i = 1; i < order.length; i++) expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("fills the country and city from the picked point", async () => {
+    vi.mocked(guessCountry).mockReturnValue("FR");
+    vi.mocked(reverseGeocode).mockResolvedValue({ country: "TZ", city: "Moshi" });
+    const { addRace } = setup();
+    typeName("Kilimanjaro Marathon");
+    pinOnMap();
+    await waitFor(() => expect(countryField().value).toBe("Tanzania"));
+    expect(cityField().value).toBe("Moshi");
+    expect(vi.mocked(reverseGeocode)).toHaveBeenCalledWith({ lat: -3.35, lng: 37.34 });
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ country: "TZ", city: "Moshi", lat: -3.35, lng: 37.34 })));
+  });
+
+  it("never overwrites a city the runner typed, but replaces one it filled", async () => {
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Moshi" });
+    setup();
+    pinOnMap();
+    await waitFor(() => expect(cityField().value).toBe("Moshi"));
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Arusha" });
+    fireEvent.click(screen.getByRole("button", { name: /Change/ }));
+    fireEvent.click(screen.getByRole("button", { name: "confirm pin" }));
+    await waitFor(() => expect(cityField().value).toBe("Arusha"));
+    fireEvent.change(cityField(), { target: { value: "Moshi town" } });
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "KE", city: "Nairobi" });
+    fireEvent.click(screen.getByRole("button", { name: /Change/ }));
+    fireEvent.click(screen.getByRole("button", { name: "confirm pin" }));
+    await waitFor(() => expect(countryField().value).toBe("Kenya"));
+    expect(cityField().value).toBe("Moshi town");
+  });
+
+  it("leaves the fields alone when the place can't be found", async () => {
+    vi.mocked(guessCountry).mockReturnValue("FR");
+    setup();
+    fireEvent.change(cityField(), { target: { value: "Lyon" } });
+    pinOnMap();
+    await waitFor(() => expect(vi.mocked(reverseGeocode)).toHaveBeenCalled());
+    expect(countryField().value).toBe("France");
+    expect(cityField().value).toBe("Lyon");
   });
 });
 
