@@ -343,7 +343,7 @@
     "audio1Km": "Each kilometre you'll hear your pace and heart rate against the workout."
   },
   "gps": {
-    "refused": "GPS isn't recording right now. Keep the app open until the distance moves again.",
-    "recovered": "GPS stopped for a while with the screen off, so part of this run may be missing distance. It's recording again."
+    "refused": "GPS may not record with the screen off right now. Keep the app open for a moment.",
+    "recovered": "GPS may have stopped for a while with the screen off, so part of this run could be missing distance."
   }
 }

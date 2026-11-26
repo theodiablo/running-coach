@@ -150,6 +150,19 @@ describe("the location service state", () => {
     expect(seam.getGpsServiceState()).toBeNull();
   });
 
+  it("never lets a reply from the run that just ended set the next one's state", async () => {
+    let release: (v: Record<string, unknown>) => void = () => {};
+    reply = { updated: false, foreground: false };
+    const pending = new Promise<Record<string, unknown>>(r => { release = r; });
+    const original = reply;
+    reply = pending as unknown as Record<string, unknown>;
+    seam.pushRunNotification(content());
+    seam.resetRunNotification();
+    release(original);
+    await settle();
+    expect(seam.getGpsServiceState()).toBeNull();
+  });
+
   it("notifies subscribers on each change", async () => {
     const seen: (string | null)[] = [];
     const off = seam.subscribeGpsServiceState(() => seen.push(seam.getGpsServiceState()));

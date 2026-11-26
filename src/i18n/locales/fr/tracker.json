@@ -343,7 +343,7 @@
     "audio1Km": "À chaque kilomètre, tu entendras ton allure et ton cardio par rapport à la séance."
   },
   "gps": {
-    "refused": "Le GPS n'enregistre pas pour le moment. Garde l'appli ouverte jusqu'à ce que la distance reprenne.",
-    "recovered": "Le GPS s'est arrêté un moment écran éteint, il peut manquer de la distance sur cette sortie. Il enregistre à nouveau."
+    "refused": "Le GPS risque de ne pas enregistrer écran éteint pour le moment. Garde l'appli ouverte un instant.",
+    "recovered": "Le GPS s'est peut-être arrêté un moment écran éteint, il peut manquer de la distance sur cette sortie."
   }
 }
