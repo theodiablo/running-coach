@@ -88,6 +88,20 @@ describe("RaceFormModal country", () => {
     await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ country: "TZ" })));
   });
 
+  it("reopens the list after a pick, by tap or arrow key, keeping the country", () => {
+    setup();
+    pickCountry("tanz", "Tanzania");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.click(countryField());
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Tanzania" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(countryField(), { key: "Enter" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.keyDown(countryField(), { key: "ArrowDown" });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(countryField().value).toBe("Tanzania");
+  });
+
   it("keeps the previous country when the runner leaves without picking", () => {
     vi.mocked(guessCountry).mockReturnValue("FR");
     setup();

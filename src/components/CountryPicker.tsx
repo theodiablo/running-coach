@@ -33,12 +33,20 @@ export function CountryPicker({ id, value, onChange, locale, placeholder, noMatc
     setActive(i);
     if (matches[i]) document.getElementById(optionId(matches[i].code))?.scrollIntoView?.({ block: "nearest" });
   };
+  const openList = () => {
+    setQuery(selectedName);
+    setActive(Math.max(0, options.findIndex(o => o.code === value)));
+    requestAnimationFrame(() => listRef.current?.scrollIntoView?.({ block: "nearest" }));
+  };
   const pick = (code: string) => {
     onChange(code);
     setQuery(null);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!open) return;
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); openList(); }
+      return;
+    }
     if (e.key === "ArrowDown") { e.preventDefault(); moveTo(Math.min(active + 1, matches.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); moveTo(Math.max(active - 1, 0)); }
     else if (e.key === "Enter" && matches[active]) { e.preventDefault(); pick(matches[active].code); }
@@ -50,12 +58,8 @@ export function CountryPicker({ id, value, onChange, locale, placeholder, noMatc
         aria-activedescendant={open && matches[active] ? optionId(matches[active].code) : undefined}
         aria-required="true" autoComplete="off" placeholder={placeholder} className={INPUT_CLS}
         value={query ?? selectedName}
-        onFocus={e => {
-          e.currentTarget.select();
-          setQuery(selectedName);
-          setActive(Math.max(0, options.findIndex(o => o.code === value)));
-          requestAnimationFrame(() => listRef.current?.scrollIntoView?.({ block: "nearest" }));
-        }}
+        onFocus={e => { e.currentTarget.select(); openList(); }}
+        onClick={() => { if (!open) openList(); }}
         onChange={e => { setQuery(e.target.value); setActive(0); }}
         onBlur={() => setQuery(null)}
         onKeyDown={onKeyDown}/>
