@@ -6,8 +6,9 @@ import { WEB_APP_ORIGIN } from "../constants";
 
 export type ShareResult = "shared" | "saved" | "dismissed" | "failed";
 
+// The native build folds this to false, so the builder and its fonts stay out of the shells.
 export function canShareImage(): boolean {
-  return !isNative;
+  return !import.meta.env.VITE_NATIVE_BUILD && !isNative;
 }
 
 // Whether this browser takes files through the share sheet; otherwise we download.

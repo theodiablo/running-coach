@@ -164,10 +164,11 @@ export function clipOutsideMask(ctx: Ctx, box: { x: number; y: number; w: number
   }
 }
 
+// A public card never draws an unmasked route: no mask, no line.
 export function drawRouteLine(ctx: Ctx, shape: RouteShape) {
+  if (!shape.masked || shape.maskRadiusPx == null) return;
   ctx.save();
-  if (shape.masked && shape.maskRadiusPx != null) clipOutsideMask(ctx, ROUTE_BOX, [shape.start, shape.finish], shape.maskRadiusPx);
-  else { ctx.beginPath(); ctx.rect(ROUTE_BOX.x, ROUTE_BOX.y, ROUTE_BOX.w, ROUTE_BOX.h); ctx.clip(); }
+  clipOutsideMask(ctx, ROUTE_BOX, [shape.start, shape.finish], shape.maskRadiusPx);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const [width, color] of [[ROUTE_STROKE, LINE], [5, ACCENT]] as const) {
@@ -178,19 +179,6 @@ export function drawRouteLine(ctx: Ctx, shape: RouteShape) {
       path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.stroke();
     }
-  }
-  if (!shape.masked) {
-    ctx.beginPath();
-    ctx.arc(shape.start[0], shape.start[1], 6, 0, Math.PI * 2);
-    ctx.fillStyle = INK;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = LIGHT;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(shape.finish[0], shape.finish[1], 8, 0, Math.PI * 2);
-    ctx.fillStyle = ACCENT;
-    ctx.fill();
   }
   ctx.restore();
 }

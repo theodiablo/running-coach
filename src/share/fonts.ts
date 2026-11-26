@@ -34,6 +34,8 @@ export function loadCardFonts(): Promise<void> {
     new FontFace(family, `url(${latin}) format("woff2")`, { weight: String(weight), unicodeRange: LATIN }),
     new FontFace(family, `url(${ext}) format("woff2")`, { weight: String(weight), unicodeRange: LATIN_EXT }),
   ]);
-  loading = Promise.all(faces.map(f => f.load().then(loaded => { document.fonts.add(loaded); }, () => undefined))).then(() => undefined);
+  // A face that failed (offline on first open) is retried on the next open.
+  loading = Promise.all(faces.map(f => f.load().then(loaded => { document.fonts.add(loaded); return true; }, () => false)))
+    .then(ok => { if (ok.includes(false)) loading = null; });
   return loading;
 }

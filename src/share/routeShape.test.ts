@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { routeShape, clipOutsideCircles, MASK_M } from "./routeShape";
+import { routeShape, routeShapeWithTruth, clipOutsideCircles, MASK_M, OFFSET_MIN_M, OFFSET_MAX_M } from "./routeShape";
 import type { RouteShape, XY } from "./routeShape";
 import type { TrackPointOrGap } from "../utils/geo";
 
@@ -69,6 +69,20 @@ describe("routeShape: the start/finish mask", () => {
     const leftOf = s.paths.flat().some(([x, y]) => x < s.start[0] - s.maskRadiusPx! && Math.abs(y - s.start[1]) < s.maskRadiusPx!);
     const rightOf = s.paths.flat().some(([x, y]) => x > s.start[0] + s.maskRadiusPx! && Math.abs(y - s.start[1]) < s.maskRadiusPx!);
     expect([leftOf, rightOf]).toEqual([true, true]);
+  });
+
+  it("moves each circle off the true point, fixed per run, and still hides 300 m around it", () => {
+    const pts = trace(path([[0, 0], [3000, 0], [-3000, 0], [0, 600]]));
+    const opts = { box: BOX, mask: true, strokePx: STROKE, seed: "run-1" };
+    const t = routeShapeWithTruth(pts, opts)!;
+    for (const [centre, truth] of [[t.shape.start, t.trueStart], [t.shape.finish, t.trueFinish]] as const) {
+      const offM = Math.hypot(centre[0] - truth[0], centre[1] - truth[1]) / t.pxPerM;
+      expect(offM).toBeGreaterThanOrEqual(OFFSET_MIN_M - 1e-6);
+      expect(offM).toBeLessThanOrEqual(OFFSET_MAX_M + 1e-6);
+      expect(nearestPaint(t.shape, truth)).toBeGreaterThanOrEqual(MASK_M * t.pxPerM - 1e-6);
+    }
+    expect(routeShape(pts, opts)).toEqual(t.shape);
+    expect(routeShape(pts, { ...opts, seed: "run-2" })!.start).not.toEqual(t.shape.start);
   });
 
   it("leaves a pass near a point that is neither start nor finish drawn", () => {

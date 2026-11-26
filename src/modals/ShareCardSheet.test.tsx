@@ -56,6 +56,15 @@ describe("ShareCardSheet", () => {
     expect(screen.queryByRole("button", { name: "Show pace" })).toBeNull();
   });
 
+  it("offers heart rate on an indoor card, off until the runner turns it on", () => {
+    setup({ id: "i", date: ymd, type: "OTHER", km: 0, durationSec: 2700, activity: "bike", hr: 132 });
+    const label = () => screen.getByRole("img").getAttribute("aria-label");
+    expect(screen.getByRole("button", { name: "Show heart rate" })).toHaveAttribute("aria-pressed", "false");
+    expect(label()).not.toContain("132");
+    fireEvent.click(screen.getByRole("button", { name: "Show heart rate" }));
+    expect(label()).toContain("132");
+  });
+
   it("drops pace from the preview when switched off", () => {
     setup({ id: "r", date: ymd, type: "EASY", km: 5, durationSec: 1800 });
     expect(screen.getByRole("img").getAttribute("aria-label")).toContain("Pace");

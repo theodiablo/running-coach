@@ -7,6 +7,10 @@ export type XY = [number, number];
 export type Box = { x: number; y: number; w: number; h: number };
 
 export const MASK_M = 300;
+// Each circle's centre moves this far off the true point (fixed per run), so the
+// line ends on its edge point at a spot that isn't the start.
+export const OFFSET_MIN_M = 100;
+export const OFFSET_MAX_M = 150;
 // Below this much drawn line the route style isn't offered. Not a point count:
 // a straight street simplifies to two points.
 export const MIN_KEPT_M = 200;
@@ -19,11 +23,11 @@ const rad = (d: number) => (d * Math.PI) / 180;
 export type RouteShape = {
   // Card-pixel polylines, each drawn as its own path (never bridged).
   paths: XY[][];
-  // Start and finish in card pixels; the dots when unmasked, the clip centres when masked.
+  // Card pixels: the true start and finish when unmasked, the offset clip centres when masked.
   start: XY;
   finish: XY;
   masked: boolean;
-  // The exact 300 m radius in card pixels (the canvas clip); null when unmasked.
+  // The circles' radius in card pixels (the canvas clip); null when unmasked.
   maskRadiusPx: number | null;
   keptM: number;
   keptPoints: number;
@@ -151,10 +155,29 @@ function fitScale(segs: XY[][], box: Box, padPx: number): number {
   return Math.min((box.w - 2 * padPx) / w, (box.h - 2 * padPx) / h);
 }
 
-export type ShapeOpts = { box: Box; mask: boolean; strokePx: number };
+// `seed` (the run id) fixes the circles' offsets, so re-sharing a run never averages them out.
+export type ShapeOpts = { box: Box; mask: boolean; strokePx: number; seed?: string };
+
+function seeded(seed: string): () => number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  return () => {
+    h = (h + 0x6d2b79f5) | 0;
+    let t = Math.imul(h ^ (h >>> 15), 1 | h);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type Internal = { shape: RouteShape; trueStart: XY; trueFinish: XY; pxPerM: number };
 
 // Null when there is no usable line to draw.
 export function routeShape(points: TrackPointOrGap[] | null | undefined, opts: ShapeOpts): RouteShape | null {
+  return routeShapeWithTruth(points, opts)?.shape ?? null;
+}
+
+// Exported for tests: the shape plus the true start/finish it hides.
+export function routeShapeWithTruth(points: TrackPointOrGap[] | null | undefined, opts: ShapeOpts): Internal | null {
   if (!points?.length) return null;
   points = unwrapLng(points);
   const origin = originOf(points);
@@ -166,14 +189,20 @@ export function routeShape(points: TrackPointOrGap[] | null | undefined, opts: S
   const { start, finish } = raw;
   const pad = opts.strokePx / 2 + 2;
   let segs = simplified.segs.filter(s => s.length >= 2);
+  let centres: XY[] = [start, finish];
+  let radiusM = MASK_M;
   if (opts.mask) {
+    const rnd = seeded(opts.seed ?? "");
+    const off = OFFSET_MIN_M + (OFFSET_MAX_M - OFFSET_MIN_M) * rnd();
+    centres = [start, finish].map((c): XY => { const a = rnd() * 2 * Math.PI; return [c[0] + off * Math.cos(a), c[1] + off * Math.sin(a)]; });
+    // Every point within 300 m of the true start stays inside its shifted circle.
+    radiusM = off + MASK_M;
     // The stroke paints half its width past the centre line: widen the circles by
     // that much at the final scale. Enlarging only shrinks the kept box (scale up),
     // so one refit is enough for the bound to hold.
-    const first = clipOutsideCircles(segs, [start, finish], MASK_M);
+    const first = clipOutsideCircles(segs, centres, radiusM);
     if (!first.length) return null;
-    const r = MASK_M + (opts.strokePx / 2) / fitScale(first, opts.box, pad);
-    segs = clipOutsideCircles(segs, [start, finish], r);
+    segs = clipOutsideCircles(segs, centres, radiusM + (opts.strokePx / 2) / fitScale(first, opts.box, pad));
   }
   const keptPoints = segs.reduce((n, s) => n + s.length, 0);
   const keptM = lengthOf(segs);
@@ -184,10 +213,13 @@ export function routeShape(points: TrackPointOrGap[] | null | undefined, opts: S
   const oy = opts.box.y + opts.box.h / 2 - (bb.minY + bb.h / 2) * scale;
   const px = (p: XY): XY => [p[0] * scale + ox, p[1] * scale + oy];
   return {
-    paths: segs.map(s => s.map(px)),
-    start: px(start), finish: px(finish),
-    masked: opts.mask,
-    maskRadiusPx: opts.mask ? MASK_M * scale : null,
-    keptM, keptPoints,
+    shape: {
+      paths: segs.map(s => s.map(px)),
+      start: px(centres[0]), finish: px(centres[1]),
+      masked: opts.mask,
+      maskRadiusPx: opts.mask ? radiusM * scale : null,
+      keptM, keptPoints,
+    },
+    trueStart: px(start), trueFinish: px(finish), pxPerM: scale,
   };
 }

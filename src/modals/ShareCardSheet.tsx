@@ -68,7 +68,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   }, [plan, settings, participations, runs, today]);
 
   // Start and finish are always hidden: most runs start at a front door. docs/share-card.md.
-  const masked = useMemo(() => routeShape(indoor ? null : points, { box: ROUTE_BOX, mask: true, strokePx: ROUTE_STROKE }), [points, indoor]);
+  const masked = useMemo(() => routeShape(indoor ? null : points, { box: ROUTE_BOX, mask: true, strokePx: ROUTE_STROKE, seed: run.id ?? run.date }), [points, indoor, run.id, run.date]);
 
   const input: CardInput = { run, runs, plan, settings, participations, today, session, hasRoute: !!masked, raceLabel };
   const { offered, preselected } = cardStyles(input);
@@ -76,6 +76,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   const style = offered.includes(picked) ? picked : preselected;
   const [showRoute, setShowRoute] = useState(true);
   const [showPace, setShowPace] = useState(true);
+  const [showHr, setShowHr] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -83,17 +84,17 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   const view: CardView = (() => {
     const date = fmt.sht(run.date);
     if (style === "route") {
-      return { style, t: tf, date, showRoute, shape: masked, model: routeModel(input, showPace),
+      return { style, t: tf, date, showRoute, shape: masked, model: routeModel(input, showPace, showHr),
         footer: { key: APP_STORE_URL ? "shareCard.footerStores" : "shareCard.footer" } };
     }
-    const week = style === "week" ? weekModel(input, showPace) : null;
+    const week = style === "week" ? weekModel(input, showPace, showHr) : null;
     if (week) {
       const [figure, ...rest] = week.stats;
       return { style: "week", t: tf, model: week, dayLabels: Array.from({ length: 7 }, (_, i) => dayName(i)),
         runFigure: indoor ? fmt.dur(run.durationSec) : figure.value + (figure.unit ? " " + figure.unit : ""),
         runLine: (indoor ? week.stats.slice(1) : rest).map(s => s.value + (s.unit ? " " + s.unit : "")).join(" · ") };
     }
-    return { style: "number", t: tf, date, model: numberModel(input, showPace) };
+    return { style: "number", t: tf, date, model: numberModel(input, showPace, showHr) };
   })();
 
   useEffect(() => {
@@ -162,7 +163,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="share-card-title"
       onClick={e => e.stopPropagation()}
-      className="fixed inset-0 z-[2100] bg-slate-900 flex flex-col animate-slide-up"
+      className="fixed inset-0 z-[2050] bg-slate-900 flex flex-col animate-slide-up"
       style={{ paddingTop: "calc(1rem + var(--safe-top))", paddingBottom: "calc(1rem + var(--safe-bottom))" }}>
       <div className="flex-1 overflow-y-auto px-4 max-w-md w-full mx-auto space-y-4">
         <div className="flex items-center justify-between">
@@ -194,11 +195,10 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
 
         <div className="rounded-2xl bg-slate-800 divide-y divide-slate-900">
           {style === "route" && (
-            <>
-              <Toggle label={t("shareCard.toggles.route")} hint={t("shareCard.toggles.routeHint")} on={showRoute} onChange={setShowRoute} />
-            </>
+            <Toggle label={t("shareCard.toggles.route")} hint={t("shareCard.toggles.routeHint")} on={showRoute} onChange={setShowRoute} />
           )}
           {!indoor && <Toggle label={t("shareCard.toggles.pace")} hint={t("shareCard.toggles.paceHint")} on={showPace} onChange={setShowPace} />}
+          {indoor && !!run.hr && <Toggle label={t("shareCard.toggles.hr")} hint={t("shareCard.toggles.hrHint")} on={showHr} onChange={setShowHr} />}
         </div>
       </div>
       <div className="px-4 pt-3 max-w-md w-full mx-auto">

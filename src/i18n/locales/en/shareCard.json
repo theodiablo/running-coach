@@ -11,7 +11,9 @@
     "route": "Show the route",
     "routeHint": "Drawn as a line, no map",
     "pace": "Show pace",
-    "paceHint": "Time is always shown"
+    "paceHint": "Time is always shown",
+    "hr": "Show heart rate",
+    "hrHint": "Health data, so it stays off unless you turn it on"
   },
   "share": "Share image",
   "download": "Download image",

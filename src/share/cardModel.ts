@@ -76,10 +76,11 @@ export function cardStyles(input: CardInput): { offered: CardStyle[]; preselecte
   return { offered, preselected };
 }
 
-export function statsFor(run: Run, showPace: boolean): Stat[] {
+// Heart rate is health data: on a public card only when the runner turns it on.
+export function statsFor(run: Run, showPace: boolean, showHr = false): Stat[] {
   const time: Stat = { label: { key: "shareCard.stat.time" }, value: fmt.dur(run.durationSec) };
   if (isIndoor(run)) {
-    return run.hr ? [time, { label: { key: "shareCard.stat.hr" }, value: String(run.hr), unit: "bpm" }] : [time];
+    return showHr && run.hr ? [time, { label: { key: "shareCard.stat.hr" }, value: String(run.hr), unit: "bpm" }] : [time];
   }
   const out: Stat[] = [{ label: { key: "shareCard.stat.distance" }, value: fmt.km(run.km), unit: "km" }, time];
   if (showPace && run.durationSec) out.push({ label: { key: "shareCard.stat.pace" }, value: fmt.pace(run.durationSec / Number(run.km)), unit: "/km" });
@@ -88,7 +89,7 @@ export function statsFor(run: Run, showPace: boolean): Stat[] {
 
 export type RouteModel = { headline: Line; pill: { dist: string; time: string } | null; stats: Stat[] };
 
-export function routeModel(input: CardInput, showPace: boolean): RouteModel {
+export function routeModel(input: CardInput, showPace: boolean, showHr = false): RouteModel {
   const { run, runs } = input;
   const best = headlineEffort(run, runs);
   const pb = best?.kind === "pb" ? best.effort : null;
@@ -96,7 +97,7 @@ export function routeModel(input: CardInput, showPace: boolean): RouteModel {
   return {
     headline: pb ? { key: `shareCard.head.pb.p${pick(seed, HEAD_PB)}` } : { key: `shareCard.head.run.r${pick(seed, HEAD_RUN)}` },
     pill: pb ? { dist: `bestEfforts.dist.${pb.key}`, time: fmt.dur(pb.sec) } : null,
-    stats: statsFor(run, showPace),
+    stats: statsFor(run, showPace, showHr),
   };
 }
 
@@ -109,9 +110,9 @@ export type NumberModel = {
   stats: Stat[];
 };
 
-export function numberModel(input: CardInput, showPace: boolean): NumberModel {
+export function numberModel(input: CardInput, showPace: boolean, showHr = false): NumberModel {
   const { run, runs } = input;
-  const stats = statsFor(run, showPace);
+  const stats = statsFor(run, showPace, showHr);
   const best = headlineEffort(run, runs);
   if (best) {
     const e = best.effort;
@@ -149,7 +150,7 @@ export type WeekModel = {
   stats: Stat[];
 };
 
-export function weekModel(input: CardInput, showPace = true): WeekModel | null {
+export function weekModel(input: CardInput, showPace = true, showHr = false): WeekModel | null {
   const { plan, run, today } = input;
   if (!plan?.weeks?.length) return null;
   const info = planPhase({ plan, settings: input.settings, participations: input.participations, runs: input.runs }, today);
@@ -200,6 +201,6 @@ export function weekModel(input: CardInput, showPace = true): WeekModel | null {
     runDay: run.date === today ? { today: true } : { today: false, weekday: Math.round((Date.parse(run.date) - Date.parse(week.startDate)) / 86400000) },
     // The finish screen's run isn't typed yet: no type claimed, just "today's run".
     runType: linked || input.session === undefined ? { key: `common.types.${type || "EASY"}` } : { key: "shareCard.week.run" },
-    stats: statsFor(run, showPace),
+    stats: statsFor(run, showPace, showHr),
   };
 }

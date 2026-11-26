@@ -11,7 +11,9 @@
     "route": "Afficher le parcours",
     "routeHint": "Tracé en ligne, sans carte",
     "pace": "Afficher l'allure",
-    "paceHint": "Le temps est toujours affiché"
+    "paceHint": "Le temps est toujours affiché",
+    "hr": "Afficher la fréquence cardiaque",
+    "hrHint": "Donnée de santé : masquée sauf si tu l'affiches"
   },
   "share": "Partager l'image",
   "download": "Télécharger l'image",

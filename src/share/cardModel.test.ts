@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { cardStyles, numberModel, routeModel, statsFor, weekModel, headlineEffort } from "./cardModel";
 import type { CardInput } from "./cardModel";
 import { buildPlan } from "../utils/plan";
+import { buildOpenPlan } from "../utils/openPlan";
 import { addDays } from "../utils/format";
 import type { Plan, PlanSession, Run, SettingsState } from "../types";
 
@@ -117,8 +118,12 @@ describe("measured-only ranking", () => {
 describe("statsFor", () => {
   it("never shows distance or pace for a km:0 session", () => {
     const run: Run = { id: "i", date: "2026-11-20", type: "OTHER", km: 0, durationSec: 2700, hr: 132 };
-    const stats = statsFor(run, true);
-    expect(stats.map(s => s.label.key)).toEqual(["shareCard.stat.time", "shareCard.stat.hr"]);
+    expect(statsFor(run, true, true).map(s => s.label.key)).toEqual(["shareCard.stat.time", "shareCard.stat.hr"]);
+  });
+
+  it("keeps heart rate off the card unless the runner turns it on", () => {
+    const run: Run = { id: "i", date: "2026-11-20", type: "OTHER", km: 0, durationSec: 2700, hr: 132 };
+    expect(statsFor(run, true).map(s => s.label.key)).toEqual(["shareCard.stat.time"]);
   });
 
   it("drops pace when the switch is off", () => {
@@ -223,5 +228,17 @@ describe.each(ANCHORS)("weekModel on a built plan (%s)", (_label, anchor) => {
     expect(m.weekM).toBe(race.weekNumber);
     expect(m.header).toMatchObject({ kind: "race", daysToGo: Math.round((Date.parse(raceDate) - Date.parse(today)) / 86400000) });
     expect(m.runDay).toEqual({ today: true });
+  });
+
+  it("an open plan counts its block and the week within it", () => {
+    const open = { ...settings, planSessions: [{ dayOffset: 1, minutes: 30 }, { dayOffset: 3, minutes: 30 }, { dayOffset: 5, minutes: 60 }],
+      planStyle: "balanced", trainingLevel: "occasional", distanceKm: 10 } as unknown as SettingsState;
+    const plan = buildOpenPlan(open, { kind: "block", target: "further", distanceKm: 5 }, { runs: [] });
+    const week = plan.weeks[5];
+    const sess = week.sessions[0];
+    const run: Run = { id: "r", date: sess.date, type: sess.type, km: 5, durationSec: 1800 };
+    const m = weekModel(input({ run, plan, settings: open, today: sess.date }))!;
+    expect(m.header).toEqual({ kind: "block", block: 2 });
+    expect([m.weekN, m.weekM]).toEqual([2, 4]);
   });
 });

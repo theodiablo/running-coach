@@ -11,7 +11,9 @@
     "route": "Mostrar el recorrido",
     "routeHint": "Dibujado como una línea, sin mapa",
     "pace": "Mostrar el ritmo",
-    "paceHint": "El tiempo siempre se muestra"
+    "paceHint": "El tiempo siempre se muestra",
+    "hr": "Mostrar la frecuencia cardiaca",
+    "hrHint": "Es un dato de salud: oculto salvo que lo actives"
   },
   "share": "Compartir imagen",
   "download": "Descargar imagen",
