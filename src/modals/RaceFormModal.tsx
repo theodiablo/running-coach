@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { MapPin, Check, Plus, AlertTriangle, Loader } from "lucide-react";
@@ -9,7 +9,9 @@ import { deleteRace } from "../races";
 import type { RaceTerrain } from "../races";
 import { useRaceSearch } from "../hooks/useRaceSearch";
 import { notifyContribution } from "../notify";
-import { countryCode, countryName, countryOptions } from "../utils/country";
+import { countryCode, countryName } from "../utils/country";
+import { guessCountry } from "../utils/guessCountry";
+import { CountryPicker } from "../components/CountryPicker";
 import type { CatalogueRace, CatalogueEdition } from "../types";
 
 type LatLng = { lat: number; lng: number };
@@ -41,15 +43,14 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const [selected, setSelected] = useState<CatalogueRace | null>(null); // an existing race to add a date to
-  const [f, setF] = useState<RaceForm>({ name: "", city: "", country: "", url: "",
-    date: prefill?.date || "", distanceKm: prefill?.distanceKm ?? "", elevation: prefill?.elevation ?? "" });
+  const [f, setF] = useState<RaceForm>(() => ({ name: "", city: "", country: guessCountry() ?? "", url: "",
+    date: prefill?.date || "", distanceKm: prefill?.distanceKm ?? "", elevation: prefill?.elevation ?? "" }));
   const [loc, setLoc] = useState<LatLng | null>(null);   // { lat, lng } picked on the map
   const [terrain, setTerrain] = useState<RaceTerrain>("road");
   const [showPicker, setShowPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k: keyof RaceForm, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
-  const countries = useMemo(() => countryOptions(i18n.language), [i18n.language]);
 
   // Live duplicate search on the name field (skipped once a race is selected).
   const q = f.name.trim();
@@ -140,15 +141,11 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
                   ))}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={LABEL_CLS}>{t("races.form.city")}</label>
-                  <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
-                <div><label htmlFor="race-country" className={LABEL_CLS}>{t("races.form.country")}</label>
-                  <select id="race-country" value={f.country} onChange={e => set("country", e.target.value)} aria-required="true" className={INPUT_CLS}>
-                    <option value="">{t("races.form.countryPlaceholder")}</option>
-                    {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-                  </select></div>
-              </div>
+              <div><label htmlFor="race-country" className={LABEL_CLS}>{t("races.form.country")}</label>
+                <CountryPicker id="race-country" value={f.country} onChange={code => set("country", code)} locale={i18n.language}
+                  placeholder={t("races.form.countryPlaceholder")} noMatch={t("races.form.countryNoMatch")}/></div>
+              <div><label className={LABEL_CLS}>{t("races.form.city")}</label>
+                <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
               <div role="group" aria-label={t("races.filters.terrain")}>
                 <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
                 <div className="flex bg-slate-900 rounded-xl p-1 gap-1">

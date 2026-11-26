@@ -18,7 +18,7 @@ const COUNTRY_CODES = new Set([
   "TR", "TT", "TV", "TW", "TZ", "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI",
   "VN", "VU", "WF", "WS", "XK", "YE", "YT", "ZA", "ZM", "ZW",
 ]);
-const ALIASES: Record<string, string> = { UK: "GB" };
+const ALIASES: Record<string, string> = { UK: "GB", USA: "US", UAE: "AE" };
 
 const namers = new Map<string, Intl.DisplayNames>();
 function regionName(code: string, locale = "en"): string | undefined {
@@ -42,9 +42,32 @@ export function countryName(code: string, locale?: string): string | null {
   return regionName(code, locale) ?? null;
 }
 
-// Every selectable country, named in the locale and sorted by that name.
-export function countryOptions(locale = "en"): { code: string; name: string }[] {
-  const options = [...COUNTRY_CODES].map(code => ({ code, name: countryName(code, locale) || code }));
+export interface CountryOption { code: string; name: string; search: string[] }
+
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+// Every selectable country, named in the locale and sorted by that name; `search` also
+// carries the English name, so "Spain" finds Espagne.
+export function countryOptions(locale = "en"): CountryOption[] {
+  const options = [...COUNTRY_CODES].map(code => {
+    const name = countryName(code, locale) || code;
+    return { code, name, search: [...new Set([fold(name), fold(countryName(code, "en") || "")])] };
+  });
   const collator = new Intl.Collator(locale);
   return options.sort((a, b) => collator.compare(a.name, b.name));
+}
+
+// Accent-insensitive type-ahead: a code or alias first, then names starting with the
+// query, then names with a word starting with it.
+export function filterCountries(options: CountryOption[], query: string): CountryOption[] {
+  const q = fold(query.trim());
+  if (!q) return options;
+  const code = countryCode(q);
+  const rank = (o: CountryOption) => {
+    if (o.code === code) return 0;
+    if (o.search.some(n => n.startsWith(q))) return 1;
+    if (o.search.some(n => n.split(/[\s\-’'(),.&]+/).some(w => w.startsWith(q)))) return 2;
+    return 3;
+  };
+  return options.map(o => ({ o, r: rank(o) })).filter(x => x.r < 3).sort((a, b) => a.r - b.r).map(x => x.o);
 }

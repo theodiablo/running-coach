@@ -10,11 +10,17 @@ vi.mock("../races", () => ({
   searchRaces: vi.fn().mockResolvedValue({ races: [], next: null, total: 0 }),
 }));
 vi.mock("../components/LocationPicker", () => ({ LocationPicker: () => null }));
+vi.mock("../utils/guessCountry", () => ({ guessCountry: vi.fn(() => null) }));
 
 import { setLocale } from "../i18n";
+import { guessCountry } from "../utils/guessCountry";
 import { RaceFormModal } from "./RaceFormModal";
 
-afterEach(async () => { cleanup(); await setLocale("en", { persist: false }); });
+afterEach(async () => {
+  cleanup();
+  vi.mocked(guessCountry).mockReturnValue(null);
+  await setLocale("en", { persist: false });
+});
 
 function setup() {
   const addRace = vi.fn().mockResolvedValue({ slug: "new-race", name: "New race" });
@@ -25,7 +31,16 @@ function setup() {
 }
 
 const typeName = (v: string) => fireEvent.change(screen.getByPlaceholderText("e.g. Lyon Marathon"), { target: { value: v } });
-const pickCountry = (code: string) => fireEvent.change(screen.getByRole("combobox", { name: /Country/ }), { target: { value: code } });
+const countryField = (name: RegExp = /Country/) => screen.getByRole("combobox", { name }) as HTMLInputElement;
+const typeCountry = (v: string, name?: RegExp) => {
+  fireEvent.focus(countryField(name));
+  fireEvent.change(countryField(name), { target: { value: v } });
+};
+const optionNames = () => screen.queryAllByRole("option").map(o => o.textContent);
+const pickCountry = (query: string, name: string) => {
+  typeCountry(query);
+  fireEvent.click(screen.getByRole("option", { name }));
+};
 const submit = () => fireEvent.click(screen.getByRole("button", { name: "Add race" }));
 
 describe("RaceFormModal country", () => {
@@ -37,33 +52,70 @@ describe("RaceFormModal country", () => {
     expect(addRace).not.toHaveBeenCalled();
   });
 
+  it("filters the list as the runner types, ignoring accents", () => {
+    setup();
+    typeCountry("tanz");
+    expect(optionNames()).toEqual(["Tanzania"]);
+    typeCountry("cote");
+    expect(optionNames()).toContain("Côte d’Ivoire");
+  });
+
   it("offers real countries only", () => {
     setup();
-    const select = screen.getByRole("combobox", { name: /Country/ });
-    const codes = Array.from(select.querySelectorAll("option")).map(o => o.getAttribute("value"));
-    expect(codes).toContain("TZ");
-    expect(codes).not.toContain("TA");
+    typeCountry("tristan");
+    expect(optionNames()).toEqual([]);
+    expect(screen.getByText("No country matches")).toBeInTheDocument();
   });
 
-  it.each([
-    ["fr", "Tanzanie", "Choisis un pays"],
-    ["es", "Tanzania", "Elige un país"],
-  ])("names the countries in %s", async (lang, tz, placeholder) => {
-    await setLocale(lang as "fr" | "es", { persist: false });
-    setup();
-    const select = screen.getByRole("combobox", { name: /Pays|País/ });
-    expect(select.querySelector('option[value=""]')).toHaveTextContent(placeholder);
-    expect(select.querySelector('option[value="TZ"]')).toHaveTextContent(tz);
-    expect(select.querySelector('option[value="DE"]')).toHaveTextContent(lang === "fr" ? "Allemagne" : "Alemania");
-  });
-
-  it("saves the picked country's code", async () => {
+  it("saves the picked country's code and shows its name", async () => {
     const { addRace } = setup();
     typeName("Hackney Half");
-    pickCountry("GB");
+    pickCountry("united k", "United Kingdom");
+    expect(countryField().value).toBe("United Kingdom");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     submit();
     await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
     expect(addRace.mock.calls[0][0]).toMatchObject({ name: "Hackney Half", country: "GB" });
+  });
+
+  it("picks with the keyboard", async () => {
+    const { addRace } = setup();
+    typeName("Kilimanjaro Marathon");
+    typeCountry("tanz");
+    fireEvent.keyDown(countryField(), { key: "Enter" });
+    expect(countryField().value).toBe("Tanzania");
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ country: "TZ" })));
+  });
+
+  it("keeps the previous country when the runner leaves without picking", () => {
+    vi.mocked(guessCountry).mockReturnValue("FR");
+    setup();
+    typeCountry("ger");
+    fireEvent.blur(countryField());
+    expect(countryField().value).toBe("France");
+  });
+
+  it("preselects the country the device is in", async () => {
+    vi.mocked(guessCountry).mockReturnValue("FR");
+    const { addRace } = setup();
+    typeName("Trail des Crêtes");
+    expect(countryField().value).toBe("France");
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ country: "FR" })));
+  });
+
+  it.each([
+    ["fr", /Pays/, "Tape pour chercher", "allem", "Allemagne"],
+    ["es", /País/, "Escribe para buscar", "alem", "Alemania"],
+  ])("names and searches the countries in %s", async (lang, label, placeholder, query, germany) => {
+    await setLocale(lang as "fr" | "es", { persist: false });
+    setup();
+    expect(countryField(label)).toHaveAttribute("placeholder", placeholder);
+    typeCountry(query, label);
+    expect(optionNames()).toEqual([germany]);
+    typeCountry("germany", label);
+    expect(optionNames()).toEqual([germany]);
   });
 
   it("doesn't ask for a country when adding a date to an existing race", async () => {
@@ -92,7 +144,7 @@ describe("RaceFormModal duplicates and terrain", () => {
   it("saves the terrain picked for a new race", async () => {
     const { addRace } = setup();
     typeName("Trail des Crêtes");
-    pickCountry("FR");
+    pickCountry("fra", "France");
     fireEvent.click(screen.getByRole("button", { name: "Trail" }));
     submit();
     await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ terrain: "trail" })));

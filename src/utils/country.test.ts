@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { countryCode, countryName, countryOptions } from "./country";
+import { countryCode, countryName, countryOptions, filterCountries } from "./country";
 
 describe("countryCode", () => {
   it("accepts ISO alpha-2 codes in any case, trimmed", () => {
@@ -45,5 +45,35 @@ describe("countryOptions", () => {
   it("leaves out reserved codes", () => {
     const codes = countryOptions().map(o => o.code);
     for (const v of ["TA", "IC", "EU"]) expect(codes).not.toContain(v);
+  });
+});
+
+describe("filterCountries", () => {
+  const en = countryOptions("en");
+  const names = (q: string, opts = en) => filterCountries(opts, q).map(o => o.name);
+
+  it("returns everything for an empty query", () => {
+    expect(filterCountries(en, "  ")).toHaveLength(250);
+  });
+
+  it("puts names starting with the query before names with a word starting with it", () => {
+    const guinea = names("guinea");
+    expect(guinea.slice(0, 2)).toEqual(["Guinea", "Guinea-Bissau"]);
+    expect(guinea).toEqual(expect.arrayContaining(["Equatorial Guinea", "Papua New Guinea"]));
+  });
+
+  it("ignores case and accents", () => {
+    expect(names("COTE")).toContain("Côte d’Ivoire");
+    expect(names("reunion")).toContain("Réunion");
+  });
+
+  it("matches codes and common aliases first", () => {
+    expect(names("uk")[0]).toBe("United Kingdom");
+    expect(names("usa")[0]).toBe("United States");
+    expect(names("tz")[0]).toBe("Tanzania");
+  });
+
+  it("finds a country by its English name in another language", () => {
+    expect(names("spain", countryOptions("fr"))).toEqual(["Espagne"]);
   });
 });
