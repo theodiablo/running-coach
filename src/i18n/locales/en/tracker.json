@@ -43,6 +43,7 @@
     "title": "Resume your previous run?",
     "pointsSaved_one": "{{count}} point saved.",
     "pointsSaved_other": "{{count}} points saved.",
+    "noGps": "No GPS position saved.",
     "resume": "Resume",
     "discard": "Discard",
     "from": "Recorded {{date}}."

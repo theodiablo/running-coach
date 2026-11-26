@@ -87,7 +87,13 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
     rt.start();
   };
   const countdown = useCountdown(startSession);
-  const startWithCountdown = () => (reducedMotion ? startSession() : countdown.start(3));
+  // rt.prepare: the countdown can end behind a locked screen, where Android refuses the service.
+  const startWithCountdown = () => {
+    if (reducedMotion) { startSession(); return; }
+    rt.prepare();
+    countdown.start(3);
+  };
+  const cancelCountdown = () => { countdown.cancel(); rt.cancelPrepare(); };
   // The nudge replaces this Start; the deferred action runs once it's dismissed.
   const handleStart = () => {
     if (hr.nudge) { setShowHrNudge(true); return; }
@@ -164,7 +170,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
   const canMinimize = !!onMinimize && (live || state === "stopped");
   useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
-  useDismissable(countdown.count !== null, countdown.cancel);
+  useDismissable(countdown.count !== null, cancelCountdown);
 
   const clock = fmt.dur(stats.movingSec) === "--" ? "0:00" : fmt.dur(stats.movingSec);
 
@@ -335,7 +341,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
       )}
 
       {countdown.count !== null && (
-        <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
+        <CountdownOverlay count={countdown.count} onCancel={cancelCountdown} />
       )}
     </div>
     </>

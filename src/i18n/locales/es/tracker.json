@@ -43,6 +43,7 @@
     "title": "¿Reanudar el entrenamiento anterior?",
     "pointsSaved_one": "{{count}} punto guardado.",
     "pointsSaved_other": "{{count}} puntos guardados.",
+    "noGps": "No se guardó ninguna posición GPS.",
     "resume": "Reanudar",
     "discard": "Descartar",
     "from": "Registrado el {{date}}."

@@ -43,6 +43,7 @@
     "title": "Reprendre ta sortie précédente ?",
     "pointsSaved_one": "{{count}} point enregistré.",
     "pointsSaved_other": "{{count}} points enregistrés.",
+    "noGps": "Aucune position GPS enregistrée.",
     "resume": "Reprendre",
     "discard": "Abandonner",
     "from": "Enregistrée le {{date}}."
