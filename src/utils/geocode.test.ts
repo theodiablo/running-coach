@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { parseGeocodeResult, parseReverseResult } from "./geocode";
+import { describe, it, expect, vi, afterEach } from "vitest";
+
+vi.mock("../constants", () => ({ MAP_KEY: "test-key" }));
+
+import { parseGeocodeResult, parseReverseResult, reverseGeocode, REVERSE_GEOCODE_TIMEOUT_MS } from "./geocode";
 
 describe("parseGeocodeResult", () => {
   it("reads [lng, lat] center off the first feature", () => {
@@ -46,5 +49,27 @@ describe("parseReverseResult", () => {
 
   it("returns null for an empty or malformed response", () => {
     for (const json of [null, {}, { features: [] }, { features: ["x"] }, { features: [{}] }]) expect(parseReverseResult(json)).toBeNull();
+  });
+});
+
+describe("reverseGeocode", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
+  const moshi = { features: [{ id: "municipality.1", text: "Moshi", place_type: ["municipality"], properties: { country_code: "tz" } }] };
+
+  it("works where AbortSignal.timeout doesn't exist (iOS 15)", async () => {
+    vi.stubGlobal("AbortSignal", Object.assign(function () {}, { timeout: undefined }));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(moshi))));
+    await expect(reverseGeocode({ lat: -3.35, lng: 37.34 })).resolves.toEqual({ country: "TZ", city: "Moshi" });
+    expect(vi.mocked(fetch).mock.calls[0][0]).toContain("/geocoding/37.34,-3.35.json?key=test-key");
+  });
+
+  it("gives up after the timeout so the form is never held", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    })));
+    const pending = reverseGeocode({ lat: 0, lng: 0 });
+    await vi.advanceTimersByTimeAsync(REVERSE_GEOCODE_TIMEOUT_MS);
+    await expect(pending).resolves.toBeNull();
   });
 });
