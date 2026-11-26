@@ -82,7 +82,7 @@
     "addDetailsCross": "Add heart rate, effort, notes",
     "durationPh": "0:00",
     "durationHint": "Digits fill from the right: 4300 is 43:00, 15207 is 1:52:07.",
-    "paceFast": "That's {{pace}}/km, faster than any runner. Check the distance and time.",
+    "paceFast": "That's {{pace}}/km, unusually fast. Check the distance and time.",
     "paceSlow": "That's {{pace}}/km, slower than walking. Check the distance and time."
   },
   "validation": {

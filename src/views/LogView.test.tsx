@@ -81,7 +81,7 @@ describe("LogView save", () => {
     setup({ addRuns });
     fireEvent.change(screen.getByLabelText("Distance (km)"), { target: { value: "6.35" } });
     fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "383" } });
-    expect(screen.getByText(/faster than any runner/)).toBeInTheDocument();
+    expect(screen.getByText(/unusually fast/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
     expect(addRuns).toHaveBeenCalledTimes(1);
   });

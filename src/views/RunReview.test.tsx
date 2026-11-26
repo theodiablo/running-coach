@@ -62,10 +62,10 @@ describe("RunReview · correcting a number is a deliberate step", () => {
     correct();
     // The slip behind the 4:23 run: 38:37 with its last digit popped.
     fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "383" } });
-    expect(screen.getByText(/faster than any runner/)).toBeInTheDocument();
+    expect(screen.getByText(/unusually fast/)).toBeInTheDocument();
     expect(screen.getByText("Corrected by you")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Use the recorded 6.35 km, 38:37/ }));
-    expect(screen.queryByText(/faster than any runner/)).toBeNull();
+    expect(screen.queryByText(/unusually fast/)).toBeNull();
     save();
     expect(savedRun(addRuns)).toMatchObject({ durationSec: 2317 });
   });

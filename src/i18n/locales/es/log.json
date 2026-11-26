@@ -82,7 +82,7 @@
     "addDetailsCross": "Añadir frecuencia cardiaca, esfuerzo, notas",
     "durationPh": "0:00",
     "durationHint": "Los dígitos se rellenan desde la derecha: 4300 es 43:00, 15207 es 1:52:07.",
-    "paceFast": "Eso es {{pace}}/km, más rápido que cualquier corredor. Revisa la distancia y el tiempo.",
+    "paceFast": "Eso es {{pace}}/km, un ritmo inusualmente rápido. Revisa la distancia y el tiempo.",
     "paceSlow": "Eso es {{pace}}/km, más lento que caminar. Revisa la distancia y el tiempo."
   },
   "validation": {
