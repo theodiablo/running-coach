@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { shareImage, sharesFiles } from "./shareImage";
+import { shareImage, shareLink, sharesFiles } from "./shareImage";
 
 const blob = new Blob(["png"], { type: "image/png" });
 const nav = navigator as unknown as { share?: unknown; canShare?: unknown };
@@ -12,13 +12,17 @@ afterEach(() => {
 });
 
 describe("shareImage", () => {
-  it("hands the file alone to the share sheet when the browser takes files", async () => {
+  it("hands the file and the text to the share sheet when the browser takes files", async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     Object.assign(nav, { share, canShare: () => true });
-    expect(await shareImage(blob, "run.png")).toBe("shared");
+    expect(await shareImage(blob, "run.png", "Tracked with Running Coach: https://x")).toBe("shared");
     const payload = share.mock.calls[0][0];
-    expect(Object.keys(payload)).toEqual(["files"]);
     expect(payload.files[0].name).toBe("run.png");
+    expect(payload.text).toBe("Tracked with Running Coach: https://x");
+  });
+
+  it("tags the link with the card style for the /get redirect's counts", () => {
+    expect(shareLink("number")).toBe("https://run.camboulive.solutions/get?src=share-number");
   });
 
   it("reads a dismissed sheet as a decision, not a failure", async () => {

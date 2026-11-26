@@ -34,7 +34,7 @@ describe("ShareCardSheet", () => {
   it("offers no Route chip and no route switches for a run without a trace", () => {
     setup({ id: "r", date: ymd, type: "EASY", km: 5, durationSec: 1800 });
     expect(screen.queryByRole("button", { name: "Route" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Hide start and finish" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show the route" })).toBeNull();
   });
 
   it("hides the pace switch for an indoor session", () => {

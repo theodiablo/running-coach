@@ -10,8 +10,6 @@
   "toggles": {
     "route": "Mostrar el recorrido",
     "routeHint": "Dibujado como una línea, sin mapa",
-    "mask": "Ocultar salida y llegada",
-    "maskHint": "Oculta la línea a menos de 300 m de donde saliste y llegaste",
     "pace": "Mostrar el ritmo",
     "paceHint": "El tiempo siempre se muestra"
   },
@@ -74,5 +72,6 @@
     "run": "mi entrenamiento",
     "footer": "Mi plan, creado por Running Coach"
   },
-  "loadError": "No se pudo abrir la tarjeta. Revisa tu conexión e inténtalo de nuevo."
+  "loadError": "No se pudo abrir la tarjeta. Revisa tu conexión e inténtalo de nuevo.",
+  "shareText": "Registrado con Running Coach: {{url}}"
 }

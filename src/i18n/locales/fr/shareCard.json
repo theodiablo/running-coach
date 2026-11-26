@@ -10,8 +10,6 @@
   "toggles": {
     "route": "Afficher le parcours",
     "routeHint": "Tracé en ligne, sans carte",
-    "mask": "Masquer le départ et l'arrivée",
-    "maskHint": "Masque le tracé à moins de 300 m du départ et de l'arrivée",
     "pace": "Afficher l'allure",
     "paceHint": "Le temps est toujours affiché"
   },
@@ -74,5 +72,6 @@
     "run": "ma sortie",
     "footer": "Mon plan, construit par Running Coach"
   },
-  "loadError": "Impossible d'ouvrir la carte. Vérifie ta connexion et réessaie."
+  "loadError": "Impossible d'ouvrir la carte. Vérifie ta connexion et réessaie.",
+  "shareText": "Enregistré avec Running Coach : {{url}}"
 }

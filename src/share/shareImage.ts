@@ -2,6 +2,7 @@
 // browser can, and downloads it otherwise; native shells get their own path in a
 // later PR, so the action is hidden there until then. docs/share-card.md.
 import { isNative } from "../native";
+import { WEB_APP_ORIGIN } from "../constants";
 
 export type ShareResult = "shared" | "saved" | "dismissed" | "failed";
 
@@ -30,12 +31,18 @@ function download(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export async function shareImage(blob: Blob, fileName: string): Promise<ShareResult> {
+// The /get redirect routes each phone to its store and counts the visit under `src`
+// (docs/store-redirect.md); one tag per card style says which one brings people in.
+export function shareLink(style: string): string {
+  return `${WEB_APP_ORIGIN}/get?src=share-${style}`;
+}
+
+// `text` rides along where the receiving app keeps it (messaging, mail); others drop it.
+export async function shareImage(blob: Blob, fileName: string, text?: string): Promise<ShareResult> {
   const file = new File([blob], fileName, { type: "image/png" });
   if (sharesFiles(file)) {
     try {
-      // Files only: a text or url alongside makes some apps drop the image.
-      await navigator.share({ files: [file] });
+      await navigator.share(text ? { files: [file], text } : { files: [file] });
       return "shared";
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return "dismissed";

@@ -10,8 +10,6 @@
   "toggles": {
     "route": "Show the route",
     "routeHint": "Drawn as a line, no map",
-    "mask": "Hide start and finish",
-    "maskHint": "Hides the line within 300 m of where you started and finished",
     "pace": "Show pace",
     "paceHint": "Time is always shown"
   },
@@ -74,5 +72,6 @@
     "run": "my run",
     "footer": "My plan, built by Running Coach"
   },
-  "loadError": "Couldn't open the share card. Check your connection and try again."
+  "loadError": "Couldn't open the share card. Check your connection and try again.",
+  "shareText": "Tracked with Running Coach: {{url}}"
 }

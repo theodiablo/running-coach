@@ -14,7 +14,7 @@ import { routeShape } from "../share/routeShape";
 import { CARD_H, CARD_W, ROUTE_BOX, ROUTE_STROKE, drawCard } from "../share/drawCard";
 import type { CardView, TFn } from "../share/drawCard";
 import { loadCardFonts } from "../share/fonts";
-import { shareImage, sharesFiles } from "../share/shareImage";
+import { shareImage, shareLink, sharesFiles } from "../share/shareImage";
 import type { TrackPointOrGap } from "../utils/geo";
 import type { Participation, Plan, PlanSession, Run, SettingsState } from "../types";
 
@@ -67,15 +67,14 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
     return info?.race && info.catalogue ? catalogueRaceLabel(info.race.editionId, participations, "") || null : null;
   }, [plan, settings, participations, runs, today]);
 
+  // Start and finish are always hidden: most runs start at a front door. docs/share-card.md.
   const masked = useMemo(() => routeShape(indoor ? null : points, { box: ROUTE_BOX, mask: true, strokePx: ROUTE_STROKE }), [points, indoor]);
-  const unmasked = useMemo(() => masked ? routeShape(points, { box: ROUTE_BOX, mask: false, strokePx: ROUTE_STROKE }) : null, [points, masked]);
 
   const input: CardInput = { run, runs, plan, settings, participations, today, session, hasRoute: !!masked, raceLabel };
   const { offered, preselected } = cardStyles(input);
   const [picked, setStyle] = useState<CardStyle>(preselected);
   const style = offered.includes(picked) ? picked : preselected;
   const [showRoute, setShowRoute] = useState(true);
-  const [mask, setMask] = useState(true);
   const [showPace, setShowPace] = useState(true);
   const [fontsReady, setFontsReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -84,7 +83,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   const view: CardView = (() => {
     const date = fmt.sht(run.date);
     if (style === "route") {
-      return { style, t: tf, date, showRoute, shape: mask ? masked : unmasked, model: routeModel(input, showPace),
+      return { style, t: tf, date, showRoute, shape: masked, model: routeModel(input, showPace),
         footer: { key: APP_STORE_URL ? "shareCard.footerStores" : "shareCard.footer" } };
     }
     const week = style === "week" ? weekModel(input, showPace) : null;
@@ -147,7 +146,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
       drawCard(ctx, view, EXPORT_SCALE);
       const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/png"));
       if (!blob) throw new Error("no image");
-      const result = await shareImage(blob, `run-${run.date}.png`);
+      const result = await shareImage(blob, `run-${run.date}.png`, t("shareCard.shareText", { url: shareLink(style) }));
       if (result === "failed") showToast?.(t("shareCard.failed"), "err");
       else if (result === "saved") showToast?.(t("shareCard.saved"));
     } catch {
@@ -191,7 +190,6 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
           {style === "route" && (
             <>
               <Toggle label={t("shareCard.toggles.route")} hint={t("shareCard.toggles.routeHint")} on={showRoute} onChange={setShowRoute} />
-              {showRoute && <Toggle label={t("shareCard.toggles.mask")} hint={t("shareCard.toggles.maskHint")} on={mask} onChange={setMask} />}
             </>
           )}
           {!indoor && <Toggle label={t("shareCard.toggles.pace")} hint={t("shareCard.toggles.paceHint")} on={showPace} onChange={setShowPace} />}
