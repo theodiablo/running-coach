@@ -1,11 +1,12 @@
-# Post-run share card (design)
+# Post-run share card
 
-Status: **design, awaiting approval**. Nothing below is built yet. The product
+Status: **PR 1 (card, builder, web sharing) is built**; PR 2 (native sharing)
+and PR 3 (analytics) are designed, not built (see "PR split"). The product
 decisions are in `docs/social.md` ("Post-run share card"), the visual design in
 the maintainer's canvas (https://claude.ai/artifact/TJeaNbU8BedgAJN5o6hTG4:
 `Main` = A, `Card-Number` = B, `Card-Plan` = D, `Flow-Finish`,
-`Flow-Composer`). This file is the technical design. Once the work ships it
-becomes the reference doc and this status line goes.
+`Flow-Composer`). This file is the technical design and, for what is built,
+the reference.
 
 ## What the runner gets
 
@@ -29,21 +30,24 @@ All new code sits in one lazy chunk, loaded when the builder first opens, so
 the canvas drawing code and the fonts never weigh on app start.
 
 - `src/share/cardModel.ts`: **pure**. Builds the data each style draws
-  (`routeCardModel`, `numberCardModel`, `weekCardModel`) and decides which
-  styles are offered and which is pre-selected (`cardStyles`, below). No DOM.
+  (`routeModel`, `numberModel`, `weekModel`, with `statsFor`,
+  `headlineEffort` and `settledSession`) and decides which styles are offered
+  and which is pre-selected (`cardStyles`, below). No DOM.
 - `src/share/routeShape.ts`: **pure**. Trims, projects, simplifies and fits a
   trace into the card's route box.
 - `src/share/drawCard.ts`: draws a model onto a `CanvasRenderingContext2D`.
-  One function per style plus small helpers (`wrapText`, `roundRect`, `pill`).
+  One function per style plus small helpers (`wrapText`, `fitText`,
+  `roundRectPath`).
   The only code that touches the canvas API.
 - `src/share/shareImage.ts`: the share seam (web vs native, below).
+- `src/share/fonts.ts`: loads the card fonts (below).
 - `src/modals/ShareCardSheet.tsx`: the builder. Registers `useDismissable`.
+  `ShareCardGate.tsx` lazy-loads it behind `ChunkLoadBoundary`.
 - `src/i18n/locales/{en,fr,es}/shareCard.json`: all copy.
 
 ## Rendering: Canvas 2D
 
-**Recommendation: draw with Canvas 2D, and use the same drawing for the preview
-and the export.**
+**Canvas 2D, with the same drawing for the preview and the export.**
 
 SVG → PNG was the alternative (build an SVG string, load it into an `<img>`,
 draw that into a canvas, `toBlob`). It looks simpler but breaks where it
@@ -93,10 +97,10 @@ the canvas's two families:
 - **Archivo** (`@fontsource/archivo`, already a dependency, today only in the
   web marketing chunk) for the figures and headlines: weights 800 and 900.
 - **Inter** (`@fontsource/inter`, **a new dependency** in PR 1) for labels and
-  body text: weights 400, 500, 600 and 700.
+  body text: weights 400, 600 and 700.
 - Both use the `latin` + `latin-ext` subsets (accents and race names like
   "Łódź"), imported as `?url` woff2 assets in the share chunk only. That is
-  about 12 files, ~25 KB each, loaded on first open.
+  10 files (5 faces × 2 subsets), ~25 KB each, loaded on first open.
 - They ship inside the APK/IPA because they're local assets: no Google Fonts
   and no CSP change.
 - The builder loads them with `new FontFace(...)` + `document.fonts.add` and
@@ -120,11 +124,14 @@ routine.
 
 ```ts
 type CardStyle = "route" | "number" | "week";
-cardStyles(input): { offered: CardStyle[]; preselected: CardStyle }
+cardStyles(input: CardInput): { offered: CardStyle[]; preselected: CardStyle }
+// CardInput = { run, runs, plan, settings, participations, today, session?,
+//               hasRoute, raceLabel }
 ```
 
-Input: whether the run is a personal best, whether it has a usable trace,
-whether a plan session goes with it, and the plan phase.
+From that input it derives whether the run is a personal best, whether it has
+a usable trace (`hasRoute`: the masked shape exists), whether a plan session
+goes with it, and the plan phase.
 
 Rules, in order (the decided rule, plus the fallbacks the decision didn't
 cover):
@@ -228,9 +235,9 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
 **D: Training week**
 
 - `planPhase(...)` for where the runner stands, `mainRace(plan, settings)` for
-  the race. The race's display name is the logic Home already uses (catalogue
-  label, participation label, else "your race"). PR 1 moves that out of
-  `Dashboard.tsx` into a shared helper rather than copying it.
+  the race. A catalogue race is named by `catalogueRaceLabel`
+  (`src/utils/races.ts`), the helper Home uses too; otherwise the card says
+  "my race" (`shareCard.week.myRace`).
 - Days to go: from `race.date` (`daysSince` negated). "Race day" on the day.
 - Week n of m: the current week's `weekNumber` out of the race week's.
   Recovery weeks after the race aren't counted. Elapsed `past-` weeks are
@@ -299,9 +306,10 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      leg running just outside a circle still paints half its stroke width
      inside it. So the geometric clip uses the circle radius **plus half the
      widest stroke** (the 14 px under-stroke, 7 px), converted to metres at
-     the final fit scale. The fit scale depends on what is kept, so this
-     iterates: fit, enlarge, clip, refit. It converges in two or three passes,
-     because enlarging only shrinks the kept bounding box.
+     the final fit scale. The fit scale depends on what is kept, so it is one
+     refit: clip at 300 m, fit, enlarge the radius by half the stroke at that
+     scale, clip again, fit. Enlarging only shrinks the kept bounding box, so
+     the final scale is never smaller and the margin still holds.
    - As a second, independent guard, `drawCard` clips the canvas before
      stroking the route. Successive `clip()` calls intersect, so it is:
      1. clip to the route box;
@@ -521,7 +529,7 @@ precisely because analytics undercount. The project already counts
 non-personal aggregates server-side without consent (`qr_scans` stores no IP or
 user agent; `live_broadcasts` feeds the digest).
 
-**Recommendation: a server-side anonymous counter as the digest's source.**
+**A server-side anonymous counter is the digest's source** (decided).
 Plus the usual PostHog `track` events for consenting users, for funnels the
 counter can't do. The counter must stay non-personal for this to be honest, so
 the row shape is fixed:
@@ -588,33 +596,24 @@ grant insert on public.share_card_events to authenticated;
   `{entry, preselected}` and `share_card_shared` `{entry, preselected, chosen,
   event}`. No run data, no text.
 
-**Decided: option (a).** The maintainer's rule is "count everything, as long as
-it is anonymous". The options as they were weighed follow. The counter adds an
-automatic, consent-free server write to the client. CLAUDE.md and
-`docs/telemetry.md` say anything that collects automatically belongs to one of
-the two consent channels, "never a borrowed consent". Neither document carves
-out non-personal ledgers today. `qr_scans` and `live_broadcasts` count without
-consent, but that is a practice, not a documented rule. So the counter
-**doesn't ship on the strength of the precedent alone**. PR 3 takes one of
-these, and you choose which:
+**The exception is written down first.** The rule is "count everything, as
+long as it is anonymous", but CLAUDE.md and `docs/telemetry.md` say anything
+that collects automatically belongs to a consent channel, and neither carves
+out non-personal ledgers today. So PR 3 adds a "Non-personal server counters"
+section to `docs/telemetry.md` before the insert exists, defining what
+qualifies:
 
-- **(a) Document the exception first.** PR 3 adds a "Non-personal server
-  counters" section to `docs/telemetry.md`, before the insert exists, defining
-  what qualifies:
-  - no user, device, run or session id;
-  - no free text and no location;
-  - only enumerated values;
-  - aggregate reads only (`admin_metrics()`).
+- no user, device, run or session id;
+- no free text and no location;
+- only enumerated values;
+- aggregate reads only (`admin_metrics()`).
 
-  It lists `qr_scans`, `live_broadcasts` and `share_card_events` under it, and
-  CLAUDE.md's telemetry line points to it. The digest gets whole counts, and
-  the rule becomes written instead of implied. **Chosen.**
-- **(b) Gate the insert on analytics consent** (`getConsent()`). No new
-  rule is needed, but the table then undercounts exactly like PostHog,
-  which takes away the reason to build it.
-- **(c) PostHog only.** No table. The digest states the consenting-slice
-  caveat, fetched through PostHog's query API, which `admin-metrics` doesn't
-  use today.
+It lists `qr_scans`, `live_broadcasts` and `share_card_events` under it, and
+CLAUDE.md's telemetry line points to it.
+
+Rejected: gating the insert on analytics consent (it undercounts like PostHog,
+the reason to build it), and PostHog only (the digest would carry the
+consenting-slice caveat).
 
 ## Test plan
 
@@ -704,7 +703,7 @@ store-release effect sits alone in a small one:
    - `src/share/*` (model, route shape, drawing, web half of `shareImage`);
    - `ShareCardSheet`;
    - both entry points;
-   - the race-label helper moved out of `Dashboard.tsx`;
+   - `catalogueRaceLabel` in `src/utils/races.ts`, shared by Home and the card;
    - i18n in all three locales;
    - `@fontsource/inter` and `@napi-rs/canvas` (dev only) as new dependencies.
 
@@ -728,8 +727,8 @@ store-release effect sits alone in a small one:
    It lands after PR 1, which creates the builder its client write goes into.
    Ideally merged right after it, so the counts start close to the feature.
 
-Each PR: lint, `typecheck:all`, tests and build green. This doc is updated from
-"design" to reference as the parts land, and CLAUDE.md gets a one-line rule only
+Each PR: lint, `typecheck:all`, tests and build green. This doc becomes the
+reference for each part as it lands, and CLAUDE.md gets a one-line rule only
 if one turns out to be cross-cutting.
 
 ## Decisions (maintainer, 2026-11-22)
