@@ -77,6 +77,22 @@ describe("routeShape: the start/finish mask", () => {
     expect(nearestPaint(s, mid)).toBeLessThan(0);
   });
 
+  it("hides the start of a route that crosses the antimeridian", () => {
+    // Out and back across 180°, starting 100 m west of it.
+    const k = M_PER_DEG * Math.cos((-16.8 * Math.PI) / 180);
+    const xs = path([[-100, 0], [3000, 0], [3000, 1000], [-3000, 1000], [-3000, 0], [-100, 0]]);
+    const pts: TrackPointOrGap[] = xs.map(([x, y], i) => {
+      const lng = 180 + x / k;
+      return [-16.8 + y / M_PER_DEG, lng > 180 ? lng - 360 : lng, i * 1000, null];
+    });
+    const s = masked(pts);
+    expect(s).not.toBeNull();
+    expect(nearestPaint(s, s.start)).toBeGreaterThanOrEqual(s.maskRadiusPx! - 1e-6);
+    expect(nearestPaint(s, s.finish)).toBeGreaterThanOrEqual(s.maskRadiusPx! - 1e-6);
+    // The whole 6 km loop fills the card, not one leg across the world.
+    expect(s.paths.flat().length).toBeGreaterThan(4);
+  });
+
   it("offers nothing when a short loop sits inside the mask", () => {
     expect(masked(trace(path([[0, 0], [150, 0], [150, 150], [0, 150], [0, 0]])))).toBeNull();
   });

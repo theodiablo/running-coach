@@ -36,6 +36,19 @@ type Origin = { lat0: number; lng0: number };
 const realPoints = (points: TrackPointOrGap[]) =>
   points.filter((p): p is NonNullable<TrackPointOrGap> => !!p && Number.isFinite(Number(p[0])) && Number.isFinite(Number(p[1])));
 
+// Across ±180° each longitude is shifted by 360° to stay next to the one before, or the
+// projection, the simplifier and the mask read one step as a world apart.
+export function unwrapLng(points: TrackPointOrGap[]): TrackPointOrGap[] {
+  let prev: number | null = null;
+  return points.map(p => {
+    if (!p || !Number.isFinite(Number(p[1]))) return p;
+    let lng = Number(p[1]);
+    if (prev !== null) lng -= 360 * Math.round((lng - prev) / 360);
+    prev = lng;
+    return lng === Number(p[1]) ? p : [p[0], lng, ...p.slice(2)];
+  });
+}
+
 function originOf(points: TrackPointOrGap[]): Origin | null {
   const real = realPoints(points);
   if (real.length < 2) return null;
@@ -143,6 +156,7 @@ export type ShapeOpts = { box: Box; mask: boolean; strokePx: number };
 // Null when there is no usable line to draw.
 export function routeShape(points: TrackPointOrGap[] | null | undefined, opts: ShapeOpts): RouteShape | null {
   if (!points?.length) return null;
+  points = unwrapLng(points);
   const origin = originOf(points);
   const raw = origin && project(points, origin);
   if (!origin || !raw) return null;
