@@ -327,8 +327,9 @@ switched on).
      stroking the route. Successive `clip()` calls intersect, so it is:
      1. clip to the route box;
      2. for **each** circle separately, clip to (route box + that circle) with
-        the `evenodd` rule, i.e. the box minus that one circle. Each circle is
-        at exactly 300 m in card pixels.
+        the `evenodd` rule, i.e. the box minus that one circle. Each circle
+        is the offset one at its full radius (300 m + offset) in card pixels,
+        so it alone covers 300 m around the true point.
 
      The result is the box minus both circles, however they sit.
      - A single `evenodd` path holding the box and both circles would be
