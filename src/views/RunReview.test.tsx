@@ -201,3 +201,12 @@ describe("RunReview · the session a recorded run is offered", () => {
     expect(screen.getByText(/Week 3/)).toBeInTheDocument();
   });
 });
+
+describe("RunReview · a walk", () => {
+  it("doesn't call a slow hike from the watch a mistake", () => {
+    setup({ date: "2026-11-22", type: "WALK", km: 3, durationSec: 4200, source: "watch", hcId: "hc-9" });
+    expect(screen.queryByLabelText("Distance (km)")).toBeNull();
+    expect(screen.queryByText(/slower than walking/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
+  });
+});

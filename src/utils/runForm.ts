@@ -130,7 +130,8 @@ export const paceWarning = (f: Pick<RunFormValues, "type" | "km" | "dur">): Pace
   if (f.type === "OTHER" || !(km > 0) || !(sec > 0)) return null;
   const pace = sec / km;
   if (pace < PACE_FASTEST_SEC) return { kind: "fast", pace };
-  if (pace > PACE_SLOWEST_SEC) return { kind: "slow", pace };
+  // A hike or a slow walk can honestly be slower than this; only a run can't.
+  if (pace > PACE_SLOWEST_SEC && f.type !== "WALK") return { kind: "slow", pace };
   return null;
 };
 

@@ -198,6 +198,10 @@ describe("paceWarning", () => {
   it("flags a pace slower than walking", () => {
     expect(paceWarning(form("1", "2500"))).toMatchObject({ kind: "slow" });
   });
+  it("lets a hike or a slow walk be slow", () => {
+    expect(paceWarning(form("3", "11000", "WALK"))).toBeNull();
+    expect(paceWarning(form("6.35", "383", "WALK"))).toMatchObject({ kind: "fast" });
+  });
   it("leaves real runs and walks alone", () => {
     expect(paceWarning(form("6.35", "3837"))).toBeNull();
     expect(paceWarning(form("5", "13000"))).toBeNull();

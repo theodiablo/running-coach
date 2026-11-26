@@ -129,7 +129,7 @@ export function RunReview({ addRuns, onDone, onSaved, prefill }: RunReviewProps)
         )}
         <div className="flex items-center justify-between gap-3 px-4 py-2.5 mt-3 border-t border-slate-700 text-xs text-slate-400">
           <span>{provenance}</span>
-          <button type="button" onClick={() => setCorrecting(c => !c)} aria-expanded={correcting} aria-controls={fid("correct")}
+          <button type="button" onClick={() => setCorrecting(c => !c)} aria-expanded={correcting} aria-controls={correcting ? fid("correct") : undefined}
             className="font-semibold text-orange-300 hover:text-orange-200 underline underline-offset-2">
             {correcting ? t("log.review.correctDone") : t("log.review.correct")}
           </button>
