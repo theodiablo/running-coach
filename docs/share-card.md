@@ -328,6 +328,10 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      distance definition. A is never drawn without the mask.
    - No start or finish dots: they would sit on the edge of the hidden circle
      and point at its centre.
+   - The builder says so under the Route preview, in one line with a shield
+     icon (`shareCard.privacyNote`: "For your privacy, the line leaves out
+     300 m around where you started and finished."). It shows only while a
+     route is drawn, so no other style claims a mask it doesn't need.
    - **Why no switch** (maintainer, 2026-11-26): the card has no map, but a
      recognisable shape can still be laid over one, and most runs start at a
      front door. Hiding can't be turned off, so the builder has one control
