@@ -119,7 +119,7 @@ describe("IndoorTracker", () => {
     streamFullSession();
     vi.setSystemTime(START + 1_800_000); // 30 min
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
 
     expect(onFinish).toHaveBeenCalledTimes(1);
     expect(onFinish.mock.calls[0][0]).toMatchObject({
@@ -154,7 +154,7 @@ describe("IndoorTracker", () => {
     act(() => hr.watches[0].onSample({ bpm: 122, t: START + 60_000 }));
     vi.setSystemTime(START + 1_800_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
 
     const saved = onFinish.mock.calls[0][0];
     expect(saved.hr).toBeUndefined();
@@ -172,7 +172,7 @@ describe("IndoorTracker", () => {
     streamFullSession();
     vi.setSystemTime(START + 1_800_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     // The other side of the coverage guard: a stream that covered the session
     // does get quoted as its heart rate.
     const saved = onFinish.mock.calls[0][0];
@@ -187,7 +187,7 @@ describe("IndoorTracker", () => {
     start();
     vi.setSystemTime(START + 600_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     expect(onFinish.mock.calls[0][0].activity).toBe("elliptical");
   });
 
@@ -197,7 +197,7 @@ describe("IndoorTracker", () => {
     start();
     vi.setSystemTime(START + 600_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     expect(onFinish.mock.calls[0][0].activity).toBe("rower");
   });
 
@@ -212,7 +212,7 @@ describe("IndoorTracker", () => {
       start();
       vi.setSystemTime(START + 1_800_000);
       finish();
-      await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
       return onFinish.mock.calls[0][0];
     };
 
@@ -371,7 +371,7 @@ describe("IndoorTracker", () => {
     start();
     vi.setSystemTime(START + 600_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     const saved = onFinish.mock.calls[0][0];
     expect(saved).toMatchObject({ type: "OTHER", km: 0, durationSec: 600 });
     // No sensor, no invented numbers.

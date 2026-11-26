@@ -692,7 +692,12 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `prefill` prop and an `onSaved` callback (fires only on a real manual save),
   used to log a run straight from a plan session and auto-tick it; a prefilled
   arrival says which session it will tick off rather than doing it silently.
-  A plan session offers the same two verbs everywhere (Dashboard card and
+  A run a device measured (`isRecordedArrival`: tracker, indoor, watch import)
+  goes to `RunReview` instead: the measurement is shown, not asked; changing it
+  is a deliberate "Correct a number" step that warns on an impossible pace
+  (`paceWarning`, never blocks); and it asks only what the runner knows (kind of
+  run, effort, notes). The recorders' stopped-screen button is "Continue", so
+  "Save run" is pressed once. A plan session offers the same two verbs everywhere (Dashboard card and
   `PlanSessionRow`): **Start run** opens a recorder, **I did it** opens
   `DidItSheet` (add the run's details → the form, pick a saved run →
   `ReconcileSheet`, just tick it off) — a new surface must not invent a third

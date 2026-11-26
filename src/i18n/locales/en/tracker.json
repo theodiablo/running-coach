@@ -13,7 +13,7 @@
     "complete": "Session complete",
     "machine": "Machine",
     "start": "Start session",
-    "save": "Save session",
+    "save": "Continue",
     "noSensor": "No heart-rate sensor set up",
     "zoneUnknown": "no reading",
     "zoneFloorBpm": "{{bpm}} bpm (Z1)",
@@ -74,7 +74,7 @@
     "holdToFinish": "Hold to finish",
     "resume": "Resume",
     "discard": "Discard",
-    "save": "Save run"
+    "save": "Continue"
   },
   "keepScreenOn": "Keep this screen on while running — browsers can't track in the background, so it pauses if the screen locks. A native app version tracks with the screen off (less battery).",
   "hrNudge": {

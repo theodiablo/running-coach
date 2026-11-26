@@ -13,7 +13,7 @@
     "complete": "Sesión completada",
     "machine": "Máquina",
     "start": "Empezar sesión",
-    "save": "Guardar sesión",
+    "save": "Continuar",
     "noSensor": "No hay ningún sensor de frecuencia cardiaca configurado",
     "zoneUnknown": "sin lectura",
     "zoneFloorBpm": "{{bpm}} ppm (Z1)",
@@ -74,7 +74,7 @@
     "holdToFinish": "Mantén presionado para terminar",
     "resume": "Reanudar",
     "discard": "Descartar",
-    "save": "Guardar entrenamiento"
+    "save": "Continuar"
   },
   "keepScreenOn": "Mantén esta pantalla encendida mientras corres. Los navegadores no pueden registrar en segundo plano, así que el seguimiento se pausa si la pantalla se bloquea. La aplicación nativa sigue registrando con la pantalla apagada y consume menos batería.",
   "hrNudge": {

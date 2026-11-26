@@ -223,7 +223,7 @@ screens ask the same question of the same seam, so they must not answer it in
 two drifting copies.
 
 HR lands in the **existing** run `hr`/`hrMax` fields (no shape change) via the
-`LogView` prefill — still user-editable — so all HR display (`HRZonesCard`,
+`RunReview` prefill — still correctable there — so all HR display (`HRZonesCard`,
 `runZoneIndex`, Stats) works unchanged.
 
 **Coverage is the guard on every run-level HR claim.** A partial stream's mean
@@ -526,13 +526,13 @@ late watch sync (5-min auto-scan cooldown); manual 30-day scan in Settings.
 `RunningCoach.scanImports` (via a latest-ref, called from the boot `[loading]`
 effect + the `visibilitychange` listener, throttled to one auto-toast per
 session) drives `scanAllProviders` → **1 run** goes through `goLog` prefill
-(LogView review + `findOpenPlanSession` auto-tick + race auto-detect),
+(`RunReview` + the offered plan session + race auto-detect),
 **several** land as an `addRuns` batch. `markSeen` runs inside `addRuns` for
 any run carrying `hcId`. `shared.scanImportsNow` drives the manual scan.
 
 **The two paths must save the same run.** The batch path passes the mapped run
-to `addRuns` whole; the 1-run path rebuilds it from the review form, so every
-field the form can't edit needs an explicit carry-through in `LogView.submit`
+to `addRuns` whole; the 1-run path rebuilds it from the review screen's form, so
+every field it can't edit must ride through `carryPrefill` in `RunReview.submit`
 (`source`, `routeId`/`routeTmp`, `hrRouteId`, `bestEfforts`, `hrPending*`,
 `startedAt`, and **both id-spaces, `hcId` AND `extId`**). A dropped id is
 silent and compounds: the run exists but is invisible to the provider's
