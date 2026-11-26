@@ -11,9 +11,10 @@ vi.mock("../races", () => ({
 }));
 vi.mock("../components/LocationPicker", () => ({ LocationPicker: () => null }));
 
+import { setLocale } from "../i18n";
 import { RaceFormModal } from "./RaceFormModal";
 
-afterEach(cleanup);
+afterEach(async () => { cleanup(); await setLocale("en", { persist: false }); });
 
 function setup() {
   const addRace = vi.fn().mockResolvedValue({ slug: "new-race", name: "New race" });
@@ -42,6 +43,18 @@ describe("RaceFormModal country", () => {
     const codes = Array.from(select.querySelectorAll("option")).map(o => o.getAttribute("value"));
     expect(codes).toContain("TZ");
     expect(codes).not.toContain("TA");
+  });
+
+  it.each([
+    ["fr", "Tanzanie", "Choisis un pays"],
+    ["es", "Tanzania", "Elige un país"],
+  ])("names the countries in %s", async (lang, tz, placeholder) => {
+    await setLocale(lang as "fr" | "es", { persist: false });
+    setup();
+    const select = screen.getByRole("combobox", { name: /Pays|País/ });
+    expect(select.querySelector('option[value=""]')).toHaveTextContent(placeholder);
+    expect(select.querySelector('option[value="TZ"]')).toHaveTextContent(tz);
+    expect(select.querySelector('option[value="DE"]')).toHaveTextContent(lang === "fr" ? "Allemagne" : "Alemania");
   });
 
   it("saves the picked country's code", async () => {

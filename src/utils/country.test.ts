@@ -29,13 +29,17 @@ describe("countryName", () => {
 });
 
 describe("countryOptions", () => {
-  it("lists every country once, named and sorted in the locale", () => {
-    const en = countryOptions("en");
-    expect(en).toHaveLength(250);
-    expect(en.every(o => o.name !== o.code)).toBe(true);
-    expect(en.map(o => o.name)).toEqual([...en.map(o => o.name)].sort(new Intl.Collator("en").compare));
-    expect(en.find(o => o.code === "TZ")?.name).toBe("Tanzania");
-    expect(countryOptions("fr").find(o => o.code === "DE")?.name).toBe("Allemagne");
+  it.each([
+    ["en", { DE: "Germany", GB: "United Kingdom", TZ: "Tanzania", ES: "Spain" }],
+    ["fr", { DE: "Allemagne", GB: "Royaume-Uni", TZ: "Tanzanie", ES: "Espagne" }],
+    ["es", { DE: "Alemania", GB: "Reino Unido", TZ: "Tanzania", ES: "España" }],
+  ])("lists every country once, named and sorted in %s", (locale, spot) => {
+    const options = countryOptions(locale);
+    const names = options.map(o => o.name);
+    expect(options).toHaveLength(250);
+    expect(options.every(o => o.name !== o.code)).toBe(true);
+    expect(names).toEqual([...names].sort(new Intl.Collator(locale).compare));
+    for (const [code, name] of Object.entries(spot)) expect(options.find(o => o.code === code)?.name).toBe(name);
   });
 
   it("leaves out reserved codes", () => {
