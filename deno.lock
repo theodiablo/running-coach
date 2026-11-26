@@ -19,6 +19,8 @@
         "npm:@eslint/js@^10.0.1",
         "npm:@eslint/json@^2.1.1",
         "npm:@fontsource/archivo@^5.2.8",
+        "npm:@fontsource/inter@^5.3.0",
+        "npm:@napi-rs/canvas@^1.1.0",
         "npm:@pianissimoproject/capacitor-health-connect@~0.7.1",
         "npm:@resvg/resvg-js@^2.6.2",
         "npm:@supabase/supabase-js@^2.119.2",
