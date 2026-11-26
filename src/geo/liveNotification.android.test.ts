@@ -7,6 +7,7 @@ import type { RunNotificationContent } from "../utils/runNotification";
 // liveNotification.test.ts because the platform mock is module-scoped.
 
 const calls: Record<string, unknown>[] = [];
+let reply: Record<string, unknown> = { updated: true };
 
 vi.mock("@capacitor/core", () => ({
   registerPlugin: (name: string) => {
@@ -14,7 +15,7 @@ vi.mock("@capacitor/core", () => ({
       return {
         updateNotification: (options: Record<string, unknown>) => {
           calls.push(options);
-          return Promise.resolve({ updated: true });
+          return Promise.resolve(reply);
         },
       };
     }
@@ -36,6 +37,7 @@ let seam: typeof import("./liveNotification");
 
 beforeEach(async () => {
   calls.length = 0;
+  reply = { updated: true };
   vi.resetModules();
   seam = await import("./liveNotification");
 });
@@ -113,5 +115,49 @@ describe("pushRunNotification on Android", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// A refused location service records nothing with the screen off; the recorder warns the
+// runner from this state, and keeps saying so after recovery because distance has a hole.
+describe("the location service state", () => {
+  const settle = () => new Promise(r => setTimeout(r, 0));
+
+  it("reports a refusal, then a recovery, and clears when the run ends", async () => {
+    reply = { updated: false, foreground: false };
+    seam.pushRunNotification(content());
+    await settle();
+    expect(seam.getGpsServiceState()).toBe("refused");
+
+    reply = { updated: true, foreground: true };
+    seam.pushRunNotification(content({ message: "5.30 km · 5:40/km" }));
+    await settle();
+    expect(seam.getGpsServiceState()).toBe("recovered");
+
+    seam.resetRunNotification();
+    expect(seam.getGpsServiceState()).toBeNull();
+  });
+
+  it("says nothing while no watcher exists yet, or when the service was always held", async () => {
+    reply = { updated: false };
+    seam.pushRunNotification(content());
+    await settle();
+    expect(seam.getGpsServiceState()).toBeNull();
+
+    reply = { updated: true, foreground: true };
+    seam.pushRunNotification(content({ message: "5.30 km · 5:40/km" }));
+    await settle();
+    expect(seam.getGpsServiceState()).toBeNull();
+  });
+
+  it("notifies subscribers on each change", async () => {
+    const seen: (string | null)[] = [];
+    const off = seam.subscribeGpsServiceState(() => seen.push(seam.getGpsServiceState()));
+    reply = { updated: false, foreground: false };
+    seam.pushRunNotification(content());
+    await settle();
+    seam.resetRunNotification();
+    off();
+    expect(seen).toEqual(["refused", null]);
   });
 });

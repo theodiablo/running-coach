@@ -341,5 +341,9 @@
     "audio2Steps": "Se anuncian el calentamiento, el tempo y la vuelta a la calma.",
     "audio3": "Toca aquí para cambiar cada cuánto habla. Activada para tempo y series, desactivada para rodajes suaves.",
     "audio1Km": "Cada kilómetro oirás tu ritmo y tu pulso frente al entrenamiento."
+  },
+  "gps": {
+    "refused": "El GPS no está registrando ahora mismo. Mantén la app abierta hasta que la distancia vuelva a avanzar.",
+    "recovered": "El GPS se detuvo un rato con la pantalla apagada, así que puede faltar distancia en este entrenamiento. Ya vuelve a registrar."
   }
 }
