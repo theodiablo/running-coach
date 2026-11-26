@@ -220,6 +220,13 @@ the refusal, and an hour-long run recorded 0 points while the notification read
   so unlocking the phone mid-run rescues the rest of it.
   `updateNotification` returns `foreground`, logged once per run to the sensor
   log as "location service refused".
+- **The runner is told.** The same signal drives `getGpsServiceState`
+  (`src/geo/liveNotification.ts`), which the recorder renders as an amber line:
+  `refused` while the service isn't held, then `recovered` for the rest of the
+  run, because the stretch it missed may have no distance. Cleared when the run
+  ends, and a reply still in flight from the ended run never sets the next one.
+  The copy hedges ("may"): the flag says the service was refused, not that
+  fixes stopped.
 
 ## Route storage (`run_routes`)
 

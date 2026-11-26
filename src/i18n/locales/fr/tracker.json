@@ -341,5 +341,9 @@
     "audio2Steps": "L'échauffement, le tempo et le retour au calme sont annoncés.",
     "audio3": "Touche ici pour régler la fréquence des annonces. Activé pour le tempo et le fractionné, désactivé pour les footings.",
     "audio1Km": "À chaque kilomètre, tu entendras ton allure et ton cardio par rapport à la séance."
+  },
+  "gps": {
+    "refused": "Le GPS risque de ne pas enregistrer écran éteint pour le moment. Garde l'appli ouverte un instant.",
+    "recovered": "Le GPS s'est peut-être arrêté un moment écran éteint, il peut manquer de la distance sur cette sortie."
   }
 }

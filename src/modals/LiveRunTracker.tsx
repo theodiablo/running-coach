@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { getGpsServiceState, subscribeGpsServiceState } from "../geo/liveNotification";
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Volume2, VolumeX } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
@@ -378,6 +379,8 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   const live = state === "tracking" || state === "paused";
+  // Android refused the location service, so screen-off GPS isn't recording (docs/live-tracking.md).
+  const gpsService = useSyncExternalStore(subscribeGpsServiceState, getGpsServiceState, getGpsServiceState);
   const pendingPoints = (pending?.points || []).filter(Boolean).length;
 
   // Once stopped, the run that saves: standing at the start/finish trimmed off.
@@ -726,6 +729,11 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       <div className="flex flex-col max-h-[74%] border-t border-slate-800">
       <div className="min-h-0 overflow-y-auto px-4 pt-3 space-y-3">
         {error && <div className="bg-red-500/15 text-red-300 text-sm rounded-xl px-3 py-2">{error}</div>}
+        {live && gpsService && (
+          <div role="status" className="bg-amber-500/15 text-amber-200 text-sm rounded-xl px-3 py-2">
+            {t(gpsService === "refused" ? "tracker.gps.refused" : "tracker.gps.recovered")}
+          </div>
+        )}
 
         {state === "idle" && pending && (
           <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-slate-700">
