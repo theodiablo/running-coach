@@ -280,7 +280,7 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
    the trace's mean latitude, the same projection `perpM` uses). That is
    exact enough at run scale, keeps the shape's aspect ratio, and doesn't need
    a map library. Everything after this step is in metres, then card pixels.
-4. **Hide around start and finish** (switch on by default): a **radius mask**,
+4. **Hide around start and finish**, **always**, with no switch: a **radius mask**,
    not an end trim. Nothing is drawn within 300 m of the start point *or* the
    finish point, **wherever it falls in the run**.
    - It works on **legs, not points**. Each leg (two consecutive points) is
@@ -325,13 +325,16 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      a short loop around the block), A isn't offered. The 200 m is summed
      from the kept legs in projected metres. It is only a gate for drawing,
      never a distance shown to anyone, so it doesn't compete with the one
-     distance definition. A is never drawn with the mask silently switched
-     off.
-   - The start and finish dots are not drawn while the mask is on: they would
-     sit on the edge of the hidden circle and point at its centre. They come
-     back with the switch off.
-   - **What the copy may claim**: "Hides the line within 300 m of where you
-     started and finished." That is exactly what it does.
+     distance definition. A is never drawn without the mask.
+   - No start or finish dots: they would sit on the edge of the hidden circle
+     and point at its centre.
+   - **Why no switch** (maintainer, 2026-11-26): the card has no map, but a
+     recognisable shape can still be laid over one, and most runs start at a
+     front door. Hiding can't be turned off, so the builder has one control
+     fewer and no unsafe option.
+   - **What the copy may claim**, should a line ever explain it: "The line
+     leaves out 300 m around where you started and finished." That is exactly
+     what it does.
    - **What it doesn't hide**, and the copy doesn't imply it does:
      - a place the route passes that is neither start nor finish (a run that
        started from work passes home mid-run);
@@ -339,10 +342,9 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      - a place within ~300 m of home deduced from the hidden circle's
        position.
 
-     The switch's description says "start and finish", never "your home".
+     Any copy about it says "start and finish", never "your home".
 5. **Fit** to the route box (308×300 design px), centred, uniform scale, with
-   padding for the 14 px under-stroke. With the mask off: start = hollow dot,
-   finish = filled accent dot. With it on: no dots (step 4). Fitting is a
+   padding for the 14 px under-stroke. No dots (step 4). Fitting is a
    uniform scale of what the mask kept, so it can't bring a hidden part back.
 
 No coordinates leave the device: the card is pixels, and nothing about the
@@ -355,7 +357,7 @@ is one seam, and the builder never branches on the platform.
 
 | Where | How | Notes |
 | --- | --- | --- |
-| Web, `navigator.canShare({ files })` true (Safari on iOS, Chrome on Android) | `navigator.share({ files: [file] })` | Files only: adding `text` makes some apps drop the image. |
+| Web, `navigator.canShare({ files })` true (Safari on iOS, Chrome on Android) | `navigator.share({ files: [file], text })` | The share text (below) rides along. |
 | Web, no file sharing (desktop Firefox, most desktop browsers) | download through an object URL + `<a download>` | Result `"saved"`, button reads "Download image". |
 | **Native (both shells)** | `@capacitor/filesystem` writes the PNG to `Directory.Cache`, then `@capacitor/share` `Share.share({ files: [uri] })` | Android System WebView has no `navigator.share` at all (today's `useShareLink` falls back to the clipboard for this reason), and file sharing from WKWebView isn't reliable. |
 
@@ -365,7 +367,19 @@ is one seam, and the builder never branches on the platform.
   is in both OS sheets). We don't ask for any photos permission.
 - Cache files are named `share-card-<runId>.png` and overwritten, so they don't
   pile up.
-- Nothing pre-fills a caption or link.
+- **Share text**: one localized line with a link, e.g. "Tracked with Running
+  Coach: https://run.camboulive.solutions/get?src=share-route".
+  - Messaging apps and mail keep it next to the image. Instagram stories and
+    similar drop it, which is harmless: the card already names the app.
+  - The link is the flyer QR's `/get` redirect (`docs/store-redirect.md`), so
+    each phone lands on its own store or the web app.
+  - `src` is tagged per style (`share-route`, `share-number`, `share-week`).
+    The weekly digest already lists `/get` visits by `src`, so it shows which
+    card style brings people in, with no extra analytics.
+  - In Play's acquisition report these visits arrive as `utm_medium=qr` (the
+    redirect's fixed medium); `utm_source` still tells them apart.
+  - The native path (PR 2) passes the same text to `Share.share`.
+  - The download fallback has no text: there is no sheet to carry it.
 
 **What the native plugins mean for a release:**
 
@@ -400,8 +414,6 @@ is one seam, and the builder never branches on the platform.
   back returns to the finish screen or the run detail.
 - Switches, per the canvas:
   - **Show the route** (A only): off draws the stats-only layout.
-  - **Hide start and finish**, on by default (A only): "Hides the line
-    within 300 m of where you started and finished".
   - **Show pace**, hidden for `km: 0` runs.
 
   On/off state is shown in colour (CLAUDE.md: orange on a tinted fill when on,
