@@ -73,5 +73,6 @@
     "footer": "My plan, built by Running Coach"
   },
   "loadError": "Couldn't open the share card. Check your connection and try again.",
-  "shareText": "Tracked with Running Coach: {{url}}"
+  "shareText": "Tracked with Running Coach: {{url}}",
+  "privacyNote": "For your privacy, the line leaves out 300 m around where you started and finished."
 }

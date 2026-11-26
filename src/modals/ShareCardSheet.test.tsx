@@ -37,6 +37,20 @@ describe("ShareCardSheet", () => {
     expect(screen.queryByRole("button", { name: "Show the route" })).toBeNull();
   });
 
+  it("says the start and finish are hidden, on the Route card only", () => {
+    // 4 km east, then back west on a parallel street ~450 m north: one fix every ~10 m.
+    const points = Array.from({ length: 801 }, (_, i) => {
+      const x = (i <= 400 ? i : 800 - i) * 10;
+      return [48.85 + (i > 400 ? 0.004 : 0), 2.35 + x / 73300, i * 1000, null] as const;
+    });
+    render(<ShareCardSheet run={{ id: "r", date: ymd, type: "EASY", km: 8, durationSec: 2800, source: "gps" }} runs={[]} plan={null}
+      settings={settings} participations={[]} points={points} onClose={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Route" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/leaves out 300 m around where you started and finished/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Number" }));
+    expect(screen.queryByText(/leaves out 300 m/)).toBeNull();
+  });
+
   it("hides the pace switch for an indoor session", () => {
     setup({ id: "i", date: ymd, type: "OTHER", km: 0, durationSec: 2700, activity: "bike" });
     expect(screen.queryByRole("button", { name: "Show pace" })).toBeNull();

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { ShieldCheck, X } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
 import { dayName } from "../i18n";
 import { fmt, ymd } from "../utils/format";
@@ -176,6 +176,12 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
         <canvas ref={canvasRef} role="img" aria-label={t("shareCard.preview", { summary })}
           className="mx-auto block rounded-2xl shadow-2xl bg-slate-950"
           style={{ width: PREVIEW_W, height: PREVIEW_H }} />
+        {view.style === "route" && view.showRoute && view.shape && (
+          <p className="flex items-start justify-center gap-1.5 text-xs text-slate-400 text-center">
+            <ShieldCheck size={14} className="shrink-0 mt-px text-slate-500" aria-hidden />
+            {t("shareCard.privacyNote")}
+          </p>
+        )}
 
         <div role="group" aria-label={t("shareCard.styleGroup")}
           className="grid gap-2" style={{ gridTemplateColumns: `repeat(${offered.length}, minmax(0, 1fr))` }}>

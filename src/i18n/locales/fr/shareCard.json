@@ -73,5 +73,6 @@
     "footer": "Mon plan, construit par Running Coach"
   },
   "loadError": "Impossible d'ouvrir la carte. Vérifie ta connexion et réessaie.",
-  "shareText": "Enregistré avec Running Coach : {{url}}"
+  "shareText": "Enregistré avec Running Coach : {{url}}",
+  "privacyNote": "Pour ta vie privée, le tracé masque 300 m autour de ton départ et de ton arrivée."
 }
