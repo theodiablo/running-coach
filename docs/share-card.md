@@ -280,6 +280,10 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
    the trace's mean latitude, the same projection `perpM` uses). That is
    exact enough at run scale, keeps the shape's aspect ratio, and doesn't need
    a map library. Everything after this step is in metres, then card pixels.
+   Longitudes are first **unwrapped** across ±180° (each shifted by 360° to stay
+   within 180° of the one before), so the bounding box, the simplifier, the
+   projection and the mask all see a route crossing the antimeridian as one
+   piece.
 4. **Hide around start and finish**, **always**, with no switch: a **radius mask**,
    not an end trim. Nothing is drawn within 300 m of the start point *or* the
    finish point, **wherever it falls in the run**.
@@ -356,7 +360,7 @@ route is sent anywhere.
 
 ## Sharing: web vs native (`shareImage.ts`)
 
-`shareImage(blob, fileName): Promise<"shared" | "saved" | "dismissed" | "failed">`
+`shareImage(blob, fileName, text?): Promise<"shared" | "saved" | "dismissed" | "failed">`
 is one seam, and the builder never branches on the platform.
 
 | Where | How | Notes |
@@ -635,6 +639,8 @@ Unit tests (`.ts` suites in the node environment, no jsdom):
     through it is split, with no drawn point inside 300 m;
   - masking runs after simplification: no kept segment comes within 300 m of
     the start or finish;
+  - a route crossing the antimeridian near its start still keeps every stroke
+    out of both circles;
   - a short loop fully inside the mask → A not offered;
   - a leg running parallel to a circle, just outside its 300 m edge, is
     clipped by the enlarged radius. The recorded `drawCard` calls set the box
