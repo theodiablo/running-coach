@@ -101,8 +101,9 @@ the canvas's two families:
 - Both use the `latin` + `latin-ext` subsets (accents and race names like
   "Łódź"), imported as `?url` woff2 assets in the share chunk only. That is
   10 files (5 faces × 2 subsets), ~25 KB each, loaded on first open.
-- They ship inside the APK/IPA because they're local assets: no Google Fonts
-  and no CSP change.
+- They are local assets: no Google Fonts and no CSP change. Until PR 2,
+  `VITE_NATIVE_BUILD` folds the builder chunk and its fonts out of the native
+  build, so the shells carry none of it.
 - The builder loads them with `new FontFace(...)` + `document.fonts.add` and
   awaits `document.fonts.load` for each family and weight **before the first
   draw**. A canvas drawn before the font is ready falls back silently and never
@@ -194,8 +195,9 @@ Every figure goes through the existing helpers: `fmt.dur`, `fmt.pace`,
   the same figures the run detail tiles show.
 - **Cross-training and indoor runs (`km: 0`, `isCrossTraining`)**: no
   distance, no pace and no route, because a bike's km isn't a running km
-  (CLAUDE.md). Those cards show the time, the activity name, and average HR
-  when present. The Show pace switch is hidden.
+  (CLAUDE.md). Those cards show the time and the activity name. Average HR is
+  health data, so it shows only behind a **Show heart rate** switch that
+  starts off. The Show pace switch is hidden.
 - Footer: "Tracked with Running Coach". The canvas's "free on iPhone and
   Android" is a claim that's only true once `APP_STORE_URL` is set (iOS is still
   TestFlight, `docs/marketing.md`). So the platforms line is derived from that
@@ -230,7 +232,8 @@ Every figure goes through the existing helpers: `fmt.dur`, `fmt.pace`,
 3. a run with distance: the distance ("10.4 km");
 4. an indoor session: the time.
 
-The bottom row repeats distance · time · pace (indoor: time · avg HR).
+The bottom row repeats distance · time · pace (indoor: time, plus avg HR when
+switched on).
 
 **D: Training week**
 
@@ -294,6 +297,13 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
 4. **Hide around start and finish**, **always**, with no switch: a **radius mask**,
    not an end trim. Nothing is drawn within 300 m of the start point *or* the
    finish point, **wherever it falls in the run**.
+   - **The circles are offset.** Each visible piece of line ends on a
+     circle's edge, so with an exact circle, three line ends (a lap or loop
+     from the door) give its centre. So each circle's centre moves 100 to
+     150 m off the true point in a random direction, and its radius becomes
+     300 m plus that offset: every point within 300 m of the true start is
+     still inside. The offset is seeded by the run id, so re-sharing the
+     same run gives the same card and can't be averaged out.
    - It works on **legs, not points**. Each leg (two consecutive points) is
      clipped against both circles. Line-circle intersection in the projected
      metres gives 0, 1 or 2 crossing points, and only the parts outside the
@@ -355,7 +365,7 @@ The bottom row repeats distance · time · pace (indoor: time · avg HR).
      - a place the route passes that is neither start nor finish (a run that
        started from work passes home mid-run);
      - a recognisable route shape;
-     - a place within ~300 m of home deduced from the hidden circle's
+     - a place within ~450 m of home, deduced from the offset circle's
        position.
 
      Any copy about it says "start and finish", never "your home".
@@ -431,6 +441,7 @@ is one seam, and the builder never branches on the platform.
 - Switches, per the canvas:
   - **Show the route** (A only): off draws the stats-only layout.
   - **Show pace**, hidden for `km: 0` runs.
+  - **Show heart rate**, indoor runs with an HR only, off by default.
 
   On/off state is shown in colour (CLAUDE.md: orange on a tinted fill when on,
   grey when off) with `aria-pressed`. Switch state is per builder session, not
