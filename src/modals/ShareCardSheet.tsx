@@ -68,7 +68,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   }, [plan, settings, participations, runs, today]);
 
   // Start and finish are always hidden: most runs start at a front door. docs/share-card.md.
-  const masked = useMemo(() => routeShape(indoor ? null : points, { box: ROUTE_BOX, mask: true, strokePx: ROUTE_STROKE, seed: run.id ?? run.date }), [points, indoor, run.id, run.date]);
+  const masked = useMemo(() => routeShape(indoor ? null : points, { box: ROUTE_BOX, mask: true, strokePx: ROUTE_STROKE }), [points, indoor]);
 
   const input: CardInput = { run, runs, plan, settings, participations, today, session, hasRoute: !!masked, raceLabel };
   const { offered, preselected } = cardStyles(input);

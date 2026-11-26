@@ -155,8 +155,7 @@ function fitScale(segs: XY[][], box: Box, padPx: number): number {
   return Math.min((box.w - 2 * padPx) / w, (box.h - 2 * padPx) / h);
 }
 
-// `seed` (the run id) fixes the circles' offsets, so re-sharing a run never averages them out.
-export type ShapeOpts = { box: Box; mask: boolean; strokePx: number; seed?: string };
+export type ShapeOpts = { box: Box; mask: boolean; strokePx: number };
 
 function seeded(seed: string): () => number {
   let h = 2166136261;
@@ -192,7 +191,10 @@ export function routeShapeWithTruth(points: TrackPointOrGap[] | null | undefined
   let centres: XY[] = [start, finish];
   let radiusM = MASK_M;
   if (opts.mask) {
-    const rnd = seeded(opts.seed ?? "");
+    // Seeded by the exact start and finish: the same trace always gets the same offsets
+    // (re-sharing can't average them out), and nobody without those points can recompute them.
+    const real = realPoints(points);
+    const rnd = seeded([real[0], real[real.length - 1]].map(p => `${Number(p[0])},${Number(p[1])}`).join(";"));
     const off = OFFSET_MIN_M + (OFFSET_MAX_M - OFFSET_MIN_M) * rnd();
     centres = [start, finish].map((c): XY => { const a = rnd() * 2 * Math.PI; return [c[0] + off * Math.cos(a), c[1] + off * Math.sin(a)]; });
     // Every point within 300 m of the true start stays inside its shifted circle.

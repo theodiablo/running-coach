@@ -71,9 +71,9 @@ describe("routeShape: the start/finish mask", () => {
     expect([leftOf, rightOf]).toEqual([true, true]);
   });
 
-  it("moves each circle off the true point, fixed per run, and still hides 300 m around it", () => {
+  it("moves each circle off the true point, fixed per trace, and still hides 300 m around it", () => {
     const pts = trace(path([[0, 0], [3000, 0], [-3000, 0], [0, 600]]));
-    const opts = { box: BOX, mask: true, strokePx: STROKE, seed: "run-1" };
+    const opts = { box: BOX, mask: true, strokePx: STROKE };
     const t = routeShapeWithTruth(pts, opts)!;
     for (const [centre, truth] of [[t.shape.start, t.trueStart], [t.shape.finish, t.trueFinish]] as const) {
       const offM = Math.hypot(centre[0] - truth[0], centre[1] - truth[1]) / t.pxPerM;
@@ -82,7 +82,11 @@ describe("routeShape: the start/finish mask", () => {
       expect(nearestPaint(t.shape, truth)).toBeGreaterThanOrEqual(MASK_M * t.pxPerM - 1e-6);
     }
     expect(routeShape(pts, opts)).toEqual(t.shape);
-    expect(routeShape(pts, { ...opts, seed: "run-2" })!.start).not.toEqual(t.shape.start);
+    // A start 1 m away is another trace: its offset can't be predicted from this one.
+    const moved = trace(path([[1, 0], [3000, 0], [-3000, 0], [0, 600]]));
+    const other = routeShapeWithTruth(moved, opts)!;
+    const dir = (c: XY, p: XY) => Math.atan2(c[1] - p[1], c[0] - p[0]);
+    expect(Math.abs(dir(other.shape.start, other.trueStart) - dir(t.shape.start, t.trueStart))).toBeGreaterThan(0.01);
   });
 
   it("leaves a pass near a point that is neither start nor finish drawn", () => {
