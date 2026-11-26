@@ -31,6 +31,15 @@ describe("shareImage", () => {
     expect(await shareImage(blob, "run.png")).toBe("dismissed");
   });
 
+  it("downloads when the share sheet refuses an expired tap", async () => {
+    const denied = Object.assign(new Error("no activation"), { name: "NotAllowedError" });
+    Object.assign(nav, { share: vi.fn().mockRejectedValue(denied), canShare: () => true });
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    expect(await shareImage(blob, "run.png")).toBe("saved");
+    expect(click).toHaveBeenCalled();
+  });
+
   it("reports any other share error as failed", async () => {
     Object.assign(nav, { share: vi.fn().mockRejectedValue(new Error("nope")), canShare: () => true });
     expect(await shareImage(blob, "run.png")).toBe("failed");

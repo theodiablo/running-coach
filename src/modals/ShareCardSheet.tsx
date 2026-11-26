@@ -143,7 +143,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
       canvas.height = CARD_H * EXPORT_SCALE;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("no canvas");
-      await loadCardFonts();
+      // Fonts settled before Share was enabled: awaiting a retry here would outlast the tap's activation.
       drawCard(ctx, view, EXPORT_SCALE);
       const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/png"));
       if (!blob) throw new Error("no image");

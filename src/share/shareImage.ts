@@ -47,7 +47,8 @@ export async function shareImage(blob: Blob, fileName: string, text?: string): P
       return "shared";
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return "dismissed";
-      return "failed";
+      // The tap's activation expired before the sheet opened: the image still reaches the runner.
+      if (!(err instanceof Error && err.name === "NotAllowedError")) return "failed";
     }
   }
   try {
