@@ -7,7 +7,7 @@ export type XY = [number, number];
 export type Box = { x: number; y: number; w: number; h: number };
 
 export const MASK_M = 300;
-// Each circle's centre moves this far off the true point (fixed per run), so the
+// Each circle's centre moves this far off the true point (fixed per trace), so the
 // line ends on its edge point at a spot that isn't the start.
 export const OFFSET_MIN_M = 100;
 export const OFFSET_MAX_M = 150;
