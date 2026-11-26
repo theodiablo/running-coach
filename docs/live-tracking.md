@@ -14,8 +14,9 @@ when touching tracking or the shells. Background-location policy detail is in
   hook so the source can swap without touching the UI.
 - **UI:** `src/modals/LiveRunTracker.tsx` (full-screen, gated by `showTracker`
   in `RunningCoach`, opened via `shared.openTracker`). On finish it funnels
-  into the normal save path — `goLog(prefill)` → `LogView` → `addRuns` —
-  passing measured `durationSec`/`elevation` and the trace ref.
+  into the normal save path — `goLog(prefill)` → `RunReview` → `addRuns` —
+  passing measured `durationSec`/`elevation`, the trace ref, and the simplified
+  trace as `previewTrack` (the review's tile-free route line; never stored).
 - **Minimizing (browsing the app mid-run):** once a recording has started
   (tracking, paused, or stopped-unsaved) the header's chevron and back/Escape
   *minimize* the recorder instead of closing it. `RunningCoach`'s
@@ -229,7 +230,7 @@ the common Health Connect case) rides a SEPARATE `hrRouteId`** so History's map
 button (gated on `routeId`) never offers a blank map, while `RunDetailModal`
 still fetches it (`useRouteTrace` resolves `routeId ?? hrRouteId`) to draw the
 HR chart + time-in-zone card (that card is NOT gated on GPS). `deleteRun`
-cascades both; `LogView` prefill carries `hrRouteId`. Unknown JSONB key →
+cascades both; the `RunReview` prefill carries `hrRouteId`. Unknown JSONB key →
 forward/backward safe, and backup/restore/pending-queue carry it free. To store
 more per-run series later, extend this sidecar rather than widening the
 4-tuple.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalDur, durToSec, formatDur, normalizeDur, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur, setRunField } from "./runForm";
+import { canonicalDur, durToSec, formatDur, normalizeDur, paceWarning, runFormComplete, runFormErrors, runFormHasDetail, runFormToPatch, runToForm, secToDur, setRunField } from "./runForm";
 import type { Run } from "../types";
 
 const run = {
@@ -181,5 +181,31 @@ describe("runFormHasDetail", () => {
     expect(runFormHasDetail({ ...bare, hr: "150" })).toBe(true);
     expect(runFormHasDetail({ ...bare, notes: "windy" })).toBe(true);
     expect(runFormHasDetail({ ...bare, effort: 6 })).toBe(true);
+  });
+});
+
+// Warns, never blocks: the save still goes through (runFormComplete is untouched).
+describe("paceWarning", () => {
+  const form = (km: string, dur: string, type = "EASY") => ({ km, dur, type });
+  it("flags a time that lost a digit", () => {
+    // 38:37 with its last digit dropped reads as 3:83 = 4:23 over 6.35 km.
+    expect(paceWarning(form("6.35", "383"))).toMatchObject({ kind: "fast" });
+    expect(runFormComplete({ ...runToForm({ date: "2026-11-25", km: 6.35, durationSec: 263 } as Run) })).toBe(true);
+  });
+  it("flags a distance that lost its decimal point", () => {
+    expect(paceWarning(form("635", "3837"))).toMatchObject({ kind: "fast" });
+  });
+  it("flags a pace slower than walking", () => {
+    expect(paceWarning(form("1", "2500"))).toMatchObject({ kind: "slow" });
+  });
+  it("leaves real runs and walks alone", () => {
+    expect(paceWarning(form("6.35", "3837"))).toBeNull();
+    expect(paceWarning(form("5", "13000"))).toBeNull();
+    expect(paceWarning(form("42.2", "20000"))).toBeNull();
+  });
+  it("says nothing without a running distance and a time", () => {
+    expect(paceWarning(form("", "3837"))).toBeNull();
+    expect(paceWarning(form("6", ""))).toBeNull();
+    expect(paceWarning(form("6", "100", "OTHER"))).toBeNull();
   });
 });

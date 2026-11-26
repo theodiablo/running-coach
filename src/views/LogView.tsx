@@ -1,6 +1,6 @@
 import { useState, useRef, type ChangeEvent } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { Check, Loader, Plus, Upload, HeartPulse } from "lucide-react";
+import { Check, Loader, Plus, Upload } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
 import { track } from "../telemetry";
 import { RunFields } from "../components/RunFields";
@@ -10,38 +10,25 @@ import { fileProvider } from "../imports/providers/file";
 import { isDuplicateRun } from "../imports/dedupe";
 import { persistImportedRoutes } from "../imports/persistRoutes";
 import { carryPrefill } from "../utils/carryPrefill";
-import { runFitsSession } from "../utils/sessionMatch";
+import { useSessionLink } from "../hooks/useSessionLink";
+import type { RunPrefill } from "../utils/runPrefill";
 import { getSeenIds } from "../watch/import";
 import type { ImportedRun } from "../imports/types";
 import { isCrossTraining } from "../types";
-import type { HrPending, Run } from "../types";
-import type { SessionWithWeek } from "../utils/overdue";
+import type { Run } from "../types";
 
-type LogPrefill = Partial<Run> & {
-  pace?: number;
-  // The plan session this save settles, as a whole row — enough to re-check the
-  // pairing against what the runner types, which a bare {wNum, sId} was not.
-  session?: SessionWithWeek | null;
-  // Whether the app matched that session to the run (src/utils/sessionMatch.ts)
-  // rather than the runner picking it. An offer is shown for confirmation and
-  // can be declined here; a chosen session has already been decided.
-  sessionOffered?: boolean;
-  hrPending?: HrPending | null;
-  // The recorder's finish screen already showed this run's best efforts.
-  celebrated?: boolean;
-};
 
 // The manual run form and, alone on its own screen, the file importer. Never a
 // chooser: RecordSheet settled *how* before arriving, so it offers no recorder.
-// Four arrivals: manual entry, logging a plan session, reviewing a recorder's
-// capture (`prefill.source`), and importing a file.
+// Three arrivals: manual entry, logging a plan session, and importing a file. A run a
+// device measured is reviewed by RunReview instead.
 type LogViewProps = {
   addRuns: (runs: Partial<Run>[], opts?: { celebrated?: boolean; fresh?: boolean }) => Run[];
   onDone: () => void;
   // The saved runs (with their minted ids) and the plan session the save
   // settles, if any — the hub ticks it off and records which run did it.
   onSaved?: (saved: Run[], link: { wNum: number; sId: string } | null) => void;
-  prefill?: LogPrefill | null;
+  prefill?: RunPrefill | null;
   // Existing log, used to dedupe file imports (comes in via the shared bag).
   runs?: Run[];
   // Land on the file importer instead of the form (Settings -> Integrations).
@@ -52,8 +39,7 @@ type LogViewProps = {
 
 export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: LogViewProps) {
   const { t } = useTranslation();
-  // A GPS-tracked run prefills its real measured duration; a plan session
-  // prefills an estimate from km × prescribed pace.
+  // A plan session prefills an estimate from km × prescribed pace.
   const estSec = prefill?.durationSec != null
     ? prefill.durationSec
     : (prefill?.km && prefill?.pace ? Math.round(prefill.km * prefill.pace) : 0);
@@ -61,9 +47,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
     date:   prefill?.date || ymd(new Date()),
     type:   prefill?.type || "EASY",
     activity: prefill?.activity || "",
-    // An indoor session has no distance to prefill; a literal 0 in the field
-    // would read as a measurement rather than "not applicable".
-    km:     prefill?.source === "indoor" ? "" : prefill?.km != null ? String(prefill.km) : "",
+    km:     prefill?.km != null ? String(prefill.km) : "",
     dur:    secToDur(estSec),
     hr:    prefill?.hr    != null ? String(prefill.hr)    : "",
     hrMax: prefill?.hrMax != null ? String(prefill.hrMax) : "",
@@ -79,11 +63,6 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
   // Required-field errors show only once a save has been attempted — an empty
   // form isn't a mistake yet.
   const [attempted, setAttempted] = useState(false);
-  // An offered session is confirmed by default — it is shown, named and dated
-  // right above the Save button, so it is a decision the runner sees rather
-  // than a plan edit that happens behind a disappearing toast. Declining
-  // saves the run on its own.
-  const [declined, setDeclined] = useState(false);
   const [importing, setImporting] = useState(!!openImport);
   const [csvMsg, setCsvMsg] = useState("");
   const [csvOk,  setCsvOk]  = useState(false);
@@ -174,16 +153,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
 
   // Logging a plan session: saving it also ticks the session off (RunningCoach's
   // onSaved), so the screen says so rather than letting it happen silently.
-  // Two ways to get here — the runner picked the session (wNum/sId), or the app
-  // matched one to the run and is offering it.
-  const linked = prefill?.session && !(prefill.sessionOffered && declined) ? prefill.session : null;
-  // Re-checked against the FORM, not the prefill: the runner can change the date and
-  // type, and a link that no longer fits must let go rather than tick off a tempo with
-  // a bike ride. Read at render so the banner disappears the moment an edit invalidates it.
-  const fits = !!linked && runFitsSession(linked, {date: f.date, type: f.type});
-  const session = linked && fits ? linked : null;
-  const offered = session && prefill?.sessionOffered ? session : null;
-  const link = session ? { wNum: session.wNum, sId: session.id } : null;
+  const { linked, fits, session, offered, link, setDeclined, undoable } = useSessionLink(prefill, f);
   // A cross-training session's prescription is its DURATION: buildPlan gives it
   // a synthetic km purely to satisfy the coach validator, and showing that as a
   // target would claim a distance nobody covered (docs/indoor-sessions.md).
@@ -191,7 +161,6 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
   const runKm = session && !isCrossTraining(session) ? Number(session.km) || 0 : 0;
   const title = importing
     ? t("log.titleImport")
-    : prefill?.source ? t("log.titleReview")
     : session ? t("log.titleSession")
     : t("log.titleManual");
 
@@ -226,29 +195,8 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
 
       {csvMsg && <div className={msgCls}>{csvMsg}</div>}
 
-      {prefill?.source === "gps" && (
-        <div className="bg-emerald-500/15 text-emerald-300 text-sm rounded-xl px-4 py-2.5 mb-5">
-          {t("log.gpsBanner")}
-        </div>
-      )}
-
-      {prefill?.source === "indoor" && (
-        <div className="bg-violet-500/15 text-violet-200 text-sm rounded-xl px-4 py-2.5 mb-5">
-          {t("log.indoorBanner")}
-        </div>
-      )}
-
-      {prefill?.source === "watch" && (
-        <div className="bg-sky-500/15 text-sky-300 text-sm rounded-xl px-4 py-2.5 mb-5">
-          {t("log.watchBanner")}
-        </div>
-      )}
-
-      {/* Which session you're logging, and what saving will do to it. A chosen
-          session is skipped when a source banner already explains the arrival
-          (a tracked run that happens to be linked says it on the Save button
-          instead); an OFFER always shows — it is the thing being confirmed. */}
-      {session && (offered || !prefill?.source) && (
+      {/* Which session you're logging, and what saving will do to it. */}
+      {session && (
         <div className="bg-orange-500/10 border border-orange-500/25 rounded-xl px-4 py-3 mb-5 space-y-0.5">
           <p className="text-sm font-semibold text-white">
             {offered
@@ -282,7 +230,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       )}
 
       {/* Declining is undoable until the run is saved — nothing has happened yet. */}
-      {declined && prefill?.sessionOffered && prefill.session && (
+      {undoable && prefill?.session && (
         <button onClick={() => setDeclined(false)}
           className="w-full text-xs text-slate-500 hover:text-slate-300 underline underline-offset-2 mb-5 transition-colors">
           {t("log.session.declineUndo", { date: fmt.sht(prefill.session.date) })}
@@ -300,17 +248,7 @@ export function LogView({addRuns, onDone, onSaved, prefill, runs, openImport}: L
       <div className="space-y-4" ref={formRef}>
         <RunFields form={f} onChange={set} phScope="log.fields"
           errors={attempted ? runFormErrors(f) : null}
-          // A recorder or import already filled some of the detail — never hide
-          // what the runner arrived with.
-          detailsOpen={runFormHasDetail(INIT) || !!prefill?.hrPending || !!prefill?.hrPendingHk}
-          afterHr={
-          (prefill?.hrPending || prefill?.hrPendingHk) && !f.hr ? (
-            <p className="text-xs text-slate-400 flex items-start gap-1.5">
-              <HeartPulse size={14} className="text-red-400 mt-0.5 shrink-0" />
-              <span>{t("log.hrPendingNote", { store: prefill.hrPendingHk ? "Apple Health" : "Health Connect" })}</span>
-            </p>
-          ) : null
-        }/>
+          detailsOpen={runFormHasDetail(INIT)}/>
         <button onClick={submit} disabled={busy}
           className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-3.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
           {busy ? <Loader size={18} className="animate-spin"/> : session ? <Check size={18}/> : <Plus size={18}/>}

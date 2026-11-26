@@ -118,6 +118,22 @@ export const runFormErrors = (f: RunFormValues): RunFormErrors => ({
   duration: durToSec(f.dur) <= 0,
 });
 
+// Sec/km bounds outside which a running pace is almost certainly a typo, not a run: faster than
+// any human over a distance, or slower than a walk. Warns on the field, never blocks the save.
+export const PACE_FASTEST_SEC = 150;
+export const PACE_SLOWEST_SEC = 20 * 60;
+
+export type PaceWarning = { kind: "fast" | "slow"; pace: number };
+
+export const paceWarning = (f: Pick<RunFormValues, "type" | "km" | "dur">): PaceWarning | null => {
+  const km = parseFloat(f.km), sec = durToSec(f.dur);
+  if (f.type === "OTHER" || !(km > 0) || !(sec > 0)) return null;
+  const pace = sec / km;
+  if (pace < PACE_FASTEST_SEC) return { kind: "fast", pace };
+  if (pace > PACE_SLOWEST_SEC) return { kind: "slow", pace };
+  return null;
+};
+
 export const runFormComplete = (f: RunFormValues) => {
   const e = runFormErrors(f);
   return !e.km && !e.duration;

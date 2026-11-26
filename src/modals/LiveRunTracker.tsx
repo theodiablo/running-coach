@@ -49,10 +49,11 @@ import { previewCue, primeCues } from "../cues";
 import { compileSpec, isOpenSpec, readSpec, specFromSession, specWantsAudio, zoneBpm, type WorkoutSpec } from "../utils/workoutSpec";
 import { readAudioPrefs, type AudioPrefs } from "../utils/callout";
 import { track } from "../telemetry";
-import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
+import type { HrMethod, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
+import type { RunPrefill } from "../utils/runPrefill";
 
 type LiveRunTrackerProps = {
-  onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
+  onFinish: (prefill: RunPrefill) => void;
   onClose: () => void;
   // Hidden behind the rest of the app while a recording carries on: the screen
   // stays mounted (see MinimizedRecorderBar), so nothing about the run stops.
@@ -633,6 +634,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       ...(routeTmp ? { routeTmp, routePending: true } : {}),
       ...runHrFields(resolved),
       ...(celebratedRef.current ? { celebrated: true } : {}),
+      previewTrack: simplified,
     });
   };
 

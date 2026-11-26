@@ -42,12 +42,6 @@ describe("LogView", () => {
     expect(screen.getByText(/Cross-training · 40min/)).toBeInTheDocument();
   });
 
-  it("keeps the tracked-run review untouched", () => {
-    setup({ prefill: { date: "2026-08-18", type: "EASY", km: 6.2, durationSec: 2100, source: "gps", routeId: "r1" } });
-    expect(screen.getByText("Save your run")).toBeInTheDocument();
-    expect(screen.getByText(/Tracked by GPS/)).toBeInTheDocument();
-  });
-
   it("shows the importer alone, not stacked above the form", () => {
     setup({ openImport: true });
     expect(screen.getByText("Import a file")).toBeInTheDocument();
@@ -70,100 +64,25 @@ describe("LogView", () => {
     expect(screen.queryByText(/Got a file from your watch/)).not.toBeInTheDocument();
   });
 
-  // The saved run is the provider's only record that the workout landed: dropping extId left knownKeys empty, so every sync
-  // re-listed and re-downloaded the workout and discarded it as a duplicate ("no new runs").
-  it("carries a cloud import's identity through the review", () => {
-    const addRuns = vi.fn();
-    setup({
-      addRuns,
-      prefill: {
-        date: "2026-08-15", type: "EASY", km: 8.2, durationSec: 3000,
-        source: "watch", extId: "suunto:abc123", routeId: "r9",
-        notes: "Imported from Suunto",
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
-    expect(addRuns).toHaveBeenCalledTimes(1);
-    expect(addRuns.mock.calls[0][0][0]).toMatchObject({
-      extId: "suunto:abc123",
-      routeId: "r9",
-      source: "watch",
-      notes: "Imported from Suunto",
-    });
-  });
-
-  // The recorder's finish screen already showed this run's best efforts.
-  it("tells the hub a recorded run was already celebrated", () => {
-    const addRuns = vi.fn();
-    setup({ addRuns, prefill: { date: "2026-08-15", type: "EASY", km: 5, durationSec: 1500, source: "gps", celebrated: true } });
-    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
-    expect(addRuns.mock.calls[0][1]).toEqual({ celebrated: true, fresh: true });
-    expect(addRuns.mock.calls[0][0][0]).not.toHaveProperty("celebrated");
-  });
-
-  // Only a run the runner just saved is a moment to ask for a review, never an import reviewed here.
-  it.each([["cloud", { extId: "suunto:1" }], ["watch", { hcId: "hc-1" }]])("a %s import isn't a fresh run", (_k, ids) => {
-    const addRuns = vi.fn();
-    setup({ addRuns, prefill: { date: "2026-08-15", type: "EASY", km: 5, durationSec: 1500, source: "watch", ...ids } });
-    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
-    expect(addRuns.mock.calls[0][1]).toMatchObject({ fresh: false });
-  });
 });
 
-// The review form rebuilds the run from its own fields, so anything the recorder measured that the form can't edit must be
-// carried across. Pinned end to end (extId was lost here once), not only at carryPrefill.
-describe("LogView save carries what the recorder measured", () => {
-  const save = () => fireEvent.click(screen.getByRole("button", { name: /Save/ }));
-
-  it("keeps a tracked run's trace and measured efforts", () => {
+// The form rebuilds the run from its own fields; anything else the prefill carried rides through.
+describe("LogView save", () => {
+  it("lets the form win over the prefill it was seeded from", () => {
     const addRuns = vi.fn();
-    setup({ addRuns, prefill: {
-      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000,
-      source: "gps", routeId: "r1", hr: 150, hrMax: 172,
-      bestEfforts: { "5k": 1200 }, startedAt: "2026-08-23T06:00:00.000Z",
-    } });
-    save();
-    expect(addRuns).toHaveBeenCalledTimes(1);
-    expect(addRuns.mock.calls[0][0][0]).toMatchObject({
-      routeId: "r1", source: "gps", bestEfforts: { "5k": 1200 },
-      startedAt: "2026-08-23T06:00:00.000Z",
-    });
-  });
-
-  // The one that actually bit: a cloud import's workout key. Without it the run
-  // is invisible to the provider's knownKeys and every later sync re-lists it.
-  it("keeps a cloud import's workout key", () => {
-    const addRuns = vi.fn();
-    setup({ addRuns, prefill: {
-      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000,
-      source: "watch", extId: "suunto:123", notes: "Imported from Suunto",
-    } });
-    save();
-    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ extId: "suunto:123" });
-  });
-
-  // `activity` reaches the run through the FORM (it is seeded and re-emitted by
-  // runFormToPatch), not through the carry — asserted here so a future change to
-  // either half can't quietly drop it.
-  it("keeps an indoor session's machine and its provenance", () => {
-    const addRuns = vi.fn();
-    setup({ addRuns, prefill: {
-      date: "2026-08-23", type: "OTHER", km: 0, durationSec: 2700,
-      source: "indoor", activity: "bike", hrRouteId: "h1", bestEfforts: {},
-    } });
-    save();
-    expect(addRuns.mock.calls[0][0][0]).toMatchObject({
-      type: "OTHER", activity: "bike", source: "indoor", hrRouteId: "h1",
-    });
-  });
-
-  it("still lets the form win over the prefill it was seeded from", () => {
-    const addRuns = vi.fn();
-    setup({ addRuns, prefill: {
-      date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000, source: "gps", routeId: "r1",
-    } });
+    setup({ addRuns, prefill: { date: "2026-08-23", type: "EASY", km: 10, durationSec: 3000 } });
     fireEvent.change(screen.getByLabelText(/Distance/i), { target: { value: "9.5" } });
-    save();
-    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ km: 9.5, routeId: "r1" });
+    fireEvent.click(screen.getByRole("button", { name: /Save/ }));
+    expect(addRuns.mock.calls[0][0][0]).toMatchObject({ km: 9.5, durationSec: 3000 });
+  });
+
+  it("warns on an impossible pace but still saves", () => {
+    const addRuns = vi.fn();
+    setup({ addRuns });
+    fireEvent.change(screen.getByLabelText("Distance (km)"), { target: { value: "6.35" } });
+    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "383" } });
+    expect(screen.getByText(/faster than any runner/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Save run/ }));
+    expect(addRuns).toHaveBeenCalledTimes(1);
   });
 });

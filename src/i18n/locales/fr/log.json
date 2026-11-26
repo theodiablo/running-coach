@@ -35,9 +35,6 @@
     "declineUndo": "Finalement, compter pour la séance du {{date}}",
     "noLongerFits": "Après tes modifications, ça ne correspond plus à la séance du {{date}} : elle ne sera pas validée."
   },
-  "gpsBanner": "Sortie enregistrée par GPS. La distance, la durée et le dénivelé positif sont déjà renseignés. Ajoute un type et des notes, puis enregistre.",
-  "indoorBanner": "Séance en salle enregistrée. La durée et la fréquence cardiaque sont déjà renseignées, il n'y a pas de distance à enregistrer. Ajoute des notes, puis enregistre.",
-  "watchBanner": "Sortie importée depuis ta montre. Vérifie les données (aucun tracé ni aucune carte ne sont inclus), choisis un type, puis enregistre.",
   "import": {
     "gpx": "<0>FIT / GPX / TCX :</0> une activité avec son tracé, son dénivelé et sa fréquence cardiaque",
     "perActivity": "<0>Récupérer une sortie depuis Strava :</0> sur strava.com, ouvre l’activité, puis ••• → Exporter l’original (le fichier .fit) ou Exporter en GPX, et importe le fichier ici",
@@ -84,14 +81,15 @@
     "addDetails": "Ajouter fréquence cardiaque, dénivelé, effort, notes",
     "addDetailsCross": "Ajouter fréquence cardiaque, effort, notes",
     "durationPh": "0:00",
-    "durationHint": "Les chiffres se remplissent depuis la droite : 4300 donne 43:00, 15207 donne 1:52:07."
+    "durationHint": "Les chiffres se remplissent depuis la droite : 4300 donne 43:00, 15207 donne 1:52:07.",
+    "paceFast": "Ça fait {{pace}}/km, plus rapide que n'importe quel coureur. Vérifie la distance et la durée.",
+    "paceSlow": "Ça fait {{pace}}/km, plus lent que la marche. Vérifie la distance et la durée."
   },
   "validation": {
     "km": "Quelle distance as-tu parcourue ?",
     "duration": "Combien de temps as-tu mis ?",
     "fixAbove": "Complète les champs signalés ci-dessus."
   },
-  "hrPendingNote": "La fréquence cardiaque sera ajoutée automatiquement depuis {{store}} une fois ta montre synchronisée ; cela prend généralement quelques minutes. Laisse ces champs vides ou saisis-les toi-même.",
   "saveRun": "Enregistrer la sortie",
   "edit": {
     "title": "Modifier la sortie",
@@ -100,5 +98,38 @@
     "maxHrPh": "170",
     "elevPh": "80",
     "saveChanges": "Enregistrer les modifications"
+  },
+  "review": {
+    "kickerRun": "Sortie terminée · {{when}}",
+    "kickerIndoor": "Séance terminée · {{when}}",
+    "kickerWatch": "Depuis ta montre · {{when}}",
+    "titleIndoor": "Enregistrer ta séance",
+    "km": "km",
+    "time": "durée",
+    "perKm": "/km",
+    "avgHr": "FC moy.",
+    "maxHr": "FC max.",
+    "climb": "{{m}} m de D+",
+    "hr": "{{avg}} moy. · {{max}} max.",
+    "hrAvg": "FC moy. {{avg}}",
+    "sourceGps": "Mesuré par GPS",
+    "sourceIndoor": "Enregistré sur ce téléphone",
+    "sourceWatch": "Depuis ta montre",
+    "corrected": "Corrigé par toi",
+    "correct": "Corriger une valeur",
+    "correctDone": "OK",
+    "recorded": "Enregistré : {{value}}",
+    "backToRecorded": "Revenir aux valeurs enregistrées",
+    "useRecorded": "Reprendre la valeur enregistrée, {{value}}",
+    "qType": "C'était quel type de sortie ?",
+    "qTypeFromPlan": "Repris de ton plan.",
+    "qTypeDefault": "Facile, sauf si tu dis autre chose.",
+    "qMachine": "Sur quelle machine ?",
+    "qEffort": "C'était dur comment ?",
+    "effortButton": "Effort {{value}} sur 10",
+    "qNotes": "Quelque chose à retenir ?",
+    "notesPh": "Jambes lourdes, nouvelles chaussures, du vent…",
+    "saveSession": "Enregistrer la séance",
+    "hrPendingNote": "La fréquence cardiaque sera ajoutée automatiquement depuis {{store}} une fois ta montre synchronisée, en général quelques minutes."
   }
 }

@@ -47,3 +47,10 @@ describe("carryPrefill", () => {
     expect(carryPrefill(null)).toEqual({});
   });
 });
+
+describe("carryPrefill · display-only hand-off", () => {
+  it("never saves the recorder's preview trace on the run", () => {
+    expect(carryPrefill({ source: "gps", routeId: "r1", previewTrack: [[1, 2, 3, null]] } as Parameters<typeof carryPrefill>[0]))
+      .toEqual({ source: "gps", routeId: "r1" });
+  });
+});

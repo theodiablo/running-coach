@@ -390,7 +390,7 @@ from by a human and needs no such corroboration.
 
 It only ever **proposes**. Two surfaces apply it, both by a confirmed tap:
 
-- **At save time** (`offeredSession` in `RunningCoach`, rendered by `LogView`).
+- **At save time** (`offeredSession` in `RunningCoach`, rendered by `RunReview`; `useSessionLink` is shared with `LogView`).
   Every hand-off carries the session as a **whole row** (`prefill.session`) plus
   `sessionOffered`, which says whether the app matched it or the runner chose
   it; an offer gets a "Not this one" that saves the run alone. The row rather

@@ -65,7 +65,7 @@ Continue, since there is something to read.
 ## One reward per run
 
 A recorded run whose celebration was shown saves with `celebrated: true` on the
-prefill (dropped by `carryPrefill`, never stored on the run); `LogView` passes
+prefill (dropped by `carryPrefill`, never stored on the run); `RunReview` passes
 it to `addRuns`, which then skips `RunAchievementSheet`. That sheet still fires
 for a manual entry or a single import, which never passed through a finish
 screen.

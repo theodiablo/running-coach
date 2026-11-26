@@ -13,7 +13,7 @@
     "complete": "Séance terminée",
     "machine": "Machine",
     "start": "Démarrer la séance",
-    "save": "Enregistrer la séance",
+    "save": "Continuer",
     "noSensor": "Aucun capteur de fréquence cardiaque configuré",
     "zoneUnknown": "pas de mesure",
     "zoneFloorBpm": "{{bpm}} bpm (Z1)",
@@ -73,7 +73,7 @@
     "holdToFinish": "Maintiens pour terminer",
     "resume": "Reprendre",
     "discard": "Abandonner",
-    "save": "Enregistrer la sortie"
+    "save": "Continuer"
   },
   "keepScreenOn": "Garde cet écran allumé pendant ta sortie. Les navigateurs ne peuvent pas enregistrer en arrière-plan, donc le suivi se met en pause si l'écran se verrouille. L'app native continue d'enregistrer écran éteint et consomme moins de batterie.",
   "hrNudge": {

@@ -35,9 +35,6 @@
     "declineUndo": "Mejor sí, contarla para la sesión del {{date}}",
     "noLongerFits": "Con tus cambios ya no cuadra con la sesión del {{date}}, así que no se marcará como hecha."
   },
-  "gpsBanner": "Registro realizado con GPS. La distancia, la duración y el desnivel ya están completados. Añade un tipo y notas, y guarda.",
-  "indoorBanner": "Sesión indoor registrada. La duración y la frecuencia cardiaca ya están completadas; no hay distancia que registrar. Añade notas y guarda.",
-  "watchBanner": "Entrenamiento importado desde tu reloj. Revisa los datos (no incluye ruta ni mapa), elige un tipo y guarda.",
   "import": {
     "gpx": "<0>FIT / GPX / TCX:</0> una actividad con el mapa de su ruta, el desnivel y la frecuencia cardíaca",
     "perActivity": "<0>Obtener una actividad desde Strava:</0> en strava.com abre la actividad, luego ••• → Exportar original (el archivo .fit) o Exportar GPX, e importa el archivo aquí",
@@ -84,14 +81,15 @@
     "addDetails": "Añadir frecuencia cardiaca, desnivel, esfuerzo, notas",
     "addDetailsCross": "Añadir frecuencia cardiaca, esfuerzo, notas",
     "durationPh": "0:00",
-    "durationHint": "Los dígitos se rellenan desde la derecha: 4300 es 43:00, 15207 es 1:52:07."
+    "durationHint": "Los dígitos se rellenan desde la derecha: 4300 es 43:00, 15207 es 1:52:07.",
+    "paceFast": "Eso es {{pace}}/km, más rápido que cualquier corredor. Revisa la distancia y el tiempo.",
+    "paceSlow": "Eso es {{pace}}/km, más lento que caminar. Revisa la distancia y el tiempo."
   },
   "validation": {
     "km": "¿Qué distancia hiciste?",
     "duration": "¿Cuánto tiempo tardaste?",
     "fixAbove": "Completa los campos señalados arriba."
   },
-  "hrPendingNote": "La frecuencia cardíaca se añadirá automáticamente desde {{store}} cuando tu reloj se sincronice; suele tardar unos minutos. Deja estos campos en blanco o introdúcelos a mano.",
   "saveRun": "Guardar entrenamiento",
   "edit": {
     "title": "Editar entrenamiento",
@@ -100,5 +98,38 @@
     "maxHrPh": "170",
     "elevPh": "80",
     "saveChanges": "Guardar cambios"
+  },
+  "review": {
+    "kickerRun": "Entrenamiento terminado · {{when}}",
+    "kickerIndoor": "Sesión terminada · {{when}}",
+    "kickerWatch": "Desde tu reloj · {{when}}",
+    "titleIndoor": "Guardar tu sesión",
+    "km": "km",
+    "time": "tiempo",
+    "perKm": "/km",
+    "avgHr": "FC media",
+    "maxHr": "FC máx.",
+    "climb": "{{m}} m de desnivel",
+    "hr": "{{avg}} media · {{max}} máx.",
+    "hrAvg": "FC media {{avg}}",
+    "sourceGps": "Medido por GPS",
+    "sourceIndoor": "Grabado en este teléfono",
+    "sourceWatch": "Desde tu reloj",
+    "corrected": "Corregido por ti",
+    "correct": "Corregir un dato",
+    "correctDone": "Listo",
+    "recorded": "Grabado: {{value}}",
+    "backToRecorded": "Volver a lo grabado",
+    "useRecorded": "Usar lo grabado, {{value}}",
+    "qType": "¿Qué tipo de entrenamiento fue?",
+    "qTypeFromPlan": "Tomado de tu plan.",
+    "qTypeDefault": "Suave, salvo que digas otra cosa.",
+    "qMachine": "¿Qué máquina usaste?",
+    "qEffort": "¿Qué tan duro se sintió?",
+    "effortButton": "Esfuerzo {{value}} de 10",
+    "qNotes": "¿Algo que recordar?",
+    "notesPh": "Piernas pesadas, zapatillas nuevas, viento…",
+    "saveSession": "Guardar sesión",
+    "hrPendingNote": "La frecuencia cardiaca se añadirá automáticamente desde {{store}} cuando tu reloj se sincronice, normalmente en unos minutos."
   }
 }
