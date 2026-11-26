@@ -24,7 +24,7 @@ function setup() {
 }
 
 const typeName = (v: string) => fireEvent.change(screen.getByPlaceholderText("e.g. Lyon Marathon"), { target: { value: v } });
-const typeCountry = (v: string) => fireEvent.change(screen.getByPlaceholderText("FR"), { target: { value: v } });
+const pickCountry = (code: string) => fireEvent.change(screen.getByRole("combobox", { name: /Country/ }), { target: { value: code } });
 const submit = () => fireEvent.click(screen.getByRole("button", { name: "Add race" }));
 
 describe("RaceFormModal country", () => {
@@ -32,24 +32,22 @@ describe("RaceFormModal country", () => {
     const { addRace } = setup();
     typeName("Spartan Race Carcassonne");
     submit();
-    expect(screen.getByText(/A country is required/)).toBeInTheDocument();
+    expect(screen.getByText(/Choose a country\./)).toBeInTheDocument();
     expect(addRace).not.toHaveBeenCalled();
   });
 
-  it("refuses a code that isn't a country", () => {
-    const { addRace } = setup();
-    typeName("Spartan Race Carcassonne");
-    typeCountry("XX");
-    submit();
-    expect(screen.getByText(/A country is required/)).toBeInTheDocument();
-    expect(addRace).not.toHaveBeenCalled();
+  it("offers real countries only", () => {
+    setup();
+    const select = screen.getByRole("combobox", { name: /Country/ });
+    const codes = Array.from(select.querySelectorAll("option")).map(o => o.getAttribute("value"));
+    expect(codes).toContain("TZ");
+    expect(codes).not.toContain("TA");
   });
 
-  it("names the typed country and saves its normalised code", async () => {
+  it("saves the picked country's code", async () => {
     const { addRace } = setup();
     typeName("Hackney Half");
-    typeCountry("uk");
-    expect(screen.getByText("United Kingdom")).toBeInTheDocument();
+    pickCountry("GB");
     submit();
     await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
     expect(addRace.mock.calls[0][0]).toMatchObject({ name: "Hackney Half", country: "GB" });
@@ -81,7 +79,7 @@ describe("RaceFormModal duplicates and terrain", () => {
   it("saves the terrain picked for a new race", async () => {
     const { addRace } = setup();
     typeName("Trail des Crêtes");
-    typeCountry("FR");
+    pickCountry("FR");
     fireEvent.click(screen.getByRole("button", { name: "Trail" }));
     submit();
     await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ terrain: "trail" })));

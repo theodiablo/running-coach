@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { MapPin, Check, Plus, AlertTriangle, Loader } from "lucide-react";
@@ -9,7 +9,7 @@ import { deleteRace } from "../races";
 import type { RaceTerrain } from "../races";
 import { useRaceSearch } from "../hooks/useRaceSearch";
 import { notifyContribution } from "../notify";
-import { countryCode, countryName } from "../utils/country";
+import { countryCode, countryName, countryOptions } from "../utils/country";
 import type { CatalogueRace, CatalogueEdition } from "../types";
 
 type LatLng = { lat: number; lng: number };
@@ -49,7 +49,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k: keyof RaceForm, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
-  const typedCountry = countryCode(f.country);
+  const countries = useMemo(() => countryOptions(i18n.language), [i18n.language]);
 
   // Live duplicate search on the name field (skipped once a race is selected).
   const q = f.name.trim();
@@ -143,10 +143,11 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={LABEL_CLS}>{t("races.form.city")}</label>
                   <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
-                <div><label className={LABEL_CLS}>{t("races.form.country")}</label>
-                  <input value={f.country} onChange={e => set("country", e.target.value)} placeholder={t("races.form.countryPlaceholder")} maxLength={2}
-                    autoCapitalize="characters" aria-required="true" className={INPUT_CLS}/>
-                  {typedCountry && <p className="text-[11px] text-slate-400 mt-1 truncate">{countryName(typedCountry, i18n.language) || typedCountry}</p>}</div>
+                <div><label htmlFor="race-country" className={LABEL_CLS}>{t("races.form.country")}</label>
+                  <select id="race-country" value={f.country} onChange={e => set("country", e.target.value)} aria-required="true" className={INPUT_CLS}>
+                    <option value="">{t("races.form.countryPlaceholder")}</option>
+                    {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select></div>
               </div>
               <div role="group" aria-label={t("races.filters.terrain")}>
                 <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
@@ -208,7 +209,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     {showPicker && (
       <LocationPicker
         initial={loc}
-        geocodeQuery={[f.city.trim(), f.country.trim()].filter(Boolean).join(", ")}
+        geocodeQuery={[f.city.trim(), countryName(f.country, i18n.language) || ""].filter(Boolean).join(", ")}
         onConfirm={(p) => { setLoc(p); setShowPicker(false); }}
         onCancel={() => setShowPicker(false)}
       />

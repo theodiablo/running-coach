@@ -129,8 +129,8 @@ Contributions are instant + global + unverified. "Add a race"
 (`src/modals/RaceFormModal.tsx`, opened via `shared.openRaceForm`) does a live
 duplicate search and inserts `verified:false, created_by=uid`; the UI tags any
 unverified race/edition. A new race needs a name, a date, a distance, a terrain and a
-**country** (ISO 3166-1 alpha-2, normalised by `countryCode` in
-`src/utils/country.ts`; `UK` becomes `GB`), and the `races_country_code` check
+**country** (ISO 3166-1 alpha-2, picked from a localized dropdown built by `countryOptions` in
+`src/utils/country.ts`, whose explicit list leaves out the reserved codes `Intl` also names, such as `TA`; `countryCode` validates against it and `UK` becomes `GB`), and the `races_country_code` check
 refuses a race without one. After a contribution, `refreshCatalogue`
 (RunningCoach) re-fetches so it shows immediately.
 

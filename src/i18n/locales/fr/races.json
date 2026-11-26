@@ -96,7 +96,7 @@
     "city": "Ville",
     "cityPlaceholder": "Lyon",
     "country": "Pays",
-    "countryPlaceholder": "FR",
+    "countryPlaceholder": "Choisis un pays",
     "officialSite": "Site officiel (facultatif)",
     "officialSitePlaceholder": "https://…",
     "location": "Lieu (pour « courses près de moi »)",
@@ -113,7 +113,7 @@
     "errors": {
       "dateDistance": "Une date et une distance sont requises.",
       "name": "Le nom de la course est requis.",
-      "country": "Le pays est requis : son code à deux lettres, p. ex. FR ou ES.",
+      "country": "Choisis un pays.",
       "save": "Impossible d'enregistrer cette course. Réessaie."
     }
   },

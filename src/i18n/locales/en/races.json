@@ -96,7 +96,7 @@
     "city": "City",
     "cityPlaceholder": "Lyon",
     "country": "Country",
-    "countryPlaceholder": "FR",
+    "countryPlaceholder": "Choose a country",
     "officialSite": "Official site (optional)",
     "officialSitePlaceholder": "https://…",
     "location": "Location (for “races near me”)",
@@ -113,7 +113,7 @@
     "errors": {
       "dateDistance": "A date and distance are required.",
       "name": "A race name is required.",
-      "country": "A country is required: its two-letter code, e.g. FR or ES.",
+      "country": "Choose a country.",
       "save": "Couldn't save that race. Please try again."
     }
   },
