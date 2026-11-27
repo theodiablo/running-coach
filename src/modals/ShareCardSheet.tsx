@@ -14,7 +14,7 @@ import { routeShape } from "../share/routeShape";
 import { CARD_H, CARD_W, ROUTE_BOX, ROUTE_STROKE, drawCard } from "../share/drawCard";
 import type { CardView, TFn } from "../share/drawCard";
 import { loadCardFonts } from "../share/fonts";
-import { shareImage, shareLink, sharesFiles } from "../share/shareImage";
+import { opensShareSheet, shareImage, shareLink } from "../share/shareImage";
 import type { TrackPointOrGap } from "../utils/geo";
 import type { Participation, Plan, PlanSession, Run, SettingsState } from "../types";
 
@@ -204,7 +204,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
       <div className="px-4 pt-3 max-w-md w-full mx-auto">
         <button type="button" onClick={() => void share()} disabled={busy || !fontsReady}
           className="w-full min-h-[52px] rounded-2xl bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-slate-950 font-extrabold">
-          {busy || !fontsReady ? t("shareCard.preparing") : t(sharesFiles() ? "shareCard.share" : "shareCard.download")}
+          {busy || !fontsReady ? t("shareCard.preparing") : t(opensShareSheet() ? "shareCard.share" : "shareCard.download")}
         </button>
       </div>
     </div>
