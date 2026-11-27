@@ -684,11 +684,31 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // undefined = not read (yet, or the read failed).
   const [publicName, setPublicName] = useState<string | null | undefined>(undefined);
   const uid = user?.id ?? null;
+  // A failed read is retried on online, foreground and settings close; never left unread for good.
+  const publicNameRef = useRef(publicName);
+  useEffect(() => { publicNameRef.current = publicName; }, [publicName]);
+  const loadPublicNameRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!uid) return;
     let alive = true;
-    void fetchPublicName(uid).then(v => { if (alive) setPublicName(v); });
-    return () => { alive = false; };
+    let busy = false;
+    const load = () => {
+      if (busy || publicNameRef.current !== undefined) return;
+      busy = true;
+      void fetchPublicName(uid).then(v => { busy = false; if (alive) setPublicName(v); });
+    };
+    loadPublicNameRef.current = load;
+    publicNameRef.current = undefined;
+    load();
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    window.addEventListener("online", load);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      alive = false;
+      loadPublicNameRef.current = () => {};
+      window.removeEventListener("online", load);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [uid]);
   // A race that leaves the list on this device owes its membership a delete, retried until
   // it lands (docs/race-field.md). Never before the store is loaded and reconciled.
@@ -1411,6 +1431,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const leaveSettings = () => { resumeRecorderRef.current = null; setShowSettings(false); };
   const closeSettings = () => {
     setShowSettings(false);
+    loadPublicNameRef.current();
     const resume = resumeRecorderRef.current;
     resumeRecorderRef.current = null;
     if (resume === "tracker") setShowTracker(true);
