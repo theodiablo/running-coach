@@ -715,6 +715,9 @@ catches iPadOS behind its Mac user agent); desktop gets both.
   `utm_content` (`idle` | `live` | `ended` | `sheet` | `footer`); Play Console
   reads these. TestFlight ignores query strings, so iPhone taps are
   unmeasured. The share token must never ride out in any outbound link.
+- **Next: a finish recap and race context.** The ended state gains a recap and a
+  web "Start my plan, free" before the store buttons, and a race-day runner's
+  page names the race. Design (not built yet): `docs/watch-cta.md`.
 - **No app Escape dispatcher here.** `RunningCoach` owns it and never mounts, so
   the page installs its own `dismissTop` listener for the About sheet.
 
