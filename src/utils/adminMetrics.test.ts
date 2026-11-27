@@ -128,6 +128,26 @@ describe("formatDigest", () => {
     expect(formatDigest(METRICS).text).not.toContain("Live sharing");
   });
 
+  it("reports the share card, its kept-vs-changed share rates, and omits the section before the migration", () => {
+    const week = {
+      opened: { finish: 6, detail: 2 }, opened_by_platform: { android: 5, web: 3 }, shared: 5, saved: 1,
+      kept: { shared: 3, closed: 1 }, changed: { shared: 1, closed: 2 }, handoffs: { "route>route": 4, "route>week": 2 },
+    };
+    const none = { ...week, kept: { shared: 0, closed: 0 } };
+    const share_card = { since: "2026-11-28T09:00:00+00:00", "7d": week, total: { ...week, opened: { finish: 10, detail: 4 }, shared: 8 } };
+    const { text } = formatDigest({ ...METRICS, share_card });
+    expect(text).toContain("Share card (approximate)");
+    expect(text).toContain("Opened            6 finish, 2 detail (android 5, web 3)");
+    expect(text).toContain("Handed off        5 shared, 1 downloaded");
+    expect(text).toContain("Kept the pick     75% of 4");
+    expect(text).toContain("Changed it        33% of 3");
+    expect(text).toContain("Pick > shared     route>route 4, route>week 2");
+    expect(text).toContain("All time          14 opened, 9 handed off");
+    expect(text).toContain("Tracked since     2026-11-28");
+    expect(formatDigest({ ...METRICS, share_card: { ...share_card, "7d": none } }).text).toContain("Kept the pick     no visits");
+    expect(formatDigest(METRICS).text).not.toContain("Share card");
+  });
+
   it("says none rather than leaving a tally blank", () => {
     expect(formatDigest({ ...METRICS, integrations: {} }).text).toContain("Integrations      none");
   });

@@ -15,10 +15,14 @@ import { CARD_H, CARD_W, ROUTE_BOX, ROUTE_STROKE, drawCard } from "../share/draw
 import type { CardView, TFn } from "../share/drawCard";
 import { loadCardFonts } from "../share/fonts";
 import { shareImage, shareLink, sharesFiles } from "../share/shareImage";
+import { shareClosed, shareHandedOff, shareOpened } from "../share/shareEvents";
+import type { ShareEntry } from "../share/shareEvents";
 import type { TrackPointOrGap } from "../utils/geo";
 import type { Participation, Plan, PlanSession, Run, SettingsState } from "../types";
 
 export type ShareCardProps = {
+  // Where the builder was opened from, for the share counter.
+  entry: ShareEntry;
   run: Run;
   runs: Run[];
   plan: Plan | null | undefined;
@@ -55,10 +59,9 @@ function Toggle({ label, hint, on, onChange }: { label: string; hint: string; on
 
 // The share builder: one preview, the offered styles, a few switches, one button.
 // docs/share-card.md ("The builder").
-export function ShareCardSheet({ run, runs, plan, settings, participations, points, session, showToast, onClose }: ShareCardProps) {
+export function ShareCardSheet({ entry, run, runs, plan, settings, participations, points, session, showToast, onClose }: ShareCardProps) {
   const { t } = useTranslation();
   const tf: TFn = (key, vars) => t(key, vars ?? {});
-  useDismissable(true, onClose);
   const today = ymd(new Date());
   const indoor = isCrossTraining(run) || !(Number(run.km) > 0);
 
@@ -80,6 +83,21 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
   const [fontsReady, setFontsReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Counted against the style offered at open, even if a late trace changes the pre-selection.
+  const [openedWith] = useState(preselected);
+  const handedOff = useRef(false);
+  const counted = useRef(false);
+  useEffect(() => {
+    if (counted.current) return;
+    counted.current = true;
+    shareOpened(entry, openedWith);
+  }, [entry, openedWith]);
+  const close = () => {
+    if (!handedOff.current) shareClosed(entry, openedWith, style);
+    onClose();
+  };
+  useDismissable(true, close);
 
   const view: CardView = (() => {
     const date = fmt.sht(run.date);
@@ -148,6 +166,10 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
       const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/png"));
       if (!blob) throw new Error("no image");
       const result = await shareImage(blob, `run-${run.date}.png`, t("shareCard.shareText", { url: shareLink(style) }));
+      if (result === "shared" || result === "saved") {
+        shareHandedOff(result, entry, openedWith, style, !handedOff.current);
+        handedOff.current = true;
+      }
       if (result === "failed") showToast?.(t("shareCard.failed"), "err");
       else if (result === "saved") showToast?.(t("shareCard.saved"));
     } catch {
@@ -168,7 +190,7 @@ export function ShareCardSheet({ run, runs, plan, settings, participations, poin
       <div className="flex-1 overflow-y-auto px-4 max-w-md w-full mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <h2 id="share-card-title" className="text-xl font-extrabold text-white">{t("shareCard.title")}</h2>
-          <button type="button" onClick={onClose} aria-label={t("common.close")}
+          <button type="button" onClick={close} aria-label={t("common.close")}
             className="w-11 h-11 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
             <X size={18} aria-hidden />
           </button>

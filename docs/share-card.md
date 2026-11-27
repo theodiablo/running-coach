@@ -1,7 +1,7 @@
 # Post-run share card
 
-Status: **PR 1 (card, builder, web sharing) is built**; PR 2 (native sharing)
-and PR 3 (analytics) are designed, not built (see "PR split"). The product
+Status: **PR 1 (card, builder, web sharing) and PR 3 (analytics) are built**;
+PR 2 (native sharing) is designed, not built (see "PR split"). The product
 decisions are in `docs/social.md` ("Post-run share card"), the visual design in
 the maintainer's canvas (https://claude.ai/artifact/TJeaNbU8BedgAJN5o6hTG4:
 `Main` = A, `Card-Number` = B, `Card-Plan` = D, `Flow-Finish`,
@@ -41,6 +41,8 @@ the canvas drawing code and the fonts never weigh on app start.
   The only code that touches the canvas API.
 - `src/share/shareImage.ts`: the share seam (web vs native, below).
 - `src/share/fonts.ts`: loads the card fonts (below).
+- `src/share/shareEvents.ts`: the share counter and its PostHog events
+  ("Analytics").
 - `src/modals/ShareCardSheet.tsx`: the builder. Registers `useDismissable`.
   `ShareCardGate.tsx` lazy-loads it behind `ChunkLoadBoundary`.
 - `src/i18n/locales/{en,fr,es}/shareCard.json`: all copy.
@@ -611,6 +613,26 @@ grant insert on public.share_card_events to authenticated;
   `{entry, preselected}` and `share_card_shared` `{entry, preselected, chosen,
   event}`. No run data, no text.
 
+**As built** (`src/share/shareEvents.ts`, migration `share_card_events`):
+
+- The builder takes an `entry` prop (`"finish"` from `RunCelebration`,
+  `"detail"` from `RunDetailModal`). `platform` is `native.ts`'s, any browser
+  filed under `web`.
+- `preselected` is the pre-selection **at open**, held for the visit: a trace
+  arriving late can change the pre-selection on screen, but the counts stay
+  against what the runner was first offered.
+- `opened` fires once on mount (a ref guard, so StrictMode's double effect
+  doesn't double it). `closed` is written by the builder's own close path,
+  which the close button and `useDismissable` (back, Escape, the header's
+  go-Home reset) all go through. An unmount without a close (the app killed)
+  writes nothing, which is the "lost closing row" the digest allows for.
+- `admin_metrics()` returns `share_card: { since, "7d", total }`, each window
+  `{ opened: {finish, detail}, opened_by_platform, shared, saved,
+  kept: {shared, closed}, changed: {shared, closed}, handoffs:
+  {"preselected>chosen": n} }`. `formatDigest`'s section reads the 7-day window
+  plus an all-time line.
+- The digest's section and what each line means: `docs/product-metrics.md`.
+
 **The exception is written down first.** The rule is "count everything, as
 long as it is anonymous", but CLAUDE.md and `docs/telemetry.md` say anything
 that collects automatically belongs to a consent channel, and neither carves
@@ -714,7 +736,7 @@ WhatsApp, save to photos), each style, all three locales.
 Three PRs (decided). The native plugins get their own PR, so the
 store-release effect sits alone in a small one:
 
-1. **Card + builder + web sharing.**
+1. **Card + builder + web sharing** (built).
    - `src/share/*` (model, route shape, drawing, web half of `shareImage`);
    - `ShareCardSheet`;
    - both entry points;
@@ -730,7 +752,7 @@ store-release effect sits alone in a small one:
    - flips the entry point on in the shells.
 
    Merge-time effect: needs a store release of both shells.
-3. **Analytics + digest.**
+3. **Analytics + digest** (built).
    - the "Non-personal server counters" section in
      `docs/telemetry.md`, in the same PR and ahead of the insert;
    - the `share_card_events` migration (with its `authenticated` insert

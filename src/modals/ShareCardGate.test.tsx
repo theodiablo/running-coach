@@ -12,7 +12,7 @@ afterEach(cleanup);
 describe("ShareCardGate", () => {
   it("lets back / Escape close the builder while it is still loading, and only the builder", () => {
     const onClose = vi.fn();
-    render(<ShareCardGate run={{ date: "2026-11-20", km: 5, durationSec: 1800 }} runs={[]} plan={null}
+    render(<ShareCardGate entry="detail" run={{ date: "2026-11-20", km: 5, durationSec: 1800 }} runs={[]} plan={null}
       settings={{} as SettingsState} participations={[]} points={null} onClose={onClose} />);
     expect(dismissTop()).toBe(true);
     expect(onClose).toHaveBeenCalledTimes(1);

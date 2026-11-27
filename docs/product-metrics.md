@@ -33,6 +33,23 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   people. Share links count runners holding an active link.
 - **Flyer QR scans** come from `qr_scans` (`docs/store-redirect.md`); the
   digest omits the section when the field is absent.
+- **Share card** comes from `share_card_events`, a non-personal counter
+  (`docs/telemetry.md`, "Non-personal server counters"; row semantics in
+  `docs/share-card.md`, "Analytics"), so it counts every runner, not the opt-in
+  slice. Last 7 days, by row time:
+  - **Opened**: builder opens by entry point (finish screen / run detail),
+    and by platform.
+  - **Handed off**: `shared` (OS sheet) and `saved` (desktop download) rows;
+    two styles shared from one visit count twice.
+  - **Kept the pick / Changed it**: the share rate per visit, split on whether
+    the style handed off (or on screen at close) was the pre-selected one:
+    first hand-offs / (first hand-offs + `closed` rows). Opens minus both is the
+    visits whose closing row was lost (app killed, failed insert).
+  - **Pick > shared**: every hand-off as `preselected>chosen`.
+
+  Counts are approximate (best-effort inserts, any signed-in client can add
+  rows, a visit can straddle the window edge); "tracked since" is where the
+  history starts. The digest omits the section when the field is absent.
 
 ## The edge function (`admin-metrics`)
 
