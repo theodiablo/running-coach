@@ -53,7 +53,7 @@ function editionsOf(race: CatalogueRace | JoinedRace): CatalogueEdition[] {
 }
 
 // The race page: one edition's details, the runner's goal for it, and what they can do with it.
-export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWishlist, setGoal, removePart, promote, saveResult, report, previewTargetGoal, updateTargetGoal, publicName = null, onSetPublicName, showToast, onClose }: Props) {
+export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWishlist, setGoal, removePart, promote, saveResult, report, previewTargetGoal, updateTargetGoal, publicName, onSetPublicName, showToast, onClose }: Props) {
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const today = ymd(new Date());

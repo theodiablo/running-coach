@@ -14,7 +14,8 @@ type RaceFieldCardProps = {
   listed: boolean;
   // Open the join sheet straight away (the race was just added and hasn't been asked).
   ask: boolean;
-  publicName: string | null;
+  // undefined = not read: no join or change until it is, or a named choice would be lost.
+  publicName: string | null | undefined;
   goalSec: number | null;
   onAsked: () => void;
   onSetName: () => void;
@@ -61,10 +62,10 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
     return true;
   };
 
-  if (!state) return null;
-  // A failed membership read hides the card rather than offering a second join.
-  const canChange = listed && mine !== undefined;
-  if (!field?.open && !canChange) return null;
+  // A failed read (field or membership) hides the card rather than guess or offer a second join.
+  if (!state || !field) return null;
+  const canChange = listed && mine !== undefined && publicName !== undefined;
+  if (!field.open && !canChange) return null;
 
   return (
     <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 space-y-2.5">
@@ -72,13 +73,13 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
         <span className="w-9 h-9 shrink-0 rounded-full bg-sky-500/15 text-sky-300 grid place-items-center"><Users size={17}/></span>
         <div className="min-w-0">
           <p className="text-sm font-bold text-slate-100">
-            {field?.open ? t("races.field.card.count", { count: field.count ?? 0 }) : t("races.field.card.title")}
+            {field.open ? t("races.field.card.count", { count: field.count ?? 0 }) : t("races.field.card.title")}
           </p>
-          {field?.open && joined && <p className="text-xs text-slate-300">{t("races.field.card.youreIn")}</p>}
+          {field.open && joined && <p className="text-xs text-slate-300">{t("races.field.card.youreIn")}</p>}
         </div>
       </div>
       <p className="text-xs text-slate-400 leading-snug">
-        {field?.open ? t("races.field.card.body") : joined ? t("races.field.card.waiting") : t("races.field.card.invite")}
+        {field.open ? t("races.field.card.body") : joined ? t("races.field.card.waiting") : t("races.field.card.invite")}
       </p>
       {canChange && (
         <button type="button" onClick={() => setSheet(true)}
@@ -87,7 +88,7 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
         </button>
       )}
       {sheet && canChange && (
-        <FieldJoinSheet publicName={publicName} current={mine ?? null} others={others} hasGoal={!!goalSec}
+        <FieldJoinSheet publicName={publicName ?? null} current={mine ?? null} others={others} hasGoal={!!goalSec}
           onSetName={() => { closeSheet(); onSetName(); }} onDone={save} onClose={closeSheet}/>
       )}
     </div>

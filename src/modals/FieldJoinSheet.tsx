@@ -66,14 +66,14 @@ export function FieldJoinSheet({ publicName, current, others, hasGoal, onSetName
           {publicName
             ? option("named", t("races.field.join.named", { name: publicName }), t("races.field.join.namedHint"))
             : option("named", t("races.field.join.namedNoName"), t("races.field.join.namedNoNameHint"), true)}
-          {!publicName && (
-            <button type="button" onClick={onSetName} className="text-xs font-semibold text-orange-300 hover:text-orange-200 px-1">
-              {t("races.field.join.setName")}
-            </button>
-          )}
           {option("count", t("races.field.join.count"), t("races.field.join.countHint"))}
           {option("none", t("races.field.join.none"), t("races.field.join.noneHint"))}
         </div>
+        {!publicName && (
+          <button type="button" onClick={onSetName} className="text-xs font-semibold text-orange-300 hover:text-orange-200 px-1">
+            {t("races.field.join.setName")}
+          </button>
+        )}
 
         {choice === "named" && publicName && hasGoal && (
           <div className="flex items-center gap-3 rounded-xl bg-slate-900/60 px-3.5 py-2.5">

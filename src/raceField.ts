@@ -68,6 +68,12 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
     const { error } = await supabase.from("race_field_members")
       .insert({ user_id: uid, edition_id: editionId, visibility: choice, goal_sec: goal });
     if (!error) return "ok";
+    // Already a member (joined on another device, or a stale read): this choice is a change.
+    if (error.code === "23505") {
+      const { data, error: updError } = await supabase.from("race_field_members")
+        .update({ visibility: choice, goal_sec: goal }).eq("user_id", uid).eq("edition_id", editionId).select("edition_id");
+      return updError || !data?.length ? "error" : "ok";
+    }
     const msg = String(error.message || "");
     return /limit reached/.test(msg) ? "limit" : /field closed/.test(msg) ? "closed" : "error";
   } catch {
@@ -82,9 +88,9 @@ export async function syncFieldGoal(uid: string, editionId: string, goalSec: num
     const { error } = await supabase.from("race_field_members")
       .update({ goal_sec: goalSec ? Math.round(goalSec) : null })
       .eq("user_id", uid).eq("edition_id", editionId).eq("visibility", "named").not("goal_sec", "is", null);
-    if (error) console.error("field goal sync failed", error);
+    if (error) console.error("field goal sync failed", error.message);
   } catch (e) {
-    console.error("field goal sync failed", e);
+    console.error("field goal sync failed", e instanceof Error ? e.message : "unknown");
   }
 }
 

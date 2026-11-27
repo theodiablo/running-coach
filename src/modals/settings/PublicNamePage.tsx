@@ -78,7 +78,7 @@ export function PublicNamePage({ publicName, onSaved, showToast }: PublicNamePag
       <div className="rounded-2xl bg-slate-800 p-4 space-y-2">
         <p className="text-xs font-semibold text-slate-400">{t("settings.publicName.preview")}</p>
         <div className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-full bg-orange-700 text-orange-50 grid place-items-center text-sm font-extrabold">{initials(shown)}</span>
+          <span className="w-10 h-10 rounded-full bg-orange-700 text-orange-50 grid place-items-center text-sm font-extrabold">{initials(name)}</span>
           <span className="font-bold text-slate-100">{shown}</span>
         </div>
       </div>

@@ -15,6 +15,7 @@ vi.mock("../../raceField", () => ({
 }));
 
 const { RaceFieldCard } = await import("./RaceFieldCard");
+const { fetchRaceField } = await import("../../raceField");
 
 type CardProps = Partial<React.ComponentProps<typeof RaceFieldCard>>;
 const card = (p: CardProps = {}) => {
@@ -54,9 +55,27 @@ describe("RaceFieldCard", () => {
 
   it("shows nothing for a closed field the runner can't join", async () => {
     h.field = { open: false, joined: false, count: null };
-    const { container } = render(<div/>);
     card({ listed: false });
-    await waitFor(() => expect(container.ownerDocument.body.textContent).toBe(""));
+    await waitFor(() => expect(fetchRaceField).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 0));
+    expect(document.body.textContent).toBe("");
+  });
+
+  it("offers no join or change while the public name is unread, so a named choice can't be lost", async () => {
+    h.field = { open: true, joined: true, count: 5 };
+    h.mine = { visibility: "named", goalSec: 6300 };
+    card({ publicName: undefined });
+    expect(await screen.findByText("5 app runners in this field")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change how I appear" })).toBeNull();
+  });
+
+  it("hides the card when the field read failed, rather than guess its state", async () => {
+    h.field = null;
+    h.mine = { visibility: "count", goalSec: null };
+    card();
+    await waitFor(() => expect(fetchRaceField).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 0));
+    expect(document.body.textContent).toBe("");
   });
 
   it("hides the door when the membership read failed, rather than offering a second join", async () => {

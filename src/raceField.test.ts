@@ -66,6 +66,12 @@ describe("setFieldChoice", () => {
     expect(h.calls).toEqual([]);
   });
 
+  it("turns a duplicate join into a change, when the runner is already a member", async () => {
+    h.results.push({ error: { code: "23505", message: "duplicate key" } }, { data: [{ edition_id: "e1" }], error: null });
+    expect(await setFieldChoice("u", "e1", "named", 6300, null)).toBe("ok");
+    expect(ops()).toEqual(["from", "insert", "from", "update", "eq", "eq", "select"]);
+  });
+
   it("maps the guard trigger's refusals", async () => {
     h.results.push({ error: { message: "race field limit reached" } });
     expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("limit");

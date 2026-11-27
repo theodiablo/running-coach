@@ -118,7 +118,7 @@ export function AccountPage({ settings, saveSettings, user, onBackup, onRestore,
             <Users size={16} className="text-orange-400 shrink-0"/>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-slate-200">{t("settings.publicName.title")}</span>
-              <span className="block text-xs text-slate-400 truncate">{publicName || t("settings.publicName.off")}</span>
+              <span className="block text-xs text-slate-400 truncate">{publicName === undefined ? "" : publicName || t("settings.publicName.off")}</span>
             </span>
             <ChevronRight size={16} className="text-slate-500 shrink-0"/>
           </button>

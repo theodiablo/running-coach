@@ -41,6 +41,7 @@ type RacesViewProps = {
   settleRace?: (runId: string | null, timeSec: number | null, opts?: { notes?: string; quiet?: boolean }) => boolean;
   previewTargetGoal?: (goalSec: number) => Plan | null;
   updateTargetGoal?: (goalSec: number) => void;
+  // undefined = not read yet (or the read failed).
   publicName?: string | null;
   openSettings?: (page?: unknown) => void;
 };
@@ -57,7 +58,7 @@ function resolveJoined(part: Participation): JoinedRace | JoinedEdition {
   };
 }
 
-export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, openRaceForm, runs, plan, settleRace, previewTargetGoal, updateTargetGoal, publicName = null, openSettings }: RacesViewProps) {
+export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDate, saveRaces, settings, promoteEdition, setRaceInPlan, addRuns, showToast, openRaceForm, runs, plan, settleRace, previewTargetGoal, updateTargetGoal, publicName, openSettings }: RacesViewProps) {
   const { t } = useTranslation();
   const [seg, setSeg] = useState<Segment>("mine");
   const [logFor, setLogFor] = useState<string | null>(null); // editionId being logged
