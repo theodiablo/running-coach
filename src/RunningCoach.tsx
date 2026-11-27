@@ -695,7 +695,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     const load = () => {
       if (busy || publicNameRef.current !== undefined) return;
       busy = true;
-      void fetchPublicName(uid).then(v => { busy = false; if (alive) setPublicName(v); });
+      void fetchPublicName(uid).then(v => {
+        busy = false;
+        // A retry or save that landed meanwhile wins over this read.
+        if (alive && publicNameRef.current === undefined) setPublicName(v);
+      });
     };
     loadPublicNameRef.current = load;
     publicNameRef.current = undefined;

@@ -83,7 +83,16 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
 
 // Keeps a shown goal in step with the race's goal. Only a goal already shown is
 // touched: a hidden one (null) stays hidden until the runner turns it on again.
-export async function syncFieldGoal(uid: string, editionId: string, goalSec: number | null): Promise<void> {
+let goalWrites: Promise<unknown> = Promise.resolve();
+
+export function syncFieldGoal(uid: string, editionId: string, goalSec: number | null): Promise<void> {
+  // Queued so an undo's write always lands after the edit it undoes.
+  const run = goalWrites.then(() => writeFieldGoal(uid, editionId, goalSec));
+  goalWrites = run;
+  return run;
+}
+
+async function writeFieldGoal(uid: string, editionId: string, goalSec: number | null): Promise<void> {
   try {
     const { error } = await supabase.from("race_field_members")
       .update({ goal_sec: goalSec ? Math.round(goalSec) : null })

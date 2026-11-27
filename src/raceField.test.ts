@@ -90,6 +90,20 @@ describe("syncFieldGoal", () => {
   });
 });
 
+describe("syncFieldGoal ordering", () => {
+  it("applies goal writes in the order they were made, so an undo lands last", async () => {
+    let landEdit: (v: { error: null }) => void = () => {};
+    h.results.push(new Promise(r => { landEdit = r; }) as never, { error: null });
+    const edit = syncFieldGoal("u", "e1", 5000);
+    const undo = syncFieldGoal("u", "e1", 6000);
+    await Promise.resolve(); await Promise.resolve();
+    expect(h.calls.filter(c => c[0] === "update")).toEqual([["update", { goal_sec: 5000 }]]);
+    landEdit({ error: null });
+    await Promise.all([edit, undo]);
+    expect(h.calls.filter(c => c[0] === "update")).toEqual([["update", { goal_sec: 5000 }], ["update", { goal_sec: 6000 }]]);
+  });
+});
+
 describe("pending leaves", () => {
   beforeEach(() => { localStorage.clear(); });
 
