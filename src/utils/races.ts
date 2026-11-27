@@ -61,6 +61,14 @@ export function editionLabel(race?: Pick<CatalogueRace, "name"> | null, edition?
   return [race?.name, year].filter(Boolean).join(" ");
 }
 
+// A catalogue race's name as the runner sees it: their participation's own label,
+// else the catalogue's, else `fallback` (an edition no longer cached).
+export function catalogueRaceLabel(editionId: string | null | undefined, participations: Participation[] | null | undefined, fallback: string): string {
+  const joined = findEdition(editionId);
+  return (participations || []).find(p => p.editionId === editionId)?.label as string | undefined
+    || (joined ? editionLabel({ name: String(joined.name) }, joined.edition) : fallback);
+}
+
 // Multi-race: match a just-logged run against ANY race on the plan. `candidates` are the main and
 // secondary races, with or without a catalogue edition. Returns the match or null (same date plus a
 // distance tolerance).

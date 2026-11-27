@@ -33,7 +33,7 @@ import { WeekStripCard } from "../components/WeekStripCard";
 import { RecoverySoreSheet } from "../modals/RecoverySoreSheet";
 import { RaceDayCard, RaceDayPlanRow } from "../components/RaceDayCard";
 import { hasTestRun, inRaceDayMode, upcomingRace } from "../utils/raceDay";
-import { editionLabel, findEdition } from "../utils/races";
+import { catalogueRaceLabel, findEdition } from "../utils/races";
 import { useSeenOnScreen } from "../hooks/useSeenOnScreen";
 import { isCrossTraining } from "../types";
 import type { CoachSource, JoinedEdition, Plan, PlanSession, RacesState, Run, RunActivity, RunPatch, RunType, SettingsPage, SettingsState } from "../types";
@@ -157,9 +157,7 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const raceRuns = racePhase && debriefing ? raceRunCandidates(plan, runs, { date: racePhase.race.date, km: racePhase.race.km }) : [];
   const raceLabel = (() => {
     if (!racePhase?.catalogue) return null;
-    const joined = findEdition(racePhase.race.editionId);
-    return (races?.participations || []).find(p => p.editionId === racePhase.race.editionId)?.label
-      || (joined ? editionLabel({ name: String(joined.name) }, joined.edition) : t("app.toasts.yourRace"));
+    return catalogueRaceLabel(racePhase.race.editionId, races?.participations, t("app.toasts.yourRace"));
   })();
   const answer = (a: "ran" | "didnt" | "moved" | "feel") => track("debrief_answered", { answer: a });
   const nextSess = nextSession(plan, today) as DashboardSession | null;

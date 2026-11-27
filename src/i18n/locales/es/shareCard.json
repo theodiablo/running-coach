@@ -1,0 +1,80 @@
+{
+  "open": "Compartir este entrenamiento",
+  "title": "Compartir este entrenamiento",
+  "styleGroup": "Estilo de la tarjeta",
+  "styles": {
+    "route": "Recorrido",
+    "number": "Cifra",
+    "week": "Semana"
+  },
+  "toggles": {
+    "route": "Mostrar el recorrido",
+    "routeHint": "Dibujado como una línea, sin mapa",
+    "pace": "Mostrar el ritmo",
+    "paceHint": "El tiempo siempre se muestra",
+    "hr": "Mostrar la frecuencia cardiaca",
+    "hrHint": "Es un dato de salud: oculto salvo que lo actives"
+  },
+  "share": "Compartir imagen",
+  "download": "Descargar imagen",
+  "preparing": "Preparando la imagen",
+  "failed": "No se pudo compartir la imagen. Inténtalo de nuevo.",
+  "saved": "Imagen guardada",
+  "preview": "Vista previa de la tarjeta: {{summary}}",
+  "stat": {
+    "distance": "Distancia",
+    "time": "Tiempo",
+    "pace": "Ritmo",
+    "hr": "FC media"
+  },
+  "head": {
+    "run": {
+      "r1": "Piernas: trabajadas. Cabeza: despejada.",
+      "r2": "Uno más en el bolsillo",
+      "r3": "Kilómetros en las piernas",
+      "r4": "Aire fresco: conseguido",
+      "r5": "Entrenamiento hecho. Sienta bien.",
+      "r6": "Aparecí y lo corrí"
+    },
+    "pb": {
+      "p1": "Cada vez más rápido",
+      "p2": "Una nueva mejor marca",
+      "p3": "El más rápido hasta ahora"
+    }
+  },
+  "route": {
+    "pill": "Nueva mejor marca en {{dist}} · {{time}}"
+  },
+  "footer": "Registrado con Running Coach",
+  "footerStores": "Registrado con Running Coach · gratis en iPhone y Android",
+  "number": {
+    "tagPb": "Nueva mejor marca",
+    "tagFirst": "Primera marca",
+    "faster": "{{delta}} mejor que mi última marca"
+  },
+  "activity": {
+    "bike": "Bici",
+    "elliptical": "Elíptica",
+    "rower": "Remo",
+    "other": "Sesión"
+  },
+  "week": {
+    "trainingFor": "Entrenando para",
+    "training": "Entrenando",
+    "myRace": "mi carrera",
+    "block": "Bloque {{block}}",
+    "raceDay": "¡Día de carrera!",
+    "daysToGo_one": "Falta {{count}} día",
+    "daysToGo_other": "Faltan {{count}} días",
+    "weekOf": "Semana {{n}} de {{m}}",
+    "thisWeek": "Esta semana",
+    "summary": "{{done}} de {{planned}} entrenamientos hechos · {{km}} km por ahora",
+    "today": "Hoy",
+    "runRow": "{{day}}: {{type}}",
+    "run": "mi entrenamiento",
+    "footer": "Mi plan, creado por Running Coach"
+  },
+  "loadError": "No se pudo abrir la tarjeta. Revisa tu conexión e inténtalo de nuevo.",
+  "shareText": "Registrado con Running Coach: {{url}}",
+  "privacyNote": "Por tu privacidad, la línea oculta 300 m alrededor de donde saliste y llegaste."
+}

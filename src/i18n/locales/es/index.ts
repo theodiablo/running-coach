@@ -26,9 +26,10 @@ import celebration from "./celebration.json";
 import stretch from "./stretch.json";
 import raceDay from "./raceDay.json";
 import whatsNext from "./whatsNext.json";
+import shareCard from "./shareCard.json";
 
 export default {
   common, nav, dashboard, plan, styles, races, coach, tracker,
   log, progress, badges, settings, onboarding, login, app, authErrors, routeFinder, premium, liveShare,
-  bestEfforts, reminders, feedback, celebration, stretch, raceDay, whatsNext,
+  bestEfforts, reminders, feedback, celebration, stretch, raceDay, whatsNext, shareCard,
 };

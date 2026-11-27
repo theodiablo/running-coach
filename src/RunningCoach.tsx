@@ -263,11 +263,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [trackerFindKm, setTrackerFindKm] = useState<number | undefined>(undefined);
   // The full session row behind trackerLink — the link only carries ids (for
   // the save prefill); the tracker's guided-workout mode needs the row itself.
-  const trackerSession = useMemo(() => {
-    if (!trackerLink || !plan?.weeks) return null;
-    const wk = plan.weeks.find(w => w.weekNumber === trackerLink.wNum);
-    return wk?.sessions?.find(s => s.id === trackerLink.sId) ?? null;
-  }, [trackerLink, plan]);
+  const linkedRow = (link: { wNum: number; sId: string } | null) =>
+    link && plan?.weeks ? plan.weeks.find(w => w.weekNumber === link.wNum)?.sessions?.find(s => s.id === link.sId) ?? null : null;
+  const trackerSession = linkedRow(trackerLink);
+  // The indoor finish screen's share card reads it the same way.
+  const indoorSession = linkedRow(indoorLink);
   const [backupRoutes,setBackupRoutes]= useState<RouteBackup[]>([]);
   // Personal races layer (wishlist / completed + seen-badge set). seenBadges is
   // null until first-run seeding so we can tell "never computed" from "none".
@@ -1537,14 +1537,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </ChunkLoadBoundary>
       )}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} plan={plan} participations={races.participations} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         settings={settings} onSettingsPatch={patchSettings}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setRecorderMinimized(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
-      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} initialActivity={indoorLink?.activity}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} plan={plan} participations={races.participations} session={indoorSession} initialActivity={indoorLink?.activity}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
@@ -1591,7 +1591,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
-      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
+      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} plan={plan} participations={races.participations} showToast={showToast} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
       <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
         reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={review.moment} onMomentSpent={review.spendMoment}/>

@@ -50,8 +50,9 @@ import { previewCue, primeCues } from "../cues";
 import { compileSpec, isOpenSpec, readSpec, specFromSession, specWantsAudio, zoneBpm, type WorkoutSpec } from "../utils/workoutSpec";
 import { readAudioPrefs, type AudioPrefs } from "../utils/callout";
 import { track } from "../telemetry";
-import type { HrMethod, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
+import type { HrMethod, Participation, Plan, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
 import type { RunPrefill } from "../utils/runPrefill";
+import type { TrackPointOrGap } from "../utils/geo";
 
 type LiveRunTrackerProps = {
   onFinish: (prefill: RunPrefill) => void;
@@ -74,6 +75,9 @@ type LiveRunTrackerProps = {
   // The plan session the tracker was opened from — it seeds "Today's run"
   // (docs/guided-workouts.md).
   session?: PlanSession | null;
+  // For the finish screen's share card only.
+  plan?: Plan | null;
+  participations?: Participation[];
   // Read for the recorder's synced preferences (audio guidance, the last free
   // run's setup, the one-time tour) and the HR profile behind zone targets.
   settings?: Partial<SettingsState>;
@@ -102,7 +106,7 @@ function Stat({ label, value, pulseKey, sub, valueCls = "text-white" }: { label:
 
 type RecorderSheetId = "workout" | "audio" | "share";
 
-export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium, runs = [] }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium, runs = [], plan = null, participations = [] }: LiveRunTrackerProps) {
   // Same pre-start read as the indoor recorder, from the same helper
   // (src/hr/runHr.ts).
   const hr = recorderHrSetup(hrMethod, hrOptOut);
@@ -284,7 +288,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     track("live_run_recovery_resumed", {});
     rt.resumePrevious();
   };
-  const [celebration, setCelebration] = useState<{ c: Celebration; run: Run } | null>(null);
+  const [celebration, setCelebration] = useState<{ c: Celebration; run: Run; points: TrackPointOrGap[] } | null>(null);
   // Set once shown, so the post-save best-effort sheet doesn't repeat it.
   const celebratedRef = useRef(false);
   // Pairs with live_run_started as a start→finish funnel; km/duration only
@@ -303,10 +307,11 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       durationSec: cut.durationSec,
       elevation: stats.elevation, source: "gps", bestEfforts: bestEffortsFromTrack(simplified),
     };
-    const c = celebrate({ run, runs, points: tracePausesRemoved(simplified, rt.pauses()), session, at: new Date(startedAt || firstAt) });
+    const moving = tracePausesRemoved(simplified, rt.pauses());
+    const c = celebrate({ run, runs, points: moving, session, at: new Date(startedAt || firstAt) });
     if (!c) return;
     celebratedRef.current = true;
-    setCelebration({ c, run });
+    setCelebration({ c, run, points: moving });
   };
 
   // One-time Android nudge: with battery optimization active the OS can kill the
@@ -997,7 +1002,8 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       )}
 
       {celebration && (
-        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)} />
+        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)}
+          share={{ runs, plan, settings: settings as SettingsState, participations, points: celebration.points, session: session ?? null, showToast }} />
       )}
     </div>
     </>

@@ -86,3 +86,32 @@ describe("RunCelebration", () => {
     expect(screen.queryByText(/km/)).not.toBeInTheDocument();
   });
 });
+
+vi.mock("./ShareCardGate", () => ({
+  ShareCardGate: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="share builder"><button onClick={onClose}>close builder</button></div>,
+}));
+
+describe("RunCelebration · share", () => {
+  const share = { runs: [], plan: null, settings: {} as never, participations: [], points: null };
+
+  it("offers no share action without the share data", () => {
+    show();
+    expect(screen.queryByRole("button", { name: "Share this run" })).toBeNull();
+  });
+
+  it("opens the builder without closing, and stops the auto-close", () => {
+    const onClose = vi.fn();
+    render(<RunCelebration celebration={base} run={run} onClose={onClose} share={share} />);
+    act(() => { vi.advanceTimersByTime(500); });
+    fireEvent.click(screen.getByRole("button", { name: "Share this run" }));
+    expect(screen.getByRole("dialog", { name: "share builder" })).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(10_000); });
+    expect(onClose).not.toHaveBeenCalled();
+    // Back from the builder, the screen waits on Continue.
+    fireEvent.click(screen.getByRole("button", { name: "close builder" }));
+    act(() => { vi.advanceTimersByTime(10_000); });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
