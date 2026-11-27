@@ -96,11 +96,14 @@
     "city": "Ville",
     "cityPlaceholder": "Lyon",
     "country": "Pays",
-    "countryPlaceholder": "FR",
+    "countryPlaceholder": "Tape pour chercher",
+    "countryNoMatch": "Aucun pays ne correspond",
     "officialSite": "Site officiel (facultatif)",
     "officialSitePlaceholder": "https://…",
     "location": "Lieu (pour « courses près de moi »)",
     "locationSet": "Lieu défini ✓",
+    "locationHint": "Place le départ sur la carte pour remplir le pays et la ville.",
+    "locating": "Recherche du lieu",
     "setLocation": "Définir le lieu sur la carte",
     "date": "Date",
     "distanceKm": "Distance (km)",
@@ -113,7 +116,7 @@
     "errors": {
       "dateDistance": "Une date et une distance sont requises.",
       "name": "Le nom de la course est requis.",
-      "country": "Le pays est requis : son code à deux lettres, p. ex. FR ou ES.",
+      "country": "Choisis un pays.",
       "save": "Impossible d'enregistrer cette course. Réessaie."
     }
   },
