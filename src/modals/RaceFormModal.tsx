@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDismissable } from "../hooks/useDismissable";
 import { MapPin, Check, Plus, AlertTriangle, Loader } from "lucide-react";
@@ -10,12 +10,16 @@ import type { RaceTerrain } from "../races";
 import { useRaceSearch } from "../hooks/useRaceSearch";
 import { notifyContribution } from "../notify";
 import { countryCode, countryName } from "../utils/country";
+import { guessCountry } from "../utils/guessCountry";
+import { reverseGeocode } from "../utils/geocode";
+import { CountryPicker } from "../components/CountryPicker";
 import type { CatalogueRace, CatalogueEdition } from "../types";
 
 type LatLng = { lat: number; lng: number };
 type RaceForm = {
   name: string;
   city: string;
+  cityFromMap: boolean;   // filled by the last pin, so the next pin may replace it
   country: string;
   url: string;
   date: string;
@@ -41,22 +45,41 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const [selected, setSelected] = useState<CatalogueRace | null>(null); // an existing race to add a date to
-  const [f, setF] = useState<RaceForm>({ name: "", city: "", country: "", url: "",
-    date: prefill?.date || "", distanceKm: prefill?.distanceKm ?? "", elevation: prefill?.elevation ?? "" });
+  const [f, setF] = useState<RaceForm>(() => ({ name: "", city: "", cityFromMap: false, country: guessCountry() ?? "", url: "",
+    date: prefill?.date || "", distanceKm: prefill?.distanceKm ?? "", elevation: prefill?.elevation ?? "" }));
   const [loc, setLoc] = useState<LatLng | null>(null);   // { lat, lng } picked on the map
   const [terrain, setTerrain] = useState<RaceTerrain>("road");
   const [showPicker, setShowPicker] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const reverseSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const set = (k: keyof RaceForm, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
-  const typedCountry = countryCode(f.country);
+  const set = (k: Exclude<keyof RaceForm, "cityFromMap">, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
 
   // Live duplicate search on the name field (skipped once a race is selected).
   const q = f.name.trim();
   const dupes = useRaceSearch({ query: q, limit: 5 }, !selected && q.length >= 2);
   const matches = !selected && q.length >= 2 ? dupes.races : [];
 
+  // A pin fills the country, and the city unless the runner typed their own.
+  const confirmLocation = (p: LatLng) => {
+    setLoc(p);
+    setShowPicker(false);
+    const seq = ++reverseSeq.current;
+    setLocating(true);
+    void reverseGeocode(p).then(place => {
+      if (seq !== reverseSeq.current) return;
+      setLocating(false);
+      if (!place) return;
+      setF(prev => {
+        const fillCity = !!place.city && (!prev.city.trim() || prev.cityFromMap);
+        return { ...prev, country: place.country ?? prev.country, ...(fillCity ? { city: place.city ?? "", cityFromMap: true } : {}) };
+      });
+    });
+  };
+
   const submit = async () => {
+    if (locating) return;   // the pin's country is still on its way
     setErr("");
     const dist = parseFloat(String(f.distanceKm));
     if (!f.date || !dist) { setErr(t("races.form.errors.dateDistance")); return; }
@@ -140,14 +163,27 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
                   ))}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={LABEL_CLS}>{t("races.form.city")}</label>
-                  <input value={f.city} onChange={e => set("city", e.target.value)} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
-                <div><label className={LABEL_CLS}>{t("races.form.country")}</label>
-                  <input value={f.country} onChange={e => set("country", e.target.value)} placeholder={t("races.form.countryPlaceholder")} maxLength={2}
-                    autoCapitalize="characters" aria-required="true" className={INPUT_CLS}/>
-                  {typedCountry && <p className="text-[11px] text-slate-400 mt-1 truncate">{countryName(typedCountry, i18n.language) || typedCountry}</p>}</div>
+              <div>
+                <label className={LABEL_CLS}>{t("races.form.location")}</label>
+                {!loc && <p className="text-[11px] text-slate-500 -mt-1 mb-1.5">{t("races.form.locationHint")}</p>}
+                {loc ? (
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-400"><MapPin size={14}/>{t("races.form.locationSet")}</span>
+                    {locating && <Loader size={13} className="animate-spin text-slate-400" aria-label={t("races.form.locating")}/>}
+                    <button onClick={() => setShowPicker(true)} className="text-xs text-orange-400 hover:text-orange-300 font-semibold">{t("races.form.change")}</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowPicker(true)}
+                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-xl text-sm font-semibold transition-colors">
+                    <MapPin size={14}/>{t("races.form.setLocation")}
+                  </button>
+                )}
               </div>
+              <div><label htmlFor="race-country" className={LABEL_CLS}>{t("races.form.country")}</label>
+                <CountryPicker id="race-country" value={f.country} onChange={code => set("country", code)} locale={i18n.language}
+                  placeholder={t("races.form.countryPlaceholder")} noMatch={t("races.form.countryNoMatch")}/></div>
+              <div><label htmlFor="race-city" className={LABEL_CLS}>{t("races.form.city")}</label>
+                <input id="race-city" value={f.city} onChange={e => { const city = e.target.value; setF(prev => ({ ...prev, city, cityFromMap: false })); }} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
               <div role="group" aria-label={t("races.filters.terrain")}>
                 <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
                 <div className="flex bg-slate-900 rounded-xl p-1 gap-1">
@@ -161,20 +197,6 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
               </div>
               <div><label className={LABEL_CLS}>{t("races.form.officialSite")}</label>
                 <input value={f.url} onChange={e => set("url", e.target.value)} placeholder={t("races.form.officialSitePlaceholder")} maxLength={300} className={INPUT_CLS}/></div>
-              <div>
-                <label className={LABEL_CLS}>{t("races.form.location")}</label>
-                {loc ? (
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5 text-sm text-emerald-400"><MapPin size={14}/>{t("races.form.locationSet")}</span>
-                    <button onClick={() => setShowPicker(true)} className="text-xs text-orange-400 hover:text-orange-300 font-semibold">{t("races.form.change")}</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setShowPicker(true)}
-                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-xl text-sm font-semibold transition-colors">
-                    <MapPin size={14}/>{t("races.form.setLocation")}
-                  </button>
-                )}
-              </div>
             </>
           )}
 
@@ -195,7 +217,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
           {err && <p className="text-sm text-red-400">{err}</p>}
 
           <div className="flex gap-2">
-            <button onClick={submit} disabled={busy}
+            <button onClick={submit} disabled={busy || locating}
               className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors disabled:opacity-60">
               {busy ? <Loader size={16} className="animate-spin"/> : <Plus size={16}/>}{t("races.form.submit")}
             </button>
@@ -208,8 +230,8 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     {showPicker && (
       <LocationPicker
         initial={loc}
-        geocodeQuery={[f.city.trim(), f.country.trim()].filter(Boolean).join(", ")}
-        onConfirm={(p) => { setLoc(p); setShowPicker(false); }}
+        geocodeQuery={[f.city.trim(), countryName(f.country, i18n.language) || ""].filter(Boolean).join(", ")}
+        onConfirm={confirmLocation}
         onCancel={() => setShowPicker(false)}
       />
     )}

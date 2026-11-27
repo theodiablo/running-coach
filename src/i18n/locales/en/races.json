@@ -96,11 +96,14 @@
     "city": "City",
     "cityPlaceholder": "Lyon",
     "country": "Country",
-    "countryPlaceholder": "FR",
+    "countryPlaceholder": "Type to search",
+    "countryNoMatch": "No country matches",
     "officialSite": "Official site (optional)",
     "officialSitePlaceholder": "https://…",
     "location": "Location (for “races near me”)",
     "locationSet": "Location set ✓",
+    "locationHint": "Pick the start on the map to fill in the country and city.",
+    "locating": "Finding the place",
     "setLocation": "Set location on map",
     "date": "Date",
     "distanceKm": "Distance (km)",
@@ -113,7 +116,7 @@
     "errors": {
       "dateDistance": "A date and distance are required.",
       "name": "A race name is required.",
-      "country": "A country is required: its two-letter code, e.g. FR or ES.",
+      "country": "Choose a country.",
       "save": "Couldn't save that race. Please try again."
     }
   },

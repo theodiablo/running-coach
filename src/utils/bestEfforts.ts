@@ -147,9 +147,16 @@ export type EffortRank = {
 
 // Rank one run's efforts against the rest of the log. `allRuns` may include the
 // run itself — it's excluded by id (falling back to identity for an unsaved one)
-// so a run never outranks itself.
-export function rankRunEfforts(run: Run, allRuns: Run[] = []): EffortRank[] {
-  const mine = effortsFor(run);
+// so a run never outranks itself. `measuredOnly` drops estimates on both sides,
+// for a public claim (the share card): no rank against a time nobody ran.
+export function rankRunEfforts(run: Run, allRuns: Run[] = [], opts: { measuredOnly?: boolean } = {}): EffortRank[] {
+  const pick = (r: Run) => {
+    const all = effortsFor(r);
+    if (!opts.measuredOnly) return all;
+    const m = measuredEfforts(r);
+    return Object.fromEntries(Object.entries(all).filter(([k]) => m[k as BestEffortKey] != null)) as BestEfforts;
+  };
+  const mine = pick(run);
   const distances = BEST_EFFORT_DISTANCES.filter(d => mine[d.key] != null);
   if (!distances.length) return [];
   // Per distance, not per run: with the gap-filling fallback a single run can
@@ -157,7 +164,7 @@ export function rankRunEfforts(run: Run, allRuns: Run[] = []): EffortRank[] {
   // footnote exactly the ones it's estimating.
   const measured = measuredEfforts(run);
   const others = allRuns.filter(r => r && (run.id ? r.id !== run.id : r !== run));
-  const rivals = others.map(r => ({ date: r.date, efforts: effortsFor(r) }));
+  const rivals = others.map(r => ({ date: r.date, efforts: pick(r) }));
 
   return distances.map(({ key, km }) => {
     const sec = mine[key] as number;

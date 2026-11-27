@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { getGpsServiceState, subscribeGpsServiceState } from "../geo/liveNotification";
 import { useTranslation } from "react-i18next";
 import { Play, Pause, Square, X, Loader, MapPin, HeartPulse, LocateFixed, Search, Lock, Radio, BatteryCharging, Volume2, VolumeX } from "lucide-react";
 import { fmt, ymd } from "../utils/format";
@@ -49,10 +50,12 @@ import { previewCue, primeCues } from "../cues";
 import { compileSpec, isOpenSpec, readSpec, specFromSession, specWantsAudio, zoneBpm, type WorkoutSpec } from "../utils/workoutSpec";
 import { readAudioPrefs, type AudioPrefs } from "../utils/callout";
 import { track } from "../telemetry";
-import type { HrMethod, HrPending, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
+import type { HrMethod, Participation, Plan, PlanSession, Run, SettingsPage, SettingsState, SuggestedRoute } from "../types";
+import type { RunPrefill } from "../utils/runPrefill";
+import type { TrackPointOrGap } from "../utils/geo";
 
 type LiveRunTrackerProps = {
-  onFinish: (prefill: Partial<Run> & { hrPending?: HrPending | null }) => void;
+  onFinish: (prefill: RunPrefill) => void;
   onClose: () => void;
   // Hidden behind the rest of the app while a recording carries on: the screen
   // stays mounted (see MinimizedRecorderBar), so nothing about the run stops.
@@ -72,6 +75,9 @@ type LiveRunTrackerProps = {
   // The plan session the tracker was opened from — it seeds "Today's run"
   // (docs/guided-workouts.md).
   session?: PlanSession | null;
+  // For the finish screen's share card only.
+  plan?: Plan | null;
+  participations?: Participation[];
   // Read for the recorder's synced preferences (audio guidance, the last free
   // run's setup, the one-time tour) and the HR profile behind zone targets.
   settings?: Partial<SettingsState>;
@@ -100,7 +106,7 @@ function Stat({ label, value, pulseKey, sub, valueCls = "text-white" }: { label:
 
 type RecorderSheetId = "workout" | "audio" | "share";
 
-export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium, runs = [] }: LiveRunTrackerProps) {
+export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, hrMethod, hrOptOut, onConfigureHr, onDeclineHr, initialFindKm, session, settings = {}, onSettingsPatch, isPremium = false, onRefreshPremium, runs = [], plan = null, participations = [] }: LiveRunTrackerProps) {
   // Same pre-start read as the indoor recorder, from the same helper
   // (src/hr/runHr.ts).
   const hr = recorderHrSetup(hrMethod, hrOptOut);
@@ -282,7 +288,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     track("live_run_recovery_resumed", {});
     rt.resumePrevious();
   };
-  const [celebration, setCelebration] = useState<{ c: Celebration; run: Run } | null>(null);
+  const [celebration, setCelebration] = useState<{ c: Celebration; run: Run; points: TrackPointOrGap[] } | null>(null);
   // Set once shown, so the post-save best-effort sheet doesn't repeat it.
   const celebratedRef = useRef(false);
   // Pairs with live_run_started as a start→finish funnel; km/duration only
@@ -295,16 +301,17 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     // Measured exactly as handleSave will, so its best efforts are the ones saved.
     const cut = trimIdleEnds(stats.movingSec, points, startedAt, stoppedAt);
     const simplified = simplify(cut.points, ROUTE_SIMPLIFY_M);
-    const firstAt = points.find(Boolean)?.[2] || stoppedAt;
+    const firstAt = points.find(Boolean)?.[2] || startedAt || stoppedAt;
     const run: Run = {
       date: ymd(new Date(firstAt)), type: "EASY", km: +distanceKm(cut.points).toFixed(2),
       durationSec: cut.durationSec,
       elevation: stats.elevation, source: "gps", bestEfforts: bestEffortsFromTrack(simplified),
     };
-    const c = celebrate({ run, runs, points: tracePausesRemoved(simplified, rt.pauses()), session, at: new Date(startedAt || firstAt) });
+    const moving = tracePausesRemoved(simplified, rt.pauses());
+    const c = celebrate({ run, runs, points: moving, session, at: new Date(startedAt || firstAt) });
     if (!c) return;
     celebratedRef.current = true;
-    setCelebration({ c, run });
+    setCelebration({ c, run, points: moving });
   };
 
   // One-time Android nudge: with battery optimization active the OS can kill the
@@ -344,7 +351,13 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     rt.start();
   };
   const countdown = useCountdown(startTracking);
-  const startWithCountdown = () => (reducedMotion ? startTracking() : countdown.start(3));
+  // rt.prepare: the countdown can end behind a locked screen, where Android refuses the service.
+  const startWithCountdown = () => {
+    if (reducedMotion) { startTracking(); return; }
+    rt.prepare();
+    countdown.start(3);
+  };
+  const cancelCountdown = () => { countdown.cancel(); rt.cancelPrepare(); };
   // Null off web/"off"/unknown; a post-run source (Health Connect) is fetched in
   // handleSave instead of streaming, so it gets no live tile.
   const hrSrc = getHrSource(hr.method);
@@ -372,6 +385,9 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   useEffect(() => () => { mountedRef.current = false; }, []);
 
   const live = state === "tracking" || state === "paused";
+  // Android refused the location service, so screen-off GPS isn't recording (docs/live-tracking.md).
+  const gpsService = useSyncExternalStore(subscribeGpsServiceState, getGpsServiceState, getGpsServiceState);
+  const pendingPoints = (pending?.points || []).filter(Boolean).length;
 
   // Once stopped, the run that saves: standing at the start/finish trimmed off.
   const trim = useMemo(() => {
@@ -593,7 +609,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
     const pauses = rt.pauses();
     const statObj = { km, durationSec: runSec, elevation: stats.elevation, avgPace: Math.round(avgPace),
       ...(hrSamples.length ? { hrSamples } : {}), ...(pauses.length ? { pauses } : {}) };
-    const date = ymd(new Date(points.find(Boolean)?.[2] || Date.now()));
+    const date = ymd(new Date(points.find(Boolean)?.[2] || startedAt || Date.now()));
     let routeId = null, routeTmp = null;
     try {
       routeId = await saveRoute({ points: simplified, stats: statObj });
@@ -633,6 +649,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       ...(routeTmp ? { routeTmp, routePending: true } : {}),
       ...runHrFields(resolved),
       ...(celebratedRef.current ? { celebrated: true } : {}),
+      previewTrack: simplified,
     });
   };
 
@@ -642,7 +659,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
   const canMinimize = !!onMinimize && (live || state === "stopped");
   useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
-  useDismissable(countdown.count !== null, countdown.cancel);
+  useDismissable(countdown.count !== null, cancelCountdown);
 
   // Rendered both before and during a run: a runner who forgot to send the
   // link shouldn't have to stop to fix that.
@@ -719,11 +736,18 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       <div className="flex flex-col max-h-[74%] border-t border-slate-800">
       <div className="min-h-0 overflow-y-auto px-4 pt-3 space-y-3">
         {error && <div className="bg-red-500/15 text-red-300 text-sm rounded-xl px-3 py-2">{error}</div>}
+        {live && gpsService && (
+          <div role="status" className="bg-amber-500/15 text-amber-200 text-sm rounded-xl px-3 py-2">
+            {t(gpsService === "refused" ? "tracker.gps.refused" : "tracker.gps.recovered")}
+          </div>
+        )}
 
         {state === "idle" && pending && (
           <div className="bg-slate-800 rounded-xl p-3 space-y-2 border border-slate-700">
             <p className="text-sm text-slate-200">{t("tracker.resume.title")}
-              <span className="text-slate-400"> {t("tracker.resume.pointsSaved", { count: (pending.points || []).filter(Boolean).length })}</span></p>
+              <span className="text-slate-400"> {pendingPoints
+                ? t("tracker.resume.pointsSaved", { count: pendingPoints })
+                : t("tracker.resume.noGps")}</span></p>
             {(pending.startedAt || pending.savedAt) ? (
               <p className="text-xs text-slate-400">
                 {t("tracker.resume.from", { date: fmt.sht(ymd(new Date(pending.startedAt || pending.savedAt))) })}
@@ -961,7 +985,7 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       )}
 
       {countdown.count !== null && (
-        <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
+        <CountdownOverlay count={countdown.count} onCancel={cancelCountdown} />
       )}
 
       {showFinder && (
@@ -978,7 +1002,8 @@ export function LiveRunTracker({ onFinish, onClose, minimized = false, onMinimiz
       )}
 
       {celebration && (
-        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)} />
+        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)}
+          share={{ runs, plan, settings: settings as SettingsState, participations, points: celebration.points, session: session ?? null, showToast }} />
       )}
     </div>
     </>

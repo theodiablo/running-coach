@@ -13,7 +13,7 @@
     "complete": "Sesión completada",
     "machine": "Máquina",
     "start": "Empezar sesión",
-    "save": "Guardar sesión",
+    "save": "Continuar",
     "noSensor": "No hay ningún sensor de frecuencia cardiaca configurado",
     "zoneUnknown": "sin lectura",
     "zoneFloorBpm": "{{bpm}} ppm (Z1)",
@@ -43,6 +43,7 @@
     "title": "¿Reanudar el entrenamiento anterior?",
     "pointsSaved_one": "{{count}} punto guardado.",
     "pointsSaved_other": "{{count}} puntos guardados.",
+    "noGps": "No se guardó ninguna posición GPS.",
     "resume": "Reanudar",
     "discard": "Descartar",
     "from": "Registrado el {{date}}."
@@ -73,7 +74,7 @@
     "holdToFinish": "Mantén presionado para terminar",
     "resume": "Reanudar",
     "discard": "Descartar",
-    "save": "Guardar entrenamiento"
+    "save": "Continuar"
   },
   "keepScreenOn": "Mantén esta pantalla encendida mientras corres. Los navegadores no pueden registrar en segundo plano, así que el seguimiento se pausa si la pantalla se bloquea. La aplicación nativa sigue registrando con la pantalla apagada y consume menos batería.",
   "hrNudge": {
@@ -340,5 +341,9 @@
     "audio2Steps": "Se anuncian el calentamiento, el tempo y la vuelta a la calma.",
     "audio3": "Toca aquí para cambiar cada cuánto habla. Activada para tempo y series, desactivada para rodajes suaves.",
     "audio1Km": "Cada kilómetro oirás tu ritmo y tu pulso frente al entrenamiento."
+  },
+  "gps": {
+    "refused": "Puede que el GPS no registre con la pantalla apagada ahora mismo. Mantén la app abierta un momento.",
+    "recovered": "Puede que el GPS se detuviera un rato con la pantalla apagada, así que podría faltar distancia en este entrenamiento."
   }
 }

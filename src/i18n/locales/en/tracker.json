@@ -13,7 +13,7 @@
     "complete": "Session complete",
     "machine": "Machine",
     "start": "Start session",
-    "save": "Save session",
+    "save": "Continue",
     "noSensor": "No heart-rate sensor set up",
     "zoneUnknown": "no reading",
     "zoneFloorBpm": "{{bpm}} bpm (Z1)",
@@ -43,6 +43,7 @@
     "title": "Resume your previous run?",
     "pointsSaved_one": "{{count}} point saved.",
     "pointsSaved_other": "{{count}} points saved.",
+    "noGps": "No GPS position saved.",
     "resume": "Resume",
     "discard": "Discard",
     "from": "Recorded {{date}}."
@@ -73,7 +74,7 @@
     "holdToFinish": "Hold to finish",
     "resume": "Resume",
     "discard": "Discard",
-    "save": "Save run"
+    "save": "Continue"
   },
   "keepScreenOn": "Keep this screen on while running — browsers can't track in the background, so it pauses if the screen locks. A native app version tracks with the screen off (less battery).",
   "hrNudge": {
@@ -340,5 +341,9 @@
     "audio2Steps": "Warm-up, tempo and cool-down are announced.",
     "audio3": "Tap here to change how often it talks. It's on for tempo and intervals, off for easy runs.",
     "audio1Km": "Each kilometre you'll hear your pace and heart rate against the workout."
+  },
+  "gps": {
+    "refused": "GPS may not record with the screen off right now. Keep the app open for a moment.",
+    "recovered": "GPS may have stopped for a while with the screen off, so part of this run could be missing distance."
   }
 }

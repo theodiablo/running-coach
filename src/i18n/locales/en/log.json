@@ -35,9 +35,6 @@
     "declineUndo": "Actually, count it toward the session on {{date}}",
     "noLongerFits": "Your edits no longer match the session on {{date}}, so saving won't tick it off."
   },
-  "gpsBanner": "Tracked by GPS — distance, time and elevation are filled in. Add a type and notes, then save.",
-  "indoorBanner": "Indoor session recorded. Duration and heart rate are filled in; there is no distance to record. Add notes, then save.",
-  "watchBanner": "Imported from your watch — check the details (there's no route/map), pick a type, then save.",
   "import": {
     "gpx": "<0>FIT / GPX / TCX:</0> one activity with its route map, elevation and heart rate",
     "perActivity": "<0>Get one run from Strava:</0> on strava.com open the activity, then ••• → Export Original (the .fit file) or Export GPX, and import the file here",
@@ -84,14 +81,15 @@
     "addDetails": "Add heart rate, elevation, effort, notes",
     "addDetailsCross": "Add heart rate, effort, notes",
     "durationPh": "0:00",
-    "durationHint": "Digits fill from the right: 4300 is 43:00, 15207 is 1:52:07."
+    "durationHint": "Digits fill from the right: 4300 is 43:00, 15207 is 1:52:07.",
+    "paceFast": "That's {{pace}}/km, unusually fast. Check the distance and time.",
+    "paceSlow": "That's {{pace}}/km, slower than walking. Check the distance and time."
   },
   "validation": {
     "km": "How far did you go?",
     "duration": "How long did it take?",
     "fixAbove": "Fill in the highlighted fields above."
   },
-  "hrPendingNote": "Heart rate will be added automatically from {{store}} once your watch syncs (usually a few minutes) — leave these blank, or enter them yourself.",
   "saveRun": "Save run",
   "edit": {
     "title": "Edit Run",
@@ -100,5 +98,38 @@
     "maxHrPh": "170",
     "elevPh": "80",
     "saveChanges": "Save changes"
+  },
+  "review": {
+    "kickerRun": "Run complete · {{when}}",
+    "kickerIndoor": "Session complete · {{when}}",
+    "kickerWatch": "From your watch · {{when}}",
+    "titleIndoor": "Save your session",
+    "km": "km",
+    "time": "time",
+    "perKm": "/km",
+    "avgHr": "avg HR",
+    "maxHr": "max HR",
+    "climb": "{{m}} m climb",
+    "hr": "{{avg}} avg · {{max}} max",
+    "hrAvg": "{{avg}} avg HR",
+    "sourceGps": "Measured by GPS",
+    "sourceIndoor": "Recorded on this phone",
+    "sourceWatch": "From your watch",
+    "corrected": "Corrected by you",
+    "correct": "Correct a number",
+    "correctDone": "Done",
+    "recorded": "Recorded: {{value}}",
+    "backToRecorded": "Back to what was recorded",
+    "useRecorded": "Use the recorded {{value}}",
+    "qType": "What kind of run was it?",
+    "qTypeFromPlan": "Picked from your plan.",
+    "qTypeDefault": "Easy unless you say otherwise.",
+    "qMachine": "What did you use?",
+    "qEffort": "How hard did it feel?",
+    "effortButton": "Effort {{value}} out of 10",
+    "qNotes": "Anything to remember?",
+    "notesPh": "Legs felt heavy, new shoes, windy…",
+    "saveSession": "Save session",
+    "hrPendingNote": "Heart rate will be added automatically from {{store}} once your watch syncs (usually a few minutes)."
   }
 }

@@ -13,7 +13,7 @@
     "complete": "Séance terminée",
     "machine": "Machine",
     "start": "Démarrer la séance",
-    "save": "Enregistrer la séance",
+    "save": "Continuer",
     "noSensor": "Aucun capteur de fréquence cardiaque configuré",
     "zoneUnknown": "pas de mesure",
     "zoneFloorBpm": "{{bpm}} bpm (Z1)",
@@ -43,6 +43,7 @@
     "title": "Reprendre ta sortie précédente ?",
     "pointsSaved_one": "{{count}} point enregistré.",
     "pointsSaved_other": "{{count}} points enregistrés.",
+    "noGps": "Aucune position GPS enregistrée.",
     "resume": "Reprendre",
     "discard": "Abandonner",
     "from": "Enregistrée le {{date}}."
@@ -73,7 +74,7 @@
     "holdToFinish": "Maintiens pour terminer",
     "resume": "Reprendre",
     "discard": "Abandonner",
-    "save": "Enregistrer la sortie"
+    "save": "Continuer"
   },
   "keepScreenOn": "Garde cet écran allumé pendant ta sortie. Les navigateurs ne peuvent pas enregistrer en arrière-plan, donc le suivi se met en pause si l'écran se verrouille. L'app native continue d'enregistrer écran éteint et consomme moins de batterie.",
   "hrNudge": {
@@ -340,5 +341,9 @@
     "audio2Steps": "L'échauffement, le tempo et le retour au calme sont annoncés.",
     "audio3": "Touche ici pour régler la fréquence des annonces. Activé pour le tempo et le fractionné, désactivé pour les footings.",
     "audio1Km": "À chaque kilomètre, tu entendras ton allure et ton cardio par rapport à la séance."
+  },
+  "gps": {
+    "refused": "Le GPS risque de ne pas enregistrer écran éteint pour le moment. Garde l'appli ouverte un instant.",
+    "recovered": "Le GPS s'est peut-être arrêté un moment écran éteint, il peut manquer de la distance sur cette sortie."
   }
 }

@@ -132,7 +132,7 @@ that actually get stored, so the detail view and any later pass agree:
 | Path | Where |
 |---|---|
 | Live tracker | `LiveRunTracker.handleSave` → `onFinish` prefill |
-| Prefill → save | `LogView.submit` carries `prefill.bestEfforts` through |
+| Prefill → save | `RunReview.submit` carries `prefill.bestEfforts` through (`carryPrefill`) |
 | File / watch / cloud import | `persistImportedRoute` |
 | Pre-feature GPS runs | `bestEffortsBackfill`, once per user per device |
 
@@ -140,8 +140,8 @@ that actually get stored, so the detail view and any later pass agree:
 standard distance" and is what keeps the backfill off that run. Absent means
 never measured.
 
-The tracker's efforts survive the user correcting distance or duration in the
-log form on the way in: they came from the trace, which that form can't edit.
+The tracker's efforts survive the user correcting distance or duration on the
+review screen on the way in: they came from the trace, which that screen can't edit.
 
 ## The backfill
 

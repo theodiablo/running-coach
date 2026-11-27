@@ -14,8 +14,9 @@ when touching tracking or the shells. Background-location policy detail is in
   hook so the source can swap without touching the UI.
 - **UI:** `src/modals/LiveRunTracker.tsx` (full-screen, gated by `showTracker`
   in `RunningCoach`, opened via `shared.openTracker`). On finish it funnels
-  into the normal save path — `goLog(prefill)` → `LogView` → `addRuns` —
-  passing measured `durationSec`/`elevation` and the trace ref.
+  into the normal save path — `goLog(prefill)` → `RunReview` → `addRuns` —
+  passing measured `durationSec`/`elevation`, the trace ref, and the simplified
+  trace as `previewTrack` (the review's tile-free route line; never stored).
 - **Minimizing (browsing the app mid-run):** once a recording has started
   (tracking, paused, or stopped-unsaved) the header's chevron and back/Escape
   *minimize* the recorder instead of closing it. `RunningCoach`'s
@@ -50,6 +51,10 @@ logic is `src/utils/runRecovery.ts`:
   them in the buffer. Read via `getFixJournal` (`src/geo/fixJournal.ts`),
   merged by timestamp into the recovery offer on tracker mount; cleared on a
   fresh start and when the recovery is resolved (save/discard).
+- **What counts as worth offering**: anything recorded — points, HR samples,
+  moving time or an open segment. A GPS run with **no points** is still kept and
+  offered (GPS can fail while the strap and clock record). `readRecoveryBuffer`
+  runs on every boot, so a stricter rule silently deletes the run it rejects.
 - **The Dashboard banner** (`RunningCoach` → `Dashboard`): a recoverable buffer
   is surfaced app-wide, not just inside the recorder — after a kill+relaunch
   the user lands on the dashboard and would otherwise never know. The tracker
@@ -195,6 +200,35 @@ Three rules fall out of this, and all are cheap:
   capture carried `avail=3329MB total=7503MB low=false`. Sizing fixes around the
   low-memory killer was reasoning from an assumption the data does not support.
 
+## Started behind a locked screen
+
+**The location foreground service must be started while the app is in front.**
+Android 12+ refuses `startForeground` to a backgrounded app, and a background
+app on a "while using" location grant receives no fixes at all. Measured on a
+real run (FP4 / API 35): the runner locked the phone during the 3-2-1, the
+countdown fired `start()` in the background, the plugin's `promote()` swallowed
+the refusal, and an hour-long run recorded 0 points while the notification read
+"Recording run" with a ticking clock and live HR.
+
+- **The watch opens at Start's tap** (`useRunTracker().prepare()`, called by both
+  recorders before `countdown.start`; `cancelPrepare()` on a cancelled
+  countdown). `start()` reuses it; fixes before `start` are dropped as for a
+  pause. Indoor's `prepare` starts its session service the same way.
+- **The plugin knows whether it is foreground** (patch, change 9): the
+  notification is only posted while `startForeground` really succeeded, so a
+  refused service shows no "Recording" notification instead of a false one; and
+  `ensureForeground()` retries the promotion on every resume and every JS push,
+  so unlocking the phone mid-run rescues the rest of it.
+  `updateNotification` returns `foreground`, logged once per run to the sensor
+  log as "location service refused".
+- **The runner is told.** The same signal drives `getGpsServiceState`
+  (`src/geo/liveNotification.ts`), which the recorder renders as an amber line:
+  `refused` while the service isn't held, then `recovered` for the rest of the
+  run, because the stretch it missed may have no distance. Cleared when the run
+  ends, and a reply still in flight from the ended run never sets the next one.
+  The copy hedges ("may"): the flag says the service was refused, not that
+  fixes stopped.
+
 ## Route storage (`run_routes`)
 
 **Traces are NOT in the blob.** The polyline lives in its own Supabase
@@ -229,7 +263,7 @@ the common Health Connect case) rides a SEPARATE `hrRouteId`** so History's map
 button (gated on `routeId`) never offers a blank map, while `RunDetailModal`
 still fetches it (`useRouteTrace` resolves `routeId ?? hrRouteId`) to draw the
 HR chart + time-in-zone card (that card is NOT gated on GPS). `deleteRun`
-cascades both; `LogView` prefill carries `hrRouteId`. Unknown JSONB key →
+cascades both; the `RunReview` prefill carries `hrRouteId`. Unknown JSONB key →
 forward/backward safe, and backup/restore/pending-queue carry it free. To store
 more per-run series later, extend this sidecar rather than widening the
 4-tuple.
@@ -646,7 +680,7 @@ compiler:
 
 ### `@capacitor-community/background-geolocation`
 
-Eight independent changes.
+Nine independent changes.
 (1) Lifecycle NPE fix: it crashed in production ("Unable to pause activity" →
 NPE at `Bridge.getPermissionStates`, Bridge.java:1217) because its
 `handleOnPause`/`handleOnResume` call `getPermissionState("location")` — the
@@ -750,6 +784,12 @@ contract. The lock screen shows the **collapsed** view (Android only
 system-expands in the unlocked shade), capped at 48dp on Android 12+: a small
 title + chronometer line over one row of cells. The expanded view has a large
 chronometer over a 2x2 grid. Any failure building them falls back to plain text.
+
+(9) **Foreground state is tracked, not assumed.** `promote()` records whether
+`startForeground` succeeded; the service never posts the run notification while
+it isn't foreground, and `ensureForeground()` (handleOnResume, `updateNotification`)
+retries a refused promotion and re-requests location — see *Started behind a
+locked screen*.
 
 ## Android release builds & R8
 

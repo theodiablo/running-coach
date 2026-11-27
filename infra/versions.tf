@@ -5,7 +5,7 @@
 # exact commands are recorded in infra/README.md.
 
 terraform {
-  required_version = "~> 1.15"
+  required_version = "~> 1.17"
 
   required_providers {
     aws = {

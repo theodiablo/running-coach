@@ -49,6 +49,10 @@ vi.mock("../hr/healthconnect", () => ({ hasHealthConnectAuthorization: () => fal
 vi.mock("../healthkit/import", () => ({ hasHealthKitAuthorization: () => false }));
 vi.mock("../native", () => ({ isNative: false, isAndroid: false, isIos: false, platform: "web" }));
 vi.mock("../routes", () => routes);
+// The share builder is its own suite: here only what the finish screen hands it.
+vi.mock("./ShareCardGate", () => ({
+  ShareCardGate: ({ session }: { session?: { id: string } | null }) => <div role="dialog" aria-label="share builder">{session?.id ?? "no session"}</div>,
+}));
 // Skip the 3-2-1 overlay so Start is synchronous and the wall clock below stays
 // exact. The countdown itself is covered by useCountdown's own tests.
 vi.mock("../hooks/usePrefersReducedMotion", () => ({ usePrefersReducedMotion: () => true }));
@@ -87,6 +91,18 @@ const finish = () => act(() => {
 });
 
 describe("IndoorTracker", () => {
+  it("hands the plan session it was opened from to the finish screen's share card", async () => {
+    const session = { id: "w2-s1", date: "2023-11-14", type: "OTHER", desc: "Bike 45 min", km: 0, pace: "", done: false };
+    render(<IndoorTracker settings={settings} session={session as never} onFinish={() => {}} onClose={() => {}} />);
+    start();
+    streamFullSession();
+    vi.setSystemTime(START + 1_800_000);
+    act(() => { vi.advanceTimersByTime(1000); }); // a clock tick, so the screen's moving time is 30 min
+    finish();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /share this run/i })); });
+    expect(screen.getByRole("dialog", { name: "share builder" })).toHaveTextContent("w2-s1");
+  });
+
   it("never asks for a position, before or during a session", () => {
     show();
     start();
@@ -119,7 +135,7 @@ describe("IndoorTracker", () => {
     streamFullSession();
     vi.setSystemTime(START + 1_800_000); // 30 min
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
 
     expect(onFinish).toHaveBeenCalledTimes(1);
     expect(onFinish.mock.calls[0][0]).toMatchObject({
@@ -154,7 +170,7 @@ describe("IndoorTracker", () => {
     act(() => hr.watches[0].onSample({ bpm: 122, t: START + 60_000 }));
     vi.setSystemTime(START + 1_800_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
 
     const saved = onFinish.mock.calls[0][0];
     expect(saved.hr).toBeUndefined();
@@ -172,7 +188,7 @@ describe("IndoorTracker", () => {
     streamFullSession();
     vi.setSystemTime(START + 1_800_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     // The other side of the coverage guard: a stream that covered the session
     // does get quoted as its heart rate.
     const saved = onFinish.mock.calls[0][0];
@@ -187,7 +203,7 @@ describe("IndoorTracker", () => {
     start();
     vi.setSystemTime(START + 600_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     expect(onFinish.mock.calls[0][0].activity).toBe("elliptical");
   });
 
@@ -197,7 +213,7 @@ describe("IndoorTracker", () => {
     start();
     vi.setSystemTime(START + 600_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     expect(onFinish.mock.calls[0][0].activity).toBe("rower");
   });
 
@@ -212,7 +228,7 @@ describe("IndoorTracker", () => {
       start();
       vi.setSystemTime(START + 1_800_000);
       finish();
-      await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
       return onFinish.mock.calls[0][0];
     };
 
@@ -371,7 +387,7 @@ describe("IndoorTracker", () => {
     start();
     vi.setSystemTime(START + 600_000);
     finish();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /save session/i })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
     const saved = onFinish.mock.calls[0][0];
     expect(saved).toMatchObject({ type: "OTHER", km: 0, durationSec: 600 });
     // No sensor, no invented numbers.

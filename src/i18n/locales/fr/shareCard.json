@@ -1,0 +1,80 @@
+{
+  "open": "Partager cette sortie",
+  "title": "Partager cette sortie",
+  "styleGroup": "Style de la carte",
+  "styles": {
+    "route": "Parcours",
+    "number": "Chiffre",
+    "week": "Semaine"
+  },
+  "toggles": {
+    "route": "Afficher le parcours",
+    "routeHint": "Tracé en ligne, sans carte",
+    "pace": "Afficher l'allure",
+    "paceHint": "Le temps est toujours affiché",
+    "hr": "Afficher la fréquence cardiaque",
+    "hrHint": "Donnée de santé : masquée sauf si tu l'affiches"
+  },
+  "share": "Partager l'image",
+  "download": "Télécharger l'image",
+  "preparing": "Préparation de l'image",
+  "failed": "Impossible de partager l'image. Réessaie.",
+  "saved": "Image enregistrée",
+  "preview": "Aperçu de la carte : {{summary}}",
+  "stat": {
+    "distance": "Distance",
+    "time": "Temps",
+    "pace": "Allure",
+    "hr": "FC moyenne"
+  },
+  "head": {
+    "run": {
+      "r1": "Jambes : sollicitées. Tête : vidée.",
+      "r2": "Une de plus au compteur",
+      "r3": "Des kilomètres dans les jambes",
+      "r4": "Bol d'air : pris",
+      "r5": "Sortie faite. Ça fait du bien.",
+      "r6": "Présent, et c'est couru"
+    },
+    "pb": {
+      "p1": "De plus en plus rapide",
+      "p2": "Un nouveau record au tableau",
+      "p3": "La plus rapide à ce jour"
+    }
+  },
+  "route": {
+    "pill": "Nouveau record sur {{dist}} · {{time}}"
+  },
+  "footer": "Enregistré avec Running Coach",
+  "footerStores": "Enregistré avec Running Coach · gratuit sur iPhone et Android",
+  "number": {
+    "tagPb": "Nouveau record perso",
+    "tagFirst": "Premier chrono",
+    "faster": "{{delta}} de mieux que mon dernier record"
+  },
+  "activity": {
+    "bike": "Vélo",
+    "elliptical": "Elliptique",
+    "rower": "Rameur",
+    "other": "Séance"
+  },
+  "week": {
+    "trainingFor": "Objectif",
+    "training": "Entraînement",
+    "myRace": "ma course",
+    "block": "Bloc {{block}}",
+    "raceDay": "Jour de course !",
+    "daysToGo_one": "J-{{count}}",
+    "daysToGo_other": "J-{{count}}",
+    "weekOf": "Semaine {{n}} sur {{m}}",
+    "thisWeek": "Cette semaine",
+    "summary": "{{done}} sorties sur {{planned}} faites · {{km}} km pour l'instant",
+    "today": "Aujourd'hui",
+    "runRow": "{{day}} : {{type}}",
+    "run": "ma sortie",
+    "footer": "Mon plan, construit par Running Coach"
+  },
+  "loadError": "Impossible d'ouvrir la carte. Vérifie ta connexion et réessaie.",
+  "shareText": "Enregistré avec Running Coach : {{url}}",
+  "privacyNote": "Pour ta vie privée, le tracé masque 300 m autour de ton départ et de ton arrivée."
+}

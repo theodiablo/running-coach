@@ -698,7 +698,12 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `prefill` prop and an `onSaved` callback (fires only on a real manual save),
   used to log a run straight from a plan session and auto-tick it; a prefilled
   arrival says which session it will tick off rather than doing it silently.
-  A plan session offers the same two verbs everywhere (Dashboard card and
+  A run a device measured (`isRecordedArrival`: tracker, indoor, watch import)
+  goes to `RunReview` instead: the measurement is shown, not asked; changing it
+  is a deliberate "Correct a number" step that warns on an impossible pace
+  (`paceWarning`, never blocks); and it asks only what the runner knows (kind of
+  run, effort, notes). The recorders' stopped-screen button is "Continue", so
+  "Save run" is pressed once. A plan session offers the same two verbs everywhere (Dashboard card and
   `PlanSessionRow`): **Start run** opens a recorder, **I did it** opens
   `DidItSheet` (add the run's details → the form, pick a saved run →
   `ReconcileSheet`, just tick it off) — a new surface must not invent a third
@@ -785,7 +790,8 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
 - `docs/live-sharing.md` — live run sharing: transport, cadence, staleness, cleanup, the standing `/watch/:token` link and its ledger, following several runners at `/watch/`.
 - `docs/guided-workouts.md` — the recorder's "Today's run" + audio guidance (free): workout spec, compiler+engine, status callouts, cue seams, native step engines.
 - `docs/reminders.md` — retention loop: overdue sessions, scheduled session reminders.
-- `docs/social.md` — deferred social assessment (post-run share card, leaderboards).
+- `docs/social.md` — social features: what is decided (share card, watch-page CTA, race field), what is rejected and why (rankings, leaderboards).
+- `docs/share-card.md` — post-run share card: Canvas 2D rendering, pre-selection, route masking, web/native sharing, analytics.
 - `docs/races.md` — race catalogue (server-side search, filters, race page and goals), contributions, badges.
 - `docs/race-crawler.md` — the scheduled catalogue crawler: sources, curated policy, matching.
 - `docs/best-efforts.md` — best-effort extraction, PB ranking, post-run reward.

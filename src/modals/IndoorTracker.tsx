@@ -21,7 +21,7 @@ import type { Celebration } from "../utils/runCelebration";
 import { isAndroid, isNative } from "../native";
 import { INDOOR_ACTIVITY_KEY } from "../constants";
 import { track } from "../telemetry";
-import { RUN_ACTIVITIES, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
+import { RUN_ACTIVITIES, type Participation, type Plan, type PlanSession, type Run, type RunActivity, type SettingsPage, type SettingsState } from "../types";
 
 type IndoorTrackerProps = {
   onFinish: (prefill: Partial<Run>) => void;
@@ -38,13 +38,18 @@ type IndoorTrackerProps = {
   runs?: Run[];
   // The plan session's own activity (a coach-scheduled bike day), over the remembered pick.
   initialActivity?: RunActivity;
+  // For the finish screen's share card only.
+  plan?: Plan | null;
+  participations?: Participation[];
+  // The plan session the recorder was opened from, so the card can show it settled.
+  session?: PlanSession | null;
 };
 
 // Indoor / static cardio recorder (bike, elliptical): heart rate is the whole signal.
 // Deliberately separate from LiveRunTracker: its map, live sharing, route finder, guided
 // workouts and background-location consent don't apply without GPS, and an `indoor`
 // branch through all of it would leave two half-features. See docs/indoor-sessions.md.
-export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [], initialActivity }: IndoorTrackerProps) {
+export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize, onRestore, showToast, settings, onConfigureHr, onDeclineHr, runs = [], initialActivity, plan = null, participations = [], session = null }: IndoorTrackerProps) {
   const { t } = useTranslation();
   // Same pre-start read as LiveRunTracker, from the same helper.
   const hr = recorderHrSetup(settings.hrMethod, settings.hrOptOut);
@@ -87,7 +92,13 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
     rt.start();
   };
   const countdown = useCountdown(startSession);
-  const startWithCountdown = () => (reducedMotion ? startSession() : countdown.start(3));
+  // rt.prepare: the countdown can end behind a locked screen, where Android refuses the service.
+  const startWithCountdown = () => {
+    if (reducedMotion) { startSession(); return; }
+    rt.prepare();
+    countdown.start(3);
+  };
+  const cancelCountdown = () => { countdown.cancel(); rt.cancelPrepare(); };
   // The nudge replaces this Start; the deferred action runs once it's dismissed.
   const handleStart = () => {
     if (hr.nudge) { setShowHrNudge(true); return; }
@@ -164,7 +175,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
   const canMinimize = !!onMinimize && (live || state === "stopped");
   useDismissable(!minimized, () => (canMinimize ? onMinimize?.() : handleClose()));
   useDismissable(confirmDiscard, () => setConfirmDiscard(false));
-  useDismissable(countdown.count !== null, countdown.cancel);
+  useDismissable(countdown.count !== null, cancelCountdown);
 
   const clock = fmt.dur(stats.movingSec) === "--" ? "0:00" : fmt.dur(stats.movingSec);
 
@@ -321,7 +332,8 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
       </div>
 
       {celebration && (
-        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)} />
+        <RunCelebration celebration={celebration.c} run={celebration.run} onClose={() => setCelebration(null)}
+          share={{ runs, plan, settings, participations, points: null, session, showToast }} />
       )}
 
       {confirmDiscard && (
@@ -335,7 +347,7 @@ export function IndoorTracker({ onFinish, onClose, minimized = false, onMinimize
       )}
 
       {countdown.count !== null && (
-        <CountdownOverlay count={countdown.count} onCancel={countdown.cancel} />
+        <CountdownOverlay count={countdown.count} onCancel={cancelCountdown} />
       )}
     </div>
     </>

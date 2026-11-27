@@ -77,6 +77,8 @@ import { RACE_DAY_SOURCE } from "./utils/raceDay";
 import { Dashboard } from "./views/Dashboard";
 import { PlanView } from "./views/PlanView";
 import { LogView } from "./views/LogView";
+import { RunReview } from "./views/RunReview";
+import { isRecordedArrival, type RunPrefill } from "./utils/runPrefill";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
@@ -188,7 +190,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // race-first variant (a live-first runner's race just ran) or the manual one.
   // Home opens the post-race variant itself, derived from the plan phase below.
   const [whatsNext, setWhatsNext] = useState<{ variant: WhatsNextVariant; label?: string; km?: number } | null>(null);
-  const [logPrefill,  setLogPrefill]  = useState<(Partial<Run> & { session?: SessionWithWeek | null; sessionOffered?: boolean }) | null>(null);
+  const [logPrefill,  setLogPrefill]  = useState<RunPrefill | null>(null);
   const [prefillVer,  setPrefillVer]  = useState(0);
   const [logImportOpen, setLogImportOpen] = useState(false);
   const [showBackup,  setShowBackup]  = useState(false);
@@ -263,11 +265,11 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const [trackerFindKm, setTrackerFindKm] = useState<number | undefined>(undefined);
   // The full session row behind trackerLink — the link only carries ids (for
   // the save prefill); the tracker's guided-workout mode needs the row itself.
-  const trackerSession = useMemo(() => {
-    if (!trackerLink || !plan?.weeks) return null;
-    const wk = plan.weeks.find(w => w.weekNumber === trackerLink.wNum);
-    return wk?.sessions?.find(s => s.id === trackerLink.sId) ?? null;
-  }, [trackerLink, plan]);
+  const linkedRow = (link: { wNum: number; sId: string } | null) =>
+    link && plan?.weeks ? plan.weeks.find(w => w.weekNumber === link.wNum)?.sessions?.find(s => s.id === link.sId) ?? null : null;
+  const trackerSession = linkedRow(trackerLink);
+  // The indoor finish screen's share card reads it the same way.
+  const indoorSession = linkedRow(indoorLink);
   const [backupRoutes,setBackupRoutes]= useState<RouteBackup[]>([]);
   // Personal races layer (wishlist / completed + seen-badge set). seenBadges is
   // null until first-run seeding so we can tell "never computed" from "none".
@@ -1278,7 +1280,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     </div>
   );
 
-  // Always remounts LogView (prefillVer is its key) so a bare goLog() can pull it back to the
+  // Always remounts the log screen (prefillVer is its key) so a bare goLog() can pull it back to the
   // form. A recorder hand-off carries the session this run most likely settles
   // (src/utils/sessionMatch.ts): an OFFER the log form lets the runner decline, never a silent
   // plan edit. An explicit link (Start run from a plan row) is already chosen, not an offer.
@@ -1298,7 +1300,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     return chosen ? { session: chosen, sessionOffered: false } : offeredSession(run);
   };
 
-  const goLog = (prefill?: Partial<Run> & { session?: SessionWithWeek | null; sessionOffered?: boolean }) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
+  const goLog = (prefill?: RunPrefill) => { setLogPrefill(prefill || null); setLogImportOpen(false); setTab("log"); setPrefillVer(v => v + 1); };
   // Land on the Log tab with the file-import panel open (Settings ->
   // Integrations vendor guides). Bumps prefillVer so LogView remounts and reads
   // openImport as initial state even when already on the Log tab.
@@ -1467,6 +1469,15 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       enabled: settings.stretchSuggest !== false, dismissedOn: settings.stretchDismissed });
     if (s?.routine === "cooldown" && !recorderOpen) setStretchOpen({ target: s, afterRun: true });
   };
+  // The link is whatever the save screen ended up with: the session the runner arrived on,
+  // or the offered one they didn't decline.
+  const onLogSaved = (saved: Run[], link: { wNum: number; sId: string } | null) => {
+    if (link) linkSess(link.wNum, link.sId, saved[0]?.id || null);
+    // A saved single-run import review (prefill carries the provider extId) confirms the cloud page.
+    if (logPrefill?.extId) commitCloudScans();
+    if (logPrefill?.source === "gps") offerStretchAfterRun(saved);
+  };
+  const onLogDone = () => { setLogPrefill(null); setTab("dash"); };
   // "What's next?": the post-race trigger is derived from where the runner
   // stands (and waits for anything else that is up); the race-first and manual
   // variants are opened by state. An answer of any kind spends the trigger.
@@ -1574,14 +1585,14 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         </ChunkLoadBoundary>
       )}
       {showTracker && <LiveRunTracker showToast={showToast} hrMethod={settings.hrMethod} hrOptOut={settings.hrOptOut}
-        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
+        initialFindKm={trackerFindKm} session={trackerSession} runs={runs} plan={plan} participations={races.participations} isPremium={isPremium} onRefreshPremium={onRefreshPremium}
         settings={settings} onSettingsPatch={patchSettings}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("tracker", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
         onFinish={prefill => { setShowTracker(false); setRecorderMinimized(false); goLog({ ...prefill, ...chosenOrOffered(trackerLink, prefill) }); setTrackerLink(null); setTrackerFindKm(undefined); }}
         onClose={() => { setShowTracker(false); setRecorderMinimized(false); setTrackerLink(null); setTrackerFindKm(undefined); }}/>}
-      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} initialActivity={indoorLink?.activity}
+      {showIndoor && <IndoorTracker showToast={showToast} settings={settings} runs={runs} plan={plan} participations={races.participations} session={indoorSession} initialActivity={indoorLink?.activity}
         minimized={recorderMinimized} onMinimize={() => setRecorderMinimized(true)} onRestore={() => setRecorderMinimized(false)}
         onConfigureHr={page => configureHrFrom("indoor", page)}
         onDeclineHr={() => saveSettings({ ...settings, hrOptOut: true })}
@@ -1629,7 +1640,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
         onClose={() => setShowRaceForm(false)}/>}
-      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} onClose={() => setDetailRun(null)}/>}
+      {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} plan={plan} participations={races.participations} showToast={showToast} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
       <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}
         reviewChannel={reviewChannel} reviewState={settings.reviewPrompt} reviewMoment={review.moment} onMomentSpent={review.spendMoment}/>
@@ -1702,17 +1713,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
         {tab === "dash"  && <Dashboard  {...shared}/>}
         {tab === "plan"  && <PlanView   {...shared} planPrefill={planPrefill} clearPlanPrefill={() => setPlanPrefill(null)}
           openEditNonce={planEditNonce} openChangeNonce={planChangeNonce}/>}
-        {tab === "log"   && <LogView    {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen}
-          onSaved={(saved, link) => {
-            // The link is whatever the form ended up with: the session the
-            // runner arrived on, or the offered one they didn't decline.
-            if (link) linkSess(link.wNum, link.sId, saved[0]?.id || null);
-            // A saved single-run import review (prefill carries the provider
-            // extId) confirms the cloud page — release its deferred ack.
-            if (logPrefill?.extId) commitCloudScans();
-            if (logPrefill?.source === "gps") offerStretchAfterRun(saved);
-          }}
-          onDone={() => { setLogPrefill(null); setTab("dash"); }}/>}
+        {tab === "log" && (isRecordedArrival(logPrefill)
+          ? <RunReview addRuns={addRuns} key={prefillVer} prefill={logPrefill!} onSaved={onLogSaved} onDone={onLogDone}/>
+          : <LogView {...shared} key={prefillVer} prefill={logPrefill} openImport={logImportOpen} onSaved={onLogSaved} onDone={onLogDone}/>)}
         {tab === "races" && <RacesView {...shared}/>}
         {tab === "progress" && <ProgressView {...shared} initialSub={progressSub} navKey={progressNonce}/>}
       </div>

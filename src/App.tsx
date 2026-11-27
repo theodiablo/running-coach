@@ -561,7 +561,7 @@ export default function App() {
     // Never tear down a live recording or unresumed interrupted-run offer; skipping
     // the remount only leaves views stale until next boot. BOTH recorders count:
     // indoor keeps its buffer under its own key (docs/indoor-sessions.md).
-    if (readRecoveryBuffer() || readRecoveryBuffer(INDOOR_RUN_KEY, { requirePoints: false })) return;
+    if (readRecoveryBuffer() || readRecoveryBuffer(INDOOR_RUN_KEY)) return;
     parkAuthNotice("app.offline.refreshed");
     setStoreNonce(n => n + 1);
   }), []);

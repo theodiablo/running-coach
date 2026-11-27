@@ -1,0 +1,80 @@
+{
+  "open": "Share this run",
+  "title": "Share this run",
+  "styleGroup": "Card style",
+  "styles": {
+    "route": "Route",
+    "number": "Number",
+    "week": "Week"
+  },
+  "toggles": {
+    "route": "Show the route",
+    "routeHint": "Drawn as a line, no map",
+    "pace": "Show pace",
+    "paceHint": "Time is always shown",
+    "hr": "Show heart rate",
+    "hrHint": "Health data, so it stays off unless you turn it on"
+  },
+  "share": "Share image",
+  "download": "Download image",
+  "preparing": "Getting your image ready",
+  "failed": "Couldn't share the image. Try again.",
+  "saved": "Image saved",
+  "preview": "Card preview: {{summary}}",
+  "stat": {
+    "distance": "Distance",
+    "time": "Time",
+    "pace": "Pace",
+    "hr": "Avg heart rate"
+  },
+  "head": {
+    "run": {
+      "r1": "Legs: worked. Head: cleared.",
+      "r2": "Another one in the bank",
+      "r3": "Kilometres in the legs",
+      "r4": "Fresh air: collected",
+      "r5": "Run done. Feeling good.",
+      "r6": "Showed up, ran it"
+    },
+    "pb": {
+      "p1": "Getting faster",
+      "p2": "A new best on the board",
+      "p3": "Fastest one yet"
+    }
+  },
+  "route": {
+    "pill": "New {{dist}} best · {{time}}"
+  },
+  "footer": "Tracked with Running Coach",
+  "footerStores": "Tracked with Running Coach · free on iPhone and Android",
+  "number": {
+    "tagPb": "New personal best",
+    "tagFirst": "First on record",
+    "faster": "{{delta}} quicker than my last best"
+  },
+  "activity": {
+    "bike": "Bike",
+    "elliptical": "Elliptical",
+    "rower": "Rowing",
+    "other": "Workout"
+  },
+  "week": {
+    "trainingFor": "Training for",
+    "training": "Training",
+    "myRace": "my race",
+    "block": "Block {{block}}",
+    "raceDay": "Race day!",
+    "daysToGo_one": "{{count}} day to go",
+    "daysToGo_other": "{{count}} days to go",
+    "weekOf": "Week {{n}} of {{m}}",
+    "thisWeek": "This week",
+    "summary": "{{done}} of {{planned}} runs done · {{km}} km so far",
+    "today": "Today",
+    "runRow": "{{day}}: {{type}}",
+    "run": "my run",
+    "footer": "My plan, built by Running Coach"
+  },
+  "loadError": "Couldn't open the share card. Check your connection and try again.",
+  "shareText": "Tracked with Running Coach: {{url}}",
+  "privacyNote": "For your privacy, the line leaves out 300 m around where you started and finished."
+}

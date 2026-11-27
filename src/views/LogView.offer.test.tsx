@@ -4,9 +4,8 @@ import { LogView } from "./LogView";
 import type { Run } from "../types";
 import type { SessionWithWeek } from "../utils/overdue";
 
-// A run recorded on Wednesday for Thursday's session. The recorder hands the
-// save screen an OFFER: the session it thinks this settled, named and dated, to
-// confirm or decline. Never a silent tick — that was the bug #221 fixed.
+// A run on Wednesday offered Thursday's session: named and dated, to confirm or
+// decline, never a silent tick (#221). Recorded arrivals: RunReview.test.tsx.
 
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
 afterEach(cleanup);
@@ -19,7 +18,7 @@ const setup = (props: Partial<Parameters<typeof LogView>[0]> = {}) => {
   const addRuns = vi.fn((rs: Partial<Run>[]) => rs.map((r, i) => ({...r, id: "new" + i} as Run)));
   const onSaved = vi.fn();
   render(<LogView addRuns={addRuns} onDone={() => {}} onSaved={onSaved} runs={[]}
-    prefill={{date: "2026-03-11", type: "TEMPO", km: 8.2, durationSec: 2412, source: "gps",
+    prefill={{date: "2026-03-11", type: "TEMPO", km: 8.2, durationSec: 2412,
       session: offered, sessionOffered: true}}
     {...props}/>);
   return { addRuns, onSaved };
@@ -28,10 +27,9 @@ const setup = (props: Partial<Parameters<typeof LogView>[0]> = {}) => {
 const save = () => fireEvent.click(screen.getByRole("button", {name: /Save/}));
 
 describe("LogView · the session a recorded run is offered", () => {
-  it("says which session it counts toward, on top of the recorder's own banner", () => {
+  it("says which session it counts toward", () => {
     setup();
     expect(screen.getByText(/Counts toward your session on/)).toBeInTheDocument();
-    expect(screen.getByText(/Saved from your tracked run|GPS/i)).toBeInTheDocument();
   });
 
   it("ticks that session off on save", () => {

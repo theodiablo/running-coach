@@ -1,11 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, Plus } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { RUN_ACTIVITIES } from "../types";
 import { DurationInput } from "./DurationInput";
 import { fmt } from "../utils/format";
-import { EFFORT_UNSET, durToSec, type RunFormErrors, type RunFormValues } from "../utils/runForm";
+import { EFFORT_UNSET, durToSec, paceWarning, type RunFormErrors, type RunFormValues } from "../utils/runForm";
 
 const RUN_TYPES = ["EASY", "TEMPO", "LONG", "INTERVALS", "RACE", "WALK", "OTHER"];
 
@@ -45,6 +45,7 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
   const sec = durToSec(f.dur);
   const km = parseFloat(f.km);
   const pace = !isCross && km > 0 && sec > 0 ? sec / km : 0;
+  const warning = paceWarning(f);
 
   const effort = Number(f.effort);
 
@@ -95,7 +96,13 @@ export function RunFields({ form: f, onChange: set, phScope, afterHr, errors, de
           : !f.dur && <p id={durId + "-hint"} className="text-xs text-slate-500 mt-1.5">{t("log.fields.durationHint")}</p>}
       </div>
 
-      {pace > 0 && (
+      {warning && (
+        <p role="status" className="flex gap-2 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5"/>
+          {t(warning.kind === "fast" ? "log.fields.paceFast" : "log.fields.paceSlow", { pace: fmt.pace(warning.pace) })}
+        </p>
+      )}
+      {pace > 0 && !warning && (
         <div className="flex items-baseline justify-between rounded-xl bg-orange-500/10 border border-orange-500/25 px-4 py-2.5">
           <span className="text-xs text-slate-400">{t("log.fields.paceLabel")}</span>
           <span className="text-base font-bold text-orange-300 tabular-nums">{fmt.pace(pace)}/km</span>

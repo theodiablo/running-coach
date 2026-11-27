@@ -7,6 +7,7 @@ import { registerPlugin } from "@capacitor/core";
 import { isAndroid, isIos } from "../native";
 import { t } from "../i18n";
 import { sameNotificationContent, type RunNotificationContent } from "../utils/runNotification";
+import { logTrack } from "./trackLog";
 
 type PushOptions = {
   title: string;
@@ -24,7 +25,8 @@ type PushOptions = {
   hrAtMs?: number;
   tracking?: boolean;
 };
-type PushResult = { updated?: boolean };
+// `foreground` (Android): false while Android refuses the location service, so nothing records screen-off.
+type PushResult = { updated?: boolean; foreground?: boolean };
 
 // Same plugin name as src/geo/native.ts — registerPlugin returns a proxy per
 // call site; both address the one native instance.
@@ -56,6 +58,24 @@ let endPending = false; // an end() ordered behind the in-flight call
 // iOS) ends the Live Activity exactly once per run — including a stale card
 // left behind by a crashed session, swept by the first reset after mount.
 let cleared = false;
+let refusalLogged = false; // one sensor-log row per run, not one per render
+
+// Android only. "refused": the location service isn't held, so nothing records with the screen
+// off. "recovered": it was refused earlier this run and is held again, so distance has a hole.
+export type GpsServiceState = "refused" | "recovered" | null;
+let gpsService: GpsServiceState = null;
+let gpsRun = 0; // bumped on reset: a reply from the previous run must not set this one's state
+const gpsListeners = new Set<() => void>();
+function setGpsService(next: GpsServiceState): void {
+  if (next === gpsService) return;
+  gpsService = next;
+  gpsListeners.forEach(l => l());
+}
+export const getGpsServiceState = (): GpsServiceState => gpsService;
+export function subscribeGpsServiceState(listener: () => void): () => void {
+  gpsListeners.add(listener);
+  return () => { gpsListeners.delete(listener); };
+}
 
 const inflightFresh = () => inflight && Date.now() - inflightSince < INFLIGHT_STALE_MS;
 
@@ -82,6 +102,7 @@ function drain(): void {
 
 function sendNow(content: RunNotificationContent): void {
   const gen = ++generation; // a write-off (stale hang) supersedes this handler
+  const run = gpsRun;
   inflight = true;
   inflightSince = Date.now();
   cleared = false;
@@ -103,6 +124,17 @@ function sendNow(content: RunNotificationContent): void {
     .then((res) => {
       if (gen !== generation) return;
       lastApplied = res?.updated === true;
+      if (isAndroid && run === gpsRun) {
+        if (res?.foreground === false) {
+          setGpsService("refused");
+          if (!refusalLogged) {
+            refusalLogged = true;
+            logTrack("error", { msg: "location service refused (app was backgrounded)" });
+          }
+        } else if (res?.foreground === true && gpsService === "refused") {
+          setGpsService("recovered");
+        }
+      }
       if (lastApplied) lastAppliedAt = Date.now();
     })
     .catch(() => { if (gen === generation) lastApplied = false; })
@@ -140,6 +172,9 @@ export function resetRunNotification(): void {
   lastApplied = false;
   lastAppliedAt = 0;
   queuedPush = null;
+  refusalLogged = false;
+  gpsRun++;
+  setGpsService(null);
   if (cleared) return;
   cleared = true;
   if (inflightFresh()) {
