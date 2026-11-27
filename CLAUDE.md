@@ -392,8 +392,11 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   (`getConsent`), each with its own switch, nothing pre-ticked. Anything that
   collects automatically belongs to one of them (never a borrowed consent), and
   a crash-only consent must stay crash-only. Autocapture and session recording
-  stay OFF. Read `docs/telemetry.md` before adding/swapping a provider or an
-  event.
+  stay OFF. The one exception is a **non-personal server counter** (no
+  user/device/run/session id, no free text or location, enums only, read only
+  as aggregates via `admin_metrics()`): it counts everyone without consent, and
+  its definition and list live in `docs/telemetry.md`. Read `docs/telemetry.md`
+  before adding/swapping a provider, an event or a counter.
 
 ## Native platforms (Capacitor shells)
 - **One bundle serves web + both shells**; `isNative`
