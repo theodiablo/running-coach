@@ -435,7 +435,12 @@ is one seam, and the builder never branches on the platform.
   every `Filesystem` coroutine ends in a `Result.onFailure` that rejects the
   call, so neither needs a patch. Neither plugin's manifest adds a permission.
 - iOS: no new permission or Info.plist key (we write to our own cache and present
-  `UIActivityViewController`). Nothing new for App Review.
+  `UIActivityViewController`). `@capacitor/filesystem` reads file timestamps
+  and ships no privacy manifest of its own, so the app's
+  `ios/App/App/PrivacyInfo.xcprivacy` declares
+  `NSPrivacyAccessedAPICategoryFileTimestamp` (reason `C617.1`); without it App
+  Store Connect flags the upload (ITMS-91053). Add any later required-reason
+  API to that same file.
 - Plugin proxies: never resolve a promise with one (`{ plugin }` boxing, as
   `getHealthConnect` does), and mock them as a proxy in tests.
 
