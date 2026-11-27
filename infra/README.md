@@ -9,7 +9,7 @@ SES configuration — adopted via `import` blocks; see
 
 ## Prerequisites
 
-- Terraform `~> 1.15` (`terraform version`).
+- Terraform `~> 1.17` (`terraform version`).
 - AWS credentials with permission to manage S3 and IAM in the account.
 
 ## How it gets deployed
