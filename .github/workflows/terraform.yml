@@ -36,7 +36,7 @@ permissions:
   contents: read
 
 env:
-  TF_VERSION: "1.15.8"
+  TF_VERSION: "1.17.2"
   TF_IN_AUTOMATION: "1"
   # Not a secret: it ships in the web bundle. Feeds the /get origin in site.tf.
   TF_VAR_supabase_project_ref: ${{ vars.SUPABASE_PROJECT_REF }}
@@ -117,7 +117,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.cfg.outputs.ready == 'true'
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
         with:
           aws-region: ${{ secrets.AWS_REGION }}
           role-to-assume: ${{ steps.cfg.outputs.role }}
