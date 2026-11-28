@@ -262,12 +262,12 @@ export function OnboardingWizard({settings, onSaveProgress, onComplete, addRace,
   // A race contributed to the catalogue from here becomes the training target:
   // feed it back into the same pick() path. The catalogue is already refreshed by
   // the modal, so findEdition resolves; if it lags, keep the typed values as-is.
-  const onRaceCreated = (editionId: string) => {
+  const onRaceCreated = (editionId: string, existing?: boolean) => {
     const j = findEdition(editionId);
     if (j) pick(j);
     setManual(false);
     setShowAddRace(false);
-    showToast(t("onboarding.race.addedToast"));
+    showToast(t(existing ? "onboarding.race.pickedToast" : "onboarding.race.addedToast"));
   };
 
   // Leaving the no-race step: a "block" plan has no race and no date, only the

@@ -11,7 +11,7 @@ vi.mock("./supabase", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a), 
 vi.mock("./db", () => ({ currentUserId: () => null }));
 vi.mock("./notify", () => ({ notifyContribution: vi.fn() }));
 
-const { raceUrl, listKnownRaces, searchRaces, peekRaceSearch, clearRaceSearchCache, SEARCH_CACHE_MS } = await import("./races");
+const { raceUrl, findRaceDuplicates, duplicateRefusal, listKnownRaces, searchRaces, peekRaceSearch, clearRaceSearchCache, SEARCH_CACHE_MS } = await import("./races");
 
 describe("raceUrl", () => {
   it("keeps web links", () => {
@@ -32,6 +32,27 @@ describe("raceUrl", () => {
   it("treats empty as no link", () => {
     expect(raceUrl("")).toBeNull();
     expect(raceUrl(null)).toBeNull();
+  });
+});
+
+describe("findRaceDuplicates", () => {
+  it("sends what the form knows and maps each match", async () => {
+    rpc.mockReset().mockResolvedValue({ data: [{ slug: "kili", name: "Kilimanjaro Marathon", country: "TZ", strong: true, edition_id: "kili-2027-02-07",
+      dist_km: 0.1, editions: [{ id: "kili-2027-02-07", race_slug: "kili", date: "2027-02-07", distance_km: 42.2, elevation: 500 }] }], error: null });
+    const [d] = await findRaceDuplicates({ name: " Kili ", country: "TZ", lat: -3.47, lng: 37.38, date: "2027-02-07", distanceKm: 42.2 });
+    expect(rpc).toHaveBeenCalledWith("race_duplicates", expect.objectContaining({ p_name: "Kili", p_country: "TZ", p_lat: -3.47, p_date: "2027-02-07", p_distance_km: 42.2 }));
+    expect(d).toMatchObject({ strong: true, editionId: "kili-2027-02-07", race: { slug: "kili", distKm: 0.1, editions: [{ distanceKm: 42.2 }] } });
+  });
+
+  it("throws on a failed call, so the caller decides", async () => {
+    rpc.mockReset().mockResolvedValue({ data: null, error: { message: "down" } });
+    await expect(findRaceDuplicates({ name: "x" })).rejects.toBeTruthy();
+  });
+
+  it("reads the database's duplicate refusal and nothing else", () => {
+    expect(duplicateRefusal({ code: "RC409", details: "kili", hint: "kili-2027-02-07" })).toEqual({ raceSlug: "kili", editionId: "kili-2027-02-07" });
+    expect(duplicateRefusal({ code: "23505", details: "x" })).toBeNull();
+    expect(duplicateRefusal(new Error("x"))).toBeNull();
   });
 });
 

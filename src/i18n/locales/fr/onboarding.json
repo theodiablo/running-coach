@@ -46,7 +46,8 @@
     "elevationLabel": "Dénivelé positif de la course (m)",
     "elevationHint": "Dénivelé total du parcours. Sur un parcours vallonné, les allures sont plus douces pour un effort équivalent.",
     "addedToast": "Ajoutée au catalogue et définie comme ta course objectif.",
-    "dateInPast": "Choisis une date de course après aujourd'hui."
+    "dateInPast": "Choisis une date de course après aujourd'hui.",
+    "pickedToast": "C'est ta course."
   },
   "raceGoal": {
     "title": "Objectif et jours d'entraînement",

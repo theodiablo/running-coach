@@ -34,7 +34,7 @@ type RacesViewProps = {
   setRaceInPlan: (editionId: string, inPlan: boolean) => void;
   addRuns: (runs: Run[], opts?: { skipDetect?: boolean }) => void;
   showToast: (msg: string, type?: string) => void;
-  openRaceForm: () => void;
+  openRaceForm: (onPicked?: (race: CatalogueRace, editionId: string | null) => void) => void;
   runs?: Run[];
   // The plan's main race is settled through the hub, which ticks its RACE session too.
   plan?: Plan | null;
@@ -292,7 +292,8 @@ export function RacesView({ races, dateChanges, applyRaceDateChange, keepRaceDat
 
       {seg === "find" && (
         <FindPanel byId={byId} targetEditionId={settings.targetEditionId} myDistanceKm={Number(settings.distanceKm) || 0}
-          onOpen={(race, editionId) => setOpen({ race, editionId })} openRaceForm={openRaceForm}/>
+          onOpen={(race, editionId) => setOpen({ race, editionId })}
+          openRaceForm={() => openRaceForm((race, editionId) => setOpen({ race, editionId }))}/>
       )}
 
       {open && (

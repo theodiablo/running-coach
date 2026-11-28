@@ -99,7 +99,7 @@
     "countryPlaceholder": "Escribe para buscar",
     "countryNoMatch": "Ningún país coincide",
     "officialSite": "Web oficial (opcional)",
-    "officialSitePlaceholder": "https://…",
+    "officialSitePlaceholder": "www.ejemplo.com",
     "location": "Ubicación (para «carreras cerca de mí»)",
     "locationSet": "Ubicación fijada ✓",
     "locationHint": "Marca la salida en el mapa para rellenar el país y la ciudad.",
@@ -108,7 +108,7 @@
     "date": "Fecha",
     "distanceKm": "Distancia (km)",
     "distanceKmPlaceholder": "42,2",
-    "elevation": "Desnivel (m)",
+    "elevation": "Desnivel positivo (m)",
     "elevationPlaceholder": "0",
     "disclaimer": "Cualquiera puede añadir carreras. Se consideran aportaciones de usuarios hasta que un responsable las verifique. Confirma siempre la fecha en la web oficial antes de planificar.",
     "addedToast": "¡Gracias! La carrera ya está disponible para todo el mundo y figurará sin verificar hasta su revisión.",
@@ -117,7 +117,24 @@
       "dateDistance": "La fecha y la distancia son obligatorias.",
       "name": "Se necesita el nombre de la carrera.",
       "country": "Elige un país.",
-      "save": "No se pudo guardar la carrera. Inténtalo de nuevo."
+      "save": "No se pudo guardar la carrera. Inténtalo de nuevo.",
+      "url": "Eso no parece una dirección web. Prueba algo como www.ejemplo.com.",
+      "dateRange": "Elige una fecha entre hace un año y dentro de dos años.",
+      "city": "Escribe el nombre completo de la ciudad."
+    },
+    "urlPreview": "El enlace irá a {{url}}",
+    "pinCountry": "Tu marcador está en {{country}}.",
+    "usePinCountry": "Elegir {{country}}",
+    "climbHigh": "Es mucho desnivel para esta distancia. El desnivel positivo es el total de metros que se suben, no la altitud.",
+    "dupe": {
+      "title": "¿Es tu carrera?",
+      "body": "Parece que ya está en la lista. Usarla mantiene las fechas y los resultados de todo el mundo en un solo sitio.",
+      "blockingBody": "Esta carrera ya está en la lista para ese día.",
+      "use": "Sí, usar esta carrera",
+      "addDate": "Sí, añadir mi fecha",
+      "different": "No, es otra carrera",
+      "back": "Volver al formulario",
+      "usedToast": "Ya está en la lista. Encuéntrala en Buscar carrera."
     }
   },
   "picker": {

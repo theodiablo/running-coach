@@ -46,7 +46,8 @@
     "elevationLabel": "Desnivel positivo de la carrera (m)",
     "elevationHint": "Desnivel total del recorrido. En carreras con cuestas, los ritmos son más suaves para que el esfuerzo sea el mismo.",
     "addedToast": "Añadida al catálogo y definida como tu carrera objetivo.",
-    "dateInPast": "Elige una fecha de carrera posterior a hoy."
+    "dateInPast": "Elige una fecha de carrera posterior a hoy.",
+    "pickedToast": "Es tu carrera."
   },
   "raceGoal": {
     "title": "Objetivo y días de entrenamiento",

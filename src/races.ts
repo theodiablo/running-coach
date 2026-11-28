@@ -2,6 +2,9 @@ import { supabase } from "./supabase";
 import { currentUserId } from "./db";
 import { notifyContribution } from "./notify";
 import type { CatalogueEdition, CatalogueRace } from "./types";
+import { raceUrl } from "./utils/raceForm";
+
+export { raceUrl };
 
 type RaceRow = {
   slug: string;
@@ -48,19 +51,6 @@ type ReportRaceInput = { raceSlug?: string | null; editionId?: string | null; re
 
 // Map a DB race row + its editions to the joined shape the app already uses
 // (the old CURATED_RACES shape): camelCase, id === slug, editions newest-first.
-// Race URLs are contributed by other users and rendered as links: web links
-// only, never a custom scheme that would reach the app's own deep-link handler.
-export function raceUrl(value: string | null | undefined): string | null {
-  const s = (value || "").trim();
-  if (!s) return null;
-  try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
-  } catch {
-    return null;
-  }
-}
-
 function toRace(row: RaceRow, editions: EditionRow[] = []): CatalogueRace {
   return {
     id: row.slug,
@@ -209,6 +199,39 @@ export async function listRaceCountries(): Promise<RaceCountry[]> {
   const list = ((data || []) as RaceCountry[]).map(r => ({ country: r.country, races: Number(r.races) || 0 }));
   countriesCache = { at: Date.now(), list };
   return list;
+}
+
+export type RaceDuplicate = { race: CatalogueRace; strong: boolean; editionId: string | null };
+export type RaceDuplicateQuery = {
+  name?: string; country?: string | null; lat?: number | null; lng?: number | null;
+  date?: string | null; distanceKm?: number | null;
+};
+type DuplicateRow = SearchRow & { strong?: boolean; edition_id?: string | null };
+
+// Races the one being added may already be (race_duplicates), most likely first. `strong` means
+// the form should ask before creating; `editionId` is the same race day, reusable as is.
+export async function findRaceDuplicates(p: RaceDuplicateQuery, limit = 5): Promise<RaceDuplicate[]> {
+  const { data, error } = await supabase.rpc("race_duplicates", {
+    p_name: p.name?.trim() || null,
+    p_country: p.country || null,
+    p_lat: p.lat ?? null,
+    p_lng: p.lng ?? null,
+    p_date: p.date || null,
+    p_distance_km: p.distanceKm || null,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return ((data || []) as DuplicateRow[]).map(r => ({
+    race: { ...toRace(r, r.editions || []), distKm: r.dist_km ?? null },
+    strong: !!r.strong,
+    editionId: r.edition_id || null,
+  }));
+}
+
+// The race_editions_reject_duplicate refusal (RC409): the race this edition repeats.
+export function duplicateRefusal(err: unknown): { raceSlug: string; editionId: string | null } | null {
+  const e = err as { code?: string; details?: string | null; hint?: string | null } | null;
+  return e?.code === "RC409" && e.details ? { raceSlug: e.details, editionId: e.hint || null } : null;
 }
 
 // kebab-case a name into a slug (strip accents/punctuation, collapse to dashes).

@@ -126,8 +126,8 @@ first week the rebuild wrote, past the `past-` week `carryProgress` keeps.
 ## Contributions & Discover
 
 Contributions are instant + global + unverified. "Add a race"
-(`src/modals/RaceFormModal.tsx`, opened via `shared.openRaceForm`) does a live
-duplicate search and inserts `verified:false, created_by=uid`; the UI tags any
+(`src/modals/RaceFormModal.tsx`, opened via `shared.openRaceForm`) checks for
+duplicates (below) and inserts `verified:false, created_by=uid`; the UI tags any
 unverified race/edition. A new race needs a name, a date, a distance, a terrain and a
 **country** (ISO 3166-1 alpha-2, picked in `CountryPicker`: a type-to-filter field over
 `countryOptions`/`filterCountries` in `src/utils/country.ts`, named in the app's language, accent-insensitive and also
@@ -154,6 +154,51 @@ unless the contributor typed their own; nothing is filled offline or without a m
 antimeridian with a longitude outside ±180 (Napier as −183), so the picker
 folds it back with `wrapLng` (`src/utils/geo.ts`), and `races_coordinate_bounds`
 refuses an out-of-range pin.
+
+### Field rules (database first)
+
+Every rule the form applies is also a database constraint or policy, because old app
+builds stay installed for months and the REST API is open to any signed-in account. The
+form's job is to say what's wrong on the field; the database's is to refuse it anyway.
+All are `not valid` (new and edited rows only), added in `*_race_submission_checks.sql`:
+
+- **URL** (`races_url_host`): http(s) with a real host (a dot and an alphabetic or
+  punycode TLD), so no `localhost`, IP or `https://https//:x.com`. `raceUrl`
+  (`src/utils/raceForm.ts`) repairs repeated or broken scheme prefixes, completes a bare
+  host, and is also applied when a stored URL is rendered.
+- **Country** (`races_country_code`): the same explicit list as `src/utils/country.ts`.
+  A confirmed pin whose country disagrees with the picked one shows a one-tap fix.
+- **Name/city** (`races_name_city_shape`): trimmed, name ≥ 3 and city ≥ 2 characters.
+- **Date** (the editions insert policy, since a CHECK can't use `current_date`): from a
+  year back to two years ahead (`raceDateBounds`).
+- **Elevation** is the *gain*; a climb above 25 m/km on road or 150 m/km on trail
+  (`climbLooksHigh`) warns, never blocks, because it usually is an altitude.
+
+`src/raceSubmissionChecks.test.ts` pins the country list and the URL pattern to the app.
+
+### Duplicates
+
+`race_duplicates(name, country, lat, lng, date, distance_km)` is the one duplicate
+finder. It compares the race name's distinctive words (`race_name_tokens`: accents
+folded, generic race words like marathon, semi, carrera, san silvestre, and numbers
+dropped), the pin (within 10 km), and a race day (an edition within ±3 days at a distance
+within 5%). It lists a race whose word starts with a typed word (so typing finds it) or
+the same race day within 10 km; `strong` needs an exact shared word plus place agreement
+(pin within 10 km, or no pins and the same country) on the same race day or distance, or a
+pin within 2 km on the same race day. Replayed on the catalogue's ~65k pairs at launch it
+flagged 5: three real repeats and two series races in neighbouring towns.
+
+The form uses it twice: live, as the "already listed?" list, and on Add, where a strong
+match stops the save with "Is this your race?" — **use this race** (its race-day edition,
+via `onCreated(id, true)` in onboarding or `onUseExisting` → the race sheet from Find),
+**add my date to it**, or **it's a different race** (saves, not asked again). A failed
+lookup never blocks a save.
+
+Behind it, `race_editions_reject_duplicate` refuses, for an `authenticated` insert, an
+edition on the same date, at the same distance (±0.5 km), of another race pinned within
+2 km, raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
+(`duplicateRefusal`). The form turns that into the same question without "different";
+old builds show their generic save error, which beats a duplicate in everyone's catalogue.
 
 ## Moderation
 

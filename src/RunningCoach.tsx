@@ -355,7 +355,9 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // Shared race catalogue (fetched, NOT in the blob). [] until it loads / on a
   // failed fetch — the app renders regardless.
   const [catalogue,   setCatalogue]   = useState<CatalogueRace[]>([]);
-  const [showRaceForm,setShowRaceForm]= useState(false);
+  // Open with what to do when the runner picks an already-listed race over adding theirs.
+  const [raceForm,setRaceForm]= useState<{ onPicked?: (race: CatalogueRace, editionId: string | null) => void } | null>(null);
+  const showRaceForm = !!raceForm;
   const [detailRun,   setDetailRun]   = useState<Run | null>(null);
   const [showCoach,   setShowCoach]   = useState(false);
   // Set when the coach is opened about a specific plan session (see openCoach) so
@@ -1484,7 +1486,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const shared = {publicName, reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, openChangePlan, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {publicName, reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, openChangePlan, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: (onPicked?: (race: CatalogueRace, editionId: string | null) => void) => setRaceForm({ onPicked }),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1634,7 +1636,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showRaceForm && <RaceFormModal
         addRace={addRace} addEdition={addEdition}
         onContributed={refreshCatalogue} showToast={showToast} onCreated={undefined}
-        onClose={() => setShowRaceForm(false)}/>}
+        onUseExisting={raceForm?.onPicked} onClose={() => setRaceForm(null)}/>}
       {detailRun && <RunDetailModal run={detailRun} settings={settings} runs={runs} plan={plan} participations={races.participations} showToast={showToast} onClose={() => setDetailRun(null)}/>}
       {achievement && <RunAchievementSheet {...achievement} onClose={() => setAchievement(null)}/>}
       <StorePrompts calm={calm && !nextSheet} update={availableUpdate} runs={runs}

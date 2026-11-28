@@ -278,7 +278,7 @@ export function FindPanel({ byId, targetEditionId, myDistanceKm, onOpen, openRac
       )}
 
       <div className="pt-3">
-        <AddRaceCard onClick={openRaceForm} subtitle={t("races.find.addSubtitle")}>
+        <AddRaceCard onClick={() => openRaceForm()} subtitle={t("races.find.addSubtitle")}>
           <p className="text-slate-500 text-[11px] px-1">{t("races.find.userSubmittedNote")}</p>
         </AddRaceCard>
       </div>

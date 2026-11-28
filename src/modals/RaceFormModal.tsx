@@ -5,9 +5,12 @@ import { MapPin, Check, Plus, AlertTriangle, Loader } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { track } from "../telemetry";
 import { LocationPicker } from "../components/LocationPicker";
-import { deleteRace } from "../races";
-import type { RaceTerrain } from "../races";
-import { useRaceSearch } from "../hooks/useRaceSearch";
+import { deleteRace, duplicateRefusal, findRaceDuplicates } from "../races";
+import type { RaceDuplicate, RaceTerrain } from "../races";
+import { useRaceDuplicates } from "../hooks/useRaceDuplicates";
+import { rememberRaces } from "../utils/races";
+import { climbLooksHigh, raceDateBounds, raceDateInBounds, raceUrl, tidyName } from "../utils/raceForm";
+import { fmt, ymd } from "../utils/format";
 import { notifyContribution } from "../notify";
 import { countryCode, countryName } from "../utils/country";
 import { guessCountry } from "../utils/guessCountry";
@@ -34,14 +37,17 @@ type RaceFormModalProps = {
   showToast: (msg: string, type?: string) => void;
   onClose: () => void;
   prefill?: RaceFormPrefill;
-  onCreated?: (editionId: string) => void;
+  onCreated?: (editionId: string, existing?: boolean) => void;
+  onUseExisting?: (race: CatalogueRace, editionId: string | null) => void;
 };
+type FieldErrors = { url?: string; date?: string; city?: string };
+type Dupe = { match: RaceDuplicate; blocking: boolean };
 
 // "Add a race": contributes to the SHARED catalogue (instant, global); new entries are always unverified
-// and tagged so. A live duplicate search steers a user adding a new date to the existing race (add an edition).
-// Props: addRace/addEdition, onContributed, showToast, onClose; `prefill` seeds the form;
-// `onCreated(editionId)` hands the new edition back to the caller instead of toast-and-close.
-export function RaceFormModal({ addRace, addEdition, onContributed, showToast, onClose, prefill, onCreated }: RaceFormModalProps) {
+// and tagged so. Duplicates are caught live and again on submit (docs/races.md, "Duplicates").
+// `onCreated(editionId, existing)` hands the edition back instead of toast-and-close;
+// `onUseExisting` opens an already-listed race the runner picked instead of adding theirs.
+export function RaceFormModal({ addRace, addEdition, onContributed, showToast, onClose, prefill, onCreated, onUseExisting }: RaceFormModalProps) {
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const [selected, setSelected] = useState<CatalogueRace | null>(null); // an existing race to add a date to
@@ -54,12 +60,23 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   const reverseSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [fieldErr, setFieldErr] = useState<FieldErrors>({});
+  const [pinCountry, setPinCountry] = useState<string | null>(null);
+  const [dupe, setDupe] = useState<Dupe | null>(null);
+  const [today] = useState(() => ymd(new Date()));
   const set = (k: Exclude<keyof RaceForm, "cityFromMap">, v: string | number) => setF(prev => ({ ...prev, [k]: v }));
 
-  // Live duplicate search on the name field (skipped once a race is selected).
-  const q = f.name.trim();
-  const dupes = useRaceSearch({ query: q, limit: 5 }, !selected && q.length >= 2);
-  const matches = !selected && q.length >= 2 ? dupes.races : [];
+  // Live duplicate lookup on everything typed so far (skipped once a race is selected).
+  const q = tidyName(f.name);
+  const distNum = parseFloat(String(f.distanceKm));
+  const dupQuery = { name: q, country: countryCode(f.country), lat: loc?.lat ?? null, lng: loc?.lng ?? null,
+    date: f.date || null, distanceKm: distNum > 0 ? distNum : null };
+  const liveOn = !selected && !dupe && (q.length >= 2 || !!(loc && dupQuery.date && dupQuery.distanceKm));
+  const matches = useRaceDuplicates(dupQuery, liveOn).map(d => d.race);
+  const urlPreview = f.url.trim() ? raceUrl(f.url) : null;
+  const pinCountryOff = !!pinCountry && !!countryCode(f.country) && pinCountry !== countryCode(f.country);
+  const climbHigh = climbLooksHigh(distNum, parseInt(String(f.elevation)) || 0, selected?.terrain || terrain);
+  const dateBounds = raceDateBounds(today);
 
   // A pin fills the country, and the city unless the runner typed their own.
   const confirmLocation = (p: LatLng) => {
@@ -71,6 +88,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       if (seq !== reverseSeq.current) return;
       setLocating(false);
       if (!place) return;
+      setPinCountry(countryCode(place.country));
       setF(prev => {
         const fillCity = !!place.city && (!prev.city.trim() || prev.cityFromMap);
         return { ...prev, country: place.country ?? prev.country, ...(fillCity ? { city: place.city ?? "", cityFromMap: true } : {}) };
@@ -78,31 +96,49 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     });
   };
 
-  const submit = async () => {
+  // `target`: an existing race to add the date to; null creates a new race. `checked`: the runner
+  // already said a strong match is a different race, so the duplicate lookup isn't asked again.
+  const submit = async (target: CatalogueRace | null = selected, checked = false) => {
     if (locating) return;   // the pin's country is still on its way
     setErr("");
     const dist = parseFloat(String(f.distanceKm));
     if (!f.date || !dist) { setErr(t("races.form.errors.dateDistance")); return; }
-    if (!selected && !f.name.trim()) { setErr(t("races.form.errors.name")); return; }
+    const name = tidyName(f.name);
+    if (!target && name.length < 3) { setErr(t("races.form.errors.name")); return; }
     const country = countryCode(f.country);
-    if (!selected && !country) { setErr(t("races.form.errors.country")); return; }
+    if (!target && !country) { setErr(t("races.form.errors.country")); return; }
+    const city = tidyName(f.city);
+    const errs: FieldErrors = {};
+    if (!raceDateInBounds(f.date, today)) errs.date = t("races.form.errors.dateRange");
+    if (!target && city.length === 1) errs.city = t("races.form.errors.city");
+    if (!target && f.url.trim() && !raceUrl(f.url)) errs.url = t("races.form.errors.url");
+    setFieldErr(errs);
+    if (Object.keys(errs).length) return;
     const elevation = f.elevation ? parseInt(String(f.elevation)) : 0;
+    const lookup = { name, country, lat: loc?.lat ?? null, lng: loc?.lng ?? null, date: f.date, distanceKm: dist };
     setBusy(true);
+    if (!target && !checked) {
+      try {
+        const strong = (await findRaceDuplicates(lookup)).find(d => d.strong);
+        if (strong) { setDupe({ match: strong, blocking: false }); setBusy(false); return; }
+      } catch (e) {
+        console.error("race duplicate check failed", e);   // never blocks: the database rule still stands
+      }
+    }
     // Track a race we create here so we can roll it back if the follow-up
     // addEdition fails — otherwise a childless race lingers in the catalogue.
     let createdRaceSlug: string | null = null;
     try {
-      let raceSlug: string, name: string, created: CatalogueEdition;
-      if (selected) {
-        raceSlug = selected.slug || selected.id; name = selected.name;
+      let raceSlug: string, created: CatalogueEdition;
+      if (target) {
+        raceSlug = target.slug || target.id;
         created = await addEdition({ raceSlug, date: f.date, distanceKm: dist, elevation });
         track("race_contributed", { kind: "edition" });
         notifyContribution({ type: "edition", editionId: created.id });
       } else {
-        name = f.name.trim();
         const race = await addRace({
-          name, city: f.city.trim() || null, country,
-          lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: f.url.trim() || null, terrain,
+          name, city: city || null, country,
+          lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: raceUrl(f.url), terrain,
         });
         raceSlug = race.slug || race.id;
         createdRaceSlug = raceSlug;
@@ -121,9 +157,27 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       // Roll back a just-created race whose edition didn't land, so we don't
       // leave an orphan in the shared catalogue. Best-effort — already failing.
       if (createdRaceSlug) deleteRace(createdRaceSlug).catch(() => {});
-      setErr(t("races.form.errors.save"));
+      const refusal = duplicateRefusal(e);
+      const match = refusal && (await findRaceDuplicates(lookup).catch(() => []))
+        .find(d => d.race.slug === refusal.raceSlug);
+      if (match) setDupe({ match: { ...match, editionId: match.editionId ?? refusal.editionId }, blocking: true });
+      else setErr(t("races.form.errors.save"));
       setBusy(false);
     }
+  };
+
+  const pickExisting = (d: RaceDuplicate) => {
+    rememberRaces([d.race]);
+    if (onCreated && d.editionId) onCreated(d.editionId, true);
+    else if (onUseExisting) onUseExisting(d.race, d.editionId);
+    else showToast(t("races.form.dupe.usedToast"));
+    onClose();
+  };
+
+  const addDateTo = (race: CatalogueRace) => {
+    setSelected(race);
+    setDupe(null);
+    void submit(race);
   };
 
   return (
@@ -137,6 +191,10 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
         </div>
 
         <div className="p-4 space-y-4 overflow-y-auto">
+          {dupe ? <DuplicatePrompt dupe={dupe} busy={busy} onUse={() => pickExisting(dupe.match)}
+            onAddDate={() => addDateTo(dupe.match.race)}
+            onDifferent={() => { setDupe(null); void submit(null, true); }}
+            onBack={() => setDupe(null)}/> : <>
           {selected ? (
             <div className="flex items-center justify-between gap-2 bg-slate-700/50 rounded-xl p-3">
               <div className="min-w-0">
@@ -181,9 +239,19 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
               </div>
               <div><label htmlFor="race-country" className={LABEL_CLS}>{t("races.form.country")}</label>
                 <CountryPicker id="race-country" value={f.country} onChange={code => set("country", code)} locale={i18n.language}
-                  placeholder={t("races.form.countryPlaceholder")} noMatch={t("races.form.countryNoMatch")}/></div>
+                  placeholder={t("races.form.countryPlaceholder")} noMatch={t("races.form.countryNoMatch")}/>
+                {pinCountryOff && pinCountry && (
+                  <p className="flex items-center gap-2 text-[11px] text-amber-300 mt-1.5">
+                    <span>{t("races.form.pinCountry", { country: countryName(pinCountry, i18n.language) || pinCountry })}</span>
+                    <button onClick={() => set("country", pinCountry)} className="text-orange-400 hover:text-orange-300 font-semibold">
+                      {t("races.form.usePinCountry", { country: countryName(pinCountry, i18n.language) || pinCountry })}
+                    </button>
+                  </p>
+                )}</div>
               <div><label htmlFor="race-city" className={LABEL_CLS}>{t("races.form.city")}</label>
-                <input id="race-city" value={f.city} onChange={e => { const city = e.target.value; setF(prev => ({ ...prev, city, cityFromMap: false })); }} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}/></div>
+                <input id="race-city" value={f.city} onChange={e => { const city = e.target.value; setF(prev => ({ ...prev, city, cityFromMap: false })); }} placeholder={t("races.form.cityPlaceholder")} maxLength={80} className={INPUT_CLS}
+                  aria-invalid={!!fieldErr.city} aria-describedby={fieldErr.city ? "race-city-err" : undefined}/>
+                {fieldErr.city && <p id="race-city-err" className="text-xs text-red-400 mt-1">{fieldErr.city}</p>}</div>
               <div role="group" aria-label={t("races.filters.terrain")}>
                 <span className={LABEL_CLS}>{t("races.filters.terrain")}</span>
                 <div className="flex bg-slate-900 rounded-xl p-1 gap-1">
@@ -195,19 +263,29 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
                   ))}
                 </div>
               </div>
-              <div><label className={LABEL_CLS}>{t("races.form.officialSite")}</label>
-                <input value={f.url} onChange={e => set("url", e.target.value)} placeholder={t("races.form.officialSitePlaceholder")} maxLength={300} className={INPUT_CLS}/></div>
+              <div><label htmlFor="race-url" className={LABEL_CLS}>{t("races.form.officialSite")}</label>
+                <input id="race-url" type="url" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                  value={f.url} onChange={e => { set("url", e.target.value); setFieldErr(prev => ({ ...prev, url: undefined })); }}
+                  placeholder={t("races.form.officialSitePlaceholder")} maxLength={300} className={INPUT_CLS}
+                  aria-invalid={!!fieldErr.url} aria-describedby={fieldErr.url ? "race-url-err" : urlPreview ? "race-url-preview" : undefined}/>
+                {fieldErr.url
+                  ? <p id="race-url-err" className="text-xs text-red-400 mt-1">{fieldErr.url}</p>
+                  : urlPreview && <p id="race-url-preview" className="text-[11px] text-slate-500 mt-1 truncate">{t("races.form.urlPreview", { url: urlPreview.replace(/^https?:\/\//, "").replace(/\/$/, "") })}</p>}</div>
             </>
           )}
 
-          <div><label className={LABEL_CLS}>{t("races.form.date")}</label>
-            <input type="date" value={f.date} onChange={e => set("date", e.target.value)} className={INPUT_CLS}/></div>
+          <div><label htmlFor="race-date" className={LABEL_CLS}>{t("races.form.date")}</label>
+            <input id="race-date" type="date" min={dateBounds.min} max={dateBounds.max} value={f.date}
+              onChange={e => { set("date", e.target.value); setFieldErr(prev => ({ ...prev, date: undefined })); }} className={INPUT_CLS}
+              aria-invalid={!!fieldErr.date} aria-describedby={fieldErr.date ? "race-date-err" : undefined}/>
+            {fieldErr.date && <p id="race-date-err" className="text-xs text-red-400 mt-1">{fieldErr.date}</p>}</div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={LABEL_CLS}>{t("races.form.distanceKm")}</label>
-              <input type="number" step="0.1" min="0" value={f.distanceKm} onChange={e => set("distanceKm", e.target.value)} placeholder={t("races.form.distanceKmPlaceholder")} className={INPUT_CLS}/></div>
-            <div><label className={LABEL_CLS}>{t("races.form.elevation")}</label>
-              <input type="number" min="0" value={f.elevation} onChange={e => set("elevation", e.target.value)} placeholder={t("races.form.elevationPlaceholder")} className={INPUT_CLS}/></div>
+            <div><label htmlFor="race-distance" className={LABEL_CLS}>{t("races.form.distanceKm")}</label>
+              <input id="race-distance" type="number" step="0.1" min="0" value={f.distanceKm} onChange={e => set("distanceKm", e.target.value)} placeholder={t("races.form.distanceKmPlaceholder")} className={INPUT_CLS}/></div>
+            <div><label htmlFor="race-elevation" className={LABEL_CLS}>{t("races.form.elevation")}</label>
+              <input id="race-elevation" type="number" min="0" value={f.elevation} onChange={e => set("elevation", e.target.value)} placeholder={t("races.form.elevationPlaceholder")} className={INPUT_CLS}/></div>
           </div>
+          {climbHigh && <p className="text-[11px] text-amber-300 -mt-2">{t("races.form.climbHigh")}</p>}
 
           <div className="flex items-start gap-2 text-[11px] text-slate-400 bg-amber-500/5 border border-amber-500/20 rounded-xl p-2.5">
             <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5"/>
@@ -217,12 +295,13 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
           {err && <p className="text-sm text-red-400">{err}</p>}
 
           <div className="flex gap-2">
-            <button onClick={submit} disabled={busy || locating}
+            <button onClick={() => void submit()} disabled={busy || locating}
               className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors disabled:opacity-60">
               {busy ? <Loader size={16} className="animate-spin"/> : <Plus size={16}/>}{t("races.form.submit")}
             </button>
             <button onClick={onClose} className="px-3 text-sm text-slate-400 hover:text-slate-200">{t("common.cancel")}</button>
           </div>
+          </>}
         </div>
       </div>
     </div>
@@ -236,5 +315,37 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       />
     )}
     </>
+  );
+}
+
+// "Is this your race?": a strong match found before (or refused at) saving. `blocking` is the
+// database's refusal of an exact repeat, so "it's a different race" isn't offered there.
+function DuplicatePrompt({ dupe, busy, onUse, onAddDate, onDifferent, onBack }: {
+  dupe: Dupe; busy: boolean; onUse: () => void; onAddDate: () => void; onDifferent: () => void; onBack: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const { race, editionId } = dupe.match;
+  const edition = race.editions.find(e => e.id === editionId);
+  const place = [race.city, race.country && (countryName(race.country, i18n.language) || race.country)].filter(Boolean).join(", ");
+  return (
+    <div className="space-y-3">
+      <p className="font-semibold">{t("races.form.dupe.title")}</p>
+      <p className="text-sm text-slate-400">{t(dupe.blocking ? "races.form.dupe.blockingBody" : "races.form.dupe.body")}</p>
+      <div className="bg-slate-700/50 rounded-xl p-3">
+        <p className="font-semibold">{race.name}</p>
+        {place && <p className="text-xs text-slate-400">{place}</p>}
+        {edition && <p className="text-xs text-slate-300 mt-1">{fmt.date(edition.date)} · {fmt.km(edition.distanceKm)} km</p>}
+        {!race.verified && <p className="text-[11px] text-amber-400 mt-1">{t("races.unverifiedTag")}</p>}
+      </div>
+      <div className="space-y-2">
+        {editionId
+          ? <button onClick={onUse} disabled={busy} className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors disabled:opacity-60">{t("races.form.dupe.use")}</button>
+          : <button onClick={onAddDate} disabled={busy} className="w-full flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors disabled:opacity-60">
+              {busy && <Loader size={16} className="animate-spin"/>}{t("races.form.dupe.addDate")}
+            </button>}
+        {!dupe.blocking && <button onClick={onDifferent} disabled={busy} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60">{t("races.form.dupe.different")}</button>}
+        <button onClick={onBack} disabled={busy} className="w-full text-sm text-slate-400 hover:text-slate-200 py-1">{t("races.form.dupe.back")}</button>
+      </div>
+    </div>
   );
 }
