@@ -74,7 +74,7 @@ begin
   if (
     select count(*) from public.race_field_members m
     join public.race_editions e on e.id = m.edition_id
-    where m.user_id = new.user_id and e.date >= current_date
+    where m.user_id = new.user_id and m.edition_id <> new.edition_id and e.date >= current_date
   ) >= 30 then
     raise exception 'race field limit reached' using errcode = 'P0001';
   end if;
@@ -84,7 +84,7 @@ $$;
 revoke all on function public.race_field_members_guard() from public, anon, authenticated;
 
 comment on function public.race_field_members_guard() is
-  'Refuses a membership on an unverified or past edition, and a 31st upcoming one. SECURITY INVOKER on purpose: the count sees only the caller''s own rows, so the error can never reveal another account''s memberships.';
+  'Refuses a membership on an unverified or past edition, and a 31st upcoming one (a duplicate of an existing one is left to the primary key, so it reads as 23505). SECURITY INVOKER on purpose: the count sees only the caller''s own rows, so the error can never reveal another account''s memberships.';
 
 drop trigger if exists race_field_members_guard on public.race_field_members;
 create trigger race_field_members_guard

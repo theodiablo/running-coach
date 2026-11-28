@@ -48,4 +48,9 @@ describe("race field privileges", () => {
     const guard = statements.find(s => s.startsWith("create or replace function public.race_field_members_guard()"));
     expect(guard).toMatch(/security invoker/);
   });
+
+  it("leaves a duplicate join out of the cap, so it reads as a change (23505), not as the limit", () => {
+    const guard = all.match(/function public\.race_field_members_guard\(\)\s+returns trigger[\s\S]*?\$\$;/g)?.at(-1);
+    expect(guard).toMatch(/m\.edition_id <> new\.edition_id/);
+  });
 });
