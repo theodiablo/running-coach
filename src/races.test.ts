@@ -49,8 +49,8 @@ describe("addRace distinct_from", () => {
     insert.mockReset()
       .mockResolvedValueOnce({ data: null, error: { code: "PGRST204", message: "column not found" } })
       .mockImplementation(async (_t: string, row: Record<string, unknown>) => ok(row));
-    await addRace({ name: "Riverside Charity Run", country: "GB", distinctFrom: "riverside-run" });
-    expect(insert.mock.calls[0][1]).toMatchObject({ slug: "riverside-charity-run", distinct_from: "riverside-run" });
+    await addRace({ name: "Riverside Charity Run", country: "GB", distinctFrom: ["riverside-run"] });
+    expect(insert.mock.calls[0][1]).toMatchObject({ slug: "riverside-charity-run", distinct_from: ["riverside-run"] });
     expect(insert.mock.calls[1][1]).toMatchObject({ slug: "riverside-charity-run" });
     expect(insert.mock.calls[1][1]).not.toHaveProperty("distinct_from");
   });

@@ -35,11 +35,11 @@ alter table public.races add constraint races_country_code
     'VN', 'VU', 'WF', 'WS', 'XK', 'YE', 'YT', 'ZA', 'ZM', 'ZW'
   )) not valid;
 
--- The listed race a contributor said this one is NOT ("it's a different race"), so the repeat
--- trigger below lets that pair through; also tells a reviewer what the runner answered.
-alter table public.races add column if not exists distinct_from text;
+-- The listed races a contributor said this one is NOT ("it's a different race"), each confirmed
+-- in turn, so the repeat trigger below lets those pairs through; a reviewer sees the answers.
+alter table public.races add column if not exists distinct_from text[];
 alter table public.races add constraint races_distinct_from_bounds
-  check (distinct_from is null or length(distinct_from) <= 240) not valid;
+  check (distinct_from is null or cardinality(distinct_from) <= 10) not valid;
 
 -- A race date from a year back to two years ahead.
 alter policy "race_editions insert own unverified" on public.race_editions
@@ -169,7 +169,7 @@ $$;
 
 -- The exact repeat, for clients that never ask race_duplicates: an edition on the same day, at the
 -- same distance (±0.5 km), of another race pinned within 2 km whose distinctive name words one
--- name wholly contains, unless the contributor said it is a different race (`distinct_from`).
+-- name wholly contains, unless the contributor said it is a different race (in `distinct_from`).
 create or replace function public.race_editions_reject_duplicate()
 returns trigger
 language plpgsql
@@ -188,7 +188,7 @@ begin
   perform pg_advisory_xact_lock(hashtext('race_editions_duplicate:' || new.date::text));
   select e.race_slug, e.id into dup
     from public.race_editions e join public.races r on r.slug = e.race_slug
-   where e.race_slug <> new.race_slug and e.race_slug is distinct from pin.distinct_from
+   where e.race_slug <> new.race_slug and e.race_slug <> all(coalesce(pin.distinct_from, '{}'))
      and e.date = new.date
      and abs(e.distance_km - new.distance_km) <= 0.5
      and r.lat is not null and r.lng is not null

@@ -320,7 +320,7 @@ describe("RaceFormModal duplicate on submit", () => {
     submit();
     fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
     await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
-    expect(addRace.mock.calls[0][0]).toMatchObject({ distinctFrom: kili.slug });
+    expect(addRace.mock.calls[0][0]).toMatchObject({ distinctFrom: [kili.slug] });
     expect(screen.queryByText("Is this your race?")).not.toBeInTheDocument();
   });
 
@@ -332,16 +332,20 @@ describe("RaceFormModal duplicate on submit", () => {
     await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
   });
 
-  it("turns the database's refusal of an exact repeat into the same question, minus 'different'", async () => {
-    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country ? [match(false)] : []);
-    const { addEdition } = setup();
-    addEdition.mockRejectedValueOnce({ code: "RC409", details: kili.slug, hint: kili.editions[0].id });
+  it("turns the database's refusal into the same question, and each 'different' answer adds to the list", async () => {
+    const other: CatalogueRace = { ...kili, id: "kili-2", slug: "kili-2", name: "Kilimanjaro Half" };
+    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country ? [match(true), { race: other, strong: false, editionId: null }] : []);
+    const { addRace, addEdition } = setup();
+    addEdition.mockRejectedValueOnce({ code: "RC409", details: "kili-2", hint: "kili-2-2027-02-07" });
     fillNew();
     submit();
+    fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
     expect(await screen.findByText("This race is already listed for that day.")).toBeInTheDocument();
     expect(deleteRace).toHaveBeenCalledWith("new-race");
-    expect(screen.getByRole("button", { name: "Yes, use this race" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "No, it's a different race" })).not.toBeInTheDocument();
+    expect(screen.getByText("Kilimanjaro Half")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "No, it's a different race" }));
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(2));
+    expect(addRace.mock.calls[1][0]).toMatchObject({ distinctFrom: [kili.slug, "kili-2"] });
   });
 });
 

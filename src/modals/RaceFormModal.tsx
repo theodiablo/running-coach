@@ -31,7 +31,7 @@ type RaceForm = {
 };
 type RaceFormPrefill = { date?: string; distanceKm?: string | number; elevation?: string | number };
 type RaceFormModalProps = {
-  addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null; terrain?: RaceTerrain | null; distinctFrom?: string | null }) => Promise<CatalogueRace>;
+  addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null; terrain?: RaceTerrain | null; distinctFrom?: string[] }) => Promise<CatalogueRace>;
   addEdition: (edition: { raceSlug: string; date: string; distanceKm: number; elevation: number }) => Promise<CatalogueEdition>;
   onContributed?: () => void | Promise<void>;
   showToast: (msg: string, type?: string) => void;
@@ -41,7 +41,8 @@ type RaceFormModalProps = {
   onUseExisting?: (race: CatalogueRace, editionId: string | null) => void;
 };
 type FieldErrors = { url?: string; date?: string; city?: string };
-type Dupe = { match: RaceDuplicate; blocking: boolean };
+// `refused`: the database turned the save down; `distinctFrom`: races the runner already said it isn't.
+type Dupe = { match: RaceDuplicate; refused: boolean; distinctFrom: string[] };
 
 // "Add a race": contributes to the SHARED catalogue (instant, global); new entries are always unverified
 // and tagged so. Duplicates are caught live and again on submit (docs/races.md, "Duplicates").
@@ -98,8 +99,8 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   };
 
   // `target`: an existing race to add the date to; null creates a new race. `distinctFrom`: the
-  // listed race the runner said this isn't, so neither the lookup nor the repeat trigger asks again.
-  const submit = async (target: CatalogueRace | null = selected, distinctFrom: string | null = null) => {
+  // listed races the runner said this isn't, so neither the lookup nor the repeat trigger asks again.
+  const submit = async (target: CatalogueRace | null = selected, distinctFrom: string[] = []) => {
     if (locating) return;   // the pin's country is still on its way
     setErr("");
     const dist = parseFloat(String(f.distanceKm));
@@ -118,10 +119,10 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     const elevation = f.elevation ? parseInt(String(f.elevation)) : 0;
     const lookup = { name, country, lat: loc?.lat ?? null, lng: loc?.lng ?? null, date: f.date, distanceKm: dist };
     setBusy(true);
-    if (!target && !distinctFrom) {
+    if (!target && !distinctFrom.length) {
       try {
         const strong = (await findRaceDuplicates(lookup)).find(d => d.strong);
-        if (strong) { setDupe({ match: strong, blocking: false }); setBusy(false); return; }
+        if (strong) { setDupe({ match: strong, refused: false, distinctFrom }); setBusy(false); return; }
       } catch (e) {
         console.error("race duplicate check failed", e);   // never blocks: the database rule still stands
       }
@@ -161,7 +162,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       const refusal = duplicateRefusal(e);
       const match = refusal && (await findRaceDuplicates(lookup).catch(() => []))
         .find(d => d.race.slug === refusal.raceSlug);
-      if (match) setDupe({ match: { ...match, editionId: match.editionId ?? refusal.editionId }, blocking: true });
+      if (match) setDupe({ match: { ...match, editionId: match.editionId ?? refusal.editionId }, refused: true, distinctFrom });
       else setErr(t("races.form.errors.save"));
       setBusy(false);
     }
@@ -194,7 +195,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
         <div className="p-4 space-y-4 overflow-y-auto">
           {dupe ? <DuplicatePrompt dupe={dupe} busy={busy} onUse={() => pickExisting(dupe.match)}
             onAddDate={() => addDateTo(dupe.match.race)}
-            onDifferent={() => { setDupe(null); void submit(null, dupe.match.race.slug); }}
+            onDifferent={() => { setDupe(null); void submit(null, [...dupe.distinctFrom, dupe.match.race.slug]); }}
             onBack={() => setDupe(null)}/> : <>
           {selected ? (
             <div className="flex items-center justify-between gap-2 bg-slate-700/50 rounded-xl p-3">
@@ -319,8 +320,8 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   );
 }
 
-// "Is this your race?": a strong match found before (or refused at) saving. `blocking` is the
-// database's refusal of an exact repeat, so "it's a different race" isn't offered there.
+// "Is this your race?": a strong match found before (or refused at) saving. Each "different race"
+// answer adds that race to `distinctFrom`, so a second match can be answered too.
 function DuplicatePrompt({ dupe, busy, onUse, onAddDate, onDifferent, onBack }: {
   dupe: Dupe; busy: boolean; onUse: () => void; onAddDate: () => void; onDifferent: () => void; onBack: () => void;
 }) {
@@ -331,7 +332,7 @@ function DuplicatePrompt({ dupe, busy, onUse, onAddDate, onDifferent, onBack }: 
   return (
     <div className="space-y-3">
       <p className="font-semibold">{t("races.form.dupe.title")}</p>
-      <p className="text-sm text-slate-400">{t(dupe.blocking ? "races.form.dupe.blockingBody" : "races.form.dupe.body")}</p>
+      <p className="text-sm text-slate-400">{t(dupe.refused ? "races.form.dupe.blockingBody" : "races.form.dupe.body")}</p>
       <div className="bg-slate-700/50 rounded-xl p-3">
         <p className="font-semibold">{race.name}</p>
         {place && <p className="text-xs text-slate-400">{place}</p>}
@@ -344,7 +345,7 @@ function DuplicatePrompt({ dupe, busy, onUse, onAddDate, onDifferent, onBack }: 
           : <button onClick={onAddDate} disabled={busy} className="w-full flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition-colors disabled:opacity-60">
               {busy && <Loader size={16} className="animate-spin"/>}{t("races.form.dupe.addDate")}
             </button>}
-        {!dupe.blocking && <button onClick={onDifferent} disabled={busy} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60">{t("races.form.dupe.different")}</button>}
+        <button onClick={onDifferent} disabled={busy} className="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60">{t("races.form.dupe.different")}</button>
         <button onClick={onBack} disabled={busy} className="w-full text-sm text-slate-400 hover:text-slate-200 py-1">{t("races.form.dupe.back")}</button>
       </div>
     </div>

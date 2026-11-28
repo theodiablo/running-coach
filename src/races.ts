@@ -39,7 +39,7 @@ type AddRaceInput = {
   distances?: number[];
   url?: string | null;
   terrain?: RaceTerrain | null;
-  distinctFrom?: string | null;
+  distinctFrom?: string[];
 };
 
 type AddEditionInput = { raceSlug: string; date: string; distanceKm: number; elevation?: number };
@@ -256,7 +256,7 @@ export async function addRace({ name, city, country, lat, lng, distances, url, t
   const candidates = [base, slugify(`${raceName}-${city}`), `${base}-${Date.now().toString(36)}`];
   let lastErr: Error | { message?: string } | null = null;
   // Sent only when set, and dropped on PGRST204, so a save works before distinct_from's migration lands.
-  let extra: { distinct_from?: string } = distinctFrom ? { distinct_from: distinctFrom } : {};
+  let extra: { distinct_from?: string[] } = distinctFrom?.length ? { distinct_from: distinctFrom } : {};
   for (let i = 0; i < candidates.length; i++) {
     const slug = candidates[i];
     const { data, error } = await supabase
