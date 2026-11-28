@@ -236,11 +236,13 @@
       "count_one": "{{count}} app runner in this field",
       "count_other": "{{count}} app runners in this field",
       "youreIn": "You're one of them",
-      "body": "Training for the same start line. Only the number shows here, and a name only ever appears for a runner who chose to show theirs.",
+      "body": "Training for the same start line. Runners who join see who chose to show their name.",
       "waiting": "You're in. We'll show the field once a few more app runners join.",
       "invite": "See how many runners from the app are doing this race. You decide how you appear.",
       "join": "Join the field",
-      "change": "Change how I appear"
+      "change": "Change how I appear",
+      "bodyJoined": "Training for the same start line. A name only shows for a runner who chose to show theirs.",
+      "seeList": "See who's running"
     },
     "join": {
       "title": "Running with others from the app",
@@ -266,6 +268,23 @@
       "error": "Couldn't save that. Check your connection and try again.",
       "limit": "You're already in 30 upcoming race fields. Leave one to join this one.",
       "closed": "This race's field isn't open to new runners."
+    },
+    "list": {
+      "title": "Who's running",
+      "near_one": "{{count}} other aims for about your time",
+      "near_other": "{{count}} others aim for about your time",
+      "you": "(you)",
+      "goal": "Goal {{time}}",
+      "report": "Report the name {{name}}",
+      "unnamed_one": "And {{count}} more who joined without a name.",
+      "unnamed_other": "And {{count}} more who joined without a name.",
+      "reportConfirm": "Report the name “{{name}}”? We look at the name, not the runner, and remove it if it isn't OK.",
+      "reportCancel": "Cancel",
+      "reportSend": "Report",
+      "reported": "Thanks. We'll take a look at that name.",
+      "appearAs": "You appear as {{name}}",
+      "appearCount": "You're counted, without a name",
+      "footer": "Only runners who joined this field see this list."
     }
   }
 }

@@ -6,8 +6,11 @@ import { supabase } from "./supabase";
 
 export type FieldVisibility = "named" | "count";
 export type FieldChoice = FieldVisibility | "none";
-// open = at least 3 others joined; count includes the caller when they joined.
-export type RaceFieldState = { open: boolean; joined: boolean; count: number | null };
+// A runner shown by name: no id, by design. `me` marks the caller's own row.
+export type FieldName = { name: string; goalSec: number | null; me: boolean };
+// open = at least 3 others joined; count includes the caller when they joined. `named`
+// is only ever filled for a caller who joined (the server sends [] otherwise).
+export type RaceFieldState = { open: boolean; joined: boolean; count: number | null; named: FieldName[] };
 export type MyMembership = { visibility: FieldVisibility; goalSec: number | null };
 
 export const FIELD_CAP = 30;
@@ -16,8 +19,24 @@ const parseField = (raw: unknown): RaceFieldState | null => {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const count = typeof r.count === "number" ? r.count : null;
-  return { open: r.open === true && count != null, joined: r.joined === true, count };
+  const named = Array.isArray(r.named) ? r.named.flatMap(parseName) : [];
+  return { open: r.open === true && count != null, joined: r.joined === true, count, named };
 };
+
+const parseName = (raw: unknown): FieldName[] => {
+  if (!raw || typeof raw !== "object") return [];
+  const r = raw as Record<string, unknown>;
+  if (typeof r.name !== "string" || !r.name) return [];
+  return [{ name: r.name, goalSec: typeof r.goalSec === "number" ? r.goalSec : null, me: r.me === true }];
+};
+
+// "n others aim for about your time": shown goals within 5% of the runner's own, self
+// excluded. Computed only from the rows the list already shows, so it reveals nothing more.
+export const ABOUT_YOUR_TIME = 0.05;
+export function aboutYourTime(named: readonly FieldName[], goalSec: number | null): number {
+  if (!goalSec || goalSec <= 0) return 0;
+  return named.filter(n => !n.me && n.goalSec != null && Math.abs(n.goalSec - goalSec) <= goalSec * ABOUT_YOUR_TIME).length;
+}
 
 // null = the read failed; callers show the field as closed, never as "not joined".
 export async function fetchRaceField(editionId: string): Promise<RaceFieldState | null> {
@@ -78,6 +97,18 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
     return /limit reached/.test(msg) ? "limit" : /field closed/.test(msg) ? "closed" : "error";
   } catch {
     return "error";
+  }
+}
+
+// Removing the public name moves every by-name membership to count-only, so a name set
+// later never reappears in a field the runner was told they'd left by name. Run it first.
+export async function hideNameInFields(uid: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("race_field_members")
+      .update({ visibility: "count", goal_sec: null }).eq("user_id", uid).eq("visibility", "named");
+    return !error;
+  } catch {
+    return false;
   }
 }
 

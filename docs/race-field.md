@@ -1,7 +1,8 @@
 # Race field: technical design
 
 Status: **approved 2026-11; PR 1 (public name, membership, join sheet, count)
-implemented**, PR 2 (the named list) next.
+and PR 2 (who's running, reporting a name) implemented.** Next: the one-time
+Home intro card (Decisions 5) and the past-race purge.
 Product decisions: `docs/social.md` §3. Canvas:
 https://claude.ai/artifact/6c47MzKHHGboxxcoWJLUsp (`Main`, `Field-Join`,
 `Field-Count`, `Field-List`; `Field-Results` and `Field-Live` are rejected).
@@ -327,6 +328,34 @@ the same count):
 - No profanity list: lists are locale-bound, easy to dodge and catch real
   names. Volume is tiny; report + manual null is proportionate.
 
+### Moderating a reported name (maintainer SQL)
+
+The report email (`notify-contribution`, subject "race field name report")
+carries the report id, edition and name text. In the SQL editor:
+
+```sql
+-- 1. Who carries that exact text on that edition, by name:
+select p.id from public.profiles p
+join public.race_field_members m on m.user_id = p.id
+where p.public_name = '<name>' and m.edition_id = '<edition>' and m.visibility = 'named';
+-- 2. Only if the text itself breaks the rules (a report proves nothing on its own:
+--    anyone can report any name text), clear it and move those runners' by-name
+--    memberships to count-only, as removing a name in the app does, so a new name
+--    can't reappear there. One statement, rechecking the text, so a runner who
+--    renamed themselves since step 1 keeps the new name:
+with hit as (
+  update public.profiles set public_name = null
+  where id in (<ids from 1>) and public_name = '<name>'
+  returning id
+)
+update public.race_field_members set visibility = 'count', goal_sec = null
+where user_id in (select id from hit) and visibility = 'named';
+-- 3. Handled either way: the report holds name text with no account to cascade on.
+delete from public.race_reports where id = '<report id>';
+-- Reports never handled are cleared after 30 days:
+delete from public.race_reports where reason = 'field_name' and created_at < now() - interval '30 days';
+```
+
 ## Client data flow
 
 ### Modules
@@ -366,7 +395,9 @@ the same count):
 - **Settings › Account › Public name** (`src/modals/settings/PublicNamePage.tsx`,
   canvas `Main`): reached from a row on `AccountPage` showing the name or
   "Off", never listed on the hub. Field, live preview, where it can appear,
-  Save and Remove. `openSettings("publicName")` deep-links to it; back from a
+  Save and Remove. Remove first moves every by-name membership to count-only
+  (`hideNameInFields`), so a name set later never reappears on a field the
+  runner was told they now count in without a name. `openSettings("publicName")` deep-links to it; back from a
   deep link closes settings, back from Account's row returns to Account.
 - **Join sheet** (`src/modals/FieldJoinSheet.tsx`, canvas `Field-Join`):
   opened by the race page's "Add to my list" (the one automatic ask) and by
@@ -382,7 +413,8 @@ the same count):
   Joined but closed: "You're in. We'll show the field once a few more app
   runners join." Listed, not joined, closed: a short invite with Join.
   Not listed and closed: nothing. Join / Change only for a listed race, and
-  hidden when the membership read failed. PR 2 makes the card open the list.
+  hidden when the membership read failed. For a runner who joined an open
+  field, "See who's running" opens the list.
 - **Who's running** (PR 2, `src/modals/FieldListSheet.tsx`, canvas
   `Field-List`): the named rows, "And n more who joined without a name.", the
   "n others aim for about your time" line (named + shown goal within ±5% of
@@ -499,3 +531,11 @@ the cap trigger. The final migration gets its own review in PR 1.
 2. Threshold counts *others*: k = 3 runners besides the caller.
 3. Fields on verified editions only.
 4. Per-runner cap: 30 upcoming fields, kept.
+5. Introducing it to existing runners: a one-time Home card, after PR 2. The
+   ask in PR 1 only fires when a race is added, so runners whose races were
+   already listed would never meet it. The card sits last in the Home attention
+   slot, for a runner with an upcoming verified race on their list, and opens
+   the join sheet. This knowingly breaks the "seeded `false` at onboarding"
+   rule for one-time hints, which exists so a hint never ambushes an existing
+   runner: here existing runners are the audience. No new onboarding step: a new
+   runner's field is almost always closed, and the card reaches them too.

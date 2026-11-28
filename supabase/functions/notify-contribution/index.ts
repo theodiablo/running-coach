@@ -127,6 +127,15 @@ async function notificationContext(admin: DbClient, userId: string, payload: Rec
       .eq("reporter_id", userId)
       .maybeSingle());
     if (!data) return null;
+    if (data.reason === "field_name") {
+      return {
+        kind,
+        reference: data.id,
+        maintainerSubject: "Running Coach - race field name report",
+        maintainerText: `A user reported a public name in a race field.\n\nReporter row owner: ${userId}\n\nReport: ${data.id}\nEdition: ${data.edition_id ?? ""}\nName (as reported): ${data.note ?? ""}\nCreated: ${data.created_at}\n\nModerate by name text (docs/race-field.md, "Name abuse and moderation"), then delete the report.`,
+        thanksName: null,
+      };
+    }
     return {
       kind,
       reference: data.id,

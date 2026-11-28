@@ -236,11 +236,13 @@
       "count_one": "{{count}} corredor de la app en esta carrera",
       "count_other": "{{count}} corredores de la app en esta carrera",
       "youreIn": "Eres uno de ellos",
-      "body": "Entrenando para la misma salida. Aquí solo se ve el número, y un nombre solo aparece si su corredor eligió mostrarlo.",
+      "body": "La misma línea de salida. Quienes se unen ven quién eligió mostrar su nombre.",
       "waiting": "Listo. Mostraremos el número cuando se unan algunos corredores más de la app.",
       "invite": "Mira cuántos corredores de la app hacen esta carrera. Tú decides cómo apareces.",
       "join": "Unirme a los participantes",
-      "change": "Cambiar cómo aparezco"
+      "change": "Cambiar cómo aparezco",
+      "bodyJoined": "La misma línea de salida. Un nombre solo aparece si esa persona eligió mostrarlo.",
+      "seeList": "Ver quién corre"
     },
     "join": {
       "title": "Correr con otros de la app",
@@ -266,6 +268,23 @@
       "error": "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
       "limit": "Ya estás en 30 carreras próximas. Sal de una para unirte a esta.",
       "closed": "Esta carrera no admite nuevos participantes."
+    },
+    "list": {
+      "title": "Quién corre",
+      "near_one": "{{count}} más apunta a un tiempo parecido al tuyo",
+      "near_other": "{{count}} más apuntan a un tiempo parecido al tuyo",
+      "you": "(tú)",
+      "goal": "Objetivo {{time}}",
+      "report": "Reportar el nombre {{name}}",
+      "unnamed_one": "Y {{count}} más que se unió sin nombre.",
+      "unnamed_other": "Y {{count}} más que se unieron sin nombre.",
+      "reportConfirm": "¿Reportar el nombre «{{name}}»? Revisamos el nombre, no a la persona, y lo quitamos si no es adecuado.",
+      "reportCancel": "Cancelar",
+      "reportSend": "Reportar",
+      "reported": "Gracias. Revisaremos ese nombre.",
+      "appearAs": "Apareces como {{name}}",
+      "appearCount": "Cuentas, sin tu nombre",
+      "footer": "Solo quienes se unieron a esta carrera ven esta lista."
     }
   }
 }

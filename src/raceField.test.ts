@@ -21,7 +21,7 @@ vi.mock("./supabase", () => {
   };
 });
 
-const { fetchRaceField, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
+const { fetchRaceField, aboutYourTime, hideNameInFields, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
 const ops = () => h.calls.map(c => c[0]);
 
 beforeEach(() => { h.calls = []; h.results = []; });
@@ -29,18 +29,37 @@ beforeEach(() => { h.calls = []; h.results = []; });
 describe("fetchRaceField", () => {
   it("reads an open field", async () => {
     h.results.push({ data: { open: true, joined: true, count: 9 }, error: null });
-    expect(await fetchRaceField("e1")).toEqual({ open: true, joined: true, count: 9 });
+    expect(await fetchRaceField("e1")).toEqual({ open: true, joined: true, count: 9, named: [] });
     expect(h.calls[0]).toEqual(["rpc", "race_field", { p_edition_id: "e1" }]);
   });
 
   it("reads the closed shape as closed with no count", async () => {
     h.results.push({ data: { open: false, joined: false }, error: null });
-    expect(await fetchRaceField("e1")).toEqual({ open: false, joined: false, count: null });
+    expect(await fetchRaceField("e1")).toEqual({ open: false, joined: false, count: null, named: [] });
+  });
+
+  it("reads the named list, dropping rows it can't trust", async () => {
+    h.results.push({ data: { open: true, joined: true, count: 5, named: [
+      { name: "Zoé L.", goalSec: 6000, me: false }, { name: "", goalSec: 1 }, null, { name: "Me", goalSec: "x", me: true },
+    ] }, error: null });
+    expect((await fetchRaceField("e1"))?.named).toEqual([
+      { name: "Zoé L.", goalSec: 6000, me: false }, { name: "Me", goalSec: null, me: true },
+    ]);
   });
 
   it("returns null on a failed read, never a closed-and-not-joined answer", async () => {
     h.results.push({ data: null, error: { message: "boom" } });
     expect(await fetchRaceField("e1")).toBeNull();
+  });
+});
+
+describe("aboutYourTime", () => {
+  const n = (goalSec: number | null, me = false) => ({ name: "x", goalSec, me });
+  it("counts shown goals within 5%, never the runner themself or a hidden goal", () => {
+    expect(aboutYourTime([n(6000), n(6300), n(5700), n(6301), n(null), n(6000, true)], 6000)).toBe(3);
+  });
+  it("is 0 without a goal of the runner's own", () => {
+    expect(aboutYourTime([n(6000)], null)).toBe(0);
   });
 });
 
@@ -79,6 +98,18 @@ describe("setFieldChoice", () => {
     expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("closed");
     h.results.push({ error: { message: "network" } });
     expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("error");
+  });
+});
+
+describe("hideNameInFields", () => {
+  it("moves only this runner's by-name memberships to count-only, goal and all", async () => {
+    expect(await hideNameInFields("u")).toBe(true);
+    expect(h.calls).toEqual([["from", "race_field_members"], ["update", { visibility: "count", goal_sec: null }],
+      ["eq", "user_id", "u"], ["eq", "visibility", "named"]]);
+  });
+  it("reports a failure", async () => {
+    h.results.push({ error: { message: "offline" } });
+    expect(await hideNameInFields("u")).toBe(false);
   });
 });
 

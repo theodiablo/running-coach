@@ -236,11 +236,13 @@
       "count_one": "{{count}} coureur de l'app sur cette course",
       "count_other": "{{count}} coureurs de l'app sur cette course",
       "youreIn": "Tu en fais partie",
-      "body": "Même ligne de départ, même préparation. Ici, seul le nombre s'affiche, et un nom n'apparaît que pour un coureur qui a choisi de le montrer.",
+      "body": "Même ligne de départ. Les coureurs inscrits voient qui a choisi d'afficher son nom.",
       "waiting": "C'est noté. On affichera le nombre quand quelques coureurs de l'app de plus se seront inscrits.",
       "invite": "Découvre combien de coureurs de l'app font cette course. Tu choisis comment tu apparais.",
       "join": "Rejoindre les participants",
-      "change": "Changer ma façon d'apparaître"
+      "change": "Changer ma façon d'apparaître",
+      "bodyJoined": "Même ligne de départ. Un nom n'apparaît que pour un coureur qui a choisi d'afficher le sien.",
+      "seeList": "Voir qui court"
     },
     "join": {
       "title": "Courir avec d'autres coureurs de l'app",
@@ -266,6 +268,23 @@
       "error": "Impossible d'enregistrer. Vérifie ta connexion et réessaie.",
       "limit": "Tu es déjà inscrit sur 30 courses à venir. Quittes-en une pour rejoindre celle-ci.",
       "closed": "Cette course n'accueille pas de nouveaux participants."
+    },
+    "list": {
+      "title": "Qui court",
+      "near_one": "{{count}} autre vise à peu près ton temps",
+      "near_other": "{{count}} autres visent à peu près ton temps",
+      "you": "(toi)",
+      "goal": "Objectif {{time}}",
+      "report": "Signaler le nom {{name}}",
+      "unnamed_one": "Et {{count}} autre inscrit sans nom.",
+      "unnamed_other": "Et {{count}} autres inscrits sans nom.",
+      "reportConfirm": "Signaler le nom « {{name}} » ? On vérifie le nom, pas la personne, et on le retire s'il pose problème.",
+      "reportCancel": "Annuler",
+      "reportSend": "Signaler",
+      "reported": "Merci. On va regarder ce nom.",
+      "appearAs": "Tu apparais comme {{name}}",
+      "appearCount": "Tu es compté, sans ton nom",
+      "footer": "Seuls les coureurs inscrits à cette course voient cette liste."
     }
   }
 }

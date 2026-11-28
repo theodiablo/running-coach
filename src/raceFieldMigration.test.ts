@@ -53,4 +53,10 @@ describe("race field privileges", () => {
     const guard = all.match(/function public\.race_field_members_guard\(\)\s+returns trigger[\s\S]*?\$\$;/g)?.at(-1);
     expect(guard).toMatch(/m\.edition_id <> new\.edition_id/);
   });
+  it("shows names only to a runner who joined, and never an id or a date", () => {
+    const fn = all.match(/function public\.race_field\(p_edition_id text\)\s+returns jsonb[\s\S]*?\$\$;/g)?.at(-1) ?? "";
+    expect(fn).toMatch(/'named', case when not v_joined then '\[\]'::jsonb/);
+    const built = [...fn.matchAll(/jsonb_build_object\(([^;]*?)\)/g)].map(m => m[1]).join(" ");
+    expect(built).not.toMatch(/'(id|user_?id|created_at|updated_at)'/i);
+  });
 });

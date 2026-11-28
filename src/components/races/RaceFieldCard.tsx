@@ -5,6 +5,7 @@ import { currentUserId } from "../../db";
 import { fetchMyMembership, fetchRaceField, setFieldChoice } from "../../raceField";
 import type { FieldChoice, MyMembership, RaceFieldState } from "../../raceField";
 import { FieldJoinSheet } from "../../modals/FieldJoinSheet";
+import { FieldListSheet } from "../../modals/FieldListSheet";
 
 // "9 app runners in this field" on the race page, and the door to joining it
 // (docs/race-field.md). Fetched on every open, held only while the page is up.
@@ -29,6 +30,7 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [nonce, setNonce] = useState(0);
   const [sheet, setSheet] = useState(false);
+  const [list, setList] = useState(false);
   const [prevAsk, setPrevAsk] = useState(false);
   if (ask !== prevAsk) {
     setPrevAsk(ask);
@@ -66,6 +68,8 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
   if (!state || !field) return null;
   const canChange = listed && mine !== undefined && publicName !== undefined;
   if (!field.open && !canChange) return null;
+  // The server only fills the list for a runner who joined; the flag is its own answer.
+  const canSeeList = field.open && field.joined;
 
   return (
     <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 space-y-2.5">
@@ -79,13 +83,27 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
         </div>
       </div>
       <p className="text-xs text-slate-400 leading-snug">
-        {field.open ? t("races.field.card.body") : joined ? t("races.field.card.waiting") : t("races.field.card.invite")}
+        {field.open ? t(field.joined ? "races.field.card.bodyJoined" : "races.field.card.body") : joined ? t("races.field.card.waiting") : t("races.field.card.invite")}
       </p>
-      {canChange && (
-        <button type="button" onClick={() => setSheet(true)}
-          className="min-h-[40px] px-3.5 rounded-xl border border-slate-600 hover:border-slate-400 text-slate-200 text-xs font-bold transition-colors">
-          {joined ? t("races.field.card.change") : t("races.field.card.join")}
-        </button>
+      {(canChange || canSeeList) && (
+        <div className="flex flex-wrap gap-2">
+          {canSeeList && (
+            <button type="button" onClick={() => setList(true)}
+              className="min-h-[40px] px-3.5 rounded-xl bg-sky-500/15 text-sky-200 hover:bg-sky-500/25 text-xs font-bold transition-colors">
+              {t("races.field.card.seeList")}
+            </button>
+          )}
+          {canChange && (
+            <button type="button" onClick={() => setSheet(true)}
+              className="min-h-[40px] px-3.5 rounded-xl border border-slate-600 hover:border-slate-400 text-slate-200 text-xs font-bold transition-colors">
+              {joined ? t("races.field.card.change") : t("races.field.card.join")}
+            </button>
+          )}
+        </div>
+      )}
+      {list && canSeeList && (
+        <FieldListSheet editionId={editionId} count={field.count ?? 0} named={field.named} goalSec={goalSec} canChange={canChange}
+          onChange={() => { setList(false); setSheet(true); }} onClose={() => setList(false)} showToast={showToast}/>
       )}
       {sheet && canChange && (
         <FieldJoinSheet publicName={publicName ?? null} current={mine ?? null} others={others} hasGoal={!!goalSec}
