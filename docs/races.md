@@ -189,14 +189,17 @@ pin within 2 km on the same race day. Replayed on the catalogue's ~65k pairs at 
 flagged 5: three real repeats and two series races in neighbouring towns.
 
 The form uses it twice: live, as the "already listed?" list, and on Add, where a strong
-match stops the save with "Is this your race?" — **use this race** (its race-day edition,
-via `onCreated(id, true)` in onboarding or `onUseExisting` → the race sheet from Find),
+match stops the save with "Is this your race?" — **use this race** (offered only when an
+edition sits on exactly that date: `edition_id`; a ±3-day match counts toward `strong` but is
+never swapped in for the runner's day), via `onCreated(id, true)` in onboarding or
+`onUseExisting` → the race sheet from Find,
 **add my date to it**, or **it's a different race** (saves, not asked again). A failed
 lookup never blocks a save.
 
 Behind it, `race_editions_reject_duplicate` refuses, for an `authenticated` insert, an
 edition on the same date, at the same distance (±0.5 km), of another race pinned within
-2 km, raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
+2 km **that shares a name word** (so two differently named events in one park on one day
+both save, and "it's a different race" can't dead-end), raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
 (`duplicateRefusal`). The form turns that into the same question without "different";
 old builds show their generic save error, which beats a duplicate in everyone's catalogue.
 

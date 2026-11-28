@@ -388,6 +388,19 @@ describe("RaceFormModal field checks", () => {
     expect(screen.queryByText("Your pin is in Tanzania.")).not.toBeInTheDocument();
   });
 
+  it("forgets the old pin's country when a new pin can't be placed", async () => {
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Moshi" });
+    setup();
+    pinOnMap();
+    await waitFor(() => expect(countryField().value).toBe("Tanzania"));
+    vi.mocked(reverseGeocode).mockResolvedValueOnce(null);
+    fireEvent.click(screen.getByRole("button", { name: /Change/ }));
+    fireEvent.click(screen.getByRole("button", { name: "confirm pin" }));
+    await waitFor(() => expect(vi.mocked(reverseGeocode)).toHaveBeenCalledTimes(2));
+    pickCountry("kenya", "Kenya");
+    expect(screen.queryByText(/Your pin is in/)).not.toBeInTheDocument();
+  });
+
   it("warns, without blocking, on a climb that reads as an altitude", async () => {
     const { addRace } = setup();
     fillNew();

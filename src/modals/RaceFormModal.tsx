@@ -81,6 +81,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   // A pin fills the country, and the city unless the runner typed their own.
   const confirmLocation = (p: LatLng) => {
     setLoc(p);
+    setPinCountry(null);
     setShowPicker(false);
     const seq = ++reverseSeq.current;
     setLocating(true);

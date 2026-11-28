@@ -84,7 +84,7 @@ $$;
 -- Races the one being added may already be (docs/races.md, "Duplicates"). Listed: a name word
 -- matching a word of theirs by prefix (so typing finds it), or the same race day within 10 km.
 -- `strong` (the form stops and asks) needs an exact shared word and place agreement, or a pin
--- within 2 km on the same race day. `edition_id` is that race day's edition, for reuse.
+-- within 2 km on the same race day. `edition_id` is an edition on exactly that date, for reuse.
 create or replace function public.race_duplicates(
   p_name text default null,
   p_country text default null,
@@ -111,11 +111,14 @@ as $$
       greatest(cardinality(q.toks), 1) as n_toks,
       case when p_lat is null or p_lng is null or r.lat is null or r.lng is null then null
         else public.race_km_between(p_lat, p_lng, r.lat, r.lng) end as dist_km,
-      (select e.id from public.race_editions e
+      exists (select 1 from public.race_editions e
         where e.race_slug = r.slug and p_date is not null and p_distance_km is not null
           and abs(e.date - p_date) <= 3
+          and abs(e.distance_km - p_distance_km) <= greatest(0.5, p_distance_km * 0.05)) as same_day,
+      (select e.id from public.race_editions e
+        where e.race_slug = r.slug and e.date = p_date and p_distance_km is not null
           and abs(e.distance_km - p_distance_km) <= greatest(0.5, p_distance_km * 0.05)
-        order by abs(e.date - p_date), abs(e.distance_km - p_distance_km)
+        order by abs(e.distance_km - p_distance_km)
         limit 1) as edition_id,
       exists (select 1 from public.race_editions e
         where e.race_slug = r.slug and p_distance_km is not null
@@ -132,15 +135,15 @@ as $$
   scored as (
     select p.*,
       coalesce(
-        (p.edition_id is not null and (p.dist_km <= 2 or (p.same_place and p.exact_hits > 0)))
+        (p.same_day and (p.dist_km <= 2 or (p.same_place and p.exact_hits > 0)))
         or (p.same_km and p.same_place and p.exact_hits > 0 and p.exact_hits::float / p.max_toks >= 0.5),
         false) as strong
     from placed p
-    where p.prefix_hits > 0 or (p.edition_id is not null and p.dist_km <= 10)
+    where p.prefix_hits > 0 or (p.same_day and p.dist_km <= 10)
   ),
   top as (
     select * from scored s
-    order by s.strong desc, (s.edition_id is not null) desc, s.prefix_hits::float / s.n_toks desc,
+    order by s.strong desc, s.same_day desc, s.prefix_hits::float / s.n_toks desc,
       s.dist_km asc nulls last, s.name
     limit greatest(1, least(coalesce(p_limit, 5), 10))
   )
@@ -153,13 +156,14 @@ as $$
         'verified', e.verified, 'created_by', e.created_by
       ) order by e.date desc, e.distance_km desc), '[]'::jsonb)
       from public.race_editions e where e.race_slug = t.slug)
-  ) order by t.strong desc, (t.edition_id is not null) desc, t.prefix_hits::float / t.n_toks desc,
+  ) order by t.strong desc, t.same_day desc, t.prefix_hits::float / t.n_toks desc,
     t.dist_km asc nulls last, t.name), '[]'::jsonb)
   from top t
 $$;
 
 -- The exact repeat, for clients that never ask race_duplicates: an edition on the same day, at the
--- same distance (±0.5 km), of another race pinned within 2 km. Detail carries the existing race.
+-- same distance (±0.5 km), of another race pinned within 2 km that shares a name word, so two
+-- different events in one park on one day still both save. Detail carries the existing race.
 create or replace function public.race_editions_reject_duplicate()
 returns trigger
 language plpgsql
@@ -171,7 +175,7 @@ declare
   dup record;
 begin
   if (select auth.role()) is distinct from 'authenticated' then return new; end if;
-  select lat, lng into pin from public.races where slug = new.race_slug;
+  select lat, lng, public.race_name_tokens(name) as toks into pin from public.races where slug = new.race_slug;
   if pin.lat is null or pin.lng is null then return new; end if;
   select e.race_slug, e.id into dup
     from public.race_editions e join public.races r on r.slug = e.race_slug
@@ -179,6 +183,7 @@ begin
      and abs(e.distance_km - new.distance_km) <= 0.5
      and r.lat is not null and r.lng is not null
      and public.race_km_between(pin.lat, pin.lng, r.lat, r.lng) <= 2
+     and public.race_name_tokens(r.name) && pin.toks
    limit 1;
   if found then
     raise exception 'race_duplicate' using errcode = 'RC409', detail = dup.race_slug, hint = dup.id;
