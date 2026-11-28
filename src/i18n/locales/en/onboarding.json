@@ -46,7 +46,8 @@
     "elevationLabel": "Race elevation gain (m)",
     "elevationHint": "Total climb on the course. Hilly races get gentler paces, so the effort matches.",
     "addedToast": "Added to the catalogue — set as your race.",
-    "dateInPast": "Pick a race date after today."
+    "dateInPast": "Pick a race date after today.",
+    "pickedToast": "Set as your race."
   },
   "raceGoal": {
     "title": "Goal & training days",

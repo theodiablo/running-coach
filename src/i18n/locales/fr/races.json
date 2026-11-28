@@ -99,7 +99,7 @@
     "countryPlaceholder": "Tape pour chercher",
     "countryNoMatch": "Aucun pays ne correspond",
     "officialSite": "Site officiel (facultatif)",
-    "officialSitePlaceholder": "https://…",
+    "officialSitePlaceholder": "www.exemple.com",
     "location": "Lieu (pour « courses près de moi »)",
     "locationSet": "Lieu défini ✓",
     "locationHint": "Place le départ sur la carte pour remplir le pays et la ville.",
@@ -108,7 +108,7 @@
     "date": "Date",
     "distanceKm": "Distance (km)",
     "distanceKmPlaceholder": "42,2",
-    "elevation": "Déniv. (m)",
+    "elevation": "Dénivelé positif (m)",
     "elevationPlaceholder": "0",
     "disclaimer": "Tout le monde peut ajouter des courses ; elles restent marquées comme non vérifiées jusqu'à validation par un mainteneur. Confirme toujours la date sur le site officiel avant de planifier autour.",
     "addedToast": "Merci ! La course est visible par tout le monde et restera non vérifiée jusqu'à sa relecture.",
@@ -117,7 +117,24 @@
       "dateDistance": "Une date et une distance sont requises.",
       "name": "Le nom de la course est requis.",
       "country": "Choisis un pays.",
-      "save": "Impossible d'enregistrer cette course. Réessaie."
+      "save": "Impossible d'enregistrer cette course. Réessaie.",
+      "url": "Ça ne ressemble pas à une adresse web. Essaie par exemple www.exemple.com.",
+      "dateRange": "Choisis une date entre il y a un an et dans deux ans.",
+      "city": "Écris le nom complet de la ville."
+    },
+    "urlPreview": "Le lien ira vers {{url}}",
+    "pinCountry": "Ton repère est en {{country}}.",
+    "usePinCountry": "Choisir {{country}}",
+    "climbHigh": "Ça fait beaucoup de dénivelé pour cette distance. Le dénivelé positif, c'est le total des mètres grimpés, pas l'altitude.",
+    "dupe": {
+      "title": "C'est ta course ?",
+      "body": "On dirait qu'elle est déjà répertoriée. L'utiliser garde les dates et les résultats de tout le monde au même endroit.",
+      "blockingBody": "Cette course est déjà répertoriée pour ce jour-là.",
+      "use": "Oui, utiliser cette course",
+      "addDate": "Oui, ajouter ma date",
+      "different": "Non, c'est une autre course",
+      "back": "Retour au formulaire",
+      "usedToast": "Elle est déjà répertoriée. Retrouve-la dans Trouver une course."
     }
   },
   "picker": {

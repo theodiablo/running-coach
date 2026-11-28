@@ -3,15 +3,16 @@ import { describe, it, expect, vi } from "vitest";
 const rpc = vi.fn();
 const tables: Record<string, (col: string, v: unknown) => unknown[]> = {};
 // A tiny PostgREST stand-in: select(...).in/eq(col, v) answers from `tables[name]`.
+const insert = vi.fn();
 const from = (name: string) => ({ select: () => {
   const answer = (col: string, v: unknown) => Promise.resolve({ data: tables[name]?.(col, v) ?? [], error: null });
   return { in: answer, eq: answer };
-} });
+}, insert: (row: unknown) => ({ select: () => ({ single: () => insert(name, row) }) }) });
 vi.mock("./supabase", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (n: string) => from(n) } }));
-vi.mock("./db", () => ({ currentUserId: () => null }));
+vi.mock("./db", () => ({ currentUserId: () => "u1" }));
 vi.mock("./notify", () => ({ notifyContribution: vi.fn() }));
 
-const { raceUrl, listKnownRaces, searchRaces, peekRaceSearch, clearRaceSearchCache, SEARCH_CACHE_MS } = await import("./races");
+const { raceUrl, addRace, findRaceDuplicates, duplicateRefusal, listKnownRaces, searchRaces, peekRaceSearch, clearRaceSearchCache, SEARCH_CACHE_MS } = await import("./races");
 
 describe("raceUrl", () => {
   it("keeps web links", () => {
@@ -32,6 +33,47 @@ describe("raceUrl", () => {
   it("treats empty as no link", () => {
     expect(raceUrl("")).toBeNull();
     expect(raceUrl(null)).toBeNull();
+  });
+});
+
+describe("addRace distinct_from", () => {
+  const ok = (row: Record<string, unknown>) => ({ data: { slug: row.slug, name: row.name }, error: null });
+
+  it("leaves the column out of an ordinary save, so it works before the migration lands", async () => {
+    insert.mockReset().mockImplementation(async (_t: string, row: Record<string, unknown>) => ok(row));
+    await addRace({ name: "Hackney Half", country: "GB" });
+    expect(insert.mock.calls[0][1]).not.toHaveProperty("distinct_from");
+  });
+
+  it("sends the race the runner said this isn't, and retries without it if the column is missing", async () => {
+    insert.mockReset()
+      .mockResolvedValueOnce({ data: null, error: { code: "PGRST204", message: "column not found" } })
+      .mockImplementation(async (_t: string, row: Record<string, unknown>) => ok(row));
+    await addRace({ name: "Riverside Charity Run", country: "GB", distinctFrom: ["riverside-run"] });
+    expect(insert.mock.calls[0][1]).toMatchObject({ slug: "riverside-charity-run", distinct_from: ["riverside-run"] });
+    expect(insert.mock.calls[1][1]).toMatchObject({ slug: "riverside-charity-run" });
+    expect(insert.mock.calls[1][1]).not.toHaveProperty("distinct_from");
+  });
+});
+
+describe("findRaceDuplicates", () => {
+  it("sends what the form knows and maps each match", async () => {
+    rpc.mockReset().mockResolvedValue({ data: [{ slug: "kili", name: "Kilimanjaro Marathon", country: "TZ", strong: true, edition_id: "kili-2027-02-07",
+      dist_km: 0.1, editions: [{ id: "kili-2027-02-07", race_slug: "kili", date: "2027-02-07", distance_km: 42.2, elevation: 500 }] }], error: null });
+    const [d] = await findRaceDuplicates({ name: " Kili ", country: "TZ", lat: -3.47, lng: 37.38, date: "2027-02-07", distanceKm: 42.2 });
+    expect(rpc).toHaveBeenCalledWith("race_duplicates", expect.objectContaining({ p_name: "Kili", p_country: "TZ", p_lat: -3.47, p_date: "2027-02-07", p_distance_km: 42.2 }));
+    expect(d).toMatchObject({ strong: true, editionId: "kili-2027-02-07", race: { slug: "kili", distKm: 0.1, editions: [{ distanceKm: 42.2 }] } });
+  });
+
+  it("throws on a failed call, so the caller decides", async () => {
+    rpc.mockReset().mockResolvedValue({ data: null, error: { message: "down" } });
+    await expect(findRaceDuplicates({ name: "x" })).rejects.toBeTruthy();
+  });
+
+  it("reads the database's duplicate refusal and nothing else", () => {
+    expect(duplicateRefusal({ code: "RC409", details: "kili", hint: "kili-2027-02-07" })).toEqual({ raceSlug: "kili", editionId: "kili-2027-02-07" });
+    expect(duplicateRefusal({ code: "23505", details: "x" })).toBeNull();
+    expect(duplicateRefusal(new Error("x"))).toBeNull();
   });
 });
 

@@ -1,13 +1,14 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("../telemetry", () => ({ track: vi.fn() }));
 vi.mock("../notify", () => ({ notifyContribution: vi.fn() }));
 vi.mock("../races", () => ({
   deleteRace: vi.fn().mockResolvedValue(undefined),
-  peekRaceSearch: () => null,
-  raceSearchVersion: () => 0,
-  searchRaces: vi.fn().mockResolvedValue({ races: [], next: null, total: 0 }),
+  findRaceDuplicates: vi.fn().mockResolvedValue([]),
+  listKnownRaces: vi.fn().mockResolvedValue([]),
+  duplicateRefusal: (e: { code?: string; details?: string; hint?: string }) =>
+    e?.code === "RC409" ? { raceSlug: e.details, editionId: e.hint ?? null } : null,
 }));
 vi.mock("../components/LocationPicker", () => ({
   LocationPicker: ({ onConfirm }: { onConfirm: (p: { lat: number; lng: number }) => void }) =>
@@ -20,21 +21,38 @@ import { setLocale } from "../i18n";
 import { guessCountry } from "../utils/guessCountry";
 import { reverseGeocode } from "../utils/geocode";
 import { RaceFormModal } from "./RaceFormModal";
+import { deleteRace, findRaceDuplicates, listKnownRaces } from "../races";
+import type { CatalogueRace } from "../types";
+
+// The date bounds (a year back, two years ahead) read the clock; the prefill's date sits inside them.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-28T10:00:00"));
+});
 
 afterEach(async () => {
   cleanup();
+  vi.useRealTimers();
+  vi.mocked(findRaceDuplicates).mockReset().mockResolvedValue([]);
+  vi.mocked(listKnownRaces).mockReset().mockResolvedValue([]);
   vi.mocked(guessCountry).mockReturnValue(null);
   vi.mocked(reverseGeocode).mockResolvedValue(null);
   await setLocale("en", { persist: false });
 });
 
-function setup() {
+function setup({ onCreated, onUseExisting }: { onCreated?: (id: string, existing?: boolean) => void; onUseExisting?: (race: CatalogueRace, editionId: string | null) => void } = {}) {
   const addRace = vi.fn().mockResolvedValue({ slug: "new-race", name: "New race" });
   const addEdition = vi.fn().mockResolvedValue({ id: "new-race-2027-05-08" });
-  const utils = render(<RaceFormModal addRace={addRace} addEdition={addEdition}
-    showToast={vi.fn()} onClose={vi.fn()} prefill={{ date: "2027-05-08", distanceKm: 21 }}/>);
-  return { ...utils, addRace, addEdition };
+  const onClose = vi.fn();
+  const utils = render(<RaceFormModal addRace={addRace} addEdition={addEdition} onCreated={onCreated} onUseExisting={onUseExisting}
+    showToast={vi.fn()} onClose={onClose} prefill={{ date: "2027-05-08", distanceKm: 21 }}/>);
+  return { ...utils, addRace, addEdition, onClose };
 }
+
+const kili: CatalogueRace = { id: "kilimanjaro-international-marathon", slug: "kilimanjaro-international-marathon", name: "Kilimanjaro Marathon",
+  city: "Moshi", country: "TZ", verified: true, distances: [42.2],
+  editions: [{ id: "kilimanjaro-international-marathon-2027-02-07", date: "2027-02-07", distanceKm: 42.2, elevation: 500 }] };
+const match = (strong: boolean, editionId: string | null = kili.editions[0].id) => ({ race: kili, strong, editionId });
 
 const typeName = (v: string) => fireEvent.change(screen.getByPlaceholderText("e.g. Lyon Marathon"), { target: { value: v } });
 const countryField = (name: RegExp = /Country/) => screen.getByRole("combobox", { name }) as HTMLInputElement;
@@ -139,8 +157,7 @@ describe("RaceFormModal country", () => {
   });
 
   it("doesn't ask for a country when adding a date to an existing race", async () => {
-    const { searchRaces } = await import("../races");
-    vi.mocked(searchRaces).mockResolvedValueOnce({ races: [{ id: "spartan-race", slug: "spartan-race", name: "Spartan Race Estérel", city: "Saint-Raphaël", country: "FR", editions: [] }], next: null, total: 1 });
+    vi.mocked(findRaceDuplicates).mockResolvedValue([{ race: { id: "spartan-race", slug: "spartan-race", name: "Spartan Race Estérel", city: "Saint-Raphaël", country: "FR", editions: [] }, strong: false, editionId: null }]);
     const { addRace, addEdition } = setup();
     typeName("Spartan");
     fireEvent.click(await screen.findByText("Spartan Race Estérel"));
@@ -238,13 +255,13 @@ describe("RaceFormModal location first", () => {
 });
 
 describe("RaceFormModal duplicates and terrain", () => {
-  it("offers an existing race found by the server search", async () => {
-    const { searchRaces } = await import("../races");
-    vi.mocked(searchRaces).mockResolvedValueOnce({ races: [{ id: "lyon", slug: "lyon", name: "Lyon Marathon", city: "Lyon", country: "FR", editions: [] }], next: null, total: 1 });
+  it("lists an existing race the lookup finds, sending what's been typed so far", async () => {
+    vi.mocked(findRaceDuplicates).mockResolvedValue([match(false, null)]);
     setup();
-    typeName("Lyon");
-    expect(await screen.findByText("Lyon Marathon")).toBeInTheDocument();
-    expect(vi.mocked(searchRaces).mock.calls.at(-1)?.[0]).toMatchObject({ query: "Lyon", limit: 5 });
+    typeName("KILIMANJARO INTERNATIONAL MARATHON");
+    expect(await screen.findByText("Kilimanjaro Marathon")).toBeInTheDocument();
+    expect(vi.mocked(findRaceDuplicates).mock.calls.at(-1)?.[0]).toMatchObject({
+      name: "KILIMANJARO INTERNATIONAL MARATHON", date: "2027-05-08", distanceKm: 21 });
   });
 
   it("saves the terrain picked for a new race", async () => {
@@ -254,5 +271,168 @@ describe("RaceFormModal duplicates and terrain", () => {
     fireEvent.click(screen.getByRole("button", { name: "Trail" }));
     submit();
     await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ terrain: "trail" })));
+  });
+});
+
+describe("RaceFormModal duplicate on submit", () => {
+  const fillNew = () => {
+    typeName("KILIMANJARO INTERNATIONAL MARATHON");
+    pickCountry("tanz", "Tanzania");
+  };
+  const strongOnSubmit = (m: ReturnType<typeof match>) =>
+    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country ? [m] : []);
+
+  it("asks before creating a race that's already listed, and uses its race day", async () => {
+    strongOnSubmit(match(true));
+    const onCreated = vi.fn();
+    const { addRace, onClose } = setup({ onCreated });
+    fillNew();
+    submit();
+    expect(await screen.findByText("Is this your race?")).toBeInTheDocument();
+    expect(addRace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, use this race" }));
+    expect(onCreated).toHaveBeenCalledWith("kilimanjaro-international-marathon-2027-02-07", true);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("opens the listed race through onUseExisting outside onboarding", async () => {
+    strongOnSubmit(match(true));
+    const onUseExisting = vi.fn();
+    setup({ onUseExisting });
+    fillNew();
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, use this race" }));
+    expect(onUseExisting).toHaveBeenCalledWith(kili, "kilimanjaro-international-marathon-2027-02-07");
+  });
+
+  it("adds the date to the listed race when its race day isn't there yet", async () => {
+    strongOnSubmit(match(true, null));
+    const { addRace, addEdition } = setup();
+    fillNew();
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, add my date to it" }));
+    await waitFor(() => expect(addEdition).toHaveBeenCalledWith(expect.objectContaining({ raceSlug: kili.slug, date: "2027-05-08" })));
+    expect(addRace).not.toHaveBeenCalled();
+  });
+
+  it("creates it anyway when the runner says it's a different race, without asking again", async () => {
+    strongOnSubmit(match(true));
+    const { addRace } = setup();
+    fillNew();
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
+    expect(addRace.mock.calls[0][0]).toMatchObject({ distinctFrom: [kili.slug] });
+    expect(screen.queryByText("Is this your race?")).not.toBeInTheDocument();
+  });
+
+  it("asks about each strong match in turn, skipping the ones already answered", async () => {
+    const other: CatalogueRace = { ...kili, id: "kili-2", slug: "kili-2", name: "Kilimanjaro Half" };
+    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country
+      ? [match(true), { race: other, strong: true, editionId: null }] : []);
+    const { addRace } = setup();
+    fillNew();
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
+    expect(await screen.findByText("Kilimanjaro Half")).toBeInTheDocument();
+    expect(addRace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "No, it's a different race" }));
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
+    expect(addRace.mock.calls[0][0]).toMatchObject({ distinctFrom: [kili.slug, "kili-2"] });
+  });
+
+  it("never blocks a save when the lookup fails", async () => {
+    vi.mocked(findRaceDuplicates).mockRejectedValue(new Error("offline"));
+    const { addRace } = setup();
+    fillNew();
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
+  });
+
+  it("turns the database's refusal into the same question, and each 'different' answer adds to the list", async () => {
+    const other: CatalogueRace = { ...kili, id: "kili-2", slug: "kili-2", name: "Kilimanjaro Half" };
+    // The refused race isn't in the ranked lookup at all: it's fetched by its edition.
+    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country ? [match(true)] : []);
+    vi.mocked(listKnownRaces).mockResolvedValue([other]);
+    const { addRace, addEdition } = setup();
+    addEdition.mockRejectedValueOnce({ code: "RC409", details: "kili-2", hint: "kili-2-2027-02-07" });
+    fillNew();
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
+    expect(await screen.findByText("This race is already listed for that day.")).toBeInTheDocument();
+    expect(deleteRace).toHaveBeenCalledWith("new-race");
+    expect(screen.getByText("Kilimanjaro Half")).toBeInTheDocument();
+    expect(listKnownRaces).toHaveBeenCalledWith({ editionIds: ["kili-2-2027-02-07"] });
+    fireEvent.click(screen.getByRole("button", { name: "No, it's a different race" }));
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(2));
+    expect(addRace.mock.calls[1][0]).toMatchObject({ distinctFrom: [kili.slug, "kili-2"] });
+  });
+});
+
+describe("RaceFormModal field checks", () => {
+  const urlField = () => screen.getByLabelText("Official site (optional)") as HTMLInputElement;
+  const fillNew = () => { typeName("Hackney Half"); pickCountry("united k", "United Kingdom"); };
+
+  it("repairs a doubled scheme and shows where the link goes", async () => {
+    const { addRace } = setup();
+    fillNew();
+    fireEvent.change(urlField(), { target: { value: "https://https//:Kilimanjarointernationalmarathon.com" } });
+    expect(screen.getByText("Will link to kilimanjarointernationalmarathon.com")).toBeInTheDocument();
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledWith(expect.objectContaining({ url: "https://kilimanjarointernationalmarathon.com/" })));
+  });
+
+  it("refuses an address with no real host, on the field", () => {
+    const { addRace } = setup();
+    fillNew();
+    fireEvent.change(urlField(), { target: { value: "hackney half" } });
+    submit();
+    expect(urlField()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/doesn't look like a web address/)).toBeInTheDocument();
+    expect(addRace).not.toHaveBeenCalled();
+  });
+
+  it("refuses a date more than two years ahead", () => {
+    const { addRace } = setup();
+    fillNew();
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2029-05-08" } });
+    submit();
+    expect(screen.getByText("Pick a date between a year ago and two years from now.")).toBeInTheDocument();
+    expect(addRace).not.toHaveBeenCalled();
+  });
+
+  it("points out a country that disagrees with the pin, and fixes it in one tap", async () => {
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Moshi" });
+    setup();
+    pinOnMap();
+    await waitFor(() => expect(countryField().value).toBe("Tanzania"));
+    pickCountry("kenya", "Kenya");
+    expect(screen.getByText("Your pin is in Tanzania.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use Tanzania" }));
+    expect(countryField().value).toBe("Tanzania");
+    expect(screen.queryByText("Your pin is in Tanzania.")).not.toBeInTheDocument();
+  });
+
+  it("forgets the old pin's country when a new pin can't be placed", async () => {
+    vi.mocked(reverseGeocode).mockResolvedValueOnce({ country: "TZ", city: "Moshi" });
+    setup();
+    pinOnMap();
+    await waitFor(() => expect(countryField().value).toBe("Tanzania"));
+    vi.mocked(reverseGeocode).mockResolvedValueOnce(null);
+    fireEvent.click(screen.getByRole("button", { name: /Change/ }));
+    fireEvent.click(screen.getByRole("button", { name: "confirm pin" }));
+    await waitFor(() => expect(vi.mocked(reverseGeocode)).toHaveBeenCalledTimes(2));
+    pickCountry("kenya", "Kenya");
+    expect(screen.queryByText(/Your pin is in/)).not.toBeInTheDocument();
+  });
+
+  it("warns, without blocking, on a climb that reads as an altitude", async () => {
+    const { addRace } = setup();
+    fillNew();
+    fireEvent.change(screen.getByPlaceholderText("42.2"), { target: { value: "42.2" } });
+    fireEvent.change(screen.getByLabelText("Elevation gain (m)"), { target: { value: "1500" } });
+    expect(screen.getByText(/not the altitude/)).toBeInTheDocument();
+    submit();
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
   });
 });

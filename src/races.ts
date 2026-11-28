@@ -2,6 +2,9 @@ import { supabase } from "./supabase";
 import { currentUserId } from "./db";
 import { notifyContribution } from "./notify";
 import type { CatalogueEdition, CatalogueRace } from "./types";
+import { raceUrl } from "./utils/raceForm";
+
+export { raceUrl };
 
 type RaceRow = {
   slug: string;
@@ -36,6 +39,7 @@ type AddRaceInput = {
   distances?: number[];
   url?: string | null;
   terrain?: RaceTerrain | null;
+  distinctFrom?: string[];
 };
 
 type AddEditionInput = { raceSlug: string; date: string; distanceKm: number; elevation?: number };
@@ -48,19 +52,6 @@ type ReportRaceInput = { raceSlug?: string | null; editionId?: string | null; re
 
 // Map a DB race row + its editions to the joined shape the app already uses
 // (the old CURATED_RACES shape): camelCase, id === slug, editions newest-first.
-// Race URLs are contributed by other users and rendered as links: web links
-// only, never a custom scheme that would reach the app's own deep-link handler.
-export function raceUrl(value: string | null | undefined): string | null {
-  const s = (value || "").trim();
-  if (!s) return null;
-  try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
-  } catch {
-    return null;
-  }
-}
-
 function toRace(row: RaceRow, editions: EditionRow[] = []): CatalogueRace {
   return {
     id: row.slug,
@@ -211,6 +202,39 @@ export async function listRaceCountries(): Promise<RaceCountry[]> {
   return list;
 }
 
+export type RaceDuplicate = { race: CatalogueRace; strong: boolean; editionId: string | null };
+export type RaceDuplicateQuery = {
+  name?: string; country?: string | null; lat?: number | null; lng?: number | null;
+  date?: string | null; distanceKm?: number | null;
+};
+type DuplicateRow = SearchRow & { strong?: boolean; edition_id?: string | null };
+
+// Races the one being added may already be (race_duplicates), most likely first. `strong` means
+// the form should ask before creating; `editionId` is the same race day, reusable as is.
+export async function findRaceDuplicates(p: RaceDuplicateQuery, limit = 5): Promise<RaceDuplicate[]> {
+  const { data, error } = await supabase.rpc("race_duplicates", {
+    p_name: p.name?.trim() || null,
+    p_country: p.country || null,
+    p_lat: p.lat ?? null,
+    p_lng: p.lng ?? null,
+    p_date: p.date || null,
+    p_distance_km: p.distanceKm || null,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return ((data || []) as DuplicateRow[]).map(r => ({
+    race: { ...toRace(r, r.editions || []), distKm: r.dist_km ?? null },
+    strong: !!r.strong,
+    editionId: r.edition_id || null,
+  }));
+}
+
+// The race_editions_reject_duplicate refusal (RC409): the race this edition repeats.
+export function duplicateRefusal(err: unknown): { raceSlug: string; editionId: string | null } | null {
+  const e = err as { code?: string; details?: string | null; hint?: string | null } | null;
+  return e?.code === "RC409" && e.details ? { raceSlug: e.details, editionId: e.hint || null } : null;
+}
+
 // kebab-case a name into a slug (strip accents/punctuation, collapse to dashes).
 function slugify(s: string) {
   return (s || "")
@@ -224,20 +248,24 @@ const isUniqueViolation = (err: { code?: string } | null | undefined) => err?.co
 // Add a new race (always unverified, owned by the signed-in user). Generates a
 // slug from the name, falling back to name-city if that slug is taken, so two
 // different races with the same name don't collide. Returns the joined race.
-export async function addRace({ name, city, country, lat, lng, distances, url, terrain }: AddRaceInput) {
+export async function addRace({ name, city, country, lat, lng, distances, url, terrain, distinctFrom }: AddRaceInput) {
   const user_id = currentUserId();
   if (!user_id) throw new Error("Not signed in");
   const raceName = name || "";
   const base = slugify(raceName) || "race";
   const candidates = [base, slugify(`${raceName}-${city}`), `${base}-${Date.now().toString(36)}`];
   let lastErr: Error | { message?: string } | null = null;
-  for (const slug of candidates) {
+  // Sent only when set, and dropped on PGRST204, so a save works before distinct_from's migration lands.
+  let extra: { distinct_from?: string[] } = distinctFrom?.length ? { distinct_from: distinctFrom } : {};
+  for (let i = 0; i < candidates.length; i++) {
+    const slug = candidates[i];
     const { data, error } = await supabase
       .from("races")
-      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, verified: false, created_by: user_id })
+      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, ...extra, verified: false, created_by: user_id })
       .select(RACE_COLS)
       .single();
     if (!error) { clearRaceSearchCache(); return toRace(data, []); }
+    if (error.code === "PGRST204" && extra.distinct_from) { extra = {}; i--; continue; }
     if (!isUniqueViolation(error)) { lastErr = error; break; }
     lastErr = error; // slug taken — try the next candidate
   }

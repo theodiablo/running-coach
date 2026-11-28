@@ -99,7 +99,7 @@
     "countryPlaceholder": "Type to search",
     "countryNoMatch": "No country matches",
     "officialSite": "Official site (optional)",
-    "officialSitePlaceholder": "https://…",
+    "officialSitePlaceholder": "www.example.com",
     "location": "Location (for “races near me”)",
     "locationSet": "Location set ✓",
     "locationHint": "Pick the start on the map to fill in the country and city.",
@@ -108,7 +108,7 @@
     "date": "Date",
     "distanceKm": "Distance (km)",
     "distanceKmPlaceholder": "42.2",
-    "elevation": "Elev. (m)",
+    "elevation": "Elevation gain (m)",
     "elevationPlaceholder": "0",
     "disclaimer": "Races can be added by anyone and are user-submitted until a maintainer verifies them. Always confirm the date on the official site before planning around it.",
     "addedToast": "Added — thanks! It's live for everyone (unverified until reviewed).",
@@ -117,7 +117,24 @@
       "dateDistance": "A date and distance are required.",
       "name": "A race name is required.",
       "country": "Choose a country.",
-      "save": "Couldn't save that race. Please try again."
+      "save": "Couldn't save that race. Please try again.",
+      "url": "That doesn't look like a web address. Try something like www.example.com.",
+      "dateRange": "Pick a date between a year ago and two years from now.",
+      "city": "Type the full city name."
+    },
+    "urlPreview": "Will link to {{url}}",
+    "pinCountry": "Your pin is in {{country}}.",
+    "usePinCountry": "Use {{country}}",
+    "climbHigh": "That's a lot of climbing for this distance. Elevation gain is the total metres climbed, not the altitude.",
+    "dupe": {
+      "title": "Is this your race?",
+      "body": "It looks like it's already listed. Using it keeps everyone's dates and results in one place.",
+      "blockingBody": "This race is already listed for that day.",
+      "use": "Yes, use this race",
+      "addDate": "Yes, add my date to it",
+      "different": "No, it's a different race",
+      "back": "Back to the form",
+      "usedToast": "It's already listed. Find it in Find a race."
     }
   },
   "picker": {
