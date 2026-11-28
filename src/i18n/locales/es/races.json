@@ -285,6 +285,14 @@
       "appearAs": "Apareces como {{name}}",
       "appearCount": "Cuentas, sin tu nombre",
       "footer": "Solo quienes se unieron a esta carrera ven esta lista."
+    },
+    "intro": {
+      "titleOpen_one": "{{count}} corredor más de la app corre {{race}}",
+      "titleOpen_other": "{{count}} corredores más de la app corren {{race}}",
+      "titleFirst": "Sé de los primeros corredores de la app en {{race}}",
+      "body": "Novedad: mira quién de la app prepara la misma línea de salida. Tú eliges cómo apareces: con tu nombre, solo en el número o nada.",
+      "choose": "Elegir cómo aparezco",
+      "notNow": "Ahora no"
     }
   }
 }

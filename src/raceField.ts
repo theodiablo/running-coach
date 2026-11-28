@@ -222,3 +222,14 @@ export function createFieldReconciler(run: () => Promise<boolean>) {
   };
   return { run: () => void go(), stop: () => { stopped = true; clear(); } };
 }
+
+// Races the one-time Home intro may offer (docs/race-field.md, Decisions 5): listed, upcoming,
+// a catalogue edition, soonest first. Verification and membership are checked by the card.
+export const FIELD_INTRO_CANDIDATES = 3;
+export function fieldIntroCandidates(parts: readonly { editionId?: string | null; status?: string; raceDate?: string }[], today: string): string[] {
+  const ids = parts
+    .filter(p => p.editionId && p.status === "wishlist" && p.raceDate && p.raceDate >= today)
+    .sort((a, b) => String(a.raceDate).localeCompare(String(b.raceDate)))
+    .map(p => String(p.editionId));
+  return [...new Set(ids)].slice(0, FIELD_INTRO_CANDIDATES);
+}

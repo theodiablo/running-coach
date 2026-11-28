@@ -285,6 +285,14 @@
       "appearAs": "Tu apparais comme {{name}}",
       "appearCount": "Tu es compté, sans ton nom",
       "footer": "Seuls les coureurs inscrits à cette course voient cette liste."
+    },
+    "intro": {
+      "titleOpen_one": "{{count}} autre coureur de l'app fait {{race}}",
+      "titleOpen_other": "{{count}} autres coureurs de l'app font {{race}}",
+      "titleFirst": "Sois parmi les premiers coureurs de l'app inscrits à {{race}}",
+      "body": "Nouveau : vois qui, dans l'app, prépare la même ligne de départ. Tu choisis comment tu apparais : avec ton nom, juste dans le nombre, ou pas du tout.",
+      "choose": "Choisir comment j'apparais",
+      "notNow": "Plus tard"
     }
   }
 }

@@ -1,8 +1,8 @@
 # Race field: technical design
 
-Status: **approved 2026-11; PR 1 (public name, membership, join sheet, count)
-and PR 2 (who's running, reporting a name) implemented.** Next: the one-time
-Home intro card (Decisions 5) and the past-race purge.
+Status: **approved 2026-11; PR 1 (public name, membership, join sheet, count),
+PR 2 (who's running, reporting a name) and the one-time Home intro implemented.**
+Next: the past-race purge.
 Product decisions: `docs/social.md` §3. Canvas:
 https://claude.ai/artifact/6c47MzKHHGboxxcoWJLUsp (`Main`, `Field-Join`,
 `Field-Count`, `Field-List`; `Field-Results` and `Field-Live` are rejected).
@@ -419,6 +419,14 @@ delete from public.race_reports where reason = 'field_name' and created_at < now
   `Field-List`): the named rows, "And n more who joined without a name.", the
   "n others aim for about your time" line (named + shown goal within ±5% of
   the caller's own goal, only when the caller has one), and "You appear as …".
+- **Home intro** (`src/components/races/FieldIntroCard.tsx`, Decisions 5):
+  last in Home's attention slot while `settings.raceFieldIntroSeen` isn't
+  `true`. `fieldIntroCandidates` offers the soonest listed upcoming catalogue
+  races (3 at most). The card shows the first one whose edition is verified
+  and whose field the runner hasn't joined, with the open count or "be one of
+  the first". It opens the join sheet. It is spent once it has been on screen
+  (`useSeenOnScreen`), on Not now, or when the runner is already in that field.
+  A failed read shows nothing and spends nothing.
 - **Goal sync**: `setGoal` (RacesView) and `updateTargetGoal` (and its undo)
   update `goal_sec` on a by-name membership; a no-op otherwise.
 

@@ -47,6 +47,8 @@ export type SettingsState = Record<string, unknown> & {
   // runner mid-training who already knows where the coach is.
   coachIntroSeen?: boolean;
   coachOverdueIntroSeen?: boolean;
+  // The race field's Home intro: absent = not yet shown (deliberately reaches existing runners).
+  raceFieldIntroSeen?: boolean;
   feedbackIntroSeen?: boolean;
   // Set the first time this account goes on air; its other sessions hold a Realtime channel only then.
   liveShareUsed?: boolean;
