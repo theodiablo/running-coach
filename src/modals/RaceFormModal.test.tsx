@@ -320,6 +320,7 @@ describe("RaceFormModal duplicate on submit", () => {
     submit();
     fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
     await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
+    expect(addRace.mock.calls[0][0]).toMatchObject({ distinctFrom: kili.slug });
     expect(screen.queryByText("Is this your race?")).not.toBeInTheDocument();
   });
 

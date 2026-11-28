@@ -193,14 +193,16 @@ match stops the save with "Is this your race?" — **use this race** (offered on
 edition sits on exactly that date: `edition_id`; a ±3-day match counts toward `strong` but is
 never swapped in for the runner's day), via `onCreated(id, true)` in onboarding or
 `onUseExisting` → the race sheet from Find,
-**add my date to it**, or **it's a different race** (saves, not asked again). A failed
+**add my date to it**, or **it's a different race** (saves with `races.distinct_from` set to
+the listed race's slug, so neither the lookup nor the trigger asks again; a reviewer sees it). A failed
 lookup never blocks a save.
 
 Behind it, `race_editions_reject_duplicate` refuses, for an `authenticated` insert, an
 edition on the same date, at the same distance (±0.5 km), of another race pinned within
 2 km **whose distinctive name words one name wholly contains** (Kilimanjaro Marathon vs
 KILIMANJARO INTERNATIONAL MARATHON is refused; Riverside Charity Run vs Riverside Community
-Run both save, so "it's a different race" can't dead-end), raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
+Run both save), and never against the race named in the new race's `distinct_from`, so
+"it's a different race" can't dead-end; raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
 (`duplicateRefusal`). The form turns that into the same question without "different";
 old builds show their generic save error, which beats a duplicate in everyone's catalogue.
 

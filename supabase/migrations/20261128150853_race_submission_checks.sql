@@ -35,6 +35,12 @@ alter table public.races add constraint races_country_code
     'VN', 'VU', 'WF', 'WS', 'XK', 'YE', 'YT', 'ZA', 'ZM', 'ZW'
   )) not valid;
 
+-- The listed race a contributor said this one is NOT ("it's a different race"), so the repeat
+-- trigger below lets that pair through; also tells a reviewer what the runner answered.
+alter table public.races add column if not exists distinct_from text;
+alter table public.races add constraint races_distinct_from_bounds
+  check (distinct_from is null or length(distinct_from) <= 240) not valid;
+
 -- A race date from a year back to two years ahead.
 alter policy "race_editions insert own unverified" on public.race_editions
   with check (
@@ -163,7 +169,7 @@ $$;
 
 -- The exact repeat, for clients that never ask race_duplicates: an edition on the same day, at the
 -- same distance (±0.5 km), of another race pinned within 2 km whose distinctive name words one
--- name wholly contains, so two different events in one park on one day both save.
+-- name wholly contains, unless the contributor said it is a different race (`distinct_from`).
 create or replace function public.race_editions_reject_duplicate()
 returns trigger
 language plpgsql
@@ -175,11 +181,13 @@ declare
   dup record;
 begin
   if (select auth.role()) is distinct from 'authenticated' then return new; end if;
-  select lat, lng, public.race_name_tokens(name) as toks into pin from public.races where slug = new.race_slug;
+  select lat, lng, distinct_from, public.race_name_tokens(name) as toks into pin
+    from public.races where slug = new.race_slug;
   if pin.lat is null or pin.lng is null then return new; end if;
   select e.race_slug, e.id into dup
     from public.race_editions e join public.races r on r.slug = e.race_slug
-   where e.race_slug <> new.race_slug and e.date = new.date
+   where e.race_slug <> new.race_slug and e.race_slug is distinct from pin.distinct_from
+     and e.date = new.date
      and abs(e.distance_km - new.distance_km) <= 0.5
      and r.lat is not null and r.lng is not null
      and public.race_km_between(pin.lat, pin.lng, r.lat, r.lng) <= 2

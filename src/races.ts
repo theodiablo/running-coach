@@ -39,6 +39,7 @@ type AddRaceInput = {
   distances?: number[];
   url?: string | null;
   terrain?: RaceTerrain | null;
+  distinctFrom?: string | null;
 };
 
 type AddEditionInput = { raceSlug: string; date: string; distanceKm: number; elevation?: number };
@@ -247,7 +248,7 @@ const isUniqueViolation = (err: { code?: string } | null | undefined) => err?.co
 // Add a new race (always unverified, owned by the signed-in user). Generates a
 // slug from the name, falling back to name-city if that slug is taken, so two
 // different races with the same name don't collide. Returns the joined race.
-export async function addRace({ name, city, country, lat, lng, distances, url, terrain }: AddRaceInput) {
+export async function addRace({ name, city, country, lat, lng, distances, url, terrain, distinctFrom }: AddRaceInput) {
   const user_id = currentUserId();
   if (!user_id) throw new Error("Not signed in");
   const raceName = name || "";
@@ -257,7 +258,7 @@ export async function addRace({ name, city, country, lat, lng, distances, url, t
   for (const slug of candidates) {
     const { data, error } = await supabase
       .from("races")
-      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, verified: false, created_by: user_id })
+      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, distinct_from: distinctFrom || null, verified: false, created_by: user_id })
       .select(RACE_COLS)
       .single();
     if (!error) { clearRaceSearchCache(); return toRace(data, []); }

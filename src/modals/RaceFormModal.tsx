@@ -31,7 +31,7 @@ type RaceForm = {
 };
 type RaceFormPrefill = { date?: string; distanceKm?: string | number; elevation?: string | number };
 type RaceFormModalProps = {
-  addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null; terrain?: RaceTerrain | null }) => Promise<CatalogueRace>;
+  addRace: (race: { name?: string; city?: string | null; country?: string | null; lat?: number | null; lng?: number | null; distances?: number[]; url?: string | null; terrain?: RaceTerrain | null; distinctFrom?: string | null }) => Promise<CatalogueRace>;
   addEdition: (edition: { raceSlug: string; date: string; distanceKm: number; elevation: number }) => Promise<CatalogueEdition>;
   onContributed?: () => void | Promise<void>;
   showToast: (msg: string, type?: string) => void;
@@ -97,9 +97,9 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     });
   };
 
-  // `target`: an existing race to add the date to; null creates a new race. `checked`: the runner
-  // already said a strong match is a different race, so the duplicate lookup isn't asked again.
-  const submit = async (target: CatalogueRace | null = selected, checked = false) => {
+  // `target`: an existing race to add the date to; null creates a new race. `distinctFrom`: the
+  // listed race the runner said this isn't, so neither the lookup nor the repeat trigger asks again.
+  const submit = async (target: CatalogueRace | null = selected, distinctFrom: string | null = null) => {
     if (locating) return;   // the pin's country is still on its way
     setErr("");
     const dist = parseFloat(String(f.distanceKm));
@@ -118,7 +118,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     const elevation = f.elevation ? parseInt(String(f.elevation)) : 0;
     const lookup = { name, country, lat: loc?.lat ?? null, lng: loc?.lng ?? null, date: f.date, distanceKm: dist };
     setBusy(true);
-    if (!target && !checked) {
+    if (!target && !distinctFrom) {
       try {
         const strong = (await findRaceDuplicates(lookup)).find(d => d.strong);
         if (strong) { setDupe({ match: strong, blocking: false }); setBusy(false); return; }
@@ -139,7 +139,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       } else {
         const race = await addRace({
           name, city: city || null, country,
-          lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: raceUrl(f.url), terrain,
+          lat: loc?.lat ?? null, lng: loc?.lng ?? null, distances: [dist], url: raceUrl(f.url), terrain, distinctFrom,
         });
         raceSlug = race.slug || race.id;
         createdRaceSlug = raceSlug;
@@ -194,7 +194,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
         <div className="p-4 space-y-4 overflow-y-auto">
           {dupe ? <DuplicatePrompt dupe={dupe} busy={busy} onUse={() => pickExisting(dupe.match)}
             onAddDate={() => addDateTo(dupe.match.race)}
-            onDifferent={() => { setDupe(null); void submit(null, true); }}
+            onDifferent={() => { setDupe(null); void submit(null, dupe.match.race.slug); }}
             onBack={() => setDupe(null)}/> : <>
           {selected ? (
             <div className="flex items-center justify-between gap-2 bg-slate-700/50 rounded-xl p-3">
