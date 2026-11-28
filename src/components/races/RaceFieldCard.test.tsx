@@ -158,6 +158,16 @@ describe("RaceFieldCard", () => {
     expect(list).toHaveTextContent("1 other aims for about your time");
     expect(list).toHaveTextContent("You appear as Alex M.");
     expect(screen.queryByRole("button", { name: "Report the name Alex M." })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Report the name Zoé L." }));
+    expect(screen.getByRole("group", { name: "Report" })).toHaveFocus();
+  });
+
+  it("offers no Change from the list when the race isn't on the runner's list", async () => {
+    h.field = { open: true, joined: true, count: 4, named: [] };
+    card({ listed: false });
+    fireEvent.click(await screen.findByRole("button", { name: "See who's running" }));
+    expect(screen.getByRole("dialog", { name: "Who's running" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change how I appear" })).toBeNull();
   });
 
   it("offers no list to a runner who hasn't joined, even when the field is open", async () => {

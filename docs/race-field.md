@@ -339,12 +339,17 @@ select p.id from public.profiles p
 join public.race_field_members m on m.user_id = p.id
 where p.public_name = '<name>' and m.edition_id = '<edition>' and m.visibility = 'named';
 -- 2. Only if the text itself breaks the rules (a report proves nothing on its own:
---    anyone can report any name text), clear it for those accounts and move their
---    by-name memberships to count-only, as removing a name in the app does, so a
---    new name can't reappear on those fields:
+--    anyone can report any name text), clear it and move those runners' by-name
+--    memberships to count-only, as removing a name in the app does, so a new name
+--    can't reappear there. One statement, rechecking the text, so a runner who
+--    renamed themselves since step 1 keeps the new name:
+with hit as (
+  update public.profiles set public_name = null
+  where id in (<ids from 1>) and public_name = '<name>'
+  returning id
+)
 update public.race_field_members set visibility = 'count', goal_sec = null
-  where user_id in (<ids from 1>) and visibility = 'named';
-update public.profiles set public_name = null where id in (<ids from 1>);
+where user_id in (select id from hit) and visibility = 'named';
 -- 3. Handled either way: the report holds name text with no account to cascade on.
 delete from public.race_reports where id = '<report id>';
 -- Reports never handled are cleared after 30 days:

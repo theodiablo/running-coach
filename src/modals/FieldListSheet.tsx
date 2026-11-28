@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag, Loader } from "lucide-react";
 import { useDismissable } from "../hooks/useDismissable";
@@ -15,6 +15,8 @@ type FieldListSheetProps = {
   count: number;
   named: FieldName[];
   goalSec: number | null;
+  // Only a runner whose race is on their list can change how they appear.
+  canChange: boolean;
   onChange: () => void;
   onClose: () => void;
   showToast?: (msg: string, type?: string) => void;
@@ -22,11 +24,18 @@ type FieldListSheetProps = {
 
 const initials = (name: string) => name.split(/\s+/).map(w => [...w][0] || "").join("").slice(0, 2).toUpperCase();
 
-export function FieldListSheet({ editionId, count, named, goalSec, onChange, onClose, showToast }: FieldListSheetProps) {
+export function FieldListSheet({ editionId, count, named, goalSec, canChange, onChange, onClose, showToast }: FieldListSheetProps) {
   const { t } = useTranslation();
   useDismissable(true, onClose);
   const [reporting, setReporting] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  // A long list puts the confirm below the fold: bring it into view, focus included.
+  useEffect(() => {
+    if (!reporting) return;
+    confirmRef.current?.scrollIntoView?.({ block: "nearest" });
+    confirmRef.current?.focus();
+  }, [reporting]);
   const me = named.find(n => n.me);
   const unnamed = Math.max(0, count - named.length);
   const near = aboutYourTime(named, goalSec);
@@ -81,7 +90,8 @@ export function FieldListSheet({ editionId, count, named, goalSec, onChange, onC
         {unnamed > 0 && <p className="text-xs text-slate-400">{t("races.field.list.unnamed", { count: unnamed })}</p>}
 
         {reporting && (
-          <div className="rounded-xl border border-slate-600 p-3 space-y-2">
+          <div ref={confirmRef} tabIndex={-1} role="group" aria-label={t("races.field.list.reportSend")}
+            className="rounded-xl border border-slate-600 p-3 space-y-2 outline-none">
             <p className="text-sm text-slate-200">{t("races.field.list.reportConfirm", { name: reporting })}</p>
             {sending
               ? <Loader size={16} className="animate-spin text-slate-400"/>
@@ -94,9 +104,11 @@ export function FieldListSheet({ editionId, count, named, goalSec, onChange, onC
           <p className="text-xs text-slate-400">
             {me ? t("races.field.list.appearAs", { name: me.name }) : t("races.field.list.appearCount")}
           </p>
-          <button type="button" onClick={onChange} className="shrink-0 text-xs font-semibold text-orange-300 hover:text-orange-200">
-            {t("races.field.card.change")}
-          </button>
+          {canChange && (
+            <button type="button" onClick={onChange} className="shrink-0 text-xs font-semibold text-orange-300 hover:text-orange-200">
+              {t("races.field.card.change")}
+            </button>
+          )}
         </div>
         <p className="text-xs text-slate-500">{t("races.field.list.footer")}</p>
       </div>

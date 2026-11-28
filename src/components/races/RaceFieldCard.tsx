@@ -102,8 +102,8 @@ export function RaceFieldCard({ editionId, listed, ask, publicName, goalSec, onA
         </div>
       )}
       {list && canSeeList && (
-        <FieldListSheet editionId={editionId} count={field.count ?? 0} named={field.named} goalSec={goalSec}
-          onChange={() => { setList(false); if (canChange) setSheet(true); }} onClose={() => setList(false)} showToast={showToast}/>
+        <FieldListSheet editionId={editionId} count={field.count ?? 0} named={field.named} goalSec={goalSec} canChange={canChange}
+          onChange={() => { setList(false); setSheet(true); }} onClose={() => setList(false)} showToast={showToast}/>
       )}
       {sheet && canChange && (
         <FieldJoinSheet publicName={publicName ?? null} current={mine ?? null} others={others} hasGoal={!!goalSec}
