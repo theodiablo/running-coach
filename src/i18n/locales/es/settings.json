@@ -253,5 +253,34 @@
     "hrZones": "Zonas de frecuencia cardíaca",
     "stretching": "Estiramientos",
     "more": "¿No encuentras tu respuesta? Envíanos comentarios desde la pantalla principal de Ajustes."
+  },
+  "publicName": {
+    "title": "Nombre público",
+    "off": "Desactivado",
+    "intro": "Otros corredores solo lo ven donde tú eliges aparecer, como la lista de corredores de la app en una carrera. Hasta que elijas uno, nadie ve ningún nombre.",
+    "label": "Nombre que ven otros corredores",
+    "hint": "Basta con un nombre y una inicial. 24 caracteres como máximo.",
+    "placeholder": "Tu nombre",
+    "preview": "Así se ve",
+    "whereTitle": "Dónde puede aparecer",
+    "whereYes": "Las carreras donde eliges mostrar tu nombre. Tú decides carrera por carrera.",
+    "whereNo": "Nunca junto a tus entrenamientos, rutas, plan o correo.",
+    "sameName": "Si lo muestras en varias carreras, los corredores de esas carreras ven el mismo nombre.",
+    "save": "Guardar",
+    "remove": "Quitar mi nombre público",
+    "removeNote": "Sin nombre, sigues contando en las carreras a las que te uniste, solo que sin tu nombre.",
+    "saved": "Nombre público guardado.",
+    "removed": "Nombre público quitado.",
+    "error": "No se pudo guardar tu nombre público. Inténtalo de nuevo.",
+    "loadError": "No se pudo cargar tu nombre público.",
+    "retry": "Reintentar",
+    "issue": {
+      "short": "Al menos 2 caracteres.",
+      "long": "24 caracteres como máximo.",
+      "spaces": "Sin espacios al principio o al final, ni espacios dobles.",
+      "invisible": "Ese nombre tiene caracteres ocultos.",
+      "link": "Sin enlaces ni correos.",
+      "letter": "Usa al menos una letra."
+    }
   }
 }

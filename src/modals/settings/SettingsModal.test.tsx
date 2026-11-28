@@ -102,3 +102,27 @@ describe("SettingsModal hub", () => {
     expect(screen.getByText("Training profile")).toBeInTheDocument();
   });
 });
+
+// Public name sits under Account (docs/race-field.md): back returns to Account,
+// unless the race page deep-linked straight to it.
+describe("SettingsModal public name", () => {
+  const props = { ...baseProps, publicName: null, onPublicNameSaved: () => {} };
+
+  it("opens from Account and goes back to Account", () => {
+    render(<SettingsModal {...props} />);
+    fireEvent.click(screen.getByText("Account"));
+    fireEvent.click(screen.getByRole("button", { name: /Public name/ }));
+    expect(screen.getByLabelText("Name other runners see")).toBeInTheDocument();
+    act(() => { dismissTop(); });
+    expect(screen.queryByLabelText("Name other runners see")).toBeNull();
+    expect(screen.getByRole("button", { name: /Public name/ })).toBeInTheDocument();
+  });
+
+  it("closes settings when back leaves a deep-linked public name page", () => {
+    const onClose = vi.fn();
+    render(<SettingsModal {...props} initialPage="publicName" onClose={onClose} />);
+    expect(screen.getByLabelText("Name other runners see")).toBeInTheDocument();
+    act(() => { dismissTop(); });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

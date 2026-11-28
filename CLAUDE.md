@@ -241,6 +241,12 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   through GoTrue, whose mailer is transactional-only.
 - **Multi-user:** open public signups — no single-user assumptions; per-user
   isolation via RLS on `app_state` and `profiles`.
+- **The race field is the only cross-user read of runner data, and
+  `race_field()` is its one door** (`security definer`, client-callable,
+  nothing until 3 others joined, no ids). Memberships and the opt-in
+  `profiles.public_name` are server-side consent, never in the blob, and are
+  written by their owner only. Widening what crosses users is a design change
+  with its own security review, never a side effect: `docs/race-field.md`.
 - **Plan building:** `buildPlan(raceDate, goalSec, planSessions, distanceKm,
   raceElevation, opts)` (`src/utils/plan.ts`) is the one plan author. Style
   pace multipliers live in `supabase/functions/_shared/coach/styles.mjs`

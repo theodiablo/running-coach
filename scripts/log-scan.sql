@@ -27,7 +27,7 @@ select src, code, what, n from (
                 'apple_auth_grants', 'beta_feedback', 'coach_feedback', 'contribution_notifications',
                 'integration_connections', 'integration_staged_workouts', 'integration_sync_usage',
                 'live_broadcast_viewers', 'live_broadcasts', 'live_runs', 'live_share_tokens', 'polar_tokens',
-                'profiles', 'qr_scans', 'race_crawl_items', 'race_editions', 'race_reports', 'races', 'route_suggest_usage',
+                'profiles', 'qr_scans', 'race_crawl_items', 'race_editions', 'race_field_members', 'race_reports', 'races', 'route_suggest_usage',
                 'run_routes', 'saved_routes', 'shell_diagnostics', 'websocket', 'object', 'bucket',
                 'admin-metrics', 'apple-auth', 'coach-agent', 'coros-import', 'get', 'live-publish',
                 'live-watch', 'notify-contribution', 'polar-import', 'route-suggest', 'suunto-import',

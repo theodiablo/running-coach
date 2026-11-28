@@ -229,5 +229,43 @@
     "savedListedToast": "Objectif enregistré et course ajoutée à ta liste.",
     "short": "objectif {{time}}",
     "cleared": "Objectif retiré."
+  },
+  "field": {
+    "card": {
+      "title": "Coureurs de l'app sur cette course",
+      "count_one": "{{count}} coureur de l'app sur cette course",
+      "count_other": "{{count}} coureurs de l'app sur cette course",
+      "youreIn": "Tu en fais partie",
+      "body": "Même ligne de départ, même préparation. Ici, seul le nombre s'affiche, et un nom n'apparaît que pour un coureur qui a choisi de le montrer.",
+      "waiting": "C'est noté. On affichera le nombre quand quelques coureurs de l'app de plus se seront inscrits.",
+      "invite": "Découvre combien de coureurs de l'app font cette course. Tu choisis comment tu apparais.",
+      "join": "Rejoindre les participants",
+      "change": "Changer ma façon d'apparaître"
+    },
+    "join": {
+      "title": "Courir avec d'autres coureurs de l'app",
+      "bodyOpen_one": "{{count}} autre coureur de l'app a rejoint les participants de cette course. Tu veux le rejoindre ?",
+      "bodyOpen_other": "{{count}} autres coureurs de l'app ont rejoint les participants de cette course. Tu veux les rejoindre ?",
+      "bodyFirst": "Sois parmi les premiers coureurs de l'app sur cette course. On affiche le nombre dès que quelques autres ont rejoint.",
+      "how": "Comment apparaître",
+      "named": "M'afficher comme {{name}}",
+      "namedHint": "Ton nom public, dans la liste des coureurs de l'app",
+      "namedNoName": "M'afficher avec mon nom",
+      "namedNoNameHint": "Il te faut d'abord un nom public",
+      "setName": "Choisir un nom public",
+      "count": "Me compter, sans mon nom",
+      "countHint": "Ajoute un au nombre, sans nom",
+      "none": "Pas cette fois",
+      "noneHint": "Rien sur toi n'est affiché",
+      "goal": "Afficher mon objectif de temps",
+      "nameLeaves": "Ton nom quitte la liste, mais tu restes compté. Pour quitter aussi les participants, choisis Pas cette fois.",
+      "done": "Terminé",
+      "footer": "Tu peux changer ça à tout moment sur la page de la course."
+    },
+    "toast": {
+      "error": "Impossible d'enregistrer. Vérifie ta connexion et réessaie.",
+      "limit": "Tu es déjà inscrit sur 30 courses à venir. Quittes-en une pour rejoindre celle-ci.",
+      "closed": "Cette course n'accueille pas de nouveaux participants."
+    }
   }
 }

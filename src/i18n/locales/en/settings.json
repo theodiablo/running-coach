@@ -253,5 +253,34 @@
     "hrZones": "Heart-rate zones",
     "stretching": "Stretching",
     "more": "Can't find your answer? Send us feedback from the main Settings screen."
+  },
+  "publicName": {
+    "title": "Public name",
+    "off": "Off",
+    "intro": "Other runners only see this where you choose to appear, like the list of app runners in a race. Until you set one, nobody sees a name.",
+    "label": "Name other runners see",
+    "hint": "A first name and an initial is plenty. 24 characters at most.",
+    "placeholder": "Your name",
+    "preview": "How it looks",
+    "whereTitle": "Where it can appear",
+    "whereYes": "Races where you choose to show your name. You decide race by race.",
+    "whereNo": "Never next to your runs, routes, plan or email.",
+    "sameName": "If you show it in several races, runners in those races see the same name.",
+    "save": "Save",
+    "remove": "Remove my public name",
+    "removeNote": "Without a name, you still count in the races you joined, just without your name.",
+    "saved": "Public name saved.",
+    "removed": "Public name removed.",
+    "error": "Couldn't save your public name. Try again.",
+    "loadError": "Couldn't load your public name.",
+    "retry": "Try again",
+    "issue": {
+      "short": "At least 2 characters.",
+      "long": "24 characters at most.",
+      "spaces": "No spaces at the start or end, and no double spaces.",
+      "invisible": "That name contains hidden characters.",
+      "link": "No links or email addresses.",
+      "letter": "Use at least one letter."
+    }
   }
 }

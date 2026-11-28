@@ -253,5 +253,34 @@
     "hrZones": "Zones de fréquence cardiaque",
     "stretching": "Étirements",
     "more": "Tu ne trouves pas ta réponse ? Envoie-nous un avis depuis l'écran principal des Paramètres."
+  },
+  "publicName": {
+    "title": "Nom public",
+    "off": "Désactivé",
+    "intro": "Les autres coureurs ne le voient que là où tu choisis d'apparaître, comme la liste des coureurs de l'app sur une course. Tant que tu n'en choisis pas, personne ne voit de nom.",
+    "label": "Nom vu par les autres coureurs",
+    "hint": "Un prénom et une initiale suffisent. 24 caractères maximum.",
+    "placeholder": "Ton nom",
+    "preview": "Aperçu",
+    "whereTitle": "Où il peut apparaître",
+    "whereYes": "Les courses où tu choisis d'afficher ton nom. Tu décides course par course.",
+    "whereNo": "Jamais à côté de tes sorties, parcours, plan ou e-mail.",
+    "sameName": "Si tu l'affiches sur plusieurs courses, les coureurs de ces courses voient le même nom.",
+    "save": "Enregistrer",
+    "remove": "Retirer mon nom public",
+    "removeNote": "Sans nom, tu restes compté sur les courses que tu as rejointes, simplement sans ton nom.",
+    "saved": "Nom public enregistré.",
+    "removed": "Nom public retiré.",
+    "error": "Impossible d'enregistrer ton nom public. Réessaie.",
+    "loadError": "Impossible de charger ton nom public.",
+    "retry": "Réessayer",
+    "issue": {
+      "short": "Au moins 2 caractères.",
+      "long": "24 caractères maximum.",
+      "spaces": "Pas d'espace au début ou à la fin, ni d'espaces doubles.",
+      "invisible": "Ce nom contient des caractères cachés.",
+      "link": "Pas de lien ni d'adresse e-mail.",
+      "letter": "Utilise au moins une lettre."
+    }
   }
 }
