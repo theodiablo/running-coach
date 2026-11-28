@@ -21,7 +21,7 @@ vi.mock("./supabase", () => {
   };
 });
 
-const { fetchRaceField, aboutYourTime, hideNameInFields, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
+const { fetchRaceField, aboutYourTime, hideNameInFields, fieldIntroCandidates, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
 const ops = () => h.calls.map(c => c[0]);
 
 beforeEach(() => { h.calls = []; h.results = []; });
@@ -50,6 +50,16 @@ describe("fetchRaceField", () => {
   it("returns null on a failed read, never a closed-and-not-joined answer", async () => {
     h.results.push({ data: null, error: { message: "boom" } });
     expect(await fetchRaceField("e1")).toBeNull();
+  });
+});
+
+describe("fieldIntroCandidates", () => {
+  it("offers listed, upcoming catalogue races, soonest first, three at most", () => {
+    const p = (editionId: string | null, raceDate: string, status = "wishlist") => ({ editionId, raceDate, status });
+    expect(fieldIntroCandidates([
+      p("late", "2027-05-01"), p("past", "2026-01-01"), p(null, "2027-01-01"), p("done", "2027-02-01", "done"),
+      p("soon", "2027-01-15"), p("mid", "2027-03-01"), p("mid", "2027-03-01"), p("fourth", "2027-06-01"),
+    ], "2026-12-01")).toEqual(["soon", "mid", "late"]);
   });
 });
 

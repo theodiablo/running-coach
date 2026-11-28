@@ -682,7 +682,9 @@ rule/tool you changed — at 1 trial (3 only to measure a flaky one). A full run
   `coachOverdueIntroSeen` (the explainer on the first overdue card) are both
   written `false` when onboarding completes and `true` once shown — so they only
   ever reach accounts that onboarded after they shipped, and an existing runner
-  is never ambushed mid-training. Any future one-time hint follows this: seed at
+  is never ambushed mid-training. The one deliberate exception is a *feature
+  intro* meant for existing runners (`raceFieldIntroSeen`: absent = show, last in
+  Home's slot; `docs/race-field.md`). Any future one-time hint follows this: seed at
   onboarding, mark seen the moment it *actually* has been, and read `=== false`,
   never `!flag`. Copy captured at mount (`Dashboard`) so persisting "seen" can't
   yank it out from under the reader. "Actually" is the load-bearing word, and it

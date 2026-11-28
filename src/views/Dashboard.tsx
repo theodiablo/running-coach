@@ -25,6 +25,8 @@ import { BlockDoneCard } from "../components/BlockRecap";
 import { blockRecap, finishedBlock } from "../utils/blockRecap";
 import { StretchBanner } from "../components/StretchBanner";
 import { stretchSuggestion, stretchesThisWeek } from "../utils/stretchSuggest";
+import { fieldIntroCandidates } from "../raceField";
+import { FieldIntroCard } from "../components/races/FieldIntroCard";
 import type { StretchLogEntry, StretchSuggestion } from "../utils/stretchSuggest";
 import type { RaceDateChange } from "../utils/races";
 import { ReconcileSheet } from "../modals/ReconcileSheet";
@@ -44,6 +46,7 @@ type DashboardProps = {
   plan: Plan | null;
   settings: SettingsState;
   races: RacesState | null;
+  publicName?: string | null;
   goTab: (tab: string) => void;
   goProgress: (sub: string) => void;
   goLog: (prefill: Partial<Run>) => void;
@@ -108,7 +111,7 @@ const CONFIRM_MS = 2500;
 // visits. Session-scoped by design — a fresh app launch reports again.
 let lastReportedOverdue: number | null = null;
 
-export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, openChangePlan, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, reviewCard, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext}: DashboardProps) {
+export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog, toggleSess, skipSess, linkSess, unlinkSess, openSettings, openCoach, openChangePlan, showToast, markCoachOverdueIntroSeen, openRunDetail, liveRun, openLiveWatch, recovery, openTracker, openIndoor, availableUpdate, reviewCard, dateChanges, applyRaceDateChange, keepRaceDate, stretchLog = [], openStretch, saveSettings, recorderOpen = false, promoteEdition, settleRace, skipRace, openPlanGoalEdit, updateRun, lightenRecovery, openWhatsNext, publicName}: DashboardProps) {
   const { t, i18n } = useTranslation();
   // "How it unfolds" breakdown on the next-session card (collapsed by default).
   const [showSteps, setShowSteps] = useState(false);
@@ -245,12 +248,16 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
   const [showOverdueCoachIntro] = useState(settings.coachOverdueIntroSeen === false);
   // The same captured-at-mount rule for the notice on a plan started for the runner.
   const [autoNotice] = useState(!!plan?.goal?.autoFor && settings.autoStartNoticeFor !== plan.goal.autoFor);
+  // The race field's intro reaches existing runners too: absent = not yet shown (docs/race-field.md).
+  const [showFieldIntro] = useState(settings.raceFieldIntroSeen !== true);
+  const fieldIntro = showFieldIntro ? fieldIntroCandidates(races?.participations || [], todayStr) : [];
   // Home shows one thing that needs attention, the most pressing first.
   const slot = dateChanges?.length && applyRaceDateChange && keepRaceDate ? "dates"
     : stretch && openStretch && saveSettings ? "stretch"
     : overdueShown.length ? "overdue"
     : availableUpdate ? "update"
-    : reviewCard && !recorderOpen ? "review" : null;
+    : reviewCard && !recorderOpen ? "review"
+    : fieldIntro.length && saveSettings && !recorderOpen ? "fieldIntro" : null;
 
   const overdueCoachIntroRef = useSeenOnScreen<HTMLDivElement>(
     showOverdueCoachIntro && overdueCount > 0 && slot === "overdue",
@@ -476,6 +483,12 @@ export function Dashboard({runs, plan, settings, races, goTab, goProgress, goLog
       {slot === "dates" && <RaceDateChanges changes={dateChanges} onApply={applyRaceDateChange} onKeep={keepRaceDate}/>}
       {slot === "update" && availableUpdate && <UpdateCard update={availableUpdate} recorderOpen={recorderOpen}/>}
       {slot === "review" && reviewCard && <ReviewCard {...reviewCard}/>}
+      {slot === "fieldIntro" && saveSettings && (
+        <FieldIntroCard candidates={fieldIntro} publicName={publicName}
+          goals={Object.fromEntries((races?.participations || []).filter(p => p.editionId).map(p => [String(p.editionId), p.goalSec ?? null]))}
+          onSeen={() => { if (settings.raceFieldIntroSeen !== true) saveSettings({ ...settings, raceFieldIntroSeen: true }); }}
+          onSetName={() => openSettings("publicName")} showToast={showToast}/>
+      )}
       {slot === "stretch" && stretch && openStretch && saveSettings && (
         <StretchBanner suggestion={stretch} onStart={() => openStretch(stretch)}
           onDismiss={() => {

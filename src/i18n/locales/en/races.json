@@ -285,6 +285,14 @@
       "appearAs": "You appear as {{name}}",
       "appearCount": "You're counted, without a name",
       "footer": "Only runners who joined this field see this list."
+    },
+    "intro": {
+      "titleOpen_one": "{{count}} other app runner is doing {{race}}",
+      "titleOpen_other": "{{count}} other app runners are doing {{race}}",
+      "titleFirst": "Be one of the first app runners in the {{race}} field",
+      "body": "New: see who from the app is training for the same start line. You choose how you appear: by name, just as a number, or not at all.",
+      "choose": "Choose how I appear",
+      "notNow": "Not now"
     }
   }
 }
