@@ -162,8 +162,8 @@ as $$
 $$;
 
 -- The exact repeat, for clients that never ask race_duplicates: an edition on the same day, at the
--- same distance (±0.5 km), of another race pinned within 2 km that shares a name word, so two
--- different events in one park on one day still both save. Detail carries the existing race.
+-- same distance (±0.5 km), of another race pinned within 2 km whose distinctive name words one
+-- name wholly contains, so two different events in one park on one day both save.
 create or replace function public.race_editions_reject_duplicate()
 returns trigger
 language plpgsql
@@ -183,7 +183,9 @@ begin
      and abs(e.distance_km - new.distance_km) <= 0.5
      and r.lat is not null and r.lng is not null
      and public.race_km_between(pin.lat, pin.lng, r.lat, r.lng) <= 2
-     and public.race_name_tokens(r.name) && pin.toks
+     and cardinality(pin.toks) > 0
+     and (public.race_name_tokens(r.name) <@ pin.toks or pin.toks <@ public.race_name_tokens(r.name))
+     and cardinality(public.race_name_tokens(r.name)) > 0
    limit 1;
   if found then
     raise exception 'race_duplicate' using errcode = 'RC409', detail = dup.race_slug, hint = dup.id;

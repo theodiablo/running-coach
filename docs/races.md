@@ -198,8 +198,9 @@ lookup never blocks a save.
 
 Behind it, `race_editions_reject_duplicate` refuses, for an `authenticated` insert, an
 edition on the same date, at the same distance (±0.5 km), of another race pinned within
-2 km **that shares a name word** (so two differently named events in one park on one day
-both save, and "it's a different race" can't dead-end), raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
+2 km **whose distinctive name words one name wholly contains** (Kilimanjaro Marathon vs
+KILIMANJARO INTERNATIONAL MARATHON is refused; Riverside Charity Run vs Riverside Community
+Run both save, so "it's a different race" can't dead-end), raising `RC409` with the existing race's slug in `detail` and edition id in `hint`
 (`duplicateRefusal`). The form turns that into the same question without "different";
 old builds show their generic save error, which beats a duplicate in everyone's catalogue.
 
