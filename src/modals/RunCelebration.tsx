@@ -23,7 +23,7 @@ type Props = {
   run: Run;
   onClose: () => void;
   // What the share builder needs beyond the run; absent = no Share action.
-  share?: Omit<ShareCardProps, "run" | "onClose">;
+  share?: Omit<ShareCardProps, "run" | "onClose" | "entry">;
 };
 
 // The moment between Finish and the run summary. docs/run-celebration.md.
@@ -109,7 +109,7 @@ export function RunCelebration({ celebration, run, onClose, share }: Props) {
           )}
         </div>
       </div>
-      {sharing && share && <ShareCardGate {...share} run={run} onClose={() => setSharing(false)} />}
+      {sharing && share && <ShareCardGate {...share} entry="finish" run={run} onClose={() => setSharing(false)} />}
     </>
   );
 }

@@ -305,6 +305,75 @@ choice either way.
 - Settings → Privacy toggles, one per channel (read/write consent directly) —
   `src/modals/settings/AccountPage.tsx`.
 
+## Non-personal server counters
+
+The consent model above covers everything that **collects about a person**. A
+small class of server-side tallies collects about the **product** instead, and
+they run without either consent, so every user is counted and the weekly digest
+(`docs/product-metrics.md`) reads database truth rather than an opt-in slice.
+Measuring the opt-in slice through PostHog undercounts by an unknown, shifting
+fraction, and that is the reason to build a counter at all. So gating a counter
+on consent defeats it, and a table that would need consent isn't a counter.
+
+A table qualifies only if **all five** hold:
+
+- **No user, device, run or session id.** No column (and no combination of
+  columns) points back at an account, an install, a run or a visit. A flag kept
+  in memory for one screen visit (`first_share`) is fine; a stored key for it is
+  an identifier in all but name.
+- **No free text and no location.** No IP, user agent, coordinates, race name,
+  note or anything typed.
+- **Only enumerated values.** Every column is a date or timestamp, a boolean, a
+  count, or a `check (... in (...))` enum (or, for an unauthenticated public endpoint, a
+  tight `check` pattern like `qr_scans.src`). A new value means a migration.
+- **Aggregate reads only.** RLS on, no `select` for `anon`/`authenticated`;
+  rows leave the database only as counts through `admin_metrics()` (service
+  role).
+- **No instants and no order for a signed-in writer.** Every authenticated
+  request reaches Supabase's request log with its user and time, so any stored
+  row that keeps the moment it was written (a timestamp) or its place in a
+  sequence (an identity id, the heap's insert order) can be lined up with that
+  log, row by row. So a counter the app writes stores **daily totals**, one row
+  per day and combination of values with a count `n`, raised by a `security
+  definer` function the client calls (`share_card_count`): the caller can add
+  one to a total, and can't read, insert, order or date a row. What is left is
+  Postgres's own bookkeeping (a total's `xmin`, dead row versions until vacuum,
+  the WAL), so **for the request log's retention**, someone holding both the
+  database (or its WAL) and the log can attribute a total's latest increment,
+  the whole event where `n = 1`, and on a day with few callers a day's totals by
+  elimination. Once the log expires, nothing joins back. A counter with no
+  signed-in writer (`qr_scans`, written by the public `get` function with no
+  account behind the request) may keep event rows and a full `created_at`; its
+  invocation log carries an IP for the log's retention, not an account.
+
+Writes are best-effort: a failed write is dropped silently (no retry queue,
+never a toast, never blocking the action it counts), so the counts are
+approximate, and since any signed-in client can add to them they can be
+inflated. Daily totals bound the live rows to one per day and combination,
+however many calls arrive; a flood still costs write I/O, WAL and dead row
+versions until vacuum, not table growth. The digest says "approximate". The request itself,
+like every API call, still reaches Supabase's request logs with its caller for
+their retention: the counter is non-personal as stored, not invisible in
+transit, and the path names the function (`/rest/v1/rpc/share_card_count`),
+so the log alone says that a user opened the share builder and roughly when.
+
+**Under it today:**
+
+| Table | Written by | Counts |
+| --- | --- | --- |
+| `qr_scans` | the public `get` edge function (`docs/store-redirect.md`) | flyer and share-link visits by platform and `src` tag |
+| `share_card_counts` | the share builder, through `share_card_count()` as `authenticated` (`docs/share-card.md`, "Analytics") | daily totals of builder opens, hand-offs and closes, by entry point, platform and style |
+
+**Not under it:** `live_broadcasts` keeps `user_id` (it dedupes a re-published
+run and counts runners), so it fails the first rule. It is a usage ledger read
+only through `admin_metrics()` and disclosed in `public/privacy.html` (*Sharing
+a run live*), not a non-personal counter, and nothing in this section covers it.
+
+Anything that fails a rule goes through a consent channel (PostHog, consent
+gated) or is a personal-data ledger disclosed in the privacy policy; it never
+borrows this exception. Adding a table here means adding it to this list in the
+same PR as its migration.
+
 ## Cookieless public pages
 
 The public live-run pages (`/watch/:token` and the follow list at `/watch/`,

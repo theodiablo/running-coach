@@ -305,7 +305,7 @@ export function RunDetailModal({ run, settings, runs, onClose, plan = null, part
         {run.notes && <p className="text-slate-400 text-sm">{run.notes}</p>}
       </div>
       {sharing && (
-        <ShareCardGate run={run} runs={runs || []} plan={plan} settings={settings} participations={participations}
+        <ShareCardGate entry="detail" run={run} runs={runs || []} plan={plan} settings={settings} participations={participations}
           points={hasPoints ? derived.points : null} showToast={showToast} onClose={() => setSharing(false)} />
       )}
     </div>

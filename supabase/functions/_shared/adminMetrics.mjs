@@ -75,6 +75,29 @@ function liveSection(l) {
   ];
 }
 
+// Share rate per visit: first hand-offs / (first hand-offs + visits closed unshared).
+const shareRate = (g) => {
+  const visits = g.shared + g.closed;
+  return visits ? `${Math.round((100 * g.shared) / visits)}% of ${visits}` : "no visits";
+};
+
+// Approximate: inserts are best-effort, and any signed-in client can add rows.
+function shareCardSection(s) {
+  const week = s["7d"];
+  const all = s.total;
+  return [
+    "",
+    "Share card (approximate)",
+    row("Opened", `${week.opened.finish} finish, ${week.opened.detail} detail (${tally(week.opened_by_platform)})`),
+    row("Handed off", `${week.shared} shared, ${week.saved} downloaded`),
+    row("Kept the pick", shareRate(week.kept)),
+    row("Changed it", shareRate(week.changed)),
+    row("Pick > shared", tally(week.handoffs)),
+    row("All time", `${all.opened.finish + all.opened.detail} opened, ${all.shared + all.saved} handed off`),
+    row("Tracked since", s.since ? String(s.since).slice(0, 10) : "no opens yet"),
+  ];
+}
+
 export function formatDigest(m) {
   const day = String(m.generated_at).slice(0, 10);
   const cost = Object.fromEntries(
@@ -131,6 +154,7 @@ export function formatDigest(m) {
         ]
       : []),
     ...(m.live ? liveSection(m.live) : []),
+    ...(m.share_card ? shareCardSection(m.share_card) : []),
   ];
   return { subject: `Running Coach - weekly metrics (${day})`, text: lines.join("\n") + "\n" };
 }

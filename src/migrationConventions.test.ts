@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 // service-role-only unless the client is its intended caller.
 const DIR = join(process.cwd(), "supabase", "migrations");
 // race_field: the race field's one cross-user read (docs/race-field.md).
-const CLIENT_CALLABLE_DEFINERS = new Set(["delete_my_account", "race_field"]);
+const CLIENT_CALLABLE_DEFINERS = new Set(["delete_my_account", "race_field", "share_card_count"]);
 
 const strip = (sql: string) => sql.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 const files = readdirSync(DIR).filter((n) => n.endsWith(".sql")).sort();
