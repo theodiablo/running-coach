@@ -337,9 +337,11 @@ A table qualifies only if **all five** hold:
   per day and combination of values with a count `n`, raised by a `security
   definer` function the client calls (`share_card_count`): the caller can add
   one to a total, and can't read, insert, order or date a row. What is left is
-  Postgres's own bookkeeping: a total's `xmin` names the last transaction that
-  raised it, so someone with both database and log access could attribute the
-  latest increment of each total, never the sequence. A counter with no
+  Postgres's own bookkeeping (a total's `xmin`, dead row versions until vacuum,
+  the WAL), so **for the request log's retention**, someone holding both the
+  database (or its WAL) and the log can attribute a total's latest increment,
+  the whole event where `n = 1`, and on a day with few callers a day's totals by
+  elimination. Once the log expires, nothing joins back. A counter with no
   signed-in writer (`qr_scans`, written by the public `get` function with no
   account behind the request) may keep event rows and a full `created_at`; its
   invocation log carries an IP for the log's retention, not an account.
@@ -351,7 +353,8 @@ inflated. Daily totals keep a flood's cost to a counter value: the table grows
 by at most one row per day and combination, however many calls arrive. The digest says "approximate". The request itself,
 like every API call, still reaches Supabase's request logs with its caller for
 their retention: the counter is non-personal as stored, not invisible in
-transit.
+transit, and the path names the function (`/rest/v1/rpc/share_card_count`),
+so the log alone says that a user opened the share builder and roughly when.
 
 **Under it today:**
 
