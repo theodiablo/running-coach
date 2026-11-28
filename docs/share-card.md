@@ -561,71 +561,74 @@ user agent; `live_broadcasts` feeds the digest).
 **A server-side anonymous counter is the digest's source** (decided).
 Plus the usual PostHog `track` events for consenting users, for funnels the
 counter can't do. The counter must stay non-personal for this to be honest, so
-the row shape is fixed:
+it stores **daily totals, never event rows** (decided at review, maintainer
+2026-11-28): any row that keeps when it was written, or where it sits in an
+insert sequence, can be lined up with Supabase's request log, which names the
+signed-in caller of every request (`docs/telemetry.md`, "No instants and no
+order for a signed-in writer").
 
 ```sql
-create table public.share_card_events (
-  id          bigint generated always as identity primary key,
-  created_at  timestamptz not null default now(),
+create table public.share_card_counts (
+  day         date not null,
   event       text not null check (event in ('opened', 'shared', 'saved', 'closed')),
   entry       text not null check (entry in ('finish', 'detail')),
   preselected text not null check (preselected in ('route', 'number', 'week')),
   chosen      text check (chosen in ('route', 'number', 'week')),
   platform    text not null check (platform in ('web', 'ios', 'android')),
   first_share boolean,
+  n           bigint not null default 0 check (n >= 0),
   check ((event = 'opened') = (chosen is null)),
-  check ((event = 'opened') = (first_share is null))
+  check ((event = 'opened') = (first_share is null)),
+  unique nulls not distinct (day, event, entry, preselected, chosen, platform, first_share)
 );
-
-grant insert on public.share_card_events to authenticated;
 ```
 
-- **No `user_id`**, no device id, no run id, no free text. `changed` is
-  derived (`chosen <> preselected`).
-- **One row per event**, never one per builder session:
+- **No `user_id`**, no device id, no run id, no free text, no instant, no
+  order. `changed` is derived (`chosen <> preselected`).
+- **One count per event**, never one per builder session:
   - `opened` when the builder mounts, with no `chosen`;
   - `shared` or `saved` on each successful hand-off, with the style handed
-    off as `chosen` and `first_share` set. Sharing two styles from one builder visit writes two
-    rows, so every shared style reaches the digest.
+    off as `chosen` and `first_share` set. Sharing two styles from one builder
+    visit counts twice, so every shared style reaches the digest.
   - `closed` when the builder closes **without** any hand-off, with the style
     on screen at that moment as `chosen` and `first_share` false. So a visit
     that didn't share still says whether the runner had changed the style.
-  - A dismissed share sheet or a failure writes nothing of its own.
+  - A dismissed share sheet or a failure counts nothing of its own.
   - `first_share` is true on the first hand-off of a builder visit, and false
     on any later one. It is a flag kept in the builder's memory, so no session
     key is stored, which would be a per-device identifier in all but name.
-  - Visits that shared = `shared`/`saved` rows with `first_share`. Visits that
-    didn't = `closed` rows.
+  - Visits that shared = `shared`/`saved` counts with `first_share`. Visits
+    that didn't = `closed` counts.
   - Share rate when the pre-selection was kept vs changed: for each group
-    (`chosen = preselected` or not), first-share rows divided by first-share
-    rows plus `closed` rows. Opens minus both counts gives the visits whose
-    closing row was lost (app killed, failed insert).
-  - Approximate: a failed insert, or a visit that crosses midnight at a week
-    boundary, can skew one count. The digest already labels these counts
-    approximate.
-- Write path:
-  - `enable row level security`;
-  - one `insert` policy `to authenticated with check ((select auth.uid()) is not null)`
-    (refuses the anon key, and isn't an "always true" policy for the linter);
-  - `grant insert ... to authenticated`. `auto_expose_new_tables` is unset,
-    so a new table gets **no** grants on the hosted project
-    (`docs/live-sharing.md`), and without the grant every insert fails even
-    though the policy allows it;
-  - `revoke select, update, delete ... from anon, authenticated`.
-
-  The client inserts with supabase-js and destructures `error`
-  (`local/supabase-check-error`). A failed insert is dropped silently: no
-  retry queue, never blocks or toasts. Counts are approximate and can be
-  inflated, like `qr_scans`. The digest says so.
-- No edge function and no `security definer`. `admin_metrics()` (already
-  definer) adds a `share_card` field: last 7 days and all time for opens by
-  entry, shares, and a pre-selected × chosen table. `formatDigest` gets a
-  section, omitted when the field is absent (same pattern as `qr`).
+    (`chosen = preselected` or not), first-share counts divided by first-share
+    counts plus `closed` counts. Opens minus both gives the visits whose
+    closing count was lost (app killed, failed call).
+  - Approximate: a failed call, or a visit that crosses midnight UTC, can skew
+    one count. The digest labels these counts approximate.
+- Write path: `share_card_count(event, entry, preselected, chosen, platform,
+  first_share)`, a `security definer` function with `search_path = ''`,
+  executable by `authenticated` only (revoked from `public` and `anon`), the
+  third client-callable definer after `delete_my_account` and `race_field`.
+  - It returns without writing when `auth.uid()` is null, and stamps the
+    server's UTC day itself, so a client can neither date a count nor reach
+    the table: RLS is on and `anon`/`authenticated` hold no table grants.
+  - `insert ... on conflict ... do update set n = n + 1`; the `nulls not
+    distinct` unique key is what lets the `opened` rows (null `chosen` and
+    `first_share`) share one total per day.
+  - The client calls it with `supabase.rpc` and destructures `error`
+    (`local/supabase-check-error`). A failed call is dropped silently: no
+    retry queue, never blocks or toasts. Counts are approximate and can be
+    inflated by a signed-in client calling in a loop, which costs a counter
+    value, not table growth. The digest says so.
+- `admin_metrics()` (already definer) adds a `share_card` field: the 7
+  completed UTC days and all time, for opens by entry, shares, and a
+  pre-selected × chosen table. `formatDigest` gets a section, omitted when the
+  field is absent (same pattern as `qr`).
 - PostHog (consenting only, through `src/telemetry`): `share_card_opened`
   `{entry, preselected}` and `share_card_shared` `{entry, preselected, chosen,
   event}`. No run data, no text.
 
-**As built** (`src/share/shareEvents.ts`, migration `share_card_events`):
+**As built** (`src/share/shareEvents.ts`, migration `share_card_counts`):
 
 - The builder takes an `entry` prop (`"finish"` from `RunCelebration`,
   `"detail"` from `RunDetailModal`). `platform` is `native.ts`'s, any browser
@@ -637,13 +640,13 @@ grant insert on public.share_card_events to authenticated;
   doesn't double it). `closed` is written by the builder's own close path,
   which the close button and `useDismissable` (back, Escape, the header's
   go-Home reset) all go through. A close while a hand-off is still in flight
-  (the PNG encoding) defers to it: the visit gets the hand-off row if it
+  (the PNG encoding) defers to it: the visit gets the hand-off count if it
   lands, else `closed`, never both. An unmount without a close (the app
-  killed) writes nothing, which is the "lost closing row" the digest allows for.
-- Rows carry the UTC **day**, not the moment: a `before insert` trigger stamps
-  `created_at`, and `authenticated` may insert only the enum columns, so a
-  client can't date a row. The 7-day window therefore moves by whole days
-  (`docs/telemetry.md`, "Coarse, server-set time").
+  killed) counts nothing, which is the "lost closing count" the digest allows
+  for. A close counts once however many close paths fire, and a double tap
+  starts one share.
+- Counts are per UTC day, so the digest's week is the 7 completed UTC days
+  before it runs: weekly digests tile, and today's counts wait for tomorrow.
 - `admin_metrics()` returns `share_card: { since, "7d", total }`, each window
   `{ opened: {finish, detail}, opened_by_platform, shared, saved,
   kept: {shared, closed}, changed: {shared, closed}, handoffs:
@@ -662,9 +665,10 @@ qualifies:
 - no free text and no location;
 - only enumerated values;
 - aggregate reads only (`admin_metrics()`);
-- coarse, server-set time (added at review: see the as-built notes).
+- no instants and no order for a signed-in writer (added at review: daily
+  totals, above).
 
-It lists `qr_scans` and `share_card_events` under it. `live_broadcasts` keeps
+It lists `qr_scans` and `share_card_counts` under it. `live_broadcasts` keeps
 `user_id`, so it fails the first rule and is listed as not covered (maintainer,
 2026-11-28): a usage ledger disclosed in the privacy policy, not a
 non-personal counter. CLAUDE.md's telemetry line points to the section.
@@ -776,8 +780,8 @@ store-release effect sits alone in a small one:
 3. **Analytics + digest** (built).
    - the "Non-personal server counters" section in
      `docs/telemetry.md`, in the same PR and ahead of the insert;
-   - the `share_card_events` migration (with its `authenticated` insert
-     grant);
+   - the `share_card_counts` migration (daily totals and the
+     `share_card_count()` function the client calls);
    - the client write in `ShareCardSheet`, plus the two PostHog events;
    - `admin_metrics()` and `formatDigest`;
    - a "Share card" section in `docs/product-metrics.md`.

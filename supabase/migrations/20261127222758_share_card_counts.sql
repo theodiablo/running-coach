@@ -1,56 +1,51 @@
--- Post-run share card counter: one row per builder event, with no user, device, run or session
--- id, no free text, enums only, read only as aggregates through admin_metrics(). That is what
--- lets it count every runner without consent: docs/telemetry.md ("Non-personal server counters").
--- Row semantics and the digest's ratios: docs/share-card.md ("Analytics").
+-- Post-run share card counter: daily totals per combination of enum values, never one row per
+-- event, so no row has an instant or an order that a request log could match to its caller.
+-- It counts every runner without consent: docs/telemetry.md ("Non-personal server counters").
+-- What each value means and the digest's ratios: docs/share-card.md ("Analytics").
 
-create table public.share_card_events (
-  id          bigint generated always as identity primary key,
-  -- The UTC day only, stamped by the trigger below: a full timestamp joins a row back to its caller.
-  created_at  timestamptz not null default date_trunc('day', now(), 'UTC'),
+create table public.share_card_counts (
+  day         date not null,
   event       text not null check (event in ('opened', 'shared', 'saved', 'closed')),
   entry       text not null check (entry in ('finish', 'detail')),
   preselected text not null check (preselected in ('route', 'number', 'week')),
   chosen      text check (chosen in ('route', 'number', 'week')),
   platform    text not null check (platform in ('web', 'ios', 'android')),
   first_share boolean,
+  n           bigint not null default 0 check (n >= 0),
   check ((event = 'opened') = (chosen is null)),
-  check ((event = 'opened') = (first_share is null))
+  check ((event = 'opened') = (first_share is null)),
+  unique nulls not distinct (day, event, entry, preselected, chosen, platform, first_share)
 );
 
-comment on table public.share_card_events is
-  'Share builder opens, hand-offs and closes. Non-personal: no user/device/run/session id. Insert-only for authenticated; read by admin_metrics().';
+comment on table public.share_card_counts is
+  'Daily share builder totals (opens, hand-offs, closes) per enum combination. Non-personal: no id, no instant, no order. Written only by share_card_count(); read by admin_metrics().';
 
-create index share_card_events_created_at_idx on public.share_card_events (created_at);
+alter table public.share_card_counts enable row level security;
+revoke all on public.share_card_counts from anon, authenticated;
 
-alter table public.share_card_events enable row level security;
-revoke all on public.share_card_events from anon, authenticated;
--- auto_expose_new_tables is unset, so without this grant every insert fails despite the policy.
--- Column-scoped: a client can't date a row (a 2099 row would sit in every future 7-day window).
-grant insert (event, entry, preselected, chosen, platform, first_share) on public.share_card_events to authenticated;
-
--- The day is the server's, whatever the insert carried (service_role included).
-create or replace function public.share_card_events_stamp()
-returns trigger
+-- Definer: the caller may add one to a total but never read, write or order the rows.
+-- Signed-in callers only; the day is the server's UTC day.
+create or replace function public.share_card_count(
+  p_event text, p_entry text, p_preselected text, p_chosen text, p_platform text, p_first_share boolean
+)
+returns void
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 begin
-  new.created_at := pg_catalog.date_trunc('day', pg_catalog.now(), 'UTC');
-  return new;
+  if (select auth.uid()) is null then
+    return;
+  end if;
+  insert into public.share_card_counts as c (day, event, entry, preselected, chosen, platform, first_share, n)
+  values ((pg_catalog.now() at time zone 'UTC')::date, p_event, p_entry, p_preselected, p_chosen, p_platform, p_first_share, 1)
+  on conflict (day, event, entry, preselected, chosen, platform, first_share)
+  do update set n = c.n + 1;
 end;
 $$;
 
-revoke execute on function public.share_card_events_stamp() from public, anon, authenticated;
-
-create trigger share_card_events_stamp
-  before insert on public.share_card_events
-  for each row execute function public.share_card_events_stamp();
-
--- Not an "always true" policy for the linter; anon has no grant at all.
-create policy share_card_events_insert on public.share_card_events
-  for insert to authenticated
-  with check ((select auth.uid()) is not null);
+revoke execute on function public.share_card_count(text, text, text, text, text, boolean) from public, anon;
+grant execute on function public.share_card_count(text, text, text, text, text, boolean) to authenticated;
 
 -- admin_metrics() as of 20261109194500_live_broadcasts, plus the 'share_card' section.
 create or replace function public.admin_metrics()
@@ -114,50 +109,50 @@ as $$
     from public.live_broadcasts lb
   ),
   -- `kept`: the hand-off (or the close) was on the style the builder pre-selected.
-  share_events as (
-    select e.created_at, e.event, e.entry, e.platform, e.preselected, e.chosen, e.first_share,
-      e.chosen = e.preselected as kept
-    from public.share_card_events e
+  share_counts as (
+    select c.day, c.event, c.entry, c.platform, c.preselected, c.chosen, c.first_share, c.n,
+      c.chosen = c.preselected as kept
+    from public.share_card_counts c
   ),
-  -- A visit that shared = its first hand-off; one that didn't = its `closed` row.
-  -- Rows carry the day only, so '7d' is the 7 completed UTC days: weekly digests tile, none is lost.
+  -- A visit that shared = its first hand-off; one that didn't = its `closed` count.
+  -- Counts are per day, so '7d' is the 7 completed UTC days: weekly digests tile, none is lost.
   share_windows as (
     select w.name, jsonb_build_object(
       'opened', jsonb_build_object(
-        'finish', count(e.*) filter (where e.event = 'opened' and e.entry = 'finish'),
-        'detail', count(e.*) filter (where e.event = 'opened' and e.entry = 'detail')
+        'finish', coalesce(sum(e.n) filter (where e.event = 'opened' and e.entry = 'finish'), 0),
+        'detail', coalesce(sum(e.n) filter (where e.event = 'opened' and e.entry = 'detail'), 0)
       ),
       'opened_by_platform', (
         select coalesce(jsonb_object_agg(platform, n), '{}'::jsonb)
         from (
-          select o.platform, count(*) n from share_events o
-          where o.event = 'opened' and (w.name = 'all' or (o.created_at >= k.d0 - interval '7 days' and o.created_at < k.d0))
+          select o.platform, sum(o.n) n from share_counts o
+          where o.event = 'opened' and (w.name = 'all' or (o.day >= k.d0 - 7 and o.day < k.d0))
           group by 1
         ) x
       ),
-      'shared', count(e.*) filter (where e.event = 'shared'),
-      'saved', count(e.*) filter (where e.event = 'saved'),
+      'shared', coalesce(sum(e.n) filter (where e.event = 'shared'), 0),
+      'saved', coalesce(sum(e.n) filter (where e.event = 'saved'), 0),
       'kept', jsonb_build_object(
-        'shared', count(e.*) filter (where e.event in ('shared', 'saved') and e.first_share and e.kept),
-        'closed', count(e.*) filter (where e.event = 'closed' and e.kept)
+        'shared', coalesce(sum(e.n) filter (where e.event in ('shared', 'saved') and e.first_share and e.kept), 0),
+        'closed', coalesce(sum(e.n) filter (where e.event = 'closed' and e.kept), 0)
       ),
       'changed', jsonb_build_object(
-        'shared', count(e.*) filter (where e.event in ('shared', 'saved') and e.first_share and not e.kept),
-        'closed', count(e.*) filter (where e.event = 'closed' and not e.kept)
+        'shared', coalesce(sum(e.n) filter (where e.event in ('shared', 'saved') and e.first_share and not e.kept), 0),
+        'closed', coalesce(sum(e.n) filter (where e.event = 'closed' and not e.kept), 0)
       ),
       -- Every hand-off, "preselected>chosen".
       'handoffs', (
         select coalesce(jsonb_object_agg(k, n), '{}'::jsonb)
         from (
-          select h.preselected || '>' || h.chosen k, count(*) n from share_events h
-          where h.event in ('shared', 'saved') and (w.name = 'all' or (h.created_at >= k.d0 - interval '7 days' and h.created_at < k.d0))
+          select h.preselected || '>' || h.chosen k, sum(h.n) n from share_counts h
+          where h.event in ('shared', 'saved') and (w.name = 'all' or (h.day >= k.d0 - 7 and h.day < k.d0))
           group by 1
         ) x
       )
     ) as v
     from (values ('7d'), ('all')) w(name)
-    cross join (select pg_catalog.date_trunc('day', pg_catalog.now(), 'UTC') as d0) k
-    left join share_events e on (w.name = 'all' or (e.created_at >= k.d0 - interval '7 days' and e.created_at < k.d0))
+    cross join (select (pg_catalog.now() at time zone 'UTC')::date as d0) k
+    left join share_counts e on (w.name = 'all' or (e.day >= k.d0 - 7 and e.day < k.d0))
     group by w.name, k.d0
   )
   select jsonb_build_object(
@@ -248,7 +243,7 @@ as $$
       )
     ),
     'share_card', jsonb_build_object(
-      'since', (select min(created_at) from share_events),
+      'since', (select min(day) from share_counts),
       '7d', (select v from share_windows where name = '7d'),
       'total', (select v from share_windows where name = 'all')
     )

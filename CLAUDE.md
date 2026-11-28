@@ -170,7 +170,8 @@ tests (`src/migrationConventions.test.ts` pins the function rules below).
   function must touch something the caller can't (the `auth` schema, another
   user's row) — then revoke `EXECUTE` from `public, anon, authenticated` and
   grant it to `service_role` alone, unless the client is the intended caller
-  (`delete_my_account`, the one accepted lint-0029 finding). Service-role-only
+  (`delete_my_account`, `race_field`, `share_card_count`: the accepted
+  lint-0029 findings, listed in `src/migrationConventions.test.ts`). Service-role-only
   tables pair `enable row level security` (no policies = deny all) with an
   explicit `revoke all ... from anon, authenticated`; the linter's INFO
   `rls_enabled_no_policy` on them is the intent, not a gap. RLS policies call

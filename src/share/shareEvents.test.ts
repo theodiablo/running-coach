@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const insert = vi.fn();
-const from = vi.fn(() => ({ insert }));
+const rpc = vi.fn();
 const track = vi.fn();
 
 async function load(platform = "web") {
   vi.resetModules();
-  vi.doMock("../supabase", () => ({ supabase: { from } }));
+  vi.doMock("../supabase", () => ({ supabase: { rpc } }));
   vi.doMock("../native", () => ({ platform }));
   vi.doMock("../telemetry", () => ({ track }));
   return await import("./shareEvents");
@@ -14,26 +13,26 @@ async function load(platform = "web") {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  insert.mockResolvedValue({ error: null });
+  rpc.mockResolvedValue({ error: null });
 });
 
 describe("share counter", () => {
-  it("writes enums only: no user, run or session id ever reaches the row", async () => {
+  it("sends enums only: no user, run or session id ever reaches the counter", async () => {
     const ev = await load("android");
     ev.shareOpened("finish", "route");
     ev.shareHandedOff("shared", "finish", "route", "week", true);
     ev.shareClosed("detail", "number", "number");
-    expect(from).toHaveBeenCalledWith("share_card_events");
-    expect(insert.mock.calls.map(c => c[0])).toEqual([
-      { event: "opened", entry: "finish", preselected: "route", platform: "android" },
-      { event: "shared", entry: "finish", preselected: "route", chosen: "week", first_share: true, platform: "android" },
-      { event: "closed", entry: "detail", preselected: "number", chosen: "number", first_share: false, platform: "android" },
+    expect(rpc.mock.calls.map(c => c[0])).toEqual(["share_card_count", "share_card_count", "share_card_count"]);
+    expect(rpc.mock.calls.map(c => c[1])).toEqual([
+      { p_event: "opened", p_entry: "finish", p_preselected: "route", p_chosen: null, p_first_share: null, p_platform: "android" },
+      { p_event: "shared", p_entry: "finish", p_preselected: "route", p_chosen: "week", p_first_share: true, p_platform: "android" },
+      { p_event: "closed", p_entry: "detail", p_preselected: "number", p_chosen: "number", p_first_share: false, p_platform: "android" },
     ]);
   });
 
   it("files any browser under web", async () => {
     (await load("web")).shareOpened("detail", "number");
-    expect(insert.mock.calls[0][0].platform).toBe("web");
+    expect(rpc.mock.calls[0][1].p_platform).toBe("web");
   });
 
   it("sends the two consent-gated events, and none for a close", async () => {
@@ -47,16 +46,16 @@ describe("share counter", () => {
     ]);
   });
 
-  it("drops a failed insert without throwing", async () => {
+  it("drops a failed count without throwing", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    insert.mockResolvedValue({ error: { message: "denied" } });
+    rpc.mockResolvedValue({ error: { message: "denied" } });
     const ev = await load();
     expect(() => ev.shareOpened("finish", "route")).not.toThrow();
-    insert.mockRejectedValue(new Error("offline"));
+    rpc.mockRejectedValue(new Error("offline"));
     expect(() => ev.shareOpened("finish", "route")).not.toThrow();
-    from.mockImplementationOnce(() => { throw new Error("no client"); });
+    rpc.mockImplementationOnce(() => { throw new Error("no client"); });
     expect(() => ev.shareOpened("finish", "route")).not.toThrow();
     await new Promise(r => setTimeout(r, 0));
-    expect(warn).toHaveBeenCalledWith("share_card_events insert failed", "denied");
+    expect(warn).toHaveBeenCalledWith("share_card_count failed", "denied");
   });
 });
