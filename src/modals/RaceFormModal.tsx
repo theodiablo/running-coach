@@ -195,7 +195,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
         <div className="p-4 space-y-4 overflow-y-auto">
           {dupe ? <DuplicatePrompt dupe={dupe} busy={busy} onUse={() => pickExisting(dupe.match)}
             onAddDate={() => addDateTo(dupe.match.race)}
-            onDifferent={() => { setDupe(null); void submit(null, [...dupe.distinctFrom, dupe.match.race.slug]); }}
+            onDifferent={() => { setDupe(null); void submit(null, [...dupe.distinctFrom, dupe.match.race.slug || dupe.match.race.id]); }}
             onBack={() => setDupe(null)}/> : <>
           {selected ? (
             <div className="flex items-center justify-between gap-2 bg-slate-700/50 rounded-xl p-3">
