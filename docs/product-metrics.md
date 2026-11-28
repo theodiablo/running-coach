@@ -36,7 +36,8 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
 - **Share card** comes from `share_card_events`, a non-personal counter
   (`docs/telemetry.md`, "Non-personal server counters"; row semantics in
   `docs/share-card.md`, "Analytics"), so it counts every runner, not the opt-in
-  slice. Last 7 days, by row time:
+  slice. The week is the **7 completed UTC days** before the digest (rows carry
+  the day only, so a rolling 168 hours would drop most of the oldest day):
   - **Opened**: builder opens by entry point (finish screen / run detail),
     and by platform.
   - **Handed off**: `shared` (OS sheet) and `saved` (desktop download) rows;
@@ -48,7 +49,7 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   - **Pick > shared**: every hand-off as `preselected>chosen`.
 
   Counts are approximate (best-effort inserts, any signed-in client can add
-  rows, rows carry the day only, so the window edge moves by whole days); "tracked since" is where the
+  rows, and today's rows wait for tomorrow's digest); "tracked since" is where the
   history starts. The digest omits the section when the field is absent.
 
 ## The edge function (`admin-metrics`)

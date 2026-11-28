@@ -56,3 +56,83 @@ describe("shareImage", () => {
     expect(nav.share).not.toHaveBeenCalled();
   });
 });
+
+// Like registerPlugin's proxy: every property is a method, `then` included, and an
+// unknown one rejects, so a promise resolved with the bare proxy never settles.
+function capacitorProxy(name: string, methods: Record<string, unknown>) {
+  return new Proxy({}, {
+    get: (_, prop) => methods[prop as string]
+      ?? (() => Promise.reject(new Error(`"${name}.${String(prop)}()" is not implemented on android`))),
+  });
+}
+
+describe("shareImage in a native shell", () => {
+  const writeFile = vi.fn();
+  const share = vi.fn();
+  let available: Record<string, boolean>;
+
+  // isNative is a module-level const, so each case loads the seam fresh inside a shell.
+  async function load() {
+    vi.resetModules();
+    vi.doMock("../native", () => ({ isNative: true }));
+    vi.doMock("@capacitor/core", () => ({ Capacitor: { isPluginAvailable: (n: string) => !!available[n] } }));
+    vi.doMock("@capacitor/filesystem", () => ({ Filesystem: capacitorProxy("Filesystem", { writeFile }), Directory: { Cache: "CACHE" } }));
+    vi.doMock("@capacitor/share", () => ({ Share: capacitorProxy("Share", { share }) }));
+    return await import("./shareImage");
+  }
+
+  afterEach(() => {
+    vi.doUnmock("../native");
+    vi.doUnmock("@capacitor/core");
+    vi.doUnmock("@capacitor/filesystem");
+    vi.doUnmock("@capacitor/share");
+    writeFile.mockReset();
+    share.mockReset();
+  });
+
+  it("writes the PNG to the cache and hands its file URI and the text to the share sheet", async () => {
+    available = { Share: true, Filesystem: true };
+    writeFile.mockResolvedValue({ uri: "file:///cache/run.png" });
+    share.mockResolvedValue({ activityType: "" });
+    const seam = await load();
+    expect(seam.canShareImage()).toBe(true);
+    expect(seam.opensShareSheet()).toBe(true);
+    expect(await seam.shareImage(new Blob(["png"]), "run.png", "Tracked with Running Coach")).toBe("shared");
+    expect(writeFile).toHaveBeenCalledWith({ path: "run.png", data: btoa("png"), directory: "CACHE" });
+    expect(share).toHaveBeenCalledWith({ files: ["file:///cache/run.png"], text: "Tracked with Running Coach" });
+  });
+
+  it("never reaches for the browser's share or download inside a shell", async () => {
+    available = { Share: true, Filesystem: true };
+    writeFile.mockResolvedValue({ uri: "file:///cache/run.png" });
+    share.mockResolvedValue({});
+    const webShare = vi.fn();
+    Object.assign(nav, { share: webShare, canShare: () => true });
+    const seam = await load();
+    expect(await seam.shareImage(blob, "run.png")).toBe("shared");
+    expect(webShare).not.toHaveBeenCalled();
+  });
+
+  it("reads a closed sheet as a decision, not a failure", async () => {
+    available = { Share: true, Filesystem: true };
+    writeFile.mockResolvedValue({ uri: "file:///cache/run.png" });
+    share.mockRejectedValue(new Error("Share canceled"));
+    expect(await (await load()).shareImage(blob, "run.png")).toBe("dismissed");
+  });
+
+  it("fails when the file can't be written, without opening the sheet", async () => {
+    available = { Share: true, Filesystem: true };
+    writeFile.mockRejectedValue(new Error("disk full"));
+    expect(await (await load()).shareImage(blob, "run.png")).toBe("failed");
+    expect(share).not.toHaveBeenCalled();
+  });
+
+  it.each<Record<string, boolean>>([{ Share: true }, { Filesystem: true }, {}])("hides the share action when a plugin is missing (%o)", async (a) => {
+    available = a;
+    const seam = await load();
+    expect(seam.canShareImage()).toBe(false);
+    expect(seam.opensShareSheet()).toBe(false);
+    expect(await seam.shareImage(blob, "run.png")).toBe("failed");
+    expect(share).not.toHaveBeenCalled();
+  });
+});

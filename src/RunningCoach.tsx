@@ -82,6 +82,8 @@ import { isRecordedArrival, type RunPrefill } from "./utils/runPrefill";
 import { RacesView } from "./views/RacesView";
 import { ProgressView } from "./views/ProgressView";
 import { BottomNav } from "./components/BottomNav";
+import { createFieldReconciler, leavePendingFields, noteListedEditions, syncFieldGoal } from "./raceField";
+import { usePublicName } from "./hooks/usePublicName";
 import { coachSessionKey, isCrossTraining } from "./types";
 import type {
   CatalogueRace,
@@ -678,6 +680,43 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // A slow or offline boot reconciles after loading; the automation's once-per-boot turn is then.
   useEffect(() => subscribeStoreReconciled(() => planAutomationRef.current()), []);
 
+  // Race field (docs/race-field.md). The public name lives on profiles, never in the blob;
+  // undefined = not read (yet, or the read failed).
+  const uid = user?.id ?? null;
+  const { publicName, setPublicName, reloadPublicName } = usePublicName(uid);
+  // A race that leaves the list on this device owes its membership a delete, retried until
+  // it lands (docs/race-field.md). Never before the store is loaded and reconciled.
+  const listedIds = () => (racesRef.current.participations || []).map(p => p.editionId).filter((id): id is string => !!id);
+  const fieldReconciler = useRef<ReturnType<typeof createFieldReconciler> | null>(null);
+  useEffect(() => {
+    if (!uid) return;
+    const rec = createFieldReconciler(async () => {
+      if (!isStoreLoaded() || !isStoreReconciled()) return true;
+      return leavePendingFields(uid, listedIds);
+    });
+    fieldReconciler.current = rec;
+    const onVisible = () => { if (document.visibilityState === "visible") rec.run(); };
+    window.addEventListener("online", rec.run);
+    document.addEventListener("visibilitychange", onVisible);
+    const unsub = subscribeStoreReconciled(rec.run);
+    return () => {
+      rec.stop(); unsub();
+      window.removeEventListener("online", rec.run);
+      document.removeEventListener("visibilitychange", onVisible);
+      fieldReconciler.current = null;
+    };
+  }, [uid]);
+  const listedEditions = (races.participations || []).map(p => p.editionId).filter(Boolean).sort().join(",");
+  const prevListed = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (loading || !uid) return;
+    const now = listedEditions ? listedEditions.split(",") : [];
+    const prev = prevListed.current;
+    prevListed.current = now;
+    noteListedEditions(uid, prev ? prev.filter(id => !now.includes(id)) : [], now);
+    fieldReconciler.current?.run();
+  }, [listedEditions, loading, uid]);
+
   const savePlan     = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); track("plan_generated", {}); };
   const restorePlan  = (p: Plan) => { setPlan(p); db.set(STORAGE_KEYS.PLAN, p); };
   // Complete a cloud provider's OAuth return (no-op on a normal load or unconfigured provider).
@@ -833,7 +872,10 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
     const parts = withGoal(races.participations || [], settings.targetEditionId, goalSec);
     if (parts !== races.participations) commitRaces({ ...races, participations: parts });
     const rebuilt = !!plan && goalKind(plan) === "race" && rebuildPlanWith(next, parts);
+    const fieldEdition = settings.targetEditionId;
+    if (uid && fieldEdition) void syncFieldGoal(uid, fieldEdition, goalSec);
     showToast(t(rebuilt ? "races.goal.planUpdated" : "races.goal.saved"), "ok", { label: t("common.undo"), onClick: () => {
+      if (uid && fieldEdition) void syncFieldGoal(uid, fieldEdition, Number(prevSettings.goalSec) || null);
       saveSettings(prevSettings);
       commitRaces(prevRaces);
       if (rebuilt && prevPlan) restorePlan(prevPlan);
@@ -1354,7 +1396,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   // never counts as a page, the same shape openTracker/openCoach use.
   const openSettings = (page?: unknown) => {
     saveUserContext(userContextRef.current);
-    setSettingsPage(page === "account" || page === "integrations" || page === "training" || page === "help" ? page : null);
+    setSettingsPage(page === "account" || page === "integrations" || page === "training" || page === "help" || page === "publicName" ? page : null);
     setShowSettings(true);
   };
   // Leaving settings FOR another full-screen flow (backup, restore, coach,
@@ -1363,6 +1405,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const leaveSettings = () => { resumeRecorderRef.current = null; setShowSettings(false); };
   const closeSettings = () => {
     setShowSettings(false);
+    reloadPublicName();
     const resume = resumeRecorderRef.current;
     resumeRecorderRef.current = null;
     if (resume === "tracker") setShowTracker(true);
@@ -1441,7 +1484,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
   const nextSheet = whatsNext ?? (calm && whatsNextDue(phaseInfo, plan, settings.whatsNextFor, todayStr)
     && !autoStartDue({ plan, settings, participations: races.participations || [], runs }, todayStr) ? { variant: "afterRace" as const } : null);
   const nextSheetKm = (nextSheet && "km" in nextSheet ? nextSheet.km : 0) || phaseInfo?.race?.km || Number(settings.distanceKm) || Number(plan?.goal?.distanceKm) || 0;
-  const shared = {reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, openChangePlan, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
+  const shared = {publicName, reviewCard: review.card, openFeedback, openWhatsNext: () => setWhatsNext({ variant: "manual" }), isPremium, stretchLog, openStretch, recorderOpen, availableUpdate, runs, plan, settings, races, userContext, addRuns, savePlan, restorePlan, saveSettings, saveUserContext, saveRaces, setRaceInPlan, promoteEdition, previewTargetGoal, updateTargetGoal, dateChanges, applyRaceDateChange, keepRaceDate, toggleSess, skipSess, settleRace, skipRace, openPlanGoalEdit, openChangePlan, editSession, lightenRecovery: lightenRecoveryPlan, linkSess, unlinkSess, buildPlan, exportData, deleteRun, updateRun, showToast, goTab: setTab, goLog, goProgress, goToRuns, highlight, openSettings, openRaceForm: () => setShowRaceForm(true),
     // A {wNum, sId} link opens the tracker from that plan session so the saved
     // run auto-ticks it; a bare call (or an event from onClick={openTracker})
     // opens it unlinked. Guard on shape so a click event never counts as a link.
@@ -1561,6 +1604,7 @@ export default function RunningCoach({ onSignOut = () => {}, user, premiumUntil 
       {showSettings && <SettingsModal
         settings={settings} saveSettings={saveSettings} userContext={userContext} saveUserContext={saveUserContext} showToast={showToast}
         scanImportsNow={shared.scanImportsNow} user={user} plan={plan} initialPage={settingsPage ?? undefined}
+        publicName={publicName} onPublicNameSaved={setPublicName}
         canRate={!!reviewChannel?.link} onRate={review.rateFromSettings}
         onBackup={()  => { leaveSettings(); exportData(); }}
         onRestore={() => { leaveSettings(); setShowRestore(true); }}

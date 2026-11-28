@@ -120,6 +120,7 @@ as $$
     from public.share_card_events e
   ),
   -- A visit that shared = its first hand-off; one that didn't = its `closed` row.
+  -- Rows carry the day only, so '7d' is the 7 completed UTC days: weekly digests tile, none is lost.
   share_windows as (
     select w.name, jsonb_build_object(
       'opened', jsonb_build_object(
@@ -130,7 +131,7 @@ as $$
         select coalesce(jsonb_object_agg(platform, n), '{}'::jsonb)
         from (
           select o.platform, count(*) n from share_events o
-          where o.event = 'opened' and (w.name = 'all' or o.created_at >= b.t_7)
+          where o.event = 'opened' and (w.name = 'all' or (o.created_at >= k.d0 - interval '7 days' and o.created_at < k.d0))
           group by 1
         ) x
       ),
@@ -149,15 +150,15 @@ as $$
         select coalesce(jsonb_object_agg(k, n), '{}'::jsonb)
         from (
           select h.preselected || '>' || h.chosen k, count(*) n from share_events h
-          where h.event in ('shared', 'saved') and (w.name = 'all' or h.created_at >= b.t_7)
+          where h.event in ('shared', 'saved') and (w.name = 'all' or (h.created_at >= k.d0 - interval '7 days' and h.created_at < k.d0))
           group by 1
         ) x
       )
     ) as v
     from (values ('7d'), ('all')) w(name)
-    cross join bounds b
-    left join share_events e on (w.name = 'all' or e.created_at >= b.t_7)
-    group by w.name, b.t_7
+    cross join (select pg_catalog.date_trunc('day', pg_catalog.now(), 'UTC') as d0) k
+    left join share_events e on (w.name = 'all' or (e.created_at >= k.d0 - interval '7 days' and e.created_at < k.d0))
+    group by w.name, k.d0
   )
   select jsonb_build_object(
     'generated_at', b.t_now,

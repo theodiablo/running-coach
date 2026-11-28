@@ -1,7 +1,7 @@
 # Post-run share card
 
-Status: **PR 1 (card, builder, web sharing) and PR 3 (analytics) are built**;
-PR 2 (native sharing) is designed, not built (see "PR split"). The product
+Status: **all three PRs are built**: PR 1 (card, builder, web sharing), PR 2
+(native sharing) and PR 3 (analytics) (see "PR split"). The product
 decisions are in `docs/social.md` ("Post-run share card"), the visual design in
 the maintainer's canvas (https://claude.ai/artifact/TJeaNbU8BedgAJN5o6hTG4:
 `Main` = A, `Card-Number` = B, `Card-Plan` = D, `Flow-Finish`,
@@ -103,9 +103,9 @@ the canvas's two families:
 - Both use the `latin` + `latin-ext` subsets (accents and race names like
   "Łódź"), imported as `?url` woff2 assets in the share chunk only. That is
   10 files (5 faces × 2 subsets), ~25 KB each, loaded on first open.
-- They are local assets: no Google Fonts and no CSP change. Until PR 2,
-  `VITE_NATIVE_BUILD` folds the builder chunk and its fonts out of the native
-  build, so the shells carry none of it.
+- They are local assets: no Google Fonts and no CSP change. The shells carry
+  the same lazy chunk and fonts as the web build (no `VITE_NATIVE_BUILD` fold
+  since PR 2).
 - The builder loads them with `new FontFace(...)` + `document.fonts.add` and
   awaits `document.fonts.load` for each family and weight **before the first
   draw**. A canvas drawn before the font is ready falls back silently and never
@@ -397,8 +397,13 @@ is one seam, and the builder never branches on the platform.
   not a failure, same rule as `useShareLink`.
 - Saving to the photo library is left to the share sheet itself ("Save image"
   is in both OS sheets). We don't ask for any photos permission.
-- Cache files are named `share-card-<runId>.png` and overwritten, so they don't
-  pile up.
+- The native path writes the export under its own name (`run-<date>.png`, the
+  name the receiving app shows) in `Directory.Cache`, overwritten on each
+  share: at most one file per run date, in a directory the OS may clear. The
+  finish screen's run has no id yet, so the date is the name.
+- A closed native sheet rejects with "Share canceled" on both platforms, read
+  as `"dismissed"`. The native path never downloads: it is `"shared"`,
+  `"dismissed"` or `"failed"`.
 - **Share text**: one localized line with a link, e.g. "Tracked with Running
   Coach: https://run.camboulive.solutions/get?src=share-route".
   - Messaging apps and mail keep it next to the image. Instagram stories and
@@ -423,14 +428,21 @@ is one seam, and the builder never branches on the platform.
   `Capacitor.isPluginAvailable("Filesystem")` (CLAUDE.md: gate every native call
   on its own availability check). `canShareImage()` needs both, and each call
   site still checks its own plugin. When either check fails, the share action
-  is hidden rather than broken.
+  is hidden rather than broken. `opensShareSheet()` picks the button label
+  (Share vs Download) on the same terms.
 - Android: `Share` resolves the file through the app's existing FileProvider
-  (`${applicationId}.fileprovider`, already in `AndroidManifest.xml`). Its
-  `file_paths.xml` must cover the cache dir. To check in the PR, along with
-  confirming the plugin doesn't `launch` a coroutine without a `catch` (CLAUDE.md:
-  an uncaught exception in a plugin coroutine kills the process).
+  (`${applicationId}.fileprovider`); `file_paths.xml`'s `<cache-path path=".">`
+  covers `Directory.Cache` (`context.getCacheDir()`). Checked for PR 2: `Share`
+  is plain Java with no coroutine (its `getUriForFile` sits in a `try`), and
+  every `Filesystem` coroutine ends in a `Result.onFailure` that rejects the
+  call, so neither needs a patch. Neither plugin's manifest adds a permission.
 - iOS: no new permission or Info.plist key (we write to our own cache and present
-  `UIActivityViewController`). Nothing new for App Review.
+  `UIActivityViewController`). `@capacitor/filesystem` reads file timestamps
+  and ships no privacy manifest of its own, so the app's
+  `ios/App/App/PrivacyInfo.xcprivacy` declares
+  `NSPrivacyAccessedAPICategoryFileTimestamp` (reason `C617.1`); without it App
+  Store Connect flags the upload (ITMS-91053). Add any later required-reason
+  API to that same file.
 - Plugin proxies: never resolve a promise with one (`{ plugin }` boxing, as
   `getHealthConnect` does), and mock them as a proxy in tests.
 
@@ -479,7 +491,7 @@ sharing must survive both:
 `plan`/participations, passed from the hub's `shared` bag.
 
 **Where it's offered**: wherever `canShareImage()` is true. That means web
-always (share or download), and native once the plugin is available. Not
+always (share or download), and the shells once both plugins are available. Not
 premium: sharing is growth, and it is free like live sharing.
 
 ## i18n (en, fr, es)
@@ -649,10 +661,13 @@ qualifies:
 - no user, device, run or session id;
 - no free text and no location;
 - only enumerated values;
-- aggregate reads only (`admin_metrics()`).
+- aggregate reads only (`admin_metrics()`);
+- coarse, server-set time (added at review: see the as-built notes).
 
-It lists `qr_scans`, `live_broadcasts` and `share_card_events` under it, and
-CLAUDE.md's telemetry line points to it.
+It lists `qr_scans` and `share_card_events` under it. `live_broadcasts` keeps
+`user_id`, so it fails the first rule and is listed as not covered (maintainer,
+2026-11-28): a usage ledger disclosed in the privacy policy, not a
+non-personal counter. CLAUDE.md's telemetry line points to the section.
 
 Rejected: gating the insert on analytics consent (it undercounts like PostHog,
 the reason to build it), and PostHog only (the digest would carry the
@@ -750,9 +765,9 @@ store-release effect sits alone in a small one:
    - i18n in all three locales;
    - `@fontsource/inter` and `@napi-rs/canvas` (dev only) as new dependencies.
 
-   `canShareImage()` is false on native, so the shells show no Share button
-   yet and need no release. Web users get the whole feature.
-2. **Native sharing.**
+   `canShareImage()` was false on native until PR 2, so the shells needed no
+   release for it.
+2. **Native sharing** (built).
    - `@capacitor/share` + `@capacitor/filesystem`, the native half of
      `shareImage`, `cap sync`, and the FileProvider path check;
    - flips the entry point on in the shells.

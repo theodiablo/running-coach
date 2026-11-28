@@ -160,7 +160,8 @@ export type SessionSd = {
 
 // Settings sub-pages (the hub's rows) — named here because views deep-link
 // into them through the shared bag's openSettings.
-export type SettingsPage = "account" | "integrations" | "training" | "help";
+// publicName is reached from Account, never listed in the hub.
+export type SettingsPage = "account" | "integrations" | "training" | "help" | "publicName";
 
 export type Run = Record<string, unknown> & {
   id?: string;

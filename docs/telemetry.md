@@ -336,7 +336,8 @@ A table qualifies only if **all five** hold:
   insert` trigger, and the client's insert grant is column-scoped so it can't
   date a row itself (a row dated 2099 would sit in every future window).
   `qr_scans` is written by its own edge function, never a client, and keeps
-  its full `created_at`: the `get` request carries no JWT to join it to.
+  its full `created_at`: the `get` request has no account to join it to (its
+  invocation log does carry an IP, for the log's retention).
 
 Writes are best-effort: a failed insert is dropped silently (no retry queue,
 never a toast, never blocking the action it counts), so the counts are

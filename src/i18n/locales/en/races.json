@@ -229,5 +229,43 @@
     "savedListedToast": "Goal saved and race added to your list.",
     "short": "goal {{time}}",
     "cleared": "Goal cleared."
+  },
+  "field": {
+    "card": {
+      "title": "App runners in this field",
+      "count_one": "{{count}} app runner in this field",
+      "count_other": "{{count}} app runners in this field",
+      "youreIn": "You're one of them",
+      "body": "Training for the same start line. Only the number shows here, and a name only ever appears for a runner who chose to show theirs.",
+      "waiting": "You're in. We'll show the field once a few more app runners join.",
+      "invite": "See how many runners from the app are doing this race. You decide how you appear.",
+      "join": "Join the field",
+      "change": "Change how I appear"
+    },
+    "join": {
+      "title": "Running with others from the app",
+      "bodyOpen_one": "{{count}} other app runner has joined this race's field. Want to join them?",
+      "bodyOpen_other": "{{count}} other app runners have joined this race's field. Want to join them?",
+      "bodyFirst": "Be one of the first app runners in this field. We show the number once a few more have joined.",
+      "how": "How to appear",
+      "named": "Show me as {{name}}",
+      "namedHint": "Your public name, in the list of app runners",
+      "namedNoName": "Show me by name",
+      "namedNoNameHint": "You need a public name first",
+      "setName": "Set a public name",
+      "count": "Just count me",
+      "countHint": "Adds one to the number, no name",
+      "none": "Not this time",
+      "noneHint": "Nothing about you is shown",
+      "goal": "Show my goal time",
+      "nameLeaves": "Your name leaves the list, but you still count. To leave the field too, choose Not this time.",
+      "done": "Done",
+      "footer": "You can change this any time on the race page."
+    },
+    "toast": {
+      "error": "Couldn't save that. Check your connection and try again.",
+      "limit": "You're already in 30 upcoming race fields. Leave one to join this one.",
+      "closed": "This race's field isn't open to new runners."
+    }
   }
 }

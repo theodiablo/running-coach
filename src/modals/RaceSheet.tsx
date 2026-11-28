@@ -12,6 +12,7 @@ import { fmtKm } from "../hooks/useNearMeFilter";
 import { DurationInput } from "../components/DurationInput";
 import { RaceMiniMap } from "../components/races/RaceMiniMap";
 import { ReportForm, ResultForm, UnverifiedTag } from "../components/races/RaceForms";
+import { RaceFieldCard } from "../components/races/RaceFieldCard";
 import type { JoinedRace } from "../components/races/RaceForms";
 import type { CatalogueEdition, CatalogueRace, Participation, Plan, Run, SettingsState } from "../types";
 
@@ -31,6 +32,10 @@ type Props = {
   report: (raceSlug: string, reason: string, note: string) => void;
   previewTargetGoal?: (goalSec: number) => Plan | null;
   updateTargetGoal?: (goalSec: number) => void;
+  // Race field (docs/race-field.md): the runner's public name and the door to setting it.
+  publicName?: string | null;
+  onSetPublicName?: () => void;
+  showToast?: (msg: string, type?: string) => void;
   onClose: () => void;
 };
 
@@ -48,7 +53,7 @@ function editionsOf(race: CatalogueRace | JoinedRace): CatalogueEdition[] {
 }
 
 // The race page: one edition's details, the runner's goal for it, and what they can do with it.
-export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWishlist, setGoal, removePart, promote, saveResult, report, previewTargetGoal, updateTargetGoal, onClose }: Props) {
+export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWishlist, setGoal, removePart, promote, saveResult, report, previewTargetGoal, updateTargetGoal, publicName, onSetPublicName, showToast, onClose }: Props) {
   const { t, i18n } = useTranslation();
   useDismissable(true, onClose);
   const today = ymd(new Date());
@@ -78,6 +83,8 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
   const [showPast, setShowPast] = useState(false);
   const [logging, setLogging] = useState(false);
   const [reporting, setReporting] = useState(false);
+  // Set by "Add to my list": the field question is asked once, as the race is added.
+  const [askField, setAskField] = useState<string | null>(null);
 
   if (!ed || !joined) return null;
   const choices = editionChoices(editions, today, ed.id, showPast);
@@ -95,6 +102,7 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
   const url = typeof race.url === "string" ? race.url : null;
   const host = url ? hostOf(url) : "";
   const distKm = typeof race.distKm === "number" ? race.distKm : null;
+  const fieldEligible = upcoming && ed.verified === true && !("orphan" in race && race.orphan);
 
   // A non-target goal saves as soon as it settles; on a race not yet listed it lists it too.
   const commitGoal = (digits: string) => {
@@ -222,10 +230,18 @@ export function RaceSheet({ race, editionId, byId, settings, plan, runs, addWish
           </Section>
         )}
 
+        {fieldEligible && (
+          <Section>
+            <RaceFieldCard editionId={ed.id} listed={!!part} ask={askField === ed.id && !!part} publicName={publicName}
+              goalSec={savedGoal || null} onAsked={() => setAskField(null)}
+              onSetName={() => onSetPublicName?.()} showToast={showToast}/>
+          </Section>
+        )}
+
         <Section>
           <div className="space-y-2">
             {!part && (
-              <button onClick={() => addWishlist(joined)}
+              <button onClick={() => { addWishlist(joined); if (fieldEligible) setAskField(ed.id); }}
                 className="w-full flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-100 py-2.5 rounded-xl text-sm font-bold transition-colors">
                 <Star size={15}/>{t("races.sheet.addToList")}
               </button>
