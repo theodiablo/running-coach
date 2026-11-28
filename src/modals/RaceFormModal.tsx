@@ -99,7 +99,7 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
   };
 
   // `target`: an existing race to add the date to; null creates a new race. `distinctFrom`: the
-  // listed races the runner said this isn't, so neither the lookup nor the repeat trigger asks again.
+  // listed races the runner said this isn't; the lookup then asks only about the rest.
   const submit = async (target: CatalogueRace | null = selected, distinctFrom: string[] = []) => {
     if (locating) return;   // the pin's country is still on its way
     setErr("");
@@ -119,9 +119,10 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
     const elevation = f.elevation ? parseInt(String(f.elevation)) : 0;
     const lookup = { name, country, lat: loc?.lat ?? null, lng: loc?.lng ?? null, date: f.date, distanceKm: dist };
     setBusy(true);
-    if (!target && !distinctFrom.length) {
+    if (!target) {
       try {
-        const strong = (await findRaceDuplicates(lookup)).find(d => d.strong);
+        const strong = (await findRaceDuplicates(lookup))
+          .find(d => d.strong && !distinctFrom.includes(d.race.slug || d.race.id));
         if (strong) { setDupe({ match: strong, refused: false, distinctFrom }); setBusy(false); return; }
       } catch (e) {
         console.error("race duplicate check failed", e);   // never blocks: the database rule still stands

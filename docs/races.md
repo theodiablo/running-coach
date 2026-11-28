@@ -194,7 +194,8 @@ edition sits on exactly that date: `edition_id`; a ±3-day match counts toward `
 never swapped in for the runner's day), via `onCreated(id, true)` in onboarding or
 `onUseExisting` → the race sheet from Find,
 **add my date to it**, or **it's a different race** (saves with the listed race's slug added to
-`races.distinct_from`, a list, so neither the lookup nor the trigger asks about it again; a
+`races.distinct_from`, a list; the lookup runs again and asks only about strong matches not
+yet answered, and the trigger skips the answered ones; a
 reviewer sees the answers). A failed
 lookup never blocks a save.
 

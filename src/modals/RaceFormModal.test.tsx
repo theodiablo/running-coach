@@ -326,6 +326,21 @@ describe("RaceFormModal duplicate on submit", () => {
     expect(screen.queryByText("Is this your race?")).not.toBeInTheDocument();
   });
 
+  it("asks about each strong match in turn, skipping the ones already answered", async () => {
+    const other: CatalogueRace = { ...kili, id: "kili-2", slug: "kili-2", name: "Kilimanjaro Half" };
+    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country
+      ? [match(true), { race: other, strong: true, editionId: null }] : []);
+    const { addRace } = setup();
+    fillNew();
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "No, it's a different race" }));
+    expect(await screen.findByText("Kilimanjaro Half")).toBeInTheDocument();
+    expect(addRace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "No, it's a different race" }));
+    await waitFor(() => expect(addRace).toHaveBeenCalledTimes(1));
+    expect(addRace.mock.calls[0][0]).toMatchObject({ distinctFrom: [kili.slug, "kili-2"] });
+  });
+
   it("never blocks a save when the lookup fails", async () => {
     vi.mocked(findRaceDuplicates).mockRejectedValue(new Error("offline"));
     const { addRace } = setup();
