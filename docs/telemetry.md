@@ -349,8 +349,9 @@ A table qualifies only if **all five** hold:
 Writes are best-effort: a failed write is dropped silently (no retry queue,
 never a toast, never blocking the action it counts), so the counts are
 approximate, and since any signed-in client can add to them they can be
-inflated. Daily totals keep a flood's cost to a counter value: the table grows
-by at most one row per day and combination, however many calls arrive. The digest says "approximate". The request itself,
+inflated. Daily totals bound the live rows to one per day and combination,
+however many calls arrive; a flood still costs write I/O, WAL and dead row
+versions until vacuum, not table growth. The digest says "approximate". The request itself,
 like every API call, still reaches Supabase's request logs with its caller for
 their retention: the counter is non-personal as stored, not invisible in
 transit, and the path names the function (`/rest/v1/rpc/share_card_count`),
