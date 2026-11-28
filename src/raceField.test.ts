@@ -21,7 +21,7 @@ vi.mock("./supabase", () => {
   };
 });
 
-const { fetchRaceField, aboutYourTime, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
+const { fetchRaceField, aboutYourTime, hideNameInFields, setFieldChoice, syncFieldGoal, noteListedEditions, pendingLeaves, leavePendingFields, createFieldReconciler } = await import("./raceField");
 const ops = () => h.calls.map(c => c[0]);
 
 beforeEach(() => { h.calls = []; h.results = []; });
@@ -98,6 +98,18 @@ describe("setFieldChoice", () => {
     expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("closed");
     h.results.push({ error: { message: "network" } });
     expect(await setFieldChoice("u", "e1", "count", null, null)).toBe("error");
+  });
+});
+
+describe("hideNameInFields", () => {
+  it("moves only this runner's by-name memberships to count-only, goal and all", async () => {
+    expect(await hideNameInFields("u")).toBe(true);
+    expect(h.calls).toEqual([["from", "race_field_members"], ["update", { visibility: "count", goal_sec: null }],
+      ["eq", "user_id", "u"], ["eq", "visibility", "named"]]);
+  });
+  it("reports a failure", async () => {
+    h.results.push({ error: { message: "offline" } });
+    expect(await hideNameInFields("u")).toBe(false);
   });
 });
 

@@ -338,8 +338,12 @@ carries the report id, edition and name text. In the SQL editor:
 select p.id from public.profiles p
 join public.race_field_members m on m.user_id = p.id
 where p.public_name = '<name>' and m.edition_id = '<edition>' and m.visibility = 'named';
--- 2. If the text itself breaks the rules, clear it for those accounts (they stay
---    counted, without a name, everywhere):
+-- 2. Only if the text itself breaks the rules (a report proves nothing on its own:
+--    anyone can report any name text), clear it for those accounts and move their
+--    by-name memberships to count-only, as removing a name in the app does, so a
+--    new name can't reappear on those fields:
+update public.race_field_members set visibility = 'count', goal_sec = null
+  where user_id in (<ids from 1>) and visibility = 'named';
 update public.profiles set public_name = null where id in (<ids from 1>);
 -- 3. Handled either way: the report holds name text with no account to cascade on.
 delete from public.race_reports where id = '<report id>';
@@ -386,7 +390,9 @@ delete from public.race_reports where reason = 'field_name' and created_at < now
 - **Settings › Account › Public name** (`src/modals/settings/PublicNamePage.tsx`,
   canvas `Main`): reached from a row on `AccountPage` showing the name or
   "Off", never listed on the hub. Field, live preview, where it can appear,
-  Save and Remove. `openSettings("publicName")` deep-links to it; back from a
+  Save and Remove. Remove first moves every by-name membership to count-only
+  (`hideNameInFields`), so a name set later never reappears on a field the
+  runner was told they now count in without a name. `openSettings("publicName")` deep-links to it; back from a
   deep link closes settings, back from Account's row returns to Account.
 - **Join sheet** (`src/modals/FieldJoinSheet.tsx`, canvas `Field-Join`):
   opened by the race page's "Add to my list" (the one automatic ask) and by

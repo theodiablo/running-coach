@@ -4,6 +4,7 @@ import { Check, Loader, X } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../../constants";
 import { currentUserId } from "../../db";
 import { fetchPublicName, normalizePublicName, publicNameIssue, savePublicName } from "../../publicName";
+import { hideNameInFields } from "../../raceField";
 
 // Settings › Account › Public name: the one name other runners can see, and only in a
 // race field the runner chose to appear in by name (docs/race-field.md).
@@ -41,7 +42,7 @@ export function PublicNamePage({ publicName, onSaved, showToast }: PublicNamePag
     const uid = currentUserId();
     if (!uid) return;
     setSaving(true);
-    const ok = await savePublicName(uid, next);
+    const ok = (next !== null || await hideNameInFields(uid)) && await savePublicName(uid, next);
     setSaving(false);
     if (!ok) { showToast?.(t("settings.publicName.error"), "error"); return; }
     onSaved(next);

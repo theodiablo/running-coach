@@ -100,6 +100,18 @@ export async function setFieldChoice(uid: string, editionId: string, choice: Fie
   }
 }
 
+// Removing the public name moves every by-name membership to count-only, so a name set
+// later never reappears in a field the runner was told they'd left by name. Run it first.
+export async function hideNameInFields(uid: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("race_field_members")
+      .update({ visibility: "count", goal_sec: null }).eq("user_id", uid).eq("visibility", "named");
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 // Keeps a shown goal in step with the race's goal. Only a goal already shown is
 // touched: a hidden one (null) stays hidden until the runner turns it on again.
 let goalWrites: Promise<unknown> = Promise.resolve();

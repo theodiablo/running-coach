@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
-const h = vi.hoisted(() => ({ save: vi.fn(), fetch: vi.fn() }));
+const h = vi.hoisted(() => ({ save: vi.fn(), fetch: vi.fn(), hide: vi.fn() }));
+vi.mock("../../raceField", () => ({ hideNameInFields: h.hide }));
 vi.mock("../../db", () => ({ currentUserId: () => "u1" }));
 vi.mock("../../publicName", async (orig) => ({
   ...(await orig<typeof import("../../publicName")>()),
@@ -17,7 +18,7 @@ const page = (publicName: string | null | undefined) => {
   return props;
 };
 
-beforeEach(() => { h.save.mockReset().mockResolvedValue(true); h.fetch.mockReset(); });
+beforeEach(() => { h.save.mockReset().mockResolvedValue(true); h.fetch.mockReset(); h.hide.mockReset().mockResolvedValue(true); });
 afterEach(cleanup);
 
 describe("PublicNamePage", () => {
@@ -41,7 +42,26 @@ describe("PublicNamePage", () => {
     const props = page("Alex M.");
     fireEvent.click(screen.getByRole("button", { name: "Remove my public name" }));
     await waitFor(() => expect(h.save).toHaveBeenCalledWith("u1", null));
+    expect(h.hide).toHaveBeenCalledWith("u1");
+    expect(h.hide.mock.invocationCallOrder[0]).toBeLessThan(h.save.mock.invocationCallOrder[0]);
     expect(props.onSaved).toHaveBeenCalledWith(null);
+  });
+
+  it("keeps the name when its fields couldn't be moved to count-only, so a later name can't reappear", async () => {
+    h.hide.mockResolvedValue(false);
+    const props = page("Alex M.");
+    fireEvent.click(screen.getByRole("button", { name: "Remove my public name" }));
+    await waitFor(() => expect(props.showToast).toHaveBeenCalledWith(expect.stringMatching(/Couldn't save/), "error"));
+    expect(h.save).not.toHaveBeenCalled();
+    expect(props.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("never touches memberships when saving a name", async () => {
+    page(null);
+    fireEvent.change(screen.getByLabelText("Name other runners see"), { target: { value: "Alex" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(h.save).toHaveBeenCalled());
+    expect(h.hide).not.toHaveBeenCalled();
   });
 
   it("keeps the old name when a save fails", async () => {
