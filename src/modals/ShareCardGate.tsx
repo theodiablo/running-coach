@@ -5,8 +5,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import type { ShareCardProps } from "./ShareCardSheet";
 
 // The builder, its canvas code and its fonts live in their own chunk, fetched on first open.
-// The native build folds it to null, so the chunk and its fonts stay out of the shells.
-const load = () => (import.meta.env.VITE_NATIVE_BUILD ? null : lazy(() => import("./ShareCardSheet")));
+const load = () => lazy(() => import("./ShareCardSheet"));
 // React caches a rejected lazy import; a failed load swaps in a fresh one so the next open retries.
 let ShareCardSheet = load();
 
@@ -17,7 +16,6 @@ function Loading({ onClose }: { onClose: () => void }) {
 
 export function ShareCardGate(props: ShareCardProps) {
   const { t } = useTranslation();
-  if (!ShareCardSheet) return null;
   return (
     <ChunkLoadBoundary fallback={null} onError={() => { ShareCardSheet = load(); props.showToast?.(t("shareCard.loadError"), "err"); props.onClose(); }}>
       <Suspense fallback={<Loading onClose={props.onClose} />}>
