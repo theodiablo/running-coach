@@ -628,6 +628,10 @@ grant insert on public.share_card_events to authenticated;
   (the PNG encoding) defers to it: the visit gets the hand-off row if it
   lands, else `closed`, never both. An unmount without a close (the app
   killed) writes nothing, which is the "lost closing row" the digest allows for.
+- Rows carry the UTC **day**, not the moment: a `before insert` trigger stamps
+  `created_at`, and `authenticated` may insert only the enum columns, so a
+  client can't date a row. The 7-day window therefore moves by whole days
+  (`docs/telemetry.md`, "Coarse, server-set time").
 - `admin_metrics()` returns `share_card: { since, "7d", total }`, each window
   `{ opened: {finish, detail}, opened_by_platform, shared, saved,
   kept: {shared, closed}, changed: {shared, closed}, handoffs:

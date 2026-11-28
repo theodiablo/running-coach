@@ -48,7 +48,7 @@ event counts undercount, and runs and plans live only in the `app_state` blob.
   - **Pick > shared**: every hand-off as `preselected>chosen`.
 
   Counts are approximate (best-effort inserts, any signed-in client can add
-  rows, a visit can straddle the window edge); "tracked since" is where the
+  rows, rows carry the day only, so the window edge moves by whole days); "tracked since" is where the
   history starts. The digest omits the section when the field is absent.
 
 ## The edge function (`admin-metrics`)

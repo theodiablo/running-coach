@@ -315,7 +315,7 @@ Measuring the opt-in slice through PostHog undercounts by an unknown, shifting
 fraction, and that is the reason to build a counter at all. So gating a counter
 on consent defeats it, and a table that would need consent isn't a counter.
 
-A table qualifies only if **all four** hold:
+A table qualifies only if **all five** hold:
 
 - **No user, device, run or session id.** No column (and no combination of
   columns) points back at an account, an install, a run or a visit. A flag kept
@@ -329,11 +329,23 @@ A table qualifies only if **all four** hold:
 - **Aggregate reads only.** RLS on, no `select` for `anon`/`authenticated`;
   rows leave the database only as counts through `admin_metrics()` (service
   role).
+- **Coarse, server-set time.** A full timestamp joins a row back to its caller
+  (the API request log names the JWT's user at that instant, and a run save
+  lands seconds before a finish-screen open), and stitches one visit's rows
+  together. So the row carries the **day** at most, stamped by a `before
+  insert` trigger, and the client's insert grant is column-scoped so it can't
+  date a row itself (a row dated 2099 would sit in every future window).
+  `qr_scans` is written by its own edge function, never a client, and keeps
+  its full `created_at`: the `get` request carries no JWT to join it to.
 
 Writes are best-effort: a failed insert is dropped silently (no retry queue,
 never a toast, never blocking the action it counts), so the counts are
-approximate, and since any client can insert they can be inflated. The digest
-says "approximate".
+approximate, and since any signed-in client can insert they can be inflated.
+A deliberate flood also costs storage and `admin_metrics()` time (it scans the
+table), not just accuracy. The digest says "approximate". The request itself,
+like every API call, still reaches Supabase's request logs with its caller for
+their retention: the counter is non-personal as stored, not invisible in
+transit.
 
 **Under it today:**
 

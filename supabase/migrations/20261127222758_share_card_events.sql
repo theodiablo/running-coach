@@ -5,7 +5,8 @@
 
 create table public.share_card_events (
   id          bigint generated always as identity primary key,
-  created_at  timestamptz not null default now(),
+  -- The UTC day only, stamped by the trigger below: a full timestamp joins a row back to its caller.
+  created_at  timestamptz not null default date_trunc('day', now(), 'UTC'),
   event       text not null check (event in ('opened', 'shared', 'saved', 'closed')),
   entry       text not null check (entry in ('finish', 'detail')),
   preselected text not null check (preselected in ('route', 'number', 'week')),
@@ -24,9 +25,29 @@ create index share_card_events_created_at_idx on public.share_card_events (creat
 alter table public.share_card_events enable row level security;
 revoke all on public.share_card_events from anon, authenticated;
 -- auto_expose_new_tables is unset, so without this grant every insert fails despite the policy.
-grant insert on public.share_card_events to authenticated;
+-- Column-scoped: a client can't date a row (a 2099 row would sit in every future 7-day window).
+grant insert (event, entry, preselected, chosen, platform, first_share) on public.share_card_events to authenticated;
 
--- A signed-in caller only (the anon key is refused), and not an "always true" policy for the linter.
+-- The day is the server's, whatever the insert carried (service_role included).
+create or replace function public.share_card_events_stamp()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  new.created_at := pg_catalog.date_trunc('day', pg_catalog.now(), 'UTC');
+  return new;
+end;
+$$;
+
+revoke execute on function public.share_card_events_stamp() from public, anon, authenticated;
+
+create trigger share_card_events_stamp
+  before insert on public.share_card_events
+  for each row execute function public.share_card_events_stamp();
+
+-- Not an "always true" policy for the linter; anon has no grant at all.
 create policy share_card_events_insert on public.share_card_events
   for insert to authenticated
   with check ((select auth.uid()) is not null);

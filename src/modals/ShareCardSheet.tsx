@@ -90,6 +90,7 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
   // Closed while a hand-off was in flight: `share()` writes `closed` only if it then doesn't hand off.
   const inFlight = useRef(false);
   const closedOn = useRef<CardStyle | null>(null);
+  const closed = useRef(false);
   const counted = useRef(false);
   useEffect(() => {
     if (counted.current) return;
@@ -97,8 +98,11 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
     shareOpened(entry, openedWith);
   }, [entry, openedWith]);
   const close = () => {
-    if (inFlight.current) closedOn.current = style;
-    else if (!handedOff.current) shareClosed(entry, openedWith, style);
+    if (!closed.current) {
+      closed.current = true;
+      if (inFlight.current) closedOn.current = style;
+      else if (!handedOff.current) shareClosed(entry, openedWith, style);
+    }
     onClose();
   };
   useDismissable(true, close);
@@ -157,7 +161,8 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
   })();
 
   const share = async () => {
-    if (busy) return;
+    // The ref, not `busy`: a double tap lands before the re-render that disables the button.
+    if (inFlight.current) return;
     setBusy(true);
     inFlight.current = true;
     try {

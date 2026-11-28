@@ -1,5 +1,6 @@
+import { StrictMode } from "react";
 import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 import { ShareCardSheet } from "./ShareCardSheet";
 import { dismissTop } from "../utils/backDismiss";
 import type { Run, SettingsState } from "../types";
@@ -26,6 +27,12 @@ const setup = (run: Run, runs: Run[] = []) => {
   render(<ShareCardSheet entry="detail" run={run} runs={runs} plan={null} settings={settings} participations={[]} points={null} onClose={onClose} />);
   return onClose;
 };
+
+// 4 km east, then back west on a parallel street ~450 m north: one fix every ~10 m.
+const loop = Array.from({ length: 801 }, (_, i) => {
+  const x = (i <= 400 ? i : 800 - i) * 10;
+  return [48.85 + (i > 400 ? 0.004 : 0), 2.35 + x / 73300, i * 1000, null] as const;
+});
 
 describe("ShareCardSheet", () => {
   it("pre-selects Number for a personal best and says so in the preview's label", () => {
@@ -98,6 +105,31 @@ describe("ShareCardSheet", () => {
       expect(shareOpened).toHaveBeenCalledWith("detail", "number");
     });
 
+    it("counts the open once under StrictMode's double effect", () => {
+      render(<StrictMode><ShareCardSheet entry="finish" run={run} runs={[]} plan={null} settings={settings}
+        participations={[]} points={null} onClose={vi.fn()} /></StrictMode>);
+      expect(shareOpened).toHaveBeenCalledTimes(1);
+      expect(shareOpened).toHaveBeenCalledWith("finish", "number");
+    });
+
+    it("writes one closed row however many close paths fire", () => {
+      setup(run);
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      dismissTop();
+      expect(shareClosed).toHaveBeenCalledTimes(1);
+    });
+
+    it("starts one share for a double tap", async () => {
+      canExport();
+      vi.mocked(shareImage).mockResolvedValue("shared");
+      setup(run);
+      const button = await screen.findByRole("button", { name: /^(Share image|Download image)$/ });
+      // Both taps in one act: no re-render between them to disable the button.
+      act(() => { button.click(); button.click(); });
+      await waitFor(() => expect(shareHandedOff).toHaveBeenCalledTimes(1));
+      expect(shareImage).toHaveBeenCalledTimes(1);
+    });
+
     it("counts a visit that shared nothing as closed, with the style on screen", () => {
       const onClose = setup(run);
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -139,6 +171,30 @@ describe("ShareCardSheet", () => {
       await waitFor(() => expect(result === "shared" ? shareHandedOff : shareClosed).toHaveBeenCalledTimes(1));
       if (closed) expect(shareClosed).toHaveBeenCalledWith("detail", "number", "number");
       else expect(shareClosed).not.toHaveBeenCalled();
+    });
+
+    it("files a changed style as chosen, against the pre-selection", async () => {
+      canExport();
+      vi.mocked(shareImage).mockResolvedValueOnce("dismissed").mockResolvedValue("shared");
+      render(<ShareCardSheet entry="detail" run={{ ...run, source: "gps" }} runs={[]} plan={null} settings={settings}
+        participations={[]} points={loop} onClose={vi.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: "Number" }));
+      const button = await screen.findByRole("button", { name: /^(Share image|Download image)$/ });
+      fireEvent.click(button);
+      await waitFor(() => expect(shareImage).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(button).not.toBeDisabled());
+      fireEvent.click(button);
+      // The first hand-off of the visit, though it was the second attempt.
+      await waitFor(() => expect(shareHandedOff).toHaveBeenCalledWith("shared", "detail", "route", "number", true));
+    });
+
+    it("closes on the style on screen, not the pre-selected one", () => {
+      const onClose = vi.fn();
+      render(<ShareCardSheet entry="finish" run={{ ...run, source: "gps" }} runs={[]} plan={null} settings={settings}
+        participations={[]} points={loop} onClose={onClose} />);
+      fireEvent.click(screen.getByRole("button", { name: "Number" }));
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(shareClosed).toHaveBeenCalledWith("finish", "route", "number");
     });
 
     it("counts nothing for a dismissed sheet", async () => {
