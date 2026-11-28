@@ -6,6 +6,7 @@ vi.mock("../notify", () => ({ notifyContribution: vi.fn() }));
 vi.mock("../races", () => ({
   deleteRace: vi.fn().mockResolvedValue(undefined),
   findRaceDuplicates: vi.fn().mockResolvedValue([]),
+  listKnownRaces: vi.fn().mockResolvedValue([]),
   duplicateRefusal: (e: { code?: string; details?: string; hint?: string }) =>
     e?.code === "RC409" ? { raceSlug: e.details, editionId: e.hint ?? null } : null,
 }));
@@ -20,7 +21,7 @@ import { setLocale } from "../i18n";
 import { guessCountry } from "../utils/guessCountry";
 import { reverseGeocode } from "../utils/geocode";
 import { RaceFormModal } from "./RaceFormModal";
-import { deleteRace, findRaceDuplicates } from "../races";
+import { deleteRace, findRaceDuplicates, listKnownRaces } from "../races";
 import type { CatalogueRace } from "../types";
 
 // The date bounds (a year back, two years ahead) read the clock; the prefill's date sits inside them.
@@ -33,6 +34,7 @@ afterEach(async () => {
   cleanup();
   vi.useRealTimers();
   vi.mocked(findRaceDuplicates).mockReset().mockResolvedValue([]);
+  vi.mocked(listKnownRaces).mockReset().mockResolvedValue([]);
   vi.mocked(guessCountry).mockReturnValue(null);
   vi.mocked(reverseGeocode).mockResolvedValue(null);
   await setLocale("en", { persist: false });
@@ -334,7 +336,9 @@ describe("RaceFormModal duplicate on submit", () => {
 
   it("turns the database's refusal into the same question, and each 'different' answer adds to the list", async () => {
     const other: CatalogueRace = { ...kili, id: "kili-2", slug: "kili-2", name: "Kilimanjaro Half" };
-    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country ? [match(true), { race: other, strong: false, editionId: null }] : []);
+    // The refused race isn't in the ranked lookup at all: it's fetched by its edition.
+    vi.mocked(findRaceDuplicates).mockImplementation(async q => q.name && q.country ? [match(true)] : []);
+    vi.mocked(listKnownRaces).mockResolvedValue([other]);
     const { addRace, addEdition } = setup();
     addEdition.mockRejectedValueOnce({ code: "RC409", details: "kili-2", hint: "kili-2-2027-02-07" });
     fillNew();
@@ -343,6 +347,7 @@ describe("RaceFormModal duplicate on submit", () => {
     expect(await screen.findByText("This race is already listed for that day.")).toBeInTheDocument();
     expect(deleteRace).toHaveBeenCalledWith("new-race");
     expect(screen.getByText("Kilimanjaro Half")).toBeInTheDocument();
+    expect(listKnownRaces).toHaveBeenCalledWith({ editionIds: ["kili-2-2027-02-07"] });
     fireEvent.click(screen.getByRole("button", { name: "No, it's a different race" }));
     await waitFor(() => expect(addRace).toHaveBeenCalledTimes(2));
     expect(addRace.mock.calls[1][0]).toMatchObject({ distinctFrom: [kili.slug, "kili-2"] });

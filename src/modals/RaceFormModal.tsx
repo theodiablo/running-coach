@@ -5,7 +5,7 @@ import { MapPin, Check, Plus, AlertTriangle, Loader } from "lucide-react";
 import { INPUT_CLS, LABEL_CLS } from "../constants";
 import { track } from "../telemetry";
 import { LocationPicker } from "../components/LocationPicker";
-import { deleteRace, duplicateRefusal, findRaceDuplicates } from "../races";
+import { deleteRace, duplicateRefusal, findRaceDuplicates, listKnownRaces } from "../races";
 import type { RaceDuplicate, RaceTerrain } from "../races";
 import { useRaceDuplicates } from "../hooks/useRaceDuplicates";
 import { rememberRaces } from "../utils/races";
@@ -160,9 +160,11 @@ export function RaceFormModal({ addRace, addEdition, onContributed, showToast, o
       // leave an orphan in the shared catalogue. Best-effort — already failing.
       if (createdRaceSlug) deleteRace(createdRaceSlug).catch(() => {});
       const refusal = duplicateRefusal(e);
-      const match = refusal && (await findRaceDuplicates(lookup).catch(() => []))
-        .find(d => d.race.slug === refusal.raceSlug);
-      if (match) setDupe({ match: { ...match, editionId: match.editionId ?? refusal.editionId }, refused: true, distinctFrom });
+      // Fetched by the refused edition, not the ranked lookup, which can leave it out.
+      const race = refusal?.editionId
+        ? (await listKnownRaces({ editionIds: [refusal.editionId] })).find(r => (r.slug || r.id) === refusal.raceSlug)
+        : null;
+      if (refusal && race) setDupe({ match: { race, strong: true, editionId: refusal.editionId }, refused: true, distinctFrom });
       else setErr(t("races.form.errors.save"));
       setBusy(false);
     }
