@@ -255,13 +255,17 @@ export async function addRace({ name, city, country, lat, lng, distances, url, t
   const base = slugify(raceName) || "race";
   const candidates = [base, slugify(`${raceName}-${city}`), `${base}-${Date.now().toString(36)}`];
   let lastErr: Error | { message?: string } | null = null;
-  for (const slug of candidates) {
+  // Sent only when set, and dropped on PGRST204, so a save works before distinct_from's migration lands.
+  let extra: { distinct_from?: string } = distinctFrom ? { distinct_from: distinctFrom } : {};
+  for (let i = 0; i < candidates.length; i++) {
+    const slug = candidates[i];
     const { data, error } = await supabase
       .from("races")
-      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, distinct_from: distinctFrom || null, verified: false, created_by: user_id })
+      .insert({ slug, name: raceName, city, country, lat, lng, distances: distances || [], url: raceUrl(url), terrain: terrain || null, ...extra, verified: false, created_by: user_id })
       .select(RACE_COLS)
       .single();
     if (!error) { clearRaceSearchCache(); return toRace(data, []); }
+    if (error.code === "PGRST204" && extra.distinct_from) { extra = {}; i--; continue; }
     if (!isUniqueViolation(error)) { lastErr = error; break; }
     lastErr = error; // slug taken — try the next candidate
   }

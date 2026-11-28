@@ -184,6 +184,8 @@ begin
   select lat, lng, distinct_from, public.race_name_tokens(name) as toks into pin
     from public.races where slug = new.race_slug;
   if pin.lat is null or pin.lng is null then return new; end if;
+  -- One check per date at a time, so two concurrent inserts can't both miss each other.
+  perform pg_advisory_xact_lock(hashtext('race_editions_duplicate:' || new.date::text));
   select e.race_slug, e.id into dup
     from public.race_editions e join public.races r on r.slug = e.race_slug
    where e.race_slug <> new.race_slug and e.race_slug is distinct from pin.distinct_from
