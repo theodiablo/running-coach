@@ -121,6 +121,26 @@ describe("ShareCardSheet", () => {
       expect(shareClosed).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["shared", false],
+      ["dismissed", true],
+      ["failed", true],
+    ] as const)("closing mid-hand-off waits for it: %s writes closed = %s", async (result, closed) => {
+      canExport();
+      let settle: (r: typeof result) => void = () => {};
+      vi.mocked(shareImage).mockReturnValue(new Promise(r => { settle = r; }));
+      const onClose = setup(run);
+      fireEvent.click(await screen.findByRole("button", { name: /^(Share image|Download image)$/ }));
+      await waitFor(() => expect(shareImage).toHaveBeenCalled());
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(shareClosed).not.toHaveBeenCalled();
+      settle(result);
+      await waitFor(() => expect(result === "shared" ? shareHandedOff : shareClosed).toHaveBeenCalledTimes(1));
+      if (closed) expect(shareClosed).toHaveBeenCalledWith("detail", "number", "number");
+      else expect(shareClosed).not.toHaveBeenCalled();
+    });
+
     it("counts nothing for a dismissed sheet", async () => {
       canExport();
       vi.mocked(shareImage).mockResolvedValue("dismissed");

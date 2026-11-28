@@ -624,8 +624,10 @@ grant insert on public.share_card_events to authenticated;
 - `opened` fires once on mount (a ref guard, so StrictMode's double effect
   doesn't double it). `closed` is written by the builder's own close path,
   which the close button and `useDismissable` (back, Escape, the header's
-  go-Home reset) all go through. An unmount without a close (the app killed)
-  writes nothing, which is the "lost closing row" the digest allows for.
+  go-Home reset) all go through. A close while a hand-off is still in flight
+  (the PNG encoding) defers to it: the visit gets the hand-off row if it
+  lands, else `closed`, never both. An unmount without a close (the app
+  killed) writes nothing, which is the "lost closing row" the digest allows for.
 - `admin_metrics()` returns `share_card: { since, "7d", total }`, each window
   `{ opened: {finish, detail}, opened_by_platform, shared, saved,
   kept: {shared, closed}, changed: {shared, closed}, handoffs:

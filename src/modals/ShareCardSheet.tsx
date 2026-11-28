@@ -87,6 +87,9 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
   // Counted against the style offered at open, even if a late trace changes the pre-selection.
   const [openedWith] = useState(preselected);
   const handedOff = useRef(false);
+  // Closed while a hand-off was in flight: `share()` writes `closed` only if it then doesn't hand off.
+  const inFlight = useRef(false);
+  const closedOn = useRef<CardStyle | null>(null);
   const counted = useRef(false);
   useEffect(() => {
     if (counted.current) return;
@@ -94,7 +97,8 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
     shareOpened(entry, openedWith);
   }, [entry, openedWith]);
   const close = () => {
-    if (!handedOff.current) shareClosed(entry, openedWith, style);
+    if (inFlight.current) closedOn.current = style;
+    else if (!handedOff.current) shareClosed(entry, openedWith, style);
     onClose();
   };
   useDismissable(true, close);
@@ -155,6 +159,7 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
   const share = async () => {
     if (busy) return;
     setBusy(true);
+    inFlight.current = true;
     try {
       const canvas = document.createElement("canvas");
       canvas.width = CARD_W * EXPORT_SCALE;
@@ -175,6 +180,8 @@ export function ShareCardSheet({ entry, run, runs, plan, settings, participation
     } catch {
       showToast?.(t("shareCard.failed"), "err");
     } finally {
+      inFlight.current = false;
+      if (closedOn.current && !handedOff.current) shareClosed(entry, openedWith, closedOn.current);
       setBusy(false);
     }
   };
